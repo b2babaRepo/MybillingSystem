@@ -42,13 +42,37 @@ public sealed class AuthService(
             return AuthResult<AuthResponse>.Fail(error);
         }
 
-        var shop = new Shop { Name = request.ShopName!.Trim(), Slug = NewSlug(request.ShopName) };
+        var shop = new Shop
+        {
+            Name = request.ShopName!.Trim(),
+            Slug = NewSlug(request.ShopName),
+            Area = string.IsNullOrWhiteSpace(request.Area) ? null : request.Area.Trim()[..Math.Min(request.Area.Trim().Length, 120)],
+        };
         db.Shops.Add(shop);
         var membership = new Membership { UserId = user.Id, ShopId = shop.Id, Role = ShopRole.Owner };
         db.Memberships.Add(membership);
         logger.LogInformation("User {UserId} opened shop {ShopId}", user.Id, shop.Id);
 
         return AuthResult<AuthResponse>.Ok(await IssueAsync(user, membership, cancellationToken));
+    }
+
+    public async Task<AuthResult<AuthResponse>> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
+    {
+        var phone = PhoneNumber.Normalize(request.Phone)!;
+        var user = await db.Users.SingleOrDefaultAsync(u => u.Phone == phone, cancellationToken);
+        if (user is null)
+        {
+            user = new User { Phone = phone, FullName = request.FullName!.Trim(), PreferredLanguage = request.Language ?? "hi" };
+            user.PasswordHash = passwordHasher.HashPassword(user, request.Password!);
+            db.Users.Add(user);
+        }
+        else if (await CheckPasswordAsync(user, request.Password!, cancellationToken) is { } error)
+        {
+            return AuthResult<AuthResponse>.Fail(error);
+        }
+
+        // A user token, no shop: the planner works on the person's own lists.
+        return AuthResult<AuthResponse>.Ok(await IssueAsync(user, membership: null, cancellationToken));
     }
 
     public async Task<AuthResult<AuthResponse>> SignInAsync(SignInRequest request, CancellationToken cancellationToken)

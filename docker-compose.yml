@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres_dev_password
     ports:
-      - "5432:5432"
+      - "5434:5432"   # 5432 is often taken by a locally installed PostgreSQL; 5433 by SchoolErp
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro

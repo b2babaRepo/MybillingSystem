@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 
 namespace GroceryKhata.Api.Ledger;
@@ -14,8 +15,19 @@ public static class LedgerEndpoints
         group.MapPost("/customers", async (CustomerRequest request, LedgerService ledger, CancellationToken ct) =>
             (await ledger.CreateCustomerAsync(request, ct)).ToHttp($"/api/v1/customers/{request.Id}/statement"));
 
-        group.MapGet("/customers/{id:guid}/statement", async (Guid id, LedgerService ledger, CancellationToken ct) =>
-            await ledger.GetStatementAsync(id, ct) is { } statement ? Results.Ok(statement) : Results.NotFound());
+        group.MapGet("/customers/{id:guid}/statement", async (Guid id, string? month, LedgerService ledger, CancellationToken ct) =>
+        {
+            var period = IndiaTime.ParseMonth(month);
+            if (month is not null && period is null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
+            }
+
+            return await ledger.GetStatementAsync(id, period, ct) is { } statement ? Results.Ok(statement) : Results.NotFound();
+        });
+
+        group.MapGet("/bills/{id:guid}", async (Guid id, LedgerService ledger, CancellationToken ct) =>
+            await ledger.GetBillAsync(id, ct) is { } bill ? Results.Ok(bill) : Results.NotFound());
 
         group.MapPost("/khata-entries", async (KhataEntryRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
             (await ledger.AddKhataEntryAsync(request, user.UserId()!.Value, ct)).ToHttp($"/api/v1/customers/{request.CustomerId}/statement"));

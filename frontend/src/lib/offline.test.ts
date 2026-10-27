@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { pressKey } from './keypad'
 import { uuidv7 } from './ids'
-import { mergeCustomers, mergeStatement } from './local'
+import { parseCsv } from './catalogue'
+import { mergeCustomers, mergeProducts, mergeStatement, mergeToday } from './local'
+import { mergeLists } from './planner'
 import { enqueue, flush, listOps, type OutboxOp } from './outbox'
 import type { Statement } from './types'
 
@@ -69,6 +71,9 @@ describe('merging unsynced writes into what the shopkeeper sees', () => {
     const statement: Statement = {
       customer: server[0],
       entries: [{ id: 'e1', kind: 'credit', amount: 100, paymentMode: null, billId: null, reversesEntryId: null, note: null, occurredAt: '2026-10-01T10:00:00Z', runningBalance: 100, isReversed: false }],
+      openingBalance: 0,
+      closingBalance: 100,
+      month: null,
     }
     const [customer] = mergeCustomers(server, [])
     const { entries } = mergeStatement(statement, customer, [
@@ -78,6 +83,64 @@ describe('merging unsynced writes into what the shopkeeper sees', () => {
     expect(entries.map((e) => e.runningBalance)).toEqual([100, 150, 50])
     expect(entries[0].isReversed).toBe(true)
     expect(entries[2]).toMatchObject({ kind: 'reversal', pending: true })
+  })
+})
+
+describe('home screen numbers offline', () => {
+  it('adds unsynced bills and khata entries to today', () => {
+    const server = { date: '2026-10-27', sales: 100, bills: 1, cash: 100, upi: 0, udhaar: 0, outstanding: 0, customersOwing: 0, topDues: [] }
+    const today = mergeToday(server, [
+      op({ kind: 'bill', body: { customerId: 'ramesh', lines: [{ quantity: 2.5, unitPrice: 44 }], paidAmount: 30, paymentMode: 'upi' } }),
+      op({ kind: 'khata', body: { type: 'credit', amount: 340 } }),
+      op({ kind: 'khata', body: { type: 'payment', amount: 50, paymentMode: 'cash' } }),
+      op({ kind: 'khata', body: { type: 'credit', amount: 999 }, status: 'failed' }),
+    ])
+    expect(today).toMatchObject({ sales: 210, bills: 2, cash: 150, upi: 30, udhaar: 420 })
+  })
+})
+
+describe('household lists offline', () => {
+  it('applies unsynced adds, edits and deletes, and clears ticks once a list is sent', () => {
+    const server = [{ kind: 'monthly' as const, items: [
+      { id: 'atta', name: 'Atta', quantity: 10, unit: 'kg' as const, checked: true, note: null },
+      { id: 'dal', name: 'Dal', quantity: 2, unit: 'kg' as const, checked: false, note: null },
+    ] }]
+    const lists = mergeLists(server, [
+      op({ kind: 'listItem', id: 'atta', listKind: 'monthly', body: { name: 'Atta', quantity: 5, unit: 'kg', checked: true, note: null } }),
+      op({ kind: 'listItemDelete', id: 'dal', listKind: 'monthly' }),
+      op({ kind: 'listItem', id: 'milk', listKind: 'weekly', body: { name: 'Milk', quantity: 6, unit: 'litre', checked: false, note: null } }),
+      op({ kind: 'order', listKind: 'monthly', body: {} }),
+    ])
+    expect(lists.find((l) => l.kind === 'monthly')!.items).toEqual([expect.objectContaining({ id: 'atta', quantity: 5, checked: false, pending: true })])
+    expect(lists.find((l) => l.kind === 'weekly')!.items.map((i) => i.name)).toEqual(['Milk'])
+  })
+})
+
+describe('importing items', () => {
+  it('reads CSV or Excel paste, skips a header, understands Hindi units and flags unknown ones', () => {
+    const { rows, errors } = parseCsv([
+      'Name,Unit,Price,Cost,Category,Stock,Reorder',
+      '"Aashirvaad Atta, 5kg",pkt,₹245,230,Atta & rice,12,4',
+      'चीनी\tकिलो\t48',
+      'Oil,barrel,100',
+    ].join('\n'))
+    expect(rows).toEqual([
+      { name: 'Aashirvaad Atta, 5kg', unit: 'packet', sellingPrice: 245, costPrice: 230, category: 'Atta & rice', openingStock: 12, reorderLevel: 4 },
+      { name: 'चीनी', unit: 'kg', sellingPrice: 48, costPrice: null, category: null, openingStock: null, reorderLevel: null },
+    ])
+    expect(errors).toEqual([{ row: 4, unit: 'barrel' }])
+  })
+})
+
+describe('stock offline', () => {
+  it('moves the shelf count for unsynced purchases, adjustments and bills', () => {
+    const server = [{ id: 'atta', name: 'Atta', category: null, unit: 'kg' as const, sellingPrice: 44, costPrice: null, stock: 6, reorderLevel: 5, isLow: false }]
+    const [atta] = mergeProducts(server, [
+      op({ kind: 'stock', body: { productId: 'atta', quantity: 10 } }),
+      op({ kind: 'stock', body: { productId: 'atta', quantity: -1.5 } }),
+      op({ kind: 'bill', body: { lines: [{ productId: 'atta', quantity: 12 }, { productId: null, quantity: 1 }] } }),
+    ])
+    expect(atta).toMatchObject({ stock: 2.5, isLow: true, pending: true })
   })
 })
 
@@ -132,12 +195,23 @@ describe('outbox', () => {
     await discardFailed(left[0].seq!)
   })
 
+  it('treats a proxy saying the server is down (502/503/504) like being offline', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+    await enqueue({ id: 'gw', shopId, kind: 'khata', path: '/v1/khata-entries', body: { id: 'gw' }, label: 'gw' })
+
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValue(new Response('', { status: 502 }))
+    await flush(shopId)
+
+    expect(await listOps(shopId)).toMatchObject([{ id: 'gw', status: 'pending', attempts: 0 }])
+  })
+
   it('stops on a server error and keeps the op to retry later', async () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
     await enqueue({ id: 'x', shopId, kind: 'khata', path: '/v1/khata-entries', body: { id: 'x' }, label: 'x' })
 
     fetchMock.mockReset()
-    fetchMock.mockResolvedValue(new Response('', { status: 503 }))
+    fetchMock.mockResolvedValue(new Response('', { status: 500 }))
     await flush(shopId)
 
     expect(await listOps(shopId)).toMatchObject([{ id: 'x', status: 'pending', attempts: 1 }])

@@ -1,3 +1,4 @@
+using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -294,7 +295,31 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                     }
                 }
 
+                // Items from the catalogue leave the shelf: one sale movement per product, in this same transaction.
+                var sold = lines.Where(l => l.ProductId is not null)
+                    .GroupBy(l => l.ProductId!.Value)
+                    .Select(g => (ProductId: g.Key, Quantity: g.Sum(l => l.Quantity)))
+                    .ToList();
+                foreach (var (productId, quantity) in sold)
+                {
+                    db.StockMovements.Add(new StockMovement
+                    {
+                        ProductId = productId,
+                        Kind = StockMovementKind.Sale,
+                        Quantity = -quantity,
+                        BillId = bill.Id,
+                        OccurredAt = occurredAt,
+                        CreatedByUserId = userId,
+                    });
+                }
+
                 await db.SaveChangesAsync(cancellationToken);
+                foreach (var (productId, quantity) in sold)
+                {
+                    await db.Products.Where(p => p.Id == productId)
+                        .ExecuteUpdateAsync(s => s.SetProperty(p => p.Stock, p => p.Stock - quantity), cancellationToken);
+                }
+
                 if (bill.CustomerId is { } owingCustomerId && total - bill.PaidAmount != 0)
                 {
                     await AdjustBalanceAsync(owingCustomerId, total - bill.PaidAmount, cancellationToken);
@@ -304,7 +329,11 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 return LedgerResult<BillDto>.Created((await FindBillAsync(bill.Id, cancellationToken))!);
             });
 
-    public async Task<StatementDto?> GetStatementAsync(Guid customerId, CancellationToken cancellationToken)
+    /// <summary>
+    /// The customer's khata. With a month ("2026-10"), only that month's entries, starting from the balance
+    /// carried forward from before it (the month-end statement); without, everything.
+    /// </summary>
+    public async Task<StatementDto?> GetStatementAsync(Guid customerId, (int Year, int Month)? month, CancellationToken cancellationToken)
     {
         var customer = await db.Customers.AsNoTracking()
             .Where(c => c.Id == customerId)
@@ -315,13 +344,23 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
             return null;
         }
 
-        var entries = await db.LedgerEntries.AsNoTracking()
-            .Where(e => e.CustomerId == customerId)
-            .OrderBy(e => e.OccurredAt).ThenBy(e => e.CreatedAt).ThenBy(e => e.Id)
-            .ToListAsync(cancellationToken);
-        var reversed = entries.Where(e => e.ReversesEntryId is not null).Select(e => e.ReversesEntryId!.Value).ToHashSet();
+        var query = db.LedgerEntries.AsNoTracking().Where(e => e.CustomerId == customerId);
+        var opening = 0m;
+        if (month is { } m)
+        {
+            var (start, end) = IndiaTime.Month(m.Year, m.Month);
+            opening = await query.Where(e => e.OccurredAt < start).SumAsync(e => (decimal?)e.Amount, cancellationToken) ?? 0m;
+            query = query.Where(e => e.OccurredAt >= start && e.OccurredAt < end);
+        }
 
-        var running = 0m;
+        var entries = await query.OrderBy(e => e.OccurredAt).ThenBy(e => e.CreatedAt).ThenBy(e => e.Id).ToListAsync(cancellationToken);
+        // A reversal may fall in a later month than the entry it cancels: look across the whole khata.
+        var reversed = (await db.LedgerEntries.AsNoTracking()
+                .Where(e => e.CustomerId == customerId && e.ReversesEntryId != null)
+                .Select(e => e.ReversesEntryId!.Value).ToListAsync(cancellationToken))
+            .ToHashSet();
+
+        var running = opening;
         var lines = entries.Select(e =>
         {
             running += e.Amount;
@@ -329,7 +368,21 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 running, reversed.Contains(e.Id));
         }).ToList();
 
-        return new StatementDto(customer, lines);
+        return new StatementDto(customer, lines, opening, running,
+            month is { } chosen ? $"{chosen.Year:D4}-{chosen.Month:D2}" : null);
+    }
+
+    public async Task<BillView?> GetBillAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (await FindBillAsync(id, cancellationToken) is not { } bill)
+        {
+            return null;
+        }
+
+        var customer = bill.CustomerId is { } customerId
+            ? await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance)).SingleAsync(cancellationToken)
+            : null;
+        return new BillView(bill, customer);
     }
 
     /// <summary>Customers whose stored balance differs from the sum of their entries. Should always be empty.</summary>

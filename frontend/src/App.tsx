@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AppBanners } from './components/AppBanners'
+import { BackIcon, BillIcon, CheckIcon, CloudOffIcon, HomeIcon, ItemsIcon, KhataIcon, PaymentIcon } from './components/Icons'
 import { setLanguage } from './i18n'
 import { request } from './lib/api'
 import { useOutbox, useSession } from './lib/data'
+import { useNewOrders } from './lib/orderAlerts'
+import type { Order } from './lib/planner'
 import { requestPersistentStorage } from './lib/db'
 import { flush } from './lib/outbox'
 import { getSession, setSession } from './lib/session'
@@ -11,21 +15,60 @@ import { AuthScreen, ShopPicker } from './screens/AuthScreen'
 import { BillScreen } from './screens/BillScreen'
 import { CustomerScreen } from './screens/CustomerScreen'
 import { CustomersScreen } from './screens/CustomersScreen'
+import { HomeScreen } from './screens/HomeScreen'
 import { ItemsScreen } from './screens/ItemsScreen'
 import { SyncScreen } from './screens/SyncScreen'
 
+// Billing, khata and items load with the app; screens used now and then load on first visit (and are then
+// cached by the service worker, so they open offline too). Keeps the start fast on low-end phones.
+const InboxScreen = lazy(() => import('./screens/InboxScreen').then((module) => ({ default: module.InboxScreen })))
+const CashBookScreen = lazy(() => import('./screens/CashBookScreen').then((module) => ({ default: module.CashBookScreen })))
+const ImportScreen = lazy(() => import('./screens/ImportScreen').then((module) => ({ default: module.ImportScreen })))
+const PrintScreen = lazy(() => import('./screens/PrintScreen').then((module) => ({ default: module.PrintScreen })))
+const OrderScreen = lazy(() => import('./screens/OrderScreen').then((module) => ({ default: module.OrderScreen })))
+const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module) => ({ default: module.ProductScreen })))
+const StocktakeScreen = lazy(() => import('./screens/StocktakeScreen').then((module) => ({ default: module.StocktakeScreen })))
+const MyStoreScreen = lazy(() => import('./screens/MyStoreScreen').then((module) => ({ default: module.MyStoreScreen })))
+const StoreApp = lazy(() => import('./screens/store/StoreApp').then((module) => ({ default: module.StoreApp })))
+const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
+
 export default function App() {
   const session = useSession()
+  const path = usePath()
+  // A shopkeeper can also plan their own home's lists; everyone without a shop only sees the planner.
+  const [household, setHousehold] = useState(false)
+  // The public online store: open to anyone, signed in or not.
+  if (path.startsWith('/s/')) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <StoreApp path={path} />
+      </Suspense>
+    )
+  }
   if (!session) return <AuthScreen />
-  if (!session.shopId) return <ShopPicker session={session} />
+  const switchTo = (toHousehold: boolean) => {
+    navigate('/')
+    setHousehold(toHousehold)
+  }
+  const hasShops = session.memberships.length > 0
+  if (!hasShops || household) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <PlannerApp userId={session.user.id} userName={session.user.fullName} onSwitchToShop={hasShops ? () => switchTo(false) : undefined} />
+      </Suspense>
+    )
+  }
+  if (!session.shopId) return <ShopPicker session={session} onHousehold={() => switchTo(true)} />
   const shop = session.memberships.find((m) => m.shopId === session.shopId)
-  return <Shop shopId={session.shopId} shopName={shop?.shopName ?? ''} />
+  return <Shop shopId={session.shopId} shopName={shop?.shopName ?? ''} shopSlug={shop?.shopSlug ?? ''} userName={session.user.fullName} onHousehold={() => switchTo(true)} />
 }
 
-function Shop({ shopId, shopName }: { shopId: string; shopName: string }) {
+function Shop({ shopId, shopName, shopSlug, userName, onHousehold }: { shopId: string; shopName: string; shopSlug: string; userName: string; onHousehold: () => void }) {
   const { t, i18n } = useTranslation()
   const path = usePath()
   const { pending, failed, state } = useOutbox(shopId)
+  const notifyText = useCallback((order: Order) => t('myStore.newOrder', { name: order.customerName }), [t])
+  const newOrders = useNewOrders(shopId, notifyText)
   const [persistent, setPersistent] = useState(true)
 
   useEffect(() => {
@@ -57,30 +100,80 @@ function Shop({ shopId, shopName }: { shopId: string; shopName: string }) {
   }
 
   const customerMatch = path.match(/^\/c\/([0-9a-f-]+)$/)
-  const tabs = [
-    { path: '/', label: t('khata') },
-    { path: '/bill', label: t('bill') },
-    { path: '/items', label: t('items') },
-    { path: '/sync', label: t('sync'), badge: pending + failed },
+  const orderMatch = path.match(/^\/o\/([0-9a-f-]+)$/)
+  const productMatch = path.match(/^\/p\/([0-9a-f-]+)$/)
+  const printMatch = path.match(/^\/print\/(statement|bill)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
+  const isItemsPage = !!productMatch || path === '/stocktake' || path === '/import'
+  const tabs: { path: string; label: string; icon: ReactNode; badge?: number }[] = [
+    { path: '/', label: t('home'), icon: <HomeIcon size={22} /> },
+    { path: '/khata', label: t('khata'), icon: <KhataIcon size={22} /> },
+    { path: '/bill', label: t('bill'), icon: <BillIcon size={22} /> },
+    { path: '/inbox', label: t('orders'), icon: <PaymentIcon size={22} />, badge: newOrders },
+    { path: '/items', label: t('items'), icon: <ItemsIcon size={22} /> },
   ]
+  const isTab = tabs.some((tab) => tab.path === path)
+  const unsynced = pending + failed
+
+  if (printMatch) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <PrintScreen shopName={shopName} kind={printMatch[1] as 'statement' | 'bill'} id={printMatch[2]} month={printMatch[3]} />
+      </Suspense>
+    )
+  }
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl pb-20">
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white">
-        {path !== '/' && (
-          <button onClick={() => navigate('/')} className="text-2xl" aria-label="Back">←</button>
+        {!isTab && (
+          <button onClick={() => navigate(customerMatch ? '/khata' : orderMatch ? '/inbox' : isItemsPage ? '/items' : '/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}>
+            <BackIcon />
+          </button>
         )}
-        <h1 className="flex-1 truncate text-lg font-bold">{shopName}</h1>
-        {state === 'offline' && <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-amber-950">offline</span>}
-        <button onClick={() => setLanguage(i18n.language === 'hi' ? 'en' : 'hi')} className="rounded-lg bg-teal-800 px-2 py-1 text-sm">
+        <div className="flex min-w-0 flex-1 flex-col">
+          {path === '/' && <span className="text-sm opacity-85">{t('greeting', { name: userName.split(' ')[0] })}</span>}
+          <h1 className="truncate text-xl font-bold">{shopName}</h1>
+        </div>
+        <button
+          onClick={() => navigate('/sync')}
+          className={`flex h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold ${
+            unsynced > 0 || state === 'offline' ? 'bg-amber-400 text-amber-950' : 'bg-white/20 text-white'
+          }`}
+        >
+          {state === 'offline' ? <CloudOffIcon size={16} /> : unsynced === 0 ? <CheckIcon size={16} /> : null}
+          {unsynced > 0 ? t('waiting', { count: unsynced }) : state === 'offline' ? t('pwa.offline') : t('synced')}
+        </button>
+        <button onClick={() => setLanguage(i18n.language === 'hi' ? 'en' : 'hi')} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">
           {i18n.language === 'hi' ? 'EN' : 'हि'}
         </button>
-        <button onClick={signOut} className="rounded-lg bg-teal-800 px-2 py-1 text-sm">{t('signOut')}</button>
+        {path === '/sync' && (
+          <button onClick={signOut} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">{t('signOut')}</button>
+        )}
+        {path === '/sync' && (
+          <button onClick={onHousehold} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">{t('plan.householdLists')}</button>
+        )}
       </header>
 
       <main>
+        <Suspense fallback={<Loading />}>
         {customerMatch ? (
           <CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} />
+        ) : path === '/store' ? (
+          <MyStoreScreen shopName={shopName} slug={shopSlug} />
+        ) : path === '/cashbook' ? (
+          <CashBookScreen shopId={shopId} />
+        ) : productMatch ? (
+          <ProductScreen shopId={shopId} productId={productMatch[1]} />
+        ) : path === '/stocktake' ? (
+          <StocktakeScreen shopId={shopId} />
+        ) : path === '/import' ? (
+          <ImportScreen shopId={shopId} />
+        ) : orderMatch ? (
+          <OrderScreen shopId={shopId} orderId={orderMatch[1]} />
+        ) : path === '/inbox' ? (
+          <InboxScreen shopId={shopId} />
+        ) : path === '/khata' ? (
+          <CustomersScreen shopId={shopId} />
         ) : path === '/bill' ? (
           <BillScreen shopId={shopId} />
         ) : path === '/items' ? (
@@ -88,24 +181,37 @@ function Shop({ shopId, shopName }: { shopId: string; shopName: string }) {
         ) : path === '/sync' ? (
           <SyncScreen shopId={shopId} persistent={persistent} />
         ) : (
-          <CustomersScreen shopId={shopId} />
+          <HomeScreen shopId={shopId} />
         )}
+        </Suspense>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto grid max-w-xl grid-cols-4 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
+      <AppBanners />
+
+      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)]">
         {tabs.map((tab) => (
           <button
             key={tab.path}
             onClick={() => navigate(tab.path)}
-            className={`relative h-16 text-base font-semibold ${path === tab.path ? 'text-teal-700' : 'text-slate-500'}`}
+            aria-current={path === tab.path ? 'page' : undefined}
+            className={`relative flex flex-col items-center justify-center gap-0.5 text-[13px] ${
+              path === tab.path ? 'font-bold text-teal-700' : 'font-semibold text-muted'
+            }`}
           >
+            {tab.icon}
             {tab.label}
             {!!tab.badge && (
-              <span className="absolute top-2 right-4 rounded-full bg-amber-500 px-1.5 text-xs text-white">{tab.badge}</span>
+              <span className="absolute top-1.5 right-[calc(50%-22px)] min-w-5 rounded-full bg-udhaar px-1.5 text-xs font-bold text-white" aria-label={`${tab.badge}`}>
+                {tab.badge}
+              </span>
             )}
           </button>
         ))}
       </nav>
     </div>
   )
+}
+
+function Loading() {
+  return <p className="p-6 text-center text-muted" role="status">…</p>
 }

@@ -91,7 +91,7 @@ public sealed class TimestampInterceptor(TimeProvider clock) : SaveChangesInterc
 /// </summary>
 public sealed class ShopSessionInterceptor(ITenantContext tenant) : DbConnectionInterceptor
 {
-    private const string Sql = "SELECT set_config('app.shop_id', @shop_id, false)";
+    private const string Sql = "SELECT set_config('app.shop_id', @shop_id, false), set_config('app.user_id', @user_id, false)";
 
     public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData)
     {
@@ -114,6 +114,10 @@ public sealed class ShopSessionInterceptor(ITenantContext tenant) : DbConnection
         parameter.ParameterName = "shop_id";
         parameter.Value = tenant.HasShop ? tenant.ShopId.ToString() : string.Empty;
         command.Parameters.Add(parameter);
+        var user = command.CreateParameter();
+        user.ParameterName = "user_id";
+        user.Value = tenant.UserId == Guid.Empty ? string.Empty : tenant.UserId.ToString();
+        command.Parameters.Add(user);
         return command;
     }
 }

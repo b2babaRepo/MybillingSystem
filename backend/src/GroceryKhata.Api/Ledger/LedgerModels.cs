@@ -84,7 +84,14 @@ public sealed record StatementLine(
     decimal RunningBalance,
     bool IsReversed);
 
-public sealed record StatementDto(CustomerDto Customer, IReadOnlyList<StatementLine> Entries);
+/// <summary>
+/// <see cref="OpeningBalance"/>: owed before the period (previous dues carried forward); 0 for the whole khata.
+/// <see cref="ClosingBalance"/>: owed at its end. <see cref="Month"/>: "2026-10", or null for everything.
+/// </summary>
+public sealed record StatementDto(CustomerDto Customer, IReadOnlyList<StatementLine> Entries, decimal OpeningBalance, decimal ClosingBalance, string? Month);
+
+/// <summary>A bill as printed or shared: its lines, and the customer it was for.</summary>
+public sealed record BillView(BillDto Bill, CustomerDto? Customer);
 
 public sealed record BalanceMismatch(Guid CustomerId, string Name, decimal StoredBalance, decimal SumOfEntries);
 

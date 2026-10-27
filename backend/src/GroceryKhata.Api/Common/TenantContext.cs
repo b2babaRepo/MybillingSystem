@@ -7,6 +7,9 @@ public interface ITenantContext
     Guid ShopId { get; }
 
     bool HasShop => ShopId != Guid.Empty;
+
+    /// <summary>The signed-in person, shop token or not. Lets a household see the orders it placed at any shop.</summary>
+    Guid UserId { get; }
 }
 
 /// <summary>
@@ -31,4 +34,8 @@ public sealed class TenantContext : ITenantContext
 
         ShopId = shopId;
     }
+
+    public Guid UserId { get; private set; }
+
+    public void SetUser(Guid userId) => UserId = userId;
 }

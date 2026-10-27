@@ -4,7 +4,7 @@ namespace GroceryKhata.Api.Identity;
 /// Opens a new shop. A new phone number creates the owner's account; a phone that already has an
 /// account adds the shop to it (one person, many shops) after checking the existing password.
 /// </summary>
-public sealed record SignUpRequest(string? ShopName, string? FullName, string? Phone, string? Password, string? Language)
+public sealed record SignUpRequest(string? ShopName, string? FullName, string? Phone, string? Password, string? Language, string? Area = null)
 {
     public const int MinPasswordLength = 6;
 
@@ -38,6 +38,16 @@ public sealed record SignUpRequest(string? ShopName, string? FullName, string? P
 
         return errors;
     }
+}
+
+/// <summary>
+/// A household account: no shop, just a person who plans lists and sends them to shops. An existing
+/// account (a shopkeeper who also shops) signs in with its own password instead of creating a new one.
+/// </summary>
+public sealed record RegisterRequest(string? FullName, string? Phone, string? Password, string? Language)
+{
+    public Dictionary<string, string[]> Validate() =>
+        new SignUpRequest("household", FullName, Phone, Password, Language).Validate();
 }
 
 public sealed record SignInRequest(string? Phone, string? Password);

@@ -3,10 +3,10 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { api, NetworkError } from './api'
 import { readCache, writeCache } from './db'
 import { uuidv7 } from './ids'
-import { mergeCustomers, mergeProducts, mergeStatement, round2, type LocalCustomer } from './local'
+import { mergeCustomers, mergeProducts, mergeStatement, mergeToday, round2, type LocalCustomer } from './local'
 import { cancelPending, enqueue, getSyncState, listOps, setSyncedHandler, subscribeOutbox, type OutboxOp } from './outbox'
 import { getSession, subscribeSession } from './session'
-import type { Customer, KhataEntryType, PaymentMode, Product, Statement, Unit } from './types'
+import type { Customer, KhataEntryType, PaymentMode, Product, Statement, StockReason, Today, Unit } from './types'
 
 export function useSession() {
   return useSyncExternalStore(subscribeSession, getSession)
@@ -53,6 +53,25 @@ export function useCustomers(shopId: string) {
   const { ops } = useOutbox(shopId)
   const customers = useMemo(() => mergeCustomers(query.data ?? [], ops), [query.data, ops])
   return { ...query, customers }
+}
+
+export function useToday(shopId: string) {
+  const query = useQuery({
+    queryKey: [shopId, 'today'],
+    queryFn: () => cachedGet<Today>(shopId, 'today', '/v1/dashboard/today'),
+  })
+  const { ops } = useOutbox(shopId)
+  const today = useMemo(() => mergeToday(query.data, ops), [query.data, ops])
+  return { ...query, today }
+}
+
+/** Product ID -> rank by sales in the last 30 days (0 = most sold). Empty offline until first loaded. */
+export function usePopularOrder(shopId: string) {
+  const query = useQuery({
+    queryKey: [shopId, 'products', 'popular'],
+    queryFn: () => cachedGet<Product[]>(shopId, 'popular', '/v1/products?sort=popular'),
+  })
+  return useMemo(() => new Map((query.data ?? []).map((p, i) => [p.id, i])), [query.data])
 }
 
 export function useProducts(shopId: string) {
@@ -190,14 +209,39 @@ export async function saveBill(
   return { id, total }
 }
 
-export async function addProduct(shopId: string, name: string, unit: Unit, sellingPrice: number) {
+export interface NewProduct {
+  name: string
+  unit: Unit
+  sellingPrice: number
+  costPrice: number | null
+  category: string | null
+  reorderLevel: number | null
+  openingStock: number | null
+}
+
+export async function addProduct(shopId: string, product: NewProduct) {
+  const id = uuidv7()
+  await enqueue({ id, shopId, kind: 'product', path: '/v1/products', body: { id, ...product }, label: `+ ${product.name}` })
+  return id
+}
+
+/** Goods in from a supplier (+), or an adjustment (±) with a reason. Works offline. */
+export async function addStockMovement(
+  shopId: string,
+  product: { id: string; name: string },
+  kind: 'purchase' | 'adjustment',
+  quantity: number,
+  reason: StockReason | null,
+  costPrice: number | null,
+  note: string | null,
+) {
   const id = uuidv7()
   await enqueue({
     id,
     shopId,
-    kind: 'product',
-    path: '/v1/products',
-    body: { id, name, unit, sellingPrice, costPrice: null },
-    label: `+ ${name}`,
+    kind: 'stock',
+    path: '/v1/stock-movements',
+    body: { id, productId: product.id, kind, quantity, reason, costPrice, note },
+    label: `${product.name} ${quantity > 0 ? '+' : ''}${quantity}`,
   })
 }

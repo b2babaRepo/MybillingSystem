@@ -1,10 +1,21 @@
 @import "tailwindcss";
 
+/* Style A "Clean Teal" from the design canvas: teal header, white rounded cards on a soft green-grey ground. */
+@theme {
+  --font-sans: "Mukta", "Noto Sans Devanagari", system-ui, sans-serif;
+  --color-ground: #f1f5f4;
+  --color-ink: #10201d;
+  --color-muted: #4a5b58;
+  --color-line: #dbe5e3;
+  --color-udhaar: #c2410c;
+  --color-jama: #047857;
+  --color-due: #b91c1c;
+}
+
 :root {
-  font-family: system-ui, "Noto Sans Devanagari", "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  @apply bg-slate-100 text-slate-900;
+  @apply bg-ground font-sans text-ink;
 }

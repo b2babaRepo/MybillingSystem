@@ -8,12 +8,34 @@ public sealed class Product : Entity, ITenantOwned
 
     public required string Name { get; set; }
 
+    /// <summary>Free text the shop chooses ("Atta & rice", "Oil & ghee"); used to group and filter.</summary>
+    public string? Category { get; set; }
+
     public Unit Unit { get; set; }
 
-    /// <summary>Price per <see cref="Unit"/>.</summary>
+    /// <summary>Price per <see cref="Unit"/>. 0 means "not set yet" (items from the starter catalogue).</summary>
     public decimal SellingPrice { get; set; }
 
     public decimal? CostPrice { get; set; }
+
+    /// <summary>
+    /// How much is on the shelf, in <see cref="Unit"/>. A cache of the sum of this product's stock movements,
+    /// changed only in the same transaction as the movement. May go negative: the shelf is the truth and a
+    /// sale is never blocked; negative stock shows as a warning.
+    /// </summary>
+    public decimal Stock { get; set; }
+
+    /// <summary>
+    /// Held back for online orders not yet delivered. The shelf still has it, but the store shows
+    /// <see cref="Stock"/> − <see cref="Reserved"/> as available, so two customers don't buy the last packet.
+    /// </summary>
+    public decimal Reserved { get; set; }
+
+    /// <summary>At or below this, the item is on the low-stock list. Null: never warn.</summary>
+    public decimal? ReorderLevel { get; set; }
+
+    /// <summary>Hidden from billing and lists, kept for history.</summary>
+    public bool IsActive { get; set; } = true;
 }
 
 public enum Unit
@@ -24,4 +46,58 @@ public enum Unit
     Litre,
     Ml,
     Packet,
+}
+
+/// <summary>
+/// One change to a product's stock. Append-only, like the khata ledger: a wrong entry is fixed by another
+/// adjustment, never by editing. <see cref="Quantity"/> is signed: + into the shop, − out of it.
+/// </summary>
+public sealed class StockMovement : Entity, ITenantOwned
+{
+    public Guid ShopId { get; set; }
+
+    public Guid ProductId { get; set; }
+
+    public StockMovementKind Kind { get; set; }
+
+    public decimal Quantity { get; set; }
+
+    /// <summary>Why an adjustment happened. Required for adjustments, empty otherwise.</summary>
+    public StockReason? Reason { get; set; }
+
+    /// <summary>For sales: the bill that sold it.</summary>
+    public Guid? BillId { get; set; }
+
+    /// <summary>For purchases: what the shop paid per unit this time.</summary>
+    public decimal? CostPrice { get; set; }
+
+    public string? Note { get; set; }
+
+    public DateTimeOffset OccurredAt { get; set; }
+
+    public Guid CreatedByUserId { get; set; }
+}
+
+public enum StockMovementKind
+{
+    /// <summary>What was on the shelf when the item was added.</summary>
+    Opening,
+
+    /// <summary>Bought from a supplier.</summary>
+    Purchase,
+
+    /// <summary>Sold on a bill (made automatically).</summary>
+    Sale,
+
+    /// <summary>Damage, wastage, a stocktake correction, a customer return.</summary>
+    Adjustment,
+}
+
+public enum StockReason
+{
+    Damage,
+    Wastage,
+    CountCorrection,
+    Return,
+    Other,
 }

@@ -7,7 +7,8 @@ import type { AuthResponse } from '../lib/types'
 export function AuthScreen() {
   const { t, i18n } = useTranslation()
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in')
-  const [form, setForm] = useState({ shopName: '', fullName: '', phone: '', password: '' })
+  const [role, setRole] = useState<'home' | 'shop'>('home')
+  const [form, setForm] = useState({ shopName: '', area: '', fullName: '', phone: '', password: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
@@ -18,7 +19,8 @@ export function AuthScreen() {
     setError('')
     try {
       if (mode === 'sign-in') await authenticate('/v1/auth/sign-in', { phone: form.phone, password: form.password })
-      else await authenticate('/v1/auth/sign-up', { ...form, language: i18n.language })
+      else if (role === 'shop') await authenticate('/v1/auth/sign-up', { ...form, language: i18n.language })
+      else await authenticate('/v1/auth/register', { fullName: form.fullName, phone: form.phone, password: form.password, language: i18n.language })
     } catch (err) {
       setError(err instanceof Error ? err.message : t('error'))
     } finally {
@@ -31,7 +33,22 @@ export function AuthScreen() {
       <h1 className="text-center text-3xl font-bold text-teal-800">{t('appName')}</h1>
       {mode === 'sign-up' && (
         <>
-          <Field label={t('shopName')} value={form.shopName} onChange={set('shopName')} required autoComplete="organization" />
+          <div role="radiogroup" className="grid grid-cols-2 gap-2">
+            {(['home', 'shop'] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                role="radio"
+                aria-checked={role === r}
+                onClick={() => setRole(r)}
+                className={`min-h-14 rounded-2xl px-2 font-semibold ${role === r ? 'border-2 border-teal-700 bg-teal-50 text-teal-800' : 'border border-line bg-white'}`}
+              >
+                {r === 'home' ? t('plan.iAmHome') : t('plan.iAmShop')}
+              </button>
+            ))}
+          </div>
+          {role === 'shop' && <Field label={t('shopName')} value={form.shopName} onChange={set('shopName')} required autoComplete="organization" />}
+          {role === 'shop' && <Field label={t('plan.searchShop')} value={form.area} onChange={set('area')} placeholder="Raja Park bazaar" />}
           <Field label={t('yourName')} value={form.fullName} onChange={set('fullName')} required autoComplete="name" />
         </>
       )}
@@ -45,9 +62,9 @@ export function AuthScreen() {
         minLength={6}
         autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
       />
-      {error && <p className="rounded-lg bg-rose-50 p-3 text-rose-700">{error}</p>}
+      {error && <p className="rounded-lg bg-red-50 p-3 text-due">{error}</p>}
       <Button type="submit" disabled={busy}>
-        {mode === 'sign-in' ? t('signIn') : t('signUp')}
+        {mode === 'sign-in' ? t('signIn') : role === 'shop' ? t('signUp') : t('plan.register')}
       </Button>
       <button type="button" className="text-teal-700 underline" onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
         {mode === 'sign-in' ? t('newShop') : t('haveAccount')}
@@ -57,7 +74,7 @@ export function AuthScreen() {
 }
 
 /** Shown when one person belongs to several shops and hasn't picked one. */
-export function ShopPicker({ session }: { session: AuthResponse }) {
+export function ShopPicker({ session, onHousehold }: { session: AuthResponse; onHousehold: () => void }) {
   const { t } = useTranslation()
   const [error, setError] = useState('')
   return (
@@ -74,7 +91,8 @@ export function ShopPicker({ session }: { session: AuthResponse }) {
           {m.shopName}
         </Button>
       ))}
-      {error && <p className="text-rose-700">{error}</p>}
+      <Button tone="plain" onClick={onHousehold}>{t('plan.householdLists')}</Button>
+      {error && <p className="text-due">{error}</p>}
     </div>
   )
 }

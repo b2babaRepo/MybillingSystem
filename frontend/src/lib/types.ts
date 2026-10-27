@@ -35,9 +35,34 @@ export interface Customer {
 export interface Product {
   id: string
   name: string
+  category: string | null
   unit: Unit
+  /** 0 = price not set yet. */
   sellingPrice: number
   costPrice: number | null
+  stock: number
+  reorderLevel: number | null
+  /** Out of stock, or at/below the reorder level. */
+  isLow: boolean
+  /** Held for online orders not yet delivered. */
+  reserved?: number
+  /** Has stock changes on this phone not yet on the server. */
+  pending?: boolean
+}
+
+export type StockMovementKind = 'opening' | 'purchase' | 'sale' | 'adjustment'
+export type StockReason = 'damage' | 'wastage' | 'count_correction' | 'return' | 'other'
+
+export interface StockMovement {
+  id: string
+  productId: string
+  kind: StockMovementKind
+  quantity: number
+  reason: StockReason | null
+  billId: string | null
+  costPrice: number | null
+  note: string | null
+  occurredAt: string
 }
 
 export interface StatementLine {
@@ -56,10 +81,70 @@ export interface StatementLine {
 export interface Statement {
   customer: Customer
   entries: StatementLine[]
+  /** Owed before the month (previous dues carried forward); 0 for the whole khata. */
+  openingBalance: number
+  closingBalance: number
+  /** "2026-10", or null for everything. */
+  month: string | null
+}
+
+export interface CashBookLine {
+  occurredAt: string
+  source: 'bill' | 'khata_payment' | 'reversal'
+  who: string
+  mode: PaymentMode
+  amount: number
+  billId: string | null
+}
+
+export interface CashBook {
+  date: string
+  cash: number
+  upi: number
+  total: number
+  salesTotal: number
+  udhaarGiven: number
+  lines: CashBookLine[]
+}
+
+export interface BillLineView {
+  productId: string | null
+  name: string
+  quantity: number
+  unit: Unit
+  unitPrice: number
+  amount: number
+}
+
+export interface BillView {
+  bill: {
+    id: string
+    customerId: string | null
+    total: number
+    paidAmount: number
+    onKhata: number
+    paymentMode: PaymentMode | null
+    occurredAt: string
+    lines: BillLineView[]
+    customerBalance: number | null
+  }
+  customer: Customer | null
 }
 
 export interface ProblemDetails {
   title?: string
   detail?: string
   errors?: Record<string, string[]>
+}
+
+export interface Today {
+  date: string
+  sales: number
+  bills: number
+  cash: number
+  upi: number
+  udhaar: number
+  outstanding: number
+  customersOwing: number
+  topDues: Customer[]
 }

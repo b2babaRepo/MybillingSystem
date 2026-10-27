@@ -15,6 +15,7 @@ public static class AuthEndpoints
         var group = app.MapGroup("/api/v1/auth").WithTags("Sign-in");
 
         group.MapPost("/sign-up", SignUpAsync).AllowAnonymous().RequireRateLimiting(AuthSetup.AuthRateLimit);
+        group.MapPost("/register", RegisterAsync).AllowAnonymous().RequireRateLimiting(AuthSetup.AuthRateLimit);
         group.MapPost("/sign-in", SignInAsync).AllowAnonymous().RequireRateLimiting(AuthSetup.AuthRateLimit);
         group.MapPost("/refresh", RefreshAsync).AllowAnonymous().RequireRateLimiting(AuthSetup.AuthRateLimit);
         group.MapPost("/sign-out", SignOutAsync).AllowAnonymous().RequireRateLimiting(AuthSetup.AuthRateLimit); // the access token may have expired
@@ -32,6 +33,16 @@ public static class AuthEndpoints
         }
 
         return ToResult(await auth.SignUpAsync(request, cancellationToken));
+    }
+
+    private static async Task<IResult> RegisterAsync(RegisterRequest request, AuthService auth, CancellationToken cancellationToken)
+    {
+        if (request.Validate() is { Count: > 0 } errors)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        return ToResult(await auth.RegisterAsync(request, cancellationToken));
     }
 
     private static async Task<IResult> SignInAsync(SignInRequest request, AuthService auth, CancellationToken cancellationToken) =>

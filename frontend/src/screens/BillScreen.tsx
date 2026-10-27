@@ -1,29 +1,38 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, Sheet } from '../components/ui'
-import { saveBill, useCustomers, useProducts, type CartLine } from '../lib/data'
+import { saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { PaymentMode, Unit } from '../lib/types'
+import { navigate } from '../router'
 
 /** Item billing: tap tiles, adjust quantities, choose who pays and how much now. The rest goes on khata. */
 export function BillScreen({ shopId }: { shopId: string }) {
   const { t } = useTranslation()
   const { products } = useProducts(shopId)
+  const rank = usePopularOrder(shopId)
+  const [search, setSearch] = useState('')
+  const query = search.trim().toLowerCase()
+  // Most-sold items first (the tiles the thumb needs), then the rest by name; typing filters.
+  const tiles = products
+    .filter((p) => !query || p.name.toLowerCase().includes(query))
+    .sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9) || a.name.localeCompare(b.name))
+    .slice(0, query ? 30 : 12)
   const { customers } = useCustomers(shopId)
   const [cart, setCart] = useState<CartLine[]>([])
   const [customerId, setCustomerId] = useState('')
   const [paid, setPaid] = useState<string | null>(null)
   const [mode, setMode] = useState<PaymentMode>('cash')
   const [loose, setLoose] = useState(false)
-  const [savedTotal, setSavedTotal] = useState<number | null>(null)
+  const [saved, setSaved] = useState<{ id: string; total: number } | null>(null)
 
   const total = useMemo(() => round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [cart])
   const customer = customers.find((c) => c.id === customerId) ?? null
   const paidAmount = paid === null || !customer ? total : Math.min(Number(paid) || 0, total)
 
   function add(line: CartLine) {
-    setSavedTotal(null)
+    setSaved(null)
     setCart((current) => {
       const index = line.productId ? current.findIndex((l) => l.productId === line.productId) : -1
       if (index < 0) return [...current, line]
@@ -35,50 +44,81 @@ export function BillScreen({ shopId }: { shopId: string }) {
     setCart((current) => (quantity <= 0 ? current.filter((_, i) => i !== index) : current.map((l, i) => (i === index ? { ...l, quantity } : l))))
   }
 
+  /** Prices change, and starter-catalogue items have none yet: the counter price is editable per line. */
+  function setPrice(index: number, unitPrice: number) {
+    setCart((current) => current.map((l, i) => (i === index ? { ...l, unitPrice } : l)))
+  }
+
   async function save() {
-    const { total: saved } = await saveBill(shopId, cart, customer, paidAmount, mode)
+    const result = await saveBill(shopId, cart, customer, paidAmount, mode)
     setCart([])
     setPaid(null)
     setCustomerId('')
-    setSavedTotal(saved)
+    setSaved(result)
+    setSearch('')
   }
 
   return (
     <div className="flex flex-col gap-3 p-4">
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={t('search')}
+        aria-label={t('search')}
+        className="h-12 w-full rounded-[14px] border border-line bg-white px-4 text-[17px] outline-none focus:border-teal-600"
+      />
       <div className="grid grid-cols-3 gap-2">
-        {products.map((p) => (
+        {tiles.map((p) => (
           <button
             key={p.id}
             onClick={() => add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })}
-            className="min-h-20 rounded-xl bg-white p-2 text-left shadow-sm active:bg-teal-50"
+            className="min-h-20 rounded-[14px] border border-line bg-white p-2 text-left active:bg-teal-50"
           >
             <div className="line-clamp-2 font-semibold">{p.name}</div>
-            <div className="text-sm text-slate-500">
-              {formatRupees(p.sellingPrice)}/{t(`units.${p.unit}`)}
+            <div className="text-sm text-muted">
+              {p.sellingPrice > 0 ? `${formatRupees(p.sellingPrice)}/${t(`units.${p.unit}`)}` : t('stock.noPrice')}
             </div>
           </button>
         ))}
-        <button onClick={() => setLoose(true)} className="min-h-20 rounded-xl border-2 border-dashed border-slate-300 p-2 font-semibold text-slate-600">
+        <button onClick={() => setLoose(true)} className="min-h-20 rounded-xl border-2 border-dashed border-line p-2 font-semibold text-muted">
           + {t('addLooseItem')}
         </button>
       </div>
 
-      <div className="rounded-xl bg-white p-3 shadow-sm">
-        {cart.length === 0 && <p className="py-4 text-center text-slate-500">{savedTotal !== null ? `${t('saved')} ${formatRupees(savedTotal)}` : t('emptyCart')}</p>}
+      <div className="rounded-[18px] bg-white p-3">
+        {cart.length === 0 && (
+          <div className="flex flex-col items-center gap-2 py-4 text-center text-muted">
+            <p>{saved ? `${t('saved')} ${formatRupees(saved.total)}` : t('emptyCart')}</p>
+            {saved && (
+              <button onClick={() => navigate(`/print/bill/${saved.id}`)} className="min-h-11 font-semibold text-teal-700 underline">{t('print.viewBill')}</button>
+            )}
+          </div>
+        )}
         {cart.map((l, i) => (
-          <div key={`${l.productId ?? l.name}-${i}`} className="flex items-center gap-2 border-b border-slate-100 py-2 last:border-0">
+          <div key={`${l.productId ?? l.name}-${i}`} className="flex items-center gap-2 border-b border-[#edf2f1] py-2 last:border-0">
             <div className="flex-1">
               <div className="font-semibold">{l.name}</div>
-              <div className="text-xs text-slate-500">{formatRupees(l.unitPrice)}/{t(`units.${l.unit}`)}</div>
+              <label className="flex items-center gap-1 text-xs text-muted">
+                ₹
+                <input
+                  value={l.unitPrice || ''}
+                  onChange={(e) => setPrice(i, Number(e.target.value) || 0)}
+                  inputMode="decimal"
+                  aria-label={`${t('price')}: ${l.name}`}
+                  placeholder={t('price')}
+                  className={`h-11 w-16 rounded-md border px-1 ${l.unitPrice > 0 ? 'border-line' : 'border-udhaar'}`}
+                />
+                /{t(`units.${l.unit}`)}
+              </label>
             </div>
-            <button className="h-10 w-10 rounded-lg bg-slate-100 text-xl" onClick={() => setQuantity(i, round2(l.quantity - 1))}>−</button>
+            <button className="h-11 w-11 rounded-lg bg-[#edf2f1] text-xl" onClick={() => setQuantity(i, round2(l.quantity - 1))}>−</button>
             <input
               value={l.quantity}
               onChange={(e) => setQuantity(i, Number(e.target.value) || 0)}
               inputMode="decimal"
-              className="h-10 w-16 rounded-lg border border-slate-300 text-center"
+              className="h-11 w-16 rounded-lg border border-line text-center"
             />
-            <button className="h-10 w-10 rounded-lg bg-slate-100 text-xl" onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
+            <button className="h-11 w-11 rounded-lg bg-[#edf2f1] text-xl" onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
             <div className="w-20 text-right font-semibold">{formatRupees(round2(l.quantity * l.unitPrice))}</div>
           </div>
         ))}
@@ -91,10 +131,10 @@ export function BillScreen({ shopId }: { shopId: string }) {
       </div>
 
       {cart.length > 0 && (
-        <div className="space-y-3 rounded-xl bg-white p-3 shadow-sm">
+        <div className="space-y-3 rounded-[18px] bg-white p-3">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-600">{t('customer')}</span>
-            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-lg">
+            <span className="mb-1 block text-sm font-medium text-muted">{t('customer')}</span>
+            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-12 w-full rounded-xl border border-line bg-white px-3 text-lg">
               <option value="">{t('walkIn')}</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -105,13 +145,13 @@ export function BillScreen({ shopId }: { shopId: string }) {
             <Field label={t('paidNow')} value={paid ?? String(total)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
           )}
           {customer && total - paidAmount > 0 && (
-            <p className="font-semibold text-rose-600">
+            <p className="font-semibold text-due">
               {t('onKhata')}: {formatRupees(round2(total - paidAmount))}
             </p>
           )}
           <div className="flex gap-2 text-sm">
             {(['cash', 'upi'] as const).map((m) => (
-              <button key={m} onClick={() => setMode(m)} className={`rounded-full px-3 py-1 font-medium ${mode === m ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+              <button key={m} onClick={() => setMode(m)} className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}>
                 {t(m)}
               </button>
             ))}
@@ -165,8 +205,8 @@ export function UnitSelect({ value, onChange }: { value: Unit; onChange: (unit: 
   const { t } = useTranslation()
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-600">{t('unit')}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value as Unit)} className="h-12 w-full rounded-xl border border-slate-300 bg-white px-2 text-lg">
+      <span className="mb-1 block text-sm font-medium text-muted">{t('unit')}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value as Unit)} className="h-12 w-full rounded-xl border border-line bg-white px-2 text-lg">
         {UNITS.map((u) => (
           <option key={u} value={u}>{t(`units.${u}`)}</option>
         ))}

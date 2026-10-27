@@ -54,6 +54,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             ["Jwt:SigningKey"] = "test-signing-key-at-least-32-characters-long",
             ["Database:MigrateOnStartup"] = "true",
             ["Auth:AuthRequestsPerMinutePerIp"] = "10000",
+            ["Auth:StoreRequestsPerMinutePerIp"] = "10000",
         }));
     }
 

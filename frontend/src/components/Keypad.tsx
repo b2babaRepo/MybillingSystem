@@ -11,7 +11,7 @@ export function Keypad({ value, onChange, maxDecimals = 2 }: { value: string; on
           key={key}
           type="button"
           onClick={() => onChange(pressKey(value, key, maxDecimals))}
-          className="h-14 rounded-xl bg-white text-2xl font-semibold text-slate-800 shadow-sm active:bg-slate-200"
+          className="h-[58px] rounded-[14px] bg-white text-[26px] font-bold text-ink shadow-[0_1px_2px_rgba(16,32,29,0.08)] active:bg-[#edf2f1]"
         >
           {key}
         </button>

@@ -26,7 +26,19 @@ export function problemMessage(problem: ProblemDetails | null): string | undefin
   return firstError ?? problem?.detail ?? problem?.title
 }
 
+/**
+ * A proxy (Nginx in production, Vite in development) answers 502/503/504 when the API behind it is down or
+ * restarting. To the shop that is the same as no internet: use the saved copy and keep entries in the outbox.
+ */
+const GATEWAY_DOWN = new Set([502, 503, 504])
+
 async function send(path: string, method: string, body: unknown, token?: string): Promise<Response> {
+  const response = await fetchOrThrow(path, method, body, token)
+  if (GATEWAY_DOWN.has(response.status)) throw new NetworkError()
+  return response
+}
+
+async function fetchOrThrow(path: string, method: string, body: unknown, token?: string): Promise<Response> {
   try {
     return await fetch(`/api${path}`, {
       method,

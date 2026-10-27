@@ -1,0 +1,108 @@
+import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import { BillIcon, CustomersIcon, PaymentIcon, PlusIcon } from '../components/Icons'
+import { useProducts, useToday } from '../lib/data'
+import { formatRupees } from '../lib/format'
+import { navigate } from '../router'
+
+/**
+ * Dashboard A, "Clean Teal": today's sales with the cash / UPI / udhaar split, four big actions,
+ * and who owes the most. The teal band continues the app header; the summary card overlaps it.
+ */
+export function HomeScreen({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const { today } = useToday(shopId)
+  const { products } = useProducts(shopId)
+  const lowCount = products.filter((p) => p.isLow).length
+
+  return (
+    <div className="pb-4">
+      <div className="h-14 bg-teal-700" />
+      <section className="mx-4 -mt-12 flex flex-col gap-3.5 rounded-[20px] bg-white p-[18px] shadow-[0_6px_20px_rgba(16,32,29,0.08)]">
+        <div className="flex items-baseline justify-between">
+          <span className="text-[15px] font-semibold text-muted">{t('todaySales')}</span>
+          <span className="text-[13px] text-muted">{today ? t('billsCount', { count: today.bills }) : ' '}</span>
+        </div>
+        <div className="text-[40px] leading-none font-extrabold">{today ? formatRupees(today.sales) : '…'}</div>
+        <div className="grid grid-cols-3 gap-2">
+          <Split label={t('cash')} amount={today?.cash} className="bg-emerald-50 text-emerald-800" />
+          <Split label={t('upi')} amount={today?.upi} className="bg-blue-50 text-blue-800" />
+          <Split label={t('creditShort')} amount={today?.udhaar} className="bg-orange-50 text-orange-800" />
+        </div>
+      </section>
+
+      <section className="mx-4 mt-4 grid grid-cols-2 gap-3">
+        <Action label={t('newBill')} to="/bill" primary icon={<BillIcon size={28} />} />
+        <Action label={t('addUdhaar')} to="/khata" icon={<PlusIcon size={28} className="text-udhaar" />} />
+        <Action label={t('receivePayment')} to="/khata" icon={<PaymentIcon size={28} className="text-jama" />} />
+        <Action label={t('customers')} to="/khata" icon={<CustomersIcon size={28} className="text-blue-700" />} />
+      </section>
+
+      <button onClick={() => navigate('/cashbook')} className="mx-4 mt-4 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+        <span>{t('book.todayLink')}</span>
+        <span aria-hidden="true">→</span>
+      </button>
+
+      <button onClick={() => navigate('/store')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+        <span>{t('myStore.link')}</span>
+        <span aria-hidden="true">→</span>
+      </button>
+
+      {lowCount > 0 && (
+        <button onClick={() => navigate('/items')} className="mx-4 mt-4 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-orange-50 px-4 text-left font-semibold text-orange-800">
+          <span>{t('stock.lowCount', { count: lowCount })}</span>
+          <span aria-hidden="true">→</span>
+        </button>
+      )}
+
+      <section className="mx-4 mt-4 flex flex-col rounded-[18px] bg-white px-4 py-3.5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold">{t('topDues')}</h2>
+          <button className="min-h-11 px-1 text-sm font-semibold text-teal-700" onClick={() => navigate('/khata')}>
+            {t('seeAll')}
+          </button>
+        </div>
+        {today && today.topDues.length === 0 && <p className="py-2 text-muted">{t('noDues')}</p>}
+        {today?.topDues.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => navigate(`/c/${c.id}`)}
+            className="flex min-h-12 items-center justify-between border-b border-[#edf2f1] py-2.5 text-left last:border-0"
+          >
+            <span className="text-base font-semibold">{c.name}</span>
+            <span className="text-base font-bold text-due">{formatRupees(c.balance)}</span>
+          </button>
+        ))}
+        {today && today.customersOwing > 0 && (
+          <div className="mt-2 flex justify-between rounded-xl bg-red-50 px-3 py-2 text-sm text-due">
+            <span>{t('inMarket', { count: today.customersOwing })}</span>
+            <span className="font-bold">{formatRupees(today.outstanding)}</span>
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function Split({ label, amount, className }: { label: string; amount: number | undefined; className: string }) {
+  return (
+    <div className={`flex flex-col rounded-xl p-2.5 ${className}`}>
+      <span className="text-xs">{label}</span>
+      <span className="text-[17px] font-bold">{amount === undefined ? '…' : formatRupees(amount)}</span>
+    </div>
+  )
+}
+
+function Action({ label, to, icon, primary = false }: { label: string; to: string; icon: ReactNode; primary?: boolean }) {
+  return (
+    <button
+      onClick={() => navigate(to)}
+      className={`flex min-h-[92px] flex-col justify-between rounded-[18px] p-4 text-left ${
+        primary ? 'bg-teal-700 text-white active:bg-teal-800' : 'border border-line bg-white text-ink active:bg-slate-50'
+      }`}
+    >
+      {icon}
+      <span className="text-lg font-bold">{label}</span>
+    </button>
+  )
+}

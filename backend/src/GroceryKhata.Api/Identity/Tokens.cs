@@ -69,6 +69,9 @@ public sealed class AuthOptions
 
     /// <summary>Requests per minute per IP address on sign-up, sign-in and refresh.</summary>
     public int AuthRequestsPerMinutePerIp { get; set; } = 20;
+
+    /// <summary>Requests per minute per IP address on the public online store (browsing and checkout).</summary>
+    public int StoreRequestsPerMinutePerIp { get; set; } = 60;
 }
 
 /// <summary>

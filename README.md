@@ -15,13 +15,18 @@ khata → see the statement, plus the amount-only khata entry and the offline ou
 Needs the .NET 10 SDK, Node.js 22+ and Docker Desktop.
 
 ```powershell
-docker compose up -d                                   # PostgreSQL on localhost:5432
+docker compose up -d                                   # PostgreSQL on localhost:5434
 dotnet run --project backend/src/GroceryKhata.Api      # API on http://localhost:5274 (creates the tables on start)
 cd frontend; npm install; npm run dev                  # app on http://localhost:5173 (proxies /api to the API)
 ```
 
 Open http://localhost:5173 on your phone's browser (same Wi-Fi, use the PC's IP with `npm run dev -- --host`) or in
 Chrome's device mode. "Open a new shop" signs you up.
+
+**Demo data (Development only):** on first start the API seeds one shop (with customers, khata entries, items and
+today's bills) and one household (with monthly and weekly lists and a list already sent to the shop). Their test
+logins are in [`backend/src/GroceryKhata.Api/demo-seed.json`](backend/src/GroceryKhata.Api/demo-seed.json). Turn it off
+with `Database:SeedDemo: false`; it never runs outside Development and the file is not published.
 
 Tests:
 
@@ -75,6 +80,18 @@ cd frontend; npm test        # outbox, merge and keypad unit tests
 - The app asks the browser for persistent storage and warns before closing or signing out with unsynced entries.
 - **Undo** (30 s after saving) drops the entry if it hasn't synced yet, otherwise posts a reversal.
 
+### Household planner
+
+- Anyone can register as a household (no shop). They keep a **monthly** and a **weekly** list; every edit is saved on
+  the phone first and synced through the same outbox (keyed `home:<userId>`), with PUT/DELETE so retries are harmless.
+- **Send to shop** copies the list into an order at the chosen shop. The list keeps its items for next time; ticks clear.
+- Orders belong to the shop but the household that placed one can read it: the query filter and row-level security
+  both allow *this shop OR placed by me* (`app.user_id` is set on every connection beside `app.shop_id`).
+- The shop packs each line (packed quantity, price, or "not available", plus a note such as a brand swap), then
+  delivers: that makes an ordinary bill under the order's ID, opens a khata customer by phone if needed, and posts any
+  unpaid amount to their khata.
+- A shopkeeper can switch to their own household lists from the Sync tab.
+
 ## API
 
 | Method | Path | |
@@ -91,6 +108,23 @@ cd frontend; npm test        # outbox, merge and keypad unit tests
 | POST | `/api/v1/bills` | Itemised cash memo, paid or on khata |
 | POST | `/api/v1/ledger-entries/{id}/reverse` | Correction |
 | GET | `/api/v1/ledger/reconcile` | Balance check (owner) |
+| GET | `/api/v1/dashboard/today` | Home screen: today's sales, cash/UPI received, new udhaar, top dues |
+| POST | `/api/v1/auth/register` | Household account (no shop) |
+| GET | `/api/v1/me/lists` | My monthly and weekly lists |
+| PUT/DELETE | `/api/v1/me/lists/{monthly\|weekly}/items/{id}` | Add or change / remove an item (idempotent) |
+| GET | `/api/v1/shops?search=` | Find a shop by name or market |
+| GET/POST | `/api/v1/me/orders` | My orders / send a list to a shop |
+| GET | `/api/v1/orders?status=` | Shop's list inbox |
+| POST | `/api/v1/orders/{id}/pack` · `/deliver` · `/cancel` | Pack (qty, price, removed), deliver (makes the bill; unpaid goes on khata), cancel |
+| GET | `/api/v1/cash-book?date=` | Day book: cash and UPI received, line by line (India day) |
+| GET | `/api/v1/customers/{id}/statement?month=2026-10` | Month statement with previous dues carried forward |
+| GET | `/api/v1/bills/{id}` | One bill, for the printable cash memo |
+| GET | `/api/v1/products?sort=popular` · `?low=true` | Most sold first (billing tiles) · low-stock list |
+| POST | `/api/v1/stock-movements` · `/api/v1/stocktakes` · `/api/v1/products/import` | Goods in / adjustments, stocktake, bulk import |
+| GET | `/api/v1/audit?recordId=` | Who changed prices, customers and orders (owner) |
+| GET | `/api/v1/store/{slug}` | Public online store: shop and priced items with what is available (no sign-in) |
+| POST | `/api/v1/store/{slug}/orders` | Guest checkout: reserves stock, returns the private status-link token |
+| GET | `/api/v1/store/{slug}/orders/{id}?token=` | Guest order status (needs the token from the link) |
 | GET | `/api/health` | Uptime check |
 
 ## Configuration

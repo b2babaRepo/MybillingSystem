@@ -1,7 +1,7 @@
 import { NetworkError, problemMessage, readProblem, request } from './api'
 import { db } from './db'
 
-export type OutboxKind = 'customer' | 'product' | 'khata' | 'bill' | 'reverse'
+export type OutboxKind = 'customer' | 'product' | 'khata' | 'bill' | 'reverse' | 'listItem' | 'listItemDelete' | 'order' | 'stock'
 
 /**
  * One write waiting to reach the server. Every write in the app goes through here, online or not:
@@ -21,6 +21,10 @@ export interface OutboxOp {
   delta?: number
   /** For a reverse op: the entry it cancels. */
   reversesEntryId?: string
+  /** PUT and DELETE for household list edits (both safe to repeat); POST otherwise. */
+  method?: 'POST' | 'PUT' | 'DELETE'
+  /** For household list ops: which list. */
+  listKind?: 'monthly' | 'weekly'
   /** Short text for the sync screen, e.g. "Ramesh ₹340 udhaar". */
   label: string
   createdAt: string
@@ -114,7 +118,7 @@ export function flush(shopId: string): Promise<void> {
 
         let response: Response
         try {
-          response = await request(op.path, 'POST', op.body)
+          response = await request(op.path, op.method ?? 'POST', op.method === 'DELETE' ? undefined : op.body)
         } catch (error) {
           if (error instanceof NetworkError) {
             syncState = 'offline'

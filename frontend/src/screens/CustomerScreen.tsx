@@ -5,6 +5,7 @@ import { Balance, Button, PendingDot } from '../components/ui'
 import { addKhataEntry, reverseEntry, undoEntry, useCustomers, useStatement } from '../lib/data'
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import type { KhataEntryType, PaymentMode } from '../lib/types'
+import { navigate } from '../router'
 
 const UNDO_SECONDS = 30
 
@@ -28,7 +29,7 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
     return () => clearTimeout(timer)
   }, [lastSaved])
 
-  if (!customer) return <p className="p-4 text-slate-500">…</p>
+  if (!customer) return <p className="p-4 text-muted">…</p>
 
   const value = Number(amount)
   const valid = value > 0
@@ -45,16 +46,16 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <div className="flex items-start justify-between rounded-xl bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between rounded-[18px] bg-white p-4">
         <div>
           <div className="text-2xl font-bold">{customer.name}</div>
-          {customer.phone && <div className="text-slate-500">{customer.phone}</div>}
+          {customer.phone && <div className="text-muted">{customer.phone}</div>}
         </div>
         <Balance amount={customer.balance} large />
       </div>
 
-      <div className="rounded-xl bg-slate-100 p-3">
-        <div className="mb-2 h-14 rounded-xl bg-white px-4 text-right text-4xl leading-[3.5rem] font-bold">
+      <div className="flex flex-col">
+        <div className="mb-2.5 h-[76px] rounded-[18px] bg-white px-5 text-right text-[44px] leading-[76px] font-extrabold">
           ₹{amount || '0'}
         </div>
         <Keypad value={amount} onChange={setAmount} />
@@ -63,58 +64,71 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
           onChange={(e) => setNote(e.target.value)}
           placeholder={t('note')}
           maxLength={200}
-          className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+          className="mt-2.5 h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-teal-600"
         />
         <div className="mt-2 flex gap-2 text-sm">
           {(['cash', 'upi'] as const).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`rounded-full px-3 py-1 font-medium ${mode === m ? 'bg-teal-700 text-white' : 'bg-white text-slate-600'}`}
+              className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}
             >
               {t(m)}
             </button>
           ))}
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <Button tone="credit" disabled={!valid} onClick={() => save('credit')}>
+          <Button tone="credit" className="h-16" disabled={!valid} onClick={() => save('credit')}>
             + {t('credit')}
           </Button>
-          <Button tone="payment" disabled={!valid} onClick={() => save('payment')}>
+          <Button tone="payment" className="h-16" disabled={!valid} onClick={() => save('payment')}>
             − {t('payment')}
           </Button>
         </div>
       </div>
 
+      {!customer.isNew && (
+        <div className="grid grid-cols-2 gap-2">
+          {[0, -1].map((offset) => {
+            const month = monthKey(offset)
+            return (
+              <button key={month} onClick={() => navigate(`/print/statement/${customer.id}/${month}`)} className="min-h-12 rounded-2xl border border-line bg-white px-2 font-semibold">
+                {t('print.monthStatement')} · {monthLabel(month)}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {customer.balance > 0 && (
-        <a className="text-center font-medium text-emerald-700 underline" href={whatsAppLink(customer.phone, reminder)} target="_blank" rel="noreferrer">
+        <a className="flex h-12 items-center justify-center rounded-2xl bg-[#15803d] font-bold text-white" href={whatsAppLink(customer.phone, reminder)} target="_blank" rel="noreferrer">
           {t('remind')}
         </a>
       )}
 
-      <ul className="divide-y divide-slate-200 rounded-xl bg-white shadow-sm">
-        {entries.length === 0 && <li className="p-4 text-slate-500">{t('noEntries')}</li>}
+      <ul className="divide-y divide-[#edf2f1] rounded-2xl bg-white px-1">
+        {entries.length === 0 && <li className="p-4 text-muted">{t('noEntries')}</li>}
         {[...entries].reverse().map((e) => (
           <li key={e.id} className={`flex items-center gap-3 p-3 ${e.isReversed ? 'opacity-40 line-through' : ''}`}>
             <div className="flex-1">
               <div className="flex items-center gap-2 font-semibold">
                 {e.kind === 'reversal' ? t('reversal') : e.amount > 0 ? t('creditShort') : t('paymentShort')}
-                {e.paymentMode && <span className="text-xs text-slate-500 uppercase">{t(e.paymentMode)}</span>}
+                {e.paymentMode && <span className="text-xs text-muted uppercase">{t(e.paymentMode)}</span>}
                 {e.pending && <PendingDot />}
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-muted">
                 {formatDateTime(e.occurredAt)}
                 {e.note && ` · ${e.note}`}
               </div>
             </div>
-            <div className={`text-right font-bold ${e.amount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            <div className={`text-right font-bold ${e.amount > 0 ? 'text-udhaar' : 'text-jama'}`}>
               {e.amount > 0 ? '+' : '−'}
               {formatRupees(Math.abs(e.amount))}
-              <div className="text-xs font-normal text-slate-500">{formatRupees(e.runningBalance)}</div>
+              <div className="text-xs font-normal text-muted">{formatRupees(e.runningBalance)}</div>
             </div>
             {e.kind !== 'reversal' && !e.isReversed && !e.pending && (
               <button
-                className="text-sm text-slate-400 underline"
+                className="min-h-11 px-1 text-sm text-muted underline"
                 onClick={() => confirm(t('removeConfirm')) && void reverseEntry(shopId, e, customer)}
               >
                 {t('remove')}
@@ -125,7 +139,7 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
       </ul>
 
       {lastSaved && (
-        <div className="fixed inset-x-4 bottom-24 z-10 flex items-center justify-between rounded-xl bg-slate-900 p-4 text-white shadow-lg">
+        <div className="fixed inset-x-4 bottom-24 z-10 flex items-center justify-between rounded-2xl bg-ink p-4 text-white shadow-lg">
           <span>
             {t('saved')} {formatRupees(Math.abs(lastSaved.amount))}
           </span>
@@ -143,3 +157,12 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
     </div>
   )
 }
+
+/** "2026-10" for this month (offset 0) or an earlier one, in India time. */
+function monthKey(offset: number) {
+  const india = new Date(Date.now() + 5.5 * 3600_000)
+  const date = new Date(Date.UTC(india.getUTCFullYear(), india.getUTCMonth() + offset, 1))
+  return date.toISOString().slice(0, 7)
+}
+
+const monthLabel = (month: string) => new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' })

@@ -1,94 +1,120 @@
-using GroceryKhata.Api.Common;
+using System.Security.Claims;
 using GroceryKhata.Api.Identity;
-using GroceryKhata.Api.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Catalogue;
 
 /// <summary><see cref="Id"/> is made by the app, so a product added offline syncs once.</summary>
-public sealed record ProductRequest(Guid Id, string? Name, Unit? Unit, decimal SellingPrice, decimal? CostPrice);
+public sealed record ProductRequest(
+    Guid Id,
+    string? Name,
+    Unit? Unit,
+    decimal SellingPrice,
+    decimal? CostPrice,
+    string? Category = null,
+    decimal? ReorderLevel = null,
+    decimal? OpeningStock = null);
 
-public sealed record ProductDto(Guid Id, string Name, Unit Unit, decimal SellingPrice, decimal? CostPrice);
+public sealed record ProductUpdate(string? Name, Unit? Unit, decimal SellingPrice, decimal? CostPrice, string? Category, decimal? ReorderLevel, bool? IsActive);
+
+/// <summary><see cref="IsLow"/>: out of stock, or at/below the reorder level.</summary>
+public sealed record ProductDto(
+    Guid Id,
+    string Name,
+    string? Category,
+    Unit Unit,
+    decimal SellingPrice,
+    decimal? CostPrice,
+    decimal Stock,
+    decimal? ReorderLevel,
+    bool IsLow,
+    decimal Reserved = 0);
+
+/// <summary>A purchase (positive) or an adjustment (signed, with a reason).</summary>
+public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note);
+
+public sealed record StockMovementDto(
+    Guid Id,
+    Guid ProductId,
+    StockMovementKind Kind,
+    decimal Quantity,
+    StockReason? Reason,
+    Guid? BillId,
+    decimal? CostPrice,
+    string? Note,
+    DateTimeOffset OccurredAt);
+
+public sealed record StocktakeCount(Guid ProductId, decimal Counted);
+
+public sealed record StocktakeRequest(Guid Id, IReadOnlyList<StocktakeCount>? Counts);
+
+public sealed record StocktakeResult(int Adjusted, int Unchanged);
+
+public sealed record ImportRow(string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel);
+
+public sealed record ImportRequest(IReadOnlyList<ImportRow>? Rows);
+
+public sealed record ImportResult(int Created, int Skipped);
 
 public static class ProductEndpoints
 {
     public static IEndpointRouteBuilder MapCatalogue(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/products").WithTags("Catalogue").RequireAuthorization(AppPolicies.ShopMember);
+        var products = app.MapGroup("/api/v1/products").WithTags("Catalogue").RequireAuthorization(AppPolicies.ShopMember);
 
-        group.MapGet("", async (AppDbContext db, CancellationToken ct) =>
-            await db.Products.AsNoTracking().OrderBy(p => p.Name)
-                .Select(p => new ProductDto(p.Id, p.Name, p.Unit, p.SellingPrice, p.CostPrice))
-                .ToListAsync(ct));
+        products.MapGet("", (string? search, string? category, bool? low, string? sort, StockService stock, CancellationToken ct) =>
+            stock.ListAsync(search, category, low == true, ct, popular: sort == "popular"));
 
-        group.MapPost("", CreateAsync);
+        products.MapGet("/categories", (StockService stock, CancellationToken ct) => stock.CategoriesAsync(ct));
+
+        products.MapGet("/{id:guid}", async (Guid id, StockService stock, CancellationToken ct) =>
+            await stock.FindAsync(id, ct) is { } product ? Results.Ok(product) : Results.NotFound());
+
+        products.MapGet("/{id:guid}/movements", (Guid id, StockService stock, CancellationToken ct) => stock.MovementsAsync(id, ct));
+
+        products.MapPost("", async (ProductRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
+            await stock.CreateAsync(request, user.UserId()!.Value, ct) switch
+            {
+                { Errors: { } errors } => Results.ValidationProblem(errors),
+                { Replayed: true, Product: { } product } => Results.Ok(product),
+                { Product: { } product } => Results.Created($"/api/v1/products/{product.Id}", product),
+                _ => Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "This ID is already in use."),
+            });
+
+        products.MapPut("/{id:guid}", async (Guid id, ProductUpdate request, StockService stock, CancellationToken ct) =>
+            await stock.UpdateAsync(id, request, ct) switch
+            {
+                { Errors: { } errors } => Results.ValidationProblem(errors),
+                { Product: { } product } => Results.Ok(product),
+                _ => Results.NotFound(),
+            });
+
+        products.MapPost("/import", async (ImportRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
+            await stock.ImportAsync(request, user.UserId()!.Value, ct) switch
+            {
+                { Errors: { } errors } => Results.ValidationProblem(errors),
+                { Result: { } result } => Results.Ok(result),
+                _ => Results.BadRequest(),
+            });
+
+        var stockGroup = app.MapGroup("/api/v1").WithTags("Stock").RequireAuthorization(AppPolicies.ShopMember);
+
+        stockGroup.MapPost("/stock-movements", async (StockMovementRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
+            await stock.AddMovementAsync(request, user.UserId()!.Value, ct) switch
+            {
+                { Errors: { } errors } => Results.ValidationProblem(errors),
+                { NotFound: true } => Results.ValidationProblem(new Dictionary<string, string[]> { ["ProductId"] = ["Product not found."] }),
+                { Movement: { } movement } => Results.Ok(movement),
+                _ => Results.BadRequest(),
+            });
+
+        stockGroup.MapPost("/stocktakes", async (StocktakeRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
+            await stock.StocktakeAsync(request, user.UserId()!.Value, ct) switch
+            {
+                { Errors: { } errors } => Results.ValidationProblem(errors),
+                { Result: { } result } => Results.Ok(result),
+                _ => Results.BadRequest(),
+            });
 
         return app;
     }
-
-    private static async Task<IResult> CreateAsync(ProductRequest request, AppDbContext db, CancellationToken ct)
-    {
-        if (await Find(db, request.Id).SingleOrDefaultAsync(ct) is { } existing)
-        {
-            return TypedResults.Ok(existing);
-        }
-
-        var errors = new Dictionary<string, string[]>();
-        if (request.Id == Guid.Empty)
-        {
-            errors[nameof(request.Id)] = ["The app must send an ID for every new record."];
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 120)
-        {
-            errors[nameof(request.Name)] = ["Enter the product's name."];
-        }
-
-        if (request.Unit is null)
-        {
-            errors[nameof(request.Unit)] = ["Choose a unit."];
-        }
-
-        if (!Money.IsValidAmount(request.SellingPrice))
-        {
-            errors[nameof(request.SellingPrice)] = ["Enter a selling price above ₹0."];
-        }
-
-        if (request.CostPrice is { } cost && !Money.IsValidAmount(cost))
-        {
-            errors[nameof(request.CostPrice)] = ["Enter a valid cost price, or leave it empty."];
-        }
-
-        if (errors.Count > 0)
-        {
-            return TypedResults.ValidationProblem(errors);
-        }
-
-        db.Products.Add(new Product
-        {
-            Id = request.Id,
-            Name = request.Name!.Trim(),
-            Unit = request.Unit!.Value,
-            SellingPrice = request.SellingPrice,
-            CostPrice = request.CostPrice,
-        });
-
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException exception) when (exception.IsUniqueViolation())
-        {
-            db.ChangeTracker.Clear();
-            return await Find(db, request.Id).SingleOrDefaultAsync(ct) is { } saved
-                ? TypedResults.Ok(saved)
-                : TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This ID is already in use.");
-        }
-
-        return TypedResults.Created($"/api/v1/products/{request.Id}", await Find(db, request.Id).SingleAsync(ct));
-    }
-
-    private static IQueryable<ProductDto> Find(AppDbContext db, Guid id) =>
-        db.Products.AsNoTracking().Where(p => p.Id == id)
-            .Select(p => new ProductDto(p.Id, p.Name, p.Unit, p.SellingPrice, p.CostPrice));
 }

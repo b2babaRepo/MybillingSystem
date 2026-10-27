@@ -1,0 +1,163 @@
+{
+  "_comment": "DEVELOPMENT ONLY demo data, loaded on start-up when Database:SeedDemo is true (appsettings.Development.json). These are test logins for a local database, never real accounts. Seeding is skipped if the shop's phone already exists.",
+  "shop": {
+    "shopName": "Sharma General Store",
+    "area": "Raja Park bazaar",
+    "ownerName": "Ramesh Sharma",
+    "phone": "9000000001",
+    "password": "IoDJyMTppCTn"
+  },
+  "household": {
+    "fullName": "Priya Agarwal",
+    "phone": "9000000002",
+    "password": "GuuAemcnmuu3"
+  },
+  "products": [
+    {
+      "name": "आटा (Aashirvaad)",
+      "unit": "kg",
+      "price": 44,
+      "stock": 40,
+      "reorderLevel": 10,
+      "category": "आटा, चावल, दाल"
+    },
+    {
+      "name": "बासमती चावल",
+      "unit": "kg",
+      "price": 120,
+      "stock": 25,
+      "reorderLevel": 10,
+      "category": "आटा, चावल, दाल"
+    },
+    {
+      "name": "तूर दाल",
+      "unit": "kg",
+      "price": 160,
+      "stock": 3,
+      "reorderLevel": 5,
+      "category": "आटा, चावल, दाल"
+    },
+    {
+      "name": "चीनी",
+      "unit": "kg",
+      "price": 48,
+      "stock": 30,
+      "reorderLevel": 10,
+      "category": "चीनी, नमक, गुड़"
+    },
+    {
+      "name": "सरसों तेल",
+      "unit": "litre",
+      "price": 185,
+      "stock": 12,
+      "reorderLevel": 4,
+      "category": "तेल, घी"
+    },
+    {
+      "name": "Parle-G",
+      "unit": "packet",
+      "price": 10,
+      "stock": 60,
+      "reorderLevel": 20,
+      "category": "बिस्कुट, नमकीन"
+    },
+    {
+      "name": "दूध",
+      "unit": "litre",
+      "price": 66,
+      "stock": 0,
+      "reorderLevel": 6,
+      "category": "चाय, कॉफ़ी, दूध"
+    },
+    {
+      "name": "हल्दी पाउडर",
+      "unit": "packet",
+      "price": 35,
+      "stock": 15,
+      "reorderLevel": 5,
+      "category": "मसाले"
+    }
+  ],
+  "customers": [
+    {
+      "name": "Suresh Yadav",
+      "phone": "9000000011",
+      "udhaar": [
+        620,
+        860,
+        340
+      ],
+      "paid": [
+        500
+      ]
+    },
+    {
+      "name": "Anita Devi",
+      "phone": "9000000012",
+      "udhaar": [
+        2400,
+        1580
+      ],
+      "paid": []
+    },
+    {
+      "name": "Mohan Lal",
+      "phone": null,
+      "udhaar": [
+        2115
+      ],
+      "paid": []
+    },
+    {
+      "name": "Kavita Singh",
+      "phone": "9000000014",
+      "udhaar": [
+        840
+      ],
+      "paid": [
+        840
+      ]
+    }
+  ],
+  "lists": {
+    "monthly": [
+      {
+        "name": "आटा (Aashirvaad)",
+        "quantity": 10,
+        "unit": "kg"
+      },
+      {
+        "name": "बासमती चावल",
+        "quantity": 5,
+        "unit": "kg"
+      },
+      {
+        "name": "तूर दाल",
+        "quantity": 2,
+        "unit": "kg"
+      },
+      {
+        "name": "सरसों तेल",
+        "quantity": 2,
+        "unit": "litre"
+      },
+      {
+        "name": "हल्दी पाउडर",
+        "quantity": 1,
+        "unit": "packet"
+      }
+    ],
+    "weekly": [
+      {
+        "name": "दूध",
+        "quantity": 6,
+        "unit": "litre"
+      },
+      {
+        "name": "Parle-G",
+        "quantity": 4,
+        "unit": "packet"
+      }
+    ]
+  }
+}

@@ -4,6 +4,7 @@ using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
 using GroceryKhata.Api.Persistence;
+using GroceryKhata.Api.Planner;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddPersistence();
 builder.Services.AddAppAuthentication();
 builder.Services.AddScoped<LedgerService>();
+builder.Services.AddScoped<StockService>();
 
 var app = builder.Build();
 
@@ -23,6 +25,11 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
     // Development and tests only. Production runs migrations at deploy, after a backup.
     await using var scope = app.Services.CreateAsyncScope();
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+}
+
+if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Database:SeedDemo"))
+{
+    await DemoSeeder.RunAsync(app.Services, app.Environment.ContentRootPath, app.Logger);
 }
 
 app.UseExceptionHandler();
@@ -36,6 +43,12 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymou
 app.MapAuth();
 app.MapCatalogue();
 app.MapLedger();
+app.MapDashboard();
+app.MapCashBook();
+app.MapAudit();
+app.MapPlanner();
+app.MapOrders();
+app.MapStore();
 
 app.Run();
 

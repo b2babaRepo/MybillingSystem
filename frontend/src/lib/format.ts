@@ -1,6 +1,8 @@
-const rupees = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 })
+const wholeRupees = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })
+const withPaise = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-export const formatRupees = (amount: number) => rupees.format(amount)
+/** ₹2,640 for whole rupees, ₹2,640.50 only when there are paise. */
+export const formatRupees = (amount: number) => (Number.isInteger(amount) ? wholeRupees : withPaise).format(amount)
 
 export const formatDateTime = (iso: string) =>
   new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })

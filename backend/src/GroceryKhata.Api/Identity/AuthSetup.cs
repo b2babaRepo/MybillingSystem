@@ -61,6 +61,14 @@ public static class AuthSetup
         services.AddRateLimiter(limiter =>
         {
             limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            // The public online store: anonymous, so capped per IP to keep fake orders and scraping in check.
+            limiter.AddPolicy(Planner.StoreEndpoints.StoreRateLimit, http =>
+            {
+                var perMinute = http.RequestServices.GetRequiredService<IOptions<AuthOptions>>().Value.StoreRequestsPerMinutePerIp;
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = perMinute, Window = TimeSpan.FromMinutes(1) });
+            });
             limiter.AddPolicy(AuthRateLimit, http =>
             {
                 var perMinute = http.RequestServices.GetRequiredService<IOptions<AuthOptions>>().Value.AuthRequestsPerMinutePerIp;

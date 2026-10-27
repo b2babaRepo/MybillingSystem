@@ -1,5 +1,5 @@
 import type { OutboxOp } from './outbox'
-import type { Customer, LedgerEntryKind, Product, Statement, StatementLine } from './types'
+import type { Customer, LedgerEntryKind, Product, Statement, StatementLine, Today } from './types'
 
 // What the shopkeeper sees = the last server data + their own writes still in the outbox.
 // Pure functions, so they're easy to test. Failed ops are left out: the server refused them.
@@ -39,12 +39,43 @@ export function mergeCustomers(server: Customer[], ops: OutboxOp[]): LocalCustom
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/** A product is low when it's out, or at/below its reorder level (the same rule as the server). */
+export const isLow = (stock: number, reorderLevel: number | null) => stock <= 0 || (reorderLevel !== null && stock <= reorderLevel)
+
+/**
+ * Server products + products added on this phone + stock moved on this phone (purchases, adjustments,
+ * and catalogue items on unsynced bills), so the shelf count is right before the sync.
+ */
 export function mergeProducts(server: Product[], ops: OutboxOp[]): Product[] {
-  const ids = new Set(server.map((p) => p.id))
-  const pending = live(ops)
-    .filter((op) => op.kind === 'product' && !ids.has(op.id))
-    .map((op) => op.body as Product)
-  return [...server, ...pending].sort((a, b) => a.name.localeCompare(b.name))
+  const byId = new Map(server.map((p) => [p.id, { ...p }]))
+  for (const op of live(ops)) {
+    if (op.kind === 'product' && !byId.has(op.id)) {
+      const body = op.body as { id: string; name: string; unit: Product['unit']; sellingPrice: number; costPrice: number | null; category?: string | null; reorderLevel?: number | null; openingStock?: number | null }
+      const stock = body.openingStock ?? 0
+      const reorderLevel = body.reorderLevel ?? null
+      byId.set(op.id, { id: body.id, name: body.name, unit: body.unit, sellingPrice: body.sellingPrice, costPrice: body.costPrice, category: body.category ?? null, stock, reorderLevel, isLow: isLow(stock, reorderLevel), pending: true })
+    }
+  }
+
+  const move = (productId: string, delta: number) => {
+    const product = byId.get(productId)
+    if (!product) return
+    product.stock = Math.round((product.stock + delta) * 1000) / 1000
+    product.isLow = isLow(product.stock, product.reorderLevel)
+    product.pending = true
+  }
+  for (const op of live(ops)) {
+    if (op.kind === 'stock') {
+      const body = op.body as { productId: string; quantity: number }
+      move(body.productId, body.quantity)
+    } else if (op.kind === 'bill') {
+      for (const line of (op.body as { lines: { productId: string | null; quantity: number }[] }).lines) {
+        if (line.productId) move(line.productId, -line.quantity)
+      }
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /** The customer's khata with unsynced entries added at the end, marked pending. */
@@ -76,4 +107,27 @@ export function mergeStatement(server: Statement | undefined, customer: LocalCus
   for (const entry of entries) entry.isReversed ||= reversed.has(entry.id)
 
   return { customer, entries }
+}
+
+/** Today's numbers with unsynced bills and khata entries added, so the home screen moves at once, offline too. */
+export function mergeToday(server: Today | undefined, ops: OutboxOp[]): Today | undefined {
+  if (!server) return undefined
+  const today = { ...server }
+  for (const op of live(ops)) {
+    if (op.kind === 'khata') {
+      const body = op.body as { type: 'credit' | 'payment'; amount: number; paymentMode?: 'cash' | 'upi' | null }
+      if (body.type === 'credit') today.udhaar = round2(today.udhaar + body.amount)
+      else if (body.paymentMode === 'upi') today.upi = round2(today.upi + body.amount)
+      else today.cash = round2(today.cash + body.amount)
+    } else if (op.kind === 'bill') {
+      const body = op.body as { customerId: string | null; lines: { quantity: number; unitPrice: number }[]; paidAmount: number; paymentMode: 'cash' | 'upi' }
+      const total = round2(body.lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
+      today.sales = round2(today.sales + total)
+      today.bills += 1
+      if (body.paymentMode === 'upi') today.upi = round2(today.upi + body.paidAmount)
+      else today.cash = round2(today.cash + body.paidAmount)
+      if (body.customerId) today.udhaar = round2(today.udhaar + total - body.paidAmount)
+    }
+  }
+  return today
 }

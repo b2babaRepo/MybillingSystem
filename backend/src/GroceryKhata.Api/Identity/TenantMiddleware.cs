@@ -12,6 +12,11 @@ public sealed class TenantMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context, TenantContext tenant, ShopAccessChecker access)
     {
+        if (context.User.Identity?.IsAuthenticated == true && context.User.UserId() is { } signedIn)
+        {
+            tenant.SetUser(signedIn);
+        }
+
         var shopClaim = context.User.FindFirst(AppClaims.ShopId)?.Value;
         if (context.User.Identity?.IsAuthenticated != true || shopClaim is null)
         {

@@ -14,6 +14,7 @@ public static class PersistenceSetup
         services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
         services.AddScoped<ShopStampInterceptor>();
         services.AddScoped<ShopSessionInterceptor>();
+        services.AddScoped<AuditInterceptor>();
         services.AddSingleton<TimestampInterceptor>();
 
         // The connection string is read when the context is built, so test hosts can override it.
@@ -22,6 +23,8 @@ public static class PersistenceSetup
                 ? connectionString
                 : throw new InvalidOperationException("ConnectionStrings:Default is required."))
             .AddInterceptors(
+                // Audit first: the entries it adds are then stamped and timestamped like any other row.
+                sp.GetRequiredService<AuditInterceptor>(),
                 sp.GetRequiredService<ShopStampInterceptor>(),
                 sp.GetRequiredService<ShopSessionInterceptor>(),
                 sp.GetRequiredService<TimestampInterceptor>()));
