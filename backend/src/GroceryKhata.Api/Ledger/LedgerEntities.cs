@@ -17,6 +17,9 @@ public sealed class Customer : Entity, ITenantOwned
     /// transaction as the entry and checked by reconciliation. Never edited directly.
     /// </summary>
     public decimal Balance { get; set; }
+
+    /// <summary>When the shop last sent this customer a payment reminder (shown on the dues list).</summary>
+    public DateTimeOffset? LastRemindedAt { get; set; }
 }
 
 /// <summary>

@@ -20,6 +20,11 @@ jobs:
       - run: dotnet build --no-restore -warnaserror
       # Integration tests start PostgreSQL in Docker (Testcontainers); ubuntu-latest has Docker.
       - run: dotnet test --no-build
+      # Fail on any NuGet package (direct or transitive) with a known vulnerability.
+      - name: Vulnerable packages
+        run: |
+          dotnet list package --vulnerable --include-transitive | tee vulnerable.txt
+          ! grep -q "has the following vulnerable packages" vulnerable.txt
 
   frontend:
     runs-on: ubuntu-latest
@@ -34,6 +39,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # Fail on high or critical advisories in what ships to phones.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: npm run build

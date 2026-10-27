@@ -28,6 +28,9 @@ const PrintScreen = lazy(() => import('./screens/PrintScreen').then((module) => 
 const OrderScreen = lazy(() => import('./screens/OrderScreen').then((module) => ({ default: module.OrderScreen })))
 const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module) => ({ default: module.ProductScreen })))
 const StocktakeScreen = lazy(() => import('./screens/StocktakeScreen').then((module) => ({ default: module.StocktakeScreen })))
+const DuesScreen = lazy(() => import('./screens/DuesScreen').then((module) => ({ default: module.DuesScreen })))
+const ReportsScreen = lazy(() => import('./screens/ReportsScreen').then((module) => ({ default: module.ReportsScreen })))
+const SettingsScreen = lazy(() => import('./screens/SettingsScreen').then((module) => ({ default: module.SettingsScreen })))
 const MyStoreScreen = lazy(() => import('./screens/MyStoreScreen').then((module) => ({ default: module.MyStoreScreen })))
 const StoreApp = lazy(() => import('./screens/store/StoreApp').then((module) => ({ default: module.StoreApp })))
 const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
@@ -60,10 +63,13 @@ export default function App() {
   }
   if (!session.shopId) return <ShopPicker session={session} onHousehold={() => switchTo(true)} />
   const shop = session.memberships.find((m) => m.shopId === session.shopId)
-  return <Shop shopId={session.shopId} shopName={shop?.shopName ?? ''} shopSlug={shop?.shopSlug ?? ''} userName={session.user.fullName} onHousehold={() => switchTo(true)} />
+  return (
+    <Shop shopId={session.shopId} shopName={shop?.shopName ?? ''} shopSlug={shop?.shopSlug ?? ''} userName={session.user.fullName}
+      isOwner={session.role === 'owner'} onHousehold={() => switchTo(true)} />
+  )
 }
 
-function Shop({ shopId, shopName, shopSlug, userName, onHousehold }: { shopId: string; shopName: string; shopSlug: string; userName: string; onHousehold: () => void }) {
+function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { shopId: string; shopName: string; shopSlug: string; userName: string; isOwner: boolean; onHousehold: () => void }) {
   const { t, i18n } = useTranslation()
   const path = usePath()
   const { pending, failed, state } = useOutbox(shopId)
@@ -158,6 +164,12 @@ function Shop({ shopId, shopName, shopSlug, userName, onHousehold }: { shopId: s
         <Suspense fallback={<Loading />}>
         {customerMatch ? (
           <CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} />
+        ) : path === '/dues' ? (
+          <DuesScreen shopId={shopId} shopName={shopName} />
+        ) : path === '/reports' ? (
+          <ReportsScreen shopId={shopId} isOwner={isOwner} />
+        ) : path === '/settings' ? (
+          <SettingsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/store' ? (
           <MyStoreScreen shopName={shopName} slug={shopSlug} />
         ) : path === '/cashbook' ? (

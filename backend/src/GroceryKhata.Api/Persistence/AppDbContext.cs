@@ -70,6 +70,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(s => s.Slug).IsUnique();
             b.Property(s => s.Area).HasMaxLength(120);
             b.Property(s => s.Address).HasMaxLength(200);
+            b.Property(s => s.UpiId).HasMaxLength(60);
+            b.Property(s => s.ReminderTemplate).HasMaxLength(500);
         });
 
         modelBuilder.Entity<ShoppingList>(b =>

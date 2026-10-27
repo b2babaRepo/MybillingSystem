@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { pressKey } from './keypad'
 import { uuidv7 } from './ids'
 import { parseCsv } from './catalogue'
+import { buildReminder } from './reports'
 import { mergeCustomers, mergeProducts, mergeStatement, mergeToday } from './local'
 import { mergeLists } from './planner'
 import { enqueue, flush, listOps, type OutboxOp } from './outbox'
@@ -141,6 +142,16 @@ describe('stock offline', () => {
       op({ kind: 'bill', body: { lines: [{ productId: 'atta', quantity: 12 }, { productId: null, quantity: 1 }] } }),
     ])
     expect(atta).toMatchObject({ stock: 2.5, isLow: true, pending: true })
+  })
+})
+
+describe('payment reminders', () => {
+  it('fills the shop template and adds the UPI ID when the template does not mention it', () => {
+    expect(buildReminder(null, { name: 'Suresh', amount: 1320, shop: 'Sharma Store', upi: 'sharma@okaxis' }))
+      .toBe('Namaste Suresh ji, Sharma Store mein aapka ₹1,320 baaki hai. Suvidha anusaar jama kar dein. Dhanyavaad!\nUPI: sharma@okaxis')
+    expect(buildReminder('{name}: ₹{amount}. Pay to {upi}', { name: 'Anita', amount: 99.5, shop: 'X', upi: 'a@ybl' }))
+      .toBe('Anita: ₹99.5. Pay to a@ybl')
+    expect(buildReminder('{name} ₹{amount}', { name: 'Mohan', amount: 10, shop: 'X', upi: null })).toBe('Mohan ₹10')
   })
 })
 

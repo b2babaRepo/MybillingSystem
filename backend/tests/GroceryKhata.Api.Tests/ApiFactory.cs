@@ -26,6 +26,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public string AppConnectionString { get; private set; } = string.Empty;
 
+    /// <summary>The container's superuser login: only for tests that prove the app refuses one in production.</summary>
+    public string AdminConnectionString => _postgres.GetConnectionString();
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
@@ -55,6 +58,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             ["Database:MigrateOnStartup"] = "true",
             ["Auth:AuthRequestsPerMinutePerIp"] = "10000",
             ["Auth:StoreRequestsPerMinutePerIp"] = "10000",
+            ["Security:RequestsPerMinutePerIp"] = "100000",
         }));
     }
 

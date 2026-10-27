@@ -45,7 +45,7 @@ public sealed class AuditInterceptor(ITenantContext tenant) : SaveChangesInterce
     };
 
     // Bookkeeping columns, not decisions anyone made.
-    private static readonly HashSet<string> Ignored = [nameof(Entity.UpdatedAt), nameof(Entity.CreatedAt)];
+    private static readonly HashSet<string> Ignored = [nameof(Entity.UpdatedAt), nameof(Entity.CreatedAt), nameof(Customer.LastRemindedAt)];
 
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)

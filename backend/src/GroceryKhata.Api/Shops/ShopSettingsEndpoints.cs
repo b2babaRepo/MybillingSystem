@@ -1,0 +1,71 @@
+using System.Text.RegularExpressions;
+using GroceryKhata.Api.Common;
+using GroceryKhata.Api.Identity;
+using GroceryKhata.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace GroceryKhata.Api.Shops;
+
+public sealed record ShopSettingsDto(string Name, string Slug, string? Area, string? Address, string? UpiId, string? ReminderTemplate);
+
+public sealed record ShopSettingsUpdate(string? Name, string? Area, string? Address, string? UpiId, string? ReminderTemplate);
+
+/// <summary>The shop's own details: name, where it is, UPI ID and reminder wording. Everyone reads; the owner changes.</summary>
+public static partial class ShopSettingsEndpoints
+{
+    public static IEndpointRouteBuilder MapShopSettings(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/v1/shop").WithTags("Shop");
+        group.MapGet("", GetAsync).RequireAuthorization(AppPolicies.ShopMember);
+        group.MapPut("", UpdateAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        return app;
+    }
+
+    private static async Task<IResult> GetAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
+        await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId)
+            .Select(s => new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate))
+            .SingleOrDefaultAsync(ct) is { } settings ? TypedResults.Ok(settings) : TypedResults.NotFound();
+
+    private static async Task<IResult> UpdateAsync(ShopSettingsUpdate request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 120)
+        {
+            errors[nameof(request.Name)] = ["Enter the shop's name."];
+        }
+
+        var upi = string.IsNullOrWhiteSpace(request.UpiId) ? null : request.UpiId.Trim().ToLowerInvariant();
+        if (upi is not null && !UpiPattern().IsMatch(upi))
+        {
+            errors[nameof(request.UpiId)] = ["A UPI ID looks like name@bank, e.g. sharmastore@okaxis."];
+        }
+
+        if (request.ReminderTemplate?.Length > 500 || request.Area?.Length > 120 || request.Address?.Length > 200)
+        {
+            errors[nameof(request.ReminderTemplate)] = ["Keep the reminder under 500 characters and the address short."];
+        }
+        else if (request.ReminderTemplate is { } template && !string.IsNullOrWhiteSpace(template) && !template.Contains("{amount}", StringComparison.Ordinal))
+        {
+            errors[nameof(request.ReminderTemplate)] = ["The reminder must include {amount}, so the customer knows how much is due."];
+        }
+
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        var shop = await db.Shops.SingleAsync(s => s.Id == tenant.ShopId, ct);
+        shop.Name = request.Name!.Trim();
+        shop.Area = Clean(request.Area);
+        shop.Address = Clean(request.Address);
+        shop.UpiId = upi;
+        shop.ReminderTemplate = Clean(request.ReminderTemplate);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate));
+    }
+
+    private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    [GeneratedRegex(@"^[a-z0-9.\-_]{2,256}@[a-z][a-z0-9]{1,63}$")]
+    private static partial Regex UpiPattern();
+}

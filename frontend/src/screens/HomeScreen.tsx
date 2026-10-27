@@ -43,8 +43,22 @@ export function HomeScreen({ shopId }: { shopId: string }) {
         <span aria-hidden="true">→</span>
       </button>
 
+      <div className="mx-4 mt-3 grid grid-cols-2 gap-3">
+        <button onClick={() => navigate('/dues')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+          <span>{t('dues.link')}</span><span aria-hidden="true">→</span>
+        </button>
+        <button onClick={() => navigate('/reports')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+          <span>{t('reports.link')}</span><span aria-hidden="true">→</span>
+        </button>
+      </div>
+
       <button onClick={() => navigate('/store')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
         <span>{t('myStore.link')}</span>
+        <span aria-hidden="true">→</span>
+      </button>
+
+      <button onClick={() => navigate('/settings')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+        <span>{t('settings.link')}</span>
         <span aria-hidden="true">→</span>
       </button>
 

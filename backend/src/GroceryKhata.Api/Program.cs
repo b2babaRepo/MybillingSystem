@@ -1,13 +1,16 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using GroceryKhata.Api.Catalogue;
+using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
 using GroceryKhata.Api.Persistence;
 using GroceryKhata.Api.Planner;
+using GroceryKhata.Api.Shops;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddHardening();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddProblemDetails();
@@ -19,6 +22,9 @@ builder.Services.AddScoped<LedgerService>();
 builder.Services.AddScoped<StockService>();
 
 var app = builder.Build();
+
+// Before anything touches the database: refuse unsafe production settings.
+await app.CheckProductionSafetyAsync();
 
 if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
@@ -32,6 +38,7 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Databas
     await DemoSeeder.RunAsync(app.Services, app.Environment.ContentRootPath, app.Logger);
 }
 
+app.UseHardening();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseAuthentication();
@@ -39,7 +46,8 @@ app.UseMiddleware<TenantMiddleware>();
 app.UseAuthorization();
 app.UseRateLimiter();
 
-app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous().DisableRateLimiting();
+app.MapReadiness();
 app.MapAuth();
 app.MapCatalogue();
 app.MapLedger();
@@ -49,6 +57,9 @@ app.MapAudit();
 app.MapPlanner();
 app.MapOrders();
 app.MapStore();
+app.MapReports();
+app.MapShopSettings();
+app.MapShopData();
 
 app.Run();
 

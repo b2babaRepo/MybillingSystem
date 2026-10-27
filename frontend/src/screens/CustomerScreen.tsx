@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { Keypad } from '../components/Keypad'
 import { Balance, Button, PendingDot } from '../components/ui'
 import { addKhataEntry, reverseEntry, undoEntry, useCustomers, useStatement } from '../lib/data'
+import { request } from '../lib/api'
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
+import { buildReminder, useShopSettings } from '../lib/reports'
 import type { KhataEntryType, PaymentMode } from '../lib/types'
 import { navigate } from '../router'
 
@@ -18,6 +20,7 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
   const { customers } = useCustomers(shopId)
   const customer = customers.find((c) => c.id === customerId)
   const { entries } = useStatement(shopId, customer)
+  const settings = useShopSettings(shopId)
   const [amount, setAmount] = useState('')
   const [mode, setMode] = useState<PaymentMode>('cash')
   const [note, setNote] = useState('')
@@ -42,7 +45,7 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
     setNote('')
   }
 
-  const reminder = t('reminderText', { name: customer.name, shop: shopName, amount: customer.balance })
+  const reminder = buildReminder(settings.data?.reminderTemplate, { name: customer.name, amount: customer.balance, shop: shopName, upi: settings.data?.upiId ?? null })
 
   return (
     <div className="flex flex-col gap-3 p-4">
@@ -101,7 +104,8 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
       )}
 
       {customer.balance > 0 && (
-        <a className="flex h-12 items-center justify-center rounded-2xl bg-[#15803d] font-bold text-white" href={whatsAppLink(customer.phone, reminder)} target="_blank" rel="noreferrer">
+        <a className="flex h-12 items-center justify-center rounded-2xl bg-[#15803d] font-bold text-white" href={whatsAppLink(customer.phone, reminder)} target="_blank" rel="noreferrer"
+          onClick={() => void request(`/v1/customers/${customer.id}/reminded`, 'POST').catch(() => {})}>
           {t('remind')}
         </a>
       )}

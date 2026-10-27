@@ -125,7 +125,13 @@ cd frontend; npm test        # outbox, merge and keypad unit tests
 | GET | `/api/v1/store/{slug}` | Public online store: shop and priced items with what is available (no sign-in) |
 | POST | `/api/v1/store/{slug}/orders` | Guest checkout: reserves stock, returns the private status-link token |
 | GET | `/api/v1/store/{slug}/orders/{id}?token=` | Guest order status (needs the token from the link) |
-| GET | `/api/health` | Uptime check |
+| GET | `/api/v1/reports/dues` | Dues by age (0-7, 8-30, 30+ days; payments clear the oldest udhaar first) |
+| POST | `/api/v1/customers/{id}/reminded` | Mark that a reminder was sent |
+| GET | `/api/v1/reports/month?month=` | Month report: sales, received, udhaar, collected, estimated profit, top items, daily |
+| GET | `/api/v1/reports/dues.csv` · `/month.csv` | Excel-ready downloads (owner) |
+| GET/PUT | `/api/v1/shop` | Shop name, area, UPI ID and reminder wording (owner changes) |
+| GET/POST | `/api/v1/shop/export` · `/shop/delete` | Download all shop data as JSON · delete the shop (type its name; owner) |
+| GET | `/api/health` · `/api/health/ready` | Uptime check · ready (database answers, migrations applied) |
 
 ## Configuration
 
@@ -143,4 +149,5 @@ cd frontend; npm test        # outbox, merge and keypad unit tests
 - Cash book screen, month-end statement PDF and the overdue list (Phases 3 and 6).
 - A nightly background job that runs the reconciliation for every shop. The check exists; the job doesn't yet.
 - PNG app icons (192/512) for older Android install prompts. Only the SVG icon is included.
-- Nginx, systemd and the deploy step for the Hostinger VPS (CI builds and tests; it does not deploy).
+- The automated deploy step (CI builds and tests; the manual steps, Nginx config, backups and alerts are in [docs/runbook.md](docs/runbook.md)).
+- Load test: `node loadtest/evening-rush.mjs` (see the runbook for results and the KVM sizing decision).

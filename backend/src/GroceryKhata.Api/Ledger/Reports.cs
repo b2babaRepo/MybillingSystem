@@ -1,0 +1,264 @@
+using System.Globalization;
+using System.Text;
+using GroceryKhata.Api.Common;
+using GroceryKhata.Api.Identity;
+using GroceryKhata.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace GroceryKhata.Api.Ledger;
+
+/// <summary>One customer's dues by age. The three buckets always add up to <see cref="Balance"/>.</summary>
+public sealed record DueDto(
+    Guid CustomerId,
+    string Name,
+    string? Phone,
+    decimal Balance,
+    decimal Days0To7,
+    decimal Days8To30,
+    decimal Over30,
+    int OldestDays,
+    DateTimeOffset? LastPaymentAt,
+    DateTimeOffset? LastRemindedAt);
+
+public sealed record DuesReport(decimal Total, decimal Days0To7, decimal Days8To30, decimal Over30, IReadOnlyList<DueDto> Customers);
+
+public sealed record DailyTotals(DateOnly Date, decimal Sales, decimal Received);
+
+public sealed record TopItem(string Name, decimal Quantity, Catalogue.Unit Unit, decimal Amount);
+
+/// <summary>
+/// One month at a glance. <see cref="EstimatedProfit"/> counts only bill lines whose item has a cost price;
+/// <see cref="ProfitCoverage"/> says what share of sales that is, so a low number reads as "add cost prices".
+/// </summary>
+public sealed record MonthReport(
+    string Month,
+    decimal Sales,
+    int Bills,
+    decimal Cash,
+    decimal Upi,
+    decimal UdhaarGiven,
+    decimal KhataCollected,
+    decimal Outstanding,
+    decimal EstimatedProfit,
+    decimal ProfitCoverage,
+    IReadOnlyList<TopItem> TopItems,
+    IReadOnlyList<DailyTotals> Days);
+
+/// <summary>
+/// Ageing by first-in, first-out: every payment (and every reversal of udhaar) pays off the oldest udhaar first,
+/// so what is still unpaid is the newest udhaar, aged by the day it was given.
+/// </summary>
+public static class Ageing
+{
+    public sealed record Entry(DateTimeOffset At, decimal Amount);
+
+    /// <summary>The unpaid pieces of udhaar, each with the day it was given. Their sum is the balance (when positive).</summary>
+    public static IReadOnlyList<Entry> Unpaid(IEnumerable<Entry> entries)
+    {
+        var open = new LinkedList<Entry>();
+        var credit = 0m; // payments made before there was udhaar to pay: an advance, used up by later udhaar
+        foreach (var entry in entries.OrderBy(e => e.At))
+        {
+            if (entry.Amount > 0)
+            {
+                var amount = entry.Amount;
+                var fromAdvance = Math.Min(credit, amount);
+                credit -= fromAdvance;
+                amount -= fromAdvance;
+                if (amount > 0)
+                {
+                    open.AddLast(entry with { Amount = amount });
+                }
+            }
+            else
+            {
+                var paying = -entry.Amount;
+                while (paying > 0 && open.First is { } oldest)
+                {
+                    var used = Math.Min(paying, oldest.Value.Amount);
+                    paying -= used;
+                    if (used == oldest.Value.Amount)
+                    {
+                        open.RemoveFirst();
+                    }
+                    else
+                    {
+                        oldest.Value = oldest.Value with { Amount = oldest.Value.Amount - used };
+                    }
+                }
+
+                credit += paying;
+            }
+        }
+
+        return [.. open];
+    }
+}
+
+public static class ReportEndpoints
+{
+    public static IEndpointRouteBuilder MapReports(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/v1").WithTags("Reports");
+        group.MapGet("/reports/dues", (AppDbContext db, TimeProvider clock, CancellationToken ct) => DuesAsync(db, clock, ct))
+            .RequireAuthorization(AppPolicies.ShopMember);
+        group.MapGet("/reports/month", MonthAsync).RequireAuthorization(AppPolicies.ShopMember);
+        group.MapPost("/customers/{id:guid}/reminded", RemindedAsync).RequireAuthorization(AppPolicies.ShopMember);
+        // Downloads hold every customer's dues or the month's figures: the owner's data to take away.
+        group.MapGet("/reports/dues.csv", DuesCsvAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapGet("/reports/month.csv", MonthCsvAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        return app;
+    }
+
+    public static async Task<DuesReport> DuesAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var customers = await db.Customers.AsNoTracking().Where(c => c.Balance > 0).ToListAsync(ct);
+        var ids = customers.Select(c => c.Id).ToList();
+        var entries = (await db.LedgerEntries.AsNoTracking().Where(e => ids.Contains(e.CustomerId))
+                .Select(e => new { e.CustomerId, e.OccurredAt, e.Amount, e.PaymentMode }).ToListAsync(ct))
+            .ToLookup(e => e.CustomerId);
+        var today = IndiaTime.Today(clock);
+
+        var dues = customers.Select(c =>
+        {
+            var own = entries[c.Id].ToList();
+            var unpaid = Ageing.Unpaid(own.Select(e => new Ageing.Entry(e.OccurredAt, e.Amount)));
+            int Age(Ageing.Entry e) => today.DayNumber - DateOnly.FromDateTime(e.At.ToOffset(IndiaTime.Offset).DateTime).DayNumber;
+            var lastPayment = own.Where(e => e.Amount < 0 && e.PaymentMode != null).Select(e => (DateTimeOffset?)e.OccurredAt).Max();
+            return new DueDto(
+                c.Id, c.Name, c.Phone, c.Balance,
+                unpaid.Where(e => Age(e) <= 7).Sum(e => e.Amount),
+                unpaid.Where(e => Age(e) is > 7 and <= 30).Sum(e => e.Amount),
+                unpaid.Where(e => Age(e) > 30).Sum(e => e.Amount),
+                unpaid.Count == 0 ? 0 : Age(unpaid[0]),
+                lastPayment,
+                c.LastRemindedAt);
+        })
+        .OrderByDescending(d => d.Over30).ThenByDescending(d => d.Days8To30).ThenByDescending(d => d.Balance)
+        .ToList();
+
+        return new DuesReport(dues.Sum(d => d.Balance), dues.Sum(d => d.Days0To7), dues.Sum(d => d.Days8To30), dues.Sum(d => d.Over30), dues);
+    }
+
+    private static async Task<IResult> RemindedAsync(Guid id, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        // A direct update: a reminder is bookkeeping, not an edit to audit.
+        var updated = await db.Customers.Where(c => c.Id == id).ExecuteUpdateAsync(s => s.SetProperty(c => c.LastRemindedAt, now), ct);
+        return updated == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
+    }
+
+    private static async Task<IResult> MonthAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        ParseOrThisMonth(month, clock) is { } period
+            ? TypedResults.Ok(await BuildMonthAsync(db, period, ct))
+            : TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
+
+    public static async Task<MonthReport> BuildMonthAsync(AppDbContext db, (int Year, int Month) period, CancellationToken ct)
+    {
+        var (start, end) = IndiaTime.Month(period.Year, period.Month);
+        var bills = await db.Bills.AsNoTracking().Include(b => b.Lines)
+            .Where(b => b.OccurredAt >= start && b.OccurredAt < end)
+            .ToListAsync(ct);
+        var entries = await db.LedgerEntries.AsNoTracking()
+            .Where(e => e.OccurredAt >= start && e.OccurredAt < end)
+            .Select(e => new { e.OccurredAt, e.Amount, e.PaymentMode, e.BillId })
+            .ToListAsync(ct);
+        var productIds = bills.SelectMany(b => b.Lines).Where(l => l.ProductId != null).Select(l => l.ProductId!.Value).Distinct().ToList();
+        var costs = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id) && p.CostPrice != null)
+            .ToDictionaryAsync(p => p.Id, p => p.CostPrice!.Value, ct);
+
+        // Money in, the cash-book way: bills paid at the counter plus khata payments (and their reversals) not tied to a bill.
+        decimal Received(PaymentMode mode) =>
+            bills.Where(b => b.PaymentMode == mode).Sum(b => b.PaidAmount)
+            - entries.Where(e => e.PaymentMode == mode && e.BillId == null).Sum(e => e.Amount);
+        var khataCollected = -entries.Where(e => e.PaymentMode != null && e.BillId == null).Sum(e => e.Amount);
+        var udhaar = entries.Where(e => e.PaymentMode == null).Sum(e => e.Amount)
+            + entries.Where(e => e.PaymentMode != null && e.BillId != null).Sum(e => e.Amount);
+
+        var lines = bills.SelectMany(b => b.Lines).ToList();
+        var costed = lines.Where(l => l.ProductId is { } id && costs.ContainsKey(id)).ToList();
+        var profit = costed.Sum(l => l.Amount - Money.LineAmount(l.Quantity, costs[l.ProductId!.Value]));
+        var sales = bills.Sum(b => b.Total);
+
+        var days = Enumerable.Range(0, DateTime.DaysInMonth(period.Year, period.Month)).Select(i =>
+        {
+            var date = new DateOnly(period.Year, period.Month, 1).AddDays(i);
+            var (dayStart, dayEnd) = IndiaTime.Day(date);
+            var dayBills = bills.Where(b => b.OccurredAt >= dayStart && b.OccurredAt < dayEnd).ToList();
+            var received = dayBills.Sum(b => b.PaidAmount)
+                - entries.Where(e => e.PaymentMode != null && e.BillId == null && e.OccurredAt >= dayStart && e.OccurredAt < dayEnd).Sum(e => e.Amount);
+            return new DailyTotals(date, dayBills.Sum(b => b.Total), received);
+        }).ToList();
+
+        var top = lines.GroupBy(l => (Key: l.ProductId?.ToString() ?? l.Name.ToLowerInvariant(), l.Unit))
+            .Select(g => new TopItem(g.First().Name, g.Sum(l => l.Quantity), g.Key.Unit, g.Sum(l => l.Amount)))
+            .OrderByDescending(t => t.Amount).Take(10).ToList();
+
+        var outstanding = await db.Customers.AsNoTracking().Where(c => c.Balance > 0).SumAsync(c => (decimal?)c.Balance, ct) ?? 0m;
+        return new MonthReport(
+            $"{period.Year:D4}-{period.Month:D2}", sales, bills.Count, Received(PaymentMode.Cash), Received(PaymentMode.Upi), udhaar, khataCollected,
+            outstanding, profit, sales == 0 ? 0 : decimal.Round(costed.Sum(l => l.Amount) / sales, 2), top, days);
+    }
+
+    private static async Task<IResult> DuesCsvAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var report = await DuesAsync(db, clock, ct);
+        var csv = new StringBuilder("Name,Phone,Balance,0-7 days,8-30 days,30+ days,Oldest due (days),Last payment,Last reminded\n");
+        foreach (var d in report.Customers)
+        {
+            csv.AppendJoin(',', Cell(d.Name), Cell(d.Phone), Num(d.Balance), Num(d.Days0To7), Num(d.Days8To30), Num(d.Over30), d.OldestDays,
+                Day(d.LastPaymentAt), Day(d.LastRemindedAt)).Append('\n');
+        }
+
+        return Csv(csv, $"dues-{IndiaTime.Today(clock):yyyy-MM-dd}.csv");
+    }
+
+    private static async Task<IResult> MonthCsvAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (ParseOrThisMonth(month, clock) is not { } period)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
+        }
+
+        var report = await BuildMonthAsync(db, period, ct);
+        var csv = new StringBuilder("Date,Sales,Received\n");
+        foreach (var day in report.Days)
+        {
+            csv.AppendJoin(',', day.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), Num(day.Sales), Num(day.Received)).Append('\n');
+        }
+
+        csv.Append('\n').AppendJoin(',', "Total", Num(report.Sales), Num(report.Cash + report.Upi)).Append('\n');
+        return Csv(csv, $"month-{report.Month}.csv");
+    }
+
+    private static (int Year, int Month)? ParseOrThisMonth(string? month, TimeProvider clock)
+    {
+        if (string.IsNullOrEmpty(month))
+        {
+            var today = IndiaTime.Today(clock);
+            return (today.Year, today.Month);
+        }
+
+        return IndiaTime.ParseMonth(month);
+    }
+
+    /// <summary>UTF-8 with a byte-order mark, so Excel shows Hindi names correctly when the file is opened.</summary>
+    private static IResult Csv(StringBuilder csv, string fileName) =>
+        TypedResults.File([.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(csv.ToString())], "text/csv; charset=utf-8", fileName);
+
+    private static string Num(decimal value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static string Day(DateTimeOffset? at) => at?.ToOffset(IndiaTime.Offset).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+
+    /// <summary>Quotes a text cell, and defuses values Excel would run as a formula (= + - @).</summary>
+    private static string Cell(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return "";
+        }
+
+        var safe = text[0] is '=' or '+' or '-' or '@' ? "'" + text : text;
+        return $"\"{safe.Replace("\"", "\"\"")}\"";
+    }
+}

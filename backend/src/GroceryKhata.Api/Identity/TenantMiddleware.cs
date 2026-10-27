@@ -10,7 +10,7 @@ namespace GroceryKhata.Api.Identity;
 /// </summary>
 public sealed class TenantMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext context, TenantContext tenant, ShopAccessChecker access)
+    public async Task InvokeAsync(HttpContext context, TenantContext tenant, ShopAccessChecker access, AppDbContext db)
     {
         if (context.User.Identity?.IsAuthenticated == true && context.User.UserId() is { } signedIn)
         {
@@ -33,13 +33,19 @@ public sealed class TenantMiddleware(RequestDelegate next)
             return;
         }
 
+        // One connection for the whole request: the shop session (app.shop_id, for row-level security) is set once
+        // when it opens, instead of again for every query EF runs; the context closes it at the end. The access
+        // check below runs on it too, and if it fails nothing else is read. (Found by the evening-rush load test,
+        // where the extra round trips doubled response times.)
+        tenant.SetShop(shopId);
+        await db.Database.OpenConnectionAsync(context.RequestAborted);
+
         if (!await access.IsAllowedAsync(userId, membershipId, shopId, context.RequestAborted))
         {
             await DenyAsync(context, "Your access to this shop has ended.", "Please sign in again.");
             return;
         }
 
-        tenant.SetShop(shopId);
         await next(context);
     }
 
