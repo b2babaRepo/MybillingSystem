@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+:root {
+  font-family: system-ui, "Noto Sans Devanagari", "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  @apply bg-slate-100 text-slate-900;
+}

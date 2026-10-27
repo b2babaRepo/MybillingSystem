@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GroceryKhata.Api/GroceryKhata.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GroceryKhata.Api.Tests/GroceryKhata.Api.Tests.csproj" />
+  </Folder>
+</Solution>
