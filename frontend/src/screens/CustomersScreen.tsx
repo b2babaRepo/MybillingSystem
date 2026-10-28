@@ -4,6 +4,7 @@ import { Balance, Button, Field, PendingDot, Sheet } from '../components/ui'
 import { addCustomer, useCustomers } from '../lib/data'
 import { formatPhone } from '../lib/format'
 import { navigate } from '../router'
+import { OpenDisputesBanner } from './DisputesScreen'
 
 /** Everyone on khata, most due first ("who owes me?"). */
 export function CustomersScreen({ shopId }: { shopId: string }) {
@@ -23,6 +24,7 @@ export function CustomersScreen({ shopId }: { shopId: string }) {
 
   return (
     <div className="p-4">
+      <OpenDisputesBanner />
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}

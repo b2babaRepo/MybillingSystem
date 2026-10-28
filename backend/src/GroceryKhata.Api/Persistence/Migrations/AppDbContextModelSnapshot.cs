@@ -1017,6 +1017,73 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("customers", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.Dispute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<Guid>("EntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entry_id");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("message");
+
+                    b.Property<DateTimeOffset>("RaisedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("raised_at");
+
+                    b.Property<string>("Resolution")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("resolution");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid?>("ResolvedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolved_by_user_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("EntryId")
+                        .IsUnique()
+                        .HasFilter("resolved_at IS NULL");
+
+                    b.HasIndex("ShopId", "CustomerId");
+
+                    b.HasIndex("ShopId", "EntryId");
+
+                    b.HasIndex("ShopId", "ResolvedAt");
+
+                    b.ToTable("disputes", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.LedgerEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1077,6 +1144,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
+                    b.Property<string>("UpiRef")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("upi_ref");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ReversesEntryId")
@@ -1086,6 +1158,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ShopId", "BillId");
 
                     b.HasIndex("ShopId", "ReversesEntryId");
+
+                    b.HasIndex("ShopId", "UpiRef")
+                        .IsUnique()
+                        .HasFilter("upi_ref IS NOT NULL");
 
                     b.HasIndex("ShopId", "CustomerId", "OccurredAt");
 
@@ -1584,6 +1660,23 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasOne("GroceryKhata.Api.Shops.Shop", null)
                         .WithMany()
                         .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.Dispute", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Ledger.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("ShopId", "CustomerId")
+                        .HasPrincipalKey("ShopId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GroceryKhata.Api.Ledger.LedgerEntry", null)
+                        .WithMany()
+                        .HasForeignKey("ShopId", "EntryId")
+                        .HasPrincipalKey("ShopId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -44,6 +44,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
 
+    public DbSet<Dispute> Disputes => Set<Dispute>();
+
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
@@ -249,6 +251,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantForeignKey<LedgerEntry, Customer>(nameof(LedgerEntry.CustomerId));
             b.HasTenantForeignKey<LedgerEntry, Bill>(nameof(LedgerEntry.BillId));
             b.HasTenantForeignKey<LedgerEntry, LedgerEntry>(nameof(LedgerEntry.ReversesEntryId));
+            b.Property(e => e.UpiRef).HasMaxLength(30);
+            b.HasIndex(e => new { e.ShopId, e.UpiRef }).IsUnique().HasFilter("upi_ref IS NOT NULL");
+        });
+
+        modelBuilder.Entity<Dispute>(b =>
+        {
+            b.ToTable("disputes");
+            b.HasTenantKey();
+            b.Property(d => d.Message).HasMaxLength(300);
+            b.Property(d => d.Resolution).HasMaxLength(300);
+            // One open dispute per entry: asking again while it's open adds nothing.
+            b.HasIndex(d => d.EntryId).IsUnique().HasFilter("resolved_at IS NULL");
+            b.HasIndex(d => new { d.ShopId, d.ResolvedAt });
+            b.HasTenantForeignKey<Dispute, Customer>(nameof(Dispute.CustomerId));
+            b.HasTenantForeignKey<Dispute, LedgerEntry>(nameof(Dispute.EntryId));
         });
 
         var applyFilter = typeof(AppDbContext).GetMethod(nameof(ApplyShopFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;

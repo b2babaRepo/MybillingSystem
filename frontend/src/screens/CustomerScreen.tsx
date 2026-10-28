@@ -46,6 +46,7 @@ export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName
   const [notice, setNotice] = useState<string | null>(null)
   const [tab, setTab] = useState<'history' | 'entry'>('history')
   const [part, setPart] = useState('')
+  const [upiRef, setUpiRef] = useState('')
 
   useEffect(() => {
     if (!lastSaved) return
@@ -60,7 +61,7 @@ export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName
 
   async function save(type: KhataEntryType) {
     if (!customer || !valid) return
-    const id = await addKhataEntry(shopId, customer, type, value, mode, note.trim())
+    const id = await addKhataEntry(shopId, customer, type, value, mode, note.trim(), upiRef)
     saved(id, type === 'credit' ? value : -value)
     setAmount('')
     setNote('')
@@ -70,13 +71,14 @@ export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName
     if (!customer || customer.balance <= 0) return
     const due = customer.balance
     if (!confirm(t('ledgerView.settleConfirm', { amount: formatRupees(due), mode: t(mode) }))) return
-    const id = await addKhataEntry(shopId, customer, 'payment', due, mode, '')
+    const id = await addKhataEntry(shopId, customer, 'payment', due, mode, '', upiRef)
     saved(id, -due)
   }
 
   function saved(id: string, delta: number) {
     if (!customer) return
     setNotice(null)
+    setUpiRef('')
     setLastSaved({ id, amount: delta, dueAfter: round2(customer.balance + delta), mode, at: new Date().toISOString() })
   }
 
@@ -110,22 +112,34 @@ export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName
 
   async function payPart() {
     if (!customer || !partValid) return
-    const id = await addKhataEntry(shopId, customer, 'payment', partValue, mode, '')
+    const id = await addKhataEntry(shopId, customer, 'payment', partValue, mode, '', upiRef)
     saved(id, -partValue)
     setPart('')
   }
 
+  // UPI: the bank reference (UTR) from the payment app. Optional, but a payment with one is locked for good.
   const modeButtons = (
-    <div className="flex gap-2 text-sm">
-      {(['cash', 'upi'] as const).map((m) => (
-        <button
-          key={m}
-          onClick={() => setMode(m)}
-          className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}
-        >
-          {t(m)}
-        </button>
-      ))}
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2 text-sm">
+        {(['cash', 'upi'] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}
+          >
+            {t(m)}
+          </button>
+        ))}
+      </div>
+      {mode === 'upi' && (
+        <input
+          value={upiRef}
+          onChange={(e) => setUpiRef(e.target.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 30))}
+          placeholder={t('ledgerView.upiRefPlaceholder')}
+          aria-label={t('ledgerView.upiRefPlaceholder')}
+          className="h-11 rounded-xl border border-line bg-white px-3 text-sm outline-none focus:border-teal-600"
+        />
+      )}
     </div>
   )
 

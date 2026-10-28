@@ -75,20 +75,52 @@ public static class KhataViewEndpoints
     private static async Task<IResult> GetByLinkAsync(
         string slug, Guid customerId, string? t, AppDbContext db, TenantContext tenant, LedgerService ledger, CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(t) || await StoreEndpoints.OpenShopAsync(db, tenant, slug, ct) is not { } shop)
-        {
-            return TypedResults.NotFound();
-        }
-
-        var token = await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => c.KhataToken).SingleOrDefaultAsync(ct);
-        if (token is null || !System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
-                System.Text.Encoding.UTF8.GetBytes(token), System.Text.Encoding.UTF8.GetBytes(t)))
+        if (await OpenByLinkAsync(slug, customerId, t, db, tenant, ct) is not { } shop)
         {
             return TypedResults.NotFound();
         }
 
         var statement = await ledger.GetStatementAsync(customerId, null, ct);
         return statement is null ? TypedResults.NotFound() : TypedResults.Ok(new KhataViewDto(shop.Name, shop.Area, shop.OwnerPhone, statement));
+    }
+
+    /// <summary>
+    /// Checks a khata link and works as its shop for the rest of the request. Null for a wrong or missing token,
+    /// an unknown customer or a closed shop: all look the same from outside.
+    /// </summary>
+    internal static async Task<StoreEndpoints.OpenShop?> OpenByLinkAsync(
+        string slug, Guid customerId, string? t, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(t) || await StoreEndpoints.OpenShopAsync(db, tenant, slug, ct) is not { } shop)
+        {
+            return null;
+        }
+
+        var token = await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => c.KhataToken).SingleOrDefaultAsync(ct);
+        return token is not null && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(token), System.Text.Encoding.UTF8.GetBytes(t)) ? shop : null;
+    }
+
+    /// <summary>
+    /// A scope working as <paramref name="shopId"/>, or null unless the customer there has the signed-in person's
+    /// phone. The caller disposes it.
+    /// </summary>
+    internal static async Task<AsyncServiceScope?> OpenMineAsync(
+        Guid shopId, Guid customerId, ClaimsPrincipal user, IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct)
+    {
+        var phone = await db.Users.AsNoTracking().Where(u => u.Id == user.UserId()).Select(u => u.Phone).SingleAsync(ct);
+        var scope = scopes.CreateAsyncScope();
+        var tenant = scope.ServiceProvider.GetRequiredService<TenantContext>();
+        tenant.SetShop(shopId);
+        tenant.SetUser(user.UserId()!.Value);
+        var shopDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        if (await shopDb.Shops.AnyAsync(s => s.Id == shopId && s.IsActive, ct) && await shopDb.Customers.AnyAsync(c => c.Id == customerId && c.Phone == phone, ct))
+        {
+            return scope;
+        }
+
+        await scope.DisposeAsync();
+        return null;
     }
 
     /// <summary>

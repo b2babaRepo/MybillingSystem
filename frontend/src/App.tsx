@@ -14,6 +14,7 @@ import { navigate, usePath } from './router'
 import { AuthScreen, ShopPicker } from './screens/AuthScreen'
 import { BillScreen } from './screens/BillScreen'
 import { CustomerScreen } from './screens/CustomerScreen'
+import { DisputesScreen } from './screens/DisputesScreen'
 import { CustomersScreen } from './screens/CustomersScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { ItemsScreen } from './screens/ItemsScreen'
@@ -195,6 +196,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <InboxScreen shopId={shopId} />
         ) : path === '/khata' ? (
           <CustomersScreen shopId={shopId} />
+        ) : path === '/disputes' ? (
+          <DisputesScreen isOwner={isOwner} />
         ) : path === '/bill' ? (
           <BillScreen shopId={shopId} />
         ) : path === '/items' ? (

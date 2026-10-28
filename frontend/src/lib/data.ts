@@ -136,6 +136,7 @@ export async function addKhataEntry(
   amount: number,
   paymentMode: PaymentMode,
   note: string,
+  upiRef = '',
 ) {
   const id = uuidv7()
   await enqueue({
@@ -151,6 +152,7 @@ export async function addKhataEntry(
       paymentMode: type === 'payment' ? paymentMode : null,
       note: note || null,
       occurredAt: new Date().toISOString(),
+      upiRef: type === 'payment' && paymentMode === 'upi' && upiRef.trim() ? upiRef.trim() : null,
     },
     customerId: customer.id,
     delta: type === 'credit' ? amount : -amount,

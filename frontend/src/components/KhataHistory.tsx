@@ -11,10 +11,12 @@ type Line = StatementLine & { pending?: boolean }
  * Bills open to show their items; a line marks where the account came back to zero. Removing is shop-only:
  * without `onRemove` the list is read-only.
  */
-export function KhataHistory({ entries, canRemove, onRemove }: {
+export function KhataHistory({ entries, canRemove, onRemove, onDispute }: {
   entries: Line[]
   canRemove?: (entry: Line) => boolean
   onRemove?: (entry: Line) => void
+  /** Customer views only: question an entry. */
+  onDispute?: (entry: Line) => void
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState<string | null>(null)
@@ -33,8 +35,9 @@ export function KhataHistory({ entries, canRemove, onRemove }: {
             entry={e}
             open={open === e.id}
             onToggle={() => setOpen(open === e.id ? null : e.id)}
-            canRemove={!!onRemove && (canRemove?.(e) ?? true)}
+            canRemove={!!onRemove && !e.upiRef && (canRemove?.(e) ?? true)}
             onRemove={() => onRemove?.(e)}
+            onDispute={onDispute && e.kind !== 'reversal' && !(e.dispute && !e.dispute.resolvedAt) ? () => onDispute(e) : undefined}
           />
         </li>
       ))}
@@ -43,12 +46,13 @@ export function KhataHistory({ entries, canRemove, onRemove }: {
 }
 
 /** One khata line. A bill's udhaar opens to show what was taken: item, quantity × price, total, paid at the counter. */
-function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove }: {
+function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }: {
   entry: StatementLine & { pending?: boolean }
   open: boolean
   canRemove: boolean
   onToggle: () => void
   onRemove: () => void
+  onDispute?: () => void
 }) {
   const { t } = useTranslation()
   const items = e.bill?.items ?? []
@@ -87,12 +91,34 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove }: {
             <div className="text-xs font-normal text-muted">{t('ledgerView.balanceAfter', { amount: formatRupees(e.runningBalance) })}</div>
           </div>
         </button>
+        {onDispute && (
+          <button className="min-h-11 px-1 text-sm font-semibold text-due underline" onClick={onDispute}>
+            {t('dispute.raise')}
+          </button>
+        )}
         {canRemove && e.kind !== 'reversal' && !e.isReversed && !e.pending && (
           <button className="min-h-11 px-1 text-sm text-muted underline" onClick={onRemove}>
             {t('remove')}
           </button>
         )}
       </div>
+      {e.upiRef && (
+        <div className="-mt-2 px-3 pb-2 text-xs font-semibold text-jama">🔒 {t('ledgerView.upiLocked', { ref: e.upiRef })}</div>
+      )}
+      {e.dispute && (
+        <div className={`mx-3 mb-3 rounded-xl p-3 text-sm ${e.dispute.resolvedAt ? 'bg-[#f4f8f7]' : 'bg-amber-50 text-amber-950'}`}>
+          <div className="font-semibold">⚠ {t('dispute.customerSays', { message: e.dispute.message })}</div>
+          <div className="text-xs opacity-80">{formatDateTime(e.dispute.raisedAt)}</div>
+          {e.dispute.resolvedAt ? (
+            <div className="mt-1.5 border-t border-line pt-1.5">
+              <span className="font-semibold">{t('dispute.shopAnswer')}</span> {e.dispute.resolution}
+              <div className="text-xs text-muted">{formatDateTime(e.dispute.resolvedAt)}</div>
+            </div>
+          ) : (
+            <div className="mt-1 text-xs font-semibold">{t('dispute.waiting')}</div>
+          )}
+        </div>
+      )}
       {open && e.bill && (
         <div className="mx-3 mb-3 rounded-xl bg-[#f4f8f7] p-3 text-sm">
           {items.map((item, n) => (

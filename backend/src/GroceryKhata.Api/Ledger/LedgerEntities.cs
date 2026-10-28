@@ -52,6 +52,12 @@ public sealed class LedgerEntry : Entity, ITenantOwned
 
     public string? Note { get; set; }
 
+    /// <summary>
+    /// The bank's reference (UTR) for a UPI payment. The bank holds the proof, so a payment with one can never be
+    /// removed, and the same reference can't be recorded twice.
+    /// </summary>
+    public string? UpiRef { get; set; }
+
     /// <summary>When it happened in the shop (the phone's clock), which may be before an offline sync.</summary>
     public DateTimeOffset OccurredAt { get; set; }
 

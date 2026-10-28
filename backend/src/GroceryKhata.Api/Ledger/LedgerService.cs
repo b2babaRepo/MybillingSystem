@@ -79,9 +79,24 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                     errors[nameof(request.Note)] = ["Keep the note under 200 characters."];
                 }
 
+                var upiRef = string.IsNullOrWhiteSpace(request.UpiRef) ? null : request.UpiRef.Trim().ToUpperInvariant();
+                if (upiRef is not null && (request.Type != KhataEntryType.Payment || request.PaymentMode != PaymentMode.Upi))
+                {
+                    errors[nameof(request.UpiRef)] = ["A UPI reference goes only with a UPI payment."];
+                }
+                else if (upiRef is not null && (upiRef.Length is < 6 or > 30 || !upiRef.All(char.IsAsciiLetterOrDigit)))
+                {
+                    errors[nameof(request.UpiRef)] = ["The UPI reference is 6 to 30 letters and digits (the UTR in the payment app)."];
+                }
+
                 if (errors.Count > 0)
                 {
                     return LedgerResult<KhataEntryResponse>.Invalid(errors);
+                }
+
+                if (upiRef is not null && await db.LedgerEntries.AnyAsync(e => e.UpiRef == upiRef, cancellationToken))
+                {
+                    return LedgerResult<KhataEntryResponse>.Conflicted("This UPI reference is already recorded. The same payment can't be entered twice.");
                 }
 
                 if (!await db.Customers.AnyAsync(c => c.Id == request.CustomerId, cancellationToken))
@@ -98,6 +113,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                     Amount = isPayment ? -request.Amount : request.Amount,
                     PaymentMode = isPayment ? request.PaymentMode ?? PaymentMode.Cash : null,
                     Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
+                    UpiRef = upiRef,
                     OccurredAt = OccurredAt(request.OccurredAt),
                     CreatedByUserId = userId,
                 };
@@ -145,6 +161,11 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 if (await db.LedgerEntries.AnyAsync(e => e.ReversesEntryId == entryId, cancellationToken))
                 {
                     return LedgerResult<KhataEntryResponse>.Conflicted("This entry is already reversed.");
+                }
+
+                if (original.UpiRef is not null)
+                {
+                    return LedgerResult<KhataEntryResponse>.Conflicted("A UPI payment with a bank reference can't be removed: the bank's record proves it.");
                 }
 
                 if (clock.GetUtcNow() - original.CreatedAt > RemovalWindow)
@@ -388,12 +409,17 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
         var userIds = entries.Select(e => e.CreatedByUserId).Distinct().ToList();
         var names = await db.Users.AsNoTracking().Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
 
+        var entryIds = entries.Select(e => e.Id).ToList();
+        var disputes = (await db.Disputes.AsNoTracking().Where(d => entryIds.Contains(d.EntryId)).OrderBy(d => d.RaisedAt).ToListAsync(cancellationToken))
+            .GroupBy(d => d.EntryId)
+            .ToDictionary(g => g.Key, g => g.Last() is var d ? new DisputeView(d.Id, d.Message, d.RaisedAt, d.Resolution, d.ResolvedAt) : null);
+
         var running = opening;
         var lines = entries.Select(e =>
         {
             running += e.Amount;
             return new StatementLine(e.Id, e.Kind, e.Amount, e.PaymentMode, e.BillId, e.ReversesEntryId, e.Note, e.OccurredAt,
-                running, reversed.Contains(e.Id), e.BillId is { } billId ? bills.GetValueOrDefault(billId) : null, names.GetValueOrDefault(e.CreatedByUserId));
+                running, reversed.Contains(e.Id), e.BillId is { } billId ? bills.GetValueOrDefault(billId) : null, names.GetValueOrDefault(e.CreatedByUserId), e.UpiRef, disputes.GetValueOrDefault(e.Id));
         }).ToList();
 
         return new StatementDto(customer, lines, opening, running,

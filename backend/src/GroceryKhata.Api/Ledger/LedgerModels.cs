@@ -18,7 +18,8 @@ public sealed record KhataEntryRequest(
     decimal Amount,
     PaymentMode? PaymentMode,
     string? Note,
-    DateTimeOffset? OccurredAt);
+    DateTimeOffset? OccurredAt,
+    string? UpiRef = null);
 
 public enum KhataEntryType
 {
@@ -84,7 +85,12 @@ public sealed record StatementLine(
     decimal RunningBalance,
     bool IsReversed,
     BillSummary? Bill = null,
-    string? RecordedBy = null);
+    string? RecordedBy = null,
+    string? UpiRef = null,
+    DisputeView? Dispute = null);
+
+/// <summary>The latest dispute on an entry, as both sides see it.</summary>
+public sealed record DisputeView(Guid Id, string Message, DateTimeOffset RaisedAt, string? Resolution, DateTimeOffset? ResolvedAt);
 
 /// <summary>What was bought on a bill, so the khata shows the items behind each udhaar, not just an amount.</summary>
 public sealed record BillSummary(decimal Total, decimal Paid, IReadOnlyList<BillItem> Items);

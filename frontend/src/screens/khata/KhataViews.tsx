@@ -1,11 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { KhataHistory } from '../../components/KhataHistory'
 import { Balance } from '../../components/ui'
 import { setLanguage } from '../../i18n'
 import { api } from '../../lib/api'
 import { formatPhone, formatRupees } from '../../lib/format'
-import type { Statement } from '../../lib/types'
+import type { StatementLine, Statement } from '../../lib/types'
 import { navigate } from '../../router'
 
 // Transparency step 2: the customer's own, read-only copy of their khata. The same ledger the shop sees,
@@ -28,9 +28,19 @@ interface MyKhata {
   balance: number
 }
 
-function KhataBody({ view }: { view: KhataView }) {
+/** Asks what is wrong, then sends it. The khata doesn't change: the entry is flagged until the shop answers. */
+async function raiseDispute(entry: StatementLine, send: (body: { entryId: string; message: string }) => Promise<unknown>, ask: string) {
+  const message = prompt(ask)?.trim()
+  if (!message || message.length < 3) return false
+  await send({ entryId: entry.id, message })
+  return true
+}
+
+function KhataBody({ view, disputePath, queryKey }: { view: KhataView; disputePath: string; queryKey: unknown[] }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { customer } = view.statement
+  const open = view.statement.entries.filter((e) => e.dispute && !e.dispute.resolvedAt).length
   return (
     <div className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between rounded-[18px] bg-white p-4">
@@ -46,7 +56,14 @@ function KhataBody({ view }: { view: KhataView }) {
           📞 {t('myKhata.callShop', { phone: formatPhone(view.shopPhone) })}
         </a>
       )}
-      <KhataHistory entries={view.statement.entries} />
+      {open > 0 && <p className="rounded-[14px] bg-amber-50 p-3 text-sm font-semibold text-amber-950">⚠ {t('dispute.openCount', { count: open })}</p>}
+      <p className="text-sm text-muted">{t('dispute.hint')}</p>
+      <KhataHistory
+        entries={view.statement.entries}
+        onDispute={(e) => void raiseDispute(e, (body) => api(disputePath, 'POST', body), t('dispute.ask')).then((sent) => {
+          if (sent) void queryClient.invalidateQueries({ queryKey })
+        })}
+      />
     </div>
   )
 }
@@ -71,7 +88,7 @@ export function KhataLinkPage({ path }: { path: string }) {
         </button>
       </header>
       {view.data ? (
-        <KhataBody view={view.data} />
+        <KhataBody view={view.data} queryKey={['khata-link-view', path]} disputePath={`/v1/khata/${match![1]}/${match![2]}/disputes?t=${match![3]}`} />
       ) : view.isError || !match ? (
         <p className="p-6 text-center text-muted">{t('myKhata.linkInvalid')}</p>
       ) : (
@@ -115,5 +132,9 @@ export function MyKhataDetail({ shopId, customerId }: { shopId: string; customer
   const { t } = useTranslation()
   const view = useQuery({ queryKey: ['my-khata', shopId, customerId], queryFn: () => api<KhataView>(`/v1/me/khata/${shopId}/${customerId}`) })
   if (view.isError) return <p className="p-6 text-center text-muted">{t('myKhata.linkInvalid')}</p>
-  return view.data ? <KhataBody view={view.data} /> : <p className="p-6 text-center text-muted">…</p>
+  return view.data ? (
+    <KhataBody view={view.data} queryKey={['my-khata', shopId, customerId]} disputePath={`/v1/me/khata/${shopId}/${customerId}/disputes`} />
+  ) : (
+    <p className="p-6 text-center text-muted">…</p>
+  )
 }
