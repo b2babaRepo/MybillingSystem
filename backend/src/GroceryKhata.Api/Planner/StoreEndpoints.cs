@@ -10,7 +10,7 @@ namespace GroceryKhata.Api.Planner;
 public sealed record StoreDto(string Name, string Slug, string? Area, string? Address, string? Phone, IReadOnlyList<StoreItemDto> Items);
 
 /// <summary><see cref="Available"/>: on the shelf minus what other online orders hold.</summary>
-public sealed record StoreItemDto(Guid Id, string Name, string? Category, Unit Unit, decimal Price, decimal Available);
+public sealed record StoreItemDto(Guid Id, string Name, string? Category, Unit Unit, decimal Price, decimal Available, int? CatalogueItemId = null);
 
 public sealed record StoreLineRequest(Guid ProductId, decimal Quantity);
 
@@ -56,8 +56,9 @@ public static class StoreEndpoints
         var items = await db.Products.AsNoTracking()
             .Where(p => p.IsActive && p.SellingPrice > 0)
             .OrderBy(p => p.Category).ThenBy(p => p.Name)
-            .Select(p => new StoreItemDto(p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.Stock - p.Reserved))
+            .Select(p => new StoreItemDto(p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.Stock - p.Reserved, p.CatalogueItemId))
             .ToListAsync(ct);
+        items = items.Select(i => i.CatalogueItemId is null ? i with { CatalogueItemId = Catalogue.CommonCatalogue.Match(i.Name) } : i).ToList();
         return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items));
     }
 

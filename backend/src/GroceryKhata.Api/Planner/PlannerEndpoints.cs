@@ -21,6 +21,7 @@ public static class PlannerEndpoints
         me.MapDelete("/lists/{kind}/items/{id:guid}", DeleteItemAsync);
         me.MapGet("/orders", GetMyOrdersAsync);
         me.MapPost("/orders", PlaceOrderAsync);
+        me.MapPost("/orders/{id:guid}/lines/{lineId:guid}/approve", ApproveLineAsync);
 
         app.MapGet("/api/v1/shops", SearchShopsAsync).WithTags("Household planner").RequireAuthorization();
         return app;
@@ -185,10 +186,9 @@ public static class PlannerEndpoints
         tenant.SetShop(shop.Id);
         // Lines picked from the common catalogue (or named like it) arrive matched to this shop's item and price,
         // so packing starts filled in and delivery takes the stock. Anything unmatched the shop prices by hand.
-        var shopItems = CatalogueEndpoints.MatchToCatalogue(await CatalogueEndpoints.ShopProductsAsync(db, ct))
-            .ToDictionary(m => m.CatalogueItemId, m => m.Product);
-        Catalogue.Product? ShopItem(ShoppingListItem i) =>
-            (i.CatalogueItemId ?? CommonCatalogue.Match(i.Name)) is { } id ? shopItems.GetValueOrDefault(id) : null;
+        var products = await CatalogueEndpoints.ShopProductsAsync(db, ct);
+        var shopItems = CatalogueEndpoints.MatchToCatalogue(products).ToDictionary(m => m.CatalogueItemId, m => m.Product);
+        var choices = (request.Choices ?? []).GroupBy(c => c.ListItemId).ToDictionary(g => g.Key, g => g.Last());
         var lineNo = 0;
         var order = new Order
         {
@@ -201,17 +201,8 @@ public static class PlannerEndpoints
             Slot = string.IsNullOrWhiteSpace(request.Slot) ? null : request.Slot.Trim(),
             Payment = request.Payment ?? OrderPayment.Cash,
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
-            Lines = list.Items.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id).Select(i => new OrderLine
-            {
-                PlacedByUserId = userId,
-                LineNo = ++lineNo,
-                Name = i.Name,
-                Quantity = i.Quantity,
-                Unit = i.Unit,
-                Note = i.Note,
-                ProductId = ShopItem(i) is { } p && p.Unit == i.Unit ? p.Id : null,
-                UnitPrice = ShopItem(i) is { } q && q.Unit == i.Unit ? q.SellingPrice : null,
-            }).ToList(),
+            Lines = list.Items.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id)
+                .Select(i => OrderLines.FromListItem(i, choices.GetValueOrDefault(i.Id), products, shopItems, userId, ++lineNo)).ToList(),
         };
         db.Orders.Add(order);
         foreach (var item in list.Items)
@@ -229,6 +220,52 @@ public static class PlannerEndpoints
         }
 
         return TypedResults.Created($"/api/v1/me/orders/{order.Id}", OrderDto.From(order, shop.Name));
+    }
+
+    /// <summary>
+    /// The household's answer to a changed line: OK (it stays on the bill) or no (it's left out and the total drops).
+    /// Once nothing waits, the shop can deliver.
+    /// </summary>
+    private static async Task<IResult> ApproveLineAsync(
+        Guid id, Guid lineId, ApproveLineRequest request, ClaimsPrincipal user, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    {
+        var userId = user.UserId()!.Value;
+        var shopId = await db.Orders.AsNoTracking().Where(o => o.Id == id && o.PlacedByUserId == userId).Select(o => (Guid?)o.ShopId).SingleOrDefaultAsync(ct);
+        if (shopId is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        // The order is the shop's: change it as that shop, so the stamp and row-level security accept it.
+        tenant.SetShop(shopId.Value);
+        var order = await db.Orders.Include(o => o.Lines).SingleAsync(o => o.Id == id, ct);
+        var line = order.Lines.SingleOrDefault(l => l.Id == lineId);
+        if (line is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (line.Approval == LineApproval.Pending && order.Status == OrderStatus.Packed)
+        {
+            line.Approval = request.Approve ? LineApproval.Approved : LineApproval.Declined;
+            if (!request.Approve)
+            {
+                line.Removed = true;
+            }
+
+            if (order.Lines.All(l => l.Removed))
+            {
+                order.Status = OrderStatus.Cancelled; // nothing left to deliver
+            }
+            else
+            {
+                order.FinalAmount = OrderEndpoints.FinalAmount(order);
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        return TypedResults.Ok((await WithShopNamesAsync(db, [order], ct))[0]);
     }
 
     internal static async Task<IReadOnlyList<OrderDto>> WithShopNamesAsync(AppDbContext db, IReadOnlyList<Order> orders, CancellationToken ct)

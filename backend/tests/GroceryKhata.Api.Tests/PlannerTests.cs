@@ -96,6 +96,116 @@ public sealed class PlannerTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_shop_adds_items_from_the_common_list_at_its_own_price_and_items_it_already_sells_are_skipped()
+    {
+        var (shop, shopAuth) = await SignUpShopAsync("Gupta Kirana", $"Bapu Bazar {Guid.NewGuid():N}"[..20]);
+        await shop.PostJsonAsync("/api/v1/products/import", new { rows = new[] { new { name = "आटा (Aashirvaad)", unit = "kg", sellingPrice = 42m } } });
+        var catalogue = await shop.GetJsonAsync<List<CatalogueItemDto>>("/api/v1/catalogue");
+        int Id(string en) => catalogue.Single(i => i.NameEn == en).Id;
+
+        var added = await (await shop.PostJsonAsync("/api/v1/products/from-catalogue", new
+        {
+            items = new object[]
+            {
+                new { catalogueItemId = Id("Atta"), sellingPrice = 40m },      // already sold here as "आटा (Aashirvaad)"
+                new { catalogueItemId = Id("Sugar"), sellingPrice = 47m, openingStock = 25m },
+                new { catalogueItemId = Id("Mustard oil"), sellingPrice = 180m },
+            },
+        })).ReadAsync<ImportResult>();
+        var noPrice = await shop.PostJsonAsync("/api/v1/products/from-catalogue", new { items = new[] { new { catalogueItemId = Id("Tea"), sellingPrice = 0m } } });
+
+        Assert.Equal((2, 1), (added.Created, added.Skipped));
+        Assert.Equal(HttpStatusCode.BadRequest, noPrice.StatusCode);
+        var products = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        var sugar = products.Single(p => p.CatalogueItemId == Id("Sugar"));
+        Assert.Equal(("चीनी", 47m, 25m), (sugar.Name, sugar.SellingPrice, sugar.Stock));
+        Assert.Equal(Id("Atta"), products.Single(p => p.Name == "आटा (Aashirvaad)").CatalogueItemId);
+        // Households see the shop's own prices for them.
+        var (home, _) = await RegisterHouseholdAsync("Priya");
+        var prices = await home.GetJsonAsync<List<ShopPriceDto>>($"/api/v1/shops/{shopAuth.ShopId}/prices");
+        Assert.Equal([42m, 47m, 180m], prices.OrderBy(p => p.CatalogueItemId).Select(p => p.Price));
+    }
+
+    [Fact]
+    public async Task Households_pick_an_option_or_leave_it_to_the_shop_and_changed_lines_wait_for_their_ok()
+    {
+        var (shop, shopAuth) = await SignUpShopAsync("Gupta Kirana", $"Bapu Bazar {Guid.NewGuid():N}"[..20]);
+        var catalogue = await shop.GetJsonAsync<List<CatalogueItemDto>>("/api/v1/catalogue");
+        int Id(string en) => catalogue.Single(i => i.NameEn == en).Id;
+        await shop.PostJsonAsync("/api/v1/products/from-catalogue", new
+        {
+            items = new object[]
+            {
+                new { catalogueItemId = Id("Atta"), sellingPrice = 45m },
+                new { catalogueItemId = Id("Atta"), sellingPrice = 260m, name = "Aashirvaad atta 5 kg", unit = "packet", packSize = 5m, packUnit = "kg" },
+                new { catalogueItemId = Id("Atta"), sellingPrice = 300m, name = "Pillsbury atta 5 kg", unit = "packet", packSize = 5m, packUnit = "kg" },
+                new { catalogueItemId = Id("Toor dal"), sellingPrice = 160m },
+            },
+        });
+        var options = await (await shop.GetAsync("/api/v1/products")).ReadAsync<List<ProductDto>>();
+        Guid P(string name) => options.Single(p => p.Name == name).Id;
+        var (home, _) = await RegisterHouseholdAsync("Priya");
+        var shopOptions = await home.GetJsonAsync<List<ShopOptionDto>>($"/api/v1/shops/{shopAuth.ShopId}/options");
+        Assert.Equal(3, shopOptions.Count(o => o.CatalogueItemId == Id("Atta")));
+
+        var atta = Guid.CreateVersion7();
+        var dal = Guid.CreateVersion7();
+        await PutItemAsync(home, "monthly", atta, "आटा", 5m, "kg");
+        await PutItemAsync(home, "monthly", dal, "तूर दाल", 2m, "kg");
+
+        // Atta: exactly Aashirvaad 5 kg, ask before changing. Dal: the shop chooses.
+        var orderId = Guid.CreateVersion7();
+        await home.PostJsonAsync("/api/v1/me/orders", new
+        {
+            id = orderId, shopId = shopAuth.ShopId, kind = "monthly",
+            choices = new object[] { new { listItemId = atta, productId = P("Aashirvaad atta 5 kg"), preference = "ask_me" } },
+        });
+        var order = Assert.Single(await shop.GetJsonAsync<List<OrderDto>>("/api/v1/orders?status=placed"));
+        var attaLine = order.Lines.Single(l => l.RequestedProductId == P("Aashirvaad atta 5 kg"));
+        var dalLine = order.Lines.Single(l => l.Id != attaLine.Id);
+        Assert.Equal((1m, Unit.Packet, 260m), (attaLine.Quantity, attaLine.Unit, attaLine.ExpectedAmount)); // 5 kg asked = one 5 kg bag
+        Assert.Equal(320m, dalLine.ExpectedAmount);
+
+        // The shop has no Aashirvaad today and packs Pillsbury; dal went up to ₹200/kg (₹80 more: past the ₹32 tolerance).
+        var packed = await (await shop.PostJsonAsync($"/api/v1/orders/{orderId}/pack", new
+        {
+            lines = new object[]
+            {
+                new { id = attaLine.Id, packedQuantity = 1m, unitPrice = 300m, removed = false, productId = P("Pillsbury atta 5 kg") },
+                new { id = dalLine.Id, packedQuantity = 2m, unitPrice = 200m, removed = false },
+            },
+        })).ReadAsync<OrderDto>();
+        Assert.All(packed.Lines, l => Assert.Equal(LineApproval.Pending, l.Approval));
+        Assert.Equal("Pillsbury atta 5 kg", packed.Lines.Single(l => l.Id == attaLine.Id).Name);
+        Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync($"/api/v1/orders/{orderId}/deliver", new { })).StatusCode);
+
+        // Priya says no to Pillsbury and yes to the dear dal: the atta comes off, then the shop can deliver.
+        await home.PostJsonAsync($"/api/v1/me/orders/{orderId}/lines/{attaLine.Id}/approve", new { approve = false });
+        var answered = await (await home.PostJsonAsync($"/api/v1/me/orders/{orderId}/lines/{dalLine.Id}/approve", new { approve = true })).ReadAsync<OrderDto>();
+        Assert.Equal(400m, answered.FinalAmount);
+        Assert.True(answered.Lines.Single(l => l.Id == attaLine.Id).Removed);
+        Assert.Equal(HttpStatusCode.OK, (await shop.PostJsonAsync($"/api/v1/orders/{orderId}/deliver", new { })).StatusCode);
+
+        // "Don't replace": packing another option is refused; the shop packs it or marks it not available.
+        var strict = Guid.CreateVersion7();
+        await home.PostJsonAsync("/api/v1/me/orders", new
+        {
+            id = strict, shopId = shopAuth.ShopId, kind = "monthly",
+            choices = new object[] { new { listItemId = atta, productId = P("Aashirvaad atta 5 kg"), preference = "dont_replace" } },
+        });
+        var strictOrder = await shop.GetJsonAsync<OrderDto>($"/api/v1/orders/{strict}");
+        var refused = await shop.PostJsonAsync($"/api/v1/orders/{strict}/pack", new
+        {
+            lines = strictOrder.Lines.Select(l => (object)new
+            {
+                id = l.Id, packedQuantity = l.Quantity, unitPrice = l.UnitPrice ?? 160m, removed = false,
+                productId = l.RequestedProductId is null ? (Guid?)null : P("Pillsbury atta 5 kg"),
+            }).ToArray(),
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+    }
+
+    [Fact]
     public async Task Orders_stay_between_the_household_and_the_shop_it_was_sent_to()
     {
         var (shopA, authA) = await SignUpShopAsync("Shop A", "Market A");

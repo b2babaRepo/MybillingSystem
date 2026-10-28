@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { KhataHistory } from '../../components/KhataHistory'
-import { Balance } from '../../components/ui'
+import { Balance, Button, Sheet } from '../../components/ui'
 import { setLanguage } from '../../i18n'
 import { api } from '../../lib/api'
 import { formatPhone, formatRupees } from '../../lib/format'
-import type { StatementLine, Statement } from '../../lib/types'
+import type { ItemProblem, StatementLine, Statement } from '../../lib/types'
 import { navigate } from '../../router'
 
 // Transparency step 2: the customer's own, read-only copy of their khata. The same ledger the shop sees,
@@ -28,17 +29,114 @@ interface MyKhata {
   balance: number
 }
 
-/** Asks what is wrong, then sends it. The khata doesn't change: the entry is flagged until the shop answers. */
-async function raiseDispute(entry: StatementLine, send: (body: { entryId: string; message: string }) => Promise<unknown>, ask: string) {
-  const message = prompt(ask)?.trim()
-  if (!message || message.length < 3) return false
-  await send({ entryId: entry.id, message })
-  return true
+type Ticked = { problem: ItemProblem; received: string }
+
+/**
+ * What's wrong with an entry. On a bill the customer ticks the exact items (not received, got less, wrong) and
+ * sees how much is in question; a note is optional. Other entries just need a note. The khata doesn't change:
+ * the entry is flagged until the shop answers.
+ */
+function DisputeSheet({ entry, path, onClose, onSent }: { entry: StatementLine; path: string; onClose: () => void; onSent: () => void }) {
+  const { t } = useTranslation()
+  const items = entry.bill?.items ?? []
+  const [ticked, setTicked] = useState<Record<string, Ticked>>({})
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const chosen = items.filter((i) => ticked[i.id])
+  const shortInvalid = chosen.some((i) => ticked[i.id].problem === 'short' && !(Number(ticked[i.id].received) >= 0 && Number(ticked[i.id].received) < i.quantity && ticked[i.id].received !== ''))
+  const inQuestion = chosen.reduce((sum, i) => {
+    const tick = ticked[i.id]
+    return sum + (tick.problem === 'short' ? Math.max(0, i.quantity - Number(tick.received || 0)) * i.unitPrice : i.amount)
+  }, 0)
+  const valid = !shortInvalid && (chosen.length > 0 || message.trim().length >= 3)
+
+  const toggle = (id: string, problem: ItemProblem) =>
+    setTicked((current) => {
+      const next = { ...current }
+      if (next[id]?.problem === problem) delete next[id]
+      else next[id] = { problem, received: next[id]?.received ?? '' }
+      return next
+    })
+
+  async function send() {
+    setBusy(true)
+    setError(null)
+    try {
+      await api(path, 'POST', {
+        entryId: entry.id,
+        message: message.trim(),
+        items: chosen.map((i) => ({ billLineId: i.id, problem: ticked[i.id].problem, receivedQuantity: ticked[i.id].problem === 'short' ? Number(ticked[i.id].received) : null })),
+      })
+      onSent()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Sheet title={t('dispute.sheetTitle')} onClose={onClose}>
+      <div className="flex max-h-[70dvh] flex-col gap-3 overflow-y-auto">
+        {items.length > 0 && <p className="text-sm text-muted">{t('dispute.tickHint')}</p>}
+        {items.map((item) => {
+          const tick = ticked[item.id]
+          return (
+            <div key={item.id} className={`rounded-[14px] border bg-white p-3 ${tick ? 'border-amber-400' : 'border-line'}`}>
+              <div className="flex justify-between gap-2 font-semibold">
+                <span className="min-w-0 truncate">{item.name}</span>
+                <span className="shrink-0 text-sm text-muted">{item.quantity} {t(`units.${item.unit}`)} · {formatRupees(item.amount)}</span>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-1.5 text-xs font-semibold">
+                {(['not_received', 'short', 'wrong'] as const).map((problem) => (
+                  <button
+                    key={problem}
+                    onClick={() => toggle(item.id, problem)}
+                    aria-pressed={tick?.problem === problem}
+                    className={`min-h-11 rounded-lg px-1 ${tick?.problem === problem ? 'bg-amber-500 text-white' : 'bg-[#edf2f1] text-ink'}`}
+                  >
+                    {t(`dispute.tick.${problem}`)}
+                  </button>
+                ))}
+              </div>
+              {tick?.problem === 'short' && (
+                <label className="mt-2 flex items-center gap-2 text-sm">
+                  {t('dispute.gotHowMuch')}
+                  <input
+                    value={tick.received}
+                    onChange={(e) => setTicked({ ...ticked, [item.id]: { ...tick, received: e.target.value.replace(/[^\d.]/g, '') } })}
+                    inputMode="decimal"
+                    className="h-10 w-20 rounded-lg border border-line px-2 text-base font-bold"
+                  />
+                  {t(`units.${item.unit}`)} / {item.quantity}
+                </label>
+              )}
+            </div>
+          )
+        })}
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          maxLength={300}
+          rows={2}
+          placeholder={items.length > 0 ? t('dispute.notePlaceholder') : t('dispute.ask')}
+          className="rounded-[14px] border border-line bg-white p-3 outline-none focus:border-teal-600"
+        />
+        {chosen.length > 0 && <p className="font-semibold">{t('dispute.inQuestion', { amount: formatRupees(Math.round(inQuestion * 100) / 100) })}</p>}
+        {error && <p className="text-sm text-due">{error}</p>}
+        <Button disabled={!valid || busy} onClick={() => void send()} className="h-14">
+          {t('dispute.send')}
+        </Button>
+      </div>
+    </Sheet>
+  )
 }
 
 function KhataBody({ view, disputePath, queryKey }: { view: KhataView; disputePath: string; queryKey: unknown[] }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const [disputing, setDisputing] = useState<StatementLine | null>(null)
   const { customer } = view.statement
   const open = view.statement.entries.filter((e) => e.dispute && !e.dispute.resolvedAt).length
   return (
@@ -60,10 +158,19 @@ function KhataBody({ view, disputePath, queryKey }: { view: KhataView; disputePa
       <p className="text-sm text-muted">{t('dispute.hint')}</p>
       <KhataHistory
         entries={view.statement.entries}
-        onDispute={(e) => void raiseDispute(e, (body) => api(disputePath, 'POST', body), t('dispute.ask')).then((sent) => {
-          if (sent) void queryClient.invalidateQueries({ queryKey })
-        })}
+        onDispute={setDisputing}
       />
+      {disputing && (
+        <DisputeSheet
+          entry={disputing}
+          path={disputePath}
+          onClose={() => setDisputing(null)}
+          onSent={() => {
+            setDisputing(null)
+            void queryClient.invalidateQueries({ queryKey })
+          }}
+        />
+      )}
     </div>
   )
 }

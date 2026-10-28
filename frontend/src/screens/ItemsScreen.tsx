@@ -38,6 +38,17 @@ export function ItemsScreen({ shopId }: { shopId: string }) {
           <Chip key={c} selected={category === c} onClick={() => setCategory(category === c ? null : c)}>{c}</Chip>
         ))}
       </div>
+      <button
+        onClick={() => navigate('/items/common')}
+        className="flex min-h-16 items-center gap-3 rounded-[18px] bg-gradient-to-r from-amber-300 via-orange-400 to-pink-500 px-4 text-left font-bold text-white shadow"
+      >
+        <span aria-hidden className="text-3xl">🛒</span>
+        <span className="flex-1">
+          {t('commonList.open')}
+          <span className="block text-sm font-normal opacity-90">{t('commonList.openHint')}</span>
+        </span>
+        <span aria-hidden>›</span>
+      </button>
       <div className="grid grid-cols-2 gap-2">
         <Button tone="plain" onClick={() => navigate('/stocktake')}>{t('stock.stocktake')}</Button>
         <Button tone="plain" onClick={() => navigate('/import')}>{t('stock.import')}</Button>

@@ -11,6 +11,26 @@ public sealed class Product : Entity, ITenantOwned
     /// <summary>Free text the shop chooses ("Atta & rice", "Oil & ghee"); used to group and filter.</summary>
     public string? Category { get; set; }
 
+    /// <summary>
+    /// The common catalogue item this is: set when the shop adds it from the common list, or matched from its name
+    /// when created or renamed. Null for the shop's own items (local brands, loose goods).
+    /// </summary>
+    public int? CatalogueItemId { get; set; }
+
+    /// <summary>
+    /// For a packed option sold by the pack: what one pack holds (5 with <see cref="PackUnit"/> kg = a 5 kg bag).
+    /// Null for loose goods sold by weight, and for things sold one by one.
+    /// </summary>
+    public decimal? PackSize { get; set; }
+
+    public Unit? PackUnit { get; set; }
+
+    /// <summary>
+    /// The option the shop gives when a household leaves the choice to the shop ("atta, any brand"). One per
+    /// common-list item; without one, the option with most stock stands in.
+    /// </summary>
+    public bool IsDefaultOption { get; set; }
+
     public Unit Unit { get; set; }
 
     /// <summary>Price per <see cref="Unit"/>. 0 means "not set yet" (items from the starter catalogue).</summary>

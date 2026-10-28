@@ -36,21 +36,24 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         if (popular)
         {
             var since = clock.GetUtcNow().AddDays(-30);
-            return await query
+            return (await query
                 .OrderByDescending(p => db.StockMovements.Count(m => m.ProductId == p.Id && m.Kind == StockMovementKind.Sale && m.OccurredAt >= since))
                 .ThenBy(p => p.Name)
-                .Select(AsDto).ToListAsync(ct);
+                .Select(AsDto).ToListAsync(ct)).Select(Linked).ToList();
         }
 
-        return await query.OrderBy(p => p.Category).ThenBy(p => p.Name).Select(AsDto).ToListAsync(ct);
+        return (await query.OrderBy(p => p.Category).ThenBy(p => p.Name).Select(AsDto).ToListAsync(ct)).Select(Linked).ToList();
     }
+
+    /// <summary>Items made before products remembered their common-list item still get one, from their name.</summary>
+    private static ProductDto Linked(ProductDto p) => p.CatalogueItemId is null ? p with { CatalogueItemId = CommonCatalogue.Match(p.Name) } : p;
 
     public async Task<IReadOnlyList<string>> CategoriesAsync(CancellationToken ct) =>
         await db.Products.AsNoTracking().Where(p => p.IsActive && p.Category != null)
             .Select(p => p.Category!).Distinct().OrderBy(c => c).ToListAsync(ct);
 
-    public Task<ProductDto?> FindAsync(Guid id, CancellationToken ct) =>
-        db.Products.AsNoTracking().Where(p => p.Id == id).Select(AsDto).SingleOrDefaultAsync(ct);
+    public async Task<ProductDto?> FindAsync(Guid id, CancellationToken ct) =>
+        await db.Products.AsNoTracking().Where(p => p.Id == id).Select(AsDto).SingleOrDefaultAsync(ct) is { } found ? Linked(found) : null;
 
     public async Task<IReadOnlyList<StockMovementDto>> MovementsAsync(Guid productId, CancellationToken ct) =>
         await db.StockMovements.AsNoTracking().Where(m => m.ProductId == productId)
@@ -111,6 +114,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         }
 
         product.Name = request.Name!.Trim();
+        // A renamed option keeps its common-list item unless the new name says another one.
+        product.CatalogueItemId = CommonCatalogue.Match(product.Name) ?? product.CatalogueItemId;
         product.Category = Clean(request.Category);
         product.Unit = request.Unit!.Value;
         product.SellingPrice = request.SellingPrice;
@@ -290,6 +295,9 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             }
 
             var product = NewProduct(Guid.CreateVersion7(), row.Name, row.Category, row.Unit!.Value, row.SellingPrice ?? 0, row.CostPrice, row.ReorderLevel);
+            product.CatalogueItemId = row.CatalogueItemId ?? product.CatalogueItemId;
+            product.PackSize = row.PackSize is > 0 ? row.PackSize : null;
+            product.PackUnit = product.PackSize is null ? null : row.PackUnit;
             db.Products.Add(product);
             if (row.OpeningStock is > 0)
             {
@@ -336,6 +344,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     {
         Id = id,
         Name = name.Trim(),
+        CatalogueItemId = CommonCatalogue.Match(name),
         Category = Clean(category),
         Unit = unit,
         SellingPrice = price,
@@ -388,7 +397,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
     private static readonly System.Linq.Expressions.Expression<Func<Product, ProductDto>> AsDto = p => new ProductDto(
         p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.CostPrice, p.Stock, p.ReorderLevel,
-        p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel), p.Reserved);
+        p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption);
 
     private static StockMovementDto ToDto(StockMovement m) =>
         new(m.Id, m.ProductId, m.Kind, m.Quantity, m.Reason, m.BillId, m.CostPrice, m.Note, m.OccurredAt);

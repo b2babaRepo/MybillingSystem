@@ -57,6 +57,9 @@ public static class OrderEndpoints
         }
 
         var answers = (request.Lines ?? []).ToDictionary(l => l.Id);
+        // The shop may pack another of its options than the one on the line (another brand, another pack size).
+        var swaps = answers.Values.Where(a => a.ProductId is not null).Select(a => a.ProductId!.Value).ToList();
+        var options = await db.Products.AsNoTracking().Where(p => swaps.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var errors = new Dictionary<string, string[]>();
         foreach (var line in order.Lines)
         {
@@ -75,6 +78,18 @@ public static class OrderEndpoints
 
             line.Removed = answer.Removed;
             line.ShopNote = string.IsNullOrWhiteSpace(answer.ShopNote) ? null : answer.ShopNote.Trim();
+            if (!answer.Removed && answer.ProductId is { } swap && swap != line.ProductId)
+            {
+                if (!options.TryGetValue(swap, out var option))
+                {
+                    errors[field] = ["That item is not in your shop."];
+                    continue;
+                }
+
+                line.ProductId = option.Id;
+                line.Name = option.Name;
+                line.Unit = option.Unit;
+            }
             if (answer.Removed)
             {
                 line.PackedQuantity = null;
@@ -96,6 +111,14 @@ public static class OrderEndpoints
                 line.PackedQuantity = quantity;
                 line.UnitPrice = price;
             }
+
+            var (needsApproval, error) = OrderLines.Check(line);
+            if (error is not null)
+            {
+                errors[field] = [error];
+            }
+
+            line.Approval = needsApproval ? LineApproval.Pending : LineApproval.None;
         }
 
         if (errors.Count == 0 && order.Lines.All(l => l.Removed))
@@ -108,7 +131,7 @@ public static class OrderEndpoints
             return TypedResults.ValidationProblem(errors);
         }
 
-        order.FinalAmount = order.Lines.Where(l => !l.Removed).Sum(l => Money.LineAmount(l.PackedQuantity!.Value, l.UnitPrice!.Value));
+        order.FinalAmount = FinalAmount(order);
         order.Status = OrderStatus.Packed;
         order.PackedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(ct);
@@ -137,6 +160,11 @@ public static class OrderEndpoints
         if (order.Status != OrderStatus.Packed)
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Pack the order before delivering it.");
+        }
+
+        if (order.Lines.Any(l => l.Approval == LineApproval.Pending))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Waiting for the customer to OK the changed items.");
         }
 
         var paid = request.PaidAmount ?? (order.Payment == OrderPayment.Khata ? 0m : order.FinalAmount!.Value);
@@ -219,6 +247,9 @@ public static class OrderEndpoints
             line.ReservedQuantity = 0;
         }
     }
+
+    internal static decimal FinalAmount(Order order) =>
+        order.Lines.Where(l => !l.Removed).Sum(l => Money.LineAmount(l.PackedQuantity!.Value, l.UnitPrice!.Value));
 
     /// <summary>Only this shop's orders: the shop's staff never see what a household sent elsewhere.</summary>
     private static Task<Order?> FindAsync(AppDbContext db, ITenantContext tenant, Guid id, CancellationToken ct, bool tracked)

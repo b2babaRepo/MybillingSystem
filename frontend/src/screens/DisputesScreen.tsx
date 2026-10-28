@@ -1,11 +1,14 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { DisputeItems } from '../components/KhataHistory'
 import { api } from '../lib/api'
 import { formatDateTime, formatRupees } from '../lib/format'
-import type { LedgerEntryKind } from '../lib/types'
+import type { DisputeItemView, ItemOutcome, LedgerEntryKind } from '../lib/types'
 import { navigate } from '../router'
+import { useOpenDisputes } from '../components/OpenDisputesBanner'
 
-interface Dispute {
+export interface Dispute {
   id: string
   customerId: string
   customerName: string
@@ -17,65 +20,74 @@ interface Dispute {
   raisedAt: string
   resolution: string | null
   resolvedAt: string | null
-}
-
-const useOpenDisputes = () => useQuery({ queryKey: ['disputes'], queryFn: () => api<Dispute[]>('/v1/disputes'), staleTime: 60_000 })
-
-/** On the khata list: customers have questioned entries and are waiting for an answer. */
-export function OpenDisputesBanner() {
-  const { t } = useTranslation()
-  const count = useOpenDisputes().data?.length ?? 0
-  if (count === 0) return null
-  return (
-    <button onClick={() => navigate('/disputes')} className="mb-3 flex min-h-12 w-full items-center justify-between rounded-[14px] bg-amber-50 px-4 text-left font-semibold text-amber-950">
-      ⚠ {t('dispute.openCount', { count })}
-      <span aria-hidden>›</span>
-    </button>
-  )
+  items: DisputeItemView[]
 }
 
 /**
- * Entries customers have questioned. The owner answers each one; the answer shows on the customer's khata next to
- * the entry. If the customer is right, fix the khata on their page (a new entry or a removal) and say so here.
+ * Entries customers have questioned. "Open the bill" goes to the customer's page with that bill open and the
+ * questioned items highlighted. The owner settles each item: handed over now (nothing changes), take it off the
+ * khata (the amount comes off and the stock goes back), or disagree with a reason. A dispute without items gets
+ * one written answer.
  */
 export function DisputesScreen({ isOwner }: { isOwner: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const disputes = useOpenDisputes()
+  const [error, setError] = useState<string | null>(null)
 
-  async function resolve(d: Dispute) {
+  async function act(run: () => Promise<unknown>) {
+    setError(null)
+    try {
+      await run()
+      await queryClient.invalidateQueries({ queryKey: ['disputes'] })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  function resolveItem(d: Dispute, item: DisputeItemView, outcome: ItemOutcome) {
+    let note: string | undefined
+    if (outcome === 'disagreed') {
+      note = prompt(t('dispute.disagreeAsk', { name: d.customerName, item: item.name }))?.trim()
+      if (!note || note.length < 3) return
+    } else if (!confirm(t(`dispute.confirm.${outcome}`, { item: item.name, amount: formatRupees(item.disputedAmount) }))) {
+      return
+    }
+
+    void act(() => api(`/v1/disputes/${d.id}/items/${item.id}/resolve`, 'POST', { outcome, note }))
+  }
+
+  function answer(d: Dispute) {
     const resolution = prompt(t('dispute.answerAsk', { name: d.customerName }))?.trim()
     if (!resolution || resolution.length < 3) return
-    await api(`/v1/disputes/${d.id}/resolve`, 'POST', { resolution })
-    await queryClient.invalidateQueries({ queryKey: ['disputes'] })
+    void act(() => api(`/v1/disputes/${d.id}/resolve`, 'POST', { resolution }))
   }
 
   return (
     <div className="flex flex-col gap-3 p-4">
       <p className="text-sm text-muted">{t('dispute.shopHint')}</p>
+      {error && <p className="rounded-[14px] bg-red-50 p-3 text-sm text-due">{error}</p>}
       {disputes.data?.length === 0 && <p className="py-8 text-center text-muted">{t('dispute.none')}</p>}
       {disputes.data?.map((d) => (
         <div key={d.id} className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
-          <button className="flex items-start justify-between text-left" onClick={() => navigate(`/c/${d.customerId}`)}>
-            <div>
-              <div className="text-lg font-bold">{d.customerName}</div>
-              <div className="text-sm text-muted">
-                {d.entryAmount > 0 ? t('creditShort') : t('paymentShort')} {formatRupees(Math.abs(d.entryAmount))} · {formatDateTime(d.entryOccurredAt)}
-              </div>
+          <div>
+            <div className="text-lg font-bold">{d.customerName}</div>
+            <div className="text-sm text-muted">
+              {d.entryAmount > 0 ? t('creditShort') : t('paymentShort')} {formatRupees(Math.abs(d.entryAmount))} · {formatDateTime(d.entryOccurredAt)}
+              {' · '}{t('dispute.raisedOn', { date: formatDateTime(d.raisedAt) })}
             </div>
-            <span aria-hidden className="text-xl text-muted">›</span>
-          </button>
-          <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
-            <div className="font-semibold">⚠ {t('dispute.customerSays', { message: d.message })}</div>
-            <div className="text-xs opacity-80">{formatDateTime(d.raisedAt)}</div>
           </div>
-          {isOwner ? (
-            <button className="h-12 rounded-2xl bg-teal-700 font-bold text-white" onClick={() => void resolve(d)}>
+          {d.message && <div className="rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-950">⚠ {t('dispute.customerSays', { message: d.message })}</div>}
+          {d.items.length > 0 && <DisputeItems items={d.items} onResolve={isOwner ? (item, outcome) => resolveItem(d, item, outcome) : undefined} />}
+          <button className="h-11 rounded-2xl border border-line font-semibold text-teal-800" onClick={() => navigate(`/c/${d.customerId}?e=${d.entryId}`)}>
+            {t('dispute.openBill')} ›
+          </button>
+          {d.items.length === 0 && isOwner && (
+            <button className="h-12 rounded-2xl bg-teal-700 font-bold text-white" onClick={() => answer(d)}>
               {t('dispute.answer')}
             </button>
-          ) : (
-            <p className="text-sm text-muted">{t('dispute.ownerAnswers')}</p>
           )}
+          {!isOwner && <p className="text-sm text-muted">{t('dispute.ownerAnswers')}</p>}
         </div>
       ))}
     </div>

@@ -1,0 +1,256 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { ItemCard } from '../components/ItemCard'
+import { Button } from '../components/ui'
+import { api } from '../lib/api'
+import { useProducts } from '../lib/data'
+import { formatRupees } from '../lib/format'
+import type { CatalogueItem } from '../lib/planner'
+import type { Product, Unit } from '../lib/types'
+import { navigate } from '../router'
+
+type Pick = { price: string; stock: string }
+
+/**
+ * The shop fills its shelf from the common list every shop and household shares: tap an item, type your own
+ * price (and how many you have), add. Names, units and categories come from the list, so a household's
+ * "आटा" finds this shop's atta with this shop's price. Items already sold here show your price instead.
+ * Anything not on the list (a local brand, loose goods) is still added by hand on the Items screen.
+ */
+export function CommonListScreen({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api<CatalogueItem[]>('/v1/catalogue'), staleTime: 3_600_000 })
+  const { products } = useProducts(shopId)
+  const [category, setCategory] = useState<string | null>(null)
+  const [picked, setPicked] = useState<Record<number, Pick>>({})
+  const [editing, setEditing] = useState<CatalogueItem | null>(null)
+  const [managing, setManaging] = useState<CatalogueItem | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+
+  const items = catalogue.data ?? []
+  const categories = [...new Set(items.map((i) => i.category))]
+  const shown = items.filter((i) => !category || i.category === category)
+  const mine = new Map(products.filter((p) => p.catalogueItemId).map((p) => [p.catalogueItemId!, p]))
+  const ready = Object.entries(picked).filter(([, p]) => Number(p.price) > 0)
+
+  async function addAll() {
+    setBusy(true)
+    try {
+      const done = await api<{ created: number; skipped: number }>('/v1/products/from-catalogue', 'POST', {
+        items: ready.map(([id, p]) => ({ catalogueItemId: Number(id), sellingPrice: Number(p.price), openingStock: p.stock ? Number(p.stock) : null })),
+      })
+      setPicked({})
+      setResult(t('commonList.added', { count: done.created }))
+      await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+    } catch (e) {
+      setResult(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 p-4 pb-28">
+      <p className="text-sm text-muted">{t('commonList.hint')}</p>
+      {result && <p className="rounded-[14px] bg-teal-50 p-3 font-semibold text-teal-900">{result}</p>}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        <button onClick={() => setCategory(null)} className={`h-10 shrink-0 rounded-full px-4 text-sm font-semibold ${!category ? 'bg-teal-700 text-white' : 'bg-white text-ink'}`}>
+          {t('commonList.all')}
+        </button>
+        {categories.map((c) => (
+          <button key={c} onClick={() => setCategory(c)} className={`h-10 shrink-0 rounded-full px-4 text-sm font-semibold ${category === c ? 'bg-teal-700 text-white' : 'bg-white text-ink'}`}>
+            {c}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {shown.map((item) => {
+          const sold = mine.get(item.id)
+          const pick = picked[item.id]
+          return (
+            <ItemCard
+              key={item.id}
+              item={{ catalogueItemId: item.id, category: item.category }}
+              title={item.name}
+              subtitle={sold ? t('commonList.yourPrice', { price: formatRupees(sold.sellingPrice), unit: t(`units.${item.unit}`) }) : `${item.nameEn} · ~${formatRupees(item.typicalPrice)}/${t(`units.${item.unit}`)}`}
+              badge={sold ? `✓ ${t('commonList.selling')}` : pick && Number(pick.price) > 0 ? formatRupees(Number(pick.price)) : undefined}
+              selected={!!pick}
+              onClick={sold ? () => setManaging(item) : () => setEditing(item)}
+            />
+          )
+        })}
+      </div>
+
+      {managing && (
+        <OptionsSheet
+          item={managing}
+          options={products.filter((p) => p.catalogueItemId === managing.id)}
+          onClose={() => setManaging(null)}
+          onChanged={() => void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })}
+        />
+      )}
+
+      {editing && (
+        <PriceSheet
+          item={editing}
+          value={picked[editing.id]}
+          onClose={() => setEditing(null)}
+          onSave={(pick) => {
+            setPicked((current) => {
+              const next = { ...current }
+              if (pick) next[editing.id] = pick
+              else delete next[editing.id]
+              return next
+            })
+            setEditing(null)
+          }}
+        />
+      )}
+
+      {ready.length > 0 && (
+        <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3">
+          <Button className="h-14 w-full" disabled={busy} onClick={() => void addAll()}>
+            {t('commonList.addN', { count: ready.length })}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const UNITS: Unit[] = ['packet', 'piece', 'kg', 'g', 'litre', 'ml']
+
+/**
+ * An item the shop already sells: its options (brands, pack sizes, loose), which one is the usual (given when a
+ * household leaves the choice to the shop), and a form to add another option at the shop's own price.
+ */
+function OptionsSheet({ item, options, onClose, onChanged }: { item: CatalogueItem; options: Product[]; onClose: () => void; onChanged: () => void }) {
+  const { t } = useTranslation()
+  const [name, setName] = useState(`${item.nameEn} `)
+  const [unit, setUnit] = useState<Unit>('packet')
+  const [packSize, setPackSize] = useState('')
+  const [packUnit, setPackUnit] = useState<Unit>(item.unit)
+  const [price, setPrice] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const usual = options.find((o) => o.isDefaultOption)?.id ?? [...options].sort((a, b) => b.stock - a.stock)[0]?.id
+  const packed = unit === 'packet' || unit === 'piece'
+  const valid = name.trim().length >= 2 && Number(price) > 0 && (!packed || !packSize || Number(packSize) > 0)
+
+  async function run(action: () => Promise<unknown>) {
+    setError(null)
+    try {
+      await action()
+      onChanged()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const add = () => run(async () => {
+    await api('/v1/products/from-catalogue', 'POST', {
+      items: [{ catalogueItemId: item.id, sellingPrice: Number(price), name: name.trim(), unit, packSize: packed && packSize ? Number(packSize) : null, packUnit: packed && packSize ? packUnit : null }],
+    })
+    setName(`${item.nameEn} `)
+    setPackSize('')
+    setPrice('')
+  })
+
+  return (
+    <div className="fixed inset-0 z-20 flex items-end bg-black/40" onClick={onClose}>
+      <div className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl bg-ground p-4 pb-8" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-xl font-bold">{t('options.sheetTitle', { item: item.name })}</h2>
+        <p className="mb-3 text-sm text-muted">{t('options.sheetHint')}</p>
+        <ul className="flex flex-col gap-2">
+          {options.map((o) => (
+            <li key={o.id} className="flex items-center gap-2 rounded-[14px] bg-white p-3">
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate font-semibold">{o.name}</span>
+                <span className="text-sm text-muted">
+                  {formatRupees(o.sellingPrice)}/{t(`units.${o.unit}`)}
+                  {o.packSize && o.packUnit ? ` · ${t('options.packOf', { size: o.packSize, unit: t(`units.${o.packUnit}`) })}` : ''}
+                </span>
+              </span>
+              {o.id === usual ? (
+                <span className="rounded-full bg-teal-50 px-2 py-1 text-xs font-bold text-teal-800">★ {t('options.usual')}</span>
+              ) : (
+                <button className="min-h-11 rounded-xl border border-line px-2 text-xs font-semibold" onClick={() => void run(() => api(`/v1/products/${o.id}/default`, 'POST'))}>
+                  {t('options.makeUsual')}
+                </button>
+              )}
+              <button className="min-h-11 px-1 text-sm text-teal-700 underline" onClick={() => navigate(`/items/${o.id}`)}>{t('options.edit')}</button>
+            </li>
+          ))}
+        </ul>
+
+        <h3 className="mt-4 mb-2 font-bold">{t('options.addTitle')}</h3>
+        <div className="flex flex-col gap-2 rounded-[14px] bg-white p-3">
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder={t('options.namePlaceholder')}
+            className="h-12 rounded-xl border border-line px-3 outline-none focus:border-teal-600" />
+          <div className="flex flex-wrap gap-1.5">
+            {UNITS.map((u) => (
+              <button key={u} onClick={() => setUnit(u)} aria-pressed={unit === u}
+                className={`min-h-10 rounded-full px-3 text-sm font-semibold ${unit === u ? 'bg-teal-700 text-white' : 'bg-[#edf2f1]'}`}>
+                {t('options.soldPer', { unit: t(`units.${u}`) })}
+              </button>
+            ))}
+          </div>
+          {packed && (
+            <label className="flex items-center gap-2 text-sm">
+              {t('options.onePackHolds')}
+              <input value={packSize} onChange={(e) => setPackSize(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" className="h-10 w-20 rounded-lg border border-line px-2 font-bold" />
+              <select value={packUnit} onChange={(e) => setPackUnit(e.target.value as Unit)} className="h-10 rounded-lg border border-line bg-white px-2">
+                {(['kg', 'g', 'litre', 'ml', 'piece'] as Unit[]).map((u) => <option key={u} value={u}>{t(`units.${u}`)}</option>)}
+              </select>
+            </label>
+          )}
+          <label className="flex items-center gap-2 text-sm font-semibold">
+            {t('options.yourPricePer', { unit: t(`units.${unit}`) })}
+            <input value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" placeholder="₹" className="h-11 w-28 rounded-lg border border-line px-2 text-lg font-bold" />
+          </label>
+          {error && <p className="text-sm text-due">{error}</p>}
+          <Button disabled={!valid} onClick={() => void add()} className="h-12">{t('options.add')}</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PriceSheet({ item, value, onClose, onSave }: { item: CatalogueItem; value?: Pick; onClose: () => void; onSave: (pick: Pick | null) => void }) {
+  const { t } = useTranslation()
+  const [price, setPrice] = useState(value?.price ?? '')
+  const [stock, setStock] = useState(value?.stock ?? '')
+  const unit = t(`units.${item.unit}`)
+  return (
+    <div className="fixed inset-0 z-20 flex items-end bg-black/40" onClick={onClose}>
+      <div className="w-full rounded-t-3xl bg-ground p-4 pb-8" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center gap-3">
+          <div className="w-24 shrink-0">
+            <ItemCard item={{ catalogueItemId: item.id, category: item.category }} title={item.name} compact />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">{item.name}</h2>
+            <p className="text-sm text-muted">{t('commonList.typical', { price: formatRupees(item.typicalPrice), unit })}</p>
+          </div>
+        </div>
+        <label className="block">
+          <span className="mb-1 block font-semibold">{t('commonList.priceLabel', { unit })}</span>
+          <input autoFocus value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" placeholder={String(item.typicalPrice)}
+            className="h-14 w-full rounded-[14px] border border-line bg-white px-4 text-2xl font-bold outline-none focus:border-teal-600" />
+        </label>
+        <label className="mt-3 block">
+          <span className="mb-1 block text-sm font-semibold text-muted">{t('commonList.stockLabel', { unit })}</span>
+          <input value={stock} onChange={(e) => setStock(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal"
+            className="h-12 w-full rounded-[14px] border border-line bg-white px-4 text-lg outline-none focus:border-teal-600" />
+        </label>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button tone="plain" className="h-12" onClick={() => onSave(null)}>{value ? t('remove') : t('cancel')}</Button>
+          <Button className="h-12" disabled={!(Number(price) > 0)} onClick={() => onSave({ price, stock })}>{t('commonList.choose')}</Button>
+        </div>
+      </div>
+    </div>
+  )
+}

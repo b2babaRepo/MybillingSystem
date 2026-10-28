@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ItemCard } from '../../components/ItemCard'
 import { PendingDot } from '../../components/ui'
 import { round2 } from '../../lib/local'
 import { formatRupees } from '../../lib/format'
@@ -118,15 +119,15 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
               {catalogue.filter((i) => i.category === category).map((item) => {
                 const added = onList.has(item.id)
                 return (
-                  <button
+                  <ItemCard
                     key={item.id}
-                    disabled={added}
-                    onClick={() => void pick(item)}
-                    className={`flex min-h-14 flex-col items-start justify-center rounded-[14px] px-3 py-2 text-left ${added ? 'bg-teal-50 text-teal-800' : 'border border-line'}`}
-                  >
-                    <span className="font-semibold">{added ? '✓ ' : '+ '}{item.name}</span>
-                    <span className="text-xs text-muted">{item.nameEn} · ~{formatRupees(item.typicalPrice)}/{t(`units.${item.unit}`)}</span>
-                  </button>
+                    item={{ catalogueItemId: item.id, category: item.category }}
+                    title={item.name}
+                    subtitle={`${item.nameEn} · ~${formatRupees(item.typicalPrice)}/${t(`units.${item.unit}`)}`}
+                    badge={added ? `✓ ${t('plan.onList')}` : '+'}
+                    selected={added}
+                    onClick={added ? undefined : () => void pick(item)}
+                  />
                 )
               })}
             </div>

@@ -13,8 +13,9 @@ import { getSession, setSession } from './lib/session'
 import { navigate, usePath } from './router'
 import { AuthScreen, ShopPicker } from './screens/AuthScreen'
 import { BillScreen } from './screens/BillScreen'
-import { CustomerScreen } from './screens/CustomerScreen'
-import { DisputesScreen } from './screens/DisputesScreen'
+const CustomerScreen = lazy(() => import('./screens/CustomerScreen').then((module) => ({ default: module.CustomerScreen })))
+const DisputesScreen = lazy(() => import('./screens/DisputesScreen').then((module) => ({ default: module.DisputesScreen })))
+const CommonListScreen = lazy(() => import('./screens/CommonListScreen').then((module) => ({ default: module.CommonListScreen })))
 import { CustomersScreen } from './screens/CustomersScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { ItemsScreen } from './screens/ItemsScreen'
@@ -115,11 +116,11 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     setSession(null)
   }
 
-  const customerMatch = path.match(/^\/c\/([0-9a-f-]+)$/)
+  const customerMatch = path.match(/^\/c\/([0-9a-f-]+)(?:\?e=([0-9a-f-]+))?$/)
   const orderMatch = path.match(/^\/o\/([0-9a-f-]+)$/)
   const productMatch = path.match(/^\/p\/([0-9a-f-]+)$/)
   const printMatch = path.match(/^\/print\/(statement|bill)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
-  const isItemsPage = !!productMatch || path === '/stocktake' || path === '/import'
+  const isItemsPage = !!productMatch || path === '/stocktake' || path === '/import' || path === '/items/common'
   const tabs: { path: string; label: string; icon: ReactNode; badge?: number }[] = [
     { path: '/', label: t('home'), icon: <HomeIcon size={22} /> },
     { path: '/khata', label: t('khata'), icon: <KhataIcon size={22} /> },
@@ -173,7 +174,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
       <main>
         <Suspense fallback={<Loading />}>
         {customerMatch ? (
-          <CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} isOwner={isOwner} userName={userName} />
+          <CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} focusEntryId={customerMatch[2]} isOwner={isOwner} userName={userName} />
         ) : path === '/dues' ? (
           <DuesScreen shopId={shopId} shopName={shopName} />
         ) : path === '/reports' ? (
@@ -188,6 +189,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <ProductScreen shopId={shopId} productId={productMatch[1]} />
         ) : path === '/stocktake' ? (
           <StocktakeScreen shopId={shopId} />
+        ) : path === '/items/common' ? (
+          <CommonListScreen shopId={shopId} />
         ) : path === '/import' ? (
           <ImportScreen shopId={shopId} />
         ) : orderMatch ? (
@@ -199,7 +202,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/disputes' ? (
           <DisputesScreen isOwner={isOwner} />
         ) : path === '/bill' ? (
-          <BillScreen shopId={shopId} />
+          <BillScreen shopId={shopId} shopName={shopName} />
         ) : path === '/items' ? (
           <ItemsScreen shopId={shopId} />
         ) : path === '/sync' ? (

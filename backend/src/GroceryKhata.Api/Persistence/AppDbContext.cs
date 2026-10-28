@@ -46,6 +46,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Dispute> Disputes => Set<Dispute>();
 
+    public DbSet<DisputeItem> DisputeItems => Set<DisputeItem>();
+
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
@@ -137,6 +139,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(l => l.Quantity).HasPrecision(12, 3);
             b.Property(l => l.PackedQuantity).HasPrecision(12, 3);
             b.Property(l => l.Note).HasMaxLength(200);
+            b.Property(l => l.RequestedName).HasMaxLength(160);
+            // Lines from before options existed: the shop chose, nothing waits.
+            b.Property(l => l.Preference).HasDefaultValue(ReplacePreference.ShopChooses);
+            b.Property(l => l.Approval).HasDefaultValue(LineApproval.None);
             b.Property(l => l.ShopNote).HasMaxLength(200);
             b.Property(l => l.ReservedQuantity).HasPrecision(12, 3);
             b.HasTenantForeignKey<OrderLine, Product>(nameof(OrderLine.ProductId));
@@ -176,6 +182,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("products");
             b.HasTenantKey();
             b.Property(p => p.Name).HasMaxLength(120);
+            b.Property(p => p.PackSize).HasPrecision(12, 3);
             b.Property(p => p.Category).HasMaxLength(60);
             b.Property(p => p.IsActive).HasDefaultValue(true);
             b.Property(p => p.Stock).HasPrecision(12, 3);
@@ -183,6 +190,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Reserved).HasPrecision(12, 3);
             b.HasIndex(p => new { p.ShopId, p.Name });
             b.HasIndex(p => new { p.ShopId, p.Category });
+            b.HasIndex(p => new { p.ShopId, p.CatalogueItemId });
+            b.HasOne<CatalogueItem>().WithMany().HasForeignKey(p => p.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -266,6 +275,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(d => new { d.ShopId, d.ResolvedAt });
             b.HasTenantForeignKey<Dispute, Customer>(nameof(Dispute.CustomerId));
             b.HasTenantForeignKey<Dispute, LedgerEntry>(nameof(Dispute.EntryId));
+            b.HasMany(d => d.Items).WithOne().HasForeignKey(i => i.DisputeId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DisputeItem>(b =>
+        {
+            b.ToTable("dispute_items");
+            b.HasTenantKey();
+            b.Property(i => i.ReceivedQuantity).HasPrecision(12, 3);
+            b.Property(i => i.OutcomeNote).HasMaxLength(300);
+            b.HasIndex(i => new { i.DisputeId, i.BillLineId }).IsUnique();
+            b.HasTenantForeignKey<DisputeItem, BillLine>(nameof(DisputeItem.BillLineId));
         });
 
         var applyFilter = typeof(AppDbContext).GetMethod(nameof(ApplyShopFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;

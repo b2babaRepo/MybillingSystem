@@ -3,7 +3,7 @@
 export type ShopRole = 'owner' | 'staff'
 export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet'
 export type PaymentMode = 'cash' | 'upi'
-export type LedgerEntryKind = 'credit' | 'payment' | 'reversal'
+export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return'
 export type KhataEntryType = 'credit' | 'payment'
 
 export interface MembershipSummary {
@@ -46,6 +46,13 @@ export interface Product {
   isLow: boolean
   /** Held for online orders not yet delivered. */
   reserved?: number
+  /** The common-list item this is (for its picture, and so households find it). */
+  catalogueItemId?: number | null
+  /** What one pack holds, for an option sold by the pack (5 kg bag). */
+  packSize?: number | null
+  packUnit?: Unit | null
+  /** Given when a household leaves the choice to the shop. */
+  isDefaultOption?: boolean
   /** Has stock changes on this phone not yet on the server. */
   pending?: boolean
 }
@@ -92,12 +99,32 @@ export interface DisputeView {
   raisedAt: string
   resolution: string | null
   resolvedAt: string | null
+  items: DisputeItemView[]
+}
+
+export type ItemProblem = 'not_received' | 'short' | 'wrong'
+export type ItemOutcome = 'handed_over' | 'refunded' | 'disagreed'
+
+/** One bill item the customer questioned, and what the shop did. */
+export interface DisputeItemView {
+  id: string
+  billLineId: string
+  name: string
+  quantity: number
+  unit: Unit
+  unitPrice: number
+  problem: ItemProblem
+  receivedQuantity: number | null
+  disputedAmount: number
+  outcome: ItemOutcome | null
+  outcomeNote: string | null
+  resolvedAt: string | null
 }
 
 export interface BillSummary {
   total: number
   paid: number
-  items: { name: string; quantity: number; unit: Unit; unitPrice: number; amount: number }[]
+  items: { id: string; name: string; quantity: number; unit: Unit; unitPrice: number; amount: number }[]
 }
 
 export interface Statement {

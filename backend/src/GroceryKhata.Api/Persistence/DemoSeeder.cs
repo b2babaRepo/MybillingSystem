@@ -44,6 +44,7 @@ public static class DemoSeeder
         await StockCatalogueAsync(services, seed.Shop.Phone, seed.Shop.ShopName, 1m);
         await SeedKhataBillsAsync(services, seed.Shop.Phone);
         await SeedHouseholdKhataAsync(services, seed.Shop.Phone, seed.Household.FullName, seed.Household.Phone);
+        await SeedOptionsAsync(services, seed.Shop.Phone);
         foreach (var other in seed.OtherShops)
         {
             if (!await db.Users.AnyAsync(u => u.Phone == PhoneNumber.Normalize(other.Phone)))
@@ -165,6 +166,47 @@ public static class DemoSeeder
         await ledger.CreateBillAsync(new BillRequest(Guid.CreateVersion7(), customer.Id,
             products.Select((p, i) => new BillLineRequest(p.Id, null, 1 + i % 2, null, p.SellingPrice)).ToList(), 0, null, null), shop.UserId, CancellationToken.None);
         await ledger.AddKhataEntryAsync(new KhataEntryRequest(Guid.CreateVersion7(), customer.Id, KhataEntryType.Payment, 200, PaymentMode.Upi, null, null), shop.UserId, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Brands and pack sizes for a few items at the main shop, so a household can pick an exact option or leave it
+    /// to the shop. Skipped once the shop has any packed option.
+    /// </summary>
+    private static async Task SeedOptionsAsync(IServiceProvider services, string phone)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<AppDbContext>();
+        var normalized = PhoneNumber.Normalize(phone);
+        var owner = await db.Memberships.AsNoTracking().Where(m => db.Users.Any(u => u.Id == m.UserId && u.Phone == normalized))
+            .OrderBy(m => m.CreatedAt).Select(m => new { m.ShopId, m.UserId }).FirstOrDefaultAsync();
+        if (owner is null)
+        {
+            return;
+        }
+
+        var tenant = sp.GetRequiredService<TenantContext>();
+        tenant.SetShop(owner.ShopId);
+        tenant.SetUser(owner.UserId);
+        if (await db.Products.AnyAsync(p => p.PackSize != null))
+        {
+            return;
+        }
+
+        int Item(string en) => CommonCatalogue.Items.Single(i => i.NameEn == en).Id;
+        ImportRow Pack(string name, string en, decimal price, decimal size, Unit packUnit, decimal stock) =>
+            new(name, Unit.Packet, price, null, CommonCatalogue.Items.Single(i => i.Id == Item(en)).Category, stock, 2, Item(en), size, packUnit);
+        await sp.GetRequiredService<StockService>().ImportAsync(new ImportRequest(
+        [
+            Pack("Aashirvaad atta 5 kg", "Atta", 265, 5, Unit.Kg, 12),
+            Pack("Pillsbury atta 5 kg", "Atta", 249, 5, Unit.Kg, 8),
+            Pack("Aashirvaad atta 10 kg", "Atta", 499, 10, Unit.Kg, 4),
+            Pack("Fortune mustard oil 1 L", "Mustard oil", 165, 1, Unit.Litre, 20),
+            Pack("Dhara mustard oil 1 L", "Mustard oil", 172, 1, Unit.Litre, 10),
+            Pack("Tata salt 1 kg", "Salt", 28, 1, Unit.Kg, 30),
+            Pack("Tata Tea Premium 500 g", "Tea", 285, 500, Unit.G, 10),
+            Pack("Red Label 250 g", "Tea", 140, 250, Unit.G, 12),
+        ]), owner.UserId, CancellationToken.None);
     }
 
     private static async Task SeedMainShopAsync(IServiceProvider sp, DemoSeed seed)

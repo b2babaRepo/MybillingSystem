@@ -4,7 +4,7 @@ import { Balance, Button, Field, PendingDot, Sheet } from '../components/ui'
 import { addCustomer, useCustomers } from '../lib/data'
 import { formatPhone } from '../lib/format'
 import { navigate } from '../router'
-import { OpenDisputesBanner } from './DisputesScreen'
+import { OpenDisputesBanner } from '../components/OpenDisputesBanner'
 
 /** Everyone on khata, most due first ("who owes me?"). */
 export function CustomersScreen({ shopId }: { shopId: string }) {

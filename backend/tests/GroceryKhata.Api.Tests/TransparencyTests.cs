@@ -1,4 +1,5 @@
 using System.Net;
+using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Ledger;
 using Npgsql;
 
@@ -83,5 +84,69 @@ public sealed class TransparencyTests(ApiFactory api)
         var view = await anyone.GetJsonAsync<KhataViewDto>($"/api/v1/khata/{link.ShopSlug}/{customer}?t={link.Token}");
         var dispute = view.Statement.Entries.Single().Dispute!;
         Assert.Equal(("I took only 500 worth", "Checked the bill: 2 kg ghee, ₹750 is right"), (dispute.Message, dispute.Resolution));
+    }
+
+    [Fact]
+    public async Task A_customer_ticks_bill_items_and_the_owner_settles_each_one_refunds_go_off_the_khata_and_back_on_the_shelf()
+    {
+        var (shop, _) = await api.SignUpAsync("Sharma General Store");
+        await shop.PostJsonAsync("/api/v1/products/import", new
+        {
+            rows = new[]
+            {
+                new { name = "Mustard oil", unit = "litre", sellingPrice = 185m, openingStock = 10m },
+                new { name = "Sugar", unit = "kg", sellingPrice = 48m, openingStock = 20m },
+                new { name = "Tea", unit = "packet", sellingPrice = 140m, openingStock = 5m },
+            },
+        });
+        var products = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        Guid P(string name) => products.Single(p => p.Name == name).Id;
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Anita");
+        await (await shop.PostJsonAsync("/api/v1/bills", new
+        {
+            id = Guid.CreateVersion7(), customerId = customer, paidAmount = 0m,
+            lines = new[]
+            {
+                new { productId = P("Mustard oil"), quantity = 1m, unitPrice = 185m },
+                new { productId = P("Sugar"), quantity = 3m, unitPrice = 48m },
+                new { productId = P("Tea"), quantity = 1m, unitPrice = 140m },
+            },
+        })).ReadAsync<BillDto>();
+        var statement = await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement");
+        var udhaar = statement.Entries.Single();
+        Guid Line(string name) => udhaar.Bill!.Items.Single(l => l.Name == name).Id;
+        var link = await (await shop.PostJsonAsync($"/api/v1/customers/{customer}/khata-link", new { })).ReadAsync<KhataLinkDto>();
+        var anyone = api.CreateClient();
+
+        // The oil was left on the counter, and only 2 kg of the 3 kg sugar came home.
+        var raised = await anyone.PostJsonAsync($"/api/v1/khata/{link.ShopSlug}/{customer}/disputes?t={link.Token}", new
+        {
+            entryId = udhaar.Id,
+            message = "",
+            items = new object[]
+            {
+                new { billLineId = Line("Mustard oil"), problem = "not_received" },
+                new { billLineId = Line("Sugar"), problem = "short", receivedQuantity = 2m },
+            },
+        });
+        Assert.Equal(HttpStatusCode.Created, raised.StatusCode);
+
+        var open = Assert.Single(await shop.GetJsonAsync<List<DisputeDto>>("/api/v1/disputes"));
+        Assert.Equal([185m, 48m], open.Items.Select(i => i.DisputedAmount));
+        var oil = open.Items.Single(i => i.Name == "Mustard oil");
+        var sugar = open.Items.Single(i => i.Name == "Sugar");
+
+        // Disagreeing needs a reason; the oil turns up on the counter and is handed over; the sugar comes off the khata.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/disputes/{open.Id}/items/{sugar.Id}/resolve", new { outcome = "disagreed" })).StatusCode);
+        await shop.PostJsonAsync($"/api/v1/disputes/{open.Id}/items/{oil.Id}/resolve", new { outcome = "handed_over" });
+        var done = await (await shop.PostJsonAsync($"/api/v1/disputes/{open.Id}/items/{sugar.Id}/resolve", new { outcome = "refunded" })).ReadAsync<DisputeView>();
+
+        Assert.NotNull(done.ResolvedAt); // last item settled: the dispute closes
+        Assert.Empty(await shop.GetJsonAsync<List<DisputeDto>>("/api/v1/disputes"));
+        statement = await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement");
+        Assert.Equal(469m - 48m, statement.ClosingBalance);
+        Assert.Equal(-48m, statement.Entries.Single(e => e.Kind == LedgerEntryKind.Return).Amount);
+        Assert.Equal(20m - 3m + 1m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{P("Sugar")}")).Stock);
+        Assert.Equal(10m - 1m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{P("Mustard oil")}")).Stock);
     }
 }

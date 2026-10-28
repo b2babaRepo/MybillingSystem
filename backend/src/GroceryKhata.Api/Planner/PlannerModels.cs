@@ -39,6 +39,9 @@ public sealed record UpsertItemRequest(string? Name, decimal Quantity, Unit? Uni
 
 public sealed record ShopDirectoryDto(Guid Id, string Name, string? Area, string? Address);
 
+/// <summary>For one list item: the exact option picked at this shop (or none: the shop chooses), and what the shop may do.</summary>
+public sealed record LineChoice(Guid ListItemId, Guid? ProductId, ReplacePreference? Preference);
+
 public sealed record PlaceOrderRequest(
     Guid Id,
     Guid ShopId,
@@ -46,7 +49,8 @@ public sealed record PlaceOrderRequest(
     Fulfilment? Fulfilment,
     string? Slot,
     OrderPayment? Payment,
-    string? Note);
+    string? Note,
+    IReadOnlyList<LineChoice>? Choices = null);
 
 public sealed record OrderLineDto(
     Guid Id,
@@ -59,7 +63,13 @@ public sealed record OrderLineDto(
     decimal? UnitPrice,
     bool Removed,
     string? ShopNote,
-    decimal? Amount);
+    decimal? Amount,
+    Guid? ProductId = null,
+    Guid? RequestedProductId = null,
+    string? RequestedName = null,
+    ReplacePreference Preference = ReplacePreference.ShopChooses,
+    decimal? ExpectedAmount = null,
+    LineApproval Approval = LineApproval.None);
 
 public sealed record OrderDto(
     Guid Id,
@@ -87,12 +97,16 @@ public sealed record OrderDto(
         o.Status, o.FinalAmount, o.CreatedAt, o.PackedAt, o.DeliveredAt, o.CancelledAt,
         o.Lines.OrderBy(l => l.LineNo).Select(l => new OrderLineDto(
             l.Id, l.LineNo, l.Name, l.Quantity, l.Unit, l.Note, l.PackedQuantity, l.UnitPrice, l.Removed, l.ShopNote,
-            l.Removed || l.UnitPrice is null ? null : Money.LineAmount(l.PackedQuantity ?? l.Quantity, l.UnitPrice.Value))).ToList(),
+            l.Removed || l.UnitPrice is null ? null : Money.LineAmount(l.PackedQuantity ?? l.Quantity, l.UnitPrice.Value),
+            l.ProductId, l.RequestedProductId, l.RequestedName, l.Preference, l.ExpectedAmount, l.Approval)).ToList(),
         o.Source,
         o.Address);
 }
 
-public sealed record PackLineRequest(Guid Id, decimal? PackedQuantity, decimal? UnitPrice, bool Removed, string? ShopNote);
+/// <summary>One packed line. <see cref="ProductId"/>: the shop's option actually packed, when it differs from the line's.</summary>
+public sealed record PackLineRequest(Guid Id, decimal? PackedQuantity, decimal? UnitPrice, bool Removed, string? ShopNote, Guid? ProductId = null);
+
+public sealed record ApproveLineRequest(bool Approve);
 
 public sealed record PackRequest(IReadOnlyList<PackLineRequest>? Lines);
 

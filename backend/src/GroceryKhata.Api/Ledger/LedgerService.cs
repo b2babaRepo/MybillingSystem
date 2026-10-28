@@ -403,23 +403,23 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
         var billIds = entries.Where(e => e.BillId != null).Select(e => e.BillId!.Value).Distinct().ToList();
         var bills = await db.Bills.AsNoTracking().Include(b => b.Lines).Where(b => billIds.Contains(b.Id))
             .ToDictionaryAsync(b => b.Id, b => new BillSummary(b.Total, b.PaidAmount,
-                b.Lines.OrderBy(l => l.LineNo).Select(l => new BillItem(l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList()), cancellationToken);
+                b.Lines.OrderBy(l => l.LineNo).Select(l => new BillItem(l.Id, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList()), cancellationToken);
 
         // Who wrote each line: a removal shows the name of the person who removed it.
         var userIds = entries.Select(e => e.CreatedByUserId).Distinct().ToList();
         var names = await db.Users.AsNoTracking().Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
 
         var entryIds = entries.Select(e => e.Id).ToList();
-        var disputes = (await db.Disputes.AsNoTracking().Where(d => entryIds.Contains(d.EntryId)).OrderBy(d => d.RaisedAt).ToListAsync(cancellationToken))
-            .GroupBy(d => d.EntryId)
-            .ToDictionary(g => g.Key, g => g.Last() is var d ? new DisputeView(d.Id, d.Message, d.RaisedAt, d.Resolution, d.ResolvedAt) : null);
+        var latest = (await db.Disputes.AsNoTracking().Where(d => entryIds.Contains(d.EntryId)).OrderBy(d => d.RaisedAt).ToListAsync(cancellationToken))
+            .GroupBy(d => d.EntryId).Select(g => g.Last()).ToList();
+        var disputes = (await DisputeEndpoints.ViewsAsync(db, latest, cancellationToken)).ToDictionary(v => latest.Single(d => d.Id == v.Id).EntryId);
 
         var running = opening;
         var lines = entries.Select(e =>
         {
             running += e.Amount;
             return new StatementLine(e.Id, e.Kind, e.Amount, e.PaymentMode, e.BillId, e.ReversesEntryId, e.Note, e.OccurredAt,
-                running, reversed.Contains(e.Id), e.BillId is { } billId ? bills.GetValueOrDefault(billId) : null, names.GetValueOrDefault(e.CreatedByUserId), e.UpiRef, disputes.GetValueOrDefault(e.Id));
+                running, reversed.Contains(e.Id), e.BillId is { } billId && e.Kind != LedgerEntryKind.Return ? bills.GetValueOrDefault(billId) : null, names.GetValueOrDefault(e.CreatedByUserId), e.UpiRef, disputes.GetValueOrDefault(e.Id));
         }).ToList();
 
         return new StatementDto(customer, lines, opening, running,

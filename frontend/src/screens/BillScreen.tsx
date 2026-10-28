@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ItemCard } from '../components/ItemCard'
 import { Button, Field, Sheet } from '../components/ui'
 import { saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
-import { formatRupees } from '../lib/format'
+import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { PaymentMode, Unit } from '../lib/types'
 import { navigate } from '../router'
 
 /** Item billing: tap tiles, adjust quantities, choose who pays and how much now. The rest goes on khata. */
-export function BillScreen({ shopId }: { shopId: string }) {
+export function BillScreen({ shopId, shopName }: { shopId: string; shopName: string }) {
   const { t } = useTranslation()
   const { products } = useProducts(shopId)
   const rank = usePopularOrder(shopId)
@@ -25,7 +26,7 @@ export function BillScreen({ shopId }: { shopId: string }) {
   const [paid, setPaid] = useState<string | null>(null)
   const [mode, setMode] = useState<PaymentMode>('cash')
   const [loose, setLoose] = useState(false)
-  const [saved, setSaved] = useState<{ id: string; total: number } | null>(null)
+  const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; customer: { name: string; phone: string | null } | null } | null>(null)
 
   const total = useMemo(() => round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [cart])
   const customer = customers.find((c) => c.id === customerId) ?? null
@@ -51,10 +52,10 @@ export function BillScreen({ shopId }: { shopId: string }) {
 
   async function save() {
     const result = await saveBill(shopId, cart, customer, paidAmount, mode)
+    setSaved({ ...result, lines: cart, paid: paidAmount, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
     setPaid(null)
     setCustomerId('')
-    setSaved(result)
     setSearch('')
   }
 
@@ -69,16 +70,15 @@ export function BillScreen({ shopId }: { shopId: string }) {
       />
       <div className="grid grid-cols-3 gap-2">
         {tiles.map((p) => (
-          <button
+          <ItemCard
             key={p.id}
+            compact
+            item={p}
+            title={p.name}
+            subtitle={p.sellingPrice > 0 ? `${formatRupees(p.sellingPrice)}/${t(`units.${p.unit}`)}` : t('stock.noPrice')}
+            badge={cart.filter((l) => l.productId === p.id).reduce((n, l) => n + l.quantity, 0) || undefined}
             onClick={() => add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })}
-            className="min-h-20 rounded-[14px] border border-line bg-white p-2 text-left active:bg-teal-50"
-          >
-            <div className="line-clamp-2 font-semibold">{p.name}</div>
-            <div className="text-sm text-muted">
-              {p.sellingPrice > 0 ? `${formatRupees(p.sellingPrice)}/${t(`units.${p.unit}`)}` : t('stock.noPrice')}
-            </div>
-          </button>
+          />
         ))}
         <button onClick={() => setLoose(true)} className="min-h-20 rounded-xl border-2 border-dashed border-line p-2 font-semibold text-muted">
           + {t('addLooseItem')}
@@ -89,6 +89,16 @@ export function BillScreen({ shopId }: { shopId: string }) {
         {cart.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-4 text-center text-muted">
             <p>{saved ? `${t('saved')} ${formatRupees(saved.total)}` : t('emptyCart')}</p>
+            {saved && (
+              <a
+                className="flex h-12 items-center justify-center rounded-2xl bg-[#15803d] px-5 font-bold text-white"
+                href={whatsAppLink(saved.customer?.phone ?? null, billReceipt(t, shopName, saved))}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t('billReceipt.send')}
+              </a>
+            )}
             {saved && (
               <button onClick={() => navigate(`/print/bill/${saved.id}`)} className="min-h-11 font-semibold text-teal-700 underline">{t('print.viewBill')}</button>
             )}
@@ -213,4 +223,25 @@ export function UnitSelect({ value, onChange }: { value: Unit; onChange: (unit: 
       </select>
     </label>
   )
+}
+
+/**
+ * The bill as a WhatsApp message, every item listed, so the customer checks it at home the same day: anything
+ * left on the counter comes up while the shop still remembers.
+ */
+function billReceipt(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  shopName: string,
+  bill: { total: number; lines: CartLine[]; paid: number; customer: { name: string } | null },
+) {
+  const items = bill.lines.map((l) => `• ${l.name} ${l.quantity} ${t(`units.${l.unit}`)} × ${formatRupees(l.unitPrice)} = ${formatRupees(Math.round(l.quantity * l.unitPrice * 100) / 100)}`)
+  const due = Math.round((bill.total - bill.paid) * 100) / 100
+  return [
+    t('billReceipt.header', { shop: shopName, date: formatDateTime(new Date().toISOString()) }),
+    ...items,
+    t('billReceipt.total', { total: formatRupees(bill.total) }),
+    bill.paid > 0 ? t('billReceipt.paid', { paid: formatRupees(bill.paid) }) : '',
+    bill.customer && due > 0 ? t('billReceipt.onKhata', { due: formatRupees(due) }) : '',
+    t('billReceipt.check'),
+  ].filter(Boolean).join('\n')
 }

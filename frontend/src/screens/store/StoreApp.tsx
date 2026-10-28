@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ItemCard } from '../../components/ItemCard'
 import { setLanguage } from '../../i18n'
 import { formatRupees, whatsAppLink } from '../../lib/format'
 import { uuidv7 } from '../../lib/ids'
@@ -19,6 +20,7 @@ interface StoreItem {
   unit: Unit
   price: number
   available: number
+  catalogueItemId?: number | null
 }
 
 interface Store {
@@ -154,16 +156,14 @@ function Catalogue({ slug }: { slug: string }) {
       </div>
 
       {data.items.length === 0 && <p className="p-8 text-center text-muted">{t('store.empty')}</p>}
-      <ul className="mx-4 mt-2 divide-y divide-[#edf2f1] rounded-[18px] bg-white">
+      <ul className="mx-4 mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {shown.map((item) => {
           const inCart = cart[item.id] ?? 0
           const out = item.available <= 0
           return (
-            <li key={item.id} className="flex min-h-16 items-center gap-3 px-4 py-2.5">
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="font-semibold">{item.name}</span>
-                <span className="text-sm text-muted">{formatRupees(item.price)}/{t(`units.${item.unit}`)}</span>
-              </span>
+            <li key={item.id} className="item-card">
+              <ItemCard item={item} title={item.name} subtitle={`${formatRupees(item.price)}/${t(`units.${item.unit}`)}`} badge={inCart > 0 ? inCart : undefined} selected={inCart > 0}>
+              <div className="mt-2">
               {out ? (
                 <span className="text-sm font-semibold text-due">{t('store.out')}</span>
               ) : inCart === 0 ? (
@@ -175,6 +175,8 @@ function Catalogue({ slug }: { slug: string }) {
                   <button aria-label={t('a11y.more')} onClick={() => change(item, 1)} disabled={inCart >= item.available} className="h-11 w-11 rounded-xl bg-[#edf2f1] text-xl disabled:opacity-30">+</button>
                 </span>
               )}
+              </div>
+              </ItemCard>
             </li>
           )
         })}

@@ -27,10 +27,12 @@ type Saved = { id: string; amount: number; dueAfter: number; mode: PaymentMode; 
  * Transparency: every payment offers a WhatsApp receipt for the customer, and every removal a notice with its
  * reason. Anyone can remove an entry for 15 minutes (a slip); after that only the owner, saying why.
  */
-export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName }: {
+export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isOwner, userName }: {
   shopId: string
   shopName: string
   customerId: string
+  /** Opened from a dispute: that bill is opened and highlighted. */
+  focusEntryId?: string
   isOwner: boolean
   userName: string
 }) {
@@ -251,6 +253,7 @@ export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName
         <>
           <KhataHistory
             entries={entries}
+            focusEntryId={focusEntryId}
             canRemove={(e) => isOwner || Date.now() - new Date(e.occurredAt).getTime() <= REMOVAL_WINDOW_MS}
             onRemove={(e) => void remove(e)}
           />

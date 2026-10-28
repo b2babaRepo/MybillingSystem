@@ -140,6 +140,41 @@ public sealed class OrderLine : Entity, IPlacedByUser
 
     /// <summary>What the shop changed, for the customer to see ("Pillsbury instead of Aashirvaad").</summary>
     public string? ShopNote { get; set; }
+
+    /// <summary>The exact option the household picked; null when they left the choice to the shop.</summary>
+    public Guid? RequestedProductId { get; set; }
+
+    /// <summary>What the household asked for, as they asked ("आटा 5 kg"), kept when the shop packs another option.</summary>
+    public string? RequestedName { get; set; }
+
+    public ReplacePreference Preference { get; set; }
+
+    /// <summary>The line's price when it was sent, if known: a packed price far from it needs the household's OK.</summary>
+    public decimal? ExpectedAmount { get; set; }
+
+    public LineApproval Approval { get; set; }
+}
+
+/// <summary>What the shop may do when packing a line.</summary>
+public enum ReplacePreference
+{
+    /// <summary>Any suitable option; a big price change still asks.</summary>
+    ShopChooses,
+
+    /// <summary>Ask before packing anything other than what was asked for.</summary>
+    AskMe,
+
+    /// <summary>Only what was asked for; otherwise leave it out.</summary>
+    DontReplace,
+}
+
+/// <summary>A packed line that waits for the household (another option, or a big price change).</summary>
+public enum LineApproval
+{
+    None,
+    Pending,
+    Approved,
+    Declined,
 }
 
 public enum OrderSource

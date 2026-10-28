@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../../lib/format'
-import { estimateAtShop, sendList, useLists, useShopPrices, useShopSearch, type Fulfilment, type ListKind, type OrderPayment, type ShopEntry } from '../../lib/planner'
+import { estimateAtShop, optionFor, quantityIn, sendList, useLists, useShopOptions, useShopSearch, type Fulfilment, type LineChoice, type ListKind, type OrderPayment, type ReplacePreference, type ShopEntry } from '../../lib/planner'
 import { navigate } from '../../router'
 
 /** Mockups 4 and 5 on one screen: pick the shop, then how and when, then send. */
@@ -17,13 +17,16 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
   const [payment, setPayment] = useState<OrderPayment>('cash')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
-  const prices = useShopPrices(shop?.id)
-  const estimate = prices.data ? estimateAtShop(items, prices.data) : null
+  const options = useShopOptions(shop?.id)
+  const [choices, setChoices] = useState<Record<string, LineChoice>>({})
+  const estimate = options.data ? estimateAtShop(items, options.data, choices) : null
+  const choose = (itemId: string, change: Partial<LineChoice>) =>
+    setChoices((current) => ({ ...current, [itemId]: { ...{ productId: null, preference: 'shop_chooses' as const }, ...current[itemId], ...change } }))
 
   async function send() {
     if (!shop) return
     setBusy(true)
-    await sendList(userId, userName, items, { shop, kind, fulfilment, slot: slot.trim(), payment, note: note.trim() })
+    await sendList(userId, userName, items, { shop, kind, fulfilment, slot: slot.trim(), payment, note: note.trim() }, choices)
     navigate('/orders')
   }
 
@@ -69,6 +72,54 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
           </div>
         )}
       </section>
+
+      {shop && options.data && items.some((i) => options.data.some((o) => o.catalogueItemId === i.catalogueItemId)) && (
+        <section className="flex flex-col gap-3 rounded-[18px] bg-white p-3">
+          <h2 className="text-base font-bold">{t('options.title')}</h2>
+          <p className="-mt-2 text-sm text-muted">{t('options.hint')}</p>
+          {items.map((item) => {
+            const mine = options.data.filter((o) => o.catalogueItemId === item.catalogueItemId)
+            if (mine.length === 0) return null
+            const choice = choices[item.id]
+            const current = optionFor(item, options.data, choice)
+            const prefs: ReplacePreference[] = choice?.productId ? ['shop_chooses', 'ask_me', 'dont_replace'] : ['shop_chooses', 'ask_me']
+            return (
+              <div key={item.id} className="flex flex-col gap-2 border-t border-[#edf2f1] pt-3 first:border-0 first:pt-0">
+                <div className="flex justify-between font-semibold">
+                  <span>{item.name} · {item.quantity} {t(`units.${item.unit}`)}</span>
+                  {current && quantityIn(item.quantity, item.unit, current) !== null && (
+                    <span className="text-teal-800">{formatRupees(Math.round(current.price * quantityIn(item.quantity, item.unit, current)! * 100) / 100)}</span>
+                  )}
+                </div>
+                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                  <button onClick={() => choose(item.id, { productId: null, preference: choice?.preference === 'dont_replace' ? 'shop_chooses' : choice?.preference })}
+                    aria-pressed={!choice?.productId}
+                    className={`min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold ${!choice?.productId ? 'bg-teal-700 text-white' : 'border border-line'}`}>
+                    {t('options.shopChooses')}
+                  </button>
+                  {mine.map((o) => (
+                    <button key={o.productId} onClick={() => choose(item.id, { productId: o.productId })} aria-pressed={choice?.productId === o.productId}
+                      className={`flex min-h-11 shrink-0 flex-col items-start justify-center rounded-xl px-3 text-left text-sm ${choice?.productId === o.productId ? 'bg-teal-700 text-white' : 'border border-line'} ${o.inStock ? '' : 'opacity-50'}`}>
+                      <span className="font-semibold">{o.name}</span>
+                      <span className={choice?.productId === o.productId ? 'opacity-90' : 'text-muted'}>
+                        {formatRupees(o.price)}/{t(`units.${o.unit}`)}{o.isDefault ? ` · ${t('options.usual')}` : ''}{o.inStock ? '' : ` · ${t('store.out')}`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {prefs.map((pref) => (
+                    <button key={pref} onClick={() => choose(item.id, { preference: pref })} aria-pressed={(choice?.preference ?? 'shop_chooses') === pref}
+                      className={`min-h-9 rounded-full px-3 text-xs font-semibold ${(choice?.preference ?? 'shop_chooses') === pref ? 'bg-amber-100 text-amber-950 ring-1 ring-amber-400' : 'bg-[#edf2f1] text-muted'}`}>
+                      {t(`options.pref.${choice?.productId ? 'picked' : 'any'}.${pref}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </section>
+      )}
 
       <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
         <h2 className="text-base font-bold">{t('plan.howGet')}</h2>

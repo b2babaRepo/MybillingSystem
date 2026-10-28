@@ -90,12 +90,28 @@ public sealed record StatementLine(
     DisputeView? Dispute = null);
 
 /// <summary>The latest dispute on an entry, as both sides see it.</summary>
-public sealed record DisputeView(Guid Id, string Message, DateTimeOffset RaisedAt, string? Resolution, DateTimeOffset? ResolvedAt);
+public sealed record DisputeView(
+    Guid Id, string Message, DateTimeOffset RaisedAt, string? Resolution, DateTimeOffset? ResolvedAt, IReadOnlyList<DisputeItemView> Items);
+
+/// <summary>One bill item the customer questioned, and what the shop did about it.</summary>
+public sealed record DisputeItemView(
+    Guid Id,
+    Guid BillLineId,
+    string Name,
+    decimal Quantity,
+    Catalogue.Unit Unit,
+    decimal UnitPrice,
+    ItemProblem Problem,
+    decimal? ReceivedQuantity,
+    decimal DisputedAmount,
+    ItemOutcome? Outcome,
+    string? OutcomeNote,
+    DateTimeOffset? ResolvedAt);
 
 /// <summary>What was bought on a bill, so the khata shows the items behind each udhaar, not just an amount.</summary>
 public sealed record BillSummary(decimal Total, decimal Paid, IReadOnlyList<BillItem> Items);
 
-public sealed record BillItem(string Name, decimal Quantity, Catalogue.Unit Unit, decimal UnitPrice, decimal Amount);
+public sealed record BillItem(Guid Id, string Name, decimal Quantity, Catalogue.Unit Unit, decimal UnitPrice, decimal Amount);
 
 /// <summary>
 /// <see cref="OpeningBalance"/>: owed before the period (previous dues carried forward); 0 for the whole khata.

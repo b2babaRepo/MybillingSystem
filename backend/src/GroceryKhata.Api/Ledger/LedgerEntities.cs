@@ -74,6 +74,12 @@ public enum LedgerEntryKind
 
     /// <summary>Cancels an earlier entry.</summary>
     Reversal,
+
+    /// <summary>
+    /// Goods taken off a bill after the fact (a customer never got them): lowers what they owe. Not money
+    /// received, so it has no payment mode and stays out of the cash book.
+    /// </summary>
+    Return,
 }
 
 public enum PaymentMode

@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using GroceryKhata.Api.Identity;
+using GroceryKhata.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Catalogue;
 
@@ -27,7 +29,11 @@ public sealed record ProductDto(
     decimal Stock,
     decimal? ReorderLevel,
     bool IsLow,
-    decimal Reserved = 0);
+    decimal Reserved = 0,
+    int? CatalogueItemId = null,
+    decimal? PackSize = null,
+    Unit? PackUnit = null,
+    bool IsDefaultOption = false);
 
 /// <summary>A purchase (positive) or an adjustment (signed, with a reason).</summary>
 public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note);
@@ -49,11 +55,22 @@ public sealed record StocktakeRequest(Guid Id, IReadOnlyList<StocktakeCount>? Co
 
 public sealed record StocktakeResult(int Adjusted, int Unchanged);
 
-public sealed record ImportRow(string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel);
+public sealed record ImportRow(
+    string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel,
+    int? CatalogueItemId = null, decimal? PackSize = null, Unit? PackUnit = null);
 
 public sealed record ImportRequest(IReadOnlyList<ImportRow>? Rows);
 
 public sealed record ImportResult(int Created, int Skipped);
+
+/// <summary>
+/// One common-list item the shop starts selling, at its own price. With a <see cref="Name"/> it is one more
+/// option of that item ("Aashirvaad atta 5 kg", sold per packet with <see cref="PackSize"/> 5 kg).
+/// </summary>
+public sealed record FromCatalogueRow(
+    int CatalogueItemId, decimal SellingPrice, decimal? OpeningStock, string? Name = null, Unit? Unit = null, decimal? PackSize = null, Unit? PackUnit = null);
+
+public sealed record FromCatalogueRequest(IReadOnlyList<FromCatalogueRow>? Items);
 
 public static class ProductEndpoints
 {
@@ -95,6 +112,62 @@ public static class ProductEndpoints
                 { Result: { } result } => Results.Ok(result),
                 _ => Results.BadRequest(),
             });
+
+        // The shop picks items from the common list and sets its own price: names, units and categories come from
+        // the list, so every shop's atta is the same atta to households. Items the shop already sells are skipped.
+        products.MapPost("/from-catalogue", async (FromCatalogueRequest request, ClaimsPrincipal user, StockService stock, AppDbContext db, CancellationToken ct) =>
+        {
+            var rows = request.Items ?? [];
+            var unknown = rows.Where(r => CommonCatalogue.Items.All(i => i.Id != r.CatalogueItemId)).Select(r => r.CatalogueItemId).ToList();
+            if (rows.Count == 0 || unknown.Count > 0 || rows.Any(r => r.SellingPrice <= 0))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["Items"] = [unknown.Count > 0 ? "Some items are not on the common list." : "Choose items and enter your price for each."],
+                });
+            }
+
+            var sold = (await db.Products.AsNoTracking().Select(p => new { p.CatalogueItemId, p.Name }).ToListAsync(ct))
+                .Select(p => p.CatalogueItemId ?? CommonCatalogue.Match(p.Name)).OfType<int>().ToHashSet();
+            // A plain row starts selling the item (skipped if already sold); a named row adds another option of it.
+            var fresh = rows.Where(r => !string.IsNullOrWhiteSpace(r.Name) || sold.Add(r.CatalogueItemId)).ToList();
+            if (fresh.Count == 0)
+            {
+                return Results.Ok(new ImportResult(0, rows.Count));
+            }
+
+            var byId = CommonCatalogue.Items.ToDictionary(i => i.Id);
+            var import = new ImportRequest(fresh.Select(r => byId[r.CatalogueItemId] is var item
+                ? new ImportRow(string.IsNullOrWhiteSpace(r.Name) ? item.Name : r.Name.Trim(), r.Unit ?? item.Unit, r.SellingPrice, null, item.Category,
+                    r.OpeningStock, null, item.Id, r.PackSize, r.PackUnit)
+                : null!).ToList());
+            return await stock.ImportAsync(import, user.UserId()!.Value, ct) switch
+            {
+                { Errors: { } errors } => Results.ValidationProblem(errors),
+                { Result: { } result } => Results.Ok(result with { Skipped = result.Skipped + rows.Count - fresh.Count }),
+                _ => Results.BadRequest(),
+            };
+        });
+
+        // The option the shop gives when a household leaves the choice to it: one per common-list item.
+        products.MapPost("/{id:guid}/default", async (Guid id, AppDbContext db, CancellationToken ct) =>
+        {
+            var all = await db.Products.Where(p => p.IsActive).ToListAsync(ct);
+            var chosen = all.SingleOrDefault(p => p.Id == id);
+            var itemId = chosen is null ? null : chosen.CatalogueItemId ?? CommonCatalogue.Match(chosen.Name);
+            if (itemId is null)
+            {
+                return Results.NotFound();
+            }
+
+            foreach (var option in all.Where(p => (p.CatalogueItemId ?? CommonCatalogue.Match(p.Name)) == itemId))
+            {
+                option.IsDefaultOption = option.Id == id;
+            }
+
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
 
         var stockGroup = app.MapGroup("/api/v1").WithTags("Stock").RequireAuthorization(AppPolicies.ShopMember);
 
