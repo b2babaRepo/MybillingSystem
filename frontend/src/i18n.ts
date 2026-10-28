@@ -127,6 +127,13 @@ const en = {
     remaining: 'Still due after this: {{amount}}',
     tooMuch: 'More than the due. Use "Clear full due" instead.',
   },
+  photo: {
+    has: 'Your photo shows on bills, the lists households send and your online store.',
+    none: 'No photo yet: a picture is drawn. Add a photo of the pack so customers know it at a glance.',
+    add: 'Add photo',
+    change: 'Change photo',
+    remove: 'Remove photo',
+  },
   options: {
     title: 'Choose the exact item?',
     hint: 'Pick a brand or pack, or let the shop choose. Say what the shop may do if it is not there.',
@@ -390,6 +397,8 @@ const en = {
     ownerOnly: 'Only the shop owner can change these.',
   },
   store: {
+    allAisles: 'All aisles',
+    otherItems: 'Other items',
     title: 'Order online',
     all: 'All',
     add: 'Add',
@@ -581,6 +590,13 @@ const hi: typeof en = {
     partSave: 'जमा करें',
     remaining: 'इसके बाद बाकी: {{amount}}',
     tooMuch: 'रकम बाकी से ज़्यादा है। "पूरा बाकी चुकता" दबाएँ।',
+  },
+  photo: {
+    has: 'आपकी फ़ोटो बिल, ग्राहकों की लिस्ट और ऑनलाइन दुकान में दिखती है।',
+    none: 'अभी फ़ोटो नहीं: चित्र बना दिखता है। पैक की फ़ोटो लगाएँ ताकि ग्राहक तुरंत पहचानें।',
+    add: 'फ़ोटो लगाएँ',
+    change: 'फ़ोटो बदलें',
+    remove: 'फ़ोटो हटाएँ',
   },
   options: {
     title: 'कौन सा सामान चाहिए?',
@@ -845,6 +861,8 @@ const hi: typeof en = {
     ownerOnly: 'सिर्फ़ दुकान मालिक इन्हें बदल सकते हैं।',
   },
   store: {
+    allAisles: 'सब विभाग',
+    otherItems: 'बाकी सामान',
     title: 'ऑनलाइन ऑर्डर करें',
     all: 'सब',
     add: 'जोड़ें',

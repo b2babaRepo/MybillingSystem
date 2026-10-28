@@ -35,6 +35,8 @@ export interface CatalogueItem {
   unit: Unit
   category: string
   typicalPrice: number
+  /** Its aisle in the category tree (components/AisleTiles.tsx). */
+  aisle: string
 }
 
 export interface ShopPrice {
@@ -96,6 +98,7 @@ export interface ShopOption {
   price: number
   inStock: boolean
   isDefault: boolean
+  imageAt?: string | null
 }
 
 /** A household's choice for one list line at the chosen shop. productId null: the shop chooses. */

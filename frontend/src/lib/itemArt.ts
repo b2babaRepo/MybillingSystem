@@ -1,12 +1,40 @@
-// A picture and colours for every grocery item, so tiles and cards are easy to spot at a glance and
-// pleasant to look at. Emoji draw in colour on every phone, cost nothing to download and work offline.
+// A picture and colours for every grocery item and aisle, so tiles and cards are easy to spot at a glance and
+// pleasant to look at. Emoji draw in colour on every phone, cost nothing to download and work offline; a
+// shop's own photo replaces the emoji when there is one (lib/images.ts).
 
 export interface ItemArt {
   emoji: string
   /** Gradient colours behind the picture. */
   from: string
   to: string
+  /** A soft tint for photo tiles. */
+  tint: string
 }
+
+/**
+ * The aisles of the common category tree (server: Catalogue/CommonCatalogue.cs, Aisles), with their art, in
+ * screen order. Names come from the server; this adds the picture and colours.
+ */
+export const AISLE_ART: Record<string, ItemArt> = {
+  'atta-rice': { emoji: '🌾', from: '#fde68a', to: '#f59e0b', tint: '#fff7e0' },
+  dal: { emoji: '🫘', from: '#fed7aa', to: '#ea580c', tint: '#fff1e6' },
+  'oil-ghee': { emoji: '🫗', from: '#fef08a', to: '#eab308', tint: '#fefbe0' },
+  masala: { emoji: '🌶️', from: '#fecaca', to: '#ef4444', tint: '#fff0f0' },
+  'sugar-salt': { emoji: '🍬', from: '#fbcfe8', to: '#ec4899', tint: '#fff0f7' },
+  'fruits-veg': { emoji: '🥕', from: '#d9f99d', to: '#65a30d', tint: '#f3fbe6' },
+  dairy: { emoji: '🥛', from: '#bfdbfe', to: '#3b82f6', tint: '#eef5ff' },
+  'tea-coffee': { emoji: '🍵', from: '#bbf7d0', to: '#16a34a', tint: '#ecfbf1' },
+  breakfast: { emoji: '🍞', from: '#fde68a', to: '#d97706', tint: '#fff8e6' },
+  snacks: { emoji: '🍪', from: '#fed7aa', to: '#f97316', tint: '#fff3e8' },
+  instant: { emoji: '🍜', from: '#fecdd3', to: '#e11d48', tint: '#fff0f2' },
+  drinks: { emoji: '🥤', from: '#a5f3fc', to: '#0891b2', tint: '#ebfbfe' },
+  personal: { emoji: '🧴', from: '#e9d5ff', to: '#9333ea', tint: '#f7f0ff' },
+  cleaning: { emoji: '🧼', from: '#bae6fd', to: '#0ea5e9', tint: '#edf8ff' },
+  pooja: { emoji: '🪔', from: '#fed7aa', to: '#c2410c', tint: '#fff2e8' },
+  household: { emoji: '💡', from: '#ddd6fe', to: '#7c3aed', tint: '#f4f1ff' },
+}
+
+const OTHER: ItemArt = { emoji: '🛒', from: '#99f6e4', to: '#0d9488', tint: '#ecfdf8' }
 
 /**
  * One emoji per common-catalogue item, by its id (CommonCatalogue.cs: ids are row positions, rows are only
@@ -24,21 +52,39 @@ const BY_CATALOGUE_ID = [
   '🍞', '🍪', '🥨', '🍜', '🥚', // bread, biscuits, namkeen, maggi, eggs
   '🧼', '🧼', '🫧', '🧽', '🧴', '🪥', '🧴', // bath soap, washing soap, detergent, dishwash, phenyl, toothpaste, shampoo
   '🔥', '🪔', '🕯️', // matchbox, agarbatti, candles
+  '🧅', '🥔', '🍅', '🍌', '🍋', // onion, potato, tomato, banana, lemon
+  '🥤', '🧃', '💧', // cold drink, juice, water bottle
+  '🥣', '🍓', '🍲', // cornflakes, jam, soup
+  '🫙', '🪥', '🧴', // hair oil, toothbrush, face wash
+  '🤍', '🪔', '🎋', // camphor, diya wicks, dhoop
+  '💡', '🧹', // bulb, broom
 ]
 
-/** Colours by the common list's categories, and a picture for items that aren't on it. */
-const BY_CATEGORY: Record<string, ItemArt> = {
-  'आटा, चावल, दाल': { emoji: '🌾', from: '#fde68a', to: '#f59e0b' },
-  'चीनी, नमक, गुड़': { emoji: '🍬', from: '#fbcfe8', to: '#ec4899' },
-  'तेल, घी': { emoji: '🫗', from: '#fef08a', to: '#eab308' },
-  मसाले: { emoji: '🌶️', from: '#fecaca', to: '#ef4444' },
-  'चाय, कॉफ़ी, दूध': { emoji: '🍵', from: '#bbf7d0', to: '#16a34a' },
-  'बिस्कुट, नमकीन': { emoji: '🍪', from: '#fed7aa', to: '#f97316' },
-  'साफ़-सफ़ाई': { emoji: '🧼', from: '#bae6fd', to: '#0ea5e9' },
-  'घर का सामान': { emoji: '🪔', from: '#ddd6fe', to: '#8b5cf6' },
+/** The aisle of a common-list item, by id (same ranges as the server's CommonCatalogue.AisleOf). */
+export function aisleOf(id: number | null | undefined): string | null {
+  if (!id) return null
+  if (id <= 6 || id === 14) return 'atta-rice'
+  if (id <= 13) return 'dal'
+  if (id <= 17) return 'sugar-salt'
+  if (id <= 22) return 'oil-ghee'
+  if (id <= 32) return 'masala'
+  if (id <= 34) return 'tea-coffee'
+  if (id <= 38 || id === 43) return 'dairy'
+  if (id === 39) return 'breakfast'
+  if (id <= 41) return 'snacks'
+  if (id === 42) return 'instant'
+  if (id === 44 || id === 49 || id === 50) return 'personal'
+  if (id <= 48) return 'cleaning'
+  if (id === 52) return 'pooja'
+  if (id <= 53) return 'household'
+  if (id <= 58) return 'fruits-veg'
+  if (id <= 61) return 'drinks'
+  if (id <= 63) return 'breakfast'
+  if (id === 64) return 'instant'
+  if (id <= 67) return 'personal'
+  if (id <= 70) return 'pooja'
+  return 'household'
 }
-
-const OTHER: ItemArt = { emoji: '🛒', from: '#99f6e4', to: '#0d9488' }
 
 /** Words in a shop's own item names that still say what it is ("Parle-G" is a biscuit). */
 const BY_WORD: [RegExp, string][] = [
@@ -56,15 +102,8 @@ const BY_WORD: [RegExp, string][] = [
   [/onion|potato|tomato|प्याज|आलू|टमाटर|सब्ज़ी/i, '🥔'],
 ]
 
-/** The common list's category for an id (its rows run category by category). */
-const CATEGORY_BY_ID: [number, string][] = [
-  [14, 'आटा, चावल, दाल'], [17, 'चीनी, नमक, गुड़'], [22, 'तेल, घी'], [32, 'मसाले'],
-  [38, 'चाय, कॉफ़ी, दूध'], [43, 'बिस्कुट, नमकीन'], [50, 'साफ़-सफ़ाई'], [53, 'घर का सामान'],
-]
-
-export function itemArt(item: { catalogueItemId?: number | null; category?: string | null; name?: string }): ItemArt {
-  const listCategory = item.catalogueItemId ? CATEGORY_BY_ID.find(([last]) => item.catalogueItemId! <= last)?.[1] : undefined
-  const colours = (listCategory && BY_CATEGORY[listCategory]) || (item.category && BY_CATEGORY[item.category]) || OTHER
+export function itemArt(item: { catalogueItemId?: number | null; aisle?: string | null; name?: string }): ItemArt {
+  const colours = AISLE_ART[item.aisle ?? aisleOf(item.catalogueItemId) ?? ''] ?? OTHER
   const fromList = item.catalogueItemId ? BY_CATALOGUE_ID[item.catalogueItemId] : undefined
   const fromWord = item.name ? BY_WORD.find(([pattern]) => pattern.test(item.name!))?.[1] : undefined
   return { ...colours, emoji: fromList || fromWord || colours.emoji }

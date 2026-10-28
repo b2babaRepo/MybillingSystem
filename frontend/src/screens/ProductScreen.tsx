@@ -2,12 +2,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, Sheet } from '../components/ui'
-import { api } from '../lib/api'
+import { api, request } from '../lib/api'
 import { addStockMovement, useProducts } from '../lib/data'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { Product, StockMovement, StockReason, Unit } from '../lib/types'
 import { UnitSelect } from './BillScreen'
 import { StockBadge } from './ItemsScreen'
+import { ItemCard } from '../components/ItemCard'
+import { imageUrl, shrinkPhoto } from '../lib/images'
 
 const REASONS: StockReason[] = ['damage', 'wastage', 'return', 'count_correction', 'other']
 
@@ -37,6 +39,8 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
         </span>
         <StockBadge product={product} large />
       </section>
+
+      <PhotoCard shopId={shopId} product={product} />
 
       <div className="grid grid-cols-2 gap-2">
         <Button tone="payment" className="h-14" onClick={() => setMoving('purchase')}>+ {t('stock.goodsIn')}</Button>
@@ -180,6 +184,55 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
       <Field label={t('stock.category')} value={form.category} onChange={set('category')} />
       <Button tone="plain" onClick={save} disabled={!form.name.trim() || product.pending}>{t('stock.saveDetails')}</Button>
       {message && <p className="text-sm text-muted">{message}</p>}
+    </section>
+  )
+}
+
+/**
+ * The item's photo, shown on billing tiles, households' screens and the online store. Taken with the camera or
+ * picked from the gallery; the phone shrinks it to a small square first. Without one, the app draws a picture.
+ */
+function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const url = imageUrl(shopId, product.id, product.imageAt)
+
+  async function run(action: () => Promise<unknown>) {
+    setBusy(true)
+    setError(null)
+    try {
+      await action()
+      await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const upload = (file: File) => run(async () => api(`/v1/products/${product.id}/image`, 'PUT', { dataUrl: await shrinkPhoto(file) }))
+
+  return (
+    <section className="flex items-center gap-3 rounded-[18px] bg-white p-3">
+      <div className="w-24 shrink-0">
+        <ItemCard item={product} title="" compact imageUrl={url} />
+      </div>
+      <div className="flex flex-1 flex-col gap-2">
+        <span className="text-sm text-muted">{url ? t('photo.has') : t('photo.none')}</span>
+        <label className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-teal-700 px-3 font-semibold text-white ${busy ? 'opacity-50' : ''}`}>
+          📷 {url ? t('photo.change') : t('photo.add')}
+          <input type="file" accept="image/*" capture="environment" disabled={busy} className="sr-only"
+            onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = '' }} />
+        </label>
+        {url && (
+          <button disabled={busy} onClick={() => void run(() => request(`/v1/products/${product.id}/image`, 'DELETE'))} className="text-sm text-muted underline">
+            {t('photo.remove')}
+          </button>
+        )}
+        {error && <p className="text-sm text-due">{error}</p>}
+      </div>
     </section>
   )
 }

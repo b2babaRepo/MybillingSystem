@@ -397,7 +397,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
     private static readonly System.Linq.Expressions.Expression<Func<Product, ProductDto>> AsDto = p => new ProductDto(
         p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.CostPrice, p.Stock, p.ReorderLevel,
-        p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption);
+        p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption, p.ImageAt);
 
     private static StockMovementDto ToDto(StockMovement m) =>
         new(m.Id, m.ProductId, m.Kind, m.Quantity, m.Reason, m.BillId, m.CostPrice, m.Note, m.OccurredAt);

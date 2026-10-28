@@ -21,6 +21,41 @@ public sealed class CatalogueItem
 
     /// <summary>A typical price per unit, a guide only. Each shop sets its own price on its product.</summary>
     public decimal TypicalPrice { get; set; }
+
+    /// <summary>Its aisle in the category tree (<see cref="Aisles"/>): what households and shops browse by.</summary>
+    public required string Aisle { get; set; }
+}
+
+/// <summary>One aisle of the shop: a tile under a section header ("रोज़ का राशन" → "दालें").</summary>
+public sealed record AisleDto(string Code, string Name, string NameEn, string Section, string SectionEn);
+
+/// <summary>
+/// The category tree every shop and household browses: four sections, each a row of aisles. Two levels only;
+/// brand and pack size are options on an item, not more levels. The order here is the order on screen.
+/// </summary>
+public static class Aisles
+{
+    private const string Staples = "रोज़ का राशन", Breakfast = "दूध और नाश्ता", Snacks = "स्नैक्स और पेय", Home = "घर, सफ़ाई और पूजा";
+
+    public static readonly IReadOnlyList<AisleDto> All =
+    [
+        new("atta-rice", "आटा, चावल", "Atta & rice", Staples, "Daily staples"),
+        new("dal", "दालें", "Dals & pulses", Staples, "Daily staples"),
+        new("oil-ghee", "तेल, घी", "Oil & ghee", Staples, "Daily staples"),
+        new("masala", "मसाले", "Masala & spices", Staples, "Daily staples"),
+        new("sugar-salt", "चीनी, नमक, गुड़", "Sugar, salt & jaggery", Staples, "Daily staples"),
+        new("fruits-veg", "फल, सब्ज़ी", "Fruits & vegetables", Staples, "Daily staples"),
+        new("dairy", "दूध, दही, अंडे", "Milk, curd & eggs", Breakfast, "Dairy & breakfast"),
+        new("tea-coffee", "चाय, कॉफ़ी", "Tea & coffee", Breakfast, "Dairy & breakfast"),
+        new("breakfast", "ब्रेड, नाश्ता", "Bread & breakfast", Breakfast, "Dairy & breakfast"),
+        new("snacks", "बिस्कुट, नमकीन", "Biscuits & namkeen", Snacks, "Snacks & drinks"),
+        new("instant", "मैगी, इंस्टेंट", "Noodles & instant", Snacks, "Snacks & drinks"),
+        new("drinks", "कोल्ड ड्रिंक, जूस", "Cold drinks & juice", Snacks, "Snacks & drinks"),
+        new("personal", "नहाना, बाल, दाँत", "Bath, hair & teeth", Home, "Home, cleaning & pooja"),
+        new("cleaning", "सफ़ाई", "Cleaning", Home, "Home, cleaning & pooja"),
+        new("pooja", "पूजा का सामान", "Pooja needs", Home, "Home, cleaning & pooja"),
+        new("household", "घर का सामान", "Household", Home, "Home, cleaning & pooja"),
+    ];
 }
 
 public static class CommonCatalogue
@@ -55,7 +90,8 @@ public static class CommonCatalogue
     private static List<CatalogueItem> Build()
     {
         const string grains = "आटा, चावल, दाल", sweet = "चीनी, नमक, गुड़", oil = "तेल, घी", spice = "मसाले",
-            dairy = "चाय, कॉफ़ी, दूध", snacks = "बिस्कुट, नमकीन", clean = "साफ़-सफ़ाई", home = "घर का सामान";
+            dairy = "चाय, कॉफ़ी, दूध", snacks = "बिस्कुट, नमकीन", clean = "साफ़-सफ़ाई", home = "घर का सामान",
+            fresh = "फल, सब्ज़ी", drinks = "पेय", personal = "पर्सनल केयर", pooja = "पूजा का सामान";
         // Ids are the row positions: only ever add rows at the end, never reorder or remove.
         (string Hi, string En, Unit Unit, string Category, decimal Price)[] rows =
         [
@@ -79,7 +115,44 @@ public static class CommonCatalogue
             ("सर्फ़ / डिटर्जेंट", "Detergent", Unit.Kg, clean, 120), ("बर्तन धोने का साबुन", "Dishwash bar", Unit.Piece, clean, 20),
             ("फ़िनाइल", "Phenyl", Unit.Litre, clean, 90), ("टूथपेस्ट", "Toothpaste", Unit.Piece, clean, 95), ("शैम्पू", "Shampoo", Unit.Packet, clean, 2),
             ("माचिस", "Matchbox", Unit.Packet, home, 10), ("अगरबत्ती", "Agarbatti", Unit.Packet, home, 50), ("मोमबत्ती", "Candles", Unit.Packet, home, 40),
+            // 54+: aisles the first list didn't cover.
+            ("प्याज", "Onion", Unit.Kg, fresh, 40), ("आलू", "Potato", Unit.Kg, fresh, 30), ("टमाटर", "Tomato", Unit.Kg, fresh, 40),
+            ("केला", "Banana", Unit.Piece, fresh, 6), ("नींबू", "Lemon", Unit.Piece, fresh, 5),
+            ("कोल्ड ड्रिंक", "Cold drink", Unit.Piece, drinks, 40), ("जूस", "Juice", Unit.Litre, drinks, 110), ("पानी की बोतल", "Water bottle", Unit.Piece, drinks, 20),
+            ("कॉर्नफ़्लेक्स", "Cornflakes", Unit.Packet, snacks, 180), ("जैम", "Jam", Unit.Packet, snacks, 140), ("सूप", "Soup", Unit.Packet, snacks, 60),
+            ("बालों का तेल", "Hair oil", Unit.Piece, personal, 90), ("टूथब्रश", "Toothbrush", Unit.Piece, personal, 30), ("फ़ेस वॉश", "Face wash", Unit.Piece, personal, 150),
+            ("कपूर", "Camphor", Unit.Packet, pooja, 30), ("दीया बाती", "Diya wicks", Unit.Packet, pooja, 20), ("धूपबत्ती", "Dhoop sticks", Unit.Packet, pooja, 40),
+            ("बल्ब", "Bulb", Unit.Piece, home, 90), ("झाड़ू", "Broom", Unit.Piece, home, 120),
         ];
-        return rows.Select((r, i) => new CatalogueItem { Id = i + 1, Name = r.Hi, NameEn = r.En, Unit = r.Unit, Category = r.Category, TypicalPrice = r.Price }).ToList();
+        return rows.Select((r, i) => new CatalogueItem
+        {
+            Id = i + 1, Name = r.Hi, NameEn = r.En, Unit = r.Unit, Category = r.Category, TypicalPrice = r.Price, Aisle = AisleOf(i + 1),
+        }).ToList();
     }
+
+    /// <summary>Which aisle each item sits in, by id (ranges follow the rows above).</summary>
+    private static string AisleOf(int id) => id switch
+    {
+        <= 6 or 14 => "atta-rice",
+        <= 13 => "dal",
+        <= 17 => "sugar-salt",
+        <= 22 => "oil-ghee",
+        <= 32 => "masala",
+        <= 34 => "tea-coffee",
+        <= 38 or 43 => "dairy",
+        39 => "breakfast",
+        <= 41 => "snacks",
+        42 => "instant",
+        44 or 49 or 50 => "personal",
+        <= 48 => "cleaning",
+        52 => "pooja",
+        <= 53 => "household",
+        <= 58 => "fruits-veg",
+        <= 61 => "drinks",
+        <= 63 => "breakfast",
+        64 => "instant",
+        <= 67 => "personal",
+        <= 70 => "pooja",
+        _ => "household",
+    };
 }

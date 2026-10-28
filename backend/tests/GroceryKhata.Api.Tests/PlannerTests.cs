@@ -206,6 +206,32 @@ public sealed class PlannerTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Every_common_item_sits_in_an_aisle_and_a_shops_photo_is_served_publicly_and_cached()
+    {
+        var (shop, shopAuth) = await SignUpShopAsync("Gupta Kirana", $"Bapu Bazar {Guid.NewGuid():N}"[..20]);
+        var aisles = await shop.GetJsonAsync<List<AisleDto>>("/api/v1/catalogue/aisles");
+        var catalogue = await shop.GetJsonAsync<List<CatalogueItemDto>>("/api/v1/catalogue");
+        Assert.All(catalogue, i => Assert.Contains(aisles, a => a.Code == i.Aisle));
+        Assert.Equal("dal", catalogue.Single(i => i.NameEn == "Toor dal").Aisle);
+        Assert.Equal("fruits-veg", catalogue.Single(i => i.NameEn == "Onion").Aisle);
+
+        await shop.PostJsonAsync("/api/v1/products/from-catalogue", new { items = new[] { new { catalogueItemId = catalogue.Single(i => i.NameEn == "Sugar").Id, sellingPrice = 46m } } });
+        var sugar = Assert.Single(await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products"));
+        var photo = "data:image/webp;base64," + Convert.ToBase64String([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4]);
+
+        var tooBig = await shop.PutAsJsonAsync($"/api/v1/products/{sugar.Id}/image", new { dataUrl = "data:image/webp;base64," + Convert.ToBase64String(new byte[200_000]) }, ApiFactory.Json);
+        var saved = await shop.PutAsJsonAsync($"/api/v1/products/{sugar.Id}/image", new { dataUrl = photo }, ApiFactory.Json);
+        Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.OK), (tooBig.StatusCode, saved.StatusCode));
+
+        var withPhoto = await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{sugar.Id}");
+        Assert.NotNull(withPhoto.ImageAt);
+        var image = await api.CreateClient().GetAsync($"/api/v1/images/{shopAuth.ShopId}/{sugar.Id}?v=1");
+        Assert.Equal("image/webp", image.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("immutable", image.Headers.CacheControl!.ToString());
+        Assert.Equal(8, (await image.Content.ReadAsByteArrayAsync()).Length);
+    }
+
+    [Fact]
     public async Task Orders_stay_between_the_household_and_the_shop_it_was_sent_to()
     {
         var (shopA, authA) = await SignUpShopAsync("Shop A", "Market A");

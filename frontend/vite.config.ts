@@ -31,8 +31,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // The app shell is cached so billing opens with no network; API calls are never cached here
-        // (offline data lives in IndexedDB, written by the app itself).
+        // The app shell is cached so billing opens with no network; API data is never cached here (offline data
+        // lives in IndexedDB, written by the app itself). Item photos are the one exception, below.
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
@@ -42,6 +42,17 @@ export default defineConfig({
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,
             handler: 'CacheFirst',
             options: { cacheName: 'fonts', expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 } },
+          },
+          {
+            // Shop photos of items: a photo's URL changes with it, so a cached one never goes stale. Capped, and
+            // the oldest-used go first, so a busy shop's photos can't fill the phone.
+            urlPattern: /\/api\/v1\/images\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'item-photos',
+              expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 30, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [200] },
+            },
           },
         ],
       },

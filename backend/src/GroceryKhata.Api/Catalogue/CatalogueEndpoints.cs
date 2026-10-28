@@ -4,14 +4,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Catalogue;
 
-public sealed record CatalogueItemDto(int Id, string Name, string NameEn, Unit Unit, string Category, decimal TypicalPrice);
+public sealed record CatalogueItemDto(int Id, string Name, string NameEn, Unit Unit, string Category, decimal TypicalPrice, string Aisle = "household");
 
 /// <summary>One shop's price for a catalogue item: what a household sees before sending its list there.</summary>
 public sealed record ShopPriceDto(int CatalogueItemId, Guid ProductId, string Name, Unit Unit, decimal Price, bool InStock);
 
 /// <summary>One of a shop's options for a common-list item (brand, pack size, loose), with its price.</summary>
 public sealed record ShopOptionDto(
-    int CatalogueItemId, Guid ProductId, string Name, Unit Unit, decimal? PackSize, Unit? PackUnit, decimal Price, bool InStock, bool IsDefault);
+    int CatalogueItemId, Guid ProductId, string Name, Unit Unit, decimal? PackSize, Unit? PackUnit, decimal Price, bool InStock, bool IsDefault,
+    DateTimeOffset? ImageAt = null);
 
 /// <summary>The common catalogue households pick from, and each shop's own prices for it.</summary>
 public static class CatalogueEndpoints
@@ -20,6 +21,8 @@ public static class CatalogueEndpoints
     {
         var group = app.MapGroup("/api/v1").WithTags("Catalogue").RequireAuthorization();
         group.MapGet("/catalogue", GetCatalogueAsync);
+        // The tree is public: the online store's guests browse by aisle too.
+        app.MapGet("/api/v1/catalogue/aisles", () => Aisles.All).WithTags("Catalogue").AllowAnonymous();
         group.MapGet("/shops/{shopId:guid}/prices", GetShopPricesAsync);
         group.MapGet("/shops/{shopId:guid}/options", GetShopOptionsAsync);
         return app;
@@ -27,7 +30,7 @@ public static class CatalogueEndpoints
 
     private static async Task<IReadOnlyList<CatalogueItemDto>> GetCatalogueAsync(AppDbContext db, CancellationToken ct) =>
         await db.CatalogueItems.AsNoTracking().OrderBy(i => i.Id)
-            .Select(i => new CatalogueItemDto(i.Id, i.Name, i.NameEn, i.Unit, i.Category, i.TypicalPrice))
+            .Select(i => new CatalogueItemDto(i.Id, i.Name, i.NameEn, i.Unit, i.Category, i.TypicalPrice, i.Aisle))
             .ToListAsync(ct);
 
     private static async Task<IResult> GetShopPricesAsync(Guid shopId, AppDbContext db, TenantContext tenant, CancellationToken ct)
@@ -68,7 +71,7 @@ public static class CatalogueEndpoints
             .Where(m => m.Id is not null)
             .OrderBy(m => m.Id).ThenByDescending(m => defaults.Contains(m.Product.Id)).ThenBy(m => m.Product.SellingPrice)
             .Select(m => new ShopOptionDto(m.Id!.Value, m.Product.Id, m.Product.Name, m.Product.Unit, m.Product.PackSize, m.Product.PackUnit,
-                m.Product.SellingPrice, m.Product.Stock - m.Product.Reserved > 0, defaults.Contains(m.Product.Id)))
+                m.Product.SellingPrice, m.Product.Stock - m.Product.Reserved > 0, defaults.Contains(m.Product.Id), m.Product.ImageAt))
             .ToList());
     }
 

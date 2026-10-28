@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AisleTiles, type Aisle } from '../../components/AisleTiles'
 import { ItemCard } from '../../components/ItemCard'
 import { PendingDot } from '../../components/ui'
 import { round2 } from '../../lib/local'
@@ -14,15 +15,14 @@ import { UnitSelect } from '../BillScreen'
  * tick, change quantity, remove. Every change is saved on the phone at once.
  */
 export function ListScreen({ userId, kind }: { userId: string; kind: ListKind }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { lists } = useLists(userId)
   const list = lists.find((l) => l.kind === kind)!
   const [name, setName] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [unit, setUnit] = useState<Unit>('kg')
   const catalogue = useCatalogue(userId).data ?? []
-  const [category, setCategory] = useState<string | null>(null)
-  const categories = [...new Set(catalogue.map((i) => i.category))]
+  const [aisle, setAisle] = useState<Aisle | null>(null)
   const onList = new Set(list.items.map((i) => i.catalogueItemId).filter(Boolean))
   const suggestions = searchCatalogue(catalogue, name)
 
@@ -101,27 +101,22 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
 
       {catalogue.length > 0 && !name.trim() && (
         <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
-          <h2 className="text-base font-bold">{t('plan.pickItems')}</h2>
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-            {categories.map((c) => (
-              <button
-                key={c}
-                onClick={() => setCategory(category === c ? null : c)}
-                aria-pressed={category === c}
-                className={`h-10 shrink-0 rounded-full px-3 text-sm font-semibold ${category === c ? 'bg-teal-700 text-white' : 'bg-[#edf2f1] text-ink'}`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-          {category && (
+          {aisle ? (
+            <button onClick={() => setAisle(null)} className="flex min-h-11 items-center gap-1 self-start font-bold text-teal-800">
+              ‹ {i18n.language === 'hi' ? aisle.name : aisle.nameEn}
+            </button>
+          ) : (
+            <h2 className="text-base font-bold">{t('plan.pickItems')}</h2>
+          )}
+          {!aisle && <AisleTiles available={new Set(catalogue.map((i) => i.aisle))} onPick={setAisle} />}
+          {aisle && (
             <div className="grid grid-cols-2 gap-2">
-              {catalogue.filter((i) => i.category === category).map((item) => {
+              {catalogue.filter((i) => i.aisle === aisle.code).map((item) => {
                 const added = onList.has(item.id)
                 return (
                   <ItemCard
                     key={item.id}
-                    item={{ catalogueItemId: item.id, category: item.category }}
+                    item={{ catalogueItemId: item.id, aisle: item.aisle }}
                     title={item.name}
                     subtitle={`${item.nameEn} · ~${formatRupees(item.typicalPrice)}/${t(`units.${item.unit}`)}`}
                     badge={added ? `✓ ${t('plan.onList')}` : '+'}

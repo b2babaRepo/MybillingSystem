@@ -1,9 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AisleTiles, type Aisle } from '../components/AisleTiles'
 import { ItemCard } from '../components/ItemCard'
+import { imageUrl } from '../lib/images'
 import { Button } from '../components/ui'
-import { api } from '../lib/api'
+import { api, request } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { CatalogueItem } from '../lib/planner'
@@ -19,11 +21,11 @@ type Pick = { price: string; stock: string }
  * Anything not on the list (a local brand, loose goods) is still added by hand on the Items screen.
  */
 export function CommonListScreen({ shopId }: { shopId: string }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api<CatalogueItem[]>('/v1/catalogue'), staleTime: 3_600_000 })
   const { products } = useProducts(shopId)
-  const [category, setCategory] = useState<string | null>(null)
+  const [aisle, setAisle] = useState<Aisle | null>(null)
   const [picked, setPicked] = useState<Record<number, Pick>>({})
   const [editing, setEditing] = useState<CatalogueItem | null>(null)
   const [managing, setManaging] = useState<CatalogueItem | null>(null)
@@ -31,9 +33,10 @@ export function CommonListScreen({ shopId }: { shopId: string }) {
   const [result, setResult] = useState<string | null>(null)
 
   const items = catalogue.data ?? []
-  const categories = [...new Set(items.map((i) => i.category))]
-  const shown = items.filter((i) => !category || i.category === category)
   const mine = new Map(products.filter((p) => p.catalogueItemId).map((p) => [p.catalogueItemId!, p]))
+  const shown = items.filter((i) => i.aisle === aisle?.code)
+  const sellingPerAisle = new Map<string, number>()
+  for (const item of items) if (mine.has(item.id)) sellingPerAisle.set(item.aisle, (sellingPerAisle.get(item.aisle) ?? 0) + 1)
   const ready = Object.entries(picked).filter(([, p]) => Number(p.price) > 0)
 
   async function addAll() {
@@ -56,16 +59,15 @@ export function CommonListScreen({ shopId }: { shopId: string }) {
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('commonList.hint')}</p>
       {result && <p className="rounded-[14px] bg-teal-50 p-3 font-semibold text-teal-900">{result}</p>}
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        <button onClick={() => setCategory(null)} className={`h-10 shrink-0 rounded-full px-4 text-sm font-semibold ${!category ? 'bg-teal-700 text-white' : 'bg-white text-ink'}`}>
-          {t('commonList.all')}
+      {aisle ? (
+        <button onClick={() => setAisle(null)} className="flex min-h-11 items-center gap-1 self-start text-lg font-bold text-teal-800">
+          ‹ {i18n.language === 'hi' ? aisle.name : aisle.nameEn}
         </button>
-        {categories.map((c) => (
-          <button key={c} onClick={() => setCategory(c)} className={`h-10 shrink-0 rounded-full px-4 text-sm font-semibold ${category === c ? 'bg-teal-700 text-white' : 'bg-white text-ink'}`}>
-            {c}
-          </button>
-        ))}
-      </div>
+      ) : (
+        <div className="rounded-[18px] bg-white p-3">
+          <AisleTiles counts={sellingPerAisle} onPick={setAisle} />
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {shown.map((item) => {
@@ -74,11 +76,12 @@ export function CommonListScreen({ shopId }: { shopId: string }) {
           return (
             <ItemCard
               key={item.id}
-              item={{ catalogueItemId: item.id, category: item.category }}
+              item={{ catalogueItemId: item.id, aisle: item.aisle }}
               title={item.name}
               subtitle={sold ? t('commonList.yourPrice', { price: formatRupees(sold.sellingPrice), unit: t(`units.${item.unit}`) }) : `${item.nameEn} · ~${formatRupees(item.typicalPrice)}/${t(`units.${item.unit}`)}`}
               badge={sold ? `✓ ${t('commonList.selling')}` : pick && Number(pick.price) > 0 ? formatRupees(Number(pick.price)) : undefined}
               selected={!!pick}
+              imageUrl={sold ? imageUrl(shopId, sold.id, sold.imageAt) : undefined}
               onClick={sold ? () => setManaging(item) : () => setEditing(item)}
             />
           )
@@ -177,7 +180,7 @@ function OptionsSheet({ item, options, onClose, onChanged }: { item: CatalogueIt
               {o.id === usual ? (
                 <span className="rounded-full bg-teal-50 px-2 py-1 text-xs font-bold text-teal-800">★ {t('options.usual')}</span>
               ) : (
-                <button className="min-h-11 rounded-xl border border-line px-2 text-xs font-semibold" onClick={() => void run(() => api(`/v1/products/${o.id}/default`, 'POST'))}>
+                <button className="min-h-11 rounded-xl border border-line px-2 text-xs font-semibold" onClick={() => void run(() => request(`/v1/products/${o.id}/default`, 'POST'))}>
                   {t('options.makeUsual')}
                 </button>
               )}
@@ -229,7 +232,7 @@ function PriceSheet({ item, value, onClose, onSave }: { item: CatalogueItem; val
       <div className="w-full rounded-t-3xl bg-ground p-4 pb-8" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center gap-3">
           <div className="w-24 shrink-0">
-            <ItemCard item={{ catalogueItemId: item.id, category: item.category }} title={item.name} compact />
+            <ItemCard item={{ catalogueItemId: item.id, aisle: item.aisle }} title={item.name} compact />
           </div>
           <div>
             <h2 className="text-xl font-bold">{item.name}</h2>

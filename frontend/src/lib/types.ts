@@ -53,6 +53,8 @@ export interface Product {
   packUnit?: Unit | null
   /** Given when a household leaves the choice to the shop. */
   isDefaultOption?: boolean
+  /** When the shop added its photo; none: the app draws a picture. */
+  imageAt?: string | null
   /** Has stock changes on this phone not yet on the server. */
   pending?: boolean
 }

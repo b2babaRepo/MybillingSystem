@@ -31,6 +31,9 @@ public sealed class Product : Entity, ITenantOwned
     /// </summary>
     public bool IsDefaultOption { get; set; }
 
+    /// <summary>When the shop last added its photo (<see cref="ProductImage"/>); null: no photo, the app draws one.</summary>
+    public DateTimeOffset? ImageAt { get; set; }
+
     public Unit Unit { get; set; }
 
     /// <summary>Price per <see cref="Unit"/>. 0 means "not set yet" (items from the starter catalogue).</summary>

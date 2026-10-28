@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AisleTiles } from '../../components/AisleTiles'
 import { ItemCard } from '../../components/ItemCard'
+import { imageUrl } from '../../lib/images'
+import { aisleOf } from '../../lib/itemArt'
 import { setLanguage } from '../../i18n'
 import { formatRupees, whatsAppLink } from '../../lib/format'
 import { uuidv7 } from '../../lib/ids'
@@ -21,6 +24,7 @@ interface StoreItem {
   price: number
   available: number
   catalogueItemId?: number | null
+  imageAt?: string | null
 }
 
 interface Store {
@@ -29,6 +33,7 @@ interface Store {
   area: string | null
   address: string | null
   phone: string | null
+  shopId: string
   items: StoreItem[]
 }
 
@@ -126,8 +131,10 @@ function Catalogue({ slug }: { slug: string }) {
     setCart(updated)
   }
 
-  const categories = [...new Set(data.items.map((i) => i.category).filter((c): c is string => !!c))]
-  const shown = data.items.filter((i) => !category || i.category === category)
+  // Browse by aisle (the common tree); items the shop added by hand sit under "Other".
+  const aisleOfItem = (i: StoreItem) => aisleOf(i.catalogueItemId) ?? 'other'
+  const stocked = new Set(data.items.map(aisleOfItem))
+  const shown = category ? data.items.filter((i) => aisleOfItem(i) === category) : []
   const lines = data.items.filter((i) => cart[i.id] > 0).map((i) => ({ item: i, quantity: cart[i.id] }))
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.item.price), 0))
 
@@ -146,14 +153,18 @@ function Catalogue({ slug }: { slug: string }) {
         </div>
       )}
 
-      <div className="flex gap-2 overflow-x-auto px-4 pt-3 pb-1">
-        {[null, ...categories].map((c) => (
-          <button key={c ?? 'all'} onClick={() => setCategory(c)} aria-pressed={category === c}
-            className={`h-11 shrink-0 rounded-full px-4 text-[15px] font-semibold ${category === c ? 'bg-ink text-white' : 'border border-line bg-white'}`}>
-            {c ?? t('store.all')}
-          </button>
-        ))}
-      </div>
+      {category ? (
+        <button onClick={() => setCategory(null)} className="mx-4 mt-3 flex min-h-11 items-center gap-1 text-lg font-bold text-teal-800">
+          ‹ {t('store.allAisles')}
+        </button>
+      ) : (
+        <div className="mx-4 mt-3 rounded-[18px] bg-white p-3">
+          <AisleTiles available={stocked} onPick={(a) => setCategory(a.code)} />
+          {stocked.has('other') && (
+            <button onClick={() => setCategory('other')} className="mt-3 min-h-11 w-full rounded-xl bg-[#edf2f1] font-semibold">{t('store.otherItems')}</button>
+          )}
+        </div>
+      )}
 
       {data.items.length === 0 && <p className="p-8 text-center text-muted">{t('store.empty')}</p>}
       <ul className="mx-4 mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -162,7 +173,7 @@ function Catalogue({ slug }: { slug: string }) {
           const out = item.available <= 0
           return (
             <li key={item.id} className="item-card">
-              <ItemCard item={item} title={item.name} subtitle={`${formatRupees(item.price)}/${t(`units.${item.unit}`)}`} badge={inCart > 0 ? inCart : undefined} selected={inCart > 0}>
+              <ItemCard item={item} imageUrl={imageUrl(data.shopId, item.id, item.imageAt)} title={item.name} subtitle={`${formatRupees(item.price)}/${t(`units.${item.unit}`)}`} badge={inCart > 0 ? inCart : undefined} selected={inCart > 0}>
               <div className="mt-2">
               {out ? (
                 <span className="text-sm font-semibold text-due">{t('store.out')}</span>

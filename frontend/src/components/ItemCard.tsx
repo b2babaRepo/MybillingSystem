@@ -1,23 +1,29 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { itemArt } from '../lib/itemArt'
 
 /**
- * A colourful grocery card: the item's picture floating gently on its category's colours, a soft shine passing
- * over it, then the name and price. Used wherever people pick items: billing tiles, the shop's common list,
- * the household planner and the online store. Motion stops for people who turned off animations.
+ * A grocery card. With a shop's photo: the product on a soft tint, like the shopping apps' cards. Without one:
+ * the item's picture floating gently on its aisle's colours, a soft shine passing over it. Then the name and
+ * price. Used wherever people pick items: billing tiles, the shop's common list, the household planner and the
+ * online store. Motion stops for people who turned off animations.
  */
-export function ItemCard({ item, title, subtitle, badge, onClick, selected, compact, children }: {
-  item: { catalogueItemId?: number | null; category?: string | null; name?: string }
+export function ItemCard({ item, title, subtitle, badge, onClick, selected, compact, imageUrl, children }: {
+  item: { catalogueItemId?: number | null; aisle?: string | null; category?: string | null; name?: string }
   title: string
   subtitle?: ReactNode
-  /** Corner label ("✓ Added", "Low", a price). */
+  /** Corner label ("✓ Added", a count). */
   badge?: ReactNode
   onClick?: () => void
   selected?: boolean
   compact?: boolean
+  /** The shop's photo (lib/images.ts); the drawn picture shows until it loads, and if it fails. */
+  imageUrl?: string
   children?: ReactNode
 }) {
   const art = itemArt(item)
+  const [photoLoaded, setPhotoLoaded] = useState(false)
+  const [photoFailed, setPhotoFailed] = useState(false)
+  const photo = imageUrl && !photoFailed
   const Wrapper = onClick ? 'button' : 'div'
   return (
     <Wrapper
@@ -28,12 +34,29 @@ export function ItemCard({ item, title, subtitle, badge, onClick, selected, comp
     >
       <div
         className={`relative flex items-center justify-center overflow-hidden ${compact ? 'h-16' : 'h-24'}`}
-        style={{ background: `linear-gradient(135deg, ${art.from}, ${art.to})` }}
+        style={{ background: photo && photoLoaded ? art.tint : `linear-gradient(135deg, ${art.from}, ${art.to})` }}
       >
-        <span aria-hidden className="item-card-bubble left-2 top-2 h-6 w-6" />
-        <span aria-hidden className="item-card-bubble bottom-1 right-4 h-9 w-9 [animation-delay:1.2s]" />
-        <span aria-hidden className={`item-card-emoji drop-shadow-[0_4px_6px_rgba(0,0,0,0.25)] ${compact ? 'text-[34px]' : 'text-[48px]'}`}>{art.emoji}</span>
-        <span aria-hidden className="item-card-shine" />
+        {!(photo && photoLoaded) && (
+          <>
+            <span aria-hidden className="item-card-bubble left-2 top-2 h-6 w-6" />
+            <span aria-hidden className="item-card-bubble bottom-1 right-4 h-9 w-9 [animation-delay:1.2s]" />
+            <span aria-hidden className={`item-card-emoji drop-shadow-[0_4px_6px_rgba(0,0,0,0.25)] ${compact ? 'text-[34px]' : 'text-[48px]'}`}>{art.emoji}</span>
+            <span aria-hidden className="item-card-shine" />
+          </>
+        )}
+        {photo && (
+          <img
+            src={imageUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            width={compact ? 64 : 96}
+            height={compact ? 64 : 96}
+            onLoad={() => setPhotoLoaded(true)}
+            onError={() => setPhotoFailed(true)}
+            className={`absolute inset-0 m-auto h-[88%] w-auto rounded-xl object-contain mix-blend-multiply ${photoLoaded ? '' : 'opacity-0'}`}
+          />
+        )}
         {badge && <span className="absolute right-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-ink shadow">{badge}</span>}
       </div>
       <div className="flex flex-1 flex-col p-2">

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ItemCard } from '../components/ItemCard'
+import { imageUrl } from '../lib/images'
 import { Button, Field, Sheet } from '../components/ui'
 import { saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
@@ -74,6 +75,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
             key={p.id}
             compact
             item={p}
+            imageUrl={imageUrl(shopId, p.id, p.imageAt)}
             title={p.name}
             subtitle={p.sellingPrice > 0 ? `${formatRupees(p.sellingPrice)}/${t(`units.${p.unit}`)}` : t('stock.noPrice')}
             badge={cart.filter((l) => l.productId === p.id).reduce((n, l) => n + l.quantity, 0) || undefined}

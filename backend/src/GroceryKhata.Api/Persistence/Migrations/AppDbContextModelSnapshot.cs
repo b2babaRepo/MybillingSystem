@@ -28,6 +28,12 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("id");
 
+                    b.Property<string>("Aisle")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("aisle");
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(60)
@@ -65,6 +71,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 1,
+                            Aisle = "atta-rice",
                             Category = "आटा, चावल, दाल",
                             Name = "आटा",
                             NameEn = "Atta",
@@ -74,6 +81,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 2,
+                            Aisle = "atta-rice",
                             Category = "आटा, चावल, दाल",
                             Name = "चावल",
                             NameEn = "Rice",
@@ -83,6 +91,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 3,
+                            Aisle = "atta-rice",
                             Category = "आटा, चावल, दाल",
                             Name = "बासमती चावल",
                             NameEn = "Basmati rice",
@@ -92,6 +101,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 4,
+                            Aisle = "atta-rice",
                             Category = "आटा, चावल, दाल",
                             Name = "मैदा",
                             NameEn = "Maida",
@@ -101,6 +111,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 5,
+                            Aisle = "atta-rice",
                             Category = "आटा, चावल, दाल",
                             Name = "सूजी",
                             NameEn = "Suji",
@@ -110,6 +121,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 6,
+                            Aisle = "atta-rice",
                             Category = "आटा, चावल, दाल",
                             Name = "बेसन",
                             NameEn = "Besan",
@@ -119,6 +131,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 7,
+                            Aisle = "dal",
                             Category = "आटा, चावल, दाल",
                             Name = "तूर दाल",
                             NameEn = "Toor dal",
@@ -128,6 +141,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 8,
+                            Aisle = "dal",
                             Category = "आटा, चावल, दाल",
                             Name = "मूंग दाल",
                             NameEn = "Moong dal",
@@ -137,6 +151,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 9,
+                            Aisle = "dal",
                             Category = "आटा, चावल, दाल",
                             Name = "चना दाल",
                             NameEn = "Chana dal",
@@ -146,6 +161,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 10,
+                            Aisle = "dal",
                             Category = "आटा, चावल, दाल",
                             Name = "उड़द दाल",
                             NameEn = "Urad dal",
@@ -155,6 +171,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 11,
+                            Aisle = "dal",
                             Category = "आटा, चावल, दाल",
                             Name = "मसूर दाल",
                             NameEn = "Masoor dal",
@@ -164,6 +181,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 12,
+                            Aisle = "dal",
                             Category = "आटा, चावल, दाल",
                             Name = "राजमा",
                             NameEn = "Rajma",
@@ -173,6 +191,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 13,
+                            Aisle = "dal",
                             Category = "आटा, चावल, दाल",
                             Name = "काबुली चना",
                             NameEn = "Kabuli chana",
@@ -182,6 +201,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 14,
+                            Aisle = "atta-rice",
                             Category = "आटा, चावल, दाल",
                             Name = "पोहा",
                             NameEn = "Poha",
@@ -191,6 +211,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 15,
+                            Aisle = "sugar-salt",
                             Category = "चीनी, नमक, गुड़",
                             Name = "चीनी",
                             NameEn = "Sugar",
@@ -200,6 +221,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 16,
+                            Aisle = "sugar-salt",
                             Category = "चीनी, नमक, गुड़",
                             Name = "गुड़",
                             NameEn = "Jaggery",
@@ -209,6 +231,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 17,
+                            Aisle = "sugar-salt",
                             Category = "चीनी, नमक, गुड़",
                             Name = "नमक",
                             NameEn = "Salt",
@@ -218,6 +241,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 18,
+                            Aisle = "oil-ghee",
                             Category = "तेल, घी",
                             Name = "सरसों तेल",
                             NameEn = "Mustard oil",
@@ -227,6 +251,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 19,
+                            Aisle = "oil-ghee",
                             Category = "तेल, घी",
                             Name = "रिफ़ाइंड तेल",
                             NameEn = "Refined oil",
@@ -236,6 +261,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 20,
+                            Aisle = "oil-ghee",
                             Category = "तेल, घी",
                             Name = "मूंगफली तेल",
                             NameEn = "Groundnut oil",
@@ -245,6 +271,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 21,
+                            Aisle = "oil-ghee",
                             Category = "तेल, घी",
                             Name = "देसी घी",
                             NameEn = "Desi ghee",
@@ -254,6 +281,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 22,
+                            Aisle = "oil-ghee",
                             Category = "तेल, घी",
                             Name = "वनस्पति",
                             NameEn = "Vanaspati",
@@ -263,6 +291,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 23,
+                            Aisle = "masala",
                             Category = "मसाले",
                             Name = "हल्दी पाउडर",
                             NameEn = "Turmeric powder",
@@ -272,6 +301,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 24,
+                            Aisle = "masala",
                             Category = "मसाले",
                             Name = "लाल मिर्च पाउडर",
                             NameEn = "Red chilli powder",
@@ -281,6 +311,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 25,
+                            Aisle = "masala",
                             Category = "मसाले",
                             Name = "धनिया पाउडर",
                             NameEn = "Coriander powder",
@@ -290,6 +321,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 26,
+                            Aisle = "masala",
                             Category = "मसाले",
                             Name = "जीरा",
                             NameEn = "Jeera",
@@ -299,6 +331,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 27,
+                            Aisle = "masala",
                             Category = "मसाले",
                             Name = "राई",
                             NameEn = "Mustard seeds",
@@ -308,6 +341,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 28,
+                            Aisle = "masala",
                             Category = "मसाले",
                             Name = "गरम मसाला",
                             NameEn = "Garam masala",
@@ -317,6 +351,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 29,
+                            Aisle = "masala",
                             Category = "मसाले",
                             Name = "हींग",
                             NameEn = "Hing",
@@ -326,6 +361,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 30,
+                            Aisle = "masala",
                             Category = "मसाले",
                             Name = "काली मिर्च",
                             NameEn = "Black pepper",
@@ -335,6 +371,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 31,
+                            Aisle = "masala",
                             Category = "मसाले",
                             Name = "इलायची",
                             NameEn = "Elaichi",
@@ -344,6 +381,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 32,
+                            Aisle = "masala",
                             Category = "मसाले",
                             Name = "मेथी दाना",
                             NameEn = "Methi seeds",
@@ -353,6 +391,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 33,
+                            Aisle = "tea-coffee",
                             Category = "चाय, कॉफ़ी, दूध",
                             Name = "चायपत्ती",
                             NameEn = "Tea",
@@ -362,6 +401,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 34,
+                            Aisle = "tea-coffee",
                             Category = "चाय, कॉफ़ी, दूध",
                             Name = "कॉफ़ी",
                             NameEn = "Coffee",
@@ -371,6 +411,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 35,
+                            Aisle = "dairy",
                             Category = "चाय, कॉफ़ी, दूध",
                             Name = "दूध",
                             NameEn = "Milk",
@@ -380,6 +421,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 36,
+                            Aisle = "dairy",
                             Category = "चाय, कॉफ़ी, दूध",
                             Name = "दही",
                             NameEn = "Curd",
@@ -389,6 +431,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 37,
+                            Aisle = "dairy",
                             Category = "चाय, कॉफ़ी, दूध",
                             Name = "पनीर",
                             NameEn = "Paneer",
@@ -398,6 +441,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 38,
+                            Aisle = "dairy",
                             Category = "चाय, कॉफ़ी, दूध",
                             Name = "मक्खन",
                             NameEn = "Butter",
@@ -407,6 +451,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 39,
+                            Aisle = "breakfast",
                             Category = "बिस्कुट, नमकीन",
                             Name = "ब्रेड",
                             NameEn = "Bread",
@@ -416,6 +461,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 40,
+                            Aisle = "snacks",
                             Category = "बिस्कुट, नमकीन",
                             Name = "बिस्कुट",
                             NameEn = "Biscuits",
@@ -425,6 +471,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 41,
+                            Aisle = "snacks",
                             Category = "बिस्कुट, नमकीन",
                             Name = "नमकीन",
                             NameEn = "Namkeen",
@@ -434,6 +481,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 42,
+                            Aisle = "instant",
                             Category = "बिस्कुट, नमकीन",
                             Name = "मैगी",
                             NameEn = "Maggi",
@@ -443,6 +491,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 43,
+                            Aisle = "dairy",
                             Category = "बिस्कुट, नमकीन",
                             Name = "अंडे",
                             NameEn = "Eggs",
@@ -452,6 +501,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 44,
+                            Aisle = "personal",
                             Category = "साफ़-सफ़ाई",
                             Name = "नहाने का साबुन",
                             NameEn = "Bath soap",
@@ -461,6 +511,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 45,
+                            Aisle = "cleaning",
                             Category = "साफ़-सफ़ाई",
                             Name = "कपड़े धोने का साबुन",
                             NameEn = "Washing soap",
@@ -470,6 +521,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 46,
+                            Aisle = "cleaning",
                             Category = "साफ़-सफ़ाई",
                             Name = "सर्फ़ / डिटर्जेंट",
                             NameEn = "Detergent",
@@ -479,6 +531,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 47,
+                            Aisle = "cleaning",
                             Category = "साफ़-सफ़ाई",
                             Name = "बर्तन धोने का साबुन",
                             NameEn = "Dishwash bar",
@@ -488,6 +541,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 48,
+                            Aisle = "cleaning",
                             Category = "साफ़-सफ़ाई",
                             Name = "फ़िनाइल",
                             NameEn = "Phenyl",
@@ -497,6 +551,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 49,
+                            Aisle = "personal",
                             Category = "साफ़-सफ़ाई",
                             Name = "टूथपेस्ट",
                             NameEn = "Toothpaste",
@@ -506,6 +561,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 50,
+                            Aisle = "personal",
                             Category = "साफ़-सफ़ाई",
                             Name = "शैम्पू",
                             NameEn = "Shampoo",
@@ -515,6 +571,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 51,
+                            Aisle = "household",
                             Category = "घर का सामान",
                             Name = "माचिस",
                             NameEn = "Matchbox",
@@ -524,6 +581,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 52,
+                            Aisle = "pooja",
                             Category = "घर का सामान",
                             Name = "अगरबत्ती",
                             NameEn = "Agarbatti",
@@ -533,11 +591,202 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         new
                         {
                             Id = 53,
+                            Aisle = "household",
                             Category = "घर का सामान",
                             Name = "मोमबत्ती",
                             NameEn = "Candles",
                             TypicalPrice = 40m,
                             Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 54,
+                            Aisle = "fruits-veg",
+                            Category = "फल, सब्ज़ी",
+                            Name = "प्याज",
+                            NameEn = "Onion",
+                            TypicalPrice = 40m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 55,
+                            Aisle = "fruits-veg",
+                            Category = "फल, सब्ज़ी",
+                            Name = "आलू",
+                            NameEn = "Potato",
+                            TypicalPrice = 30m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 56,
+                            Aisle = "fruits-veg",
+                            Category = "फल, सब्ज़ी",
+                            Name = "टमाटर",
+                            NameEn = "Tomato",
+                            TypicalPrice = 40m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 57,
+                            Aisle = "fruits-veg",
+                            Category = "फल, सब्ज़ी",
+                            Name = "केला",
+                            NameEn = "Banana",
+                            TypicalPrice = 6m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 58,
+                            Aisle = "fruits-veg",
+                            Category = "फल, सब्ज़ी",
+                            Name = "नींबू",
+                            NameEn = "Lemon",
+                            TypicalPrice = 5m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 59,
+                            Aisle = "drinks",
+                            Category = "पेय",
+                            Name = "कोल्ड ड्रिंक",
+                            NameEn = "Cold drink",
+                            TypicalPrice = 40m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 60,
+                            Aisle = "drinks",
+                            Category = "पेय",
+                            Name = "जूस",
+                            NameEn = "Juice",
+                            TypicalPrice = 110m,
+                            Unit = "Litre"
+                        },
+                        new
+                        {
+                            Id = 61,
+                            Aisle = "drinks",
+                            Category = "पेय",
+                            Name = "पानी की बोतल",
+                            NameEn = "Water bottle",
+                            TypicalPrice = 20m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 62,
+                            Aisle = "breakfast",
+                            Category = "बिस्कुट, नमकीन",
+                            Name = "कॉर्नफ़्लेक्स",
+                            NameEn = "Cornflakes",
+                            TypicalPrice = 180m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 63,
+                            Aisle = "breakfast",
+                            Category = "बिस्कुट, नमकीन",
+                            Name = "जैम",
+                            NameEn = "Jam",
+                            TypicalPrice = 140m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 64,
+                            Aisle = "instant",
+                            Category = "बिस्कुट, नमकीन",
+                            Name = "सूप",
+                            NameEn = "Soup",
+                            TypicalPrice = 60m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 65,
+                            Aisle = "personal",
+                            Category = "पर्सनल केयर",
+                            Name = "बालों का तेल",
+                            NameEn = "Hair oil",
+                            TypicalPrice = 90m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 66,
+                            Aisle = "personal",
+                            Category = "पर्सनल केयर",
+                            Name = "टूथब्रश",
+                            NameEn = "Toothbrush",
+                            TypicalPrice = 30m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 67,
+                            Aisle = "personal",
+                            Category = "पर्सनल केयर",
+                            Name = "फ़ेस वॉश",
+                            NameEn = "Face wash",
+                            TypicalPrice = 150m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 68,
+                            Aisle = "pooja",
+                            Category = "पूजा का सामान",
+                            Name = "कपूर",
+                            NameEn = "Camphor",
+                            TypicalPrice = 30m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 69,
+                            Aisle = "pooja",
+                            Category = "पूजा का सामान",
+                            Name = "दीया बाती",
+                            NameEn = "Diya wicks",
+                            TypicalPrice = 20m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 70,
+                            Aisle = "pooja",
+                            Category = "पूजा का सामान",
+                            Name = "धूपबत्ती",
+                            NameEn = "Dhoop sticks",
+                            TypicalPrice = 40m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 71,
+                            Aisle = "household",
+                            Category = "घर का सामान",
+                            Name = "बल्ब",
+                            NameEn = "Bulb",
+                            TypicalPrice = 90m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 72,
+                            Aisle = "household",
+                            Category = "घर का सामान",
+                            Name = "झाड़ू",
+                            NameEn = "Broom",
+                            TypicalPrice = 120m,
+                            Unit = "Piece"
                         });
                 });
 
@@ -565,6 +814,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("ImageAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("image_at");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -637,6 +890,38 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ShopId", "Name");
 
                     b.ToTable("products", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Catalogue.ProductImage", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("data");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("ProductId");
+
+                    b.HasIndex("ShopId");
+
+                    b.ToTable("product_images", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Catalogue.StockMovement", b =>
@@ -1716,6 +2001,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ShopId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Catalogue.ProductImage", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Catalogue.Product", null)
+                        .WithOne()
+                        .HasForeignKey("GroceryKhata.Api.Catalogue.ProductImage", "ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

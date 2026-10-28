@@ -44,6 +44,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
 
+    public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+
     public DbSet<Dispute> Disputes => Set<Dispute>();
 
     public DbSet<DisputeItem> DisputeItems => Set<DisputeItem>();
@@ -106,6 +108,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(i => i.NameEn).HasMaxLength(120);
             b.Property(i => i.Category).HasMaxLength(60);
             b.Property(i => i.TypicalPrice).HasPrecision(12, 2);
+            b.Property(i => i.Aisle).HasMaxLength(20);
             b.HasData(CommonCatalogue.Items);
         });
 
@@ -193,6 +196,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(p => new { p.ShopId, p.CatalogueItemId });
             b.HasOne<CatalogueItem>().WithMany().HasForeignKey(p => p.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProductImage>(b =>
+        {
+            b.ToTable("product_images");
+            b.HasKey(i => i.ProductId);
+            b.HasIndex(i => i.ShopId);
+            b.Property(i => i.ContentType).HasMaxLength(20);
+            b.HasOne<Product>().WithOne().HasForeignKey<ProductImage>(i => i.ProductId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<AuditEntry>(b =>

@@ -33,7 +33,8 @@ public sealed record ProductDto(
     int? CatalogueItemId = null,
     decimal? PackSize = null,
     Unit? PackUnit = null,
-    bool IsDefaultOption = false);
+    bool IsDefaultOption = false,
+    DateTimeOffset? ImageAt = null);
 
 /// <summary>A purchase (positive) or an adjustment (signed, with a reason).</summary>
 public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note);

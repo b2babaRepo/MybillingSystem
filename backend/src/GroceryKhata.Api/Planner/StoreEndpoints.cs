@@ -7,10 +7,10 @@ using Microsoft.EntityFrameworkCore;
 namespace GroceryKhata.Api.Planner;
 
 /// <summary>A shop as its online store shows it. <see cref="Phone"/>: the owner's, for "send on WhatsApp".</summary>
-public sealed record StoreDto(string Name, string Slug, string? Area, string? Address, string? Phone, IReadOnlyList<StoreItemDto> Items);
+public sealed record StoreDto(string Name, string Slug, string? Area, string? Address, string? Phone, IReadOnlyList<StoreItemDto> Items, Guid ShopId = default);
 
 /// <summary><see cref="Available"/>: on the shelf minus what other online orders hold.</summary>
-public sealed record StoreItemDto(Guid Id, string Name, string? Category, Unit Unit, decimal Price, decimal Available, int? CatalogueItemId = null);
+public sealed record StoreItemDto(Guid Id, string Name, string? Category, Unit Unit, decimal Price, decimal Available, int? CatalogueItemId = null, DateTimeOffset? ImageAt = null);
 
 public sealed record StoreLineRequest(Guid ProductId, decimal Quantity);
 
@@ -56,10 +56,10 @@ public static class StoreEndpoints
         var items = await db.Products.AsNoTracking()
             .Where(p => p.IsActive && p.SellingPrice > 0)
             .OrderBy(p => p.Category).ThenBy(p => p.Name)
-            .Select(p => new StoreItemDto(p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.Stock - p.Reserved, p.CatalogueItemId))
+            .Select(p => new StoreItemDto(p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.Stock - p.Reserved, p.CatalogueItemId, p.ImageAt))
             .ToListAsync(ct);
         items = items.Select(i => i.CatalogueItemId is null ? i with { CatalogueItemId = Catalogue.CommonCatalogue.Match(i.Name) } : i).ToList();
-        return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items));
+        return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items, shop.Id));
     }
 
     /// <summary>
@@ -189,7 +189,7 @@ public static class StoreEndpoints
         return order is null ? TypedResults.NotFound() : TypedResults.Ok(OrderDto.From(order, shop.Name));
     }
 
-    internal sealed record OpenShop(string Name, string Slug, string? Area, string? Address, string? OwnerPhone);
+    internal sealed record OpenShop(string Name, string Slug, string? Area, string? Address, string? OwnerPhone, Guid Id);
 
     /// <summary>Finds an open shop by slug and works as that shop for the rest of the request (tenant + RLS).</summary>
     internal static async Task<OpenShop?> OpenShopAsync(AppDbContext db, TenantContext tenant, string slug, CancellationToken ct)
@@ -216,6 +216,6 @@ public static class StoreEndpoints
         }
 
         tenant.SetShop(shop.Id);
-        return new OpenShop(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone);
+        return new OpenShop(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, shop.Id);
     }
 }
