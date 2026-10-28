@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AccountMenu } from './components/AccountMenu'
 import { AppBanners } from './components/AppBanners'
 import { BackIcon, BillIcon, CheckIcon, CloudOffIcon, HomeIcon, ItemsIcon, KhataIcon, PaymentIcon } from './components/Icons'
-import { setLanguage } from './i18n'
 import { request } from './lib/api'
 import { useOutbox, useSession } from './lib/data'
 import { useNewOrders } from './lib/orderAlerts'
@@ -82,7 +82,7 @@ export default function App() {
 }
 
 function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { shopId: string; shopName: string; shopSlug: string; userName: string; isOwner: boolean; onHousehold: () => void }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const path = usePath()
   const { pending, failed, state } = useOutbox(shopId)
   const notifyText = useCallback((order: Order) => t('myStore.newOrder', { name: order.customerName }), [t])
@@ -161,15 +161,16 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           {state === 'offline' ? <CloudOffIcon size={16} /> : unsynced === 0 ? <CheckIcon size={16} /> : null}
           {unsynced > 0 ? t('waiting', { count: unsynced }) : state === 'offline' ? t('pwa.offline') : t('synced')}
         </button>
-        <button onClick={() => setLanguage(i18n.language === 'hi' ? 'en' : 'hi')} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">
-          {i18n.language === 'hi' ? 'EN' : 'हि'}
-        </button>
-        {path === '/sync' && (
-          <button onClick={signOut} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">{t('signOut')}</button>
-        )}
-        {path === '/sync' && (
-          <button onClick={onHousehold} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">{t('plan.householdLists')}</button>
-        )}
+        <AccountMenu
+          name={userName}
+          role={t(isOwner ? 'account.ownerAt' : 'account.helperAt', { shop: shopName })}
+          unsynced={unsynced}
+          onSignOut={signOut}
+          actions={[
+            { label: t('plan.householdLists'), onClick: onHousehold },
+            { label: t('account.syncStatus'), onClick: () => navigate('/sync') },
+          ]}
+        />
       </header>
 
       <main>

@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AccountMenu } from '../../components/AccountMenu'
 import { AppBanners } from '../../components/AppBanners'
 import { BackIcon, CheckIcon, CloudOffIcon, KhataIcon, BillIcon, PaymentIcon } from '../../components/Icons'
-import { setLanguage } from '../../i18n'
 import { request } from '../../lib/api'
 import { useOutbox } from '../../lib/data'
 import { requestPersistentStorage } from '../../lib/db'
@@ -19,7 +19,7 @@ import { MyKhataDetail, MyKhataScreen } from '../khata/KhataViews'
 
 /** The household app: plan monthly and weekly lists, send one to a shop, follow the order. */
 export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: string; userName: string; onSwitchToShop?: () => void }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const path = usePath()
   const key = homeKey(userId)
   const { pending, failed, state } = useOutbox(key)
@@ -64,9 +64,16 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
           {state === 'offline' ? <CloudOffIcon size={16} /> : unsynced === 0 ? <CheckIcon size={16} /> : null}
           {unsynced > 0 ? t('waiting', { count: unsynced }) : state === 'offline' ? t('pwa.offline') : t('synced')}
         </span>
-        <button onClick={() => setLanguage(i18n.language === 'hi' ? 'en' : 'hi')} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">
-          {i18n.language === 'hi' ? 'EN' : 'हि'}
-        </button>
+        <AccountMenu
+          name={userName}
+          role={t('account.household')}
+          unsynced={unsynced}
+          onSignOut={signOut}
+          actions={[
+            { label: t('account.myKhata'), onClick: () => navigate('/khata') },
+            ...(onSwitchToShop ? [{ label: t('plan.iAmShop'), onClick: onSwitchToShop }] : []),
+          ]}
+        />
       </header>
 
       <main>
@@ -84,14 +91,6 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
           <MyKhataScreen />
         ) : (
           <PlanHomeScreen userId={userId} />
-        )}
-        {path === '/' && (
-          <div className="mx-4 mt-6 flex flex-wrap justify-center gap-3 text-sm">
-            {onSwitchToShop && (
-              <button onClick={onSwitchToShop} className="min-h-11 px-2 font-semibold text-teal-700 underline">{t('plan.iAmShop')}</button>
-            )}
-            <button onClick={signOut} className="min-h-11 px-2 font-semibold text-muted underline">{t('signOut')}</button>
-          </div>
         )}
       </main>
 
