@@ -34,10 +34,107 @@ public static class DemoSeeder
         await using var scope = services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
         var db = sp.GetRequiredService<AppDbContext>();
-        if (await db.Users.AnyAsync(u => u.Phone == PhoneNumber.Normalize(seed.Shop.Phone)))
+        if (!await db.Users.AnyAsync(u => u.Phone == PhoneNumber.Normalize(seed.Shop.Phone)))
+        {
+            await SeedMainShopAsync(sp, seed);
+        }
+
+        // The rest of the common catalogue in the main shop, and the other shops nearby with their own prices, so
+        // a household can compare shops. Each step is skipped when already done, so it also tops up an older seed.
+        await StockCatalogueAsync(services, seed.Shop.Phone, seed.Shop.ShopName, 1m);
+        await SeedKhataBillsAsync(services, seed.Shop.Phone);
+        foreach (var other in seed.OtherShops)
+        {
+            if (!await db.Users.AnyAsync(u => u.Phone == PhoneNumber.Normalize(other.Phone)))
+            {
+                await using var signUp = services.CreateAsyncScope();
+                await signUp.ServiceProvider.GetRequiredService<AuthService>().SignUpAsync(
+                    new SignUpRequest(other.ShopName, other.OwnerName, other.Phone, other.Password, "hi", other.Area), CancellationToken.None);
+            }
+
+            await StockCatalogueAsync(services, other.Phone, other.ShopName, other.PriceFactor);
+        }
+
+        logger.LogWarning("DEVELOPMENT demo data ready: logins are in demo-seed.json");
+    }
+
+    /// <summary>
+    /// Adds every common-catalogue item the shop doesn't sell yet, at the typical price times the shop's factor
+    /// (one shop a little cheaper, one dearer), with some stock. Import skips names the shop already has.
+    /// </summary>
+    private static async Task StockCatalogueAsync(IServiceProvider services, string phone, string shopName, decimal priceFactor)
+    {
+        // A scope of its own: a scope works as one shop only.
+        await using var scope = services.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<AppDbContext>();
+        var normalized = PhoneNumber.Normalize(phone);
+        var shopId = await db.Memberships.AsNoTracking()
+            .Where(m => db.Users.Any(u => u.Id == m.UserId && u.Phone == normalized) && db.Shops.Any(s => s.Id == m.ShopId && s.Name == shopName))
+            .Select(m => new { m.ShopId, m.UserId }).FirstOrDefaultAsync();
+        if (shopId is null)
         {
             return;
         }
+
+        var tenant = sp.GetRequiredService<TenantContext>();
+        tenant.SetShop(shopId.ShopId);
+        tenant.SetUser(shopId.UserId);
+        var sold = (await db.Products.AsNoTracking().Select(p => p.Name).ToListAsync())
+            .Select(CommonCatalogue.Match).OfType<int>().ToHashSet();
+        var rows = CommonCatalogue.Items.Where(i => !sold.Contains(i.Id)).Select((i, n) => new ImportRow(
+            i.Name, i.Unit, decimal.Round(i.TypicalPrice * priceFactor, i.TypicalPrice < 5 ? 2 : 0), null, i.Category,
+            i.Unit is Unit.G ? 500 : 10 + n % 7 * 5, i.Unit is Unit.G ? 100 : 5)).ToList();
+        if (rows.Count > 0)
+        {
+            await sp.GetRequiredService<StockService>().ImportAsync(new ImportRequest(rows), shopId.UserId, CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// Itemised bills on khata for the customers who owe most, so a customer's page shows what they took, when and
+    /// at what price. Skipped once three customers have khata bills.
+    /// </summary>
+    private static async Task SeedKhataBillsAsync(IServiceProvider services, string phone)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<AppDbContext>();
+        var normalized = PhoneNumber.Normalize(phone);
+        var owner = await db.Memberships.AsNoTracking().Where(m => db.Users.Any(u => u.Id == m.UserId && u.Phone == normalized))
+            .OrderBy(m => m.CreatedAt).Select(m => new { m.ShopId, m.UserId }).FirstOrDefaultAsync();
+        if (owner is null)
+        {
+            return;
+        }
+
+        var tenant = sp.GetRequiredService<TenantContext>();
+        tenant.SetShop(owner.ShopId);
+        tenant.SetUser(owner.UserId);
+        if (await db.Bills.Where(b => b.CustomerId != null).Select(b => b.CustomerId).Distinct().CountAsync() >= 3)
+        {
+            return;
+        }
+
+        var products = await db.Products.AsNoTracking().Where(p => p.SellingPrice > 0 && p.Unit != Unit.G).OrderBy(p => p.CreatedAt).ToListAsync();
+        var customers = await db.Customers.AsNoTracking().OrderByDescending(c => c.Balance).Take(3).ToListAsync();
+        var ledger = sp.GetRequiredService<LedgerService>();
+        var n = 0;
+        foreach (var customer in customers)
+        {
+            for (var bill = 0; bill < 2; bill++)
+            {
+                var lines = Enumerable.Range(0, 3).Select(i => products[(n * 3 + i) % products.Count])
+                    .Select((p, i) => new BillLineRequest(p.Id, null, 1 + (n + i) % 3, null, p.SellingPrice)).ToList();
+                n++;
+                await ledger.CreateBillAsync(new BillRequest(Guid.CreateVersion7(), customer.Id, lines, 0, null, null), owner.UserId, CancellationToken.None);
+            }
+        }
+    }
+
+    private static async Task SeedMainShopAsync(IServiceProvider sp, DemoSeed seed)
+    {
+        var db = sp.GetRequiredService<AppDbContext>();
 
         var auth = sp.GetRequiredService<AuthService>();
         var shop = (await auth.SignUpAsync(
@@ -90,7 +187,7 @@ public static class DemoSeeder
             {
                 UserId = home.User.Id,
                 Kind = kind,
-                Items = items.Select(i => new ShoppingListItem { Name = i.Name, Quantity = i.Quantity, Unit = i.Unit }).ToList(),
+                Items = items.Select(i => new ShoppingListItem { Name = i.Name, CatalogueItemId = CommonCatalogue.Match(i.Name), Quantity = i.Quantity, Unit = i.Unit }).ToList(),
             });
         }
 
@@ -115,11 +212,12 @@ public static class DemoSeeder
             }).ToList(),
         });
         await db.SaveChangesAsync();
-
-        logger.LogWarning("DEVELOPMENT demo data seeded: logins are in demo-seed.json");
     }
 
-    private sealed record DemoSeed(SeedShop Shop, SeedHousehold Household, List<SeedProduct> Products, List<SeedCustomer> Customers, SeedLists Lists);
+    private sealed record DemoSeed(
+        SeedShop Shop, SeedHousehold Household, List<SeedProduct> Products, List<SeedCustomer> Customers, SeedLists Lists, List<SeedOtherShop> OtherShops);
+
+    private sealed record SeedOtherShop(string ShopName, string Area, string OwnerName, string Phone, string Password, decimal PriceFactor);
 
     private sealed record SeedShop(string ShopName, string Area, string OwnerName, string Phone, string Password);
 

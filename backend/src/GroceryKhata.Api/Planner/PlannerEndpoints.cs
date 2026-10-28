@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
@@ -33,7 +34,7 @@ public static class PlannerEndpoints
         {
             var items = lists.SingleOrDefault(l => l.Kind == kind)?.Items ?? [];
             return new ListDto(kind, items.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id)
-                .Select(i => new ListItemDto(i.Id, i.Name, i.Quantity, i.Unit, i.Checked, i.Note)).ToList());
+                .Select(i => new ListItemDto(i.Id, i.Name, i.Quantity, i.Unit, i.Checked, i.Note, i.CatalogueItemId)).ToList());
         }).ToList();
     }
 
@@ -66,6 +67,7 @@ public static class PlannerEndpoints
         }
 
         item.Name = request.Name!.Trim();
+        item.CatalogueItemId = request.CatalogueItemId;
         item.Quantity = request.Quantity;
         item.Unit = request.Unit ?? Catalogue.Unit.Piece;
         item.Checked = request.Checked;
@@ -81,7 +83,7 @@ public static class PlannerEndpoints
             return TypedResults.Conflict();
         }
 
-        return TypedResults.Ok(new ListItemDto(item.Id, item.Name, item.Quantity, item.Unit, item.Checked, item.Note));
+        return TypedResults.Ok(new ListItemDto(item.Id, item.Name, item.Quantity, item.Unit, item.Checked, item.Note, item.CatalogueItemId));
     }
 
     private static async Task<IResult> DeleteItemAsync(string kind, Guid id, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
@@ -181,6 +183,12 @@ public static class PlannerEndpoints
 
         // The order belongs to the shop: work as that shop for this insert, so the stamp and row-level security accept it.
         tenant.SetShop(shop.Id);
+        // Lines picked from the common catalogue (or named like it) arrive matched to this shop's item and price,
+        // so packing starts filled in and delivery takes the stock. Anything unmatched the shop prices by hand.
+        var shopItems = CatalogueEndpoints.MatchToCatalogue(await CatalogueEndpoints.ShopProductsAsync(db, ct))
+            .ToDictionary(m => m.CatalogueItemId, m => m.Product);
+        Catalogue.Product? ShopItem(ShoppingListItem i) =>
+            (i.CatalogueItemId ?? CommonCatalogue.Match(i.Name)) is { } id ? shopItems.GetValueOrDefault(id) : null;
         var lineNo = 0;
         var order = new Order
         {
@@ -201,6 +209,8 @@ public static class PlannerEndpoints
                 Quantity = i.Quantity,
                 Unit = i.Unit,
                 Note = i.Note,
+                ProductId = ShopItem(i) is { } p && p.Unit == i.Unit ? p.Id : null,
+                UnitPrice = ShopItem(i) is { } q && q.Unit == i.Unit ? q.SellingPrice : null,
             }).ToList(),
         };
         db.Orders.Add(order);

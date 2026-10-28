@@ -82,7 +82,13 @@ public sealed record StatementLine(
     string? Note,
     DateTimeOffset OccurredAt,
     decimal RunningBalance,
-    bool IsReversed);
+    bool IsReversed,
+    BillSummary? Bill = null);
+
+/// <summary>What was bought on a bill, so the khata shows the items behind each udhaar, not just an amount.</summary>
+public sealed record BillSummary(decimal Total, decimal Paid, IReadOnlyList<BillItem> Items);
+
+public sealed record BillItem(string Name, decimal Quantity, Catalogue.Unit Unit, decimal UnitPrice, decimal Amount);
 
 /// <summary>
 /// <see cref="OpeningBalance"/>: owed before the period (previous dues carried forward); 0 for the whole khata.

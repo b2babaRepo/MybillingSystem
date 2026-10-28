@@ -360,12 +360,17 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 .Select(e => e.ReversesEntryId!.Value).ToListAsync(cancellationToken))
             .ToHashSet();
 
+        var billIds = entries.Where(e => e.BillId != null).Select(e => e.BillId!.Value).Distinct().ToList();
+        var bills = await db.Bills.AsNoTracking().Include(b => b.Lines).Where(b => billIds.Contains(b.Id))
+            .ToDictionaryAsync(b => b.Id, b => new BillSummary(b.Total, b.PaidAmount,
+                b.Lines.OrderBy(l => l.LineNo).Select(l => new BillItem(l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList()), cancellationToken);
+
         var running = opening;
         var lines = entries.Select(e =>
         {
             running += e.Amount;
             return new StatementLine(e.Id, e.Kind, e.Amount, e.PaymentMode, e.BillId, e.ReversesEntryId, e.Note, e.OccurredAt,
-                running, reversed.Contains(e.Id));
+                running, reversed.Contains(e.Id), e.BillId is { } billId ? bills.GetValueOrDefault(billId) : null);
         }).ToList();
 
         return new StatementDto(customer, lines, opening, running,

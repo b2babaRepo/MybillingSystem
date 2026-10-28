@@ -22,7 +22,28 @@ export interface ListItem {
   unit: Unit
   checked: boolean
   note: string | null
+  /** Picked from the common catalogue; null when typed in by hand. */
+  catalogueItemId?: number | null
   pending?: boolean
+}
+
+/** The common catalogue every shop and household shares. Each shop sets its own price. */
+export interface CatalogueItem {
+  id: number
+  name: string
+  nameEn: string
+  unit: Unit
+  category: string
+  typicalPrice: number
+}
+
+export interface ShopPrice {
+  catalogueItemId: number
+  productId: string
+  name: string
+  unit: Unit
+  price: number
+  inStock: boolean
 }
 
 export interface ShoppingList {
@@ -138,6 +159,44 @@ export function useMyOrders(userId: string) {
   return { ...query, orders }
 }
 
+/** Kept on the phone too, so items can be picked offline. */
+export function useCatalogue(userId: string) {
+  const key = homeKey(userId)
+  return useQuery({ queryKey: ['catalogue'], queryFn: () => cachedGet<CatalogueItem[]>(key, 'catalogue', '/v1/catalogue'), staleTime: 3_600_000 })
+}
+
+/** One shop's prices for catalogue items, to estimate the list's total before sending. */
+export function useShopPrices(shopId: string | undefined) {
+  return useQuery({
+    queryKey: ['shop-prices', shopId],
+    queryFn: () => api<ShopPrice[]>(`/v1/shops/${shopId}/prices`),
+    enabled: !!shopId,
+    staleTime: 60_000,
+  })
+}
+
+/** What the list would cost at a shop: priced lines in the same unit, and how many the shop will price itself. */
+export function estimateAtShop(items: ListItem[], prices: ShopPrice[]) {
+  const byItem = new Map(prices.map((p) => [p.catalogueItemId, p]))
+  let total = 0
+  let priced = 0
+  for (const item of items) {
+    const price = item.catalogueItemId ? byItem.get(item.catalogueItemId) : undefined
+    if (price && price.unit === item.unit) {
+      total += price.price * item.quantity
+      priced++
+    }
+  }
+  return { total: Math.round(total * 100) / 100, priced, unpriced: items.length - priced }
+}
+
+/** Catalogue items whose Hindi or English name contains the text. */
+export function searchCatalogue(catalogue: CatalogueItem[], text: string) {
+  const q = text.trim().toLowerCase()
+  if (!q) return []
+  return catalogue.filter((i) => i.name.toLowerCase().includes(q) || i.nameEn.toLowerCase().includes(q)).slice(0, 8)
+}
+
 /** Shops to send a list to. Needs the network: there is nothing useful to show from yesterday's search. */
 export function useShopSearch(search: string) {
   return useQuery({
@@ -161,8 +220,8 @@ export async function saveItem(userId: string, kind: ListKind, item: Omit<ListIt
   })
 }
 
-export async function addItem(userId: string, kind: ListKind, name: string, quantity: number, unit: Unit) {
-  await saveItem(userId, kind, { id: uuidv7(), name, quantity, unit, checked: false, note: null })
+export async function addItem(userId: string, kind: ListKind, name: string, quantity: number, unit: Unit, catalogueItemId: number | null = null) {
+  await saveItem(userId, kind, { id: uuidv7(), name, quantity, unit, checked: false, note: null, catalogueItemId })
 }
 
 export async function removeItem(userId: string, kind: ListKind, item: ListItem) {

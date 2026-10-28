@@ -1,5 +1,5 @@
 {
-  "_comment": "DEVELOPMENT ONLY demo data, loaded on start-up when Database:SeedDemo is true (appsettings.Development.json). These are test logins for a local database, never real accounts. Seeding is skipped if the shop's phone already exists.",
+  "_comment": "DEVELOPMENT ONLY demo data, loaded on start-up when Database:SeedDemo is true (appsettings.Development.json). These are test logins for a local database, never real accounts. Seeding is skipped if the shop's phone already exists. otherShops get the whole common catalogue at the typical price times priceFactor, so a household can compare prices between shops.",
   "shop": {
     "shopName": "Sharma General Store",
     "area": "Raja Park bazaar",
@@ -159,5 +159,23 @@
         "unit": "packet"
       }
     ]
-  }
+  },
+  "otherShops": [
+    {
+      "shopName": "Gupta Kirana",
+      "area": "Raja Park bazaar",
+      "ownerName": "Suresh Gupta",
+      "phone": "9000000003",
+      "password": "rYspW8JNb",
+      "priceFactor": 0.95
+    },
+    {
+      "shopName": "Jain Provision Store",
+      "area": "Raja Park bazaar",
+      "ownerName": "Mahesh Jain",
+      "phone": "9000000004",
+      "password": "EZGCEWVO7RD0",
+      "priceFactor": 1.08
+    }
+  ]
 }

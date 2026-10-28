@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
 using GroceryKhata.Api.Planner;
@@ -68,6 +69,30 @@ public sealed class PlannerTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.OK, (await shop.PostJsonAsync($"/api/v1/orders/{order.Id}/deliver", new { })).StatusCode);
         var customer = Assert.Single(await shop.GetJsonAsync<List<CustomerDto>>("/api/v1/customers"));
         Assert.Equal(("Priya Agarwal", 724m), (customer.Name, customer.Balance));
+    }
+
+    [Fact]
+    public async Task Items_picked_from_the_common_catalogue_arrive_with_each_shops_own_price()
+    {
+        var area = $"Bapu Bazar {Guid.NewGuid():N}"[..20];
+        var (cheap, cheapAuth) = await SignUpShopAsync("Gupta Kirana", area);
+        var (dear, dearAuth) = await SignUpShopAsync("Jain Provision", area);
+        // Same item, own names and prices: "आटा (Aashirvaad)" is still the catalogue's atta.
+        await cheap.PostJsonAsync("/api/v1/products/import", new { rows = new[] { new { name = "आटा (Aashirvaad)", unit = "kg", sellingPrice = 42m, openingStock = 20m } } });
+        await dear.PostJsonAsync("/api/v1/products/import", new { rows = new[] { new { name = "Atta", unit = "kg", sellingPrice = 48m, openingStock = 20m } } });
+        var (home, _) = await RegisterHouseholdAsync("Priya");
+
+        var catalogue = await home.GetJsonAsync<List<CatalogueItemDto>>("/api/v1/catalogue");
+        var atta = catalogue.Single(i => i.NameEn == "Atta");
+        await home.PutAsJsonAsync($"/api/v1/me/lists/monthly/items/{Guid.CreateVersion7()}",
+            new { name = atta.Name, quantity = 5m, unit = "kg", catalogueItemId = atta.Id }, ApiFactory.Json);
+
+        Assert.Equal(42m, Assert.Single(await home.GetJsonAsync<List<ShopPriceDto>>($"/api/v1/shops/{cheapAuth.ShopId}/prices")).Price);
+        Assert.Equal(48m, Assert.Single(await home.GetJsonAsync<List<ShopPriceDto>>($"/api/v1/shops/{dearAuth.ShopId}/prices")).Price);
+
+        await home.PostJsonAsync("/api/v1/me/orders", new { id = Guid.CreateVersion7(), shopId = dearAuth.ShopId, kind = "monthly" });
+        var line = Assert.Single(Assert.Single(await dear.GetJsonAsync<List<OrderDto>>("/api/v1/orders?status=placed")).Lines);
+        Assert.Equal((48m, 240m), (line.UnitPrice, line.Amount));
     }
 
     [Fact]

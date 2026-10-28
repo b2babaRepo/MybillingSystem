@@ -29,6 +29,9 @@ public sealed class ShoppingListItem : Entity
 
     public required string Name { get; set; }
 
+    /// <summary>Picked from the common catalogue (null: typed in by hand).</summary>
+    public int? CatalogueItemId { get; set; }
+
     public decimal Quantity { get; set; }
 
     public Unit Unit { get; set; }

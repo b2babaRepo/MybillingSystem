@@ -2,12 +2,16 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PendingDot } from '../../components/ui'
 import { round2 } from '../../lib/local'
-import { addItem, removeItem, saveItem, useLists, type ListItem, type ListKind } from '../../lib/planner'
+import { formatRupees } from '../../lib/format'
+import { addItem, removeItem, saveItem, searchCatalogue, useCatalogue, useLists, type CatalogueItem, type ListItem, type ListKind } from '../../lib/planner'
 import type { Unit } from '../../lib/types'
 import { navigate } from '../../router'
 import { UnitSelect } from '../BillScreen'
 
-/** Mockup 2: one list. Add, tick, change quantity, remove; every change is saved on the phone at once. */
+/**
+ * Mockup 2: one list. Pick items from the common catalogue (search or browse by category) or type any item;
+ * tick, change quantity, remove. Every change is saved on the phone at once.
+ */
 export function ListScreen({ userId, kind }: { userId: string; kind: ListKind }) {
   const { t } = useTranslation()
   const { lists } = useLists(userId)
@@ -15,6 +19,20 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
   const [name, setName] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [unit, setUnit] = useState<Unit>('kg')
+  const catalogue = useCatalogue(userId).data ?? []
+  const [category, setCategory] = useState<string | null>(null)
+  const categories = [...new Set(catalogue.map((i) => i.category))]
+  const onList = new Set(list.items.map((i) => i.catalogueItemId).filter(Boolean))
+  const suggestions = searchCatalogue(catalogue, name)
+
+  /** One tap adds a catalogue item with a sensible first quantity (adjust with − and +). */
+  async function pick(item: CatalogueItem) {
+    const typed = Number(quantity)
+    const qty = name.trim() && typed > 0 ? typed : item.unit === 'g' || item.unit === 'ml' ? 100 : 1
+    await addItem(userId, kind, item.name, qty, item.unit, item.id)
+    setName('')
+    setQuantity('1')
+  }
 
   async function add(e: FormEvent) {
     e.preventDefault()
@@ -56,6 +74,18 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
           aria-label={t('plan.addPlaceholder')}
           className="h-12 rounded-[14px] border border-line px-3 text-[17px] outline-none focus:border-teal-600"
         />
+        {suggestions.length > 0 && (
+          <ul className="flex flex-col divide-y divide-[#edf2f1] rounded-[14px] border border-line">
+            {suggestions.map((item) => (
+              <li key={item.id}>
+                <button type="button" onClick={() => void pick(item)} className="flex min-h-12 w-full items-center gap-2 px-3 text-left">
+                  <span className="flex-1 font-semibold">{item.name} <span className="font-normal text-muted">· {item.nameEn}</span></span>
+                  <span className="text-sm text-muted">~{formatRupees(item.typicalPrice)}/{t(`units.${item.unit}`)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-muted">{t('quantity')}</span>
@@ -67,6 +97,42 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
           </button>
         </div>
       </form>
+
+      {catalogue.length > 0 && !name.trim() && (
+        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+          <h2 className="text-base font-bold">{t('plan.pickItems')}</h2>
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {categories.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCategory(category === c ? null : c)}
+                aria-pressed={category === c}
+                className={`h-10 shrink-0 rounded-full px-3 text-sm font-semibold ${category === c ? 'bg-teal-700 text-white' : 'bg-[#edf2f1] text-ink'}`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          {category && (
+            <div className="grid grid-cols-2 gap-2">
+              {catalogue.filter((i) => i.category === category).map((item) => {
+                const added = onList.has(item.id)
+                return (
+                  <button
+                    key={item.id}
+                    disabled={added}
+                    onClick={() => void pick(item)}
+                    className={`flex min-h-14 flex-col items-start justify-center rounded-[14px] px-3 py-2 text-left ${added ? 'bg-teal-50 text-teal-800' : 'border border-line'}`}
+                  >
+                    <span className="font-semibold">{added ? '✓ ' : '+ '}{item.name}</span>
+                    <span className="text-xs text-muted">{item.nameEn} · ~{formatRupees(item.typicalPrice)}/{t(`units.${item.unit}`)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       {list.items.length === 0 ? (
         <p className="py-6 text-center text-muted">{t('plan.emptyList')}</p>

@@ -55,6 +55,7 @@ app.MapDashboard();
 app.MapCashBook();
 app.MapAudit();
 app.MapPlanner();
+app.MapCommonCatalogue();
 app.MapOrders();
 app.MapStore();
 app.MapReports();

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Balance, Button, Field, PendingDot, Sheet } from '../components/ui'
 import { addCustomer, useCustomers } from '../lib/data'
+import { formatPhone } from '../lib/format'
 import { navigate } from '../router'
 
 /** Everyone on khata, most due first ("who owes me?"). */
@@ -50,9 +51,10 @@ export function CustomersScreen({ shopId }: { shopId: string }) {
                 <div className="flex items-center gap-2 text-[17px] font-semibold">
                   {c.name} {c.pending > 0 && <PendingDot />}
                 </div>
-                {c.phone && <div className="text-[13px] text-muted">{c.phone}</div>}
+                {c.phone && <div className="text-[13px] text-muted">{formatPhone(c.phone)}</div>}
               </div>
               <Balance amount={c.balance} />
+              <span aria-hidden className="text-xl text-muted">›</span>
             </button>
           </li>
         ))}

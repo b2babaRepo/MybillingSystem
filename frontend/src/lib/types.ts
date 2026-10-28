@@ -76,6 +76,14 @@ export interface StatementLine {
   occurredAt: string
   runningBalance: number
   isReversed: boolean
+  /** The items behind a bill's udhaar. */
+  bill?: BillSummary | null
+}
+
+export interface BillSummary {
+  total: number
+  paid: number
+  items: { name: string; quantity: number; unit: Unit; unitPrice: number; amount: number }[]
 }
 
 export interface Statement {

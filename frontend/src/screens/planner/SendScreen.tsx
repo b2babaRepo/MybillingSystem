@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { sendList, useLists, useShopSearch, type Fulfilment, type ListKind, type OrderPayment, type ShopEntry } from '../../lib/planner'
+import { formatRupees } from '../../lib/format'
+import { estimateAtShop, sendList, useLists, useShopPrices, useShopSearch, type Fulfilment, type ListKind, type OrderPayment, type ShopEntry } from '../../lib/planner'
 import { navigate } from '../../router'
 
 /** Mockups 4 and 5 on one screen: pick the shop, then how and when, then send. */
@@ -16,6 +17,8 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
   const [payment, setPayment] = useState<OrderPayment>('cash')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const prices = useShopPrices(shop?.id)
+  const estimate = prices.data ? estimateAtShop(items, prices.data) : null
 
   async function send() {
     if (!shop) return
@@ -59,6 +62,12 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
             </li>
           ))}
         </ul>
+        {shop && estimate && (
+          <div className="rounded-[14px] bg-teal-50 p-3">
+            <p className="text-lg font-bold text-teal-800">{t('plan.estimate', { amount: formatRupees(estimate.total) })}</p>
+            {estimate.unpriced > 0 && <p className="text-sm text-muted">{t('plan.estimateUnpriced', { count: estimate.unpriced })}</p>}
+          </div>
+        )}
       </section>
 
       <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">

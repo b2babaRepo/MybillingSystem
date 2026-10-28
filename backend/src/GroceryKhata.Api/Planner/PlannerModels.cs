@@ -3,12 +3,12 @@ using GroceryKhata.Api.Common;
 
 namespace GroceryKhata.Api.Planner;
 
-public sealed record ListItemDto(Guid Id, string Name, decimal Quantity, Unit Unit, bool Checked, string? Note);
+public sealed record ListItemDto(Guid Id, string Name, decimal Quantity, Unit Unit, bool Checked, string? Note, int? CatalogueItemId = null);
 
 public sealed record ListDto(ListKind Kind, IReadOnlyList<ListItemDto> Items);
 
 /// <summary>Creates or replaces one item (PUT by the app's own ID, so a retry is harmless).</summary>
-public sealed record UpsertItemRequest(string? Name, decimal Quantity, Unit? Unit, bool Checked, string? Note)
+public sealed record UpsertItemRequest(string? Name, decimal Quantity, Unit? Unit, bool Checked, string? Note, int? CatalogueItemId = null)
 {
     public Dictionary<string, string[]> Validate()
     {
@@ -21,6 +21,11 @@ public sealed record UpsertItemRequest(string? Name, decimal Quantity, Unit? Uni
         if (!Money.IsValidQuantity(Quantity))
         {
             errors[nameof(Quantity)] = ["Quantity must be above 0, with at most three decimals."];
+        }
+
+        if (CatalogueItemId is { } id && CommonCatalogue.Items.All(i => i.Id != id))
+        {
+            errors[nameof(CatalogueItemId)] = ["Unknown catalogue item."];
         }
 
         if (Note?.Length > 200)

@@ -42,6 +42,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Product> Products => Set<Product>();
 
+    public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
+
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
@@ -88,6 +90,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(i => i.Name).HasMaxLength(120);
             b.Property(i => i.Quantity).HasPrecision(12, 3);
             b.Property(i => i.Note).HasMaxLength(200);
+            b.HasOne<CatalogueItem>().WithMany().HasForeignKey(i => i.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Shared by everyone, owned by no shop: no tenant key, no row-level security. Rows come from code.
+        modelBuilder.Entity<CatalogueItem>(b =>
+        {
+            b.ToTable("catalogue_items");
+            b.Property(i => i.Id).ValueGeneratedNever();
+            b.Property(i => i.Name).HasMaxLength(120);
+            b.Property(i => i.NameEn).HasMaxLength(120);
+            b.Property(i => i.Category).HasMaxLength(60);
+            b.Property(i => i.TypicalPrice).HasPrecision(12, 2);
+            b.HasData(CommonCatalogue.Items);
         });
 
         modelBuilder.Entity<Order>(b =>

@@ -22,6 +22,525 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("GroceryKhata.Api.Catalogue.CatalogueItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("category");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name_en");
+
+                    b.Property<decimal>("TypicalPrice")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("typical_price");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("unit");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("catalogue_items", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Category = "आटा, चावल, दाल",
+                            Name = "आटा",
+                            NameEn = "Atta",
+                            TypicalPrice = 45m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Category = "आटा, चावल, दाल",
+                            Name = "चावल",
+                            NameEn = "Rice",
+                            TypicalPrice = 50m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Category = "आटा, चावल, दाल",
+                            Name = "बासमती चावल",
+                            NameEn = "Basmati rice",
+                            TypicalPrice = 120m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Category = "आटा, चावल, दाल",
+                            Name = "मैदा",
+                            NameEn = "Maida",
+                            TypicalPrice = 40m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Category = "आटा, चावल, दाल",
+                            Name = "सूजी",
+                            NameEn = "Suji",
+                            TypicalPrice = 50m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Category = "आटा, चावल, दाल",
+                            Name = "बेसन",
+                            NameEn = "Besan",
+                            TypicalPrice = 95m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Category = "आटा, चावल, दाल",
+                            Name = "तूर दाल",
+                            NameEn = "Toor dal",
+                            TypicalPrice = 160m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Category = "आटा, चावल, दाल",
+                            Name = "मूंग दाल",
+                            NameEn = "Moong dal",
+                            TypicalPrice = 130m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Category = "आटा, चावल, दाल",
+                            Name = "चना दाल",
+                            NameEn = "Chana dal",
+                            TypicalPrice = 95m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Category = "आटा, चावल, दाल",
+                            Name = "उड़द दाल",
+                            NameEn = "Urad dal",
+                            TypicalPrice = 140m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Category = "आटा, चावल, दाल",
+                            Name = "मसूर दाल",
+                            NameEn = "Masoor dal",
+                            TypicalPrice = 110m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Category = "आटा, चावल, दाल",
+                            Name = "राजमा",
+                            NameEn = "Rajma",
+                            TypicalPrice = 150m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Category = "आटा, चावल, दाल",
+                            Name = "काबुली चना",
+                            NameEn = "Kabuli chana",
+                            TypicalPrice = 140m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Category = "आटा, चावल, दाल",
+                            Name = "पोहा",
+                            NameEn = "Poha",
+                            TypicalPrice = 60m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Category = "चीनी, नमक, गुड़",
+                            Name = "चीनी",
+                            NameEn = "Sugar",
+                            TypicalPrice = 46m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Category = "चीनी, नमक, गुड़",
+                            Name = "गुड़",
+                            NameEn = "Jaggery",
+                            TypicalPrice = 70m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Category = "चीनी, नमक, गुड़",
+                            Name = "नमक",
+                            NameEn = "Salt",
+                            TypicalPrice = 28m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Category = "तेल, घी",
+                            Name = "सरसों तेल",
+                            NameEn = "Mustard oil",
+                            TypicalPrice = 175m,
+                            Unit = "Litre"
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Category = "तेल, घी",
+                            Name = "रिफ़ाइंड तेल",
+                            NameEn = "Refined oil",
+                            TypicalPrice = 150m,
+                            Unit = "Litre"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Category = "तेल, घी",
+                            Name = "मूंगफली तेल",
+                            NameEn = "Groundnut oil",
+                            TypicalPrice = 210m,
+                            Unit = "Litre"
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Category = "तेल, घी",
+                            Name = "देसी घी",
+                            NameEn = "Desi ghee",
+                            TypicalPrice = 620m,
+                            Unit = "Litre"
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Category = "तेल, घी",
+                            Name = "वनस्पति",
+                            NameEn = "Vanaspati",
+                            TypicalPrice = 140m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Category = "मसाले",
+                            Name = "हल्दी पाउडर",
+                            NameEn = "Turmeric powder",
+                            TypicalPrice = 35m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Category = "मसाले",
+                            Name = "लाल मिर्च पाउडर",
+                            NameEn = "Red chilli powder",
+                            TypicalPrice = 45m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Category = "मसाले",
+                            Name = "धनिया पाउडर",
+                            NameEn = "Coriander powder",
+                            TypicalPrice = 35m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Category = "मसाले",
+                            Name = "जीरा",
+                            NameEn = "Jeera",
+                            TypicalPrice = 0.6m,
+                            Unit = "G"
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Category = "मसाले",
+                            Name = "राई",
+                            NameEn = "Mustard seeds",
+                            TypicalPrice = 0.2m,
+                            Unit = "G"
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Category = "मसाले",
+                            Name = "गरम मसाला",
+                            NameEn = "Garam masala",
+                            TypicalPrice = 60m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Category = "मसाले",
+                            Name = "हींग",
+                            NameEn = "Hing",
+                            TypicalPrice = 50m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Category = "मसाले",
+                            Name = "काली मिर्च",
+                            NameEn = "Black pepper",
+                            TypicalPrice = 1m,
+                            Unit = "G"
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Category = "मसाले",
+                            Name = "इलायची",
+                            NameEn = "Elaichi",
+                            TypicalPrice = 3.5m,
+                            Unit = "G"
+                        },
+                        new
+                        {
+                            Id = 32,
+                            Category = "मसाले",
+                            Name = "मेथी दाना",
+                            NameEn = "Methi seeds",
+                            TypicalPrice = 0.2m,
+                            Unit = "G"
+                        },
+                        new
+                        {
+                            Id = 33,
+                            Category = "चाय, कॉफ़ी, दूध",
+                            Name = "चायपत्ती",
+                            NameEn = "Tea",
+                            TypicalPrice = 140m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Category = "चाय, कॉफ़ी, दूध",
+                            Name = "कॉफ़ी",
+                            NameEn = "Coffee",
+                            TypicalPrice = 180m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 35,
+                            Category = "चाय, कॉफ़ी, दूध",
+                            Name = "दूध",
+                            NameEn = "Milk",
+                            TypicalPrice = 66m,
+                            Unit = "Litre"
+                        },
+                        new
+                        {
+                            Id = 36,
+                            Category = "चाय, कॉफ़ी, दूध",
+                            Name = "दही",
+                            NameEn = "Curd",
+                            TypicalPrice = 80m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 37,
+                            Category = "चाय, कॉफ़ी, दूध",
+                            Name = "पनीर",
+                            NameEn = "Paneer",
+                            TypicalPrice = 0.45m,
+                            Unit = "G"
+                        },
+                        new
+                        {
+                            Id = 38,
+                            Category = "चाय, कॉफ़ी, दूध",
+                            Name = "मक्खन",
+                            NameEn = "Butter",
+                            TypicalPrice = 60m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 39,
+                            Category = "बिस्कुट, नमकीन",
+                            Name = "ब्रेड",
+                            NameEn = "Bread",
+                            TypicalPrice = 45m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 40,
+                            Category = "बिस्कुट, नमकीन",
+                            Name = "बिस्कुट",
+                            NameEn = "Biscuits",
+                            TypicalPrice = 10m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 41,
+                            Category = "बिस्कुट, नमकीन",
+                            Name = "नमकीन",
+                            NameEn = "Namkeen",
+                            TypicalPrice = 50m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 42,
+                            Category = "बिस्कुट, नमकीन",
+                            Name = "मैगी",
+                            NameEn = "Maggi",
+                            TypicalPrice = 14m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 43,
+                            Category = "बिस्कुट, नमकीन",
+                            Name = "अंडे",
+                            NameEn = "Eggs",
+                            TypicalPrice = 7m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 44,
+                            Category = "साफ़-सफ़ाई",
+                            Name = "नहाने का साबुन",
+                            NameEn = "Bath soap",
+                            TypicalPrice = 40m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 45,
+                            Category = "साफ़-सफ़ाई",
+                            Name = "कपड़े धोने का साबुन",
+                            NameEn = "Washing soap",
+                            TypicalPrice = 30m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 46,
+                            Category = "साफ़-सफ़ाई",
+                            Name = "सर्फ़ / डिटर्जेंट",
+                            NameEn = "Detergent",
+                            TypicalPrice = 120m,
+                            Unit = "Kg"
+                        },
+                        new
+                        {
+                            Id = 47,
+                            Category = "साफ़-सफ़ाई",
+                            Name = "बर्तन धोने का साबुन",
+                            NameEn = "Dishwash bar",
+                            TypicalPrice = 20m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 48,
+                            Category = "साफ़-सफ़ाई",
+                            Name = "फ़िनाइल",
+                            NameEn = "Phenyl",
+                            TypicalPrice = 90m,
+                            Unit = "Litre"
+                        },
+                        new
+                        {
+                            Id = 49,
+                            Category = "साफ़-सफ़ाई",
+                            Name = "टूथपेस्ट",
+                            NameEn = "Toothpaste",
+                            TypicalPrice = 95m,
+                            Unit = "Piece"
+                        },
+                        new
+                        {
+                            Id = 50,
+                            Category = "साफ़-सफ़ाई",
+                            Name = "शैम्पू",
+                            NameEn = "Shampoo",
+                            TypicalPrice = 2m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 51,
+                            Category = "घर का सामान",
+                            Name = "माचिस",
+                            NameEn = "Matchbox",
+                            TypicalPrice = 10m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 52,
+                            Category = "घर का सामान",
+                            Name = "अगरबत्ती",
+                            NameEn = "Agarbatti",
+                            TypicalPrice = 50m,
+                            Unit = "Packet"
+                        },
+                        new
+                        {
+                            Id = 53,
+                            Category = "घर का सामान",
+                            Name = "मोमबत्ती",
+                            NameEn = "Candles",
+                            TypicalPrice = 40m,
+                            Unit = "Packet"
+                        });
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Catalogue.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -869,6 +1388,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int?>("CatalogueItemId")
+                        .HasColumnType("integer")
+                        .HasColumnName("catalogue_item_id");
+
                     b.Property<bool>("Checked")
                         .HasColumnType("boolean")
                         .HasColumnName("checked");
@@ -908,6 +1431,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CatalogueItemId");
 
                     b.HasIndex("ListId");
 
@@ -1125,6 +1650,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
             modelBuilder.Entity("GroceryKhata.Api.Planner.ShoppingListItem", b =>
                 {
+                    b.HasOne("GroceryKhata.Api.Catalogue.CatalogueItem", null)
+                        .WithMany()
+                        .HasForeignKey("CatalogueItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("GroceryKhata.Api.Planner.ShoppingList", null)
                         .WithMany("Items")
                         .HasForeignKey("ListId")
