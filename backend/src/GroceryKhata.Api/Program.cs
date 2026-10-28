@@ -20,6 +20,10 @@ builder.Services.AddPersistence();
 builder.Services.AddAppAuthentication();
 builder.Services.AddScoped<LedgerService>();
 builder.Services.AddScoped<StockService>();
+builder.Services.AddOrderReading(builder.Configuration);
+builder.Services.AddAiPrivacy(builder.Configuration);
+builder.Services.AddWhatsAppOrders(builder.Configuration);
+builder.Services.AddBalanceChecks();
 
 var app = builder.Build();
 
@@ -61,9 +65,14 @@ app.MapStore();
 app.MapReports();
 app.MapShopSettings();
 app.MapShopData();
+app.MapStaff();
+app.MapBalanceChecks();
 app.MapKhataView();
 app.MapDisputes();
 app.MapProductImages();
+app.MapOrderDrafts();
+app.MapAiPrivacy();
+app.MapWhatsAppOrders();
 
 app.Run();
 

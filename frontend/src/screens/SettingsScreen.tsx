@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { navigate } from '../router'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { buildReminder, DEFAULT_REMINDER, useShopSettings, type ShopSettings } from '../lib/reports'
@@ -40,6 +41,13 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   return (
     <div className="flex flex-col gap-3 p-4">
       {!isOwner && <p className="rounded-xl bg-amber-50 p-3 text-amber-900">{t('settings.ownerOnly')}</p>}
+      {isOwner && (
+        <button onClick={() => navigate('/settings/staff')} className="flex min-h-14 items-center gap-3 rounded-[18px] bg-white px-4 text-left font-bold">
+          <span aria-hidden className="text-2xl">👥</span>
+          <span className="flex-1">{t('staff.title')}<span className="block text-sm font-normal text-muted">{t('staff.menuHint')}</span></span>
+          <span aria-hidden>›</span>
+        </button>
+      )}
       <fieldset disabled={!isOwner} className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
         <Field label={t('settings.shopName')} value={form.name} onChange={set('name')} />
         <Field label={t('settings.area')} value={form.area} onChange={set('area')} />

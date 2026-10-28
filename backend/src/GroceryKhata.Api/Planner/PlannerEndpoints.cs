@@ -35,7 +35,7 @@ public static class PlannerEndpoints
         {
             var items = lists.SingleOrDefault(l => l.Kind == kind)?.Items ?? [];
             return new ListDto(kind, items.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id)
-                .Select(i => new ListItemDto(i.Id, i.Name, i.Quantity, i.Unit, i.Checked, i.Note, i.CatalogueItemId)).ToList());
+                .Select(i => new ListItemDto(i.Id, i.Name, i.Quantity, i.Unit, i.Checked, i.Note, i.CatalogueItemId, i.AiConfidence)).ToList());
         }).ToList();
     }
 
@@ -73,6 +73,7 @@ public static class PlannerEndpoints
         item.Unit = request.Unit ?? Catalogue.Unit.Piece;
         item.Checked = request.Checked;
         item.Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
+        item.AiConfidence = request.AiConfidence;
 
         try
         {
@@ -84,7 +85,7 @@ public static class PlannerEndpoints
             return TypedResults.Conflict();
         }
 
-        return TypedResults.Ok(new ListItemDto(item.Id, item.Name, item.Quantity, item.Unit, item.Checked, item.Note, item.CatalogueItemId));
+        return TypedResults.Ok(new ListItemDto(item.Id, item.Name, item.Quantity, item.Unit, item.Checked, item.Note, item.CatalogueItemId, item.AiConfidence));
     }
 
     private static async Task<IResult> DeleteItemAsync(string kind, Guid id, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)

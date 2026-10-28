@@ -45,6 +45,10 @@ public static class DemoSeeder
         await SeedKhataBillsAsync(services, seed.Shop.Phone);
         await SeedHouseholdKhataAsync(services, seed.Shop.Phone, seed.Household.FullName, seed.Household.Phone);
         await SeedOptionsAsync(services, seed.Shop.Phone);
+        if (seed.Staff is { } staff)
+        {
+            await SeedStaffAsync(services, seed.Shop.Phone, staff);
+        }
         foreach (var other in seed.OtherShops)
         {
             if (!await db.Users.AnyAsync(u => u.Phone == PhoneNumber.Normalize(other.Phone)))
@@ -209,6 +213,31 @@ public static class DemoSeeder
         ]), owner.UserId, CancellationToken.None);
     }
 
+    /// <summary>A helper at the main shop who signs in with phone + PIN. Skipped once that phone has an account.</summary>
+    private static async Task SeedStaffAsync(IServiceProvider services, string shopPhone, SeedStaff staff)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var phone = PhoneNumber.Normalize(staff.Phone);
+        var owner = PhoneNumber.Normalize(shopPhone);
+        var shopId = await db.Memberships.Where(m => db.Users.Any(u => u.Id == m.UserId && u.Phone == owner)).OrderBy(m => m.CreatedAt).Select(m => (Guid?)m.ShopId).FirstOrDefaultAsync();
+        if (shopId is null || await db.Users.AnyAsync(u => u.Phone == phone))
+        {
+            return;
+        }
+
+        var user = new User { Phone = phone!, FullName = staff.FullName };
+        db.Users.Add(user);
+        db.Memberships.Add(new Membership
+        {
+            UserId = user.Id,
+            ShopId = shopId.Value,
+            Role = ShopRole.Staff,
+            PinHash = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.IPasswordHasher<User>>().HashPassword(user, staff.Pin),
+        });
+        await db.SaveChangesAsync();
+    }
+
     private static async Task SeedMainShopAsync(IServiceProvider sp, DemoSeed seed)
     {
         var db = sp.GetRequiredService<AppDbContext>();
@@ -292,7 +321,9 @@ public static class DemoSeeder
     }
 
     private sealed record DemoSeed(
-        SeedShop Shop, SeedHousehold Household, List<SeedProduct> Products, List<SeedCustomer> Customers, SeedLists Lists, List<SeedOtherShop> OtherShops);
+        SeedShop Shop, SeedHousehold Household, List<SeedProduct> Products, List<SeedCustomer> Customers, SeedLists Lists, List<SeedOtherShop> OtherShops, SeedStaff? Staff = null);
+
+    private sealed record SeedStaff(string FullName, string Phone, string Pin);
 
     private sealed record SeedOtherShop(string ShopName, string Area, string OwnerName, string Phone, string Password, decimal PriceFactor);
 

@@ -24,4 +24,8 @@
     <ProjectReference Include="..\..\src\GroceryKhata.Api\GroceryKhata.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Data\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

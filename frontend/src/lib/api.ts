@@ -42,11 +42,12 @@ async function fetchOrThrow(path: string, method: string, body: unknown, token?:
   try {
     return await fetch(`/api${path}`, {
       method,
+      // Form data (a voice recording) goes as-is: the browser sets its multipart content type.
       headers: {
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     })
   } catch {
     throw new NetworkError()

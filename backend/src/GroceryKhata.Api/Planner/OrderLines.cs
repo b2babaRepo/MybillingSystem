@@ -37,6 +37,7 @@ public static class OrderLines
             Quantity = item.Quantity,
             Unit = item.Unit,
             Note = item.Note,
+            AiConfidence = item.AiConfidence,
             RequestedName = $"{item.Name} {item.Quantity:0.###} {item.Unit.ToString().ToLowerInvariant()}",
             Preference = picked is null && choice?.Preference == ReplacePreference.DontReplace
                 ? ReplacePreference.ShopChooses // "only this" needs a "this": without a pick it means the shop chooses

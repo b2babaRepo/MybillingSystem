@@ -16,10 +16,10 @@ import { BillScreen } from './screens/BillScreen'
 const CustomerScreen = lazy(() => import('./screens/CustomerScreen').then((module) => ({ default: module.CustomerScreen })))
 const DisputesScreen = lazy(() => import('./screens/DisputesScreen').then((module) => ({ default: module.DisputesScreen })))
 const CommonListScreen = lazy(() => import('./screens/CommonListScreen').then((module) => ({ default: module.CommonListScreen })))
-import { CustomersScreen } from './screens/CustomersScreen'
+const CustomersScreen = lazy(() => import('./screens/CustomersScreen').then((module) => ({ default: module.CustomersScreen })))
 import { HomeScreen } from './screens/HomeScreen'
-import { ItemsScreen } from './screens/ItemsScreen'
-import { SyncScreen } from './screens/SyncScreen'
+const ItemsScreen = lazy(() => import('./screens/ItemsScreen').then((module) => ({ default: module.ItemsScreen })))
+const SyncScreen = lazy(() => import('./screens/SyncScreen').then((module) => ({ default: module.SyncScreen })))
 
 // Billing, khata and items load with the app; screens used now and then load on first visit (and are then
 // cached by the service worker, so they open offline too). Keeps the start fast on low-end phones.
@@ -32,6 +32,7 @@ const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module)
 const StocktakeScreen = lazy(() => import('./screens/StocktakeScreen').then((module) => ({ default: module.StocktakeScreen })))
 const DuesScreen = lazy(() => import('./screens/DuesScreen').then((module) => ({ default: module.DuesScreen })))
 const ReportsScreen = lazy(() => import('./screens/ReportsScreen').then((module) => ({ default: module.ReportsScreen })))
+const StaffScreen = lazy(() => import('./screens/StaffScreen').then((module) => ({ default: module.StaffScreen })))
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen').then((module) => ({ default: module.SettingsScreen })))
 const MyStoreScreen = lazy(() => import('./screens/MyStoreScreen').then((module) => ({ default: module.MyStoreScreen })))
 const StoreApp = lazy(() => import('./screens/store/StoreApp').then((module) => ({ default: module.StoreApp })))
@@ -143,7 +144,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     <div className="mx-auto min-h-dvh max-w-xl pb-20">
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white">
         {!isTab && (
-          <button onClick={() => navigate(customerMatch ? '/khata' : orderMatch ? '/inbox' : isItemsPage ? '/items' : '/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}>
+          <button onClick={() => navigate(customerMatch ? '/khata' : orderMatch ? '/inbox' : isItemsPage ? '/items' : path === '/settings/staff' ? '/settings' : '/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}>
             <BackIcon />
           </button>
         )}
@@ -179,6 +180,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <DuesScreen shopId={shopId} shopName={shopName} />
         ) : path === '/reports' ? (
           <ReportsScreen shopId={shopId} isOwner={isOwner} />
+        ) : path === '/settings/staff' ? (
+          <StaffScreen />
         ) : path === '/settings' ? (
           <SettingsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/store' ? (
@@ -208,7 +211,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/sync' ? (
           <SyncScreen shopId={shopId} persistent={persistent} />
         ) : (
-          <HomeScreen shopId={shopId} />
+          <HomeScreen shopId={shopId} isOwner={isOwner} />
         )}
         </Suspense>
       </main>

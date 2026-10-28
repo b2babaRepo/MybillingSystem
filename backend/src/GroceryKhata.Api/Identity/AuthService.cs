@@ -79,10 +79,16 @@ public sealed class AuthService(
     {
         var phone = PhoneNumber.Normalize(request.Phone);
         var user = phone is null ? null : await db.Users.SingleOrDefaultAsync(u => u.Phone == phone, cancellationToken);
-        if (user is not { IsActive: true, PasswordHash: not null } || string.IsNullOrEmpty(request.Password))
+        if (user is not { IsActive: true } || string.IsNullOrEmpty(request.Password))
         {
             passwordHasher.VerifyHashedPassword(new User { Phone = "-", FullName = "-" }, DummyPasswordHash, request.Password ?? string.Empty);
             return AuthResult<AuthResponse>.Fail(AuthError.InvalidCredentials);
+        }
+
+        // Staff at the counter type a short PIN instead of a password: it opens the shop it was set for.
+        if (Pins.LooksLikePin(request.Password) && await SignInWithPinAsync(user, request.Password, cancellationToken) is { } byPin)
+        {
+            return byPin;
         }
 
         if (await CheckPasswordAsync(user, request.Password, cancellationToken) is { } error)
@@ -178,6 +184,52 @@ public sealed class AuthService(
     {
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.IsActive, cancellationToken);
         return user is null ? null : new MeResponse(Summarize(user), await ListMembershipsAsync(userId, cancellationToken));
+    }
+
+    /// <summary>
+    /// A PIN sign-in, when one of the person's memberships has a PIN: right → that shop's token; wrong → counted like a
+    /// wrong password. Null when no membership has a PIN, so the input is tried as a password instead.
+    /// </summary>
+    private async Task<AuthResult<AuthResponse>?> SignInWithPinAsync(User user, string pin, CancellationToken cancellationToken)
+    {
+        var withPin = await (from m in db.Memberships
+                             join s in db.Shops on m.ShopId equals s.Id
+                             where m.UserId == user.Id && m.IsActive && s.IsActive && m.PinHash != null
+                             select m).ToListAsync(cancellationToken);
+        if (withPin.Count == 0)
+        {
+            return null;
+        }
+
+        var now = clock.GetUtcNow();
+        if (user.LockoutEndsAt > now)
+        {
+            return AuthResult<AuthResponse>.Fail(AuthError.LockedOut);
+        }
+
+        var match = withPin.FirstOrDefault(m => passwordHasher.VerifyHashedPassword(user, m.PinHash!, pin) != PasswordVerificationResult.Failed);
+        if (match is null)
+        {
+            if (user.PasswordHash is not null)
+            {
+                return null; // an owner who also has a PIN somewhere may have typed a numeric password
+            }
+
+            user.FailedSignInCount++;
+            if (user.FailedSignInCount >= Options.MaxFailedSignIns)
+            {
+                user.FailedSignInCount = 0;
+                user.LockoutEndsAt = now.AddMinutes(Options.LockoutMinutes);
+                logger.LogWarning("User {UserId} locked out after too many wrong PINs", user.Id);
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            return AuthResult<AuthResponse>.Fail(AuthError.InvalidCredentials);
+        }
+
+        user.FailedSignInCount = 0;
+        user.LockoutEndsAt = null;
+        return AuthResult<AuthResponse>.Ok(await IssueAsync(user, match, cancellationToken));
     }
 
     /// <summary>Null when the password is right; counts wrong ones and locks the account after too many.</summary>

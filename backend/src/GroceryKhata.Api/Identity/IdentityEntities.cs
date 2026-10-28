@@ -20,6 +20,12 @@ public sealed class User : Entity
     public int FailedSignInCount { get; set; }
 
     public DateTimeOffset? LockoutEndsAt { get; set; }
+
+    /// <summary>
+    /// When the person agreed to their notes, photos and voice being read by AI services (India's DPDP Act: a
+    /// recorded, specific consent). Null: not agreed, or withdrawn, which also erases their AI records.
+    /// </summary>
+    public DateTimeOffset? AiConsentAt { get; set; }
 }
 
 /// <summary>A user's role in one shop. A user can own or work in many shops. Unique (user_id, shop_id).</summary>
@@ -32,6 +38,12 @@ public sealed class Membership : Entity
     public ShopRole Role { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// A short PIN (4 to 6 digits) for signing in at this shop's counter, set by the owner for staff. Hashed like a
+    /// password; wrong tries count towards the same lockout. Null: this membership signs in with a password only.
+    /// </summary>
+    public string? PinHash { get; set; }
 }
 
 public enum ShopRole

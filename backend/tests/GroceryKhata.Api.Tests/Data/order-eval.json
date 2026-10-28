@@ -1,0 +1,25 @@
+{
+  "_about": "Order-reading test set (AI phase 3). Each case is what a household might type or say, and the items expected: common-list item (English name), quantity and unit. Grow it from real orders (with consent) and keep the score from falling. Run against the rule reader in every test run; against Claude when ANTHROPIC_API_KEY is set (OrderEvalTests).",
+  "cases": [
+    { "text": "do kilo aata", "expect": [["Atta", 2, "kg"]] },
+    { "text": "5 kg chawal aur 1 kg cheeni", "expect": [["Rice", 5, "kg"], ["Sugar", 1, "kg"]] },
+    { "text": "ek litre sarson ka tel", "expect": [["Mustard oil", 1, "litre"]] },
+    { "text": "aadha kilo arhar dal", "expect": [["Toor dal", 0.5, "kg"]] },
+    { "text": "6 ande, 2 packet doodh", "expect": [["Eggs", 6, "piece"], ["Milk", 2, "packet"]] },
+    { "text": "Parle-G ke 5 packet", "expect": [["Biscuits", 5, "packet"]] },
+    { "text": "ek paav jeera", "expect": [["Jeera", 250, "g"]] },
+    { "text": "dhai sau gram haldi", "expect": [["Turmeric powder", 250, "g"]] },
+    { "text": "dedh kilo pyaz, 2 kilo aloo, aadha kilo tamatar", "expect": [["Onion", 1.5, "kg"], ["Potato", 2, "kg"], ["Tomato", 0.5, "kg"]] },
+    { "text": "1 kg surf, 2 nahane ka sabun", "expect": [["Detergent", 1, "kg"], ["Bath soap", 2, "piece"]] },
+    { "text": "chai patti 1 packet", "expect": [["Tea", 1, "packet"]] },
+    { "text": "दो किलो आटा, एक लीटर सरसों तेल", "expect": [["Atta", 2, "kg"], ["Mustard oil", 1, "litre"]] },
+    { "text": "3 kg gud", "expect": [["Jaggery", 3, "kg"]] },
+    { "text": "namak 1 packet aur machis 2 packet", "expect": [["Salt", 1, "packet"], ["Matchbox", 2, "packet"]] },
+    { "text": "500 g paneer", "expect": [["Paneer", 500, "g"]] },
+    { "text": "do maggi", "expect": [["Maggi", 2, "packet"]] },
+    { "text": "1 litre refined", "expect": [["Refined oil", 1, "litre"]] },
+    { "text": "ek kilo dahi", "expect": [["Curd", 1, "kg"]] },
+    { "text": "2 coke", "expect": [["Cold drink", 2, "piece"]] },
+    { "text": "kuch meetha", "expect": [] }
+  ]
+}

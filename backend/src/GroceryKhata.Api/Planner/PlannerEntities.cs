@@ -32,6 +32,12 @@ public sealed class ShoppingListItem : Entity
     /// <summary>Picked from the common catalogue (null: typed in by hand).</summary>
     public int? CatalogueItemId { get; set; }
 
+    /// <summary>
+    /// How sure the AI was when it read this item from the household's words, voice or photo (null: added by hand).
+    /// Travels to the order so the shop knows which lines to look at twice.
+    /// </summary>
+    public ReadConfidence? AiConfidence { get; set; }
+
     public decimal Quantity { get; set; }
 
     public Unit Unit { get; set; }
@@ -153,6 +159,9 @@ public sealed class OrderLine : Entity, IPlacedByUser
     public decimal? ExpectedAmount { get; set; }
 
     public LineApproval Approval { get; set; }
+
+    /// <summary>From the list item: how sure the AI was reading it (null: the household picked or typed it).</summary>
+    public ReadConfidence? AiConfidence { get; set; }
 }
 
 /// <summary>What the shop may do when packing a line.</summary>

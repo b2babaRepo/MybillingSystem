@@ -7,6 +7,9 @@ import { useProducts } from '../lib/data'
 import { round2 } from '../lib/local'
 import type { Order } from '../lib/planner'
 
+/** AI-read lines: Ready (sure), Check (one part unsure), Not understood (read the customer's words below it). */
+const AI_CHIP = { high: 'bg-[#e0efec] text-teal-800', medium: 'bg-amber-100 text-amber-900', low: 'bg-red-100 text-due' } as const
+
 interface Draft {
   packedQuantity: string
   unitPrice: string
@@ -49,6 +52,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
     return item ? products.filter((p) => p.catalogueItemId === item) : []
   }
   const waiting = order.status === 'packed' && order.lines.some((l) => l.approval === 'pending')
+  const toCheck = order.lines.filter((l) => l.aiConfidence && l.aiConfidence !== 'high').length
   const [paid, setPaid] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -102,6 +106,9 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
         <span className="mt-1 text-sm font-bold text-teal-800">{t(`plan.status.${order.status}`)}</span>
       </section>
 
+      {toCheck > 0 && (
+        <p className="rounded-[14px] bg-amber-50 p-3 text-sm font-semibold text-amber-950">🤖 {t('aiShop.summary', { count: toCheck })}</p>
+      )}
       <ul className="flex flex-col gap-2">
         {order.lines.map((l) => {
           const d = drafts[l.id]
@@ -115,6 +122,11 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
                     {l.requestedName ? t('options.askedFor', { asked: l.requestedName }) : `${l.quantity} ${t(`units.${l.unit}`)}`}
                     {l.note && ` · ${l.note}`}
                   </span>
+                  {l.aiConfidence && (
+                    <span className={`mt-1 w-fit rounded-full px-2 py-0.5 text-[11px] font-bold ${AI_CHIP[l.aiConfidence]}`}>
+                      🤖 {t(`aiShop.${l.aiConfidence}`)}
+                    </span>
+                  )}
                   {l.preference && (
                     <span className={`mt-1 w-fit rounded-full px-2 py-0.5 text-[11px] font-bold ${l.preference === 'shop_chooses' ? 'bg-[#e0efec] text-teal-800' : 'bg-amber-100 text-amber-900'}`}>
                       {t(`options.pref.${l.requestedProductId ? 'picked' : 'any'}.${l.preference}`)}

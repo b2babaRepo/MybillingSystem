@@ -24,6 +24,8 @@ export interface ListItem {
   note: string | null
   /** Picked from the common catalogue; null when typed in by hand. */
   catalogueItemId?: number | null
+  /** How sure the AI was reading it from the household's words, voice or photo; none when added by hand. */
+  aiConfidence?: AiConfidence | null
   pending?: boolean
 }
 
@@ -81,9 +83,13 @@ export interface OrderLine {
   /** The line's price when sent; a packed price far from it waits for the household's OK. */
   expectedAmount?: number | null
   approval?: LineApproval
+  aiConfidence?: AiConfidence | null
 }
 
 /** What the shop may do when packing a line: choose any option, ask first, or not replace. */
+/** How sure the AI was about a line it read: the shop sees Ready, Check or Not understood. */
+export type AiConfidence = 'high' | 'medium' | 'low'
+
 export type ReplacePreference = 'shop_chooses' | 'ask_me' | 'dont_replace'
 export type LineApproval = 'none' | 'pending' | 'approved' | 'declined'
 

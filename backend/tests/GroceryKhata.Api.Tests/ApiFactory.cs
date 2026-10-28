@@ -59,6 +59,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             ["Auth:AuthRequestsPerMinutePerIp"] = "10000",
             ["Auth:StoreRequestsPerMinutePerIp"] = "10000",
             ["Security:RequestsPerMinutePerIp"] = "100000",
+            ["Ai:Enabled"] = "false",
+            ["Whatsapp:AppSecret"] = "test-app-secret",
+            ["Whatsapp:VerifyToken"] = "test-verify-token",
         }));
     }
 

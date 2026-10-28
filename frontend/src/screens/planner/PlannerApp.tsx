@@ -14,6 +14,7 @@ import { ListScreen } from './ListScreen'
 import { MyOrdersScreen } from './MyOrdersScreen'
 import { PlanHomeScreen } from './PlanHomeScreen'
 import { SendScreen } from './SendScreen'
+import { AiOrderScreen } from './AiOrderScreen'
 import { MyKhataDetail, MyKhataScreen } from '../khata/KhataViews'
 
 /** The household app: plan monthly and weekly lists, send one to a shop, follow the order. */
@@ -77,6 +78,8 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
           <MyOrdersScreen userId={userId} />
         ) : khataMatch ? (
           <MyKhataDetail shopId={khataMatch[1]} customerId={khataMatch[2]} />
+        ) : path === '/ai' ? (
+          <AiOrderScreen userId={userId} />
         ) : path === '/khata' ? (
           <MyKhataScreen />
         ) : (

@@ -19,6 +19,17 @@ export function PlanHomeScreen({ userId }: { userId: string }) {
         hero
       />
       <ListCard list={weekly} title={t('plan.weeklyList')} hint={t('plan.weeklyHint')} />
+      <button
+        onClick={() => navigate('/ai')}
+        className="mx-4 mt-3 flex w-[calc(100%-2rem)] items-center gap-3 rounded-[18px] bg-gradient-to-r from-violet-500 via-fuchsia-500 to-orange-400 p-4 text-left text-white shadow"
+      >
+        <span aria-hidden className="text-3xl">✍️</span>
+        <span className="flex-1">
+          <span className="block text-lg font-extrabold">{t('ai.title')}</span>
+          <span className="block text-sm opacity-90">{t('ai.homeHint')}</span>
+        </span>
+        <span aria-hidden className="text-xl">›</span>
+      </button>
     </div>
   )
 }

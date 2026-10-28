@@ -54,6 +54,11 @@ export function InboxScreen({ shopId }: { shopId: string }) {
               {order.source === 'store' ? t('myStore.online') : t(`plan.${order.listKind}List`)}
             </span>
           </div>
+          {order.lines.some((l) => l.aiConfidence && l.aiConfidence !== 'high') && (
+            <span className="w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
+              🤖 {t('aiShop.inbox', { count: order.lines.filter((l) => l.aiConfidence && l.aiConfidence !== 'high').length })}
+            </span>
+          )}
           <p className="text-sm leading-snug">
             {order.lines.slice(0, 5).map((l) => `${l.name} ${l.quantity} ${t(`units.${l.unit}`)}`).join(', ')}
             {order.lines.length > 5 && ` + ${order.lines.length - 5}`}

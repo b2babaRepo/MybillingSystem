@@ -46,6 +46,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
 
+    public DbSet<AiProposal> AiProposals => Set<AiProposal>();
+
+    public DbSet<BalanceCheck> BalanceChecks => Set<BalanceCheck>();
+
     public DbSet<Dispute> Disputes => Set<Dispute>();
 
     public DbSet<DisputeItem> DisputeItems => Set<DisputeItem>();
@@ -196,6 +200,26 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(p => new { p.ShopId, p.CatalogueItemId });
             b.HasOne<CatalogueItem>().WithMany().HasForeignKey(p => p.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BalanceCheck>(b =>
+        {
+            b.ToTable("balance_checks");
+            b.HasTenantKey();
+            b.Property(c => c.Details).HasColumnType("jsonb");
+            b.HasIndex(c => new { c.ShopId, c.CheckedAt });
+        });
+
+        // A household's own record (not a shop's): what the reader proposed for one input.
+        modelBuilder.Entity<AiProposal>(b =>
+        {
+            b.ToTable("ai_proposals");
+            b.Property(p => p.InputText).HasMaxLength(2000);
+            b.Property(p => p.Reader).HasMaxLength(40);
+            b.Property(p => p.Lines).HasColumnType("jsonb");
+            b.Property(p => p.Source).HasDefaultValue(ProposalSource.App);
+            b.HasIndex(p => new { p.UserId, p.CreatedAt });
+            b.HasOne<User>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ProductImage>(b =>

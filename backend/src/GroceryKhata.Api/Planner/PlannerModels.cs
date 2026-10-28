@@ -3,12 +3,12 @@ using GroceryKhata.Api.Common;
 
 namespace GroceryKhata.Api.Planner;
 
-public sealed record ListItemDto(Guid Id, string Name, decimal Quantity, Unit Unit, bool Checked, string? Note, int? CatalogueItemId = null);
+public sealed record ListItemDto(Guid Id, string Name, decimal Quantity, Unit Unit, bool Checked, string? Note, int? CatalogueItemId = null, ReadConfidence? AiConfidence = null);
 
 public sealed record ListDto(ListKind Kind, IReadOnlyList<ListItemDto> Items);
 
 /// <summary>Creates or replaces one item (PUT by the app's own ID, so a retry is harmless).</summary>
-public sealed record UpsertItemRequest(string? Name, decimal Quantity, Unit? Unit, bool Checked, string? Note, int? CatalogueItemId = null)
+public sealed record UpsertItemRequest(string? Name, decimal Quantity, Unit? Unit, bool Checked, string? Note, int? CatalogueItemId = null, ReadConfidence? AiConfidence = null)
 {
     public Dictionary<string, string[]> Validate()
     {
@@ -69,7 +69,8 @@ public sealed record OrderLineDto(
     string? RequestedName = null,
     ReplacePreference Preference = ReplacePreference.ShopChooses,
     decimal? ExpectedAmount = null,
-    LineApproval Approval = LineApproval.None);
+    LineApproval Approval = LineApproval.None,
+    ReadConfidence? AiConfidence = null);
 
 public sealed record OrderDto(
     Guid Id,
@@ -98,7 +99,7 @@ public sealed record OrderDto(
         o.Lines.OrderBy(l => l.LineNo).Select(l => new OrderLineDto(
             l.Id, l.LineNo, l.Name, l.Quantity, l.Unit, l.Note, l.PackedQuantity, l.UnitPrice, l.Removed, l.ShopNote,
             l.Removed || l.UnitPrice is null ? null : Money.LineAmount(l.PackedQuantity ?? l.Quantity, l.UnitPrice.Value),
-            l.ProductId, l.RequestedProductId, l.RequestedName, l.Preference, l.ExpectedAmount, l.Approval)).ToList(),
+            l.ProductId, l.RequestedProductId, l.RequestedName, l.Preference, l.ExpectedAmount, l.Approval, l.AiConfidence)).ToList(),
         o.Source,
         o.Address);
 }

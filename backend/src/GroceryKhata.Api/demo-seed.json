@@ -1,5 +1,5 @@
 {
-  "_comment": "DEVELOPMENT ONLY demo data, loaded on start-up when Database:SeedDemo is true (appsettings.Development.json). These are test logins for a local database, never real accounts. Seeding is skipped if the shop's phone already exists. otherShops get the whole common catalogue at the typical price times priceFactor, so a household can compare prices between shops.",
+  "_comment": "DEVELOPMENT ONLY demo data, loaded on start-up when Database:SeedDemo is true (appsettings.Development.json). These are test logins for a local database, never real accounts. Seeding is skipped if the shop's phone already exists. otherShops get the whole common catalogue at the typical price times priceFactor, so a household can compare prices between shops. staff is a helper at the main shop who signs in with phone + PIN.",
   "shop": {
     "shopName": "Sharma General Store",
     "area": "Raja Park bazaar",
@@ -177,5 +177,10 @@
       "password": "EZGCEWVO7RD0",
       "priceFactor": 1.08
     }
-  ]
+  ],
+  "staff": {
+    "fullName": "Raju",
+    "phone": "9000000005",
+    "pin": "4826"
+  }
 }

@@ -59,7 +59,8 @@ export function AuthScreen() {
         onChange={set('password')}
         required
         type="password"
-        minLength={6}
+        // A new password needs 6 characters; signing in also takes a helper's 4-digit counter PIN.
+        minLength={mode === 'sign-in' ? 4 : 6}
         autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
       />
       {error && <p className="rounded-lg bg-red-50 p-3 text-due">{error}</p>}

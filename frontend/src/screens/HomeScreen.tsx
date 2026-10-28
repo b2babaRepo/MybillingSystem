@@ -1,6 +1,8 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BillIcon, CustomersIcon, PaymentIcon, PlusIcon } from '../components/Icons'
+import { api, request } from '../lib/api'
 import { useProducts, useToday } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
@@ -9,7 +11,7 @@ import { navigate } from '../router'
  * Dashboard A, "Clean Teal": today's sales with the cash / UPI / udhaar split, four big actions,
  * and who owes the most. The teal band continues the app header; the summary card overlaps it.
  */
-export function HomeScreen({ shopId }: { shopId: string }) {
+export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const { t } = useTranslation()
   const { today } = useToday(shopId)
   const { products } = useProducts(shopId)
@@ -38,6 +40,8 @@ export function HomeScreen({ shopId }: { shopId: string }) {
         <Action label={t('customers')} to="/khata" icon={<CustomersIcon size={28} className="text-blue-700" />} />
       </section>
 
+      {isOwner && <BalanceAlert />}
+
       <button onClick={() => navigate('/cashbook')} className="mx-4 mt-4 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
         <span>{t('book.todayLink')}</span>
         <span aria-hidden="true">→</span>
@@ -47,9 +51,12 @@ export function HomeScreen({ shopId }: { shopId: string }) {
         <button onClick={() => navigate('/dues')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
           <span>{t('dues.link')}</span><span aria-hidden="true">→</span>
         </button>
-        <button onClick={() => navigate('/reports')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
-          <span>{t('reports.link')}</span><span aria-hidden="true">→</span>
-        </button>
+        {/* Owner screens: helpers (staff) don't see them; the server refuses them too. */}
+        {isOwner && (
+          <button onClick={() => navigate('/reports')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+            <span>{t('reports.link')}</span><span aria-hidden="true">→</span>
+          </button>
+        )}
       </div>
 
       <button onClick={() => navigate('/store')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
@@ -57,10 +64,12 @@ export function HomeScreen({ shopId }: { shopId: string }) {
         <span aria-hidden="true">→</span>
       </button>
 
-      <button onClick={() => navigate('/settings')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
-        <span>{t('settings.link')}</span>
-        <span aria-hidden="true">→</span>
-      </button>
+      {isOwner && (
+        <button onClick={() => navigate('/settings')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+          <span>{t('settings.link')}</span>
+          <span aria-hidden="true">→</span>
+        </button>
+      )}
 
       {lowCount > 0 && (
         <button onClick={() => navigate('/items')} className="mx-4 mt-4 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-orange-50 px-4 text-left font-semibold text-orange-800">
@@ -118,5 +127,44 @@ function Action({ label, to, icon, primary = false }: { label: string; to: strin
       {icon}
       <span className="text-lg font-bold">{label}</span>
     </button>
+  )
+}
+
+interface BalanceCheck {
+  checkedAt: string
+  mismatches: number
+  details: { customerId: string; name: string; storedBalance: number; sumOfEntries: number }[]
+}
+
+/**
+ * The owner sees this only when last night's khata check found a balance that doesn't match its entries (a bug or
+ * a hand edit in the database). Normally nothing shows. "Check again" re-runs it after a fix.
+ */
+function BalanceAlert() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const check = useQuery({
+    queryKey: ['balance-check'],
+    queryFn: async () => {
+      const response = await request('/v1/ledger/checks/latest')
+      return response.status === 200 ? ((await response.json()) as BalanceCheck) : null
+    },
+    staleTime: 600_000,
+  })
+  if (!check.data || check.data.mismatches === 0) return null
+  return (
+    <div className="mx-4 mt-4 flex flex-col gap-2 rounded-[18px] bg-red-50 p-4 text-due ring-1 ring-red-200">
+      <span className="font-bold">⚠ {t('balanceCheck.title', { count: check.data.mismatches })}</span>
+      {check.data.details.slice(0, 3).map((d) => (
+        <button key={d.customerId} onClick={() => navigate(`/c/${d.customerId}`)} className="text-left text-sm underline">
+          {t('balanceCheck.line', { name: d.name, stored: formatRupees(d.storedBalance), entries: formatRupees(d.sumOfEntries) })}
+        </button>
+      ))}
+      <span className="text-xs text-ink">{t('balanceCheck.hint')}</span>
+      <button className="min-h-11 self-start rounded-xl border border-red-200 bg-white px-3 text-sm font-semibold"
+        onClick={() => void api('/v1/ledger/checks', 'POST', {}).then(() => queryClient.invalidateQueries({ queryKey: ['balance-check'] }))}>
+        {t('balanceCheck.again')}
+      </button>
+    </div>
   )
 }
