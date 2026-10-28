@@ -78,6 +78,8 @@ export interface StatementLine {
   isReversed: boolean
   /** The items behind a bill's udhaar. */
   bill?: BillSummary | null
+  /** Who wrote the line; on a removal, who removed it. */
+  recordedBy?: string | null
 }
 
 export interface BillSummary {

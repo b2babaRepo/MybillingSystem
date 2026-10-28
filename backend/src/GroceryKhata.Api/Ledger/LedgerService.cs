@@ -112,8 +112,14 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                     new KhataEntryResponse(LedgerEntryDto.From(entry), await BalanceAsync(entry.CustomerId, cancellationToken)));
             });
 
+    /// <summary>
+    /// How long anyone may remove an entry, to fix a slip. After that only the owner can, and must say why: a
+    /// payment can't quietly disappear days later. The removal itself is a new entry, visible to both sides.
+    /// </summary>
+    public static readonly TimeSpan RemovalWindow = TimeSpan.FromMinutes(15);
+
     public Task<LedgerResult<KhataEntryResponse>> ReverseAsync(
-        Guid entryId, ReverseRequest request, Guid userId, CancellationToken cancellationToken) =>
+        Guid entryId, ReverseRequest request, Guid userId, bool isOwner, CancellationToken cancellationToken) =>
         WriteOnceAsync(
             () => FindEntryResponseAsync(request.Id, cancellationToken),
             async () =>
@@ -139,6 +145,19 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 if (await db.LedgerEntries.AnyAsync(e => e.ReversesEntryId == entryId, cancellationToken))
                 {
                     return LedgerResult<KhataEntryResponse>.Conflicted("This entry is already reversed.");
+                }
+
+                if (clock.GetUtcNow() - original.CreatedAt > RemovalWindow)
+                {
+                    if (!isOwner)
+                    {
+                        return LedgerResult<KhataEntryResponse>.Invalid("Id", "After 15 minutes only the shop owner can remove an entry.");
+                    }
+
+                    if (request.Note is not { Length: >= 3 } reason || reason.Trim().Length < 3 || reason.Length > 200)
+                    {
+                        return LedgerResult<KhataEntryResponse>.Invalid(nameof(request.Note), "Say why this entry is being removed. The customer will see it.");
+                    }
                 }
 
                 var reversal = new LedgerEntry
@@ -365,12 +384,16 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
             .ToDictionaryAsync(b => b.Id, b => new BillSummary(b.Total, b.PaidAmount,
                 b.Lines.OrderBy(l => l.LineNo).Select(l => new BillItem(l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList()), cancellationToken);
 
+        // Who wrote each line: a removal shows the name of the person who removed it.
+        var userIds = entries.Select(e => e.CreatedByUserId).Distinct().ToList();
+        var names = await db.Users.AsNoTracking().Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
+
         var running = opening;
         var lines = entries.Select(e =>
         {
             running += e.Amount;
             return new StatementLine(e.Id, e.Kind, e.Amount, e.PaymentMode, e.BillId, e.ReversesEntryId, e.Note, e.OccurredAt,
-                running, reversed.Contains(e.Id), e.BillId is { } billId ? bills.GetValueOrDefault(billId) : null);
+                running, reversed.Contains(e.Id), e.BillId is { } billId ? bills.GetValueOrDefault(billId) : null, names.GetValueOrDefault(e.CreatedByUserId));
         }).ToList();
 
         return new StatementDto(customer, lines, opening, running,

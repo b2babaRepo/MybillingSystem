@@ -159,14 +159,15 @@ export async function addKhataEntry(
   return id
 }
 
-export async function reverseEntry(shopId: string, entry: { id: string; amount: number }, customer: { id: string; name: string }) {
+/** Removes an entry by adding its reversal. After 15 minutes the server wants the owner and a reason (`note`). */
+export async function reverseEntry(shopId: string, entry: { id: string; amount: number }, customer: { id: string; name: string }, note?: string) {
   const id = uuidv7()
   await enqueue({
     id,
     shopId,
     kind: 'reverse',
     path: `/v1/ledger-entries/${entry.id}/reverse`,
-    body: { id },
+    body: note ? { id, note } : { id },
     customerId: customer.id,
     delta: -entry.amount,
     reversesEntryId: entry.id,

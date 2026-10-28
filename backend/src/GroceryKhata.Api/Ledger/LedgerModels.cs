@@ -83,7 +83,8 @@ public sealed record StatementLine(
     DateTimeOffset OccurredAt,
     decimal RunningBalance,
     bool IsReversed,
-    BillSummary? Bill = null);
+    BillSummary? Bill = null,
+    string? RecordedBy = null);
 
 /// <summary>What was bought on a bill, so the khata shows the items behind each udhaar, not just an amount.</summary>
 public sealed record BillSummary(decimal Total, decimal Paid, IReadOnlyList<BillItem> Items);

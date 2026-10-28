@@ -4,20 +4,34 @@ import { Keypad } from '../components/Keypad'
 import { Balance, Button, PendingDot } from '../components/ui'
 import { addKhataEntry, reverseEntry, undoEntry, useCustomers, useStatement } from '../lib/data'
 import { request } from '../lib/api'
+import { round2 } from '../lib/local'
 import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/format'
 import { buildReminder, useShopSettings } from '../lib/reports'
 import type { KhataEntryType, PaymentMode, StatementLine } from '../lib/types'
 import { navigate } from '../router'
 
 const UNDO_SECONDS = 30
+/** Same as the server's LedgerService.RemovalWindow: after this only the owner may remove, with a reason. */
+const REMOVAL_WINDOW_MS = 15 * 60_000
+
+type Saved = { id: string; amount: number; dueAfter: number; mode: PaymentMode; at: string }
 
 /**
  * One customer's khata. History first: every udhaar with the items behind it (date, quantity, price), every
  * payment, and a line wherever the account came back to zero. "Clear full due" records one payment for the whole
  * balance: the account resets to ₹0 and the history stays, since the ledger is never edited. The New entry tab is
  * the fast path from the plan: type the amount, tap Udhaar or Jama. Saved to the phone at once, synced later.
+ *
+ * Transparency: every payment offers a WhatsApp receipt for the customer, and every removal a notice with its
+ * reason. Anyone can remove an entry for 15 minutes (a slip); after that only the owner, saying why.
  */
-export function CustomerScreen({ shopId, shopName, customerId }: { shopId: string; shopName: string; customerId: string }) {
+export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName }: {
+  shopId: string
+  shopName: string
+  customerId: string
+  isOwner: boolean
+  userName: string
+}) {
   const { t } = useTranslation()
   const { customers } = useCustomers(shopId)
   const customer = customers.find((c) => c.id === customerId)
@@ -26,9 +40,11 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
   const [amount, setAmount] = useState('')
   const [mode, setMode] = useState<PaymentMode>('cash')
   const [note, setNote] = useState('')
-  const [lastSaved, setLastSaved] = useState<{ id: string; amount: number } | null>(null)
+  const [lastSaved, setLastSaved] = useState<Saved | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [tab, setTab] = useState<'history' | 'entry'>('history')
   const [open, setOpen] = useState<string | null>(null)
+  const [part, setPart] = useState('')
 
   useEffect(() => {
     if (!lastSaved) return
@@ -44,7 +60,7 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
   async function save(type: KhataEntryType) {
     if (!customer || !valid) return
     const id = await addKhataEntry(shopId, customer, type, value, mode, note.trim())
-    setLastSaved({ id, amount: type === 'credit' ? value : -value })
+    saved(id, type === 'credit' ? value : -value)
     setAmount('')
     setNote('')
   }
@@ -53,8 +69,49 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
     if (!customer || customer.balance <= 0) return
     const due = customer.balance
     if (!confirm(t('ledgerView.settleConfirm', { amount: formatRupees(due), mode: t(mode) }))) return
-    const id = await addKhataEntry(shopId, customer, 'payment', due, mode, t('ledgerView.settledNote'))
-    setLastSaved({ id, amount: -due })
+    const id = await addKhataEntry(shopId, customer, 'payment', due, mode, '')
+    saved(id, -due)
+  }
+
+  function saved(id: string, delta: number) {
+    if (!customer) return
+    setNotice(null)
+    setLastSaved({ id, amount: delta, dueAfter: round2(customer.balance + delta), mode, at: new Date().toISOString() })
+  }
+
+  /** Inside the window anyone may remove with a tap; later the owner must give a reason the customer will see. */
+  async function remove(e: StatementLine) {
+    if (!customer) return
+    const late = Date.now() - new Date(e.occurredAt).getTime() > REMOVAL_WINDOW_MS
+    let reason = ''
+    if (late) {
+      reason = prompt(t('ledgerView.removeReason'))?.trim() ?? ''
+      if (reason.length < 3) return
+    } else if (!confirm(t('removeConfirm'))) {
+      return
+    }
+
+    await reverseEntry(shopId, e, customer, reason || undefined)
+    setLastSaved(null)
+    setNotice(t('ledgerView.removedMessage', {
+      shop: shopName,
+      amount: formatRupees(Math.abs(e.amount)),
+      date: formatDateTime(e.occurredAt),
+      by: userName,
+      reason: reason || t('ledgerView.noReason'),
+      due: formatRupees(round2(customer.balance - e.amount)),
+    }))
+  }
+
+  // Part payment: any amount up to the due (a quick 25-90% or typed); the rest stays on the khata.
+  const partValue = Number(part)
+  const partValid = partValue > 0 && partValue <= customer.balance && Math.abs(Math.round(partValue * 100) - partValue * 100) < 1e-6
+
+  async function payPart() {
+    if (!customer || !partValid) return
+    const id = await addKhataEntry(shopId, customer, 'payment', partValue, mode, '')
+    saved(id, -partValue)
+    setPart('')
   }
 
   const modeButtons = (
@@ -89,6 +146,44 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
           <Button tone="payment" className="h-14" onClick={() => void settleAll()}>
             ✓ {t('ledgerView.settleAll', { amount: formatRupees(customer.balance) })}
           </Button>
+          <div className="mt-1 flex flex-col gap-2 rounded-[14px] border border-line p-3">
+            <span className="text-sm font-semibold text-muted">{t('ledgerView.partPay')}</span>
+            <div className="grid grid-cols-4 gap-2">
+              {[25, 50, 75, 90].map((percent) => {
+                const share = Math.round((customer.balance * percent) / 100)
+                return (
+                  <button
+                    key={percent}
+                    onClick={() => setPart(String(share))}
+                    aria-pressed={part === String(share)}
+                    className={`flex min-h-12 flex-col items-center justify-center rounded-xl text-sm font-semibold ${part === String(share) ? 'bg-teal-700 text-white' : 'bg-[#edf2f1] text-ink'}`}
+                  >
+                    {percent}%<span className="text-xs font-normal">{formatRupees(share)}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={part}
+                onChange={(e) => setPart(e.target.value.replace(/[^\d.]/g, ''))}
+                inputMode="decimal"
+                placeholder={t('ledgerView.partPlaceholder')}
+                aria-label={t('ledgerView.partPay')}
+                className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 text-lg font-bold outline-none focus:border-teal-600"
+              />
+              <Button tone="payment" className="h-12 px-4" disabled={!partValid} onClick={() => void payPart()}>
+                {t('ledgerView.partSave')}
+              </Button>
+            </div>
+            {partValue > 0 && (
+              <p className={`text-sm font-semibold ${partValid ? 'text-muted' : 'text-due'}`}>
+                {partValid
+                  ? t('ledgerView.remaining', { amount: formatRupees(Math.round((customer.balance - partValue) * 100) / 100) })
+                  : t('ledgerView.tooMuch')}
+              </p>
+            )}
+          </div>
           <a className="flex h-12 items-center justify-center rounded-2xl bg-[#15803d] font-bold text-white" href={whatsAppLink(customer.phone, reminder)} target="_blank" rel="noreferrer"
             onClick={() => void request(`/v1/customers/${customer.id}/reminded`, 'POST').catch(() => {})}>
             {t('remind')}
@@ -151,7 +246,8 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
                   entry={e}
                   open={open === e.id}
                   onToggle={() => setOpen(open === e.id ? null : e.id)}
-                  onRemove={() => confirm(t('removeConfirm')) && void reverseEntry(shopId, e, customer)}
+                  canRemove={isOwner || Date.now() - new Date(e.occurredAt).getTime() <= REMOVAL_WINDOW_MS}
+                  onRemove={() => void remove(e)}
                 />
               </li>
             ))}
@@ -171,11 +267,42 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
         </>
       )}
 
+      {notice && (
+        <div className="fixed inset-x-4 bottom-24 z-10 flex flex-col gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
+          <span className="text-sm">{t('ledgerView.removedTell')}</span>
+          <div className="flex items-center justify-between gap-3">
+            <a className="flex h-11 flex-1 items-center justify-center rounded-xl bg-[#15803d] font-bold" href={whatsAppLink(customer.phone, notice)} target="_blank" rel="noreferrer"
+              onClick={() => setNotice(null)}>
+              {t('ledgerView.sendNotice')}
+            </a>
+            <button className="px-2 text-sm text-slate-300" onClick={() => setNotice(null)}>{t('ledgerView.later')}</button>
+          </div>
+        </div>
+      )}
+
       {lastSaved && (
-        <div className="fixed inset-x-4 bottom-24 z-10 flex items-center justify-between rounded-2xl bg-ink p-4 text-white shadow-lg">
+        <div className="fixed inset-x-4 bottom-24 z-10 flex items-center justify-between gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
           <span>
             {t('saved')} {formatRupees(Math.abs(lastSaved.amount))}
           </span>
+          {lastSaved.amount < 0 && (
+            <a
+              className="flex h-10 items-center rounded-xl bg-[#15803d] px-3 text-sm font-bold"
+              href={whatsAppLink(customer.phone, t('ledgerView.receiptMessage', {
+                shop: shopName,
+                amount: formatRupees(-lastSaved.amount),
+                name: customer.name,
+                date: formatDateTime(lastSaved.at),
+                mode: t(lastSaved.mode),
+                due: formatRupees(lastSaved.dueAfter),
+                ref: lastSaved.id.slice(-6).toUpperCase(),
+              }))}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t('ledgerView.sendReceipt')}
+            </a>
+          )}
           <button
             className="font-bold text-teal-300"
             onClick={() => {
@@ -192,7 +319,13 @@ export function CustomerScreen({ shopId, shopName, customerId }: { shopId: strin
 }
 
 /** One khata line. A bill's udhaar opens to show what was taken: item, quantity × price, total, paid at the counter. */
-function HistoryRow({ entry: e, open, onToggle, onRemove }: { entry: StatementLine & { pending?: boolean }; open: boolean; onToggle: () => void; onRemove: () => void }) {
+function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove }: {
+  entry: StatementLine & { pending?: boolean }
+  open: boolean
+  canRemove: boolean
+  onToggle: () => void
+  onRemove: () => void
+}) {
   const { t } = useTranslation()
   const items = e.bill?.items ?? []
   return (
@@ -216,8 +349,13 @@ function HistoryRow({ entry: e, open, onToggle, onRemove }: { entry: StatementLi
             </div>
             <div className="text-xs text-muted">
               {formatDateTime(e.occurredAt)}
-              {e.note && ` · ${e.note}`}
+              {e.recordedBy && ` · ${t(e.kind === 'reversal' ? 'ledgerView.removedBy' : 'ledgerView.by', { name: e.recordedBy })}`}
             </div>
+            {e.note && (
+              <div className={`text-xs ${e.kind === 'reversal' ? 'font-semibold text-due' : 'text-muted'}`}>
+                {e.kind === 'reversal' ? t('ledgerView.reason', { reason: e.note }) : e.note}
+              </div>
+            )}
           </div>
           <div className={`text-right font-bold ${e.amount > 0 ? 'text-udhaar' : 'text-jama'}`}>
             {e.amount > 0 ? '+' : '−'}
@@ -225,7 +363,7 @@ function HistoryRow({ entry: e, open, onToggle, onRemove }: { entry: StatementLi
             <div className="text-xs font-normal text-muted">{t('ledgerView.balanceAfter', { amount: formatRupees(e.runningBalance) })}</div>
           </div>
         </button>
-        {e.kind !== 'reversal' && !e.isReversed && !e.pending && (
+        {canRemove && e.kind !== 'reversal' && !e.isReversed && !e.pending && (
           <button className="min-h-11 px-1 text-sm text-muted underline" onClick={onRemove}>
             {t('remove')}
           </button>

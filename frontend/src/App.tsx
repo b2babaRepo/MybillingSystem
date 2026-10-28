@@ -163,7 +163,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
       <main>
         <Suspense fallback={<Loading />}>
         {customerMatch ? (
-          <CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} />
+          <CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} isOwner={isOwner} userName={userName} />
         ) : path === '/dues' ? (
           <DuesScreen shopId={shopId} shopName={shopName} />
         ) : path === '/reports' ? (

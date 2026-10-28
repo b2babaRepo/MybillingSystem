@@ -34,7 +34,7 @@ public static class LedgerEndpoints
 
         group.MapPost("/ledger-entries/{id:guid}/reverse",
             async (Guid id, ReverseRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
-                (await ledger.ReverseAsync(id, request, user.UserId()!.Value, ct)).ToHttp($"/api/v1/ledger-entries/{request.Id}"));
+                (await ledger.ReverseAsync(id, request, user.UserId()!.Value, user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner)), ct)).ToHttp($"/api/v1/ledger-entries/{request.Id}"));
 
         group.MapPost("/bills", async (BillRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
             (await ledger.CreateBillAsync(request, user.UserId()!.Value, ct)).ToHttp($"/api/v1/bills/{request.Id}"));
