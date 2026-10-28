@@ -43,6 +43,7 @@ public static class DemoSeeder
         // a household can compare shops. Each step is skipped when already done, so it also tops up an older seed.
         await StockCatalogueAsync(services, seed.Shop.Phone, seed.Shop.ShopName, 1m);
         await SeedKhataBillsAsync(services, seed.Shop.Phone);
+        await SeedHouseholdKhataAsync(services, seed.Shop.Phone, seed.Household.FullName, seed.Household.Phone);
         foreach (var other in seed.OtherShops)
         {
             if (!await db.Users.AnyAsync(u => u.Phone == PhoneNumber.Normalize(other.Phone)))
@@ -130,6 +131,40 @@ public static class DemoSeeder
                 await ledger.CreateBillAsync(new BillRequest(Guid.CreateVersion7(), customer.Id, lines, 0, null, null), owner.UserId, CancellationToken.None);
             }
         }
+    }
+
+    /// <summary>
+    /// The demo household is also a khata customer at the main shop (same phone), so its app shows "My khata"
+    /// with a bill and a part payment. Skipped once that customer exists.
+    /// </summary>
+    private static async Task SeedHouseholdKhataAsync(IServiceProvider services, string shopPhone, string name, string phone)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<AppDbContext>();
+        var owner = PhoneNumber.Normalize(shopPhone);
+        var shop = await db.Memberships.AsNoTracking().Where(m => db.Users.Any(u => u.Id == m.UserId && u.Phone == owner))
+            .OrderBy(m => m.CreatedAt).Select(m => new { m.ShopId, m.UserId }).FirstOrDefaultAsync();
+        if (shop is null)
+        {
+            return;
+        }
+
+        var tenant = sp.GetRequiredService<TenantContext>();
+        tenant.SetShop(shop.ShopId);
+        tenant.SetUser(shop.UserId);
+        var normalized = PhoneNumber.Normalize(phone);
+        if (await db.Customers.AnyAsync(c => c.Phone == normalized))
+        {
+            return;
+        }
+
+        var ledger = sp.GetRequiredService<LedgerService>();
+        var customer = (await ledger.CreateCustomerAsync(new CustomerRequest(Guid.CreateVersion7(), name, phone), CancellationToken.None)).Value!;
+        var products = await db.Products.AsNoTracking().Where(p => p.SellingPrice > 0 && p.Unit != Unit.G).OrderBy(p => p.CreatedAt).Take(4).ToListAsync();
+        await ledger.CreateBillAsync(new BillRequest(Guid.CreateVersion7(), customer.Id,
+            products.Select((p, i) => new BillLineRequest(p.Id, null, 1 + i % 2, null, p.SellingPrice)).ToList(), 0, null, null), shop.UserId, CancellationToken.None);
+        await ledger.AddKhataEntryAsync(new KhataEntryRequest(Guid.CreateVersion7(), customer.Id, KhataEntryType.Payment, 200, PaymentMode.Upi, null, null), shop.UserId, CancellationToken.None);
     }
 
     private static async Task SeedMainShopAsync(IServiceProvider sp, DemoSeed seed)

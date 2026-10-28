@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keypad } from '../components/Keypad'
-import { Balance, Button, PendingDot } from '../components/ui'
+import { KhataHistory } from '../components/KhataHistory'
+import { Balance, Button } from '../components/ui'
 import { addKhataEntry, reverseEntry, undoEntry, useCustomers, useStatement } from '../lib/data'
-import { request } from '../lib/api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { api, request } from '../lib/api'
 import { round2 } from '../lib/local'
 import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/format'
 import { buildReminder, useShopSettings } from '../lib/reports'
@@ -43,7 +45,6 @@ export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName
   const [lastSaved, setLastSaved] = useState<Saved | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [tab, setTab] = useState<'history' | 'entry'>('history')
-  const [open, setOpen] = useState<string | null>(null)
   const [part, setPart] = useState('')
 
   useEffect(() => {
@@ -191,6 +192,8 @@ export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName
         </div>
       )}
 
+      {!customer.isNew && <KhataLinkCard customer={customer} shopName={shopName} isOwner={isOwner} />}
+
       <div role="tablist" className="grid grid-cols-2 rounded-[14px] bg-white p-1">
         {(['history', 'entry'] as const).map((k) => (
           <button
@@ -232,26 +235,11 @@ export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName
 
       {tab === 'history' && (
         <>
-          <ul className="divide-y divide-[#edf2f1] rounded-2xl bg-white px-1">
-            {entries.length === 0 && <li className="p-4 text-muted">{t('noEntries')}</li>}
-            {[...entries].reverse().map((e, i, newestFirst) => (
-              <li key={e.id}>
-                {/* The account came back to zero here: everything below this line is settled. */}
-                {e.runningBalance === 0 && i > 0 && !e.isReversed && newestFirst.length > 1 && (
-                  <div className="mx-2 mt-2 rounded-lg bg-teal-50 px-3 py-1.5 text-center text-sm font-semibold text-teal-800">
-                    ✓ {t('ledgerView.settledDivider', { date: formatDateTime(e.occurredAt) })}
-                  </div>
-                )}
-                <HistoryRow
-                  entry={e}
-                  open={open === e.id}
-                  onToggle={() => setOpen(open === e.id ? null : e.id)}
-                  canRemove={isOwner || Date.now() - new Date(e.occurredAt).getTime() <= REMOVAL_WINDOW_MS}
-                  onRemove={() => void remove(e)}
-                />
-              </li>
-            ))}
-          </ul>
+          <KhataHistory
+            entries={entries}
+            canRemove={(e) => isOwner || Date.now() - new Date(e.occurredAt).getTime() <= REMOVAL_WINDOW_MS}
+            onRemove={(e) => void remove(e)}
+          />
           {!customer.isNew && (
             <div className="grid grid-cols-2 gap-2">
               {[0, -1].map((offset) => {
@@ -318,78 +306,46 @@ export function CustomerScreen({ shopId, shopName, customerId, isOwner, userName
   )
 }
 
-/** One khata line. A bill's udhaar opens to show what was taken: item, quantity × price, total, paid at the counter. */
-function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove }: {
-  entry: StatementLine & { pending?: boolean }
-  open: boolean
-  canRemove: boolean
-  onToggle: () => void
-  onRemove: () => void
-}) {
+interface KhataLink {
+  shopSlug: string
+  customerId: string
+  token: string
+}
+
+const khataUrl = (link: KhataLink) => `${window.location.origin}/#/k/${link.shopSlug}/${link.customerId}?t=${link.token}`
+
+/**
+ * The customer's private, read-only copy of this khata. The link stays the same each time it's shared; the owner
+ * can replace it if it went to the wrong person (the old one stops working).
+ */
+function KhataLinkCard({ customer, shopName, isOwner }: { customer: { id: string; name: string; phone: string | null }; shopName: string; isOwner: boolean }) {
   const { t } = useTranslation()
-  const items = e.bill?.items ?? []
+  const queryClient = useQueryClient()
+  const key = ['khata-link', customer.id]
+  const link = useQuery({ queryKey: key, queryFn: () => api<KhataLink>(`/v1/customers/${customer.id}/khata-link`, 'POST'), staleTime: Infinity, retry: false })
+
+  async function reset() {
+    if (!confirm(t('ledgerView.resetConfirm'))) return
+    queryClient.setQueryData(key, await api<KhataLink>(`/v1/customers/${customer.id}/khata-link/reset`, 'POST'))
+  }
+
+  if (!link.data) return null
+  const url = khataUrl(link.data)
   return (
-    <div className={e.isReversed ? 'opacity-40' : ''}>
-      <div className="flex items-center gap-3 p-3">
-        <button
-          className="flex flex-1 items-center gap-2 text-left"
-          onClick={items.length ? onToggle : undefined}
-          aria-expanded={items.length ? open : undefined}
-        >
-          <div className="flex-1">
-            <div className={`flex flex-wrap items-center gap-x-2 font-semibold ${e.isReversed ? 'line-through' : ''}`}>
-              {e.kind === 'reversal' ? t('reversal') : e.amount > 0 ? t('creditShort') : t('paymentShort')}
-              {e.paymentMode && <span className="text-xs text-muted uppercase">{t(e.paymentMode)}</span>}
-              {items.length > 0 && (
-                <span className="text-xs font-normal text-teal-700">
-                  {t('ledgerView.items', { count: items.length })} {open ? '▴' : '▾'}
-                </span>
-              )}
-              {e.pending && <PendingDot />}
-            </div>
-            <div className="text-xs text-muted">
-              {formatDateTime(e.occurredAt)}
-              {e.recordedBy && ` · ${t(e.kind === 'reversal' ? 'ledgerView.removedBy' : 'ledgerView.by', { name: e.recordedBy })}`}
-            </div>
-            {e.note && (
-              <div className={`text-xs ${e.kind === 'reversal' ? 'font-semibold text-due' : 'text-muted'}`}>
-                {e.kind === 'reversal' ? t('ledgerView.reason', { reason: e.note }) : e.note}
-              </div>
-            )}
-          </div>
-          <div className={`text-right font-bold ${e.amount > 0 ? 'text-udhaar' : 'text-jama'}`}>
-            {e.amount > 0 ? '+' : '−'}
-            {formatRupees(Math.abs(e.amount))}
-            <div className="text-xs font-normal text-muted">{t('ledgerView.balanceAfter', { amount: formatRupees(e.runningBalance) })}</div>
-          </div>
+    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <span className="text-sm text-muted">{t('ledgerView.linkHint')}</span>
+      <a
+        className="flex h-12 items-center justify-center rounded-2xl border-2 border-teal-700 font-bold text-teal-800"
+        href={whatsAppLink(customer.phone, t('ledgerView.linkMessage', { name: customer.name, shop: shopName, url }))}
+        target="_blank"
+        rel="noreferrer"
+      >
+        🔗 {t('ledgerView.shareLink')}
+      </a>
+      {isOwner && (
+        <button className="min-h-11 text-sm text-muted underline" onClick={() => void reset()}>
+          {t('ledgerView.resetLink')}
         </button>
-        {canRemove && e.kind !== 'reversal' && !e.isReversed && !e.pending && (
-          <button className="min-h-11 px-1 text-sm text-muted underline" onClick={onRemove}>
-            {t('remove')}
-          </button>
-        )}
-      </div>
-      {open && e.bill && (
-        <div className="mx-3 mb-3 rounded-xl bg-[#f4f8f7] p-3 text-sm">
-          {items.map((item, n) => (
-            <div key={n} className="flex justify-between gap-2 py-0.5">
-              <span className="min-w-0 truncate">{item.name}</span>
-              <span className="shrink-0 text-muted">
-                {item.quantity} {t(`units.${item.unit}`)} × {formatRupees(item.unitPrice)} = <b className="text-ink">{formatRupees(item.amount)}</b>
-              </span>
-            </div>
-          ))}
-          <div className="mt-1.5 flex justify-between border-t border-line pt-1.5 font-semibold">
-            <span>{t('ledgerView.billTotal')}</span>
-            <span>{formatRupees(e.bill.total)}</span>
-          </div>
-          {e.bill.paid > 0 && (
-            <div className="flex justify-between text-muted">
-              <span>{t('ledgerView.paidAtCounter')}</span>
-              <span>{formatRupees(e.bill.paid)}</span>
-            </div>
-          )}
-        </div>
       )}
     </div>
   )

@@ -978,6 +978,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("KhataToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("khata_token");
+
                     b.Property<DateTimeOffset?>("LastRemindedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_reminded_at");
@@ -1002,6 +1007,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Phone");
 
                     b.HasIndex("ShopId", "Name");
 

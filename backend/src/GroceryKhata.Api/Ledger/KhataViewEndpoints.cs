@@ -1,0 +1,131 @@
+using System.Security.Claims;
+using GroceryKhata.Api.Common;
+using GroceryKhata.Api.Identity;
+using GroceryKhata.Api.Persistence;
+using GroceryKhata.Api.Planner;
+using Microsoft.EntityFrameworkCore;
+
+namespace GroceryKhata.Api.Ledger;
+
+public sealed record KhataLinkDto(string ShopSlug, Guid CustomerId, string Token);
+
+/// <summary>A customer's own copy of their khata at one shop: read-only, the same ledger the shop sees.</summary>
+public sealed record KhataViewDto(string ShopName, string? ShopArea, string? ShopPhone, StatementDto Statement);
+
+public sealed record MyKhataDto(Guid ShopId, string ShopName, string? ShopArea, Guid CustomerId, string CustomerName, decimal Balance);
+
+/// <summary>
+/// Transparency step 2: the customer sees their own khata, so a payment can't vanish without them knowing.
+/// Two ways in: a private link the shop shares (no account needed), or the household app, which finds every
+/// shop where the person's phone number is a khata customer. Both are read-only.
+/// </summary>
+public static class KhataViewEndpoints
+{
+    public static IEndpointRouteBuilder MapKhataView(this IEndpointRouteBuilder app)
+    {
+        app.MapPost("/api/v1/customers/{id:guid}/khata-link", GetOrCreateLinkAsync)
+            .WithTags("Khata").RequireAuthorization(AppPolicies.ShopMember);
+        app.MapPost("/api/v1/customers/{id:guid}/khata-link/reset", ResetLinkAsync)
+            .WithTags("Khata").RequireAuthorization(AppPolicies.ShopOwner);
+
+        app.MapGet("/api/v1/khata/{slug}/{customerId:guid}", GetByLinkAsync)
+            .WithTags("Khata").AllowAnonymous().RequireRateLimiting(StoreEndpoints.StoreRateLimit);
+
+        var me = app.MapGroup("/api/v1/me/khata").WithTags("Khata").RequireAuthorization();
+        me.MapGet("", GetMineAsync);
+        me.MapGet("/{shopId:guid}/{customerId:guid}", GetMineAtShopAsync);
+        return app;
+    }
+
+    /// <summary>The customer's link: the same one every time, so links already sent keep working.</summary>
+    private static async Task<IResult> GetOrCreateLinkAsync(Guid id, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (customer.KhataToken is null)
+        {
+            customer.KhataToken = Secrets.NewRefreshToken();
+            await db.SaveChangesAsync(ct);
+        }
+
+        var slug = await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.Slug).SingleAsync(ct);
+        return TypedResults.Ok(new KhataLinkDto(slug, customer.Id, customer.KhataToken));
+    }
+
+    /// <summary>A new link for a lost or forwarded one: the old link stops working at once.</summary>
+    private static async Task<IResult> ResetLinkAsync(Guid id, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        customer.KhataToken = Secrets.NewRefreshToken();
+        await db.SaveChangesAsync(ct);
+        var slug = await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.Slug).SingleAsync(ct);
+        return TypedResults.Ok(new KhataLinkDto(slug, customer.Id, customer.KhataToken));
+    }
+
+    /// <summary>The page behind the link. A wrong or missing token looks exactly like no such khata.</summary>
+    private static async Task<IResult> GetByLinkAsync(
+        string slug, Guid customerId, string? t, AppDbContext db, TenantContext tenant, LedgerService ledger, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(t) || await StoreEndpoints.OpenShopAsync(db, tenant, slug, ct) is not { } shop)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var token = await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => c.KhataToken).SingleOrDefaultAsync(ct);
+        if (token is null || !System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(token), System.Text.Encoding.UTF8.GetBytes(t)))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var statement = await ledger.GetStatementAsync(customerId, null, ct);
+        return statement is null ? TypedResults.NotFound() : TypedResults.Ok(new KhataViewDto(shop.Name, shop.Area, shop.OwnerPhone, statement));
+    }
+
+    /// <summary>
+    /// Every shop where this person's phone is a khata customer. Read past the shop filter on purpose, limited to
+    /// the person's own phone; row-level security allows the same through its own_khata_read policy.
+    /// </summary>
+    private static async Task<IReadOnlyList<MyKhataDto>> GetMineAsync(ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    {
+        var phone = await db.Users.AsNoTracking().Where(u => u.Id == user.UserId()).Select(u => u.Phone).SingleAsync(ct);
+        return await (from c in db.Customers.IgnoreQueryFilters().AsNoTracking()
+                      join s in db.Shops.AsNoTracking() on c.ShopId equals s.Id
+                      where c.Phone == phone && s.IsActive
+                      orderby c.Balance descending, s.Name
+                      select new MyKhataDto(s.Id, s.Name, s.Area, c.Id, c.Name, c.Balance))
+            .ToListAsync(ct);
+    }
+
+    /// <summary>One shop's khata for the signed-in person: read as that shop, after checking the phone is theirs.</summary>
+    private static async Task<IResult> GetMineAtShopAsync(
+        Guid shopId, Guid customerId, ClaimsPrincipal user, IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct)
+    {
+        var phone = await db.Users.AsNoTracking().Where(u => u.Id == user.UserId()).Select(u => u.Phone).SingleAsync(ct);
+
+        // A scope of its own: this request may already be working as another shop (a shopkeeper's own khata elsewhere).
+        await using var scope = scopes.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        var tenant = sp.GetRequiredService<TenantContext>();
+        tenant.SetShop(shopId);
+        tenant.SetUser(user.UserId()!.Value);
+        var shopDb = sp.GetRequiredService<AppDbContext>();
+        var shop = await shopDb.Shops.AsNoTracking().Where(s => s.Id == shopId && s.IsActive).Select(s => new { s.Name, s.Area }).SingleOrDefaultAsync(ct);
+        if (shop is null || !await shopDb.Customers.AnyAsync(c => c.Id == customerId && c.Phone == phone, ct))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var statement = await sp.GetRequiredService<LedgerService>().GetStatementAsync(customerId, null, ct);
+        return statement is null ? TypedResults.NotFound() : TypedResults.Ok(new KhataViewDto(shop.Name, shop.Area, null, statement));
+    }
+}

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppBanners } from '../../components/AppBanners'
-import { BackIcon, CheckIcon, CloudOffIcon, KhataIcon, BillIcon } from '../../components/Icons'
+import { BackIcon, CheckIcon, CloudOffIcon, KhataIcon, BillIcon, PaymentIcon } from '../../components/Icons'
 import { setLanguage } from '../../i18n'
 import { request } from '../../lib/api'
 import { useOutbox } from '../../lib/data'
@@ -14,6 +14,7 @@ import { ListScreen } from './ListScreen'
 import { MyOrdersScreen } from './MyOrdersScreen'
 import { PlanHomeScreen } from './PlanHomeScreen'
 import { SendScreen } from './SendScreen'
+import { MyKhataDetail, MyKhataScreen } from '../khata/KhataViews'
 
 /** The household app: plan monthly and weekly lists, send one to a shop, follow the order. */
 export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: string; userName: string; onSwitchToShop?: () => void }) {
@@ -42,14 +43,15 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
 
   const listMatch = path.match(/^\/list\/(monthly|weekly)$/)
   const sendMatch = path.match(/^\/send\/(monthly|weekly)$/)
-  const isTab = path === '/' || path === '/orders'
+  const khataMatch = path.match(/^\/khata\/([0-9a-f-]+)\/([0-9a-f-]+)$/)
+  const isTab = path === '/' || path === '/orders' || path === '/khata'
   const unsynced = pending + failed
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl pb-20">
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white">
         {!isTab && (
-          <button onClick={() => navigate(sendMatch ? `/list/${sendMatch[1]}` : '/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}>
+          <button onClick={() => navigate(sendMatch ? `/list/${sendMatch[1]}` : khataMatch ? '/khata' : '/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}>
             <BackIcon />
           </button>
         )}
@@ -73,6 +75,10 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
           <SendScreen userId={userId} userName={userName} kind={sendMatch[1] as ListKind} />
         ) : path === '/orders' ? (
           <MyOrdersScreen userId={userId} />
+        ) : khataMatch ? (
+          <MyKhataDetail shopId={khataMatch[1]} customerId={khataMatch[2]} />
+        ) : path === '/khata' ? (
+          <MyKhataScreen />
         ) : (
           <PlanHomeScreen userId={userId} />
         )}
@@ -88,10 +94,11 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
 
       <AppBanners />
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-2 border-t border-line bg-white pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-3 border-t border-line bg-white pb-[env(safe-area-inset-bottom)]">
         {[
           { to: '/', label: t('plan.lists'), icon: <KhataIcon size={22} />, active: path === '/' || !!listMatch || !!sendMatch },
           { to: '/orders', label: t('orders'), icon: <BillIcon size={22} />, active: path === '/orders' },
+          { to: '/khata', label: t('myKhata.title'), icon: <PaymentIcon size={22} />, active: path === '/khata' || !!khataMatch },
         ].map((tab) => (
           <button
             key={tab.to}

@@ -212,6 +212,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(c => c.Phone).HasMaxLength(16);
             b.HasIndex(c => new { c.ShopId, c.Name });
             b.HasIndex(c => new { c.ShopId, c.Phone });
+            // A household finds its own khata in every shop by phone (see KhataViewEndpoints).
+            b.HasIndex(c => c.Phone);
+            b.Property(c => c.KhataToken).HasMaxLength(64);
             b.HasOne<Shop>().WithMany().HasForeignKey(c => c.ShopId).OnDelete(DeleteBehavior.Restrict);
         });
 

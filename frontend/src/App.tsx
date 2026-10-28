@@ -33,6 +33,7 @@ const ReportsScreen = lazy(() => import('./screens/ReportsScreen').then((module)
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen').then((module) => ({ default: module.SettingsScreen })))
 const MyStoreScreen = lazy(() => import('./screens/MyStoreScreen').then((module) => ({ default: module.MyStoreScreen })))
 const StoreApp = lazy(() => import('./screens/store/StoreApp').then((module) => ({ default: module.StoreApp })))
+const KhataLinkPage = lazy(() => import('./screens/khata/KhataViews').then((module) => ({ default: module.KhataLinkPage })))
 const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
 
 export default function App() {
@@ -45,6 +46,14 @@ export default function App() {
     return (
       <Suspense fallback={<Loading />}>
         <StoreApp path={path} />
+      </Suspense>
+    )
+  }
+  // A customer's private khata link: read-only, no account needed.
+  if (path.startsWith('/k/')) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <KhataLinkPage path={path} />
       </Suspense>
     )
   }

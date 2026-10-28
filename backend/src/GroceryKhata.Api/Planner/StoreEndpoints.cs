@@ -188,10 +188,10 @@ public static class StoreEndpoints
         return order is null ? TypedResults.NotFound() : TypedResults.Ok(OrderDto.From(order, shop.Name));
     }
 
-    private sealed record OpenShop(string Name, string Slug, string? Area, string? Address, string? OwnerPhone);
+    internal sealed record OpenShop(string Name, string Slug, string? Area, string? Address, string? OwnerPhone);
 
     /// <summary>Finds an open shop by slug and works as that shop for the rest of the request (tenant + RLS).</summary>
-    private static async Task<OpenShop?> OpenShopAsync(AppDbContext db, TenantContext tenant, string slug, CancellationToken ct)
+    internal static async Task<OpenShop?> OpenShopAsync(AppDbContext db, TenantContext tenant, string slug, CancellationToken ct)
     {
         var shop = await (from s in db.Shops.AsNoTracking()
                           where s.Slug == slug.ToLowerInvariant() && s.IsActive

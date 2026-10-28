@@ -20,6 +20,12 @@ public sealed class Customer : Entity, ITenantOwned
 
     /// <summary>When the shop last sent this customer a payment reminder (shown on the dues list).</summary>
     public DateTimeOffset? LastRemindedAt { get; set; }
+
+    /// <summary>
+    /// The secret in the customer's read-only khata link (/k/{shop}/{customer}?t=...). Kept so the shop can share
+    /// the same link again; replacing it cuts off the old link. Null until the shop first shares one.
+    /// </summary>
+    public string? KhataToken { get; set; }
 }
 
 /// <summary>

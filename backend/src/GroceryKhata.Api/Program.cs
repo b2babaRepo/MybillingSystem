@@ -61,6 +61,7 @@ app.MapStore();
 app.MapReports();
 app.MapShopSettings();
 app.MapShopData();
+app.MapKhataView();
 
 app.Run();
 
