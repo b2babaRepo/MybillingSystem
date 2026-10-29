@@ -19,7 +19,8 @@ export interface AuthResponse {
   accessTokenExpiresAt: string
   refreshToken: string
   refreshTokenExpiresAt: string
-  user: { id: string; fullName: string; preferredLanguage: string }
+  /** phone and isPlatformAdmin: missing on sessions saved before they were added. */
+  user: { id: string; fullName: string; preferredLanguage: string; phone?: string; isPlatformAdmin?: boolean }
   memberships: MembershipSummary[]
   shopId: string | null
   role: ShopRole | null

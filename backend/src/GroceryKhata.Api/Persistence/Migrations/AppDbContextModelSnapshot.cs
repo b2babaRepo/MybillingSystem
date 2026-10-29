@@ -2048,6 +2048,33 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("shopping_list_items", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Shops.PlatformAdmin", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("platform_admins", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Shops.Shop", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2060,10 +2087,22 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("address");
 
+                    b.Property<string>("AdminNote")
+                        .HasColumnType("text")
+                        .HasColumnName("admin_note");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at");
+
                     b.Property<string>("Area")
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
                         .HasColumnName("area");
+
+                    b.Property<string>("BlockedReason")
+                        .HasColumnType("text")
+                        .HasColumnName("blocked_reason");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -2323,6 +2362,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasOne("GroceryKhata.Api.Planner.ShoppingList", null)
                         .WithMany("Items")
                         .HasForeignKey("ListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Shops.PlatformAdmin", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

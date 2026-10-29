@@ -71,7 +71,7 @@ public sealed record AuthResponse(
     Guid? ShopId,
     ShopRole? Role);
 
-public sealed record UserSummary(Guid Id, string FullName, string PreferredLanguage);
+public sealed record UserSummary(Guid Id, string FullName, string PreferredLanguage, string Phone, bool IsPlatformAdmin);
 
 public sealed record MembershipSummary(Guid MembershipId, Guid ShopId, string ShopName, string ShopSlug, ShopRole Role);
 

@@ -67,6 +67,7 @@ app.MapShopSettings();
 app.MapShopData();
 app.MapStaff();
 app.MapBalanceChecks();
+app.MapPlatform();
 app.MapKhataView();
 app.MapDisputes();
 app.MapProductImages();

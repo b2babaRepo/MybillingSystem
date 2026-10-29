@@ -40,6 +40,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
+    public DbSet<Shops.PlatformAdmin> PlatformAdmins => Set<Shops.PlatformAdmin>();
+
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
@@ -173,6 +175,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(m => m.ShopId);
             b.HasOne<User>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Shop>().WithMany().HasForeignKey(m => m.ShopId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Shops.PlatformAdmin>(b =>
+        {
+            b.ToTable("platform_admins");
+            b.HasIndex(a => a.UserId).IsUnique();
+            b.HasOne<User>().WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<RefreshToken>(b =>

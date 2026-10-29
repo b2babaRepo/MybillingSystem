@@ -70,7 +70,7 @@ public static class BalanceChecks
         return check;
     }
 
-    private static BalanceCheckDto ToDto(BalanceCheck c) =>
+    internal static BalanceCheckDto ToDto(BalanceCheck c) =>
         new(c.CheckedAt, c.Customers, c.Mismatches, JsonSerializer.Deserialize<List<BalanceMismatch>>(c.Details) ?? []);
 }
 

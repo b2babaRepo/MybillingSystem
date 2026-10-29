@@ -37,6 +37,7 @@ const SettingsScreen = lazy(() => import('./screens/SettingsScreen').then((modul
 const MyStoreScreen = lazy(() => import('./screens/MyStoreScreen').then((module) => ({ default: module.MyStoreScreen })))
 const StoreApp = lazy(() => import('./screens/store/StoreApp').then((module) => ({ default: module.StoreApp })))
 const KhataLinkPage = lazy(() => import('./screens/khata/KhataViews').then((module) => ({ default: module.KhataLinkPage })))
+const PlatformScreen = lazy(() => import('./screens/PlatformScreen').then((module) => ({ default: module.PlatformScreen })))
 const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
 
 export default function App() {
@@ -61,6 +62,13 @@ export default function App() {
     )
   }
   if (!session) return <AuthScreen />
+  if (path === '/platform' && session.user.isPlatformAdmin) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <PlatformScreen />
+      </Suspense>
+    )
+  }
   const switchTo = (toHousehold: boolean) => {
     navigate('/')
     setHousehold(toHousehold)

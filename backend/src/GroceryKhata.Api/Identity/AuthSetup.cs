@@ -26,6 +26,9 @@ public static class AuthSetup
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<AuthService>();
         services.AddScoped<ShopAccessChecker>();
+        services.AddScoped<IAuthorizationHandler, Shops.PlatformAdminHandler>();
+        services.AddOptions<Shops.PlatformOptions>().BindConfiguration(Shops.PlatformOptions.SectionName);
+        services.AddHostedService<Shops.PlatformAdminSeeder>();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -56,7 +59,10 @@ public static class AuthSetup
                 .RequireAuthenticatedUser()
                 .RequireClaim(AppClaims.ShopId)
                 .RequireClaim(AppClaims.MembershipId)
-                .RequireClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner)));
+                .RequireClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner)))
+            .AddPolicy(AppPolicies.PlatformAdmin, policy => policy
+                .RequireAuthenticatedUser()
+                .AddRequirements(new Shops.PlatformAdminRequirement()));
 
         services.AddRateLimiter(limiter =>
         {

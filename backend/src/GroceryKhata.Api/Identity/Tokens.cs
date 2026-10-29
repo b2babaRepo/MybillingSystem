@@ -15,6 +15,9 @@ public static class AppClaims
     public const string MembershipId = "mid";
     public const string Role = "role";
 
+    /// <summary>"true" on a platform admin's tokens; the policy checks the table again on every request.</summary>
+    public const string PlatformAdmin = "platform_admin";
+
     /// <summary>The signed-in user's ID, or null if the token has none.</summary>
     public static Guid? UserId(this ClaimsPrincipal user) =>
         Guid.TryParse(user.FindFirst(Subject)?.Value, out var id) ? id : null;
@@ -27,6 +30,9 @@ public static class AppPolicies
 
     /// <summary>The shop's owner (staff management, data export, settings).</summary>
     public const string ShopOwner = nameof(ShopOwner);
+
+    /// <summary>Super admin: /api/v1/platform endpoints, every shop.</summary>
+    public const string PlatformAdmin = nameof(PlatformAdmin);
 }
 
 /// <summary>Roles as they appear in tokens: ShopRole.Owner ↔ "owner".</summary>
@@ -78,7 +84,7 @@ public sealed class AuthOptions
 /// What an access token says. <see cref="ShopId"/>, <see cref="MembershipId"/> and <see cref="Role"/>
 /// are all set (a shop token) or all null (a user token, before a shop is picked).
 /// </summary>
-public sealed record AccessTokenSubject(Guid UserId, Guid? ShopId, Guid? MembershipId, ShopRole? Role);
+public sealed record AccessTokenSubject(Guid UserId, Guid? ShopId, Guid? MembershipId, ShopRole? Role, bool IsPlatformAdmin = false);
 
 public sealed record AccessToken(string Token, DateTimeOffset ExpiresAt);
 
@@ -99,6 +105,11 @@ public sealed class AccessTokenIssuer(IOptions<JwtOptions> options, TimeProvider
             claims.Add(new Claim(AppClaims.ShopId, shopId.ToString()));
             claims.Add(new Claim(AppClaims.MembershipId, membershipId.ToString()));
             claims.Add(new Claim(AppClaims.Role, RoleNames.ToName(role)));
+        }
+
+        if (subject.IsPlatformAdmin)
+        {
+            claims.Add(new Claim(AppClaims.PlatformAdmin, "true"));
         }
 
         var token = _handler.CreateToken(new SecurityTokenDescriptor

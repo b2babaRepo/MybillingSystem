@@ -183,7 +183,7 @@ public sealed class AuthService(
     public async Task<MeResponse?> GetMeAsync(Guid userId, CancellationToken cancellationToken)
     {
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.IsActive, cancellationToken);
-        return user is null ? null : new MeResponse(Summarize(user), await ListMembershipsAsync(userId, cancellationToken));
+        return user is null ? null : new MeResponse(await SummarizeAsync(user, cancellationToken), await ListMembershipsAsync(userId, cancellationToken));
     }
 
     /// <summary>
@@ -283,14 +283,16 @@ public sealed class AuthService(
                select new MembershipSummary(m.Id, s.Id, s.Name, s.Slug, m.Role))
             .ToListAsync(cancellationToken);
 
-    private static UserSummary Summarize(User user) => new(user.Id, user.FullName, user.PreferredLanguage);
+    private async Task<UserSummary> SummarizeAsync(User user, CancellationToken cancellationToken) =>
+        new(user.Id, user.FullName, user.PreferredLanguage, user.Phone, await db.PlatformAdmins.AnyAsync(a => a.UserId == user.Id, cancellationToken));
 
     /// <summary>Creates an access token and a new refresh token, revoking <paramref name="replacing"/> if given, and saves.</summary>
     private async Task<AuthResponse> IssueAsync(
         User user, Membership? membership, CancellationToken cancellationToken, RefreshToken? replacing = null)
     {
         var now = clock.GetUtcNow();
-        var access = tokens.Issue(new AccessTokenSubject(user.Id, membership?.ShopId, membership?.Id, membership?.Role));
+        var summary = await SummarizeAsync(user, cancellationToken);
+        var access = tokens.Issue(new AccessTokenSubject(user.Id, membership?.ShopId, membership?.Id, membership?.Role, summary.IsPlatformAdmin));
 
         var refreshValue = Secrets.NewRefreshToken();
         var refresh = new RefreshToken
@@ -315,7 +317,7 @@ public sealed class AuthService(
             access.ExpiresAt,
             refreshValue,
             refresh.ExpiresAt,
-            Summarize(user),
+            summary,
             await ListMembershipsAsync(user.Id, cancellationToken),
             membership?.ShopId,
             membership?.Role);

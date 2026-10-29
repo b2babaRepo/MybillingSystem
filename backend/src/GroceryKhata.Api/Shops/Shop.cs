@@ -26,4 +26,13 @@ public sealed class Shop : Entity
 
     /// <summary>False when the shop is closed; its members can no longer sign in to it.</summary>
     public bool IsActive { get; set; } = true;
+
+    /// <summary>When a platform admin checked and approved the shop. Null: new, not looked at yet.</summary>
+    public DateTimeOffset? ApprovedAt { get; set; }
+
+    /// <summary>Why a platform admin blocked the shop (IsActive false), shown to its people when they try to sign in.</summary>
+    public string? BlockedReason { get; set; }
+
+    /// <summary>The platform admins' private support note about this shop. Never shown to the shop.</summary>
+    public string? AdminNote { get; set; }
 }
