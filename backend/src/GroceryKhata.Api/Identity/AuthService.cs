@@ -107,6 +107,36 @@ public sealed class AuthService(
         return AuthResult<AuthResponse>.Ok(await IssueAsync(user, only, cancellationToken));
     }
 
+    /// <summary>
+    /// Sign-in after an SMS code proved the phone: an existing account opens as with a password (its one shop straight
+    /// away); a new number with a name becomes a household account with no password.
+    /// </summary>
+    public async Task<AuthResult<AuthResponse>> SignInWithVerifiedPhoneAsync(User? user, string phone, string? fullName, string language, CancellationToken cancellationToken)
+    {
+        if (user is null)
+        {
+            user = new User { Phone = phone, FullName = fullName!, PreferredLanguage = language };
+            db.Users.Add(user);
+            logger.LogInformation("User {UserId} joined with a phone code", user.Id);
+            return AuthResult<AuthResponse>.Ok(await IssueAsync(user, membership: null, cancellationToken));
+        }
+
+        if (!user.IsActive)
+        {
+            return AuthResult<AuthResponse>.Fail(AuthError.InvalidCredentials);
+        }
+
+        if (user.LockoutEndsAt > clock.GetUtcNow())
+        {
+            return AuthResult<AuthResponse>.Fail(AuthError.LockedOut);
+        }
+
+        user.FailedSignInCount = 0;
+        var memberships = await ListMembershipsAsync(user.Id, cancellationToken);
+        var only = memberships.Count == 1 ? await FindUsableMembershipAsync(memberships[0].MembershipId, user.Id, cancellationToken) : null;
+        return AuthResult<AuthResponse>.Ok(await IssueAsync(user, only, cancellationToken));
+    }
+
     public async Task<AuthResult<AuthResponse>> SelectShopAsync(Guid userId, SelectShopRequest request, CancellationToken cancellationToken)
     {
         var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId && u.IsActive, cancellationToken);

@@ -24,6 +24,7 @@ builder.Services.AddOrderReading(builder.Configuration);
 builder.Services.AddAiPrivacy(builder.Configuration);
 builder.Services.AddWhatsAppOrders(builder.Configuration);
 builder.Services.AddBalanceChecks();
+builder.Services.AddOtpSignIn(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
 
@@ -68,6 +69,7 @@ app.MapShopData();
 app.MapStaff();
 app.MapBalanceChecks();
 app.MapPlatform();
+app.MapOtpSignIn();
 app.MapKhataView();
 app.MapDisputes();
 app.MapProductImages();

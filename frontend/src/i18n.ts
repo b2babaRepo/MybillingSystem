@@ -45,6 +45,15 @@ const en = {
     blockAsk: 'Why block {{name}}? Everyone in the shop is signed out.',
     blockedBecause: 'Blocked: {{reason}}',
   },
+  otp: {
+    send: 'Send code by SMS',
+    sent: 'We sent a 6-digit code by SMS. It works for 5 minutes.',
+    code: '6-digit code',
+    resend: 'Send a new code',
+    newNumber: 'This number is new here. Tell us your name to make your account.',
+    usePassword: 'Use password or PIN instead',
+    useCode: 'Sign in with a code by SMS',
+  },
   account: {
     open: 'Account and sign out',
     title: 'Account',
@@ -627,6 +636,15 @@ const hi: typeof en = {
     unblock: 'फिर चालू करें',
     blockAsk: '{{name}} को क्यों बंद करें? दुकान के सभी लोग लॉगआउट हो जाएँगे।',
     blockedBecause: 'बंद: {{reason}}',
+  },
+  otp: {
+    send: 'SMS से कोड भेजें',
+    sent: 'हमने SMS से 6 अंकों का कोड भेजा है। यह 5 मिनट तक चलेगा।',
+    code: '6 अंकों का कोड',
+    resend: 'नया कोड भेजें',
+    newNumber: 'यह नंबर यहाँ नया है। खाता बनाने के लिए अपना नाम बताएँ।',
+    usePassword: 'पासवर्ड या पिन से लॉगिन करें',
+    useCode: 'SMS कोड से लॉगिन करें',
   },
   account: {
     open: 'खाता और साइन आउट',

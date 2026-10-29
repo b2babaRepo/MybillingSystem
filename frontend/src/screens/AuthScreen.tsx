@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
-import { authenticate } from '../lib/api'
+import { ApiError, authenticate, readProblem, request } from '../lib/api'
 import type { AuthResponse } from '../lib/types'
 
 export function AuthScreen() {
@@ -11,6 +11,12 @@ export function AuthScreen() {
   const [form, setForm] = useState({ shopName: '', area: '', fullName: '', phone: '', password: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Signing in: a code by SMS (default; no password to remember) or a password / counter PIN.
+  const [method, setMethod] = useState<'otp' | 'password'>('otp')
+  const [otpStep, setOtpStep] = useState<'phone' | 'code' | 'name'>('phone')
+  const [code, setCode] = useState('')
+  const [info, setInfo] = useState('')
+  const useOtp = mode === 'sign-in' && method === 'otp'
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
 
   async function submit(e: FormEvent) {
@@ -18,13 +24,39 @@ export function AuthScreen() {
     setBusy(true)
     setError('')
     try {
-      if (mode === 'sign-in') await authenticate('/v1/auth/sign-in', { phone: form.phone, password: form.password })
+      if (useOtp) await otp()
+      else if (mode === 'sign-in') await authenticate('/v1/auth/sign-in', { phone: form.phone, password: form.password })
       else if (role === 'shop') await authenticate('/v1/auth/sign-up', { ...form, language: i18n.language })
       else await authenticate('/v1/auth/register', { fullName: form.fullName, phone: form.phone, password: form.password, language: i18n.language })
     } catch (err) {
       setError(err instanceof Error ? err.message : t('error'))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function sendCode() {
+    const response = await request('/v1/auth/otp/send', 'POST', { phone: form.phone })
+    if (!response.ok) throw new ApiError(response.status, await readProblem(response))
+    setCode('')
+    setOtpStep('code')
+    setInfo(t('otp.sent'))
+  }
+
+  async function otp() {
+    if (otpStep === 'phone') return sendCode()
+    try {
+      await authenticate('/v1/auth/otp/verify', {
+        phone: form.phone, code, fullName: otpStep === 'name' ? form.fullName : undefined, language: i18n.language,
+      })
+    } catch (err) {
+      // Right code for a new number: ask for a name, then the same code again.
+      if (err instanceof ApiError && err.status === 409) {
+        setOtpStep('name')
+        setInfo(t('otp.newNumber'))
+        return
+      }
+      throw err
     }
   }
 
@@ -52,8 +84,14 @@ export function AuthScreen() {
           <Field label={t('yourName')} value={form.fullName} onChange={set('fullName')} required autoComplete="name" />
         </>
       )}
-      <Field label={t('phone')} value={form.phone} onChange={set('phone')} required inputMode="tel" autoComplete="tel" />
-      <Field
+      <Field label={t('phone')} value={form.phone} onChange={(e) => { set('phone')(e); setOtpStep('phone') }} required inputMode="tel" autoComplete="tel" />
+      {useOtp && otpStep !== 'phone' && (
+        <Field label={t('otp.code')} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          required inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={6} />
+      )}
+      {useOtp && otpStep === 'name' && <Field label={t('yourName')} value={form.fullName} onChange={set('fullName')} required autoComplete="name" />}
+      {info && !error && <p className="rounded-lg bg-teal-50 p-3 text-teal-900">{info}</p>}
+      {!useOtp && <Field
         label={t('password')}
         value={form.password}
         onChange={set('password')}
@@ -62,11 +100,19 @@ export function AuthScreen() {
         // A new password needs 6 characters; signing in also takes a helper's 4-digit counter PIN.
         minLength={mode === 'sign-in' ? 4 : 6}
         autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
-      />
+      />}
       {error && <p className="rounded-lg bg-red-50 p-3 text-due">{error}</p>}
       <Button type="submit" disabled={busy}>
-        {mode === 'sign-in' ? t('signIn') : role === 'shop' ? t('signUp') : t('plan.register')}
+        {useOtp ? (otpStep === 'phone' ? t('otp.send') : t('signIn')) : mode === 'sign-in' ? t('signIn') : role === 'shop' ? t('signUp') : t('plan.register')}
       </Button>
+      {useOtp && otpStep !== 'phone' && (
+        <button type="button" disabled={busy} className="text-teal-700 underline" onClick={() => { setError(''); void sendCode().catch((err: Error) => setError(err.message)) }}>{t('otp.resend')}</button>
+      )}
+      {mode === 'sign-in' && (
+        <button type="button" className="text-teal-700 underline" onClick={() => { setMethod(method === 'otp' ? 'password' : 'otp'); setError(''); setInfo('') }}>
+          {method === 'otp' ? t('otp.usePassword') : t('otp.useCode')}
+        </button>
+      )}
       <button type="button" className="text-teal-700 underline" onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
         {mode === 'sign-in' ? t('newShop') : t('haveAccount')}
       </button>

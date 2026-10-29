@@ -29,12 +29,16 @@ public static class Hardening
 
         builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
 
-        var perMinute = builder.Configuration.GetValue(GlobalPerMinuteKey, 600);
+        // Read when the limiter is first used, not here: settings added later (tests, environment) must count too.
         builder.Services.Configure<RateLimiterOptions>(limiter =>
             limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(http =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions { PermitLimit = perMinute, Window = TimeSpan.FromMinutes(1) })));
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = http.RequestServices.GetRequiredService<IConfiguration>().GetValue(GlobalPerMinuteKey, 600),
+                        Window = TimeSpan.FromMinutes(1),
+                    })));
         return builder;
     }
 

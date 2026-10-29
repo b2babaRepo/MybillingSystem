@@ -40,6 +40,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
+    public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
+
     public DbSet<Shops.PlatformAdmin> PlatformAdmins => Set<Shops.PlatformAdmin>();
 
     public DbSet<Product> Products => Set<Product>();
@@ -182,6 +184,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("platform_admins");
             b.HasIndex(a => a.UserId).IsUnique();
             b.HasOne<User>().WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OtpCode>(b =>
+        {
+            b.ToTable("otp_codes");
+            b.Property(c => c.Phone).HasMaxLength(16);
+            b.Property(c => c.CodeHash).HasMaxLength(64);
+            b.HasIndex(c => new { c.Phone, c.CreatedAt });
         });
 
         modelBuilder.Entity<RefreshToken>(b =>

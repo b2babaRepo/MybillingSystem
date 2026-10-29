@@ -139,6 +139,10 @@ cd frontend; npm test        # outbox, merge and keypad unit tests
 
 - `ConnectionStrings__Default`: as the `khata_app` role, never a superuser.
 - `Jwt__SigningKey`: at least 32 random characters. The Development key in `appsettings.Development.json` is public.
+- `Sms__Msg91AuthKey`, `Sms__Msg91TemplateId` (and `Sms__Msg91OtpVariable`, default `OTP`): MSG91 with a DLT-approved
+  OTP template, for sign-in codes by SMS. Without them, codes are refused in production (password sign-in still works);
+  in Development the code is written to the API log instead.
+- `Platform__AdminPhones__0`, `__1`…: phone numbers made platform admins (all shops) at start-up. They must have an account.
 - `Database__MigrateOnStartup`: `false` in production. Run migrations at deploy, after a backup:
   `dotnet ef database update --project backend/src/GroceryKhata.Api`.
 
