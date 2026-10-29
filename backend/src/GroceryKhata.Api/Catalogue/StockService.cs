@@ -122,6 +122,13 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.CostPrice = request.CostPrice;
         product.ReorderLevel = request.ReorderLevel;
         product.IsActive = request.IsActive ?? product.IsActive;
+        if (TaxErrors(request.GstRate, request.HsnCode) is { Count: > 0 } taxErrors)
+        {
+            return (null, taxErrors);
+        }
+
+        product.GstRate = request.GstRate ?? product.GstRate;
+        product.HsnCode = Clean(request.HsnCode) ?? product.HsnCode;
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
@@ -263,6 +270,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         {
             var row = request.Rows[i];
             var rowErrors = Validate(row.Name, row.Unit, row.SellingPrice ?? 0, row.CostPrice, row.Category, row.ReorderLevel, allowNoPrice: true);
+            foreach (var (field, messages) in TaxErrors(row.GstRate, row.HsnCode))
+            {
+                rowErrors[field] = messages;
+            }
+
             if (row.OpeningStock is { } opening && (opening < 0 || opening > Money.MaxQuantity || decimal.Round(opening, 3) != opening))
             {
                 rowErrors["OpeningStock"] = ["Opening stock must be 0 or more."];
@@ -298,6 +310,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             product.CatalogueItemId = row.CatalogueItemId ?? product.CatalogueItemId;
             product.PackSize = row.PackSize is > 0 ? row.PackSize : null;
             product.PackUnit = product.PackSize is null ? null : row.PackUnit;
+            product.GstRate = row.GstRate;
+            product.HsnCode = Clean(row.HsnCode);
             db.Products.Add(product);
             if (row.OpeningStock is > 0)
             {
@@ -338,6 +352,48 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         await db.SaveChangesAsync(ct);
         await db.Products.Where(p => p.Id == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Stock, p => p.Stock + quantity), ct);
         return movement;
+    }
+
+    /// <summary>Sets many prices at once (today's rates). Only items whose price changed are saved (and audited).</summary>
+    public async Task<(int Changed, Dictionary<string, string[]>? Errors)> SetRatesAsync(RatesRequest request, CancellationToken ct)
+    {
+        if (request.Rates is not { Count: > 0 and <= MaxImportRows }
+            || request.Rates.Any(r => r.SellingPrice < 0 || r.SellingPrice > Money.MaxAmount || decimal.Round(r.SellingPrice, 2) != r.SellingPrice))
+        {
+            return (0, new() { ["Rates"] = ["Enter valid prices."] });
+        }
+
+        var ids = request.Rates.Select(r => r.ProductId).ToList();
+        var products = await db.Products.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var changed = 0;
+        foreach (var rate in request.Rates)
+        {
+            if (products.TryGetValue(rate.ProductId, out var product) && product.SellingPrice != rate.SellingPrice)
+            {
+                product.SellingPrice = rate.SellingPrice;
+                changed++;
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+        return (changed, null);
+    }
+
+    /// <summary>GST is one of the rates in use (0, 0.25, 3, 5, 12, 18, 28, 40); an HSN code is 4 to 8 digits.</summary>
+    private static Dictionary<string, string[]> TaxErrors(decimal? gst, string? hsn)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (gst is { } rate && rate is not (0m or 0.25m or 3m or 5m or 12m or 18m or 28m or 40m))
+        {
+            errors["GstRate"] = ["Choose a GST rate: 0, 5, 12, 18, 28 or 40%."];
+        }
+
+        if (!string.IsNullOrWhiteSpace(hsn) && hsn.Trim() is { } code && (code.Length is < 4 or > 8 || !code.All(char.IsAsciiDigit)))
+        {
+            errors["HsnCode"] = ["An HSN code is 4 to 8 digits."];
+        }
+
+        return errors;
     }
 
     private static Product NewProduct(Guid id, string name, string? category, Unit unit, decimal price, decimal? cost, decimal? reorderLevel) => new()
@@ -397,7 +453,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
     private static readonly System.Linq.Expressions.Expression<Func<Product, ProductDto>> AsDto = p => new ProductDto(
         p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.CostPrice, p.Stock, p.ReorderLevel,
-        p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption, p.ImageAt);
+        p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption, p.ImageAt,
+        p.GstRate, p.HsnCode);
 
     private static StockMovementDto ToDto(StockMovement m) =>
         new(m.Id, m.ProductId, m.Kind, m.Quantity, m.Reason, m.BillId, m.CostPrice, m.Note, m.OccurredAt);

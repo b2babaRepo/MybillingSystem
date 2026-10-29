@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keypad } from '../components/Keypad'
 import { KhataHistory } from '../components/KhataHistory'
@@ -11,6 +11,8 @@ import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/
 import { buildReminder, useShopSettings } from '../lib/reports'
 import type { KhataEntryType, PaymentMode, StatementLine } from '../lib/types'
 import { navigate } from '../router'
+
+const CustomerTradePanel = lazy(() => import('./CustomerTrade').then((module) => ({ default: module.CustomerTradePanel })))
 
 const UNDO_SECONDS = 30
 /** Same as the server's LedgerService.RemovalWindow: after this only the owner may remove, with a reason. */
@@ -156,6 +158,12 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
         </div>
         <Balance amount={customer.balance} large />
       </div>
+
+      {settings.data?.type && settings.data.type !== 'kirana' && (
+        <Suspense fallback={null}>
+          <CustomerTradePanel shopId={shopId} customer={customer} isOwner={isOwner} />
+        </Suspense>
+      )}
 
       {customer.balance > 0 && (
         <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">

@@ -3,7 +3,10 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
+import type { ShopSettings } from '../lib/reports'
+import { gstSummary } from '../lib/gst'
 import type { BillView, Statement } from '../lib/types'
+
 
 /**
  * Print-ready pages: the month-end khata statement and the cash memo. White, black text, no app chrome, so the
@@ -85,15 +88,22 @@ function StatementPrint({ shopName, customerId, month }: { shopName: string; cus
 function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
   const { t } = useTranslation()
   const query = useServer<BillView>(['print', 'bill', billId], `/v1/bills/${billId}`)
+  const gstin = useServer<ShopSettings>(['print', 'shop'], '/v1/shop').data?.gstin
   if (query.isError) return <Problem error={query.error} />
   const view = query.data
   if (!view) return <p className="p-6">…</p>
   const { bill, customer } = view
   const when = new Date(bill.occurredAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
   const share = t('print.billShare', { shop: shopName, total: bill.total, paid: bill.paidAmount, khata: bill.onKhata })
+  const gst = gstSummary(bill.lines)
 
   return (
-    <Page title={shopName} subtitle={`${t('print.bill')} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
+    <Page title={shopName} subtitle={`${gstin && gst.length ? t('print.taxInvoice') : t('print.bill')} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
+      {(gstin || bill.site || bill.vehicleNumber) && (
+        <p className="mb-3 text-sm">
+          {[gstin && `GSTIN ${gstin}`, bill.site && `${t('trade.site')}: ${bill.site}`, bill.vehicleNumber && `${t('trade.vehicle')}: ${bill.vehicleNumber}`].filter(Boolean).join(' · ')}
+        </p>
+      )}
       <table className="w-full border-collapse text-[15px]">
         <thead>
           <tr className="border-b border-black text-left">
@@ -103,7 +113,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
         <tbody>
           {bill.lines.map((l, i) => (
             <tr key={i} className="border-b border-gray-300">
-              <td className="py-1.5 pr-2">{l.name}</td>
+              <td className="py-1.5 pr-2">{l.name}{l.hsnCode && <span className="block text-xs text-gray-600">HSN {l.hsnCode}{l.gstRate ? ` · GST ${l.gstRate}%` : ''}</span>}</td>
               <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`)}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.unitPrice)}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.amount)}</td>
@@ -116,6 +126,27 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
         <p className="flex justify-between"><span>{t('print.paid')}{bill.paymentMode && ` (${t(bill.paymentMode)})`}</span><span>{formatRupees(bill.paidAmount)}</span></p>
         {bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.onKhata')}</span><span>{formatRupees(bill.onKhata)}</span></p>}
       </div>
+      {gst.length > 0 && (
+        <table className="mt-4 w-full border-collapse text-sm">
+          <caption className="mb-1 text-left font-bold">{t('print.gstTitle')}</caption>
+          <thead>
+            <tr className="border-b border-black text-left">
+              <th className="py-1">GST</th><th className="text-right">{t('print.taxable')}</th><th className="text-right">CGST</th><th className="text-right">SGST</th>
+            </tr>
+          </thead>
+          <tbody>
+            {gst.map((g) => (
+              <tr key={g.rate} className="border-b border-gray-300">
+                <td className="py-1">{g.rate}%</td>
+                <td className="text-right">{formatRupees(g.taxable)}</td>
+                <td className="text-right">{formatRupees(g.cgst)}</td>
+                <td className="text-right">{formatRupees(g.sgst)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {gst.length > 0 && <p className="mt-1 text-xs text-gray-600">{t('print.gstIncluded')}</p>}
       <p className="mt-6 text-center">{t('print.thanks')}</p>
     </Page>
   )

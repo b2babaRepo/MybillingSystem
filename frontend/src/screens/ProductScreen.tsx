@@ -148,6 +148,8 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     cost: product.costPrice === null ? '' : String(product.costPrice),
     category: product.category ?? '',
     reorder: product.reorderLevel === null ? '' : String(product.reorderLevel),
+    gst: product.gstRate == null ? '' : String(product.gstRate),
+    hsn: product.hsnCode ?? '',
   })
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
@@ -162,6 +164,8 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         costPrice: form.cost ? Number(form.cost) : null,
         category: form.category.trim() || null,
         reorderLevel: form.reorder ? Number(form.reorder) : null,
+        gstRate: form.gst === '' ? null : Number(form.gst),
+        hsnCode: form.hsn.trim() || null,
       })
       setMessage(t('saved'))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
@@ -182,6 +186,16 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         <Field label={t('stock.reorderLevel')} value={form.reorder} onChange={set('reorder')} inputMode="decimal" />
       </div>
       <Field label={t('stock.category')} value={form.category} onChange={set('category')} />
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-muted">{t('stock.gst')}</span>
+          <select value={form.gst} onChange={set('gst')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
+            <option value="">{t('stock.gstNotSet')}</option>
+            {['0', '5', '12', '18', '28', '40'].map((rate) => <option key={rate} value={rate}>{rate}%</option>)}
+          </select>
+        </label>
+        <Field label={t('stock.hsn')} value={form.hsn} onChange={set('hsn')} inputMode="numeric" maxLength={8} />
+      </div>
       <Button tone="plain" onClick={save} disabled={!form.name.trim() || product.pending}>{t('stock.saveDetails')}</Button>
       {message && <p className="text-sm text-muted">{message}</p>}
     </section>

@@ -8,7 +8,7 @@ export function AuthScreen() {
   const { t, i18n } = useTranslation()
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in')
   const [role, setRole] = useState<'home' | 'shop'>('home')
-  const [form, setForm] = useState({ shopName: '', area: '', fullName: '', phone: '', password: '' })
+  const [form, setForm] = useState({ shopName: '', area: '', fullName: '', phone: '', password: '', type: 'kirana' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   // Signing in: a code by SMS (default; no password to remember) or a password / counter PIN.
@@ -81,6 +81,14 @@ export function AuthScreen() {
           </div>
           {role === 'shop' && <Field label={t('shopName')} value={form.shopName} onChange={set('shopName')} required autoComplete="organization" />}
           {role === 'shop' && <Field label={t('plan.searchShop')} value={form.area} onChange={set('area')} placeholder="Raja Park bazaar" />}
+          {role === 'shop' && (
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-muted">{t('shopType.label')}</span>
+              <select value={form.type} onChange={set('type')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
+                {(['kirana', 'building_materials', 'paint', 'hardware', 'other'] as const).map((type) => <option key={type} value={type}>{t(`shopType.${type}`)}</option>)}
+              </select>
+            </label>
+          )}
           <Field label={t('yourName')} value={form.fullName} onChange={set('fullName')} required autoComplete="name" />
         </>
       )}

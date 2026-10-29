@@ -50,7 +50,14 @@ export interface ShopSettings {
   address: string | null
   upiId: string | null
   reminderTemplate: string | null
+  /** The trade: switches on its starter items, units and bill buttons. */
+  type?: ShopType
+  /** Printed on tax bills. */
+  gstin?: string | null
 }
+
+export type ShopType = 'kirana' | 'building_materials' | 'paint' | 'hardware' | 'other'
+export const SHOP_TYPES: ShopType[] = ['kirana', 'building_materials', 'paint', 'hardware', 'other']
 
 export function useShopSettings(shopId: string) {
   return useQuery({ queryKey: [shopId, 'settings'], queryFn: () => api<ShopSettings>('/v1/shop'), staleTime: 5 * 60_000 })

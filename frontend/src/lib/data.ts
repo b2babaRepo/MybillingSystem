@@ -196,6 +196,8 @@ export async function saveBill(
   customer: { id: string; name: string } | null,
   paidAmount: number,
   paymentMode: PaymentMode,
+  /** Other trades: the site, the vehicle, the painter. */
+  extras: { site?: string | null; vehicleNumber?: string | null; painterId?: string | null } = {},
 ) {
   const id = uuidv7()
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
@@ -204,7 +206,7 @@ export async function saveBill(
     shopId,
     kind: 'bill',
     path: '/v1/bills',
-    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString() },
+    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), ...extras },
     customerId: customer?.id,
     delta: customer ? round2(total - paidAmount) : undefined,
     label: `Bill ₹${total}${customer ? ` · ${customer.name}` : ''}`,

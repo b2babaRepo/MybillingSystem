@@ -27,6 +27,12 @@ public sealed class Shop : Entity
     /// <summary>False when the shop is closed; its members can no longer sign in to it.</summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>What the shop sells: switches on that trade's units, starter items and bill buttons.</summary>
+    public ShopType Type { get; set; } = ShopType.Kirana;
+
+    /// <summary>The shop's GSTIN, printed on tax bills. Null: not registered (bills show no GST split).</summary>
+    public string? Gstin { get; set; }
+
     /// <summary>When a platform admin checked and approved the shop. Null: new, not looked at yet.</summary>
     public DateTimeOffset? ApprovedAt { get; set; }
 
@@ -35,4 +41,15 @@ public sealed class Shop : Entity
 
     /// <summary>The platform admins' private support note about this shop. Never shown to the shop.</summary>
     public string? AdminNote { get; set; }
+}
+
+/// <summary>The trade. One app for all: the type only changes defaults (units, starter items, bill buttons).</summary>
+public enum ShopType
+{
+    Kirana,
+    /// <summary>Cement, sand, aggregate, bricks, steel.</summary>
+    BuildingMaterials,
+    Paint,
+    Hardware,
+    Other,
 }

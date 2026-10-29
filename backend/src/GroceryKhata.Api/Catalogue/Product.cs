@@ -39,6 +39,12 @@ public sealed class Product : Entity, ITenantOwned
     /// <summary>Price per <see cref="Unit"/>. 0 means "not set yet" (items from the starter catalogue).</summary>
     public decimal SellingPrice { get; set; }
 
+    /// <summary>GST % (prices are GST-inclusive, as shops quote them). Null: not set; kirana staples are mostly nil.</summary>
+    public decimal? GstRate { get; set; }
+
+    /// <summary>The HSN code for GST bills (cement 2523, sand 2505, TMT bars 7214).</summary>
+    public string? HsnCode { get; set; }
+
     public decimal? CostPrice { get; set; }
 
     /// <summary>
@@ -69,6 +75,13 @@ public enum Unit
     Litre,
     Ml,
     Packet,
+    /// <summary>A sack (cement: 50 kg).</summary>
+    Bag,
+    Tonne,
+    /// <summary>100 cubic feet: how sand and aggregate are sold.</summary>
+    Brass,
+    Cft,
+    Metre,
 }
 
 /// <summary>

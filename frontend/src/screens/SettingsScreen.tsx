@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { navigate } from '../router'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
-import { buildReminder, DEFAULT_REMINDER, useShopSettings, type ShopSettings } from '../lib/reports'
+import { buildReminder, DEFAULT_REMINDER, SHOP_TYPES, useShopSettings, type ShopSettings } from '../lib/reports'
 
 /** The shop's name and place, its UPI ID, and the reminder wording, with a live preview. */
 export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
@@ -22,6 +22,8 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     address: initial.address ?? '',
     upiId: initial.upiId ?? '',
     reminderTemplate: initial.reminderTemplate ?? '',
+    type: initial.type ?? 'kirana',
+    gstin: initial.gstin ?? '',
   })
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
@@ -50,6 +52,13 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
       )}
       <fieldset disabled={!isOwner} className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
         <Field label={t('settings.shopName')} value={form.name} onChange={set('name')} />
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-muted">{t('shopType.label')}</span>
+          <select value={form.type} onChange={set('type')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
+            {SHOP_TYPES.map((type) => <option key={type} value={type}>{t(`shopType.${type}`)}</option>)}
+          </select>
+        </label>
+        <Field label={t('settings.gstin')} value={form.gstin} onChange={set('gstin')} maxLength={15} autoCapitalize="characters" placeholder="08ABCDE1234F1Z5" />
         <Field label={t('settings.area')} value={form.area} onChange={set('area')} />
         <Field label={t('settings.address')} value={form.address} onChange={set('address')} />
         <div>

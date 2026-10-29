@@ -4,7 +4,7 @@ namespace GroceryKhata.Api.Identity;
 /// Opens a new shop. A new phone number creates the owner's account; a phone that already has an
 /// account adds the shop to it (one person, many shops) after checking the existing password.
 /// </summary>
-public sealed record SignUpRequest(string? ShopName, string? FullName, string? Phone, string? Password, string? Language, string? Area = null)
+public sealed record SignUpRequest(string? ShopName, string? FullName, string? Phone, string? Password, string? Language, string? Area = null, Shops.ShopType? Type = null)
 {
     public const int MinPasswordLength = 6;
 

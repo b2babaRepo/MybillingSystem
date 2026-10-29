@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ItemCard } from '../components/ItemCard'
 import { imageUrl } from '../lib/images'
@@ -7,7 +7,11 @@ import { saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } f
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { PaymentMode, Unit } from '../lib/types'
+import { useShopSettings } from '../lib/reports'
 import { navigate } from '../router'
+
+// Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
+const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))
 
 /** Item billing: tap tiles, adjust quantities, choose who pays and how much now. The rest goes on khata. */
 export function BillScreen({ shopId, shopName }: { shopId: string; shopName: string }) {
@@ -26,7 +30,10 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   const [customerId, setCustomerId] = useState('')
   const [paid, setPaid] = useState<string | null>(null)
   const [mode, setMode] = useState<PaymentMode>('cash')
-  const [loose, setLoose] = useState(false)
+  // A loose item, or a charge line ("Transport") with its name filled in.
+  const [loose, setLoose] = useState<false | { name: string; unit: Unit }>(false)
+  const shopType = useShopSettings(shopId).data?.type ?? 'kirana'
+  const [extras, setExtras] = useState({ site: '', vehicleNumber: '', painterId: '' })
   const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; customer: { name: string; phone: string | null } | null } | null>(null)
 
   // On a phone the bill sits below the item grid: a bar above the tabs shows the total until the bill is in view.
@@ -46,7 +53,8 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   function add(line: CartLine) {
     setSaved(null)
     setCart((current) => {
-      const index = line.productId ? current.findIndex((l) => l.productId === line.productId) : -1
+      // A tinted tin shares its base's product but is its own line (its own shade and rate).
+      const index = line.productId ? current.findIndex((l) => l.productId === line.productId && l.name === line.name) : -1
       if (index < 0) return [...current, line]
       return current.map((l, i) => (i === index ? { ...l, quantity: round2(l.quantity + 1) } : l))
     })
@@ -62,7 +70,10 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   }
 
   async function save() {
-    const result = await saveBill(shopId, cart, customer, paidAmount, mode)
+    const result = await saveBill(shopId, cart, customer, paidAmount, mode, {
+      site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
+    })
+    setExtras({ ...extras, site: '', vehicleNumber: '' })
     setSaved({ ...result, lines: cart, paid: paidAmount, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
     setPaid(null)
@@ -92,7 +103,14 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
             onClick={() => add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })}
           />
         ))}
-        <button onClick={() => setLoose(true)} className="min-h-20 rounded-xl border-2 border-dashed border-line p-2 font-semibold text-muted">
+        {/* Building-material bills carry transport and loading as their own lines. */}
+        {shopType === 'building_materials' && (['transport', 'loading'] as const).map((charge) => (
+          <button key={charge} onClick={() => setLoose({ name: t(`charge.${charge}`), unit: 'piece' })}
+            className="min-h-20 rounded-xl border-2 border-dashed border-udhaar p-2 font-semibold text-udhaar">
+            + {t(`charge.${charge}`)}
+          </button>
+        ))}
+        <button onClick={() => setLoose({ name: '', unit: 'kg' })} className="min-h-20 rounded-xl border-2 border-dashed border-line p-2 font-semibold text-muted">
           + {t('addLooseItem')}
         </button>
       </div>
@@ -171,6 +189,13 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
               {t('onKhata')}: {formatRupees(round2(total - paidAmount))}
             </p>
           )}
+          {shopType !== 'kirana' && (
+            <Suspense fallback={null}>
+              <TradeBillPanel shopId={shopId} shopType={shopType} customer={customer} total={total} onKhata={customer ? round2(total - paidAmount) : 0}
+                cart={cart} products={products} extras={extras} onExtras={setExtras} onAddLine={add}
+                onChallanSaved={() => { setCart([]); setPaid(null); setCustomerId(''); setExtras({ ...extras, site: '', vehicleNumber: '' }) }} />
+            </Suspense>
+          )}
           <div className="flex gap-2 text-sm">
             {(['cash', 'upi'] as const).map((m) => (
               <button key={m} onClick={() => setMode(m)} className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}>
@@ -192,17 +217,22 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
         </button>
       )}
 
-      {loose && <LooseItemSheet onClose={() => setLoose(false)} onAdd={add} />}
+      {loose && <LooseItemSheet onClose={() => setLoose(false)} onAdd={add} initialName={loose.name} initialUnit={loose.unit} />}
     </div>
   )
 }
 
-function LooseItemSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (line: CartLine) => void }) {
+function LooseItemSheet({ onClose, onAdd, initialName = '', initialUnit = 'kg' }: {
+  onClose: () => void
+  onAdd: (line: CartLine) => void
+  initialName?: string
+  initialUnit?: Unit
+}) {
   const { t } = useTranslation()
-  const [name, setName] = useState('')
+  const [name, setName] = useState(initialName)
   const [price, setPrice] = useState('')
   const [quantity, setQuantity] = useState('1')
-  const [unit, setUnit] = useState<Unit>('kg')
+  const [unit, setUnit] = useState<Unit>(initialUnit)
   const valid = name.trim() && Number(price) > 0 && Number(quantity) > 0
 
   return (
@@ -229,7 +259,7 @@ function LooseItemSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (line:
   )
 }
 
-const UNITS: Unit[] = ['piece', 'kg', 'g', 'litre', 'ml', 'packet']
+const UNITS: Unit[] = ['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'bag', 'tonne', 'brass', 'cft', 'metre']
 
 export function UnitSelect({ value, onChange }: { value: Unit; onChange: (unit: Unit) => void }) {
   const { t } = useTranslation()

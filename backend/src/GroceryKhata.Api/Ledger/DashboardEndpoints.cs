@@ -56,7 +56,7 @@ public static class DashboardEndpoints
 
         var owing = db.Customers.AsNoTracking().Where(c => c.Balance > 0);
         var topDues = await owing.OrderByDescending(c => c.Balance).Take(3)
-            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance))
+            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit))
             .ToListAsync(ct);
 
         return new TodayDto(

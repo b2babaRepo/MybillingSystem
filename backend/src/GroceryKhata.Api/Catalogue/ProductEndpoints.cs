@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -14,9 +15,14 @@ public sealed record ProductRequest(
     decimal? CostPrice,
     string? Category = null,
     decimal? ReorderLevel = null,
-    decimal? OpeningStock = null);
+    decimal? OpeningStock = null,
+    decimal? GstRate = null,
+    string? HsnCode = null);
 
-public sealed record ProductUpdate(string? Name, Unit? Unit, decimal SellingPrice, decimal? CostPrice, string? Category, decimal? ReorderLevel, bool? IsActive);
+/// <summary><see cref="GstRate"/> and <see cref="HsnCode"/>: null keeps what the item has (older apps don't send them).</summary>
+public sealed record ProductUpdate(
+    string? Name, Unit? Unit, decimal SellingPrice, decimal? CostPrice, string? Category, decimal? ReorderLevel, bool? IsActive,
+    decimal? GstRate = null, string? HsnCode = null);
 
 /// <summary><see cref="IsLow"/>: out of stock, or at/below the reorder level.</summary>
 public sealed record ProductDto(
@@ -34,7 +40,9 @@ public sealed record ProductDto(
     decimal? PackSize = null,
     Unit? PackUnit = null,
     bool IsDefaultOption = false,
-    DateTimeOffset? ImageAt = null);
+    DateTimeOffset? ImageAt = null,
+    decimal? GstRate = null,
+    string? HsnCode = null);
 
 /// <summary>A purchase (positive) or an adjustment (signed, with a reason).</summary>
 public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note);
@@ -58,7 +66,12 @@ public sealed record StocktakeResult(int Adjusted, int Unchanged);
 
 public sealed record ImportRow(
     string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel,
-    int? CatalogueItemId = null, decimal? PackSize = null, Unit? PackUnit = null);
+    int? CatalogueItemId = null, decimal? PackSize = null, Unit? PackUnit = null, decimal? GstRate = null, string? HsnCode = null);
+
+/// <summary>One item's new rate on the "today's rates" screen.</summary>
+public sealed record RateChange(Guid ProductId, decimal SellingPrice);
+
+public sealed record RatesRequest(IReadOnlyList<RateChange>? Rates);
 
 public sealed record ImportRequest(IReadOnlyList<ImportRow>? Rows);
 
@@ -105,6 +118,29 @@ public static class ProductEndpoints
                 { Product: { } product } => Results.Ok(product),
                 _ => Results.NotFound(),
             });
+
+        // Today's rates: building-material prices move daily, so the owner changes many at once. Each change is in
+        // the audit log (old and new price), which is the rate history.
+        products.MapPut("/rates", async (RatesRequest request, StockService stock, CancellationToken ct) =>
+            await stock.SetRatesAsync(request, ct) switch
+            {
+                { Errors: { } errors } => Results.ValidationProblem(errors),
+                { Changed: var changed } => Results.Ok(new { changed }),
+            }).RequireAuthorization(AppPolicies.ShopOwner);
+
+        // A new shop of another trade starts with that trade's usual items (prices to fill in on the rates screen).
+        products.MapPost("/starter", async (ClaimsPrincipal user, StockService stock, AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
+        {
+            var type = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.Type).SingleAsync(ct);
+            var rows = StarterItems.For(type);
+            if (rows.Count == 0)
+            {
+                return Results.Ok(new ImportResult(0, 0));
+            }
+
+            var (result, errors) = await stock.ImportAsync(new ImportRequest(rows), user.UserId()!.Value, ct);
+            return errors is null ? Results.Ok(result) : Results.ValidationProblem(errors);
+        }).RequireAuthorization(AppPolicies.ShopOwner);
 
         products.MapPost("/import", async (ImportRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
             await stock.ImportAsync(request, user.UserId()!.Value, ct) switch

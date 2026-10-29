@@ -36,6 +36,8 @@ const DuesScreen = lazy(() => import('./screens/DuesScreen').then((module) => ({
 const ReportsScreen = lazy(() => import('./screens/ReportsScreen').then((module) => ({ default: module.ReportsScreen })))
 const StaffScreen = lazy(() => import('./screens/StaffScreen').then((module) => ({ default: module.StaffScreen })))
 const ExpensesScreen = lazy(() => import('./screens/ExpensesScreen').then((module) => ({ default: module.ExpensesScreen })))
+const RatesScreen = lazy(() => import('./screens/RatesScreen').then((module) => ({ default: module.RatesScreen })))
+const PaintersScreen = lazy(() => import('./screens/PaintersScreen').then((module) => ({ default: module.PaintersScreen })))
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen').then((module) => ({ default: module.SettingsScreen })))
 const MyStoreScreen = lazy(() => import('./screens/MyStoreScreen').then((module) => ({ default: module.MyStoreScreen })))
 const StoreApp = lazy(() => import('./screens/store/StoreApp').then((module) => ({ default: module.StoreApp })))
@@ -202,6 +204,10 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <CashBookScreen shopId={shopId} />
         ) : path === '/expenses' ? (
           <ExpensesScreen shopId={shopId} />
+        ) : path === '/rates' ? (
+          <RatesScreen shopId={shopId} />
+        ) : path === '/painters' ? (
+          <PaintersScreen shopId={shopId} shopName={shopName} />
         ) : productMatch ? (
           <ProductScreen shopId={shopId} productId={productMatch[1]} />
         ) : path === '/stocktake' ? (

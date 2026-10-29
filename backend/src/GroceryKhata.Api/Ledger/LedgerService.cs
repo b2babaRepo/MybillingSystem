@@ -22,14 +22,14 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
         }
 
         return await query.OrderBy(c => c.Name).Take(500)
-            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance))
+            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit))
             .ToListAsync(cancellationToken);
     }
 
     public Task<LedgerResult<CustomerDto>> CreateCustomerAsync(CustomerRequest request, CancellationToken cancellationToken) =>
         WriteOnceAsync(
             () => db.Customers.AsNoTracking().Where(c => c.Id == request.Id)
-                .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance)).SingleOrDefaultAsync(cancellationToken),
+                .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit)).SingleOrDefaultAsync(cancellationToken),
             async () =>
             {
                 var errors = new Dictionary<string, string[]>();
@@ -207,7 +207,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
     /// Saves a cash memo. With a customer, the bill total posts to their khata as a credit and anything
     /// paid now posts as a payment, so the statement shows both; without one it must be paid in full.
     /// </summary>
-    public Task<LedgerResult<BillDto>> CreateBillAsync(BillRequest request, Guid userId, CancellationToken cancellationToken) =>
+    /// <param name="stockAlreadyOut">True for an invoice made from delivery challans: the goods left the shelf with the challans.</param>
+    public Task<LedgerResult<BillDto>> CreateBillAsync(BillRequest request, Guid userId, CancellationToken cancellationToken, bool stockAlreadyOut = false) =>
         WriteOnceAsync(
             () => FindBillAsync(request.Id, cancellationToken),
             async () =>
@@ -261,6 +262,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                             Unit = line.Unit ?? product?.Unit ?? Catalogue.Unit.Piece,
                             UnitPrice = line.UnitPrice,
                             Amount = Money.LineAmount(line.Quantity, line.UnitPrice),
+                            GstRate = product?.GstRate,
+                            HsnCode = product?.HsnCode,
                         });
                     }
                 }
@@ -280,9 +283,21 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                     errors[nameof(request.PaidAmount)] = ["Choose a customer to put the rest on khata."];
                 }
 
+                var site = string.IsNullOrWhiteSpace(request.Site) ? null : request.Site.Trim();
+                var vehicle = string.IsNullOrWhiteSpace(request.VehicleNumber) ? null : request.VehicleNumber.Trim().ToUpperInvariant().Replace(" ", "");
+                if (site?.Length > 80 || vehicle?.Length > 15)
+                {
+                    errors[nameof(request.Site)] = ["Keep the site and vehicle number short."];
+                }
+
                 if (errors.Count > 0)
                 {
                     return LedgerResult<BillDto>.Invalid(errors);
+                }
+
+                if (request.PainterId is { } painterId && !await db.Painters.AnyAsync(p => p.Id == painterId, cancellationToken))
+                {
+                    return LedgerResult<BillDto>.Invalid(nameof(request.PainterId), "Painter not found.");
                 }
 
                 if (request.CustomerId is { } customerId && !await db.Customers.AnyAsync(c => c.Id == customerId, cancellationToken))
@@ -302,6 +317,9 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                     OccurredAt = occurredAt,
                     CreatedByUserId = userId,
                     Lines = lines,
+                    Site = site,
+                    VehicleNumber = vehicle,
+                    PainterId = request.PainterId,
                 };
 
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -334,7 +352,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 }
 
                 // Items from the catalogue leave the shelf: one sale movement per product, in this same transaction.
-                var sold = lines.Where(l => l.ProductId is not null)
+                var sold = lines.Where(l => l.ProductId is not null && !stockAlreadyOut)
                     .GroupBy(l => l.ProductId!.Value)
                     .Select(g => (ProductId: g.Key, Quantity: g.Sum(l => l.Quantity)))
                     .ToList();
@@ -378,8 +396,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 await transaction.CommitAsync(cancellationToken);
                 return LedgerResult<BillDto>.Created(new BillDto(
                     bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
-                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList(),
-                    balance));
+                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode)).ToList(),
+                    balance, bill.Site, bill.VehicleNumber, bill.PainterId));
             });
 
     /// <summary>
@@ -390,7 +408,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
     {
         var customer = await db.Customers.AsNoTracking()
             .Where(c => c.Id == customerId)
-            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance))
+            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit))
             .SingleOrDefaultAsync(cancellationToken);
         if (customer is null)
         {
@@ -416,7 +434,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
         var billIds = entries.Where(e => e.BillId != null).Select(e => e.BillId!.Value).Distinct().ToList();
         var bills = await db.Bills.AsNoTracking().Include(b => b.Lines).Where(b => billIds.Contains(b.Id))
             .ToDictionaryAsync(b => b.Id, b => new BillSummary(b.Total, b.PaidAmount,
-                b.Lines.OrderBy(l => l.LineNo).Select(l => new BillItem(l.Id, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList()), cancellationToken);
+                b.Lines.OrderBy(l => l.LineNo).Select(l => new BillItem(l.Id, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList(), b.Site), cancellationToken);
 
         // Who wrote each line: a removal shows the name of the person who removed it.
         var userIds = entries.Select(e => e.CreatedByUserId).Distinct().ToList();
@@ -450,7 +468,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
         }
 
         var customer = bill.CustomerId is { } customerId
-            ? await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance)).SingleAsync(cancellationToken)
+            ? await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit)).SingleAsync(cancellationToken)
             : null;
         return new BillView(bill, customer);
     }
@@ -506,8 +524,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
         return new BillDto(
             bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
             bill.Lines.OrderBy(l => l.LineNo)
-                .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList(),
-            balance);
+                .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode)).ToList(),
+            balance, bill.Site, bill.VehicleNumber, bill.PainterId);
     }
 
     private Task<decimal> BalanceAsync(Guid customerId, CancellationToken cancellationToken) =>

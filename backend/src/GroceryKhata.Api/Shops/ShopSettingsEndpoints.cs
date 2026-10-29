@@ -6,9 +6,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Shops;
 
-public sealed record ShopSettingsDto(string Name, string Slug, string? Area, string? Address, string? UpiId, string? ReminderTemplate);
+public sealed record ShopSettingsDto(string Name, string Slug, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType Type = ShopType.Kirana, string? Gstin = null);
 
-public sealed record ShopSettingsUpdate(string? Name, string? Area, string? Address, string? UpiId, string? ReminderTemplate);
+/// <summary><see cref="Type"/>: null keeps the shop's trade.</summary>
+public sealed record ShopSettingsUpdate(string? Name, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType? Type = null, string? Gstin = null);
 
 /// <summary>The shop's own details: name, where it is, UPI ID and reminder wording. Everyone reads; the owner changes.</summary>
 public static partial class ShopSettingsEndpoints
@@ -23,7 +24,7 @@ public static partial class ShopSettingsEndpoints
 
     private static async Task<IResult> GetAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
         await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId)
-            .Select(s => new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate))
+            .Select(s => new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate, s.Type, s.Gstin))
             .SingleOrDefaultAsync(ct) is { } settings ? TypedResults.Ok(settings) : TypedResults.NotFound();
 
     private static async Task<IResult> UpdateAsync(ShopSettingsUpdate request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
@@ -49,6 +50,12 @@ public static partial class ShopSettingsEndpoints
             errors[nameof(request.ReminderTemplate)] = ["The reminder must include {amount}, so the customer knows how much is due."];
         }
 
+        var gstin = string.IsNullOrWhiteSpace(request.Gstin) ? null : request.Gstin.Trim().ToUpperInvariant();
+        if (gstin is not null && !GstinPattern().IsMatch(gstin))
+        {
+            errors[nameof(request.Gstin)] = ["A GSTIN has 15 letters and digits, like 08ABCDE1234F1Z5."];
+        }
+
         if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(errors);
@@ -60,12 +67,17 @@ public static partial class ShopSettingsEndpoints
         shop.Address = Clean(request.Address);
         shop.UpiId = upi;
         shop.ReminderTemplate = Clean(request.ReminderTemplate);
+        shop.Type = request.Type ?? shop.Type;
+        shop.Gstin = gstin;
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate));
+        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.Type, shop.Gstin));
     }
 
     private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
     [GeneratedRegex(@"^[a-z0-9.\-_]{2,256}@[a-z][a-z0-9]{1,63}$")]
     private static partial Regex UpiPattern();
+
+    [GeneratedRegex(@"^[0-9]{2}[A-Z0-9]{13}$")]
+    private static partial Regex GstinPattern();
 }

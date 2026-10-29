@@ -5,6 +5,7 @@ import { BillIcon, CustomersIcon, PaymentIcon, PlusIcon } from '../components/Ic
 import { api, request } from '../lib/api'
 import { useProducts, useToday } from '../lib/data'
 import { formatRupees } from '../lib/format'
+import { useShopSettings } from '../lib/reports'
 import { navigate } from '../router'
 
 /**
@@ -12,6 +13,7 @@ import { navigate } from '../router'
  * and who owes the most. The teal band continues the app header; the summary card overlaps it.
  */
 export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
+  const shopType = useShopSettings(shopId).data?.type ?? 'kirana'
   const { t } = useTranslation()
   const { today } = useToday(shopId)
   const { products } = useProducts(shopId)
@@ -67,6 +69,18 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         <span>{t('myStore.link')}</span>
         <span aria-hidden="true">→</span>
       </button>
+
+      {isOwner && shopType === 'paint' && (
+        <button onClick={() => navigate('/painters')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+          <span>{t('painters.link')}</span><span aria-hidden="true">→</span>
+        </button>
+      )}
+
+      {isOwner && shopType !== 'kirana' && (
+        <button onClick={() => navigate('/rates')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+          <span>{t('rates.link')}</span><span aria-hidden="true">→</span>
+        </button>
+      )}
 
       {isOwner && (
         <button onClick={() => navigate('/settings')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">

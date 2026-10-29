@@ -1,7 +1,7 @@
 // Shapes of the API's JSON (camelCase, enums in snake_case). Keep in step with backend/src/GroceryKhata.Api.
 
 export type ShopRole = 'owner' | 'staff'
-export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet'
+export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre'
 export type PaymentMode = 'cash' | 'upi'
 export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return'
 export type KhataEntryType = 'credit' | 'payment'
@@ -33,6 +33,8 @@ export interface Customer {
   name: string
   phone: string | null
   balance: number
+  /** The most they may owe: a bill that would cross it warns the shop. */
+  creditLimit?: number | null
 }
 
 export interface Product {
@@ -40,6 +42,9 @@ export interface Product {
   name: string
   category: string | null
   unit: Unit
+  /** GST % on this item (prices include it); null when not set. */
+  gstRate?: number | null
+  hsnCode?: string | null
   /** 0 = price not set yet. */
   sellingPrice: number
   costPrice: number | null
@@ -171,6 +176,8 @@ export interface BillLineView {
   unit: Unit
   unitPrice: number
   amount: number
+  gstRate?: number | null
+  hsnCode?: string | null
 }
 
 export interface BillView {
@@ -184,6 +191,9 @@ export interface BillView {
     occurredAt: string
     lines: BillLineView[]
     customerBalance: number | null
+    site?: string | null
+    vehicleNumber?: string | null
+    painterId?: string | null
   }
   customer: Customer | null
 }

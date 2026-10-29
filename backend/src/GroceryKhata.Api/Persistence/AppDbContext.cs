@@ -18,7 +18,7 @@ namespace GroceryKhata.Api.Persistence;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenant) : DbContext(options)
 {
     /// <summary>Tables protected by row-level security. Keep in step with <see cref="ITenantOwned"/> entities.</summary>
-    public static readonly string[] ShopOwnedTables = ["products", "customers", "ledger_entries", "bills", "bill_lines", "orders", "order_lines", "stock_movements", "audit_log", "expenses", "balance_checks", "cash_counts"];
+    public static readonly string[] ShopOwnedTables = ["products", "customers", "ledger_entries", "bills", "bill_lines", "orders", "order_lines", "stock_movements", "audit_log", "expenses", "balance_checks", "cash_counts", "challans", "painters"];
 
     private Guid CurrentShopId => tenant.ShopId;
 
@@ -58,6 +58,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
 
+    public DbSet<Challan> Challans => Set<Challan>();
+
+    public DbSet<Painter> Painters => Set<Painter>();
+
     public DbSet<Dispute> Disputes => Set<Dispute>();
 
     public DbSet<DisputeItem> DisputeItems => Set<DisputeItem>();
@@ -88,6 +92,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(s => s.Name).HasMaxLength(120);
             b.Property(s => s.Slug).HasMaxLength(80);
             b.HasIndex(s => s.Slug).IsUnique();
+            b.Property(s => s.Type).HasDefaultValue(ShopType.Kirana);
             b.Property(s => s.Area).HasMaxLength(120);
             b.Property(s => s.Address).HasMaxLength(200);
             b.Property(s => s.UpiId).HasMaxLength(60);
@@ -213,6 +218,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(p => p.Name).HasMaxLength(120);
             b.Property(p => p.PackSize).HasPrecision(12, 3);
+            b.Property(p => p.GstRate).HasPrecision(5, 2);
+            b.Property(p => p.HsnCode).HasMaxLength(8);
             b.Property(p => p.Category).HasMaxLength(60);
             b.Property(p => p.IsActive).HasDefaultValue(true);
             b.Property(p => p.Stock).HasPrecision(12, 3);
@@ -223,6 +230,26 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(p => new { p.ShopId, p.CatalogueItemId });
             b.HasOne<CatalogueItem>().WithMany().HasForeignKey(p => p.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Challan>(b =>
+        {
+            b.ToTable("challans");
+            b.HasTenantKey();
+            b.Property(c => c.Lines).HasColumnType("jsonb");
+            b.Property(c => c.Site).HasMaxLength(80);
+            b.Property(c => c.VehicleNumber).HasMaxLength(15);
+            b.HasIndex(c => new { c.ShopId, c.CustomerId, c.InvoiceId });
+            b.HasTenantForeignKey<Challan, Customer>(nameof(Challan.CustomerId));
+        });
+
+        modelBuilder.Entity<Painter>(b =>
+        {
+            b.ToTable("painters");
+            b.HasTenantKey();
+            b.Property(p => p.Name).HasMaxLength(120);
+            b.Property(p => p.Phone).HasMaxLength(16);
+            b.Property(p => p.CommissionPercent).HasPrecision(5, 2);
         });
 
         modelBuilder.Entity<CashCount>(b =>
@@ -311,6 +338,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.HasIndex(x => new { x.ShopId, x.OccurredAt });
             b.HasTenantForeignKey<Bill, Customer>(nameof(Bill.CustomerId));
+            b.Property(x => x.Site).HasMaxLength(80);
+            b.Property(x => x.VehicleNumber).HasMaxLength(15);
+            b.HasIndex(x => new { x.ShopId, x.PainterId, x.OccurredAt });
             b.HasMany(x => x.Lines).WithOne()
                 .HasForeignKey(l => new { l.ShopId, l.BillId })
                 .HasPrincipalKey(x => new { x.ShopId, x.Id })
@@ -322,6 +352,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("bill_lines");
             b.Property(l => l.Name).HasMaxLength(120);
             b.Property(l => l.Quantity).HasPrecision(12, 3);
+            b.Property(l => l.GstRate).HasPrecision(5, 2);
+            b.Property(l => l.HsnCode).HasMaxLength(8);
             b.HasIndex(l => new { l.ShopId, l.BillId, l.LineNo }).IsUnique();
             b.HasTenantForeignKey<BillLine, Product>(nameof(BillLine.ProductId));
         });

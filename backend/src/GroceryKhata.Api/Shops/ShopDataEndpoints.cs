@@ -50,6 +50,8 @@ public static class ShopDataEndpoints
             auditLog = await db.AuditEntries.AsNoTracking().OrderBy(a => a.CreatedAt).ToListAsync(ct),
             expenses = await db.Expenses.AsNoTracking().OrderBy(e => e.OccurredAt).ToListAsync(ct),
             cashCounts = await db.CashCounts.AsNoTracking().OrderBy(c => c.Day).ToListAsync(ct),
+            challans = await db.Challans.AsNoTracking().OrderBy(c => c.OccurredAt).ToListAsync(ct),
+            painters = await db.Painters.AsNoTracking().ToListAsync(ct),
         };
         logger.LogInformation("Shop {ShopId} exported its data", tenant.ShopId);
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(export, Json));
@@ -77,6 +79,7 @@ public static class ShopDataEndpoints
         await db.AuditEntries.ExecuteDeleteAsync(ct);
         await db.Expenses.ExecuteDeleteAsync(ct);
         await db.CashCounts.ExecuteDeleteAsync(ct);
+        await db.Challans.ExecuteDeleteAsync(ct);
         await db.BalanceChecks.ExecuteDeleteAsync(ct);
         await db.StockMovements.ExecuteDeleteAsync(ct);
         await db.OrderLines.Where(l => l.ShopId == shopId).ExecuteDeleteAsync(ct);
@@ -86,6 +89,7 @@ public static class ShopDataEndpoints
         await db.LedgerEntries.ExecuteDeleteAsync(ct);
         await db.BillLines.ExecuteDeleteAsync(ct);
         await db.Bills.ExecuteDeleteAsync(ct);
+        await db.Painters.ExecuteDeleteAsync(ct);
         await db.Customers.ExecuteDeleteAsync(ct);
         await db.Products.ExecuteDeleteAsync(ct);
         var membershipIds = await db.Memberships.Where(m => m.ShopId == shopId).Select(m => m.Id).ToListAsync(ct);

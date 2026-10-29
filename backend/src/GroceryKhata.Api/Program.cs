@@ -72,6 +72,7 @@ app.MapBalanceChecks();
 app.MapExpenses();
 app.MapBillPhotos();
 app.MapCashCounts();
+app.MapTrades();
 app.MapPlatform();
 app.MapOtpSignIn();
 app.MapKhataView();

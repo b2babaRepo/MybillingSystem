@@ -5,7 +5,7 @@ namespace GroceryKhata.Api.Ledger;
 /// <summary><see cref="Id"/> is made by the app, so a retried or synced-again request finds the same customer.</summary>
 public sealed record CustomerRequest(Guid Id, string? Name, string? Phone);
 
-public sealed record CustomerDto(Guid Id, string Name, string? Phone, decimal Balance);
+public sealed record CustomerDto(Guid Id, string Name, string? Phone, decimal Balance, decimal? CreditLimit = null);
 
 /// <summary>
 /// The fast path: "Ramesh, ₹340, udhaar" with no items. <see cref="Amount"/> is always positive;
@@ -40,7 +40,10 @@ public sealed record BillRequest(
     IReadOnlyList<BillLineRequest>? Lines,
     decimal PaidAmount,
     PaymentMode? PaymentMode,
-    DateTimeOffset? OccurredAt);
+    DateTimeOffset? OccurredAt,
+    string? Site = null,
+    string? VehicleNumber = null,
+    Guid? PainterId = null);
 
 public sealed record LedgerEntryDto(
     Guid Id,
@@ -60,7 +63,7 @@ public sealed record LedgerEntryDto(
 /// <summary>The entry and the customer's balance after it.</summary>
 public sealed record KhataEntryResponse(LedgerEntryDto Entry, decimal CustomerBalance);
 
-public sealed record BillLineDto(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Amount);
+public sealed record BillLineDto(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Amount, decimal? GstRate = null, string? HsnCode = null);
 
 public sealed record BillDto(
     Guid Id,
@@ -71,7 +74,10 @@ public sealed record BillDto(
     PaymentMode? PaymentMode,
     DateTimeOffset OccurredAt,
     IReadOnlyList<BillLineDto> Lines,
-    decimal? CustomerBalance);
+    decimal? CustomerBalance,
+    string? Site = null,
+    string? VehicleNumber = null,
+    Guid? PainterId = null);
 
 public sealed record StatementLine(
     Guid Id,
@@ -109,7 +115,7 @@ public sealed record DisputeItemView(
     DateTimeOffset? ResolvedAt);
 
 /// <summary>What was bought on a bill, so the khata shows the items behind each udhaar, not just an amount.</summary>
-public sealed record BillSummary(decimal Total, decimal Paid, IReadOnlyList<BillItem> Items);
+public sealed record BillSummary(decimal Total, decimal Paid, IReadOnlyList<BillItem> Items, string? Site = null);
 
 public sealed record BillItem(Guid Id, string Name, decimal Quantity, Catalogue.Unit Unit, decimal UnitPrice, decimal Amount);
 

@@ -47,6 +47,7 @@ public sealed class AuthService(
             Name = request.ShopName!.Trim(),
             Slug = NewSlug(request.ShopName),
             Area = string.IsNullOrWhiteSpace(request.Area) ? null : request.Area.Trim()[..Math.Min(request.Area.Trim().Length, 120)],
+            Type = request.Type ?? ShopType.Kirana,
         };
         db.Shops.Add(shop);
         var membership = new Membership { UserId = user.Id, ShopId = shop.Id, Role = ShopRole.Owner };

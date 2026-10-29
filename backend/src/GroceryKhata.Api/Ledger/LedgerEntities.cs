@@ -16,6 +16,9 @@ public sealed class Customer : Entity, ITenantOwned
     /// What the customer owes now. A cache of the sum of their ledger entries, changed only in the same
     /// transaction as the entry and checked by reconciliation. Never edited directly.
     /// </summary>
+    /// <summary>The most this customer may owe; a bill that would cross it warns the shop (it doesn't block). Null: none.</summary>
+    public decimal? CreditLimit { get; set; }
+
     public decimal Balance { get; set; }
 
     /// <summary>When the shop last sent this customer a payment reminder (shown on the dues list).</summary>
@@ -107,6 +110,15 @@ public sealed class Bill : Entity, ITenantOwned
     public Guid CreatedByUserId { get; set; }
 
     public List<BillLine> Lines { get; set; } = [];
+
+    /// <summary>The contractor's site this went to ("Mansarovar plot 12"): a customer's khata adds up per site.</summary>
+    public string? Site { get; set; }
+
+    /// <summary>The truck or tempo that carried it; goods over ₹50,000 moved by road need an e-way bill.</summary>
+    public string? VehicleNumber { get; set; }
+
+    /// <summary>The painter who brought the customer (paint shops): their commission is counted from these bills.</summary>
+    public Guid? PainterId { get; set; }
 }
 
 public sealed class BillLine : Entity, ITenantOwned
@@ -130,4 +142,9 @@ public sealed class BillLine : Entity, ITenantOwned
     public decimal UnitPrice { get; set; }
 
     public decimal Amount { get; set; }
+
+    /// <summary>The item's GST % and HSN code when sold (kept, so a later change doesn't rewrite old bills).</summary>
+    public decimal? GstRate { get; set; }
+
+    public string? HsnCode { get; set; }
 }
