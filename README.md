@@ -146,12 +146,10 @@ cd frontend; npm test        # outbox, merge and keypad unit tests
 - `Database__MigrateOnStartup`: `false` in production. Run migrations at deploy, after a backup:
   `dotnet ef database update --project backend/src/GroceryKhata.Api`.
 
-## Not in the skeleton yet
+## Not built yet
 
-- Staff invites and the platform-admin role (the SchoolErp invite flow ports over directly), PIN sign-in, customer OTP.
-- Stock movements, stocktake, CSV import and the starter catalogue (Phase 2).
-- Cash book screen, month-end statement PDF and the overdue list (Phases 3 and 6).
-- A nightly background job that runs the reconciliation for every shop. The check exists; the job doesn't yet.
-- PNG app icons (192/512) for older Android install prompts. Only the SVG icon is included.
+- Real-key checks: MSG91 codes, Claude, Sarvam voice and the WhatsApp webhook have only run with keys off.
+- Holding new shops until a platform admin approves them (approval is recorded, not enforced), and showing a
+  blocked owner the reason.
 - The automated deploy step (CI builds and tests; the manual steps, Nginx config, backups and alerts are in [docs/runbook.md](docs/runbook.md)).
 - Load test: `node loadtest/evening-rush.mjs` (see the runbook for results and the KVM sizing decision).
