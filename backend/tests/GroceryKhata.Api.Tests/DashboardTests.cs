@@ -37,13 +37,9 @@ public sealed class DashboardTests(ApiFactory api)
 
         var today = await client.GetJsonAsync<TodayDto>("/api/v1/dashboard/today");
 
-        Assert.Equal(178m, today.Sales);
-        Assert.Equal(2, today.Bills);
-        Assert.Equal(148m, today.Cash);
-        Assert.Equal(30m, today.Upi);
-        Assert.Equal(440m, today.Udhaar);
-        Assert.Equal(340m, today.Outstanding);
-        Assert.Equal(2, today.CustomersOwing);
-        Assert.Equal(["Ramesh", "Suresh"], today.TopDues.Select(c => c.Name));
+        // One comparison, so a failure shows every figure at once (it failed once in a full run and never again).
+        Assert.Equal(
+            (Sales: 178m, Bills: 2, Cash: 148m, Upi: 30m, Udhaar: 440m, Outstanding: 340m, Owing: 2, Top: "Ramesh, Suresh"),
+            (today.Sales, today.Bills, today.Cash, today.Upi, today.Udhaar, today.Outstanding, today.CustomersOwing, string.Join(", ", today.TopDues.Select(c => c.Name))));
     }
 }
