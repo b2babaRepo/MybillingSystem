@@ -48,6 +48,8 @@ public static class ShopDataEndpoints
                 .Select(o => new { o.Id, o.Source, o.CustomerName, o.CustomerPhone, o.Address, o.Status, o.FinalAmount, o.CreatedAt, o.DeliveredAt, o.Lines })
                 .ToListAsync(ct),
             auditLog = await db.AuditEntries.AsNoTracking().OrderBy(a => a.CreatedAt).ToListAsync(ct),
+            expenses = await db.Expenses.AsNoTracking().OrderBy(e => e.OccurredAt).ToListAsync(ct),
+            cashCounts = await db.CashCounts.AsNoTracking().OrderBy(c => c.Day).ToListAsync(ct),
         };
         logger.LogInformation("Shop {ShopId} exported its data", tenant.ShopId);
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(export, Json));
@@ -73,6 +75,9 @@ public static class ShopDataEndpoints
         var shopId = tenant.ShopId;
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.AuditEntries.ExecuteDeleteAsync(ct);
+        await db.Expenses.ExecuteDeleteAsync(ct);
+        await db.CashCounts.ExecuteDeleteAsync(ct);
+        await db.BalanceChecks.ExecuteDeleteAsync(ct);
         await db.StockMovements.ExecuteDeleteAsync(ct);
         await db.OrderLines.Where(l => l.ShopId == shopId).ExecuteDeleteAsync(ct);
         await db.Orders.Where(o => o.ShopId == shopId).ExecuteDeleteAsync(ct);

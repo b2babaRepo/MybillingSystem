@@ -68,6 +68,8 @@ app.MapShopSettings();
 app.MapShopData();
 app.MapStaff();
 app.MapBalanceChecks();
+app.MapExpenses();
+app.MapCashCounts();
 app.MapPlatform();
 app.MapOtpSignIn();
 app.MapKhataView();

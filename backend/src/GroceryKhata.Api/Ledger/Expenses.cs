@@ -1,0 +1,344 @@
+using System.Globalization;
+using System.Security.Claims;
+using System.Text.RegularExpressions;
+using GroceryKhata.Api.Common;
+using GroceryKhata.Api.Identity;
+using GroceryKhata.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace GroceryKhata.Api.Ledger;
+
+/// <summary>What the money went on. The same headings a shop's kharcha book uses.</summary>
+public enum ExpenseCategory
+{
+    Tea,
+    Transport,
+    Rent,
+    Electricity,
+    Salary,
+    /// <summary>Stock bought (maal kharid). Kept apart: the profit report already counts goods at cost.</summary>
+    Purchase,
+    Packaging,
+    Repair,
+    /// <summary>Taken home (owner's drawing). Lowers the cash box, never the shop's profit.</summary>
+    Home,
+    Other,
+}
+
+/// <summary>
+/// One line of the day's kharcha page. Never deleted: a mistake is struck through (who and when), like a pen line in
+/// the notebook, so the cash book still adds up and nothing disappears quietly.
+/// </summary>
+public sealed class Expense : Entity, ITenantOwned
+{
+    public Guid ShopId { get; set; }
+
+    public DateTimeOffset OccurredAt { get; set; }
+
+    public decimal Amount { get; set; }
+
+    public ExpenseCategory Category { get; set; }
+
+    /// <summary>The words as written ("chai", "auto to mandi").</summary>
+    public string? Note { get; set; }
+
+    public PaymentMode Mode { get; set; }
+
+    public Guid CreatedByUserId { get; set; }
+
+    public DateTimeOffset? StruckAt { get; set; }
+
+    public Guid? StruckByUserId { get; set; }
+}
+
+public sealed record ExpenseRequest(Guid Id, decimal Amount, ExpenseCategory? Category, string? Note, PaymentMode? Mode, DateTimeOffset? OccurredAt);
+
+public sealed record ExpenseDto(
+    Guid Id, DateTimeOffset OccurredAt, decimal Amount, ExpenseCategory Category, string? Note, PaymentMode Mode, string? By, DateTimeOffset? StruckAt);
+
+/// <summary>One notebook page: the day's lines, and what went out by cash and by UPI (struck lines don't count).</summary>
+public sealed record ExpensePageDto(DateOnly Date, decimal Cash, decimal Upi, decimal Total, IReadOnlyList<ExpenseDto> Lines);
+
+public sealed record ExpenseReadRequest(string? Text);
+
+/// <summary>A line read from free text, for the person to check before it is saved.</summary>
+public sealed record ExpenseGuess(decimal Amount, ExpenseCategory Category, string? Note, PaymentMode Mode);
+
+/// <summary>
+/// The kharcha book: write a line the way you would in the notebook ("chai 40, auto 120, thaili 250 upi"), check what
+/// was read, save. Owners and helpers both write; anyone can strike a line within 15 minutes, after that only the owner.
+/// </summary>
+public static class ExpenseEndpoints
+{
+    public static readonly TimeSpan StrikeWindow = TimeSpan.FromMinutes(15);
+
+    public static IEndpointRouteBuilder MapExpenses(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/v1/expenses").WithTags("Expenses").RequireAuthorization(AppPolicies.ShopMember);
+        group.MapGet("", PageAsync);
+        group.MapPost("", AddAsync);
+        group.MapPost("/read", (ExpenseReadRequest request) => TypedResults.Ok(ExpenseReader.Read(request.Text)));
+        group.MapPost("/{id:guid}/strike", StrikeAsync);
+        return app;
+    }
+
+    private static async Task<IResult> PageAsync(string? date, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        DateOnly day;
+        if (string.IsNullOrEmpty(date))
+        {
+            day = IndiaTime.Today(clock);
+        }
+        else if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out day))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["date"] = ["Use a date like 2026-10-27."] });
+        }
+
+        return TypedResults.Ok(await LoadPageAsync(db, day, ct));
+    }
+
+    internal static async Task<ExpensePageDto> LoadPageAsync(AppDbContext db, DateOnly day, CancellationToken ct)
+    {
+        var (start, end) = IndiaTime.Day(day);
+        var lines = await (from e in db.Expenses.AsNoTracking()
+                           where e.OccurredAt >= start && e.OccurredAt < end
+                           join u in db.Users.AsNoTracking() on e.CreatedByUserId equals u.Id into users
+                           from u in users.DefaultIfEmpty()
+                           orderby e.OccurredAt, e.CreatedAt
+                           select new ExpenseDto(e.Id, e.OccurredAt, e.Amount, e.Category, e.Note, e.Mode, u == null ? null : u.FullName, e.StruckAt))
+            .ToListAsync(ct);
+        var live = lines.Where(l => l.StruckAt is null).ToList();
+        var cash = live.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount);
+        var upi = live.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount);
+        return new ExpensePageDto(day, cash, upi, cash + upi, lines);
+    }
+
+    /// <summary>Saves one line. Safe to send twice (the phone's ID makes it the same line), so an offline retry is harmless.</summary>
+    private static async Task<IResult> AddAsync(ExpenseRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (request.Id == Guid.Empty)
+        {
+            errors[nameof(request.Id)] = ["The app must send an ID for every new record."];
+        }
+
+        if (request.Amount <= 0 || request.Amount > Money.MaxAmount || decimal.Round(request.Amount, 2) != request.Amount)
+        {
+            errors[nameof(request.Amount)] = ["Enter the amount spent."];
+        }
+
+        var note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
+        if (note?.Length > 120)
+        {
+            errors[nameof(request.Note)] = ["Keep the note short (120 letters)."];
+        }
+
+        if (request.Mode is not (null or PaymentMode.Cash or PaymentMode.Upi))
+        {
+            errors[nameof(request.Mode)] = ["Cash or UPI."];
+        }
+
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        if (await db.Expenses.AsNoTracking().SingleOrDefaultAsync(e => e.Id == request.Id, ct) is { } existing)
+        {
+            return TypedResults.Ok(ToDto(existing));
+        }
+
+        var now = clock.GetUtcNow();
+        var expense = new Expense
+        {
+            Id = request.Id,
+            OccurredAt = request.OccurredAt is { } at && at <= now ? at.ToUniversalTime() : now,
+            Amount = request.Amount,
+            Category = request.Category ?? ExpenseReader.Guess(note ?? "").Category,
+            Note = note,
+            Mode = request.Mode ?? PaymentMode.Cash,
+            CreatedByUserId = user.UserId()!.Value,
+        };
+        db.Expenses.Add(expense);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Created($"/api/v1/expenses/{expense.Id}", ToDto(expense));
+    }
+
+    private static async Task<IResult> StrikeAsync(Guid id, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var expense = await db.Expenses.SingleOrDefaultAsync(e => e.Id == id, ct);
+        if (expense is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var now = clock.GetUtcNow();
+        var isOwner = user.FindFirst(AppClaims.Role)?.Value == RoleNames.ToName(ShopRole.Owner);
+        if (expense.StruckAt is null)
+        {
+            if (!isOwner && now - expense.CreatedAt > StrikeWindow)
+            {
+                return TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Only the owner can strike an older line.");
+            }
+
+            expense.StruckAt = now;
+            expense.StruckByUserId = user.UserId();
+            await db.SaveChangesAsync(ct);
+        }
+
+        return TypedResults.Ok(ToDto(expense));
+    }
+
+    private static ExpenseDto ToDto(Expense e) => new(e.Id, e.OccurredAt, e.Amount, e.Category, e.Note, e.Mode, null, e.StruckAt);
+}
+
+/// <summary>
+/// Reads a notebook line like "chai 40, auto 120, thaili 250 upi" or "किराया 5000" into lines with an amount, a
+/// heading, and cash or UPI. Rules only (fast, works with no AI key): a new line starts at a comma, "aur", or when a
+/// second amount or a second thing appears. The person checks every line before it is saved.
+/// </summary>
+public static partial class ExpenseReader
+{
+    private static readonly (ExpenseCategory Category, string[] Words)[] Headings =
+    [
+        (ExpenseCategory.Tea, ["chai", "chay", "tea", "nashta", "naashta", "snacks", "pani", "चाय", "नाश्ता", "पानी"]),
+        (ExpenseCategory.Transport, ["auto", "tempo", "bhada", "bhaada", "rickshaw", "riksha", "petrol", "diesel", "transport", "gaadi", "gadi", "ऑटो", "टेम्पो", "भाड़ा", "भाडा", "पेट्रोल", "गाड़ी"]),
+        (ExpenseCategory.Rent, ["kiraya", "kiraaya", "rent", "किराया"]),
+        (ExpenseCategory.Electricity, ["bijli", "light", "electricity", "बिजली"]),
+        (ExpenseCategory.Salary, ["salary", "tankhwah", "tankha", "pagar", "pagaar", "majdoori", "mazdoori", "staff", "वेतन", "तनख्वाह", "पगार", "मजदूरी"]),
+        (ExpenseCategory.Purchase, ["maal", "mal", "purchase", "mandi", "wholesale", "thok", "माल", "मंडी"]),
+        (ExpenseCategory.Packaging, ["thaili", "thaila", "polythene", "packing", "carrybag", "थैली", "पन्नी"]),
+        (ExpenseCategory.Repair, ["repair", "marammat", "mistri", "मरम्मत", "मिस्त्री"]),
+        (ExpenseCategory.Home, ["ghar", "home", "personal", "घर"]),
+    ];
+
+    private static readonly string[] UpiWords = ["upi", "online", "gpay", "phonepe", "paytm", "bank", "यूपीआई", "ऑनलाइन"];
+
+    private static readonly Dictionary<string, decimal> NumberWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["bees"] = 20, ["बीस"] = 20, ["tees"] = 30, ["तीस"] = 30, ["chalis"] = 40, ["chaalis"] = 40, ["चालीस"] = 40,
+        ["pachas"] = 50, ["pachaas"] = 50, ["पचास"] = 50, ["saath"] = 60, ["साठ"] = 60, ["sattar"] = 70, ["सत्तर"] = 70,
+        ["assi"] = 80, ["अस्सी"] = 80, ["nabbe"] = 90, ["नब्बे"] = 90,
+    };
+
+    private static readonly Dictionary<string, decimal> Multipliers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["sau"] = 100, ["सौ"] = 100, ["hazar"] = 1000, ["hazaar"] = 1000, ["हजार"] = 1000, ["हज़ार"] = 1000,
+    };
+
+    public static IReadOnlyList<ExpenseGuess> Read(string? text)
+    {
+        var result = new List<ExpenseGuess>();
+        if (string.IsNullOrWhiteSpace(text) || text.Length > 1000)
+        {
+            return result;
+        }
+
+        foreach (var part in Separator().Split(text))
+        {
+            decimal? amount = null;
+            var words = new List<string>();
+            var upi = false;
+            var amountFirst = false; // "300 mandi tempo": words after a leading amount all belong to it
+
+            void Flush()
+            {
+                if (amount is > 0)
+                {
+                    var note = words.Count == 0 ? null : string.Join(' ', words);
+                    result.Add(new ExpenseGuess(amount.Value, Guess(note ?? "").Category, note, upi ? PaymentMode.Upi : PaymentMode.Cash));
+                }
+
+                amount = null;
+                words = [];
+                upi = false;
+                amountFirst = false;
+            }
+
+            foreach (var raw in part.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var token = raw.Trim('₹', '.', ':', '-', '/', '=').ToLowerInvariant();
+                if (token is "rs" or "rupaye" or "rupees" or "rupay" or "रुपये" or "रुपए" or "रु" or "")
+                {
+                    continue;
+                }
+
+                if (UpiWords.Contains(token))
+                {
+                    upi = true;
+                    continue;
+                }
+
+                if (ParseNumber(token) is { } number)
+                {
+                    if (Multipliers.TryGetValue(token, out var times) && amount is { } before)
+                    {
+                        amount = before * times; // "do sau" = 200
+                    }
+                    else if (amount is not null)
+                    {
+                        Flush(); // a second amount: a new line ("40 120" or "chai 40 auto 120")
+                        amount = number;
+                        amountFirst = true;
+                    }
+                    else
+                    {
+                        amount = number;
+                        amountFirst = words.Count == 0;
+                    }
+
+                    continue;
+                }
+
+                if (amount is not null && words.Count > 0 && !amountFirst)
+                {
+                    Flush(); // "chai 40 auto": a new thing after the amount starts the next line
+                }
+
+                words.Add(raw.Trim('₹', ',', '.'));
+            }
+
+            Flush();
+        }
+
+        return result;
+    }
+
+    /// <summary>The heading for some words; Other when nothing matches.</summary>
+    public static ExpenseGuess Guess(string note)
+    {
+        var lower = note.ToLowerInvariant();
+        foreach (var (category, words) in Headings)
+        {
+            if (words.Any(w => Regex.IsMatch(lower, $@"(^|[^\p{{L}}]){Regex.Escape(w)}([^\p{{L}}]|$)")))
+            {
+                return new ExpenseGuess(0, category, note, PaymentMode.Cash);
+            }
+        }
+
+        return new ExpenseGuess(0, ExpenseCategory.Other, note, PaymentMode.Cash);
+    }
+
+    private static decimal? ParseNumber(string token)
+    {
+        if (decimal.TryParse(token.Replace(",", ""), NumberStyles.Number, CultureInfo.InvariantCulture, out var value))
+        {
+            return value;
+        }
+
+        if (NumberWords.TryGetValue(token, out var tens))
+        {
+            return tens;
+        }
+
+        if (Multipliers.TryGetValue(token, out var times))
+        {
+            return times; // "sau" alone = 100; after a number it multiplies (handled by the caller)
+        }
+
+        return Planner.GroceryWords.Numbers.TryGetValue(token, out var small) ? small : null;
+    }
+
+    [GeneratedRegex(@"\s*(?:,|;|\n|\+|\baur\b|और)\s*", RegexOptions.IgnoreCase)]
+    private static partial Regex Separator();
+}

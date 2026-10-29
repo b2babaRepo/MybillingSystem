@@ -144,7 +144,7 @@ export interface Statement {
 
 export interface CashBookLine {
   occurredAt: string
-  source: 'bill' | 'khata_payment' | 'reversal'
+  source: 'bill' | 'khata_payment' | 'reversal' | 'expense'
   who: string
   mode: PaymentMode
   amount: number
@@ -159,6 +159,9 @@ export interface CashBook {
   salesTotal: number
   udhaarGiven: number
   lines: CashBookLine[]
+  spentCash?: number
+  spentUpi?: number
+  netCash?: number
 }
 
 export interface BillLineView {

@@ -18,7 +18,7 @@ namespace GroceryKhata.Api.Persistence;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenant) : DbContext(options)
 {
     /// <summary>Tables protected by row-level security. Keep in step with <see cref="ITenantOwned"/> entities.</summary>
-    public static readonly string[] ShopOwnedTables = ["products", "customers", "ledger_entries", "bills", "bill_lines", "orders", "order_lines", "stock_movements", "audit_log"];
+    public static readonly string[] ShopOwnedTables = ["products", "customers", "ledger_entries", "bills", "bill_lines", "orders", "order_lines", "stock_movements", "audit_log", "expenses", "balance_checks", "cash_counts"];
 
     private Guid CurrentShopId => tenant.ShopId;
 
@@ -53,6 +53,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<AiProposal> AiProposals => Set<AiProposal>();
 
     public DbSet<BalanceCheck> BalanceChecks => Set<BalanceCheck>();
+
+    public DbSet<Expense> Expenses => Set<Expense>();
+
+    public DbSet<CashCount> CashCounts => Set<CashCount>();
 
     public DbSet<Dispute> Disputes => Set<Dispute>();
 
@@ -219,6 +223,23 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(p => new { p.ShopId, p.CatalogueItemId });
             b.HasOne<CatalogueItem>().WithMany().HasForeignKey(p => p.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CashCount>(b =>
+        {
+            b.ToTable("cash_counts");
+            b.HasTenantKey();
+            b.Property(c => c.Note).HasMaxLength(200);
+            b.HasIndex(c => new { c.ShopId, c.Day }).IsUnique();
+        });
+
+        modelBuilder.Entity<Expense>(b =>
+        {
+            b.ToTable("expenses");
+            b.HasTenantKey();
+            b.Property(e => e.Amount).HasPrecision(12, 2);
+            b.Property(e => e.Note).HasMaxLength(120);
+            b.HasIndex(e => new { e.ShopId, e.OccurredAt });
         });
 
         modelBuilder.Entity<BalanceCheck>(b =>

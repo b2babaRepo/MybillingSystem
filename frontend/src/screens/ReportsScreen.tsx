@@ -63,6 +63,16 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             <span className="text-sm font-semibold text-muted">{t('reports.profit')}</span>
             <span className="text-2xl font-extrabold text-jama">{formatRupees(data.estimatedProfit)}</span>
             {data.profitCoverage < 1 && <span className="text-sm text-muted">{t('reports.coverage', { percent: Math.round(data.profitCoverage * 100) })}</span>}
+            {/* Profit on goods less the month's kharcha = what the shop really earned. */}
+            {(data.expenses ?? 0) > 0 && (
+              <div className="mt-2 flex flex-col gap-1 border-t border-[#edf2f1] pt-2 text-sm">
+                <span className="flex justify-between"><span className="text-muted">{t('reports.expenses')}</span><span className="font-bold text-due">−{formatRupees(data.expenses ?? 0)}</span></span>
+                <span className="flex justify-between text-base"><span className="font-semibold">{t('reports.netProfit')}</span><span className="font-extrabold">{formatRupees(data.netProfit ?? data.estimatedProfit)}</span></span>
+              </div>
+            )}
+            {((data.stockPurchases ?? 0) > 0 || (data.takenHome ?? 0) > 0) && (
+              <span className="text-xs text-muted">{t('reports.notCosts', { stock: formatRupees(data.stockPurchases ?? 0), home: formatRupees(data.takenHome ?? 0) })}</span>
+            )}
             <span className="mt-2 flex justify-between border-t border-[#edf2f1] pt-2 text-sm">
               <span className="text-muted">{t('reports.outstanding')}</span>
               <span className="font-bold text-due">{formatRupees(data.outstanding)}</span>

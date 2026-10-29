@@ -42,10 +42,14 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
 
       {isOwner && <BalanceAlert />}
 
-      <button onClick={() => navigate('/cashbook')} className="mx-4 mt-4 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
-        <span>{t('book.todayLink')}</span>
-        <span aria-hidden="true">→</span>
-      </button>
+      <div className="mx-4 mt-4 grid grid-cols-2 gap-3">
+        <button onClick={() => navigate('/cashbook')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+          <span>{t('book.todayLink')}</span><span aria-hidden="true">→</span>
+        </button>
+        <button onClick={() => navigate('/expenses')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+          <span>{t('expense.link')}</span><span aria-hidden="true">→</span>
+        </button>
+      </div>
 
       <div className="mx-4 mt-3 grid grid-cols-2 gap-3">
         <button onClick={() => navigate('/dues')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">

@@ -42,7 +42,14 @@ public sealed record MonthReport(
     decimal EstimatedProfit,
     decimal ProfitCoverage,
     IReadOnlyList<TopItem> TopItems,
-    IReadOnlyList<DailyTotals> Days);
+    IReadOnlyList<DailyTotals> Days,
+    decimal Expenses = 0,
+    decimal StockPurchases = 0,
+    decimal TakenHome = 0)
+{
+    /// <summary>Estimated profit less running costs. Stock bought isn't taken off (sales already count goods at cost); money taken home isn't a cost.</summary>
+    public decimal NetProfit => EstimatedProfit - Expenses;
+}
 
 /// <summary>
 /// Ageing by first-in, first-out: every payment (and every reversal of udhaar) pays off the oldest udhaar first,
@@ -195,9 +202,15 @@ public static class ReportEndpoints
             .OrderByDescending(t => t.Amount).Take(10).ToList();
 
         var outstanding = await db.Customers.AsNoTracking().Where(c => c.Balance > 0).SumAsync(c => (decimal?)c.Balance, ct) ?? 0m;
+        var spent = await db.Expenses.AsNoTracking()
+            .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null)
+            .GroupBy(e => e.Category).Select(g => new { g.Key, Total = g.Sum(e => e.Amount) })
+            .ToDictionaryAsync(g => g.Key, g => g.Total, ct);
+        decimal Spent(ExpenseCategory c) => spent.GetValueOrDefault(c);
         return new MonthReport(
             $"{period.Year:D4}-{period.Month:D2}", sales, bills.Count, Received(PaymentMode.Cash), Received(PaymentMode.Upi), udhaar, khataCollected,
-            outstanding, profit, sales == 0 ? 0 : decimal.Round(costed.Sum(l => l.Amount) / sales, 2), top, days);
+            outstanding, profit, sales == 0 ? 0 : decimal.Round(costed.Sum(l => l.Amount) / sales, 2), top, days,
+            spent.Values.Sum() - Spent(ExpenseCategory.Purchase) - Spent(ExpenseCategory.Home), Spent(ExpenseCategory.Purchase), Spent(ExpenseCategory.Home));
     }
 
     private static async Task<IResult> DuesCsvAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)

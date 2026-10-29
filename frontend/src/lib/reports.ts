@@ -34,6 +34,11 @@ export interface MonthReport {
   outstanding: number
   estimatedProfit: number
   profitCoverage: number
+  /** Running costs from the kharcha book (not stock bought, not money taken home). */
+  expenses?: number
+  stockPurchases?: number
+  takenHome?: number
+  netProfit?: number
   topItems: { name: string; quantity: number; unit: Unit; amount: number }[]
   days: { date: string; sales: number; received: number }[]
 }
