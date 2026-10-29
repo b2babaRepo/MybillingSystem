@@ -24,7 +24,7 @@ They are never stored in the repo.
 | Disk free | `node_exporter` or a cron `df` check | Under 20% |
 | API 5xx rate | Nginx access log (`goaccess`, or Loki later) | Over 1% for 5 min |
 | p95 latency | Nginx `$request_time` | Over 500 ms for 10 min, evenings 6 to 10 pm |
-| Ledger balance check | `/api/v1/ledger/reconcile`, per shop | Any mismatch (job not built yet; see below) |
+| Ledger balance check | `/api/v1/ledger/reconcile`, per shop | Any mismatch (the nightly check at 3 am logs an error and shows the owner) |
 | Certificate expiry | Monitor's SSL check | Under 14 days |
 
 Alerts go to the owner's phone (the monitor's app or Telegram) and to email.
@@ -73,6 +73,7 @@ Local results from 27 Oct 2026. They were measured on a Windows laptop, with the
 | Before the fix | 25 shops × 2 | 26.6 | 1137 ms | Fail |
 | After one connection per request | 25 × 2 | 29.1 | 552–603 ms | Fail (bill p99 3.5–5.9 s) |
 | After one connection per request | 10 × 2 | 12.3 | 403 ms | Pass |
+| 29 Oct, with AI ordering, staff, OTP and platform admin (API not pinned to 1 core) | 25 × 2 | 29.7 | 176 ms overall, bill 600 ms, p99 4.6 s | Pass overall; bill p95 over |
 
 At 25 × 2, the API used about 26% of its core and Postgres was nearly idle. Its sessions were waiting on the client, not on
 locks or disk, and turning off synchronous commit didn't help. So the slow tail comes from this laptop (the load generator,
@@ -85,7 +86,4 @@ the API to run side by side during the evening peak. Drop to KVM 1 only if the V
 
 ## Known gaps
 
-- PIN sign-in doesn't exist yet. Password sign-in is rate-limited per IP (`Auth:AuthRequestsPerMinutePerIp`). Add
-  per-account lockout when PINs arrive.
-- There is no nightly job that reconciles every shop yet.
 - Privacy policy and terms are drafts and need review by a lawyer (DPDP Act 2023) before launch.

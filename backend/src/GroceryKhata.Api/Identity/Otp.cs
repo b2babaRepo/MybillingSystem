@@ -41,6 +41,9 @@ public sealed class OtpOptions
 
     /// <summary>Wait before another code to the same phone.</summary>
     public int ResendSeconds { get; set; } = 30;
+
+    /// <summary>All codes sent in 24 hours, across every number: a ceiling on SMS cost if someone tries many numbers.</summary>
+    public int MaxSendsPerDay { get; set; } = 2000;
 }
 
 public sealed record OtpSendRequest(string? Phone);
@@ -160,6 +163,12 @@ public static class OtpSignIn
         if (recent.Count >= o.MaxSendsPerWindow || recent.Any(t => t > now.AddSeconds(-o.ResendSeconds)))
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Please wait before asking for another code.");
+        }
+
+        if (await db.OtpCodes.CountAsync(c => c.CreatedAt > now.AddDays(-1), ct) >= o.MaxSendsPerDay)
+        {
+            logger.LogError("Daily sign-in code ceiling of {Max} reached: possible SMS abuse", o.MaxSendsPerDay);
+            return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Codes by SMS aren't available right now.", detail: "Please sign in with your password.");
         }
 
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");

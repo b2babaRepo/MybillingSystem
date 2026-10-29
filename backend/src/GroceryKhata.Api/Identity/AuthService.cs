@@ -115,7 +115,7 @@ public sealed class AuthService(
     {
         if (user is null)
         {
-            user = new User { Phone = phone, FullName = fullName!, PreferredLanguage = language };
+            user = new User { Phone = phone, FullName = fullName!, PreferredLanguage = language, PhoneVerifiedAt = clock.GetUtcNow() };
             db.Users.Add(user);
             logger.LogInformation("User {UserId} joined with a phone code", user.Id);
             return AuthResult<AuthResponse>.Ok(await IssueAsync(user, membership: null, cancellationToken));
@@ -132,6 +132,7 @@ public sealed class AuthService(
         }
 
         user.FailedSignInCount = 0;
+        user.PhoneVerifiedAt = clock.GetUtcNow();
         var memberships = await ListMembershipsAsync(user.Id, cancellationToken);
         var only = memberships.Count == 1 ? await FindUsableMembershipAsync(memberships[0].MembershipId, user.Id, cancellationToken) : null;
         return AuthResult<AuthResponse>.Ok(await IssueAsync(user, only, cancellationToken));

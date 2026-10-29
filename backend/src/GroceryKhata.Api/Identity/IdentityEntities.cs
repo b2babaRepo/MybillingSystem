@@ -26,6 +26,12 @@ public sealed class User : Entity
     /// recorded, specific consent). Null: not agreed, or withdrawn, which also erases their AI records.
     /// </summary>
     public DateTimeOffset? AiConsentAt { get; set; }
+
+    /// <summary>
+    /// When an SMS code last proved this person holds <see cref="Phone"/>. A password sign-up alone doesn't, so anything
+    /// that trusts the number itself (being made a platform admin) needs this.
+    /// </summary>
+    public DateTimeOffset? PhoneVerifiedAt { get; set; }
 }
 
 /// <summary>A user's role in one shop. A user can own or work in many shops. Unique (user_id, shop_id).</summary>

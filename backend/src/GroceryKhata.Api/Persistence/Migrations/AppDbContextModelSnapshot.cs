@@ -1182,6 +1182,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("phone");
 
+                    b.Property<DateTimeOffset?>("PhoneVerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("phone_verified_at");
+
                     b.Property<string>("PreferredLanguage")
                         .IsRequired()
                         .HasMaxLength(5)

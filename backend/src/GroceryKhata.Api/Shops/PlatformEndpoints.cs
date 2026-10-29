@@ -228,8 +228,12 @@ public sealed class PlatformOptions
     public bool HoldNewShops { get; set; }
 }
 
-/// <summary>At start-up, adds the configured phones to platform_admins. Removing a phone from config doesn't remove anyone.</summary>
-public sealed class PlatformAdminSeeder(IServiceScopeFactory scopes, Microsoft.Extensions.Options.IOptions<PlatformOptions> options, ILogger<PlatformAdminSeeder> logger) : IHostedService
+/// <summary>
+/// At start-up, adds the configured phones to platform_admins. Only accounts whose number an SMS code has proved (in
+/// Development, any), so nobody can claim admin by signing up with the admin's number first. Removing a phone from
+/// config doesn't remove anyone.
+/// </summary>
+public sealed class PlatformAdminSeeder(IServiceScopeFactory scopes, Microsoft.Extensions.Options.IOptions<PlatformOptions> options, IHostEnvironment env, ILogger<PlatformAdminSeeder> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -241,7 +245,10 @@ public sealed class PlatformAdminSeeder(IServiceScopeFactory scopes, Microsoft.E
 
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var users = await db.Users.Where(u => phones.Contains(u.Phone) && !db.PlatformAdmins.Any(a => a.UserId == u.Id)).Select(u => u.Id).ToListAsync(cancellationToken);
+        var anyAccount = env.IsDevelopment();
+        var users = await db.Users
+            .Where(u => phones.Contains(u.Phone) && (anyAccount || u.PhoneVerifiedAt != null) && !db.PlatformAdmins.Any(a => a.UserId == u.Id))
+            .Select(u => u.Id).ToListAsync(cancellationToken);
         foreach (var userId in users)
         {
             db.PlatformAdmins.Add(new PlatformAdmin { UserId = userId });
