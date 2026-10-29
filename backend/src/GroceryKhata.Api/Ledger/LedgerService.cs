@@ -354,19 +354,36 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 }
 
                 await db.SaveChangesAsync(cancellationToken);
-                foreach (var (productId, quantity) in sold)
+
+                // The evening rush showed bills waiting on each other here: two cashiers selling the same items lock the
+                // same product rows. So keep the locks short: every product's stock in one statement, in id order (two
+                // bills can't deadlock), and the customer's new balance read straight from its update.
+                if (sold.Count > 0)
                 {
-                    await db.Products.Where(p => p.Id == productId)
-                        .ExecuteUpdateAsync(s => s.SetProperty(p => p.Stock, p => p.Stock - quantity), cancellationToken);
+                    var ordered = sold.OrderBy(x => x.ProductId).ToList();
+                    var ids = ordered.Select(x => x.ProductId).ToArray();
+                    var quantities = ordered.Select(x => x.Quantity).ToArray();
+                    await db.Database.ExecuteSqlAsync(
+                        $"UPDATE products AS p SET stock = p.stock - v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id",
+                        cancellationToken);
                 }
 
-                if (bill.CustomerId is { } owingCustomerId && total - bill.PaidAmount != 0)
+                decimal? balance = null;
+                if (bill.CustomerId is { } owingCustomerId)
                 {
-                    await AdjustBalanceAsync(owingCustomerId, total - bill.PaidAmount, cancellationToken);
+                    var delta = total - bill.PaidAmount;
+                    balance = delta != 0
+                        ? (await db.Database.SqlQuery<decimal>(
+                            $"UPDATE customers SET balance = balance + {delta} WHERE id = {owingCustomerId} RETURNING balance AS \"Value\"")
+                            .ToListAsync(cancellationToken)).Single()
+                        : await BalanceAsync(owingCustomerId, cancellationToken);
                 }
 
                 await transaction.CommitAsync(cancellationToken);
-                return LedgerResult<BillDto>.Created((await FindBillAsync(bill.Id, cancellationToken))!);
+                return LedgerResult<BillDto>.Created(new BillDto(
+                    bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
+                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList(),
+                    balance));
             });
 
     /// <summary>

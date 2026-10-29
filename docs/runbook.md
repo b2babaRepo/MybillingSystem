@@ -74,6 +74,7 @@ Local results from 27 Oct 2026. They were measured on a Windows laptop, with the
 | After one connection per request | 25 × 2 | 29.1 | 552–603 ms | Fail (bill p99 3.5–5.9 s) |
 | After one connection per request | 10 × 2 | 12.3 | 403 ms | Pass |
 | 29 Oct, with AI ordering, staff, OTP and platform admin (API not pinned to 1 core) | 25 × 2 | 29.7 | 176 ms overall, bill 600 ms, p99 4.6 s | Pass overall; bill p95 over |
+| 29 Oct, after batching a bill's stock update and dropping its read-back (same setup) | 25 × 2 | 30.3 | 76 ms overall, bill 82 ms | Pass. p99 of 1.5–4 s on every action, reads included, so the tail is this laptop (load generator, console logs), not bill locks: recheck on staging |
 
 At 25 × 2, the API used about 26% of its core and Postgres was nearly idle. Its sessions were waiting on the client, not on
 locks or disk, and turning off synchronous commit didn't help. So the slow tail comes from this laptop (the load generator,
