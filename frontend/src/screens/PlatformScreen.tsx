@@ -5,6 +5,8 @@ import { BackIcon } from '../components/Icons'
 import { Button } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatDateTime, formatPhone } from '../lib/format'
+import { useSession } from '../lib/data'
+import type { AdminRole } from '../lib/types'
 import { navigate } from '../router'
 
 interface Overview { shops: number; active: number; blocked: number; awaitingApproval: number; newThisWeek: number; households: number }
@@ -32,6 +34,8 @@ type Status = 'new' | 'active' | 'blocked' | 'all'
  */
 export function PlatformScreen() {
   const { t } = useTranslation()
+  // What this admin may do; the server checks the same on every request (a session from before roles counts as super).
+  const role: AdminRole = useSession()?.user.platformRole ?? 'super'
   const [status, setStatus] = useState<Status>('new')
   const [q, setQ] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
@@ -64,6 +68,8 @@ export function PlatformScreen() {
         ))}
       </div>
 
+      {role === 'super' && <div className="px-4 pb-3"><ManageAdmins /></div>}
+
       <div className="flex flex-col gap-3 px-4">
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-white p-1 text-sm font-semibold">
           {(['new', 'active', 'blocked', 'all'] as const).map((s) => (
@@ -89,7 +95,7 @@ export function PlatformScreen() {
                 </span>
                 <StatusChip shop={s} />
               </button>
-              {openId === s.id && <ShopDetail id={s.id} />}
+              {openId === s.id && <ShopDetail id={s.id} role={role} />}
             </li>
           ))}
         </ul>
@@ -108,7 +114,9 @@ function StatusChip({ shop }: { shop: ShopRow }) {
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${style}`}>{label}</span>
 }
 
-function ShopDetail({ id }: { id: string }) {
+function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
+  const canApprove = role === 'super' || role === 'approver'
+  const canSupport = role === 'super' || role === 'support'
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const detail = useQuery({ queryKey: ['platform', 'shop', id], queryFn: () => api<Detail>(`/v1/platform/shops/${id}`) })
@@ -163,25 +171,107 @@ function ShopDetail({ id }: { id: string }) {
             <span className="min-w-0 flex-1"><b>{p.name}</b> · {p.role === 'owner' ? t('staff.owner') : t('staff.helper')}{!p.isActive && ` · ${t('staff.off')}`}<br /><span className="text-muted">{formatPhone(p.phone)}</span></span>
             <a href={`tel:${p.phone}`} className="flex min-h-11 items-center rounded-xl border border-line px-3 font-semibold no-underline">{t('platform.call')}</a>
             <a href={`https://wa.me/${p.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex min-h-11 items-center rounded-xl border border-line px-3 font-semibold no-underline">WhatsApp</a>
-            {p.lockedOut && <button disabled={busy} onClick={() => void run(`/v1/platform/users/${p.userId}/unlock`, {}, 'POST', t('platform.unlocked', { name: p.name }))} className="min-h-11 rounded-xl bg-amber-100 px-3 font-semibold text-amber-900">{t('platform.unlock')}</button>}
+            {p.lockedOut && canSupport && <button disabled={busy} onClick={() => void run(`/v1/platform/users/${p.userId}/unlock`, {}, 'POST', t('platform.unlocked', { name: p.name }))} className="min-h-11 rounded-xl bg-amber-100 px-3 font-semibold text-amber-900">{t('platform.unlock')}</button>}
           </li>
         ))}
       </ul>
 
       <label className="flex flex-col gap-1 text-sm font-bold">
         {t('platform.note')}
-        <textarea value={note ?? d.adminNote ?? ''} onChange={(e) => setNote(e.target.value)} rows={3} className="rounded-xl border border-line p-3 font-normal" placeholder={t('platform.notePlaceholder')} />
+        <textarea value={note ?? d.adminNote ?? ''} onChange={(e) => setNote(e.target.value)} rows={3} readOnly={!canSupport}
+          className="rounded-xl border border-line p-3 font-normal read-only:bg-ground" placeholder={t('platform.notePlaceholder')} />
       </label>
       {note !== null && note !== (d.adminNote ?? '') && (
         <Button tone="plain" disabled={busy} onClick={() => void run(`/v1/platform/shops/${id}/note`, { note }, 'PUT', t('platform.noteSaved')).then(() => setNote(null))}>{t('platform.saveNote')}</Button>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
+      {canApprove && <div className="grid grid-cols-2 gap-2">
         {d.shop.isActive && !d.shop.approvedAt && <Button disabled={busy} onClick={() => void run(`/v1/platform/shops/${id}/approve`)}>{t('platform.approve')}</Button>}
         {d.shop.isActive
           ? <button disabled={busy} onClick={block} className="min-h-12 rounded-2xl border border-line font-bold text-red-700">{t('platform.block')}</button>
           : <Button disabled={busy} onClick={() => void run(`/v1/platform/shops/${id}/unblock`)}>{t('platform.unblock')}</Button>}
-      </div>
+      </div>}
     </div>
+  )
+}
+
+interface Admin { userId: string; name: string; phone: string; role: AdminRole; addedAt: string; addedBy: string | null }
+
+const ROLES: AdminRole[] = ['super', 'approver', 'support']
+
+/**
+ * Super admins only: who else has admin access, and what they may do. Add a person by their phone number (they need
+ * an account, and on the live server must have signed in once with an SMS code), change their role, or remove them;
+ * every change works on their next tap and is logged. There is always at least one super admin.
+ */
+function ManageAdmins() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const me = useSession()?.user.id
+  const admins = useQuery({ queryKey: ['platform', 'admins'], queryFn: () => api<Admin[]>('/v1/platform/admins') })
+  const [phone, setPhone] = useState('')
+  const [role, setRole] = useState<AdminRole>('support')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+
+  async function run(path: string, method: 'POST' | 'PUT' | 'DELETE', body?: object, done?: string) {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const list = await api<Admin[]>(path, method, body)
+      queryClient.setQueryData(['platform', 'admins'], list)
+      if (method === 'POST') setPhone('')
+      if (done) setMessage(done)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
+        <h2 className="text-lg font-bold">{t('admins.title')}{admins.data ? ` (${admins.data.length})` : ''}</h2>
+        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+      </button>
+      {open && <>
+      <p className="text-sm text-muted">{t('admins.hint')}</p>
+      <ul className="flex flex-col divide-y divide-[#edf2f1]">
+        {admins.data?.map((a) => (
+          <li key={a.userId} className="flex flex-wrap items-center gap-2 py-2">
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="font-semibold">{a.name}{a.userId === me ? ` (${t('admins.you')})` : ''}</span>
+              <span className="text-xs text-muted">{formatPhone(a.phone)}{a.addedBy ? ` · ${t('admins.addedBy', { name: a.addedBy })}` : ''}</span>
+            </span>
+            <label className="sr-only" htmlFor={`role-${a.userId}`}>{t('admins.role')}</label>
+            <select id={`role-${a.userId}`} value={a.role} disabled={busy}
+              onChange={(e) => void run(`/v1/platform/admins/${a.userId}`, 'PUT', { role: e.target.value }, t('admins.changed', { name: a.name }))}
+              className="h-11 rounded-xl border border-line bg-white px-2">
+              {ROLES.map((r) => <option key={r} value={r}>{t(`admins.roles.${r}`)}</option>)}
+            </select>
+            <button disabled={busy} aria-label={t('admins.remove', { name: a.name })}
+              onClick={() => confirm(t('admins.removeAsk', { name: a.name })) && void run(`/v1/platform/admins/${a.userId}`, 'DELETE', undefined, t('admins.removed', { name: a.name }))}
+              className="h-11 rounded-xl border border-line px-3 text-sm font-semibold text-red-700">{t('admins.removeShort')}</button>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-col gap-2 rounded-xl bg-ground p-3">
+        <span className="font-semibold">{t('admins.addTitle')}</span>
+        <label className="sr-only" htmlFor="admin-phone">{t('staff.phone')}</label>
+        <input id="admin-phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder={t('staff.phone')}
+          className="h-12 rounded-xl border border-line bg-white px-3" />
+        <label className="sr-only" htmlFor="admin-role">{t('admins.role')}</label>
+        <select id="admin-role" value={role} onChange={(e) => setRole(e.target.value as AdminRole)} className="h-12 rounded-xl border border-line bg-white px-3">
+          {ROLES.map((r) => <option key={r} value={r}>{t(`admins.roles.${r}`)} — {t(`admins.can.${r}`)}</option>)}
+        </select>
+        <Button disabled={busy || phone.trim().length < 10} onClick={() => void run('/v1/platform/admins', 'POST', { phone: phone.trim(), role }, t('admins.added'))}>
+          {t('admins.add')}
+        </Button>
+      </div>
+      {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      </>}
+    </section>
   )
 }

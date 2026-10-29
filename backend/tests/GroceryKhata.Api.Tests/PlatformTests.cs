@@ -3,7 +3,9 @@ using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Hosting;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Shops;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using System.Net.Http.Json;
 
 namespace GroceryKhata.Api.Tests;
 
@@ -88,6 +90,70 @@ public sealed class PlatformTests(ApiFactory api)
         var admin = await AdminAsync();
         await admin.PostJsonAsync($"/api/v1/platform/shops/{shopAuth.ShopId}/approve", new { });
         Assert.Single(await household.GetJsonAsync<List<Planner.ShopDirectoryDto>>(url));
+    }
+
+    [Fact]
+    public async Task A_super_admin_gives_support_or_approver_access_and_each_role_can_do_only_its_part()
+    {
+        var super = await AdminAsync();
+        var (_, shopAuth) = await api.SignUpAsync("Gupta Kirana");
+        var shopId = shopAuth.ShopId;
+
+        // The helper signs up, and proves the number with an SMS code before they can be given access.
+        var phone = ApiFactory.NewPhone();
+        await api.SignUpAsync("Helper's own shop", phone);
+        Assert.Equal(HttpStatusCode.BadRequest, (await super.PostJsonAsync("/api/v1/platform/admins", new { phone, role = "support" })).StatusCode);
+        await SignInWithCodeAsync(phone);
+
+        var admins = await (await super.PostJsonAsync("/api/v1/platform/admins", new { phone, role = "support" })).ReadAsync<List<AdminDto>>();
+        var helperId = Assert.Single(admins, a => a.Role == AdminRole.Support).UserId;
+
+        // Their next sign-in carries the admin mark; the role itself is checked on every request.
+        var signedIn = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-in", new { phone, password = "secret123" })).ReadAsync<AuthResponse>();
+        Assert.Equal(AdminRole.Support, signedIn.User.PlatformRole);
+        var helper = api.CreateClient();
+        helper.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", signedIn.AccessToken);
+
+        // Support: sees shops, writes notes; can't approve or manage admins.
+        Assert.Equal(HttpStatusCode.OK, (await helper.GetAsync("/api/v1/platform/shops")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await helper.PutAsJsonAsync($"/api/v1/platform/shops/{shopId}/note", new { note = "Called, all fine" }, ApiFactory.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await helper.PostJsonAsync($"/api/v1/platform/shops/{shopId}/approve", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await helper.GetAsync("/api/v1/platform/admins")).StatusCode);
+
+        // Made an approver: now approves, but no longer writes notes. Takes effect on the next request.
+        await super.PutAsJsonAsync($"/api/v1/platform/admins/{helperId}", new { role = "approver" }, ApiFactory.Json);
+        Assert.Equal(HttpStatusCode.OK, (await helper.PostJsonAsync($"/api/v1/platform/shops/{shopId}/approve", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await helper.PutAsJsonAsync($"/api/v1/platform/shops/{shopId}/note", new { note = "x" }, ApiFactory.Json)).StatusCode);
+
+        // Removed: refused at once.
+        Assert.Equal(HttpStatusCode.OK, (await super.DeleteAsync($"/api/v1/platform/admins/{helperId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await helper.GetAsync("/api/v1/platform/shops")).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_last_super_admin_cannot_be_removed_or_demoted()
+    {
+        var super = await AdminAsync();
+        var others = (await super.GetJsonAsync<List<AdminDto>>("/api/v1/platform/admins")).Where(a => a.Role == AdminRole.Super).ToList();
+        // Every other super admin left over from other tests goes first, so this one is the last.
+        var me = await super.GetJsonAsync<MeResponse>("/api/v1/auth/me");
+        foreach (var other in others.Where(a => a.UserId != me.User.Id))
+        {
+            await super.DeleteAsync($"/api/v1/platform/admins/{other.UserId}");
+        }
+
+        Assert.Equal(HttpStatusCode.Conflict, (await super.DeleteAsync($"/api/v1/platform/admins/{me.User.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await super.PutAsJsonAsync($"/api/v1/platform/admins/{me.User.Id}", new { role = "support" }, ApiFactory.Json)).StatusCode);
+    }
+
+    private async Task<HttpClient> SignInWithCodeAsync(string phone)
+    {
+        var client = api.CreateClient();
+        await client.PostJsonAsync("/api/v1/auth/otp/send", new { phone });
+        var code = api.Services.GetRequiredService<DevSmsSender>().LastCodeFor(Common.PhoneNumber.Normalize(phone)!);
+        var auth = await (await client.PostJsonAsync("/api/v1/auth/otp/verify", new { phone, code })).ReadAsync<AuthResponse>();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        return client;
     }
 
     /// <summary>A new account made a platform admin directly in the database, then signed in again.</summary>

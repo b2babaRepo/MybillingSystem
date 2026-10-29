@@ -323,8 +323,11 @@ public sealed class AuthService(
                select new BlockedShop(s.Name, s.BlockedReason!))
             .ToListAsync(cancellationToken);
 
-    private async Task<UserSummary> SummarizeAsync(User user, CancellationToken cancellationToken) =>
-        new(user.Id, user.FullName, user.PreferredLanguage, user.Phone, await db.PlatformAdmins.AnyAsync(a => a.UserId == user.Id, cancellationToken));
+    private async Task<UserSummary> SummarizeAsync(User user, CancellationToken cancellationToken)
+    {
+        var role = await db.PlatformAdmins.AsNoTracking().Where(a => a.UserId == user.Id).Select(a => (AdminRole?)a.Role).SingleOrDefaultAsync(cancellationToken);
+        return new(user.Id, user.FullName, user.PreferredLanguage, user.Phone, role is not null, role);
+    }
 
     /// <summary>Creates an access token and a new refresh token, revoking <paramref name="replacing"/> if given, and saves.</summary>
     private async Task<AuthResponse> IssueAsync(

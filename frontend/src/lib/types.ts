@@ -1,6 +1,9 @@
 // Shapes of the API's JSON (camelCase, enums in snake_case). Keep in step with backend/src/GroceryKhata.Api.
 
 export type ShopRole = 'owner' | 'staff'
+/** A platform admin's role: super (everything), approver (approve and block shops), support (notes, unlocking). */
+export type AdminRole = 'super' | 'approver' | 'support'
+
 export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre'
 export type PaymentMode = 'cash' | 'upi'
 export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return'
@@ -20,7 +23,7 @@ export interface AuthResponse {
   refreshToken: string
   refreshTokenExpiresAt: string
   /** phone and isPlatformAdmin: missing on sessions saved before they were added. */
-  user: { id: string; fullName: string; preferredLanguage: string; phone?: string; isPlatformAdmin?: boolean }
+  user: { id: string; fullName: string; preferredLanguage: string; phone?: string; isPlatformAdmin?: boolean; platformRole?: AdminRole | null }
   memberships: MembershipSummary[]
   shopId: string | null
   role: ShopRole | null

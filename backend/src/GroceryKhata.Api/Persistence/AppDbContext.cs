@@ -192,6 +192,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         {
             b.ToTable("platform_admins");
             b.HasIndex(a => a.UserId).IsUnique();
+            b.Property(a => a.Role).HasDefaultValue(GroceryKhata.Api.Shops.AdminRole.Super);
             b.HasOne<User>().WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 

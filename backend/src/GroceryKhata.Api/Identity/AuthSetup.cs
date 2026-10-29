@@ -62,7 +62,16 @@ public static class AuthSetup
                 .RequireClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner)))
             .AddPolicy(AppPolicies.PlatformAdmin, policy => policy
                 .RequireAuthenticatedUser()
-                .AddRequirements(new Shops.PlatformAdminRequirement()));
+                .AddRequirements(new Shops.PlatformAdminRequirement()))
+            .AddPolicy(AppPolicies.PlatformApprover, policy => policy
+                .RequireAuthenticatedUser()
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.Approver)))
+            .AddPolicy(AppPolicies.PlatformSupport, policy => policy
+                .RequireAuthenticatedUser()
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.Support)))
+            .AddPolicy(AppPolicies.PlatformSuper, policy => policy
+                .RequireAuthenticatedUser()
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super)));
 
         services.AddRateLimiter(limiter =>
         {

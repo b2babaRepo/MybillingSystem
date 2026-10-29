@@ -75,7 +75,7 @@ public sealed record AuthResponse(
 /// <summary>A shop of this person that a platform admin blocked, and why: shown instead of a silent missing shop.</summary>
 public sealed record BlockedShop(string ShopName, string Reason);
 
-public sealed record UserSummary(Guid Id, string FullName, string PreferredLanguage, string Phone, bool IsPlatformAdmin);
+public sealed record UserSummary(Guid Id, string FullName, string PreferredLanguage, string Phone, bool IsPlatformAdmin, Shops.AdminRole? PlatformRole = null);
 
 public sealed record MembershipSummary(Guid MembershipId, Guid ShopId, string ShopName, string ShopSlug, ShopRole Role);
 

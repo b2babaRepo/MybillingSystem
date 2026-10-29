@@ -33,6 +33,15 @@ public static class AppPolicies
 
     /// <summary>Super admin: /api/v1/platform endpoints, every shop.</summary>
     public const string PlatformAdmin = nameof(PlatformAdmin);
+
+    /// <summary>Platform admins who approve and block shops (approver or super).</summary>
+    public const string PlatformApprover = nameof(PlatformApprover);
+
+    /// <summary>Platform admins who help shops: notes and unlocking (support or super).</summary>
+    public const string PlatformSupport = nameof(PlatformSupport);
+
+    /// <summary>Super admins: everything, including managing admins.</summary>
+    public const string PlatformSuper = nameof(PlatformSuper);
 }
 
 /// <summary>Roles as they appear in tokens: ShopRole.Owner ↔ "owner".</summary>
