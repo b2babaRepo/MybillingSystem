@@ -36,6 +36,11 @@ public sealed class PlatformTests(ApiFactory api)
         var detail = await admin.GetJsonAsync<PlatformShopDetail>($"/api/v1/platform/shops/{row.Id}");
         Assert.Equal(ShopRole.Owner, Assert.Single(detail.People).Role);
 
+        // Every admin look and change is in the shop's own audit log, which its owner can read.
+        var log = await shop.GetJsonAsync<List<Persistence.AuditEntryDto>>("/api/v1/audit");
+        Assert.Contains(log, e => e.Table == "platform_admin" && e.Action == "view");
+        Assert.Contains(log, e => e.Table == "platform_admin" && e.Action == "approve");
+
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostJsonAsync($"/api/v1/platform/shops/{row.Id}/block", new { reason = "" })).StatusCode);
         var blocked = await (await admin.PostJsonAsync($"/api/v1/platform/shops/{row.Id}/block", new { reason = "Fake shop reported" })).ReadAsync<PlatformShopRow>();
         Assert.False(blocked.IsActive);

@@ -2,12 +2,22 @@
 
 For whoever is on call. Server: one Hostinger VPS running Nginx, the API (systemd `grocery-khata`), and PostgreSQL 17.
 
+## First-time server setup
+
+On a fresh Ubuntu 24.04 VPS, with the domain's DNS A record already pointing at it:
+
+1. Copy the `deploy/` folder up: `scp -r deploy root@<server>:/root/`
+2. `ssh root@<server> "bash /root/deploy/setup-server.sh <domain> <email>"`. This installs Nginx, PostgreSQL 17, certbot,
+   age and rclone, opens only SSH and web in the firewall, creates the database and its non-superuser login, writes
+   `/etc/grocery-khata/env` with generated secrets, installs the service and gets the HTTPS certificate.
+3. Edit `/etc/grocery-khata/env`: your phone number (`Platform__AdminPhones__0`), backup settings, and any service keys.
+
 ## Deploy
 
-1. Run a backup: `scripts/backup.sh`. Never migrate without a fresh one.
-2. Copy the published API to `/opt/grocery-khata/api` and `frontend/dist` to `/opt/grocery-khata/web`.
-3. Migrate: `dotnet ef database update` (with `Database__MigrateOnStartup=false` in production).
-4. `systemctl restart grocery-khata`, then `curl -f https://<domain>/api/health/ready` should return `{"status":"ready","pendingMigrations":0}`.
+From the PC: `.\scripts\deploy.ps1 -Server root@<server> -Domain <domain>`. It runs the tests, builds the app and a
+self-contained Linux API plus a migration bundle, uploads them, takes a backup (when configured), applies migrations,
+swaps in the new version, restarts and checks `/api/health/ready`. If the check fails it puts the previous version back.
+A migration is not undone by that: migrations only add, so the previous version still runs on the newer database.
 
 The API refuses to start in production with the dev signing key, with `Database__SeedDemo` on, or with a superuser
 DB login, which would skip row-level security. If it won't start, `journalctl -u grocery-khata -n 50` gives the reason.
@@ -57,8 +67,8 @@ The second drill required by the plan should be done on the VPS's first real bac
 - Export: the owner downloads everything from Settings (`GET /api/v1/shop/export`).
 - Deletion: the owner types the shop's name (`POST /api/v1/shop/delete`). This removes all of the shop's rows. Backups age out
   within 14 days. Tell the shop this.
-- No platform-admin role exists yet, so nobody can read a shop's data through the app. When one is added, every admin read
-  must write an audit row; that is what "logged admin access" in the plan means.
+- Platform admins see shop details (owner, staff, counts), not customers or khata entries. Every admin view, approval,
+  block and unblock writes a row to that shop's own audit log (table `platform_admin`), which its owner can see.
 
 ## Load test (evening rush)
 

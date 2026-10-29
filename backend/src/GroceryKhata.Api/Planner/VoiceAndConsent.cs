@@ -74,7 +74,9 @@ public static class AiPrivacy
         var me = app.MapGroup("/api/v1/me").WithTags("Household planner").RequireAuthorization();
         me.MapGet("/ai", StatusAsync);
         me.MapPost("/ai/consent", ConsentAsync);
-        me.MapPost("/orders/transcribe", TranscribeAsync).DisableAntiforgery();
+        // Up to 1 MB of audio plus the form's own bytes.
+        me.MapPost("/orders/transcribe", TranscribeAsync).DisableAntiforgery()
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(1_200_000));
         return app;
     }
 

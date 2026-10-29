@@ -1,0 +1,28 @@
+# /etc/systemd/system/grocery-khata.service
+# The API, self-contained (no .NET install needed), listening only on localhost behind Nginx.
+[Unit]
+Description=Grocery Khata API
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+User=khata
+Group=khata
+WorkingDirectory=/opt/grocery-khata/api
+ExecStart=/opt/grocery-khata/api/GroceryKhata.Api
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5000
+Environment=DOTNET_gcServer=0
+# Secrets: Jwt__SigningKey, ConnectionStrings__Default, keys for MSG91 / Claude / Sarvam / WhatsApp (mode 600, never in git).
+EnvironmentFile=/etc/grocery-khata/env
+Restart=always
+RestartSec=5
+# The process can't touch the rest of the server.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/grocery-khata/api
+
+[Install]
+WantedBy=multi-user.target

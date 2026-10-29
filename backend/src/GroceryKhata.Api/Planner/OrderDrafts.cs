@@ -80,7 +80,9 @@ public static class OrderDrafts
 
     public static IEndpointRouteBuilder MapOrderDrafts(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/v1/me/orders/draft", DraftAsync).WithTags("Household planner").RequireAuthorization();
+        // A list photo (up to 1.5 MB) arrives as base64 in JSON, about a third larger: above the 1 MB default for other requests.
+        app.MapPost("/api/v1/me/orders/draft", DraftAsync).WithTags("Household planner").RequireAuthorization()
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(2_200_000));
         app.MapGet("/api/v1/me/drafts", PendingAsync).WithTags("Household planner").RequireAuthorization();
         app.MapPost("/api/v1/me/drafts/{id:guid}/done", DoneAsync).WithTags("Household planner").RequireAuthorization();
         return app;

@@ -109,7 +109,7 @@ public static class PlatformEndpoints
         return await Rows(db, shops.OrderByDescending(s => s.CreatedAt).Take(200)).ToListAsync(ct);
     }
 
-    private static async Task<IResult> GetAsync(Guid id, AppDbContext db, IServiceScopeFactory scopes, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> GetAsync(Guid id, AppDbContext db, IServiceScopeFactory scopes, TimeProvider clock, ClaimsPrincipal admin, CancellationToken ct)
     {
         var row = await Rows(db, db.Shops.Where(s => s.Id == id)).SingleOrDefaultAsync(ct);
         if (row is null)
@@ -132,6 +132,9 @@ public static class PlatformEndpoints
         var shopDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var monthAgo = now.AddDays(-30);
         var check = await shopDb.BalanceChecks.AsNoTracking().OrderByDescending(c => c.CheckedAt).FirstOrDefaultAsync(ct);
+        // Logged admin access (project plan): every look at a shop leaves a row in that shop's own audit log.
+        shopDb.AuditEntries.Add(Audit(id, admin, "view", "{}"));
+        await shopDb.SaveChangesAsync(ct);
         return TypedResults.Ok(new PlatformShopDetail(
             row, shop.Address, shop.AdminNote, people,
             await shopDb.Customers.CountAsync(ct),
@@ -140,14 +143,14 @@ public static class PlatformEndpoints
             check is null ? null : BalanceChecks.ToDto(check)));
     }
 
-    private static Task<IResult> ApproveAsync(Guid id, AppDbContext db, TimeProvider clock, ClaimsPrincipal user, ILogger<PlatformAdmin> logger, CancellationToken ct) =>
+    private static Task<IResult> ApproveAsync(Guid id, AppDbContext db, TimeProvider clock, ClaimsPrincipal user, IServiceScopeFactory scopes, ILogger<PlatformAdmin> logger, CancellationToken ct) =>
         ChangeAsync(id, db, ct, shop =>
         {
             shop.ApprovedAt ??= clock.GetUtcNow();
             logger.LogInformation("Admin {UserId} approved shop {ShopId}", user.UserId(), id);
-        });
+        }, scopes, user, "approve");
 
-    private static async Task<IResult> BlockAsync(Guid id, BlockRequest request, AppDbContext db, ClaimsPrincipal user, ILogger<PlatformAdmin> logger, CancellationToken ct)
+    private static async Task<IResult> BlockAsync(Guid id, BlockRequest request, AppDbContext db, ClaimsPrincipal user, IServiceScopeFactory scopes, ILogger<PlatformAdmin> logger, CancellationToken ct)
     {
         var reason = request.Reason?.Trim();
         if (reason is not { Length: >= 3 and <= 300 })
@@ -160,16 +163,16 @@ public static class PlatformEndpoints
             shop.IsActive = false;
             shop.BlockedReason = reason;
             logger.LogWarning("Admin {UserId} blocked shop {ShopId}", user.UserId(), id);
-        });
+        }, scopes, user, "block");
     }
 
-    private static Task<IResult> UnblockAsync(Guid id, AppDbContext db, ClaimsPrincipal user, ILogger<PlatformAdmin> logger, CancellationToken ct) =>
+    private static Task<IResult> UnblockAsync(Guid id, AppDbContext db, ClaimsPrincipal user, IServiceScopeFactory scopes, ILogger<PlatformAdmin> logger, CancellationToken ct) =>
         ChangeAsync(id, db, ct, shop =>
         {
             shop.IsActive = true;
             shop.BlockedReason = null;
             logger.LogInformation("Admin {UserId} unblocked shop {ShopId}", user.UserId(), id);
-        });
+        }, scopes, user, "unblock");
 
     private static Task<IResult> NoteAsync(Guid id, NoteRequest request, AppDbContext db, CancellationToken ct) =>
         ChangeAsync(id, db, ct, shop => shop.AdminNote = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim()[..Math.Min(request.Note.Trim().Length, 2000)]);
@@ -190,7 +193,8 @@ public static class PlatformEndpoints
         return TypedResults.NoContent();
     }
 
-    private static async Task<IResult> ChangeAsync(Guid id, AppDbContext db, CancellationToken ct, Action<Shop> change)
+    private static async Task<IResult> ChangeAsync(
+        Guid id, AppDbContext db, CancellationToken ct, Action<Shop> change, IServiceScopeFactory? scopes = null, ClaimsPrincipal? admin = null, string? action = null)
     {
         var shop = await db.Shops.SingleOrDefaultAsync(s => s.Id == id, ct);
         if (shop is null)
@@ -200,8 +204,19 @@ public static class PlatformEndpoints
 
         change(shop);
         await db.SaveChangesAsync(ct);
+        if (scopes is not null && admin is not null && action is not null)
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            scope.ServiceProvider.GetRequiredService<TenantContext>().SetShop(id);
+            var shopDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            shopDb.AuditEntries.Add(Audit(id, admin, action, System.Text.Json.JsonSerializer.Serialize(new { reason = shop.BlockedReason })));
+            await shopDb.SaveChangesAsync(ct);
+        }
         return TypedResults.Ok(await Rows(db, db.Shops.Where(s => s.Id == id)).SingleAsync(ct));
     }
+
+    private static AuditEntry Audit(Guid shopId, ClaimsPrincipal admin, string action, string changes) =>
+        new() { UserId = admin.UserId()!.Value, Table = "platform_admin", RecordId = shopId, Action = action, Changes = changes };
 
     private static IQueryable<PlatformShopRow> Rows(AppDbContext db, IQueryable<Shop> shops) =>
         from s in shops.AsNoTracking()
