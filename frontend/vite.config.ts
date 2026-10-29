@@ -60,6 +60,8 @@ export default defineConfig({
   ],
   server: {
     proxy: { '/api': 'http://localhost:5274' },
+    // A Cloudflare quick tunnel (cloudflared tunnel --url http://localhost:5175) for demos from this PC.
+    allowedHosts: ['.trycloudflare.com'],
   },
   test: {
     environment: 'node',
