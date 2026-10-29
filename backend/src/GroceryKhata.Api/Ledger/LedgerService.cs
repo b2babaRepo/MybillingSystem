@@ -121,11 +121,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
                 db.LedgerEntries.Add(entry);
                 await db.SaveChangesAsync(cancellationToken);
-                await AdjustBalanceAsync(entry.CustomerId, entry.Amount, cancellationToken);
+                var balance = await AdjustBalanceAsync(entry.CustomerId, entry.Amount, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                return LedgerResult<KhataEntryResponse>.Created(
-                    new KhataEntryResponse(LedgerEntryDto.From(entry), await BalanceAsync(entry.CustomerId, cancellationToken)));
+                return LedgerResult<KhataEntryResponse>.Created(new KhataEntryResponse(LedgerEntryDto.From(entry), balance));
             });
 
     /// <summary>
@@ -198,11 +197,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
                 db.LedgerEntries.Add(reversal);
                 await db.SaveChangesAsync(cancellationToken);
-                await AdjustBalanceAsync(reversal.CustomerId, reversal.Amount, cancellationToken);
+                var balance = await AdjustBalanceAsync(reversal.CustomerId, reversal.Amount, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                return LedgerResult<KhataEntryResponse>.Created(
-                    new KhataEntryResponse(LedgerEntryDto.From(reversal), await BalanceAsync(reversal.CustomerId, cancellationToken)));
+                return LedgerResult<KhataEntryResponse>.Created(new KhataEntryResponse(LedgerEntryDto.From(reversal), balance));
             });
 
     /// <summary>
@@ -373,9 +371,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 {
                     var delta = total - bill.PaidAmount;
                     balance = delta != 0
-                        ? (await db.Database.SqlQuery<decimal>(
-                            $"UPDATE customers SET balance = balance + {delta} WHERE id = {owingCustomerId} RETURNING balance AS \"Value\"")
-                            .ToListAsync(cancellationToken)).Single()
+                        ? await AdjustBalanceAsync(owingCustomerId, delta, cancellationToken)
                         : await BalanceAsync(owingCustomerId, cancellationToken);
                 }
 
@@ -427,7 +423,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
         var names = await db.Users.AsNoTracking().Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
 
         var entryIds = entries.Select(e => e.Id).ToList();
-        var latest = (await db.Disputes.AsNoTracking().Where(d => entryIds.Contains(d.EntryId)).OrderBy(d => d.RaisedAt).ToListAsync(cancellationToken))
+        // By customer (indexed), then narrowed to these entries here.
+        var shown = entryIds.ToHashSet();
+        var latest = (await db.Disputes.AsNoTracking().Where(d => d.CustomerId == customerId).OrderBy(d => d.RaisedAt).ToListAsync(cancellationToken))
+            .Where(d => shown.Contains(d.EntryId))
             .GroupBy(d => d.EntryId).Select(g => g.Last()).ToList();
         var disputes = (await DisputeEndpoints.ViewsAsync(db, latest, cancellationToken)).ToDictionary(v => latest.Single(d => d.Id == v.Id).EntryId);
 
@@ -514,10 +513,13 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
     private Task<decimal> BalanceAsync(Guid customerId, CancellationToken cancellationToken) =>
         db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => c.Balance).SingleAsync(cancellationToken);
 
-    /// <summary>Atomic in the database (balance = balance + delta), so two tills posting at once can't lose an update.</summary>
-    private Task AdjustBalanceAsync(Guid customerId, decimal delta, CancellationToken cancellationToken) =>
-        db.Customers.Where(c => c.Id == customerId)
-            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Balance, c => c.Balance + delta), cancellationToken);
+    /// <summary>
+    /// Atomic in the database (balance = balance + delta), so two tills posting at once can't lose an update. Returns the
+    /// new balance from the same statement, saving a read while the row is locked.
+    /// </summary>
+    private async Task<decimal> AdjustBalanceAsync(Guid customerId, decimal delta, CancellationToken cancellationToken) =>
+        (await db.Database.SqlQuery<decimal>($"UPDATE customers SET balance = balance + {delta} WHERE id = {customerId} RETURNING balance AS \"Value\"")
+            .ToListAsync(cancellationToken)).Single();
 
     /// <summary>The phone's time, unless it's in the future (a wrong clock): then now.</summary>
     private DateTimeOffset OccurredAt(DateTimeOffset? requested)
