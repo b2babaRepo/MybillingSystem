@@ -1,8 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from '../lib/api'
+import { VoiceButton } from '../components/VoiceButton'
+import { api, NetworkError, request } from '../lib/api'
+import { addExpense, strikeExpense, type ExpenseBody } from '../lib/data'
 import { formatRupees } from '../lib/format'
+import { shrinkPhoto } from '../lib/images'
+import { listOps, subscribeOutbox } from '../lib/outbox'
 import type { PaymentMode } from '../lib/types'
 
 export type ExpenseCategory = 'tea' | 'transport' | 'rent' | 'electricity' | 'salary' | 'purchase' | 'packaging' | 'repair' | 'home' | 'other'
@@ -26,8 +30,63 @@ interface ExpensePage {
   lines: ExpenseLine[]
 }
 
+interface AiStatus {
+  consentedAt: string | null
+  canReadPhotos: boolean
+  canHearVoice: boolean
+  keepDays: number
+}
+
+/** A line saved on the phone that hasn't reached the server yet (no signal): shown on the page all the same. */
+interface PendingLine extends ExpenseLine {
+  pending: true
+}
+
+/** Kharcha lines and strikes still waiting in the outbox, kept up to date as they send. */
+function usePendingExpenses(shopId: string) {
+  const [pending, setPending] = useState<{ lines: PendingLine[]; struck: Set<string> }>({ lines: [], struck: new Set() })
+  useEffect(() => {
+    let alive = true
+    const load = () => void listOps(shopId).then((ops) => {
+      if (!alive) return
+      const lines = ops.filter((o) => o.kind === 'expense').map((o) => {
+        const body = o.body as ExpenseBody
+        return { ...body, category: (body.category ?? 'other') as ExpenseCategory, by: null, struckAt: null, pending: true as const }
+      })
+      setPending({ lines, struck: new Set(ops.filter((o) => o.kind === 'expenseStrike').map((o) => o.id.replace(':strike', ''))) })
+    })
+    load()
+    const stop = subscribeOutbox(load)
+    return () => {
+      alive = false
+      stop()
+    }
+  }, [shopId])
+  return pending
+}
+
+/** India-time day (yyyy-mm-dd) of an instant. */
+const indiaDay = (iso: string) => new Date(new Date(iso).getTime() + 5.5 * 3600_000).toISOString().slice(0, 10)
+
+/**
+ * With no signal the server can't read the line, so the phone splits it simply: each comma part with a number is a
+ * line (amount, the words as its note, UPI if it says so). The heading is left for the server to choose when the line
+ * reaches it (the same rules as "Read it").
+ */
+function readOffline(text: string): Omit<Guess, 'key'>[] {
+  return text.split(/,|;|\n|\baur\b|और/i).flatMap((part) => {
+    const amount = part.match(/\d+(?:\.\d{1,2})?/)?.[0]
+    if (!amount) return []
+    const upi = /\b(upi|online|gpay|phonepe|paytm)\b/i.test(part)
+    const note = part.replace(/₹|rs\.?|\d+(?:\.\d{1,2})?|\b(upi|online|gpay|phonepe|paytm)\b/gi, ' ').replace(/\s+/g, ' ').trim()
+    return [{ amount, category: 'other' as ExpenseCategory, note, mode: (upi ? 'upi' : 'cash') as PaymentMode, headingLater: true }]
+  })
+}
+
 interface Guess {
   key: number
+  /** Read on the phone with no signal: unless the person picks a heading, the server picks it on save. */
+  headingLater?: boolean
   amount: string
   category: ExpenseCategory
   note: string
@@ -67,6 +126,19 @@ export function ExpensesScreen({ shopId }: { shopId: string }) {
   const [error, setError] = useState<string | null>(null)
   const nextKey = useRef(1)
   const page = useQuery({ queryKey: [shopId, 'expenses', day], queryFn: () => api<ExpensePage>(`/v1/expenses?date=${day}`) })
+  const ai = useQuery({ queryKey: ['ai-status'], queryFn: () => api<AiStatus>('/v1/me/ai') }).data
+  const [askConsent, setAskConsent] = useState<'voice' | 'photo' | null>(null)
+  const pending = usePendingExpenses(shopId)
+  // The page = what the server has + what is still on the phone; a line the server already has isn't shown twice.
+  // A strike still waiting to send shows as struck at once (struckAt only marks it; the server keeps the real time).
+  const serverLines = page.data?.lines ?? []
+  const waiting = pending.lines.filter((l) => indiaDay(l.occurredAt) === day && !serverLines.some((s) => s.id === l.id))
+  const lines: (ExpenseLine | PendingLine)[] = [...serverLines, ...waiting]
+    .map((l) => (pending.struck.has(l.id) && !l.struckAt ? { ...l, struckAt: l.occurredAt } : l))
+    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt))
+  const live = lines.filter((l) => !l.struckAt)
+  const cashOut = live.filter((l) => l.mode === 'cash').reduce((sum, l) => sum + l.amount, 0)
+  const upiOut = live.filter((l) => l.mode === 'upi').reduce((sum, l) => sum + l.amount, 0)
   const label = new Date(`${day}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
   const isToday = day === today
 
@@ -88,9 +160,16 @@ export function ExpensesScreen({ shopId }: { shopId: string }) {
   }
 
   const read = () => run(async () => {
-    const found = await api<{ amount: number; category: ExpenseCategory; note: string | null; mode: PaymentMode }[]>('/v1/expenses/read', 'POST', { text })
+    let found: Omit<Guess, 'key'>[]
+    try {
+      found = (await api<{ amount: number; category: ExpenseCategory; note: string | null; mode: PaymentMode }[]>('/v1/expenses/read', 'POST', { text }))
+        .map((g) => ({ amount: String(g.amount), category: g.category, note: g.note ?? '', mode: g.mode }))
+    } catch (e) {
+      if (!(e instanceof NetworkError)) throw e
+      found = readOffline(text)
+    }
     if (found.length === 0) throw new Error(t('expense.nothingRead'))
-    setGuesses([...guesses, ...found.map((g) => ({ key: nextKey.current++, amount: String(g.amount), category: g.category, note: g.note ?? '', mode: g.mode }))])
+    setGuesses([...guesses, ...found.map((g) => ({ ...g, key: nextKey.current++ }))])
     setText('')
   })
 
@@ -100,22 +179,36 @@ export function ExpensesScreen({ shopId }: { shopId: string }) {
   const update = (key: number, change: Partial<Guess>) => setGuesses(guesses.map((g) => (g.key === key ? { ...g, ...change } : g)))
   const ready = guesses.length > 0 && guesses.every((g) => Number(g.amount) > 0)
 
+  // Saved on the phone first (works with no signal) and sent in order when there's a connection.
   const save = () => run(async () => {
+    // The time it was written; a past page keeps its own date.
+    const occurredAt = isToday ? new Date().toISOString() : `${day}T12:00:00+05:30`
     for (const g of guesses) {
-      // The time the shop wrote it; a past page keeps its own date.
-      const occurredAt = isToday ? undefined : `${day}T12:00:00+05:30`
-      await api('/v1/expenses', 'POST', { id: crypto.randomUUID(), amount: Number(g.amount), category: g.category, note: g.note.trim() || null, mode: g.mode, occurredAt })
+      const category = g.headingLater && g.category === 'other' ? null : g.category
+      await addExpense(shopId, { amount: Number(g.amount), category, note: g.note.trim() || null, mode: g.mode, occurredAt })
     }
     setGuesses([])
     await refresh()
   })
 
-  const strike = (line: ExpenseLine) =>
-    confirm(t('expense.strikeAsk', { what: line.note ?? t(`expense.cat.${line.category}`), amount: formatRupees(line.amount) })) &&
-    void run(async () => {
-      await api(`/v1/expenses/${line.id}/strike`, 'POST', {})
-      await refresh()
-    })
+  const strike = (line: ExpenseLine) => {
+    const what = line.note ?? t(`expense.cat.${line.category}`)
+    if (confirm(t('expense.strikeAsk', { what, amount: formatRupees(line.amount) }))) void run(() => strikeExpense(shopId, line.id, what))
+  }
+
+  /** Voice and photos are read by AI services: only after the person agrees (recorded on the server, as for orders). */
+  const agree = () => run(async () => {
+    await request('/v1/me/ai/consent', 'POST', { agree: true })
+    await queryClient.invalidateQueries({ queryKey: ['ai-status'] })
+    setAskConsent(null)
+  })
+
+  const readPhoto = (file: File) => run(async () => {
+    const imageDataUrl = await shrinkPhoto(file, 1500, 1_200_000, false)
+    const found = await api<{ amount: number; category: ExpenseCategory; note: string | null; mode: PaymentMode }[]>('/v1/expenses/photo', 'POST', { imageDataUrl })
+    if (found.length === 0) throw new Error(t('expense.photoNothing'))
+    setGuesses((current) => [...current, ...found.map((g) => ({ key: nextKey.current++, amount: String(g.amount), category: g.category, note: g.note ?? '', mode: g.mode }))])
+  })
 
   return (
     <div className="flex flex-col gap-3 p-4">
@@ -133,6 +226,34 @@ export function ExpensesScreen({ shopId }: { shopId: string }) {
         <button disabled={busy || !text.trim()} onClick={() => void read()} className="h-12 rounded-2xl bg-teal-700 font-bold text-white disabled:opacity-40">
           {t('expense.read')}
         </button>
+        {/* Say it, or snap the bill: shown only when the server has those switched on. */}
+        {ai && (ai.canHearVoice || ai.canReadPhotos) && (
+          <div className="grid grid-cols-2 gap-2">
+            {ai.canHearVoice && (ai.consentedAt
+              ? <VoiceButton onText={(heard) => setText((current) => (current ? `${current}, ${heard}` : heard))} onError={setError} />
+              : <button onClick={() => setAskConsent('voice')} className="min-h-14 rounded-2xl bg-gradient-to-r from-rose-500 to-orange-400 font-bold text-white">🎤 {t('ai.speak')}</button>)}
+            {ai.canReadPhotos && (ai.consentedAt ? (
+              <label className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-teal-700 font-bold text-teal-800">
+                📷 {t('expense.photo')}
+                <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy}
+                  onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void readPhoto(file) }} />
+              </label>
+            ) : (
+              <button onClick={() => setAskConsent('photo')} className="min-h-14 rounded-2xl border-2 border-teal-700 font-bold text-teal-800">📷 {t('expense.photo')}</button>
+            ))}
+          </div>
+        )}
+        {askConsent && ai && (
+          <div className="flex flex-col gap-2 rounded-2xl bg-amber-50 p-3 text-[15px]">
+            <p className="font-bold">{t('expense.consentTitle')}</p>
+            <p>{askConsent === 'voice' ? t('expense.consentVoice') : t('expense.consentPhoto')}</p>
+            <p className="text-sm text-muted">{t('expense.consentKeep')}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button disabled={busy} onClick={() => void agree()} className="h-12 rounded-xl bg-teal-700 font-bold text-white">{t('expense.consentYes')}</button>
+              <button onClick={() => setAskConsent(null)} className="h-12 rounded-xl border border-line font-semibold">{t('expense.consentNo')}</button>
+            </div>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2" aria-label={t('expense.quickTitle')}>
           {QUICK.map((c) => (
             <button key={c} onClick={() => quick(c)} className="flex min-h-11 items-center gap-1.5 rounded-full border border-line px-3 text-sm font-semibold">
@@ -150,7 +271,7 @@ export function ExpensesScreen({ shopId }: { shopId: string }) {
             <div key={g.key} className="flex flex-col gap-2 rounded-2xl bg-ground p-3">
               <div className="flex items-center gap-2">
                 <label className="sr-only" htmlFor={`cat-${g.key}`}>{t('expense.heading')}</label>
-                <select id={`cat-${g.key}`} value={g.category} onChange={(e) => update(g.key, { category: e.target.value as ExpenseCategory })}
+                <select id={`cat-${g.key}`} value={g.category} onChange={(e) => update(g.key, { category: e.target.value as ExpenseCategory, headingLater: false })}
                   className="h-11 flex-1 rounded-xl border border-line bg-white px-2">
                   {ALL.map((c) => <option key={c} value={c}>{ICONS[c]} {t(`expense.cat.${c}`)}</option>)}
                 </select>
@@ -179,16 +300,16 @@ export function ExpensesScreen({ shopId }: { shopId: string }) {
       {error && <p className="rounded-xl bg-red-50 p-3 text-due">{error}</p>}
 
       {/* The page itself: ruled lines and a margin, like the kharcha book. */}
-      {page.data && (
+      {(page.data || waiting.length > 0) && (
         <section className="overflow-hidden rounded-[20px] border border-[#e8dfc8] bg-[#fffdf6]">
           <div className="grid grid-cols-3 gap-2 border-b border-[#e8dfc8] p-3 text-center">
-            <div><div className="text-xs text-muted">{t('expense.cashOut')}</div><div className="text-lg font-extrabold text-due">{formatRupees(page.data.cash)}</div></div>
-            <div><div className="text-xs text-muted">{t('expense.upiOut')}</div><div className="text-lg font-extrabold">{formatRupees(page.data.upi)}</div></div>
-            <div><div className="text-xs text-muted">{t('expense.total')}</div><div className="text-lg font-extrabold">{formatRupees(page.data.total)}</div></div>
+            <div><div className="text-xs text-muted">{t('expense.cashOut')}</div><div className="text-lg font-extrabold text-due">{formatRupees(cashOut)}</div></div>
+            <div><div className="text-xs text-muted">{t('expense.upiOut')}</div><div className="text-lg font-extrabold">{formatRupees(upiOut)}</div></div>
+            <div><div className="text-xs text-muted">{t('expense.total')}</div><div className="text-lg font-extrabold">{formatRupees(cashOut + upiOut)}</div></div>
           </div>
           <ul className="border-l-2 border-red-300 pl-3" style={{ backgroundImage: 'repeating-linear-gradient(transparent 0 55px, #e8dfc8 55px 56px)' }}>
-            {page.data.lines.length === 0 && <li className="flex min-h-14 items-center pr-3 text-muted">{t('expense.empty')}</li>}
-            {page.data.lines.map((line) => (
+            {lines.length === 0 && <li className="flex min-h-14 items-center pr-3 text-muted">{t('expense.empty')}</li>}
+            {lines.map((line) => (
               <li key={line.id}>
                 <button onClick={() => !line.struckAt && strike(line)} disabled={!!line.struckAt}
                   className={`flex min-h-14 w-full items-center gap-2 pr-3 text-left ${line.struckAt ? 'text-muted line-through' : ''}`}>
@@ -196,7 +317,7 @@ export function ExpensesScreen({ shopId }: { shopId: string }) {
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate font-semibold">{line.note ?? t(`expense.cat.${line.category}`)}</span>
                     <span className="text-xs text-muted">
-                      {new Date(line.occurredAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · {t(line.mode)}{line.by ? ` · ${line.by}` : ''}
+                      {new Date(line.occurredAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · {t(line.mode)}{line.by ? ` · ${line.by}` : ''}{'pending' in line ? ` · ⏳ ${t('expense.waiting')}` : ''}
                     </span>
                   </span>
                   <span className="font-bold">{formatRupees(line.amount)}</span>

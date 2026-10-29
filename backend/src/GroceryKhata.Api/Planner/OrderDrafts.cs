@@ -201,7 +201,7 @@ public static class OrderDrafts
             line.Unit ?? item?.Unit, confidence, reason);
     }
 
-    private static (string? MediaType, string? Base64) ParseImage(string? dataUrl)
+    internal static (string? MediaType, string? Base64) ParseImage(string? dataUrl)
     {
         var parts = dataUrl?.Split(',', 2);
         if (parts is not [var head, var data] || !head.StartsWith("data:", StringComparison.Ordinal) || !head.EndsWith(";base64", StringComparison.Ordinal))

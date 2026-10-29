@@ -73,6 +73,31 @@ public sealed class ExpenseTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.NotFound, (await gupta.PostJsonAsync($"/api/v1/expenses/{id}/strike", new { })).StatusCode);
     }
 
+    [Fact]
+    public void A_read_bill_keeps_sane_lines_and_known_headings_only()
+    {
+        var lines = ClaudeBillPhotoReader.Parse("""
+            {"lines":[
+              {"amount":1840.5,"category":"electricity","note":"Bijli bill Oct","mode":"upi"},
+              {"amount":0,"category":"tea","note":"unreadable","mode":"cash"},
+              {"amount":350,"category":"something","note":"Sharma Traders","mode":"cash"}
+            ]}
+            """);
+        Assert.Equal("Electricity 1840.5 Upi|Other 350 Cash", string.Join('|', lines.Select(l => $"{l.Category} {l.Amount:0.##} {l.Mode}")));
+    }
+
+    [Fact]
+    public async Task A_bill_photo_needs_ai_consent_and_the_ai_switched_on()
+    {
+        var (shop, _) = await api.SignUpAsync();
+        var photo = new { imageDataUrl = "data:image/png;base64,iVBORw0KGgo=" };
+        Assert.Equal(HttpStatusCode.Forbidden, (await shop.PostJsonAsync("/api/v1/expenses/photo", photo)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await shop.PostJsonAsync("/api/v1/me/ai/consent", new { agree = true })).StatusCode);
+        // Tests run with the AI off: the photo button is hidden in the app, and the server says why.
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await shop.PostJsonAsync("/api/v1/expenses/photo", photo)).StatusCode);
+    }
+
     private static async Task Add(HttpClient shop, Guid id, decimal amount, string note, string mode) =>
         Assert.Equal(HttpStatusCode.Created, (await shop.PostJsonAsync("/api/v1/expenses", new { id, amount, note, mode })).StatusCode);
 }

@@ -248,3 +248,27 @@ export async function addStockMovement(
     label: `${product.name} ${quantity > 0 ? '+' : ''}${quantity}`,
   })
 }
+
+/** A kharcha line as the phone keeps it until it reaches the server. */
+export interface ExpenseBody {
+  id: string
+  amount: number
+  /** Null: the server chooses the heading from the note (a line read on the phone with no signal). */
+  category: string | null
+  note: string | null
+  mode: 'cash' | 'upi'
+  /** When it was written (the phone's time), so a line sent later still lands on its own day. */
+  occurredAt: string
+}
+
+/** Saves a kharcha line on the phone first and sends it when there's a connection (safe to resend: same ID). */
+export async function addExpense(shopId: string, line: Omit<ExpenseBody, 'id'>) {
+  const id = uuidv7()
+  await enqueue({ id, shopId, kind: 'expense', path: '/v1/expenses', body: { id, ...line }, label: `− ${line.note ?? line.category ?? ''} ₹${line.amount}` })
+  return id
+}
+
+/** Strikes a kharcha line out (it stays on the page, crossed). Queued like every other write. */
+export async function strikeExpense(shopId: string, id: string, label: string) {
+  await enqueue({ id: `${id}:strike`, shopId, kind: 'expenseStrike', path: `/v1/expenses/${id}/strike`, body: {}, label: `✕ ${label}` })
+}
