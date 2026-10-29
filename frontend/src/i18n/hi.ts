@@ -111,6 +111,8 @@ export const hi: Texts = {
   onKhata: 'खाते में',
   saveBill: 'बिल सेव करें',
   emptyCart: 'सामान जोड़ने के लिए टैप करें।',
+  billBar: '{{count}} सामान',
+  checkout: 'बिल बनाएँ',
   addLooseItem: 'खुला सामान',
   itemName: 'सामान का नाम',
   price: 'दाम',

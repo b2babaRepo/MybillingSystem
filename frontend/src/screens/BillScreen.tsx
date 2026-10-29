@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ItemCard } from '../components/ItemCard'
 import { imageUrl } from '../lib/images'
@@ -29,6 +29,16 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   const [loose, setLoose] = useState(false)
   const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; customer: { name: string; phone: string | null } | null } | null>(null)
 
+  // On a phone the bill sits below the item grid: a bar above the tabs shows the total until the bill is in view.
+  const billRef = useRef<HTMLDivElement>(null)
+  const [billInView, setBillInView] = useState(false)
+  useEffect(() => {
+    const element = billRef.current
+    if (!element || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(([entry]) => setBillInView(entry.isIntersecting), { rootMargin: '0px 0px -68px 0px' })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
   const total = useMemo(() => round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [cart])
   const customer = customers.find((c) => c.id === customerId) ?? null
   const paidAmount = paid === null || !customer ? total : Math.min(Number(paid) || 0, total)
@@ -87,7 +97,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
         </button>
       </div>
 
-      <div className="rounded-[18px] bg-white p-3">
+      <div ref={billRef} className="rounded-[18px] bg-white p-3">
         {cart.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-4 text-center text-muted">
             <p>{saved ? `${t('saved')} ${formatRupees(saved.total)}` : t('emptyCart')}</p>
@@ -172,6 +182,14 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
             {t('saveBill')} · {formatRupees(total)}
           </Button>
         </div>
+      )}
+
+      {cart.length > 0 && !billInView && (
+        <button onClick={() => billRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          className="fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-10 mx-auto flex h-14 w-[calc(100%-2rem)] max-w-[34rem] items-center justify-between rounded-2xl bg-teal-700 px-4 font-bold text-white shadow-lg">
+          <span>{t('billBar', { count: cart.length })}</span>
+          <span>{formatRupees(total)} · {t('checkout')} ↓</span>
+        </button>
       )}
 
       {loose && <LooseItemSheet onClose={() => setLoose(false)} onAdd={add} />}

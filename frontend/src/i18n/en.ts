@@ -109,6 +109,8 @@ export const en = {
   onKhata: 'On khata',
   saveBill: 'Save bill',
   emptyCart: 'Tap items to add them.',
+  billBar: '{{count}} items',
+  checkout: 'Checkout',
   addLooseItem: 'Loose item',
   itemName: 'Item name',
   price: 'Price',
