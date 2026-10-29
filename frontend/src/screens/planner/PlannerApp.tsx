@@ -4,12 +4,13 @@ import { AccountMenu } from '../../components/AccountMenu'
 import { AppBanners } from '../../components/AppBanners'
 import { BackIcon, CheckIcon, CloudOffIcon, KhataIcon, BillIcon, PaymentIcon } from '../../components/Icons'
 import { request } from '../../lib/api'
-import { useOutbox } from '../../lib/data'
+import { useOutbox, useSession } from '../../lib/data'
 import { requestPersistentStorage } from '../../lib/db'
 import { flush } from '../../lib/outbox'
 import { homeKey, type ListKind } from '../../lib/planner'
 import { getSession, setSession } from '../../lib/session'
 import { navigate, usePath } from '../../router'
+import { BlockedShopsNotice } from '../AuthScreen'
 import { ListScreen } from './ListScreen'
 import { MyOrdersScreen } from './MyOrdersScreen'
 import { PlanHomeScreen } from './PlanHomeScreen'
@@ -21,6 +22,7 @@ import { MyKhataDetail, MyKhataScreen } from '../khata/KhataViews'
 export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: string; userName: string; onSwitchToShop?: () => void }) {
   const { t } = useTranslation()
   const path = usePath()
+  const session = useSession()
   const key = homeKey(userId)
   const { pending, failed, state } = useOutbox(key)
 
@@ -77,6 +79,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
       </header>
 
       <main>
+        {path === '/' && session && <BlockedShopsNotice session={session} />}
         {listMatch ? (
           <ListScreen userId={userId} kind={listMatch[1] as ListKind} />
         ) : sendMatch ? (

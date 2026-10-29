@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using Microsoft.AspNetCore.Hosting;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Shops;
 using Npgsql;
@@ -22,7 +23,8 @@ public sealed class PlatformTests(ApiFactory api)
     public async Task An_admin_finds_a_new_shop_approves_it_blocks_it_and_its_people_are_signed_out_at_once()
     {
         var admin = await AdminAsync();
-        var (shop, shopAuth) = await api.SignUpAsync("Gupta Kirana");
+        var shopPhone = ApiFactory.NewPhone();
+        var (shop, shopAuth) = await api.SignUpAsync("Gupta Kirana", shopPhone);
 
         var newOnes = await admin.GetJsonAsync<List<PlatformShopRow>>("/api/v1/platform/shops?status=new&q=gupta");
         var row = Assert.Single(newOnes, r => r.Id == shopAuth.ShopId);
@@ -38,6 +40,12 @@ public sealed class PlatformTests(ApiFactory api)
         var blocked = await (await admin.PostJsonAsync($"/api/v1/platform/shops/{row.Id}/block", new { reason = "Fake shop reported" })).ReadAsync<PlatformShopRow>();
         Assert.False(blocked.IsActive);
         Assert.Equal(HttpStatusCode.Unauthorized, (await shop.GetAsync("/api/v1/customers")).StatusCode);
+
+        // The owner signs in again: no shop, but told why.
+        var again = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-in", new { phone = shopPhone, password = "secret123" })).ReadAsync<AuthResponse>();
+        Assert.Null(again.ShopId);
+        var why = Assert.Single(again.BlockedShops!);
+        Assert.Equal(("Gupta Kirana", "Fake shop reported"), (why.ShopName, why.Reason));
 
         await admin.PostJsonAsync($"/api/v1/platform/shops/{row.Id}/unblock", new { });
         Assert.Equal(HttpStatusCode.OK, (await shop.GetAsync("/api/v1/customers")).StatusCode);
@@ -58,6 +66,23 @@ public sealed class PlatformTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.TooManyRequests, (await anonymous.PostJsonAsync("/api/v1/auth/sign-in", new { phone, password = "secret123" })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await admin.PostJsonAsync($"/api/v1/platform/users/{auth.User.Id}/unlock", new { })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await anonymous.PostJsonAsync("/api/v1/auth/sign-in", new { phone, password = "secret123" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task With_hold_on_households_only_find_shops_an_admin_approved()
+    {
+        await using var held = api.WithWebHostBuilder(b => b.UseSetting("Platform:HoldNewShops", "true"));
+        var name = "Held " + Guid.NewGuid().ToString("N")[..10];
+        var (_, shopAuth) = await api.SignUpAsync(name);
+        var household = held.CreateClient();
+        var auth = await (await household.PostJsonAsync("/api/v1/auth/register", new { fullName = "Priya", phone = ApiFactory.NewPhone(), password = "secret123" })).ReadAsync<AuthResponse>();
+        household.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var url = $"/api/v1/shops?search={Uri.EscapeDataString(name)}";
+        Assert.Empty(await household.GetJsonAsync<List<Planner.ShopDirectoryDto>>(url));
+
+        var admin = await AdminAsync();
+        await admin.PostJsonAsync($"/api/v1/platform/shops/{shopAuth.ShopId}/approve", new { });
+        Assert.Single(await household.GetJsonAsync<List<Planner.ShopDirectoryDto>>(url));
     }
 
     /// <summary>A new account made a platform admin directly in the database, then signed in again.</summary>

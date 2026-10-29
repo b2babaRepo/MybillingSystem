@@ -213,7 +213,7 @@ public sealed class AuthService(
     public async Task<MeResponse?> GetMeAsync(Guid userId, CancellationToken cancellationToken)
     {
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.IsActive, cancellationToken);
-        return user is null ? null : new MeResponse(await SummarizeAsync(user, cancellationToken), await ListMembershipsAsync(userId, cancellationToken));
+        return user is null ? null : new MeResponse(await SummarizeAsync(user, cancellationToken), await ListMembershipsAsync(userId, cancellationToken), await ListBlockedAsync(userId, cancellationToken));
     }
 
     /// <summary>
@@ -313,6 +313,14 @@ public sealed class AuthService(
                select new MembershipSummary(m.Id, s.Id, s.Name, s.Slug, m.Role))
             .ToListAsync(cancellationToken);
 
+    private async Task<IReadOnlyList<BlockedShop>> ListBlockedAsync(Guid userId, CancellationToken cancellationToken) =>
+        await (from m in db.Memberships.AsNoTracking()
+               join s in db.Shops.AsNoTracking() on m.ShopId equals s.Id
+               where m.UserId == userId && m.IsActive && !s.IsActive && s.BlockedReason != null
+               orderby s.Name
+               select new BlockedShop(s.Name, s.BlockedReason!))
+            .ToListAsync(cancellationToken);
+
     private async Task<UserSummary> SummarizeAsync(User user, CancellationToken cancellationToken) =>
         new(user.Id, user.FullName, user.PreferredLanguage, user.Phone, await db.PlatformAdmins.AnyAsync(a => a.UserId == user.Id, cancellationToken));
 
@@ -350,7 +358,8 @@ public sealed class AuthService(
             summary,
             await ListMembershipsAsync(user.Id, cancellationToken),
             membership?.ShopId,
-            membership?.Role);
+            membership?.Role,
+            await ListBlockedAsync(user.Id, cancellationToken));
     }
 
     private async Task RevokeAllAsync(Guid userId, DateTimeOffset now, CancellationToken cancellationToken)

@@ -11,7 +11,9 @@ import { requestPersistentStorage } from './lib/db'
 import { flush } from './lib/outbox'
 import { getSession, setSession } from './lib/session'
 import { navigate, usePath } from './router'
-import { AuthScreen, ShopPicker } from './screens/AuthScreen'
+// Signed-in people (most opens) never need the sign-in screen, so it loads on demand.
+const AuthScreen = lazy(() => import('./screens/AuthScreen').then((module) => ({ default: module.AuthScreen })))
+const ShopPicker = lazy(() => import('./screens/AuthScreen').then((module) => ({ default: module.ShopPicker })))
 import { BillScreen } from './screens/BillScreen'
 const CustomerScreen = lazy(() => import('./screens/CustomerScreen').then((module) => ({ default: module.CustomerScreen })))
 const DisputesScreen = lazy(() => import('./screens/DisputesScreen').then((module) => ({ default: module.DisputesScreen })))
@@ -61,7 +63,7 @@ export default function App() {
       </Suspense>
     )
   }
-  if (!session) return <AuthScreen />
+  if (!session) return <Suspense fallback={<Loading />}><AuthScreen /></Suspense>
   if (path === '/platform' && session.user.isPlatformAdmin) {
     return (
       <Suspense fallback={<Loading />}>
@@ -81,7 +83,7 @@ export default function App() {
       </Suspense>
     )
   }
-  if (!session.shopId) return <ShopPicker session={session} onHousehold={() => switchTo(true)} />
+  if (!session.shopId) return <Suspense fallback={<Loading />}><ShopPicker session={session} onHousehold={() => switchTo(true)} /></Suspense>
   const shop = session.memberships.find((m) => m.shopId === session.shopId)
   return (
     <Shop shopId={session.shopId} shopName={shop?.shopName ?? ''} shopSlug={shop?.shopSlug ?? ''} userName={session.user.fullName}

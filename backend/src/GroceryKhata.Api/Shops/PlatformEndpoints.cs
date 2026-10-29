@@ -220,6 +220,12 @@ public sealed class PlatformOptions
     public const string SectionName = "Platform";
 
     public string[] AdminPhones { get; set; } = [];
+
+    /// <summary>
+    /// True: households don't find a new shop, or send it lists, until a platform admin approves it. The shop itself
+    /// works from the first minute (billing, khata), so holding it never stops a shopkeeper's day.
+    /// </summary>
+    public bool HoldNewShops { get; set; }
 }
 
 /// <summary>At start-up, adds the configured phones to platform_admins. Removing a phone from config doesn't remove anyone.</summary>

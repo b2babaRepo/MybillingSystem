@@ -69,13 +69,17 @@ public sealed record AuthResponse(
     UserSummary User,
     IReadOnlyList<MembershipSummary> Memberships,
     Guid? ShopId,
-    ShopRole? Role);
+    ShopRole? Role,
+    IReadOnlyList<BlockedShop>? BlockedShops = null);
+
+/// <summary>A shop of this person that a platform admin blocked, and why: shown instead of a silent missing shop.</summary>
+public sealed record BlockedShop(string ShopName, string Reason);
 
 public sealed record UserSummary(Guid Id, string FullName, string PreferredLanguage, string Phone, bool IsPlatformAdmin);
 
 public sealed record MembershipSummary(Guid MembershipId, Guid ShopId, string ShopName, string ShopSlug, ShopRole Role);
 
-public sealed record MeResponse(UserSummary User, IReadOnlyList<MembershipSummary> Memberships);
+public sealed record MeResponse(UserSummary User, IReadOnlyList<MembershipSummary> Memberships, IReadOnlyList<BlockedShop>? BlockedShops = null);
 
 public enum AuthError
 {

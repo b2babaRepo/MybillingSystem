@@ -127,6 +127,7 @@ export function ShopPicker({ session, onHousehold }: { session: AuthResponse; on
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-3 p-4">
       <h1 className="text-2xl font-bold">{t('pickShop')}</h1>
+      <BlockedShopsNotice session={session} />
       {session.memberships.map((m) => (
         <Button
           key={m.membershipId}
@@ -140,6 +141,20 @@ export function ShopPicker({ session, onHousehold }: { session: AuthResponse; on
       ))}
       <Button tone="plain" onClick={onHousehold}>{t('plan.householdLists')}</Button>
       {error && <p className="text-due">{error}</p>}
+    </div>
+  )
+}
+
+/** Tells a person why a shop of theirs is missing: a platform admin blocked it, with this reason. */
+export function BlockedShopsNotice({ session }: { session: AuthResponse }) {
+  const { t } = useTranslation()
+  if (!session.blockedShops?.length) return null
+  return (
+    <div role="alert" className="mx-4 mt-3 flex flex-col gap-1 rounded-2xl bg-red-50 p-4 text-red-900">
+      {session.blockedShops.map((b) => (
+        <p key={b.shopName}><b>{t('blocked.title', { shop: b.shopName })}</b><br />{t('blocked.reason', { reason: b.reason })}</p>
+      ))}
+      <p className="text-sm">{t('blocked.help')}</p>
     </div>
   )
 }

@@ -142,6 +142,8 @@ cd frontend; npm test        # outbox, merge and keypad unit tests
 - `Sms__Msg91AuthKey`, `Sms__Msg91TemplateId` (and `Sms__Msg91OtpVariable`, default `OTP`): MSG91 with a DLT-approved
   OTP template, for sign-in codes by SMS. Without them, codes are refused in production (password sign-in still works);
   in Development the code is written to the API log instead.
+- `Platform__HoldNewShops`: `true` keeps new shops out of household search and ordering until a platform admin
+  approves them (the shop's own billing works from the start).
 - `Platform__AdminPhones__0`, `__1`…: phone numbers made platform admins (all shops) at start-up. They must have an account.
 - `Database__MigrateOnStartup`: `false` in production. Run migrations at deploy, after a backup:
   `dotnet ef database update --project backend/src/GroceryKhata.Api`.
@@ -149,7 +151,5 @@ cd frontend; npm test        # outbox, merge and keypad unit tests
 ## Not built yet
 
 - Real-key checks: MSG91 codes, Claude, Sarvam voice and the WhatsApp webhook have only run with keys off.
-- Holding new shops until a platform admin approves them (approval is recorded, not enforced), and showing a
-  blocked owner the reason.
 - The automated deploy step (CI builds and tests; the manual steps, Nginx config, backups and alerts are in [docs/runbook.md](docs/runbook.md)).
 - Load test: `node loadtest/evening-rush.mjs` (see the runbook for results and the KVM sizing decision).

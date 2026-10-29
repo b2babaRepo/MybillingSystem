@@ -54,6 +54,11 @@ const en = {
     usePassword: 'Use password or PIN instead',
     useCode: 'Sign in with a code by SMS',
   },
+  blocked: {
+    title: '{{shop}} has been blocked',
+    reason: 'Reason: {{reason}}',
+    help: 'To ask about it, contact Grocery Khata support.',
+  },
   account: {
     open: 'Account and sign out',
     title: 'Account',
@@ -645,6 +650,11 @@ const hi: typeof en = {
     newNumber: 'यह नंबर यहाँ नया है। खाता बनाने के लिए अपना नाम बताएँ।',
     usePassword: 'पासवर्ड या पिन से लॉगिन करें',
     useCode: 'SMS कोड से लॉगिन करें',
+  },
+  blocked: {
+    title: '{{shop}} बंद कर दी गई है',
+    reason: 'कारण: {{reason}}',
+    help: 'इसके बारे में पूछने के लिए ग्रोसरी खाता सपोर्ट से संपर्क करें।',
   },
   account: {
     open: 'खाता और साइन आउट',

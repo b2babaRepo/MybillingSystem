@@ -103,9 +103,11 @@ public static class PlannerEndpoints
         return TypedResults.NoContent();
     }
 
-    private static async Task<IReadOnlyList<ShopDirectoryDto>> SearchShopsAsync(string? search, AppDbContext db, CancellationToken ct)
+    private static async Task<IReadOnlyList<ShopDirectoryDto>> SearchShopsAsync(
+        string? search, AppDbContext db, Microsoft.Extensions.Options.IOptions<Shops.PlatformOptions> platform, CancellationToken ct)
     {
-        var query = db.Shops.AsNoTracking().Where(s => s.IsActive);
+        var hold = platform.Value.HoldNewShops;
+        var query = db.Shops.AsNoTracking().Where(s => s.IsActive && (!hold || s.ApprovedAt != null));
         if (!string.IsNullOrWhiteSpace(search))
         {
             var pattern = $"%{search.Trim()}%";
@@ -132,7 +134,7 @@ public static class PlannerEndpoints
     /// its items (next month starts from it); only the ticks are cleared.
     /// </summary>
     private static async Task<IResult> PlaceOrderAsync(
-        PlaceOrderRequest request, ClaimsPrincipal user, AppDbContext db, TenantContext tenant, CancellationToken ct)
+        PlaceOrderRequest request, ClaimsPrincipal user, AppDbContext db, TenantContext tenant, Microsoft.Extensions.Options.IOptions<Shops.PlatformOptions> platform, CancellationToken ct)
     {
         var userId = user.UserId()!.Value;
         if (await db.Orders.AsNoTracking().Include(o => o.Lines).SingleOrDefaultAsync(o => o.Id == request.Id && o.PlacedByUserId == userId, ct) is { } existing)
@@ -169,7 +171,8 @@ public static class PlannerEndpoints
             });
         }
 
-        var shop = await db.Shops.AsNoTracking().SingleOrDefaultAsync(s => s.Id == request.ShopId && s.IsActive, ct);
+        var hold = platform.Value.HoldNewShops;
+        var shop = await db.Shops.AsNoTracking().SingleOrDefaultAsync(s => s.Id == request.ShopId && s.IsActive && (!hold || s.ApprovedAt != null), ct);
         if (shop is null)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { [nameof(request.ShopId)] = ["Shop not found."] });

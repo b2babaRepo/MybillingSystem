@@ -24,6 +24,8 @@ export interface AuthResponse {
   memberships: MembershipSummary[]
   shopId: string | null
   role: ShopRole | null
+  /** Shops of this person that a platform admin blocked, and why. */
+  blockedShops?: { shopName: string; reason: string }[] | null
 }
 
 export interface Customer {
