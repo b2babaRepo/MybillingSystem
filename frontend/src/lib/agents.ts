@@ -33,3 +33,39 @@ export function isValidAadhaar(text: string): boolean {
   for (let i = 0; i < 12; i++) c = d[c][p[i % 8][Number(digits[11 - i])]]
   return c === 0
 }
+
+export type RegistrationStatus = 'submitted' | 'approved' | 'rejected'
+export type RegistrationPayment = 'upi' | 'cash' | 'later'
+export type RegistrationPaymentStatus = 'none' | 'received' | 'confirmed'
+
+/** A shop an agent signed up on a visit, as the agent and the reviewing admin see it. */
+export interface Registration {
+  id: string
+  status: RegistrationStatus
+  shopName: string
+  type: string
+  address: string
+  market: string
+  latitude: number
+  longitude: number
+  accuracyMetres: number | null
+  ownerName: string
+  ownerPhone: string
+  altPhone: string | null
+  gstin: string | null
+  planCode: string
+  term: 'monthly' | 'year1' | 'year3' | 'year5'
+  amount: number
+  paymentMode: RegistrationPayment
+  paymentRef: string | null
+  paymentStatus: RegistrationPaymentStatus
+  submittedAt: string
+  consentAt: string
+  rejectReason: string | null
+  shopId: string | null
+  agentCode: string
+  agentName: string
+  photos: { id: string; kind: 'front' | 'inside' | 'owner' }[]
+  /** For the reviewer: same owner number, a sign-up within 30 m, rough GPS, a reused payment reference. */
+  warnings: string[]
+}

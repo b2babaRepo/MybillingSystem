@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from '../lib/api'
-import { isValidAadhaar, type FieldAgent, type FieldAgentStatus } from '../lib/agents'
-import { formatDateTime, formatPhone } from '../lib/format'
+import { api, request } from '../lib/api'
+import { isValidAadhaar, type FieldAgent, type FieldAgentStatus, type Registration } from '../lib/agents'
+import { formatDateTime, formatPhone, formatRupees } from '../lib/format'
+import type { AdminRole } from '../lib/types'
 
 const TABS: FieldAgentStatus[] = ['applied', 'approved', 'blocked', 'rejected']
 
@@ -127,6 +128,100 @@ export function AgentsPanel() {
         ) : (
           <button onClick={() => setAdding(true)} className="min-h-11 rounded-xl border-2 border-dashed border-line font-semibold">+ {t('agentsAdmin.addTitle')}</button>
         )}
+        {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      </>}
+    </section>
+  )
+}
+
+/** A photo the API serves only with the admin's token: fetched, then shown from memory. */
+function AuthPhoto({ path, alt }: { path: string; alt: string }) {
+  const photo = useQuery({
+    queryKey: ['platform', 'photo', path],
+    queryFn: async () => URL.createObjectURL(await (await request(path)).blob()),
+    staleTime: Infinity,
+  }).data
+  return photo ? <a href={photo} target="_blank" rel="noreferrer"><img src={photo} alt={alt} className="aspect-square w-full rounded-lg object-cover" /></a> : <div className="aspect-square rounded-lg bg-ground" />
+}
+
+const REG_TABS = ['submitted', 'payment', 'approved', 'rejected'] as const
+
+/**
+ * Shops agents signed up (approvers, agent managers, super admins; billing admins see the payments tab): photos, map
+ * pin, owner, plan and money, with warnings for likely duplicates. Approve opens the shop under the owner's number;
+ * confirming the payment starts their plan.
+ */
+export function RegistrationsPanel({ role }: { role: AdminRole }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const review = role !== 'billing'
+  const money = role === 'super' || role === 'billing'
+  const first = review ? 'submitted' : 'payment'
+  const [open, setOpen] = useState(false)
+  const [tab, setTab] = useState<(typeof REG_TABS)[number]>(first)
+  const list = useQuery({ queryKey: ['platform', 'registrations', tab], queryFn: () => api<Registration[]>(`/v1/platform/registrations?status=${tab}`), enabled: open })
+  const waiting = useQuery({ queryKey: ['platform', 'registrations', first], queryFn: () => api<Registration[]>(`/v1/platform/registrations?status=${first}`) }).data?.length ?? 0
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function run(action: () => Promise<unknown>, done?: string) {
+    setBusy(true)
+    setMessage(null)
+    try {
+      await action()
+      await queryClient.invalidateQueries({ queryKey: ['platform'] })
+      if (done) setMessage(done)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
+        <h2 className="text-lg font-bold">{t('registrations.title', { count: waiting })}</h2>
+        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+      </button>
+      {open && <>
+        <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-ground p-1 text-xs font-semibold">
+          {REG_TABS.filter((x) => review || x === 'payment').map((x) => (
+            <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-teal-700 text-white' : ''}`}>{t(`registrations.tab.${x}`)}</button>
+          ))}
+        </div>
+        {list.data?.length === 0 && <p className="text-sm text-muted">{t('agentsAdmin.none')}</p>}
+        <ul className="flex flex-col gap-3">
+          {list.data?.map((r) => (
+            <li key={r.id} className="flex flex-col gap-2 rounded-xl border border-line p-3 text-sm">
+              <span className="flex items-baseline justify-between gap-2"><b className="text-base">{r.shopName}</b><span className="font-mono text-xs">{r.agentCode} · {r.agentName}</span></span>
+              {r.warnings.map((w) => <span key={w} className="rounded-lg bg-red-50 px-2 py-1 font-semibold text-red-800">⚠ {w}</span>)}
+              <div className="grid grid-cols-3 gap-2">
+                {r.photos.map((p) => <AuthPhoto key={p.id} path={`/v1/platform/registrations/${r.id}/photos/${p.id}`} alt={p.kind} />)}
+              </div>
+              <span>{t(`shopType.${r.type}`)} · {r.address} · {r.market}</span>
+              <a href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer" className="text-teal-700 underline">
+                {t('registrations.map')}{r.accuracyMetres ? ` (±${Math.round(r.accuracyMetres)} m)` : ''}</a>
+              <span>{r.ownerName} · {formatPhone(r.ownerPhone)}{r.altPhone ? ` / ${formatPhone(r.altPhone)}` : ''}{r.gstin ? ` · GSTIN ${r.gstin}` : ''}</span>
+              <span className="text-xs text-muted">{t('registrations.consent', { date: formatDateTime(r.consentAt) })}</span>
+              <span className="font-semibold">{r.planCode} · {t(`plan2.term.${r.term}`)} · {formatRupees(r.amount)} · {t(`agentShops.pay.${r.paymentMode}`)}{r.paymentRef ? ` ${r.paymentRef}` : ''} · {t(`agentShops.payStatus.${r.paymentStatus}`)}</span>
+              {r.rejectReason && <span className="font-semibold text-red-800">{r.rejectReason}</span>}
+              <div className="grid grid-cols-2 gap-2">
+                {review && r.status === 'submitted' && <>
+                  <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white"
+                    onClick={() => void run(() => api(`/v1/platform/registrations/${r.id}/approve`, 'POST', {}), t('registrations.approved', { name: r.shopName }))}>{t('registrations.approve')}</button>
+                  <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold text-red-700"
+                    onClick={() => { const reason = prompt(t('registrations.rejectAsk')); if (reason) void run(() => api(`/v1/platform/registrations/${r.id}/reject`, 'POST', { reason })) }}>{t('agentsAdmin.reject')}</button>
+                </>}
+                {money && r.status === 'approved' && r.paymentStatus === 'received' && (
+                  <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-teal-700 font-bold text-white"
+                    onClick={() => confirm(t('registrations.confirmAsk', { amount: formatRupees(r.amount), how: t(`agentShops.pay.${r.paymentMode}`) }))
+                      && void run(() => api(`/v1/platform/registrations/${r.id}/confirm-payment`, 'POST', {}), t('registrations.paid'))}>{t('registrations.confirmPay', { amount: formatRupees(r.amount) })}</button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
         {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
       </>}
     </section>

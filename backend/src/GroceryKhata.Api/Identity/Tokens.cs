@@ -51,6 +51,9 @@ public static class AppPolicies
 
     /// <summary>Field agents: super or agent-manager admins.</summary>
     public const string PlatformAgents = nameof(PlatformAgents);
+
+    /// <summary>Reviewing shops agents signed up: super, approver or agent-manager admins.</summary>
+    public const string PlatformShopReview = nameof(PlatformShopReview);
 }
 
 /// <summary>Roles as they appear in tokens: ShopRole.Owner ↔ "owner".</summary>

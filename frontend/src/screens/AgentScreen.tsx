@@ -6,6 +6,7 @@ import { Button } from '../components/ui'
 import { api } from '../lib/api'
 import { isValidAadhaar, type FieldAgent } from '../lib/agents'
 import { navigate } from '../router'
+import { AgentShops } from './AgentShops'
 
 /**
  * Becoming a field agent: the application (address, market, Aadhaar, UPI for commission, the agreement), then where it
@@ -56,6 +57,8 @@ export function AgentScreen({ userName }: { userName: string }) {
             {agent.statusReason && <span className="text-sm font-semibold">{t('fieldAgent.reason', { reason: agent.statusReason })}</span>}
           </section>
         )}
+
+        {agent?.status === 'approved' && <AgentShops agent={agent} />}
 
         {showForm && me.isSuccess && (
           <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">

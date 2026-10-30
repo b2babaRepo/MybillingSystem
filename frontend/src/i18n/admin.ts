@@ -4,6 +4,18 @@
  */
 export const adminText = {
   en: {
+    registrations: {
+      title: 'Shops from agents ({{count}} to check)',
+      tab: { submitted: 'To check', payment: 'Payments', approved: 'Approved', rejected: 'Rejected' },
+      map: 'Open on map',
+      consent: 'Owner agreed by SMS code {{date}}',
+      approve: 'Approve: open the shop',
+      approved: '{{name}} is open. The owner signs in with their number and an SMS code.',
+      rejectAsk: 'Why reject? (the agent sees it)',
+      confirmPay: 'Payment received: {{amount}}',
+      confirmAsk: 'Have you received {{amount}} ({{how}})? The shop’s plan starts now.',
+      paid: 'Payment confirmed; the plan is on.',
+    },
     openShop: {
       title: 'Open a new shop',
       hint: 'For a shopkeeper you visit or call. The shop starts approved, on the 30-day free trial.',
@@ -145,6 +157,18 @@ export const adminText = {
     },
   },
   hi: {
+    registrations: {
+      title: 'एजेंट की दुकानें ({{count}} जाँचनी हैं)',
+      tab: { submitted: 'जाँचें', payment: 'भुगतान', approved: 'मंज़ूर', rejected: 'मना' },
+      map: 'नक्शे पर देखें',
+      consent: 'मालिक ने SMS कोड से सहमति दी {{date}}',
+      approve: 'मंज़ूर: दुकान खोलें',
+      approved: '{{name}} खुल गई। मालिक अपने नंबर और SMS कोड से लॉगिन करेंगे।',
+      rejectAsk: 'क्यों मना? (एजेंट को दिखेगा)',
+      confirmPay: 'भुगतान मिला: {{amount}}',
+      confirmAsk: 'क्या {{amount}} ({{how}}) मिल गए? दुकान का प्लान अभी शुरू होगा।',
+      paid: 'भुगतान पक्का; प्लान चालू।',
+    },
     openShop: {
       title: 'नई दुकान खोलें',
       hint: 'जिस दुकानदार से आप मिलें या फ़ोन करें, उसके लिए। दुकान मंज़ूर होकर 30 दिन के फ़्री ट्रायल पर शुरू होगी।',

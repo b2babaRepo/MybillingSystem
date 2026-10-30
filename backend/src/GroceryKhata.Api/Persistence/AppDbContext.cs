@@ -48,6 +48,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Agents.FieldAgent> FieldAgents => Set<Agents.FieldAgent>();
 
+    public DbSet<Agents.ShopRegistration> ShopRegistrations => Set<Agents.ShopRegistration>();
+
+    public DbSet<Agents.RegistrationPhoto> RegistrationPhotos => Set<Agents.RegistrationPhoto>();
+
+    public DbSet<Agents.ConsentCode> ConsentCodes => Set<Agents.ConsentCode>();
+
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
@@ -422,6 +428,41 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
                 .HasForeignKey(l => new { l.ShopId, l.BillId })
                 .HasPrincipalKey(x => new { x.ShopId, x.Id })
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Agents.ShopRegistration>(b =>
+        {
+            b.ToTable("shop_registrations");
+            b.HasIndex(x => new { x.AgentId, x.CreatedAt });
+            b.HasIndex(x => new { x.Status, x.CreatedAt });
+            b.HasIndex(x => x.OwnerPhone);
+            b.Property(x => x.ShopName).HasMaxLength(120);
+            b.Property(x => x.Address).HasMaxLength(300);
+            b.Property(x => x.Market).HasMaxLength(120);
+            b.Property(x => x.OwnerName).HasMaxLength(120);
+            b.Property(x => x.OwnerPhone).HasMaxLength(20);
+            b.Property(x => x.AltPhone).HasMaxLength(20);
+            b.Property(x => x.Gstin).HasMaxLength(15);
+            b.Property(x => x.PlanCode).HasMaxLength(40);
+            b.Property(x => x.PaymentRef).HasMaxLength(30);
+            b.Property(x => x.RejectReason).HasMaxLength(200);
+            b.HasOne<Agents.FieldAgent>().WithMany().HasForeignKey(x => x.AgentId).OnDelete(DeleteBehavior.Restrict);
+            b.HasMany(x => x.Photos).WithOne().HasForeignKey(p => p.RegistrationId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Agents.RegistrationPhoto>(b =>
+        {
+            b.ToTable("registration_photos");
+            b.Property(x => x.Kind).HasMaxLength(10);
+            b.Property(x => x.ContentType).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<Agents.ConsentCode>(b =>
+        {
+            b.ToTable("consent_codes");
+            b.HasIndex(x => new { x.Phone, x.CreatedAt });
+            b.Property(x => x.Phone).HasMaxLength(20);
+            b.Property(x => x.CodeHash).HasMaxLength(64);
         });
 
         modelBuilder.Entity<Agents.FieldAgent>(b =>
