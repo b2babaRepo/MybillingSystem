@@ -55,6 +55,15 @@ public static class Hardening
             problems.Add("Jwt:SigningKey is the public development key. Set a random one in the Jwt__SigningKey environment variable.");
         }
 
+        // Keys behind Aadhaar duplicate checks and plan-bill links: public defaults would let anyone forge or match them.
+        foreach (var key in new[] { "Agents:AadhaarHashKey", "Billing:BillLinkKey" })
+        {
+            if ((app.Configuration[key] ?? "dev-only").StartsWith("dev-only", StringComparison.Ordinal))
+            {
+                problems.Add($"{key} is the public development key. Set a random one in the {key.Replace(":", "__")} environment variable.");
+            }
+        }
+
         if (app.Configuration.GetValue<bool>("Database:SeedDemo"))
         {
             problems.Add("Database:SeedDemo is on. Demo logins must never exist on a real server.");

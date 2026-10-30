@@ -110,6 +110,8 @@ public sealed class HardeningTests(ApiFactory api)
             {
                 ["ConnectionStrings:Default"] = connectionString,
                 ["Jwt:SigningKey"] = signingKey,
+                ["Agents:AadhaarHashKey"] = "test-aadhaar-key",
+                ["Billing:BillLinkKey"] = "test-bill-link-key",
                 ["Database:MigrateOnStartup"] = "false",
             }));
         });

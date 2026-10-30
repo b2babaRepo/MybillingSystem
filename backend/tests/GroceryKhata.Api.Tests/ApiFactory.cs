@@ -55,6 +55,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         {
             ["ConnectionStrings:Default"] = AppConnectionString,
             ["Jwt:SigningKey"] = "test-signing-key-at-least-32-characters-long",
+            ["Agents:AadhaarHashKey"] = "test-aadhaar-key",
+            ["Billing:BillLinkKey"] = "test-bill-link-key",
             ["Database:MigrateOnStartup"] = "true",
             ["Auth:AuthRequestsPerMinutePerIp"] = "10000",
             ["Auth:StoreRequestsPerMinutePerIp"] = "10000",
