@@ -84,6 +84,7 @@ app.MapPlatform();
 app.MapFieldAgents();
 app.MapShopRegistrations();
 app.MapAgentPerformance();
+app.MapInvoices();
 app.MapOtpSignIn();
 app.MapKhataView();
 app.MapDisputes();

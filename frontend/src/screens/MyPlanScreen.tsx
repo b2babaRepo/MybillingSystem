@@ -168,7 +168,10 @@ export function MyPlanScreen({ shopId }: { shopId: string }) {
             {s.payments.map((p) => (
               <li key={p.id} className={`flex justify-between gap-2 py-2 ${p.refundedAt ? 'text-muted line-through' : ''}`}>
                 <span>{p.invoiceNo} · {t(`plan2.term.${p.term}`)} {s.plans.find((x) => x.code === p.planCode)?.name ?? p.planCode}<br /><span className="text-xs text-muted">{new Date(p.paidAt).toLocaleDateString('en-IN')} → {new Date(p.periodEnd).toLocaleDateString('en-IN')}</span></span>
-                <span className="font-bold">{formatRupees(p.amount)}</span>
+                <span className="flex flex-col items-end gap-1">
+                  <span className="font-bold">{formatRupees(p.amount)}</span>
+                  {p.billToken && <a href={`#/bill/plan/${p.id}?t=${p.billToken}`} className="text-xs font-semibold text-teal-700 underline">{t('planBill.bill')}</a>}
+                </span>
               </li>
             ))}
           </ul>

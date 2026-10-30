@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { FEATURES, priceFor, usePlans, type Claim, type Payment, type PlanInfo, type PlanTerm, type SubscriptionStatus } from '../lib/billing'
 import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/format'
 import type { AdminRole } from '../lib/types'
+import { planBillLink } from './PlanBillPage'
 
 interface Overview { byStatus: Record<SubscriptionStatus, number>; trialsEndingThisWeek: number; revenueThisMonth: number; revenueThisYear: number; pendingClaims: Claim[] }
 interface Offer { code: string; title: string; planCode: string; term: PlanTerm; price: number; newShopsOnly: boolean; validUntil: string | null; maxUses: number | null; uses: number; isActive: boolean }
@@ -193,7 +194,7 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
   const billText = (p: Payment) => t('billing.waBill', {
     shop: shopName, invoice: p.invoiceNo, plan: planName(p.planCode), term: t(`plan2.term.${p.term}`), amount: formatRupees(p.amount),
     method: t(`billing.methods.${p.method}`), until: date(p.periodEnd),
-  })
+  }) + (p.billToken ? `\n${planBillLink(p.id, p.billToken)}` : '')
 
   async function record() {
     await run(async () => {
@@ -222,6 +223,7 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
                 <span className="text-xs text-muted">{date(p.paidAt)} → {date(p.periodEnd)}</span></span>
               <span className="flex items-center gap-2">
                 <b>{formatRupees(p.amount)}</b>
+                {p.billToken && <a href={planBillLink(p.id, p.billToken)} target="_blank" rel="noreferrer" className="flex min-h-11 items-center rounded-xl border border-line bg-white px-3 text-xs font-semibold">{t('billing.bill')}</a>}
                 {!p.refundedAt && <a href={whatsAppLink(ownerPhone, billText(p))} target="_blank" rel="noreferrer" className="flex min-h-11 items-center rounded-xl bg-[#15803d] px-3 text-xs font-semibold text-white">WhatsApp</a>}
                 {money && !p.refundedAt && p.term !== 'monthly' && (
                   <button disabled={busy} onClick={() => confirm(t('billing.refundAsk')) && void run(() => api(`/v1/platform/payments/${p.id}/refund`, 'POST', {}), t('billing.refunded'))}
@@ -312,6 +314,7 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
           <span>{t('billing.doneLine', { invoice: done.invoiceNo, plan: planName(done.planCode), amount: formatRupees(done.amount), until: date(done.periodEnd) })}</span>
           <a href={whatsAppLink(ownerPhone, billText(done))} target="_blank" rel="noreferrer"
             className="flex min-h-12 items-center justify-center rounded-xl bg-[#15803d] font-bold text-white">{t('billing.sendWa', { phone: ownerPhone ? formatPhone(ownerPhone) : '' })}</a>
+          {done.billToken && <a href={planBillLink(done.id, done.billToken)} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-center rounded-xl border border-emerald-700 bg-white font-bold">{t('billing.printBill')}</a>}
           <button onClick={() => setStep(0)} className="min-h-11 font-semibold">{t('billing.close')}</button>
         </div>
       )}

@@ -44,6 +44,7 @@ const MyStoreScreen = lazy(() => import('./screens/MyStoreScreen').then((module)
 const StoreApp = lazy(() => import('./screens/store/StoreApp').then((module) => ({ default: module.StoreApp })))
 const KhataLinkPage = lazy(() => import('./screens/khata/KhataViews').then((module) => ({ default: module.KhataLinkPage })))
 const AgentScreen = lazy(() => import('./screens/AgentScreen').then((module) => ({ default: module.AgentScreen })))
+const PlanBillPage = lazy(() => import('./screens/PlanBillPage').then((module) => ({ default: module.PlanBillPage })))
 const PlatformScreen = lazy(() => import('./screens/PlatformScreen').then((module) => ({ default: module.PlatformScreen })))
 const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
 
@@ -65,6 +66,14 @@ export default function App() {
     return (
       <Suspense fallback={<Loading />}>
         <KhataLinkPage path={path} />
+      </Suspense>
+    )
+  }
+  // A plan bill opened from WhatsApp: the token in the link is the key, no account needed.
+  if (path.startsWith('/bill/plan/')) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <PlanBillPage path={path} />
       </Suspense>
     )
   }

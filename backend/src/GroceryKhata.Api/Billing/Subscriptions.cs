@@ -243,6 +243,9 @@ public sealed class BillingOptions
 
     public string PayeeName { get; set; } = "Grocery Khata";
 
+    /// <summary>Key for plan bill links sent on WhatsApp. Set a long random value in production; changing it breaks old links.</summary>
+    public string BillLinkKey { get; set; } = "dev-only-bill-link-key-change-me";
+
     /// <summary>Once registered for GST, invoices show 18% inside the price.</summary>
     public bool GstRegistered { get; set; }
 

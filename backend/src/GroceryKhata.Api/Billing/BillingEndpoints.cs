@@ -14,7 +14,7 @@ public sealed record PlanDto(
 
 public sealed record PaymentDto(
     Guid Id, string PlanCode, PlanTerm Term, decimal Amount, PaymentMethod Method, string? Reference, string? OfferCode, DateTimeOffset PaidAt,
-    DateTimeOffset PeriodStart, DateTimeOffset PeriodEnd, string InvoiceNo, DateTimeOffset? RefundedAt);
+    DateTimeOffset PeriodStart, DateTimeOffset PeriodEnd, string InvoiceNo, DateTimeOffset? RefundedAt, string? BillToken = null);
 
 public sealed record ClaimDto(Guid Id, Guid ShopId, string? ShopName, string PlanCode, PlanTerm Term, decimal Amount, string UpiRef, string? OfferCode,
     ClaimStatus Status, DateTimeOffset CreatedAt, string? Note);
@@ -112,6 +112,7 @@ public static class BillingEndpoints
         var now = clock.GetUtcNow();
         var payments = await db.SubscriptionPayments.AsNoTracking().Where(p => p.ShopId == tenant.ShopId).OrderByDescending(p => p.PaidAt)
             .Select(ToDto).ToListAsync(ct);
+        payments = Invoices.WithTokens(payments, o);
         var claim = await db.PaymentClaims.AsNoTracking().Where(c => c.ShopId == tenant.ShopId && c.Status == ClaimStatus.Pending)
             .OrderByDescending(c => c.CreatedAt).Select(c => new ClaimDto(c.Id, c.ShopId, null, c.PlanCode, c.Term, c.Amount, c.UpiRef, c.OfferCode, c.Status, c.CreatedAt, c.Note))
             .FirstOrDefaultAsync(ct);
@@ -180,7 +181,7 @@ public static class BillingEndpoints
             statuses.GroupBy(x => x.PlanCode).ToDictionary(g => g.Key, g => g.Count()));
     }
 
-    private static async Task<IResult> ShopBillingAsync(Guid id, AppDbContext db, Entitlements entitlements, CancellationToken ct)
+    private static async Task<IResult> ShopBillingAsync(Guid id, AppDbContext db, Entitlements entitlements, IOptions<BillingOptions> options, CancellationToken ct)
     {
         if (!await db.Shops.AnyAsync(s => s.Id == id, ct))
         {
@@ -189,13 +190,13 @@ public static class BillingEndpoints
 
         var e = await entitlements.ForShopAsync(id, ct);
         var s = await entitlements.FindOrNewAsync(id, ct);
-        var payments = await db.SubscriptionPayments.AsNoTracking().Where(p => p.ShopId == id).OrderByDescending(p => p.PaidAt).Select(ToDto).ToListAsync(ct);
+        var payments = Invoices.WithTokens(await db.SubscriptionPayments.AsNoTracking().Where(p => p.ShopId == id).OrderByDescending(p => p.PaidAt).Select(ToDto).ToListAsync(ct), options.Value);
         return TypedResults.Ok(new ShopBillingView(e.Status, e.PlanCode, e.EndsAt, s.TrialEndsAt, s.PaidUntil, s.CompPlanCode, s.CompUntil, s.CompReason,
             s.HoldSince, s.HoldReason, payments, await ClaimsAsync(db, id, null, ct)));
     }
 
     /// <summary>Cash or UPI collected by the team, or a bank transfer: recorded at the plan's price (or a set amount).</summary>
-    private static async Task<IResult> RecordAsync(Guid id, RecordPaymentRequest request, ClaimsPrincipal admin, AppDbContext db, BillingService billing, CancellationToken ct)
+    private static async Task<IResult> RecordAsync(Guid id, RecordPaymentRequest request, ClaimsPrincipal admin, AppDbContext db, BillingService billing, IOptions<BillingOptions> options, CancellationToken ct)
     {
         if (request.PlanCode is null || request.Term is null || request.Method is null || !await db.Shops.AnyAsync(s => s.Id == id, ct))
         {
@@ -219,7 +220,7 @@ public static class BillingEndpoints
         }
 
         var payment = await billing.RecordAsync(id, quote, request.Method.Value, request.Reference?.Trim(), admin.UserId(), ct);
-        return TypedResults.Ok(ToDto.Compile()(payment));
+        return TypedResults.Ok(Invoices.WithTokens([ToDto.Compile()(payment)], options.Value)[0]);
     }
 
     private static async Task<IResult> ConfirmAsync(Guid id, ClaimsPrincipal admin, AppDbContext db, BillingService billing, CancellationToken ct)

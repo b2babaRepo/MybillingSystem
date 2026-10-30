@@ -189,7 +189,14 @@ public sealed class BillingTests(ApiFactory api)
 
         // A shop on trial has nothing to move; once paid for Basic it moves to Silver and keeps its dates.
         Assert.Equal(HttpStatusCode.Conflict, (await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/plan", new { planCode = "silver" })).StatusCode);
-        await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/payments", new { planCode = "basic", term = "year1", method = "cash" });
+        var recorded = await (await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/payments", new { planCode = "basic", term = "year1", method = "cash", reference = "R-77" })).ReadAsync<PaymentDto>();
+
+        // The bill opens from its link without signing in; a wrong link shows nothing.
+        var anyone = api.CreateClient();
+        var bill = await anyone.GetJsonAsync<InvoiceView>($"/api/v1/bills/plan/{recorded.Id}?t={recorded.BillToken}");
+        Assert.Equal((recorded.InvoiceNo, "Basic", 499m, "R-77"), (bill.InvoiceNo, bill.PlanName, bill.Amount, bill.Reference));
+        Assert.Matches("^GKS-", bill.ShopCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await anyone.GetAsync($"/api/v1/bills/plan/{recorded.Id}?t=0000")).StatusCode);
         var before = await shop.GetJsonAsync<SubscriptionView>("/api/v1/subscription");
         Assert.Equal(HttpStatusCode.NoContent, (await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/plan", new { planCode = "silver" })).StatusCode);
         var after = await shop.GetJsonAsync<SubscriptionView>("/api/v1/subscription");

@@ -42,6 +42,8 @@ export interface Payment {
   periodEnd: string
   invoiceNo: string
   refundedAt: string | null
+  /** Opens the bill without signing in: /bill/plan/{id}?t={billToken}. */
+  billToken?: string | null
 }
 
 export interface Claim {

@@ -43,6 +43,8 @@ export const adminText = {
       existing: 'This number already has an account: they log in with their own password and will see the new shop.',
     },
     billing: {
+      bill: 'Bill',
+      printBill: 'Open bill to print or save',
       takePayment: 'Take payment',
       renew: 'Renew or upgrade: take payment',
       step: { plan: 'Choose the plan', period: '{{plan}}: how long?', how: 'How was {{amount}} paid?', confirm: 'Check and record', done: 'Payment recorded' },
@@ -228,6 +230,8 @@ export const adminText = {
       existing: 'इस नंबर का खाता पहले से है: वे अपने पासवर्ड से लॉगिन करेंगे और नई दुकान दिखेगी।',
     },
     billing: {
+      bill: 'बिल',
+      printBill: 'बिल खोलें, प्रिंट या सेव करें',
       takePayment: 'भुगतान लें',
       renew: 'रिन्यू या अपग्रेड: भुगतान लें',
       step: { plan: 'प्लान चुनें', period: '{{plan}}: कितने समय?', how: '{{amount}} कैसे दिए?', confirm: 'जाँचें और दर्ज करें', done: 'भुगतान दर्ज हुआ' },
