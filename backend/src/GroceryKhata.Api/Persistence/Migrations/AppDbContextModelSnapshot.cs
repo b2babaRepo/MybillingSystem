@@ -3465,6 +3465,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
+                    b.Property<string>("ViewToken")
+                        .HasColumnType("text")
+                        .HasColumnName("view_token");
+
                     b.HasKey("Id");
 
                     b.HasIndex("InviteCode")

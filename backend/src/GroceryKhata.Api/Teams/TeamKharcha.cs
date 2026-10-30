@@ -23,6 +23,12 @@ public sealed class Team : Entity
     public DateTimeOffset? InviteExpiresAt { get; set; }
 
     public Guid CreatedByUserId { get; set; }
+
+    /// <summary>
+    /// The secret in the team's view link (/tv/{team}?t=…), for people without the app: totals by name and heading,
+    /// no notes. Null: no link. Only the owner turns it on; every member sees that it is on.
+    /// </summary>
+    public string? ViewToken { get; set; }
 }
 
 /// <summary>
@@ -111,7 +117,14 @@ public sealed record TeamSummary(Guid Id, string Name, TeamRole MyRole, int Memb
 
 public sealed record TeamMemberDto(Guid Id, string Name, TeamRole Role, bool HasLogin, bool IsMe, bool HasLeft);
 
-public sealed record TeamDto(Guid Id, string Name, TeamRole MyRole, Guid MyMemberId, IReadOnlyList<TeamMemberDto> Members, string? InviteCode, DateTimeOffset? InviteExpiresAt, int MaxMembers);
+public sealed record TeamDto(
+    Guid Id, string Name, TeamRole MyRole, Guid MyMemberId, IReadOnlyList<TeamMemberDto> Members, string? InviteCode, DateTimeOffset? InviteExpiresAt, int MaxMembers,
+    bool ViewLinkOn = false, string? ViewToken = null);
+
+/// <summary>What the view link shows: totals by name and heading for the month and today. No notes, no who-wrote-what.</summary>
+public sealed record TeamPublicView(
+    string Name, string Month, decimal MonthTotal, IReadOnlyList<NameTotal> MonthByName, IReadOnlyList<ExpenseCategoryTotal> MonthByCategory,
+    decimal TodayTotal, IReadOnlyList<NameTotal> TodayByName);
 
 public sealed record TeamPreview(string Name, int Members, string CreatedBy, bool AlreadyIn);
 
@@ -157,6 +170,8 @@ public static class TeamKharchaEndpoints
         g.MapPost("/{id:guid}/expenses/{expenseId:guid}/strike", StrikeAsync);
         g.MapGet("/{id:guid}/day", DayAsync);
         g.MapGet("/{id:guid}/month", MonthAsync);
+        g.MapPost("/{id:guid}/view-link", ViewLinkAsync);
+        app.MapGet("/api/v1/team-view/{id:guid}", PublicViewAsync).AllowAnonymous().WithTags("Team kharcha");
         return app;
     }
 
@@ -223,7 +238,8 @@ public static class TeamKharchaEndpoints
         var me = members.Single(m => m.UserId == userId && !m.HasLeft);
         return new TeamDto(team.Id, team.Name, me.Role, me.Id,
             members.Where(m => !m.HasLeft).Select(m => new TeamMemberDto(m.Id, m.DisplayName, m.Role, m.UserId != null, m.Id == me.Id, false)).ToList(),
-            Manages(me) ? team.InviteCode : null, Manages(me) ? team.InviteExpiresAt : null, FreeMaxMembers);
+            Manages(me) ? team.InviteCode : null, Manages(me) ? team.InviteExpiresAt : null, FreeMaxMembers,
+            team.ViewToken != null, me.Role == TeamRole.Owner ? team.ViewToken : null);
     }
 
     /// <summary>A fresh invite code, open 48 hours; the old one stops working.</summary>
@@ -529,6 +545,52 @@ public static class TeamKharchaEndpoints
             live.GroupBy(l => l.Category).Select(g => new ExpenseCategoryTotal(g.Key, g.Sum(l => l.Amount), g.Count())).OrderByDescending(c => c.Total).ToList(),
             live.GroupBy(l => DateOnly.FromDateTime(l.OccurredAt.ToOffset(IndiaTime.Offset).DateTime)).Select(g => new ExpenseDayTotal(g.Key, g.Sum(l => l.Amount), g.Count())).OrderBy(x => x.Date).ToList(),
             live));
+    }
+
+    /// <summary>The owner turns the view link on (a new secret each time) or off (the old link stops working).</summary>
+    private static async Task<IResult> ViewLinkAsync(Guid id, bool on, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    {
+        if (await MeAsync(id, user, db, ct) is not { } me)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (me.Role != TeamRole.Owner)
+        {
+            return Problem(StatusCodes.Status403Forbidden, "Only the team's owner can share a view link.");
+        }
+
+        var team = await db.Teams.SingleAsync(t => t.Id == id, ct);
+        team.ViewToken = on ? Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant() : null;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(await ViewAsync(id, me.UserId!.Value, db, ct));
+    }
+
+    /// <summary>The view link, no sign-in: this month's and today's totals by name and heading.</summary>
+    private static async Task<IResult> PublicViewAsync(Guid id, string? t, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var team = await db.Teams.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (team?.ViewToken is not { } token || t is null
+            || !CryptographicOperations.FixedTimeEquals(System.Text.Encoding.ASCII.GetBytes(t), System.Text.Encoding.ASCII.GetBytes(token)))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var today = IndiaTime.Today(clock);
+        var (monthStart, monthEnd) = IndiaTime.Month(today.Year, today.Month);
+        var (dayStart, dayEnd) = IndiaTime.Day(today);
+        var rows = await (from e in db.TeamExpenses.AsNoTracking()
+                          where e.TeamId == id && e.StruckAt == null && e.OccurredAt >= monthStart && e.OccurredAt < monthEnd
+                          join m in db.TeamMembers.AsNoTracking() on e.MemberId equals m.Id
+                          select new { e.MemberId, Name = m.HasLeft ? Former : m.DisplayName, e.Amount, e.Category, e.OccurredAt })
+            .ToListAsync(ct);
+        var byName = rows.GroupBy(r => (r.MemberId, r.Name)).Select(g => new NameTotal(g.Key.MemberId, g.Key.Name, g.Sum(r => r.Amount), g.Count())).OrderByDescending(n => n.Total).ToList();
+        var todays = rows.Where(r => r.OccurredAt >= dayStart && r.OccurredAt < dayEnd).ToList();
+        return TypedResults.Ok(new TeamPublicView(
+            team.Name, $"{today.Year:D4}-{today.Month:D2}", rows.Sum(r => r.Amount), byName,
+            rows.GroupBy(r => r.Category).Select(g => new ExpenseCategoryTotal(g.Key, g.Sum(r => r.Amount), g.Count())).OrderByDescending(c => c.Total).ToList(),
+            todays.Sum(r => r.Amount),
+            todays.GroupBy(r => (r.MemberId, r.Name)).Select(g => new NameTotal(g.Key.MemberId, g.Key.Name, g.Sum(r => r.Amount), g.Count())).OrderByDescending(n => n.Total).ToList()));
     }
 
     private static string? Short(string? name) => name?.Trim() is { Length: >= 2 and <= 40 } n ? n : null;

@@ -10,12 +10,13 @@ import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import type { ExpenseCategory } from './ExpensesScreen'
 import { shiftMonth, thisMonth } from './KharchaMonth'
+import { teamViewLink } from './TeamViewPage'
 
 addText(teamText)
 
 type Role = 'owner' | 'admin' | 'member' | 'viewer'
 interface Member { id: string; name: string; role: Role; hasLogin: boolean; isMe: boolean }
-interface Team { id: string; name: string; myRole: Role; myMemberId: string; members: Member[]; inviteCode: string | null; inviteExpiresAt: string | null; maxMembers: number }
+interface Team { id: string; name: string; myRole: Role; myMemberId: string; members: Member[]; inviteCode: string | null; inviteExpiresAt: string | null; maxMembers: number; viewLinkOn: boolean; viewToken: string | null }
 interface TeamSummary { id: string; name: string; myRole: Role; members: number; thisMonth: number }
 interface Line { id: string; occurredAt: string; amount: number; category: ExpenseCategory; note: string | null; mode: 'cash' | 'upi'; memberId: string; memberName: string; writtenBy: string | null; struckAt: string | null; struckReason: string | null; canStrike: boolean }
 interface NameTotal { memberId: string; name: string; total: number; count: number }
@@ -184,6 +185,7 @@ function TeamBook({ id }: { id: string }) {
             <button key={v} role="tab" aria-selected={tab === v} onClick={() => setTab(v)} className={`min-h-11 rounded-xl ${tab === v ? 'bg-teal-700 text-white' : ''}`}>{t(`team.tab.${v}`)}</button>
           ))}
         </div>
+        {x.viewLinkOn && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">🔗 {t('team.viewOnNotice')}</p>}
         {tab === 'day' && <TeamDay team={x} />}
         {tab === 'month' && <TeamMonth team={x} />}
         {tab === 'people' && <TeamPeople team={x} />}
@@ -263,6 +265,15 @@ function TeamDay({ team }: { team: Team }) {
         <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
           <div className="flex items-baseline justify-between"><h2 className="font-bold">{t('team.byName')}</h2><span className="text-2xl font-extrabold">{formatRupees(page.total)}</span></div>
           {page.byName.length === 0 ? <p className="text-sm text-muted">{t('team.nothing')}</p> : <NameBars rows={page.byName} />}
+          {page.byName.length > 0 && (
+            <a href={whatsAppLink(null, [
+              t('team.waToday', { team: team.name, date: new Date(`${day}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) }),
+              t('team.waTotal', { amount: formatRupees(page.total) }),
+              ...page.byName.map((n) => `• ${n.name === 'Former member' ? t('team.former') : n.name}: ${formatRupees(n.total)}`),
+              team.viewToken ? `${t('team.waSee')} ${teamViewLink(team.id, team.viewToken)}` : '',
+            ].filter(Boolean).join('\n'))} target="_blank" rel="noreferrer"
+              className="flex min-h-11 items-center justify-center rounded-xl bg-[#15803d] text-sm font-bold text-white">{t('team.shareToday')}</a>
+          )}
           <ul className="divide-y divide-[#edf2f1] text-sm">
             {page.lines.map((l) => (
               <li key={l.id} className={`flex items-center justify-between gap-2 py-2 ${l.struckAt ? 'text-muted line-through' : ''}`}>
@@ -289,7 +300,8 @@ function TeamMonth({ team }: { team: Team }) {
     t('team.waTotal', { amount: formatRupees(m.total) }),
     ...m.byName.map((n) => `• ${n.name}: ${formatRupees(n.total)}`),
     t('team.waModes', { cash: formatRupees(m.cash), upi: formatRupees(m.upi) }),
-  ].join('\n')
+    team.viewToken ? `${t('team.waSee')} ${teamViewLink(team.id, team.viewToken)}` : '',
+  ].filter(Boolean).join('\n')
   return (
     <>
       <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
@@ -371,6 +383,21 @@ function TeamPeople({ team }: { team: Team }) {
         </section>
       )}
       {manages && full && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t('team.full', { max: team.maxMembers })}</p>}
+
+      {team.myRole === 'owner' && (
+        <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4">
+          <h2 className="font-bold">{t('team.viewTitle')}</h2>
+          <p className="text-xs text-muted">{t('team.viewHint')}</p>
+          {team.viewToken ? <>
+            <a href={whatsAppLink(null, t('team.viewShare', { team: team.name, link: teamViewLink(team.id, team.viewToken) }))} target="_blank" rel="noreferrer"
+              className="flex min-h-12 items-center justify-center rounded-xl bg-[#15803d] font-bold text-white">{t('team.viewSend')}</a>
+            <button disabled={busy} onClick={() => void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/view-link?on=false`, 'POST', {})))}
+              className="min-h-11 rounded-xl border border-line font-semibold text-due">{t('team.viewOff')}</button>
+          </> : (
+            <Button disabled={busy} onClick={() => void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/view-link?on=true`, 'POST', {})))}>{t('team.viewOn')}</Button>
+          )}
+        </section>
+      )}
 
       {team.myRole !== 'owner' && (
         <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4">

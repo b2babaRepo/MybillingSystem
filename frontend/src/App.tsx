@@ -47,6 +47,7 @@ const AgentScreen = lazy(() => import('./screens/AgentScreen').then((module) => 
 const PlanBillPage = lazy(() => import('./screens/PlanBillPage').then((module) => ({ default: module.PlanBillPage })))
 const KharchaPrint = lazy(() => import('./screens/KharchaMonth').then((module) => ({ default: module.KharchaPrint })))
 const TeamScreen = lazy(() => import('./screens/TeamScreen').then((module) => ({ default: module.TeamScreen })))
+const TeamViewPage = lazy(() => import('./screens/TeamViewPage').then((module) => ({ default: module.TeamViewPage })))
 const PlatformScreen = lazy(() => import('./screens/PlatformScreen').then((module) => ({ default: module.PlatformScreen })))
 const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
 
@@ -68,6 +69,14 @@ export default function App() {
     return (
       <Suspense fallback={<Loading />}>
         <KhataLinkPage path={path} />
+      </Suspense>
+    )
+  }
+  // A team's view link, for people without the app: the token is the key.
+  if (path.startsWith('/tv/')) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <TeamViewPage path={path} />
       </Suspense>
     )
   }

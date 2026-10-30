@@ -54,6 +54,18 @@ public sealed class TeamKharchaTests(ApiFactory api)
         Assert.Equal((700m, 2), (month.Total, month.Count));
         Assert.Equal(["Ravi 500", "Dadi 200"], month.ByName.Select(n => $"{n.Name} {n.Total:0}"));
 
+        // The owner's view link shows totals by name to anyone with it, and stops when turned off. Members can't make one.
+        Assert.Equal(HttpStatusCode.Forbidden, (await sunita.PostJsonAsync($"/api/v1/teams/{team.Id}/view-link?on=true", new { })).StatusCode);
+        var linked = await (await ravi.PostJsonAsync($"/api/v1/teams/{team.Id}/view-link?on=true", new { })).ReadAsync<TeamDto>();
+        Assert.True((await sunita.GetJsonAsync<TeamDto>($"/api/v1/teams/{team.Id}")).ViewLinkOn);
+        Assert.Null((await sunita.GetJsonAsync<TeamDto>($"/api/v1/teams/{team.Id}")).ViewToken);
+        var anyone = api.CreateClient();
+        var view = await anyone.GetJsonAsync<TeamPublicView>($"/api/v1/team-view/{team.Id}?t={linked.ViewToken}");
+        Assert.Equal((700m, "Ravi"), (view.MonthTotal, view.MonthByName[0].Name));
+        Assert.Equal(HttpStatusCode.NotFound, (await anyone.GetAsync($"/api/v1/team-view/{team.Id}?t=00")).StatusCode);
+        await ravi.PostJsonAsync($"/api/v1/teams/{team.Id}/view-link?on=false", new { });
+        Assert.Equal(HttpStatusCode.NotFound, (await anyone.GetAsync($"/api/v1/team-view/{team.Id}?t={linked.ViewToken}")).StatusCode);
+
         // Someone outside the team sees nothing.
         var (stranger, _) = await api.SignUpAsync("Stranger shop");
         Assert.Equal(HttpStatusCode.NotFound, (await stranger.GetAsync($"/api/v1/teams/{team.Id}/month")).StatusCode);
