@@ -54,6 +54,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Agents.ConsentCode> ConsentCodes => Set<Agents.ConsentCode>();
 
+    public DbSet<Agents.AgentPayout> AgentPayouts => Set<Agents.AgentPayout>();
+
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
@@ -455,6 +457,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("registration_photos");
             b.Property(x => x.Kind).HasMaxLength(10);
             b.Property(x => x.ContentType).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<Agents.AgentPayout>(b =>
+        {
+            b.ToTable("agent_payouts");
+            b.HasIndex(x => new { x.AgentId, x.CreatedAt });
+            b.Property(x => x.Reference).HasMaxLength(60);
+            b.HasOne<Agents.FieldAgent>().WithMany().HasForeignKey(x => x.AgentId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Agents.ConsentCode>(b =>

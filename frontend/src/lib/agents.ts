@@ -69,3 +69,53 @@ export interface Registration {
   /** For the reviewer: same owner number, a sign-up within 30 m, rough GPS, a reused payment reference. */
   warnings: string[]
 }
+
+export type AgentBadge = 'none' | 'bronze' | 'silver' | 'gold'
+
+export interface AgentMonth { submitted: number; approved: number; rejected: number; paid: number; badge: AgentBadge; nextBadgeAt: number | null }
+
+export interface Payout { id: string; amount: number; reference: string | null; paidAt: string; paidBy: string | null }
+
+/** The agent's own numbers: this month, cash they hold, commission, rank. */
+export interface AgentSummary {
+  code: string
+  market: string
+  month: string
+  thisMonth: AgentMonth
+  shopsAllTime: number
+  paidShopsAllTime: number
+  cashToDeposit: number
+  commissionEarned: number
+  commissionWaiting: number
+  commissionPaid: number
+  commissionDue: number
+  rankInMarket: number | null
+  agentsInMarket: number
+  rankOverall: number | null
+  marketLeaders: { rank: number; code: string; name: string; market: string; paid: number; badge: AgentBadge }[]
+  payouts: Payout[]
+  firstPaymentPercent: number
+  renewalPercent: number
+  qualifyDays: number
+}
+
+/** One agent in the admin's performance table. */
+export interface AgentPerformanceRow {
+  agentId: string
+  code: string
+  name: string
+  phone: string
+  market: string
+  upiId: string | null
+  thisMonth: AgentMonth
+  shopsAllTime: number
+  paidShopsAllTime: number
+  cashToDeposit: number
+  commissionEarned: number
+  commissionWaiting: number
+  commissionPaid: number
+  commissionDue: number
+  rankOverall: number
+}
+
+export const BADGE_ICON: Record<AgentBadge, string> = { none: '', bronze: '🥉', silver: '🥈', gold: '🥇' }

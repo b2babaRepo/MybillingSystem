@@ -4,6 +4,17 @@
  */
 export const adminText = {
   en: {
+    performance: {
+      title: 'Agent performance and commission',
+      hint: 'This month’s numbers for every agent, the cash they hold for the company, and commission. Record commission only after paying it.',
+      month: 'This month: {{submitted}} signed up · {{approved}} approved · {{rejected}} rejected · {{paid}} paid',
+      cash: 'Holds {{amount}} cash for the company',
+      money: 'Commission due {{due}} · waiting {{waiting}} · paid {{paid}}',
+      pay: 'Record commission paid ({{amount}} due)',
+      payAsk: 'How much did you pay {{name}}? (due {{due}})',
+      refAsk: 'UPI reference or receipt (their UPI: {{upi}})',
+      paid: 'Recorded {{amount}} paid to {{name}}.',
+    },
     registrations: {
       title: 'Shops from agents ({{count}} to check)',
       tab: { submitted: 'To check', payment: 'Payments', approved: 'Approved', rejected: 'Rejected' },
@@ -157,6 +168,17 @@ export const adminText = {
     },
   },
   hi: {
+    performance: {
+      title: 'एजेंट का काम और कमीशन',
+      hint: 'हर एजेंट के इस महीने के आँकड़े, कंपनी का उनके पास नकद, और कमीशन। कमीशन देने के बाद ही दर्ज करें।',
+      month: 'इस महीने: {{submitted}} जोड़ीं · {{approved}} मंज़ूर · {{rejected}} मना · {{paid}} पेड',
+      cash: 'कंपनी का {{amount}} नकद इनके पास',
+      money: 'कमीशन बाकी {{due}} · इंतज़ार {{waiting}} · दिया {{paid}}',
+      pay: 'दिया कमीशन दर्ज करें ({{amount}} बाकी)',
+      payAsk: '{{name}} को कितना दिया? (बाकी {{due}})',
+      refAsk: 'UPI रेफ़रेंस या रसीद (उनका UPI: {{upi}})',
+      paid: '{{name}} को {{amount}} दिया, दर्ज हुआ।',
+    },
     registrations: {
       title: 'एजेंट की दुकानें ({{count}} जाँचनी हैं)',
       tab: { submitted: 'जाँचें', payment: 'भुगतान', approved: 'मंज़ूर', rejected: 'मना' },

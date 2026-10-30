@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, request } from '../lib/api'
-import { isValidAadhaar, type FieldAgent, type FieldAgentStatus, type Registration } from '../lib/agents'
+import { BADGE_ICON, isValidAadhaar, type AgentPerformanceRow, type FieldAgent, type FieldAgentStatus, type Registration } from '../lib/agents'
 import { formatDateTime, formatPhone, formatRupees } from '../lib/format'
 import type { AdminRole } from '../lib/types'
 
@@ -219,6 +219,65 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
                       && void run(() => api(`/v1/platform/registrations/${r.id}/confirm-payment`, 'POST', {}), t('registrations.paid'))}>{t('registrations.confirmPay', { amount: formatRupees(r.amount) })}</button>
                 )}
               </div>
+            </li>
+          ))}
+        </ul>
+        {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      </>}
+    </section>
+  )
+}
+
+/**
+ * Agent performance this month (super, agent-manager and billing admins): sign-ups, paid shops, cash each agent holds
+ * for the company, and commission. Billing and super admins record commission paid, up to what is due.
+ */
+export function PerformancePanel({ role }: { role: AdminRole }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const rows = useQuery({ queryKey: ['platform', 'agent-performance'], queryFn: () => api<AgentPerformanceRow[]>('/v1/platform/agent-performance'), enabled: open })
+  const pays = role === 'super' || role === 'billing'
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function pay(r: AgentPerformanceRow) {
+    const amount = prompt(t('performance.payAsk', { name: r.name, due: formatRupees(r.commissionDue) }), String(r.commissionDue))
+    if (!amount) return
+    const reference = prompt(t('performance.refAsk', { upi: r.upiId ?? '–' })) ?? ''
+    setMessage(null)
+    try {
+      await api(`/v1/platform/agent-performance/${r.agentId}/payouts`, 'POST', { amount: Number(amount), reference })
+      await queryClient.invalidateQueries({ queryKey: ['platform', 'agent-performance'] })
+      setMessage(t('performance.paid', { name: r.name, amount: formatRupees(Number(amount)) }))
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
+        <h2 className="text-lg font-bold">{t('performance.title')}</h2>
+        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+      </button>
+      {open && <>
+        <p className="text-sm text-muted">{t('performance.hint')}</p>
+        {rows.data?.length === 0 && <p className="text-sm text-muted">{t('agentsAdmin.none')}</p>}
+        <ul className="flex flex-col gap-2">
+          {rows.data?.map((r) => (
+            <li key={r.agentId} className="flex flex-col gap-1 rounded-xl border border-line p-3 text-sm">
+              <span className="flex items-baseline justify-between gap-2">
+                <b>{r.rankOverall > 0 ? `#${r.rankOverall} ` : ''}{r.name} {BADGE_ICON[r.thisMonth.badge]}</b>
+                <span className="font-mono text-xs">{r.code}</span>
+              </span>
+              <span className="text-muted">{r.market} · {formatPhone(r.phone)}</span>
+              <span>{t('performance.month', { submitted: r.thisMonth.submitted, approved: r.thisMonth.approved, rejected: r.thisMonth.rejected, paid: r.thisMonth.paid })}</span>
+              <span className="text-muted">{t('agentHome.allTime', { shops: r.shopsAllTime, paid: r.paidShopsAllTime })}</span>
+              {r.cashToDeposit > 0 && <span className="font-semibold text-amber-800">{t('performance.cash', { amount: formatRupees(r.cashToDeposit) })}</span>}
+              <span>{t('performance.money', { due: formatRupees(r.commissionDue), waiting: formatRupees(r.commissionWaiting), paid: formatRupees(r.commissionPaid) })}</span>
+              {pays && r.commissionDue > 0 && (
+                <button onClick={() => void pay(r)} className="mt-1 min-h-11 rounded-xl bg-teal-700 font-bold text-white">{t('performance.pay', { amount: formatRupees(r.commissionDue) })}</button>
+              )}
             </li>
           ))}
         </ul>

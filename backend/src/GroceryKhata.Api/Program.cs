@@ -28,6 +28,7 @@ builder.Services.AddWhatsAppOrders(builder.Configuration);
 builder.Services.AddBalanceChecks();
 builder.Services.AddBilling();
 builder.Services.AddFieldAgents(builder.Configuration);
+builder.Services.AddAgentPerformance(builder.Configuration);
 builder.Services.AddBillPhotoReading(builder.Configuration);
 builder.Services.AddOtpSignIn(builder.Configuration, builder.Environment);
 
@@ -82,6 +83,7 @@ app.MapAgent();
 app.MapPlatform();
 app.MapFieldAgents();
 app.MapShopRegistrations();
+app.MapAgentPerformance();
 app.MapOtpSignIn();
 app.MapKhataView();
 app.MapDisputes();

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../components/ui'
 import { api } from '../lib/api'
-import type { FieldAgent, Registration, RegistrationPayment } from '../lib/agents'
+import { BADGE_ICON, type AgentSummary, type FieldAgent, type Registration, type RegistrationPayment } from '../lib/agents'
 import { priceFor, type PlanInfo, type PlanTerm } from '../lib/billing'
 import { formatDateTime, formatRupees } from '../lib/format'
 import { shrinkPhoto } from '../lib/images'
@@ -19,30 +19,24 @@ const STATUS_STYLE: Record<string, string> = {
 /** The approved agent's work: sign a shop up on a visit, and the list of shops they signed up with where each stands. */
 export function AgentShops({ agent }: { agent: FieldAgent }) {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<'new' | 'mine'>('new')
+  const [tab, setTab] = useState<'home' | 'new' | 'mine' | 'awards'>('home')
   const mine = useQuery({ queryKey: ['agent', 'shops'], queryFn: () => api<Registration[]>('/v1/agent/shops') })
+  const summary = useQuery({ queryKey: ['agent', 'summary'], queryFn: () => api<AgentSummary>('/v1/agent/summary') }).data
   const shops = mine.data ?? []
-  const counts = {
-    submitted: shops.filter((r) => r.status === 'submitted').length,
-    approved: shops.filter((r) => r.status === 'approved').length,
-    paid: shops.filter((r) => r.paymentStatus === 'confirmed').length,
-  }
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-3 gap-2 text-center">
-        {(['submitted', 'approved', 'paid'] as const).map((k) => (
-          <div key={k} className="rounded-2xl bg-white p-3"><div className="text-2xl font-extrabold">{counts[k]}</div><div className="text-xs text-muted">{t(`agentShops.count.${k}`)}</div></div>
-        ))}
-      </div>
-      <div role="tablist" className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 font-semibold">
-        {(['new', 'mine'] as const).map((x) => (
+      <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-white p-1 text-sm font-semibold">
+        {(['home', 'new', 'mine', 'awards'] as const).map((x) => (
           <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-teal-700 text-white' : ''}`}>
             {t(`agentShops.tab.${x}`)}
           </button>
         ))}
       </div>
-      {tab === 'new' ? <NewShopForm agent={agent} onDone={() => setTab('mine')} /> : (
+      {tab === 'home' && summary && <AgentHome s={summary} />}
+      {tab === 'awards' && summary && <AgentAwards s={summary} />}
+      {tab === 'new' && <NewShopForm agent={agent} onDone={() => setTab('mine')} />}
+      {tab === 'mine' && (
         <ul className="flex flex-col gap-2">
           {shops.length === 0 && <p className="p-4 text-center text-muted">{t('agentShops.none')}</p>}
           {shops.map((r) => (
@@ -205,5 +199,83 @@ function NewShopForm({ agent, onDone }: { agent: FieldAgent; onDone: () => void 
       {message && <p className={`rounded-xl p-3 text-sm font-semibold ${message.ok ? 'bg-teal-50 text-teal-900' : 'bg-red-50 text-red-800'}`}>{message.text}</p>}
       <Button disabled={busy || !ready} onClick={() => void submit()}>{t('agentShops.submit', { amount: amount !== null ? formatRupees(amount) : '' })}</Button>
     </section>
+  )
+}
+
+/** This month at a glance, the cash the agent holds for the company, and their commission. */
+function AgentHome({ s }: { s: AgentSummary }) {
+  const { t } = useTranslation()
+  const m = s.thisMonth
+  return (
+    <>
+      <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4">
+        <h2 className="font-bold">{t('agentHome.month')}</h2>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {([['submitted', m.submitted], ['approved', m.approved], ['paid', m.paid]] as const).map(([k, v]) => (
+            <div key={k} className="rounded-xl bg-ground p-2"><div className="text-2xl font-extrabold">{v}</div><div className="text-xs text-muted">{t(`agentShops.count.${k}`)}</div></div>
+          ))}
+        </div>
+        <p className="text-sm">
+          {m.badge !== 'none' && <b>{BADGE_ICON[m.badge]} {t(`agentHome.badge.${m.badge}`)} · </b>}
+          {m.nextBadgeAt !== null ? t('agentHome.next', { count: m.nextBadgeAt - m.paid }) : t('agentHome.top')}
+        </p>
+      </section>
+
+      {s.cashToDeposit > 0 && (
+        <section className="rounded-[20px] bg-amber-50 p-4 text-amber-900">
+          <div className="text-sm font-semibold">{t('agentHome.cash')}</div>
+          <div className="text-3xl font-extrabold">{formatRupees(s.cashToDeposit)}</div>
+          <div className="text-xs">{t('agentHome.cashHint')}</div>
+        </section>
+      )}
+
+      <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4">
+        <h2 className="font-bold">{t('agentHome.commission')}</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-emerald-50 p-3 text-emerald-900"><div className="text-xs">{t('agentHome.due')}</div><div className="text-2xl font-extrabold">{formatRupees(s.commissionDue)}</div></div>
+          <div className="rounded-xl bg-ground p-3"><div className="text-xs text-muted">{t('agentHome.waiting')}</div><div className="text-2xl font-extrabold">{formatRupees(s.commissionWaiting)}</div></div>
+        </div>
+        <p className="text-sm">{t('agentHome.totals', { earned: formatRupees(s.commissionEarned), paid: formatRupees(s.commissionPaid) })}</p>
+        <p className="text-xs text-muted">{t('agentHome.rules', { first: s.firstPaymentPercent, renewal: s.renewalPercent, days: s.qualifyDays })}</p>
+        {s.payouts.length > 0 && (
+          <ul className="divide-y divide-[#edf2f1] text-sm">
+            {s.payouts.map((p) => (
+              <li key={p.id} className="flex justify-between py-2"><span>{formatDateTime(p.paidAt)}{p.reference ? ` · ${p.reference}` : ''}</span><b>{formatRupees(p.amount)}</b></li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <p className="text-center text-xs text-muted">{t('agentHome.allTime', { shops: s.shopsAllTime, paid: s.paidShopsAllTime })}</p>
+    </>
+  )
+}
+
+/** Where the agent stands this month: rank in their market and overall, the market's leaders, and the badges. */
+function AgentAwards({ s }: { s: AgentSummary }) {
+  const { t } = useTranslation()
+  return (
+    <>
+      <section className="grid grid-cols-2 gap-2">
+        <div className="rounded-[20px] bg-white p-4 text-center"><div className="text-3xl font-extrabold">{s.rankInMarket ? `#${s.rankInMarket}` : '–'}</div><div className="text-xs text-muted">{t('agentAwards.inMarket', { market: s.market, count: s.agentsInMarket })}</div></div>
+        <div className="rounded-[20px] bg-white p-4 text-center"><div className="text-3xl font-extrabold">{s.rankOverall ? `#${s.rankOverall}` : '–'}</div><div className="text-xs text-muted">{t('agentAwards.overall')}</div></div>
+      </section>
+      <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4">
+        <h2 className="font-bold">{t('agentAwards.leaders', { market: s.market })}</h2>
+        {s.marketLeaders.length === 0 && <p className="text-sm text-muted">{t('agentAwards.none')}</p>}
+        <ol className="flex flex-col gap-1">
+          {s.marketLeaders.map((l) => (
+            <li key={l.code} className={`flex items-center justify-between rounded-xl px-3 py-2 ${l.code === s.code ? 'bg-teal-50 font-bold' : ''}`}>
+              <span>{l.rank}. {l.name} <span className="font-mono text-xs text-muted">{l.code}</span></span>
+              <span>{BADGE_ICON[l.badge]} {t('agentAwards.paid', { count: l.paid })}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+      <section className="flex flex-col gap-1 rounded-[20px] bg-white p-4 text-sm">
+        <h2 className="font-bold">{t('agentAwards.badges')}</h2>
+        <span>🥉 {t('agentHome.badge.bronze')} · 🥈 {t('agentHome.badge.silver')} · 🥇 {t('agentHome.badge.gold')}</span>
+        <span className="text-muted">{t('agentAwards.howBadges')}</span>
+      </section>
+    </>
   )
 }

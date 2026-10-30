@@ -8,7 +8,7 @@ import { formatDateTime, formatPhone } from '../lib/format'
 import { useSession } from '../lib/data'
 import { ActivityPanel, AgentPanel, BillingPanel, PlansPanel, ShopBillingPanel } from './PlatformBilling'
 import { usePlans } from '../lib/billing'
-import { AgentsPanel, RegistrationsPanel } from './PlatformAgents'
+import { AgentsPanel, PerformancePanel, RegistrationsPanel } from './PlatformAgents'
 import { addText } from '../i18n'
 import { adminText } from '../i18n/admin'
 
@@ -84,6 +84,7 @@ export function PlatformScreen() {
         <AgentPanel role={role} />
         {role !== 'support' && <RegistrationsPanel role={role} />}
         {(role === 'super' || role === 'agent_manager') && <AgentsPanel />}
+        {(role === 'super' || role === 'agent_manager' || role === 'billing') && <PerformancePanel role={role} />}
         {(role === 'super' || role === 'billing') && <PlansPanel />}
         {(role === 'super' || role === 'billing') && <BillingPanel />}
         {role === 'super' && <ManageAdmins />}
