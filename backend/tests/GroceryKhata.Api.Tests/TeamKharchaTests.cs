@@ -142,4 +142,28 @@ public sealed class TeamKharchaTests(ApiFactory api)
         var image = await raju.GetAsync($"/api/v1/teams/{team.Id}/expenses/{small.Id}/photo");
         Assert.Equal("image/webp", image.Content.Headers.ContentType?.MediaType);
     }
+
+    [Fact]
+    public async Task An_advance_goes_down_as_the_helper_spends_from_it_and_returns_the_rest()
+    {
+        var (owner, _) = await api.SignUpAsync("Owner shop");
+        var team = await (await owner.PostJsonAsync("/api/v1/teams", new { name = "Site team", consent = true })).ReadAsync<TeamDto>();
+        var code = (await (await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/invite", new { })).ReadAsync<TeamDto>()).InviteCode;
+        var (raju, _) = await api.SignUpAsync("Raju shop");
+        var rajuTeam = await (await raju.PostJsonAsync("/api/v1/teams/join", new { code, yourName = "Raju", consent = true })).ReadAsync<TeamDto>();
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await raju.PostJsonAsync($"/api/v1/teams/{team.Id}/advances", new { memberId = rajuTeam.MyMemberId, kind = "given", amount = 2000m })).StatusCode);
+        await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/advances", new { memberId = rajuTeam.MyMemberId, kind = "given", amount = 2000m, note = "for the week" });
+        await raju.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 450m, note = "tempo", fromAdvance = true });
+        await raju.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 120m, note = "chai", fromAdvance = true });
+        await raju.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 99m, note = "own pocket" });
+
+        var mine = await raju.GetJsonAsync<AdvancesDto>($"/api/v1/teams/{team.Id}/advances");
+        Assert.Equal((2000m, 570m, 0m, 1430m), (mine.Balances[0].Given, mine.Balances[0].Spent, mine.Balances[0].Returned, mine.Balances[0].Holds));
+
+        // He hands back ₹1,430: holds nothing.
+        var settled = await (await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/advances", new { memberId = rajuTeam.MyMemberId, kind = "returned", amount = 1430m })).ReadAsync<AdvancesDto>();
+        Assert.Equal(0m, settled.Balances.Single(b => b.MemberId == rajuTeam.MyMemberId).Holds);
+        Assert.Equal(2, settled.Entries.Count);
+    }
 }

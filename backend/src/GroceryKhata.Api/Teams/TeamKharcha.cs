@@ -115,6 +115,39 @@ public sealed class TeamExpense : Entity
     public byte[]? Photo { get; set; }
 
     public string? PhotoType { get; set; }
+
+    /// <summary>Paid out of money the owner advanced to this person (it lowers what they still hold).</summary>
+    public bool FromAdvance { get; set; }
+}
+
+/// <summary>
+/// Money the owner hands a person to spend for the team (an advance), or money they hand back. What they still hold =
+/// advances − lines they paid from the advance − money returned. Never edited; a mistake is struck.
+/// </summary>
+public sealed class TeamAdvance : Entity
+{
+    public Guid TeamId { get; set; }
+
+    public Guid MemberId { get; set; }
+
+    public AdvanceKind Kind { get; set; }
+
+    public decimal Amount { get; set; }
+
+    public string? Note { get; set; }
+
+    public Guid ByUserId { get; set; }
+
+    public DateTimeOffset? StruckAt { get; set; }
+}
+
+public enum AdvanceKind
+{
+    /// <summary>The owner gave money to spend.</summary>
+    Given,
+
+    /// <summary>The person handed money back.</summary>
+    Returned,
 }
 
 public sealed record CreateTeamRequest(string? Name, string? YourName, bool Consent);
@@ -128,9 +161,19 @@ public sealed record TeamRoleRequest(TeamRole? Role);
 public sealed record LeaveTeamRequest(bool DeleteMyLines);
 
 public sealed record TeamExpenseRequest(
-    Guid Id, decimal Amount, ExpenseCategory? Category, string? Note, PaymentMode? Mode, Guid? MemberId, DateTimeOffset? OccurredAt, string? PhotoDataUrl = null);
+    Guid Id, decimal Amount, ExpenseCategory? Category, string? Note, PaymentMode? Mode, Guid? MemberId, DateTimeOffset? OccurredAt, string? PhotoDataUrl = null,
+    bool FromAdvance = false);
 
 public sealed record TeamRulesRequest(decimal? ApprovalAbove);
+
+public sealed record AdvanceRequest(Guid MemberId, AdvanceKind? Kind, decimal Amount, string? Note);
+
+public sealed record AdvanceEntryDto(Guid Id, DateTimeOffset At, Guid MemberId, string MemberName, AdvanceKind Kind, decimal Amount, string? Note, string? By, bool Struck);
+
+/// <summary>One person's advance account: given, spent from it, returned, and what they still hold.</summary>
+public sealed record AdvanceBalance(Guid MemberId, string Name, decimal Given, decimal Spent, decimal Returned, decimal Holds);
+
+public sealed record AdvancesDto(IReadOnlyList<AdvanceBalance> Balances, IReadOnlyList<AdvanceEntryDto> Entries);
 
 public sealed record MemberLimitRequest(decimal? MonthlyLimit);
 
@@ -154,7 +197,7 @@ public sealed record TeamPreview(string Name, int Members, string CreatedBy, boo
 public sealed record TeamLineDto(
     Guid Id, DateTimeOffset OccurredAt, decimal Amount, ExpenseCategory Category, string? Note, PaymentMode Mode,
     Guid MemberId, string MemberName, string? WrittenBy, DateTimeOffset? StruckAt, string? StruckReason, bool CanStrike,
-    bool Pending = false, bool CanApprove = false, bool HasPhoto = false, string? ApprovedBy = null);
+    bool Pending = false, bool CanApprove = false, bool HasPhoto = false, string? ApprovedBy = null, bool FromAdvance = false);
 
 public sealed record NameTotal(Guid MemberId, string Name, decimal Total, int Count);
 
@@ -200,6 +243,9 @@ public static class TeamKharchaEndpoints
         g.MapPost("/{id:guid}/expenses/{expenseId:guid}/approve", ApproveAsync);
         g.MapGet("/{id:guid}/expenses/{expenseId:guid}/photo", PhotoAsync);
         g.MapGet("/{id:guid}/pending", PendingAsync);
+        g.MapGet("/{id:guid}/advances", AdvancesAsync);
+        g.MapPost("/{id:guid}/advances", AddAdvanceAsync);
+        g.MapPost("/{id:guid}/advances/{advanceId:guid}/strike", StrikeAdvanceAsync);
         app.MapGet("/api/v1/team-view/{id:guid}", PublicViewAsync).AllowAnonymous().WithTags("Team kharcha");
         return app;
     }
@@ -527,7 +573,7 @@ public static class TeamKharchaEndpoints
             Id = request.Id, TeamId = id, MemberId = memberId, CreatedByUserId = me.UserId!.Value,
             OccurredAt = request.OccurredAt is { } at && at <= now ? at.ToUniversalTime() : now,
             Amount = request.Amount, Category = request.Category ?? ExpenseReader.Guess(note ?? "").Category, Note = note, Mode = request.Mode ?? PaymentMode.Cash,
-            PendingSince = pendingSince, Photo = photo, PhotoType = photo is null ? null : photoType,
+            PendingSince = pendingSince, Photo = photo, PhotoType = photo is null ? null : photoType, FromAdvance = request.FromAdvance,
         });
         await db.SaveChangesAsync(ct);
         return TypedResults.Created($"/api/v1/teams/{id}/expenses/{request.Id}", (await LinesAsync(id, me, db, e => e.Id == request.Id, ct)).Single());
@@ -577,13 +623,13 @@ public static class TeamKharchaEndpoints
                           select new
                           {
                               e.Id, e.OccurredAt, e.Amount, e.Category, e.Note, e.Mode, e.MemberId, e.CreatedByUserId, e.StruckAt, e.StruckReason,
-                              e.PendingSince, HasPhoto = e.Photo != null, m.DisplayName, m.HasLeft, Writer = u == null ? null : u.FullName,
+                              e.PendingSince, e.FromAdvance, HasPhoto = e.Photo != null, m.DisplayName, m.HasLeft, Writer = u == null ? null : u.FullName,
                               Approver = a == null ? null : a.FullName,
                           })
             .ToListAsync(ct);
         return rows.Select(r => new TeamLineDto(r.Id, r.OccurredAt, r.Amount, r.Category, r.Note, r.Mode, r.MemberId,
             r.HasLeft ? Former : r.DisplayName, r.Writer, r.StruckAt, r.StruckReason, r.StruckAt is null && CanStrike(me, r.MemberId, r.CreatedByUserId),
-            r.PendingSince != null && r.StruckAt == null, r.PendingSince != null && r.StruckAt == null && Manages(me), r.HasPhoto, r.Approver)).ToList();
+            r.PendingSince != null && r.StruckAt == null, r.PendingSince != null && r.StruckAt == null && Manages(me), r.HasPhoto, r.Approver, r.FromAdvance)).ToList();
     }
 
     private static List<NameTotal> ByName(IEnumerable<TeamLineDto> live) =>
@@ -770,6 +816,89 @@ public static class TeamKharchaEndpoints
             .Select(e => new { e.Photo, e.PhotoType }).SingleOrDefaultAsync(ct) is { } p
             ? TypedResults.File(p.Photo!, p.PhotoType ?? "image/webp")
             : TypedResults.NotFound();
+    }
+
+    /// <summary>
+    /// Everyone's advance account. The owner and admins see all; a member sees their own (it's money they're answerable for).
+    /// </summary>
+    private static async Task<IResult> AdvancesAsync(Guid id, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    {
+        if (await MeAsync(id, user, db, ct) is not { } me)
+        {
+            return TypedResults.NotFound();
+        }
+
+        return TypedResults.Ok(await LoadAdvancesAsync(id, me, db, ct));
+    }
+
+    private static async Task<AdvancesDto> LoadAdvancesAsync(Guid id, TeamMember me, AppDbContext db, CancellationToken ct)
+    {
+        var members = await db.TeamMembers.AsNoTracking().Where(m => m.TeamId == id).ToDictionaryAsync(m => m.Id, ct);
+        var entries = await (from a in db.TeamAdvances.AsNoTracking()
+                             where a.TeamId == id && (Manages(me) || a.MemberId == me.Id)
+                             join u in db.Users.AsNoTracking() on a.ByUserId equals u.Id into users
+                             from u in users.DefaultIfEmpty()
+                             orderby a.CreatedAt descending
+                             select new { A = a, By = u == null ? null : u.FullName }).ToListAsync(ct);
+        var spent = await db.TeamExpenses.AsNoTracking()
+            .Where(e => e.TeamId == id && e.FromAdvance && e.StruckAt == null && e.PendingSince == null && (Manages(me) || e.MemberId == me.Id))
+            .GroupBy(e => e.MemberId).Select(g => new { g.Key, Sum = g.Sum(e => e.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        string Name(Guid memberId) => members.TryGetValue(memberId, out var m) ? (m.HasLeft ? Former : m.DisplayName) : Former;
+        var live = entries.Where(e => e.A.StruckAt == null).Select(e => e.A).ToList();
+        var balances = live.Select(a => a.MemberId).Concat(spent.Keys).Distinct().Select(memberId =>
+        {
+            var given = live.Where(a => a.MemberId == memberId && a.Kind == AdvanceKind.Given).Sum(a => a.Amount);
+            var returned = live.Where(a => a.MemberId == memberId && a.Kind == AdvanceKind.Returned).Sum(a => a.Amount);
+            var used = spent.GetValueOrDefault(memberId);
+            return new AdvanceBalance(memberId, Name(memberId), given, used, returned, given - used - returned);
+        }).OrderByDescending(b => b.Holds).ToList();
+        return new AdvancesDto(balances, entries.Select(e => new AdvanceEntryDto(e.A.Id, e.A.CreatedAt, e.A.MemberId, Name(e.A.MemberId), e.A.Kind, e.A.Amount, e.A.Note, e.By, e.A.StruckAt != null)).ToList());
+    }
+
+    /// <summary>The owner or an admin records money given to someone, or handed back by them.</summary>
+    private static async Task<IResult> AddAdvanceAsync(Guid id, AdvanceRequest request, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    {
+        if (await MeAsync(id, user, db, ct) is not { } me)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (!Manages(me))
+        {
+            return Problem(StatusCodes.Status403Forbidden, "Only the owner or an admin gives or takes back advances.");
+        }
+
+        var errors = new Dictionary<string, string[]>();
+        if (request.Kind is null) errors["Kind"] = ["Given or returned."];
+        if (request.Amount <= 0 || request.Amount > Money.MaxAmount || decimal.Round(request.Amount, 2) != request.Amount) errors["Amount"] = ["Enter an amount above ₹0."];
+        if (!await db.TeamMembers.AnyAsync(m => m.Id == request.MemberId && m.TeamId == id && !m.HasLeft, ct)) errors["MemberId"] = ["That person isn't in the team."];
+        var note = request.Note?.Trim();
+        if (note?.Length > 120) errors["Note"] = ["Keep the note short."];
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        db.TeamAdvances.Add(new TeamAdvance { TeamId = id, MemberId = request.MemberId, Kind = request.Kind!.Value, Amount = request.Amount, Note = string.IsNullOrEmpty(note) ? null : note, ByUserId = me.UserId!.Value });
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(await LoadAdvancesAsync(id, me, db, ct));
+    }
+
+    private static async Task<IResult> StrikeAdvanceAsync(Guid id, Guid advanceId, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (await MeAsync(id, user, db, ct) is not { } me)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (!Manages(me))
+        {
+            return Problem(StatusCodes.Status403Forbidden, "Only the owner or an admin can strike an advance.");
+        }
+
+        var changed = await db.TeamAdvances.Where(a => a.Id == advanceId && a.TeamId == id && a.StruckAt == null)
+            .ExecuteUpdateAsync(u => u.SetProperty(a => a.StruckAt, clock.GetUtcNow()), ct);
+        return changed == 0 ? TypedResults.NotFound() : TypedResults.Ok(await LoadAdvancesAsync(id, me, db, ct));
     }
 
     private static string? Short(string? name) => name?.Trim() is { Length: >= 2 and <= 40 } n ? n : null;

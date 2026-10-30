@@ -62,6 +62,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Teams.TeamExpense> TeamExpenses => Set<Teams.TeamExpense>();
 
+    public DbSet<Teams.TeamAdvance> TeamAdvances => Set<Teams.TeamAdvance>();
+
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
@@ -484,6 +486,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(x => new { x.TeamId, x.UserId });
             b.HasIndex(x => x.UserId);
             b.HasOne<Teams.Team>().WithMany().HasForeignKey(x => x.TeamId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Teams.TeamAdvance>(b =>
+        {
+            b.ToTable("team_advances");
+            b.Property(x => x.Amount).HasPrecision(12, 2);
+            b.Property(x => x.Note).HasMaxLength(120);
+            b.HasIndex(x => new { x.TeamId, x.MemberId });
+            b.HasOne<Teams.Team>().WithMany().HasForeignKey(x => x.TeamId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Teams.TeamMember>().WithMany().HasForeignKey(x => x.MemberId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Teams.TeamExpense>(b =>

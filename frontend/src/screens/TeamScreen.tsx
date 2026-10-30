@@ -19,7 +19,10 @@ type Role = 'owner' | 'admin' | 'member' | 'viewer'
 interface Member { id: string; name: string; role: Role; hasLogin: boolean; isMe: boolean; monthlyLimit: number | null; spentThisMonth: number }
 interface Team { id: string; name: string; myRole: Role; myMemberId: string; members: Member[]; inviteCode: string | null; inviteExpiresAt: string | null; maxMembers: number; viewLinkOn: boolean; viewToken: string | null; approvalAbove: number | null; pending: number }
 interface TeamSummary { id: string; name: string; myRole: Role; members: number; thisMonth: number }
-interface Line { id: string; occurredAt: string; amount: number; category: ExpenseCategory; note: string | null; mode: 'cash' | 'upi'; memberId: string; memberName: string; writtenBy: string | null; struckAt: string | null; struckReason: string | null; canStrike: boolean; pending: boolean; canApprove: boolean; hasPhoto: boolean; approvedBy: string | null }
+interface Line { id: string; occurredAt: string; amount: number; category: ExpenseCategory; note: string | null; mode: 'cash' | 'upi'; memberId: string; memberName: string; writtenBy: string | null; struckAt: string | null; struckReason: string | null; canStrike: boolean; pending: boolean; canApprove: boolean; hasPhoto: boolean; approvedBy: string | null; fromAdvance: boolean }
+interface AdvanceBalance { memberId: string; name: string; given: number; spent: number; returned: number; holds: number }
+interface AdvanceEntry { id: string; at: string; memberId: string; memberName: string; kind: 'given' | 'returned'; amount: number; note: string | null; by: string | null; struck: boolean }
+interface Advances { balances: AdvanceBalance[]; entries: AdvanceEntry[] }
 interface NameTotal { memberId: string; name: string; total: number; count: number }
 interface Day { date: string; total: number; byName: NameTotal[]; lines: Line[]; pendingTotal: number }
 interface Month { month: string; complete: boolean; total: number; cash: number; upi: number; count: number; byName: NameTotal[]; byCategory: { category: ExpenseCategory; total: number; count: number }[]; byDay: { date: string; total: number }[]; lines: Line[] }
@@ -163,7 +166,7 @@ function JoinTeam({ code, userName }: { code: string; userName: string }) {
 function TeamBook({ id }: { id: string }) {
   const { t } = useTranslation()
   const team = useQuery({ queryKey: ['team', id], queryFn: () => api<Team>(`/v1/teams/${id}`) })
-  const [tab, setTab] = useState<'day' | 'month' | 'people'>('day')
+  const [tab, setTab] = useState<'day' | 'month' | 'advance' | 'people'>('day')
   const x = team.data
   if (team.isError) {
     // 404: not in this team (or it doesn't exist). Anything else (no signal, server restarting) can be tried again.
@@ -181,8 +184,8 @@ function TeamBook({ id }: { id: string }) {
     <div className="mx-auto min-h-dvh max-w-md pb-10">
       <Header title={x.name} back="/team" />
       <div className="flex flex-col gap-3 p-4">
-        <div role="tablist" className="grid grid-cols-3 gap-1 rounded-2xl bg-white p-1 font-semibold">
-          {(['day', 'month', 'people'] as const).map((v) => (
+        <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-white p-1 text-sm font-semibold">
+          {(['day', 'month', 'advance', 'people'] as const).map((v) => (
             <button key={v} role="tab" aria-selected={tab === v} onClick={() => setTab(v)} className={`min-h-11 rounded-xl ${tab === v ? 'bg-teal-700 text-white' : ''}`}>{t(`team.tab.${v}`)}</button>
           ))}
         </div>
@@ -190,6 +193,7 @@ function TeamBook({ id }: { id: string }) {
         {x.viewLinkOn && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">🔗 {t('team.viewOnNotice')}</p>}
         {tab === 'day' && <TeamDay team={x} />}
         {tab === 'month' && <TeamMonth team={x} />}
+        {tab === 'advance' && <TeamAdvances team={x} />}
         {tab === 'people' && <TeamPeople team={x} />}
       </div>
     </div>
@@ -217,16 +221,19 @@ function TeamDay({ team }: { team: Team }) {
   const [day, setDay] = useState(indiaToday())
   const page = useQuery({ queryKey: ['team', team.id, 'day', day], queryFn: () => api<Day>(`/v1/teams/${team.id}/day?date=${day}`) }).data
   const manages = team.myRole === 'owner' || team.myRole === 'admin'
-  const [form, setForm] = useState({ amount: '', note: '', mode: 'cash' as 'cash' | 'upi', memberId: team.myMemberId, photo: '' })
+  const [form, setForm] = useState({ amount: '', note: '', mode: 'cash' as 'cash' | 'upi', memberId: team.myMemberId, photo: '', fromAdvance: null as boolean | null })
+  const advances = useQuery({ queryKey: ['team', team.id, 'advances'], queryFn: () => api<Advances>(`/v1/teams/${team.id}/advances`) }).data
+  const holds = advances?.balances.find((b) => b.memberId === form.memberId)?.holds ?? 0
+  const fromAdvance = form.fromAdvance ?? holds > 0
   const { busy, message, run } = useRun()
   const isToday = day === indiaToday()
 
   const add = () => run(async () => {
     await api(`/v1/teams/${team.id}/expenses`, 'POST', {
       id: crypto.randomUUID(), amount: Number(form.amount), note: form.note.trim() || null, mode: form.mode,
-      memberId: form.memberId, occurredAt: isToday ? null : `${day}T12:00:00+05:30`, photoDataUrl: form.photo || null,
+      memberId: form.memberId, occurredAt: isToday ? null : `${day}T12:00:00+05:30`, photoDataUrl: form.photo || null, fromAdvance,
     })
-    setForm({ ...form, amount: '', note: '', photo: '' })
+    setForm({ ...form, amount: '', note: '', photo: '', fromAdvance: null })
     await queryClient.invalidateQueries({ queryKey: ['team', team.id] })
     await queryClient.invalidateQueries({ queryKey: ['teams'] })
   })
@@ -256,6 +263,12 @@ function TeamDay({ team }: { team: Team }) {
             <input type="file" accept="image/*" capture="environment" className="sr-only"
               onChange={(e) => { const file = e.target.files?.[0]; if (file) void shrinkPhoto(file, 1024, 140_000, false).then((url) => setForm((f) => ({ ...f, photo: url }))) }} />
           </label>
+          {(holds > 0 || form.fromAdvance) && (
+            <label className="flex min-h-11 items-center gap-2 rounded-xl bg-ground px-3 text-sm">
+              <input type="checkbox" checked={fromAdvance} onChange={(e) => setForm({ ...form, fromAdvance: e.target.checked })} className="h-5 w-5" />
+              {t('team.fromAdvance', { amount: formatRupees(holds) })}
+            </label>
+          )}
           {team.approvalAbove && !manages && <p className="text-xs text-muted">{t('team.approvalNote', { amount: formatRupees(team.approvalAbove) })}</p>}
           {manages && (
             <label className="flex items-center gap-2 text-sm"><span className="text-muted">{t('team.spentBy')}</span>
@@ -286,7 +299,7 @@ function TeamDay({ team }: { team: Team }) {
           <ul className="divide-y divide-[#edf2f1] text-sm">
             {page.lines.map((l) => (
               <li key={l.id} className={`flex items-center justify-between gap-2 py-2 ${l.struckAt ? 'text-muted line-through' : ''} ${l.pending ? 'rounded-lg bg-amber-50 px-2' : ''}`}>
-                <span className="min-w-0"><b>{l.memberName === 'Former member' ? t('team.former') : l.memberName}</b> · {l.note ?? t(`expense.cat.${l.category}`)} · {l.mode === 'upi' ? 'UPI' : t('team.cash')}
+                <span className="min-w-0">{l.fromAdvance && <span title={t('team.fromAdvanceShort')}>💼 </span>}<b>{l.memberName === 'Former member' ? t('team.former') : l.memberName}</b> · {l.note ?? t(`expense.cat.${l.category}`)} · {l.mode === 'upi' ? 'UPI' : t('team.cash')}
                   {l.writtenBy && <span className="block text-xs text-muted">{t('team.writtenBy', { name: l.writtenBy })}{l.approvedBy ? ` · ${t('team.okBy', { name: l.approvedBy })}` : ''}{l.struckReason ? ` · ${l.struckReason}` : ''}</span>}
                   {l.pending && <span className="block text-xs font-semibold text-amber-800">⏳ {t('team.waiting')}</span>}</span>
                 <span className="flex items-center gap-2"><b>{formatRupees(l.amount)}</b>
@@ -462,4 +475,77 @@ function TeamPeople({ team }: { team: Team }) {
 async function openPhoto(teamId: string, lineId: string) {
   const response = await request(`/v1/teams/${teamId}/expenses/${lineId}/photo`)
   if (response.ok) window.open(URL.createObjectURL(await response.blob()), '_blank')
+}
+
+/**
+ * Advances: money the owner hands someone to spend for the team. Each person's account shows given, spent from it,
+ * returned, and what they still hold. The owner or an admin records money given or handed back; members see their own.
+ */
+function TeamAdvances({ team }: { team: Team }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const manages = team.myRole === 'owner' || team.myRole === 'admin'
+  const data = useQuery({ queryKey: ['team', team.id, 'advances'], queryFn: () => api<Advances>(`/v1/teams/${team.id}/advances`) }).data
+  const people = team.members.filter((m) => m.role !== 'viewer')
+  const [form, setForm] = useState({ memberId: people.find((m) => !m.isMe)?.id ?? team.myMemberId, kind: 'given' as 'given' | 'returned', amount: '', note: '' })
+  const { busy, message, run } = useRun()
+  const save = (next: Advances) => queryClient.setQueryData(['team', team.id, 'advances'], next)
+  const name = (n: string) => (n === 'Former member' ? t('team.former') : n)
+
+  return (
+    <>
+      <p className="text-sm text-muted">{t('team.advanceIntro')}</p>
+      {data?.balances.length === 0 && <p className="rounded-[20px] bg-white p-6 text-center text-muted">{t('team.noAdvances')}</p>}
+      {data && data.balances.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {data.balances.map((b) => (
+            <li key={b.memberId} className="flex flex-col gap-1 rounded-[20px] bg-white p-4">
+              <span className="flex items-baseline justify-between"><b className="text-lg">{name(b.name)}</b>
+                <span className={`text-xl font-extrabold ${b.holds < 0 ? 'text-due' : ''}`}>{formatRupees(b.holds)}</span></span>
+              <span className="text-xs text-muted">{b.holds < 0 ? t('team.overspent') : t('team.holds')}</span>
+              <span className="text-sm">{t('team.advanceLine', { given: formatRupees(b.given), spent: formatRupees(b.spent), returned: formatRupees(b.returned) })}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {manages && (
+        <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4">
+          <h2 className="font-bold">{t('team.advanceTitle')}</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {(['given', 'returned'] as const).map((k) => (
+              <button key={k} onClick={() => setForm({ ...form, kind: k })} aria-pressed={form.kind === k}
+                className={`min-h-11 rounded-xl font-semibold ${form.kind === k ? 'bg-teal-700 text-white' : 'border border-line'}`}>{t(`team.advanceKind.${k}`)}</button>
+            ))}
+          </div>
+          <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} aria-label={t('team.spentBy')} className="h-12 rounded-xl border border-line bg-white px-2">
+            {people.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <div className="grid grid-cols-[1fr_2fr] gap-2">
+            <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^\d.]/g, '') })} inputMode="decimal" placeholder="₹" aria-label={t('team.amount')} className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg font-bold" />
+            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={t('team.advanceNote')} aria-label={t('team.note')} className="h-12 min-w-0 rounded-xl border border-line px-3" />
+          </div>
+          <Button disabled={busy || !(Number(form.amount) > 0)} onClick={() => void run(async () => {
+            save(await api<Advances>(`/v1/teams/${team.id}/advances`, 'POST', { ...form, amount: Number(form.amount), note: form.note.trim() || null }))
+            setForm({ ...form, amount: '', note: '' })
+          })}>{t(`team.advanceSave.${form.kind}`)}</Button>
+          {message && <p className="text-sm font-semibold text-red-800">{message}</p>}
+        </section>
+      )}
+
+      {data && data.entries.length > 0 && (
+        <ul className="divide-y divide-[#edf2f1] rounded-[20px] bg-white px-4 text-sm">
+          {data.entries.map((e) => (
+            <li key={e.id} className={`flex items-center justify-between gap-2 py-2 ${e.struck ? 'text-muted line-through' : ''}`}>
+              <span>{e.kind === 'given' ? '➡️' : '⬅️'} <b>{name(e.memberName)}</b> · {t(`team.advanceKind.${e.kind}`)}{e.note ? ` · ${e.note}` : ''}
+                <span className="block text-xs text-muted">{new Date(e.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{e.by ? ` · ${e.by}` : ''}</span></span>
+              <span className="flex items-center gap-2"><b>{formatRupees(e.amount)}</b>
+                {manages && !e.struck && <button disabled={busy} aria-label={t('team.strike')} className="h-9 w-9 rounded-lg border border-line text-due"
+                  onClick={() => confirm(t('team.advanceStrikeAsk')) && void run(async () => save(await api<Advances>(`/v1/teams/${team.id}/advances/${e.id}/strike`, 'POST', {})))}>✕</button>}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
 }
