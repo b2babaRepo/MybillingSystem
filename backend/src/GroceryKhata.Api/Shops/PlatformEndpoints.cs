@@ -76,7 +76,7 @@ public sealed record PlatformOverview(int Shops, int Active, int Blocked, int Aw
 
 public sealed record PlatformShopRow(
     Guid Id, string Name, string? Area, string Slug, DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt, bool IsActive,
-    string? BlockedReason, string? OwnerName, string? OwnerPhone, string? PlanCode = null, Billing.SubscriptionStatus? PlanStatus = null, DateTimeOffset? PlanEndsAt = null);
+    string? BlockedReason, string? OwnerName, string? OwnerPhone, string? PlanCode = null, Billing.SubscriptionStatus? PlanStatus = null, DateTimeOffset? PlanEndsAt = null, string? ShopCode = null);
 
 public sealed record PlatformPerson(Guid UserId, Guid MembershipId, string Name, string Phone, ShopRole Role, bool IsActive, bool LockedOut);
 
@@ -91,7 +91,7 @@ public sealed record NoteRequest(string? Note);
 public sealed record CreateShopRequest(string? ShopName, string? OwnerName, string? Phone, string? Area, ShopType? Type, string? Language);
 
 /// <summary>The new shop. A new owner account gets a one-time password to pass on; an existing one keeps theirs.</summary>
-public sealed record CreatedShop(Guid ShopId, string Slug, bool NewAccount, string? TempPassword);
+public sealed record CreatedShop(Guid ShopId, string Slug, bool NewAccount, string? TempPassword, string? ShopCode = null);
 
 /// <summary>
 /// The super-admin's view of every shop: an overview, a searchable list, one shop's people and activity, approve,
@@ -168,7 +168,8 @@ public static class PlatformEndpoints
         db.Memberships.Add(new Membership { UserId = user.Id, ShopId = shop.Id, Role = ShopRole.Owner });
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Admin {AdminId} opened shop {ShopId} for user {UserId}", admin.UserId(), shop.Id, user.Id);
-        return TypedResults.Ok(new CreatedShop(shop.Id, shop.Slug, tempPassword is not null, tempPassword));
+        var number = await db.Shops.AsNoTracking().Where(s => s.Id == shop.Id).Select(s => s.Number).SingleAsync(ct);
+        return TypedResults.Ok(new CreatedShop(shop.Id, shop.Slug, tempPassword is not null, tempPassword, Shop.FormatCode(number)));
     }
 
     private static async Task<IReadOnlyList<AdminDto>> ListAdminsAsync(AppDbContext db, CancellationToken ct) =>
@@ -294,7 +295,8 @@ public static class PlatformEndpoints
         {
             var term = $"%{q.Trim()}%";
             var digits = new string(q.Where(char.IsAsciiDigit).ToArray());
-            shops = shops.Where(s => EF.Functions.ILike(s.Name, term) || (s.Area != null && EF.Functions.ILike(s.Area, term))
+            var number = Shop.ParseCode(q);
+            shops = shops.Where(s => (number != null && s.Number == number) || EF.Functions.ILike(s.Name, term) || (s.Area != null && EF.Functions.ILike(s.Area, term))
                 || (digits.Length >= 4 && db.Memberships.Any(m => m.ShopId == s.Id && db.Users.Any(u => u.Id == m.UserId && u.Phone.Contains(digits)))));
         }
 
@@ -433,7 +435,7 @@ public static class PlatformEndpoints
                      orderby m.CreatedAt
                      select u).FirstOrDefault()
         select new PlatformShopRow(s.Id, s.Name, s.Area, s.Slug, s.CreatedAt, s.ApprovedAt, s.IsActive, s.BlockedReason,
-            owner == null ? null : owner.FullName, owner == null ? null : owner.Phone);
+            owner == null ? null : owner.FullName, owner == null ? null : owner.Phone, null, null, null, "GKS-" + s.Number.ToString().PadLeft(6, '0'));
 }
 
 /// <summary>The "Platform" config section. <see cref="AdminPhones"/>: numbers made platform admins at start-up (they must have an account).</summary>

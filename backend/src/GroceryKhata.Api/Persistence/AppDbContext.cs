@@ -114,6 +114,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         {
             b.ToTable("shops");
             b.Property(s => s.Name).HasMaxLength(120);
+            b.Property(s => s.Number).HasDefaultValueSql("nextval('shop_number_seq')").ValueGeneratedOnAdd();
+            b.HasIndex(s => s.Number).IsUnique();
+            b.Ignore(s => s.Code);
             b.Property(s => s.Slug).HasMaxLength(80);
             b.HasIndex(s => s.Slug).IsUnique();
             b.Property(s => s.Type).HasDefaultValue(ShopType.Kirana);

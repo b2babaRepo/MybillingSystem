@@ -80,6 +80,8 @@ export interface SubscriptionView {
   gstRegistered: boolean
   referralCode: string
   referralBonusDays: number
+  /** The shop's registration ID, "GKS-000042". */
+  shopCode?: string | null
 }
 
 export interface Quote { planCode: string; term: PlanTerm; amount: number; offerCode: string | null; error: string | null }

@@ -31,6 +31,8 @@ interface ShopRow {
   planCode?: string | null
   planStatus?: string | null
   planEndsAt?: string | null
+  /** "GKS-000042". */
+  shopCode?: string | null
 }
 interface Person { userId: string; membershipId: string; name: string; phone: string; role: 'owner' | 'staff'; isActive: boolean; lockedOut: boolean }
 interface Detail { shop: ShopRow; address: string | null; adminNote: string | null; people: Person[]; customers: number; billsLast30Days: number; lastBillAt: string | null; lastBalanceCheck: { mismatches: number } | null }
@@ -100,7 +102,7 @@ export function PlatformScreen() {
           ))}
         </div>
         <label className="sr-only" htmlFor="platform-search">{t('platform.search')}</label>
-        <input id="platform-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('platform.search')}
+        <input id="platform-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('platform.searchWithId')}
           className="min-h-12 rounded-2xl border border-line bg-white px-4" />
         <label className="sr-only" htmlFor="platform-plan">{t('plans.filter')}</label>
         <select id="platform-plan" value={plan} onChange={(e) => setPlan(e.target.value)} className="min-h-12 rounded-2xl border border-line bg-white px-4">
@@ -116,7 +118,7 @@ export function PlatformScreen() {
             <li key={s.id} className="rounded-2xl bg-white">
               <button onClick={() => setOpenId(openId === s.id ? null : s.id)} aria-expanded={openId === s.id} className="flex w-full items-start gap-3 p-4 text-left">
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[17px] font-bold">{s.name}</span>
+                  <span className="truncate text-[17px] font-bold">{s.name}{s.shopCode && <span className="ml-2 font-mono text-xs font-semibold text-muted">{s.shopCode}</span>}</span>
                   <span className="truncate text-sm text-muted">
                     {[s.area, s.ownerName, formatPhone(s.ownerPhone)].filter(Boolean).join(' · ')}
                   </span>
@@ -253,7 +255,7 @@ function NewShop() {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [created, setCreated] = useState<{ name: string; phone: string; password: string | null } | null>(null)
+  const [created, setCreated] = useState<{ name: string; phone: string; password: string | null; code: string | null } | null>(null)
   const set = (key: keyof typeof empty) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
 
   async function create() {
@@ -261,10 +263,10 @@ function NewShop() {
     setMessage(null)
     setCreated(null)
     try {
-      const result = await api<{ shopId: string; newAccount: boolean; tempPassword: string | null }>('/v1/platform/shops', 'POST', {
+      const result = await api<{ shopId: string; newAccount: boolean; tempPassword: string | null; shopCode: string | null }>('/v1/platform/shops', 'POST', {
         ...form, shopName: form.shopName.trim(), ownerName: form.ownerName.trim(), phone: form.phone.trim(), area: form.area.trim() || null,
       })
-      setCreated({ name: form.shopName.trim(), phone: form.phone.trim(), password: result.tempPassword })
+      setCreated({ name: form.shopName.trim(), phone: form.phone.trim(), password: result.tempPassword, code: result.shopCode })
       setForm(empty)
       await queryClient.invalidateQueries({ queryKey: ['platform'] })
     } catch (e) {
@@ -304,7 +306,7 @@ function NewShop() {
         <Button disabled={busy || form.shopName.trim().length < 2 || form.phone.trim().length < 10} onClick={() => void create()}>{t('openShop.create')}</Button>
         {created && (
           <div className="flex flex-col gap-1 rounded-xl bg-teal-50 p-3 text-sm text-teal-900">
-            <span className="font-semibold">{t('openShop.done', { name: created.name })}</span>
+            <span className="font-semibold">{t('openShop.done', { name: created.name })}{created.code && <span className="ml-2 font-mono">{created.code}</span>}</span>
             {created.password
               ? <span>{t('openShop.login', { phone: created.phone })} <span className="font-mono text-base font-bold">{created.password}</span><br />{t('openShop.once')}</span>
               : <span>{t('openShop.existing')}</span>}

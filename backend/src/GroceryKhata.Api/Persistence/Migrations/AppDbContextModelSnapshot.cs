@@ -3382,6 +3382,12 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("name");
 
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('shop_number_seq')");
+
                     b.Property<string>("ReminderTemplate")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -3411,6 +3417,9 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnName("upi_id");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
 
                     b.HasIndex("Slug")
                         .IsUnique();

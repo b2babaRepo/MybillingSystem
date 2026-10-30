@@ -27,6 +27,7 @@ export const adminText = {
       confirmAsk: 'Have you received {{amount}} ({{how}})? The shop’s plan starts now.',
       paid: 'Payment confirmed; the plan is on.',
     },
+    platform: { searchWithId: 'Search by shop, area, phone or ID (GKS-…)' },
     openShop: {
       title: 'Open a new shop',
       hint: 'For a shopkeeper you visit or call. The shop starts approved, on the 30-day free trial.',
@@ -211,6 +212,7 @@ export const adminText = {
       confirmAsk: 'क्या {{amount}} ({{how}}) मिल गए? दुकान का प्लान अभी शुरू होगा।',
       paid: 'भुगतान पक्का; प्लान चालू।',
     },
+    platform: { searchWithId: 'दुकान, इलाका, फ़ोन या ID (GKS-…) से खोजें' },
     openShop: {
       title: 'नई दुकान खोलें',
       hint: 'जिस दुकानदार से आप मिलें या फ़ोन करें, उसके लिए। दुकान मंज़ूर होकर 30 दिन के फ़्री ट्रायल पर शुरू होगी।',

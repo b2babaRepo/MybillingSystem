@@ -68,6 +68,7 @@ export function MyPlanScreen({ shopId }: { shopId: string }) {
       <section className={`flex flex-col gap-1 rounded-[20px] p-4 ${STATUS_STYLE[s.status]}`}>
         <span className="text-sm font-semibold">{t(`plan2.status.${s.status}`)}</span>
         <span className="text-2xl font-extrabold">{s.planName}</span>
+        {s.shopCode && <span className="text-sm">{t('plan2.shopId', { code: s.shopCode })}</span>}
         {s.daysLeft !== null && <span className="text-sm">{t('plan2.daysLeft', { count: s.daysLeft })}</span>}
         {s.compReason && <span className="text-sm">{s.compReason}</span>}
         {s.holdReason && <span className="text-sm font-semibold">{t('plan2.holdReason', { reason: s.holdReason })}</span>}

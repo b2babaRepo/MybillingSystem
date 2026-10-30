@@ -572,6 +572,7 @@ export const en = {
     added: 'Access given. They see “Platform admin” after signing in again.',
   },
   plan2: {
+    shopId: 'Shop ID: {{code}}',
     myPlan: 'My plan',
     status: { trial: 'Free trial', active: 'Paid', grace: 'Payment due', complimentary: 'Free (given by Grocery Khata)', on_hold: 'On hold', free: 'Free plan' },
     daysLeft_one: '{{count}} day left',

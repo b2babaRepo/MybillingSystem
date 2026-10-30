@@ -152,6 +152,10 @@ public sealed class BillingTests(ApiFactory api)
         var approver = await AdminAsync("Billing");
         var created = await (await approver.PostJsonAsync("/api/v1/platform/shops", body)).ReadAsync<GroceryKhata.Api.Shops.CreatedShop>();
         Assert.True(created.NewAccount);
+        Assert.Matches(@"^GKS-\d{6,}$", created.ShopCode);
+        var found = await approver.GetJsonAsync<List<GroceryKhata.Api.Shops.PlatformShopRow>>($"/api/v1/platform/shops?status=all&q={created.ShopCode}");
+        Assert.Equal(created.ShopId, Assert.Single(found).Id);
+        Assert.Equal(created.ShopCode, found[0].ShopCode);
         Assert.NotNull(created.TempPassword);
 
         var signedIn = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-in", new { phone, password = created.TempPassword })).ReadAsync<AuthResponse>();

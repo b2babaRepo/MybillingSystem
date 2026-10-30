@@ -574,6 +574,7 @@ export const hi: Texts = {
     added: 'पहुँच दे दी। दोबारा लॉगिन करने पर उन्हें “प्लेटफ़ॉर्म एडमिन” दिखेगा।',
   },
   plan2: {
+    shopId: 'दुकान ID: {{code}}',
     myPlan: 'मेरा प्लान',
     status: { trial: 'फ़्री ट्रायल', active: 'पेड', grace: 'भुगतान बाकी', complimentary: 'फ़्री (ग्रोसरी खाता की ओर से)', on_hold: 'रुका हुआ', free: 'फ़्री प्लान' },
     daysLeft_one: '{{count}} दिन बाकी',

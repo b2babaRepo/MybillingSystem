@@ -7,6 +7,25 @@ public sealed class Shop : Entity
 {
     public required string Name { get; set; }
 
+    /// <summary>
+    /// The shop's registration number, 1, 2, 3… in the order shops open, never reused. Given by the database
+    /// (shop_number_seq), so two shops opening at once can't share one.
+    /// </summary>
+    public long Number { get; set; }
+
+    /// <summary>"GKS-000042": the shop ID quoted on bills, calls and agent sign-ups.</summary>
+    public string Code => FormatCode(Number);
+
+    public static string FormatCode(long number) => $"GKS-{number:D6}";
+
+    /// <summary>"GKS-42", "gks000042" or "42" → 42; anything else → null.</summary>
+    public static long? ParseCode(string? text)
+    {
+        var digits = new string((text ?? "").Trim().ToUpperInvariant().Replace("GKS", "").Where(char.IsAsciiDigit).ToArray());
+        var rest = (text ?? "").Trim().ToUpperInvariant().Replace("GKS", "").Replace("-", "").Trim();
+        return digits.Length is > 0 and <= 12 && digits.Length == rest.Length ? long.Parse(digits) : null;
+    }
+
     /// <summary>Unique, lower case. The storefront address later: /s/{slug}.</summary>
     public required string Slug { get; set; }
 
