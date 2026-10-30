@@ -34,6 +34,9 @@ public enum AdminRole
 
     /// <summary>Plans, payments, offers and refunds; no approving or blocking shops.</summary>
     Billing,
+
+    /// <summary>Field agents: checks their Aadhaar card, approves them (giving their agent code), assigns markets, blocks them.</summary>
+    AgentManager,
 }
 
 /// <summary>

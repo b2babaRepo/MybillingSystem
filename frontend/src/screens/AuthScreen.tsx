@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { navigate, usePath } from '../router'
 import { Button, Field } from '../components/ui'
 import { ApiError, authenticate, readProblem, request } from '../lib/api'
 import type { AuthResponse } from '../lib/types'
@@ -59,6 +60,8 @@ export function AuthScreen() {
       throw err
     }
   }
+
+  const agentPath = usePath() === '/agent'
 
   return (
     <form onSubmit={submit} className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-4">
@@ -124,6 +127,10 @@ export function AuthScreen() {
       <button type="button" className="text-teal-700 underline" onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
         {mode === 'sign-in' ? t('newShop') : t('haveAccount')}
       </button>
+      {/* Field agents sign in (or register as a person) first; the app then opens their application. */}
+      {agentPath
+        ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t('fieldAgent.signInFirst')}</p>
+        : <button type="button" className="text-sm text-muted underline" onClick={() => { navigate('/agent'); setMode('sign-up'); setRole('home') }}>{t('fieldAgent.join')}</button>}
     </form>
   )
 }

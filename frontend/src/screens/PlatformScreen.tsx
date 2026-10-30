@@ -8,6 +8,11 @@ import { formatDateTime, formatPhone } from '../lib/format'
 import { useSession } from '../lib/data'
 import { ActivityPanel, AgentPanel, BillingPanel, PlansPanel, ShopBillingPanel } from './PlatformBilling'
 import { usePlans } from '../lib/billing'
+import { AgentsPanel } from './PlatformAgents'
+import { addText } from '../i18n'
+import { adminText } from '../i18n/admin'
+
+addText(adminText)
 import type { AdminRole } from '../lib/types'
 import { navigate } from '../router'
 
@@ -77,6 +82,7 @@ export function PlatformScreen() {
       <div className="flex flex-col gap-3 px-4 pb-3">
         {role !== 'support' && <NewShop />}
         <AgentPanel role={role} />
+        {(role === 'super' || role === 'agent_manager') && <AgentsPanel />}
         {(role === 'super' || role === 'billing') && <PlansPanel />}
         {(role === 'super' || role === 'billing') && <BillingPanel />}
         {role === 'super' && <ManageAdmins />}
@@ -221,7 +227,7 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
 
 interface Admin { userId: string; name: string; phone: string; role: AdminRole; addedAt: string; addedBy: string | null }
 
-const ROLES: AdminRole[] = ['super', 'approver', 'support', 'billing']
+const ROLES: AdminRole[] = ['super', 'approver', 'support', 'billing', 'agent_manager']
 
 /**
  * Super admins only: who else has admin access, and what they may do. Add a person by their phone number (they need

@@ -46,6 +46,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Shops.PlatformActivity> PlatformActivities => Set<Shops.PlatformActivity>();
 
+    public DbSet<Agents.FieldAgent> FieldAgents => Set<Agents.FieldAgent>();
+
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
@@ -420,6 +422,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
                 .HasForeignKey(l => new { l.ShopId, l.BillId })
                 .HasPrincipalKey(x => new { x.ShopId, x.Id })
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Agents.FieldAgent>(b =>
+        {
+            b.ToTable("field_agents");
+            b.HasIndex(x => x.UserId).IsUnique();
+            b.HasIndex(x => x.Code).IsUnique();
+            b.HasIndex(x => x.AadhaarKey);
+            b.HasIndex(x => new { x.Status, x.CreatedAt });
+            b.Property(x => x.Code).HasMaxLength(12);
+            b.Property(x => x.FullName).HasMaxLength(120);
+            b.Property(x => x.Address).HasMaxLength(300);
+            b.Property(x => x.Market).HasMaxLength(120);
+            b.Property(x => x.AadhaarLast4).HasMaxLength(4);
+            b.Property(x => x.AadhaarKey).HasMaxLength(64);
+            b.Property(x => x.UpiId).HasMaxLength(60);
+            b.Property(x => x.StatusReason).HasMaxLength(200);
+            b.HasOne<Identity.User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Shops.PlatformActivity>(b =>

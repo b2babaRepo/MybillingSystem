@@ -48,6 +48,9 @@ public static class AppPolicies
 
     /// <summary>Opening a shop for a shopkeeper: super, approver or billing (plans and payments) admins.</summary>
     public const string PlatformOpenShop = nameof(PlatformOpenShop);
+
+    /// <summary>Field agents: super or agent-manager admins.</summary>
+    public const string PlatformAgents = nameof(PlatformAgents);
 }
 
 /// <summary>Roles as they appear in tokens: ShopRole.Owner ↔ "owner".</summary>

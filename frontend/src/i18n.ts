@@ -9,8 +9,18 @@ const loaders: Record<Language, () => Promise<Record<string, unknown>>> = {
   hi: () => import('./i18n/hi').then((module) => module.hi),
 }
 
+const loaded = new Set<Language>()
+
 async function loadLanguage(language: Language) {
-  if (!i18n.hasResourceBundle(language, 'translation')) i18n.addResourceBundle(language, 'translation', await loaders[language]())
+  if (loaded.has(language)) return
+  // Merged: the admin screen may have added its own text to this language already.
+  i18n.addResourceBundle(language, 'translation', await loaders[language](), true, false)
+  loaded.add(language)
+}
+
+/** Adds a screen's own text (both languages) on top of the main files, once. */
+export function addText(text: Record<Language, Record<string, unknown>>) {
+  for (const language of ['en', 'hi'] as const) i18n.addResourceBundle(language, 'translation', text[language], true, false)
 }
 
 function initialLanguage(): Language {

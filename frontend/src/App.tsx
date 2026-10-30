@@ -43,6 +43,7 @@ const SettingsScreen = lazy(() => import('./screens/SettingsScreen').then((modul
 const MyStoreScreen = lazy(() => import('./screens/MyStoreScreen').then((module) => ({ default: module.MyStoreScreen })))
 const StoreApp = lazy(() => import('./screens/store/StoreApp').then((module) => ({ default: module.StoreApp })))
 const KhataLinkPage = lazy(() => import('./screens/khata/KhataViews').then((module) => ({ default: module.KhataLinkPage })))
+const AgentScreen = lazy(() => import('./screens/AgentScreen').then((module) => ({ default: module.AgentScreen })))
 const PlatformScreen = lazy(() => import('./screens/PlatformScreen').then((module) => ({ default: module.PlatformScreen })))
 const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
 
@@ -68,6 +69,14 @@ export default function App() {
     )
   }
   if (!session) return <Suspense fallback={<Loading />}><AuthScreen /></Suspense>
+  // Applying to be a field agent, and the agent's code once approved: any account.
+  if (path === '/agent') {
+    return (
+      <Suspense fallback={<Loading />}>
+        <AgentScreen userName={session.user.fullName} />
+      </Suspense>
+    )
+  }
   if (path === '/platform' && session.user.isPlatformAdmin) {
     return (
       <Suspense fallback={<Loading />}>

@@ -74,12 +74,34 @@ public static class PlatformActivityLog
                 AdminUserId = adminId,
                 Action = $"{http.Request.Method} {pattern.Replace("/api/v1/platform", "", StringComparison.Ordinal)}",
                 ShopId = shopId,
-                Detail = JsonSerializer.Serialize(detail, JsonOptions),
+                Detail = Redact(JsonSerializer.SerializeToNode(detail, JsonOptions))?.ToJsonString() ?? "{}",
             });
             await db.SaveChangesAsync(http.RequestAborted);
             return result;
         });
         return group;
+    }
+
+    private static readonly HashSet<string> Secret = new(StringComparer.OrdinalIgnoreCase) { "aadhaar", "password", "pin", "tempPassword" };
+
+    private static System.Text.Json.Nodes.JsonNode? Redact(System.Text.Json.Nodes.JsonNode? node)
+    {
+        if (node is System.Text.Json.Nodes.JsonObject obj)
+        {
+            foreach (var key in obj.Select(p => p.Key).ToList())
+            {
+                if (Secret.Contains(key))
+                {
+                    obj.Remove(key);
+                }
+                else
+                {
+                    Redact(obj[key]);
+                }
+            }
+        }
+
+        return node;
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)

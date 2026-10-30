@@ -110,6 +110,8 @@ export async function readProblem(response: Response): Promise<ProblemDetails | 
 export async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await request(path, method, body)
   if (!response.ok) throw new ApiError(response.status, await readProblem(response))
+  // 204 No Content: nothing to read (an action done, or nothing there yet).
+  if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }
 
