@@ -30,6 +30,7 @@ interface ShopRow {
   ownerPhone: string | null
   planCode?: string | null
   planStatus?: string | null
+  planEndsAt?: string | null
 }
 interface Person { userId: string; membershipId: string; name: string; phone: string; role: 'owner' | 'staff'; isActive: boolean; lockedOut: boolean }
 interface Detail { shop: ShopRow; address: string | null; adminNote: string | null; people: Person[]; customers: number; billsLast30Days: number; lastBillAt: string | null; lastBalanceCheck: { mismatches: number } | null }
@@ -104,6 +105,7 @@ export function PlatformScreen() {
         <label className="sr-only" htmlFor="platform-plan">{t('plans.filter')}</label>
         <select id="platform-plan" value={plan} onChange={(e) => setPlan(e.target.value)} className="min-h-12 rounded-2xl border border-line bg-white px-4">
           <option value="">{t('plans.allPlans')}</option>
+          <option value="paid">{t('billing.paidShops')}</option>
           <option value="trial">{t('plan2.status.trial')}</option>
           {plans.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
         </select>
@@ -120,7 +122,8 @@ export function PlatformScreen() {
                   </span>
                   <span className="text-xs text-muted">
                     {t('platform.opened', { date: formatDateTime(s.createdAt) })}
-                    {s.planCode && ` · ${s.planStatus === 'trial' ? t('plan2.status.trial') : plans.find((p) => p.code === s.planCode)?.name ?? s.planCode}`}
+                    {s.planCode && ` · ${s.planStatus === 'trial' ? t('plan2.status.trial') : `${plans.find((p) => p.code === s.planCode)?.name ?? s.planCode}${s.planStatus === 'active' || s.planStatus === 'grace' ? ` ${t('billing.paidTag')}` : ''}`}`}
+                    {s.planEndsAt && ` · ${t('billing.until', { date: new Date(s.planEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) })}`}
                   </span>
                 </span>
                 <StatusChip shop={s} />
@@ -215,7 +218,7 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
         <Button tone="plain" disabled={busy} onClick={() => void run(`/v1/platform/shops/${id}/note`, { note }, 'PUT', t('platform.noteSaved')).then(() => setNote(null))}>{t('platform.saveNote')}</Button>
       )}
 
-      <ShopBillingPanel shopId={id} role={role} />
+      <ShopBillingPanel shopId={id} role={role} shopName={d.shop.name} ownerPhone={d.people.find((x) => x.role === 'owner')?.phone ?? null} />
 
       {canApprove && <div className="grid grid-cols-2 gap-2">
         {d.shop.isActive && !d.shop.approvedAt && <Button disabled={busy} onClick={() => void run(`/v1/platform/shops/${id}/approve`)}>{t('platform.approve')}</Button>}

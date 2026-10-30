@@ -76,7 +76,7 @@ public sealed record PlatformOverview(int Shops, int Active, int Blocked, int Aw
 
 public sealed record PlatformShopRow(
     Guid Id, string Name, string? Area, string Slug, DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt, bool IsActive,
-    string? BlockedReason, string? OwnerName, string? OwnerPhone, string? PlanCode = null, Billing.SubscriptionStatus? PlanStatus = null);
+    string? BlockedReason, string? OwnerName, string? OwnerPhone, string? PlanCode = null, Billing.SubscriptionStatus? PlanStatus = null, DateTimeOffset? PlanEndsAt = null);
 
 public sealed record PlatformPerson(Guid UserId, Guid MembershipId, string Name, string Phone, ShopRole Role, bool IsActive, bool LockedOut);
 
@@ -298,17 +298,22 @@ public static class PlatformEndpoints
                 || (digits.Length >= 4 && db.Memberships.Any(m => m.ShopId == s.Id && db.Users.Any(u => u.Id == m.UserId && u.Phone.Contains(digits)))));
         }
 
-        // Plans are worked out from dates, not stored: "trial" picks shops on trial, any other value a plan's code.
+        // Plans are worked out from dates, not stored: "trial" picks shops on trial, "paid" shops that have paid and
+        // aren't past their grace days, any other value a plan's code.
         var plans = await Billing.BillingEndpoints.ShopPlansAsync(db, clock, ct);
         if (!string.IsNullOrWhiteSpace(plan))
         {
-            var ids = plans.Where(p => plan == "trial" ? p.Value.Status == Billing.SubscriptionStatus.Trial
-                : p.Value.PlanCode == plan && p.Value.Status != Billing.SubscriptionStatus.Trial).Select(p => p.Key).ToList();
+            var ids = plans.Where(p => plan switch
+            {
+                "trial" => p.Value.Status == Billing.SubscriptionStatus.Trial,
+                "paid" => p.Value.Status is Billing.SubscriptionStatus.Active or Billing.SubscriptionStatus.Grace,
+                _ => p.Value.PlanCode == plan && p.Value.Status != Billing.SubscriptionStatus.Trial,
+            }).Select(p => p.Key).ToList();
             shops = shops.Where(s => ids.Contains(s.Id));
         }
 
         var rows = await Rows(db, shops.OrderByDescending(s => s.CreatedAt).Take(200)).ToListAsync(ct);
-        return rows.Select(r => plans.TryGetValue(r.Id, out var e) ? r with { PlanCode = e.PlanCode, PlanStatus = e.Status } : r).ToList();
+        return rows.Select(r => plans.TryGetValue(r.Id, out var e) ? r with { PlanCode = e.PlanCode, PlanStatus = e.Status, PlanEndsAt = e.EndsAt } : r).ToList();
     }
 
     private static async Task<IResult> GetAsync(Guid id, AppDbContext db, IServiceScopeFactory scopes, TimeProvider clock, ClaimsPrincipal admin, CancellationToken ct)

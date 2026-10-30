@@ -196,6 +196,9 @@ public sealed class BillingTests(ApiFactory api)
         var silverShops = await billing.GetJsonAsync<List<GroceryKhata.Api.Shops.PlatformShopRow>>("/api/v1/platform/shops?status=all&plan=silver");
         Assert.Contains(silverShops, r => r.Id == auth.ShopId);
         Assert.All(silverShops, r => Assert.Equal("silver", r.PlanCode));
+        var paid = await billing.GetJsonAsync<List<GroceryKhata.Api.Shops.PlatformShopRow>>("/api/v1/platform/shops?status=all&plan=paid");
+        var row = paid.Single(r => r.Id == auth.ShopId);
+        Assert.Equal((SubscriptionStatus.Active, after.EndsAt), (row.PlanStatus, row.PlanEndsAt));
     }
 
     /// <summary>A new account given a platform-admin role directly in the database, then signed in.</summary>
