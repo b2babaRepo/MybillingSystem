@@ -4,6 +4,7 @@ using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
 using GroceryKhata.Api.Persistence;
+using GroceryKhata.Api.Shops;
 using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Teams;
@@ -215,6 +216,28 @@ public static class TeamKharchaEndpoints
     /// <summary>People (with or without a login) in a free team. Never a cap on lines.</summary>
     public const int FreeMaxMembers = 4;
 
+    /// <summary>
+    /// Team Pro: a team whose owner runs a shop on a paid plan holds more people (Basic 6, Silver 10, Gold 25; another
+    /// paid plan 10). Free teams and shops on trial: <see cref="FreeMaxMembers"/>. Lines are never limited.
+    /// </summary>
+    public static async Task<int> MaxMembersAsync(Guid ownerUserId, AppDbContext db, CancellationToken ct)
+    {
+        var shopIds = await db.Memberships.IgnoreQueryFilters()
+            .Where(m => m.UserId == ownerUserId && m.Role == ShopRole.Owner && m.IsActive).Select(m => m.ShopId).ToListAsync(ct);
+        if (shopIds.Count == 0)
+        {
+            return FreeMaxMembers;
+        }
+
+        var plans = await db.Plans.AsNoTracking().ToDictionaryAsync(p => p.Code, ct);
+        var subs = await db.Subscriptions.AsNoTracking().Where(x => shopIds.Contains(x.ShopId)).ToListAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+        var paid = subs.Select(x => Billing.Entitlements.Compute(x, plans, now, 7))
+            .Where(e => e.Status is Billing.SubscriptionStatus.Active or Billing.SubscriptionStatus.Grace or Billing.SubscriptionStatus.Complimentary)
+            .Select(e => e.PlanCode switch { "free" => FreeMaxMembers, "basic" => 6, "silver" => 10, "pro" => 25, _ => 10 });
+        return paid.DefaultIfEmpty(FreeMaxMembers).Max();
+    }
+
     private const string Former = "Former member";
 
     // No 0/O or 1/I/L: the code is read out loud and typed by hand.
@@ -318,7 +341,7 @@ public static class TeamKharchaEndpoints
         var pending = await db.TeamExpenses.CountAsync(e => e.TeamId == id && e.StruckAt == null && e.PendingSince != null, ct);
         return new TeamDto(team.Id, team.Name, me.Role, me.Id,
             members.Where(m => !m.HasLeft).Select(m => new TeamMemberDto(m.Id, m.DisplayName, m.Role, m.UserId != null, m.Id == me.Id, false, m.MonthlyLimit, spent.GetValueOrDefault(m.Id))).ToList(),
-            Manages(me) ? team.InviteCode : null, Manages(me) ? team.InviteExpiresAt : null, FreeMaxMembers,
+            Manages(me) ? team.InviteCode : null, Manages(me) ? team.InviteExpiresAt : null, await MaxMembersAsync(team.CreatedByUserId, db, ct),
             team.ViewToken != null, me.Role == TeamRole.Owner ? team.ViewToken : null, team.ApprovalAbove, Manages(me) ? pending : 0);
     }
 
@@ -388,9 +411,10 @@ public static class TeamKharchaEndpoints
             return TypedResults.Ok(await ViewAsync(team.Id, userId, db, ct));
         }
 
-        if (await db.TeamMembers.CountAsync(m => m.TeamId == team.Id && !m.HasLeft, ct) >= FreeMaxMembers)
+        var max = await MaxMembersAsync(team.CreatedByUserId, db, ct);
+        if (await db.TeamMembers.CountAsync(m => m.TeamId == team.Id && !m.HasLeft, ct) >= max)
         {
-            return Problem(StatusCodes.Status402PaymentRequired, $"This team already has {FreeMaxMembers} people, the most a free team can have.");
+            return Problem(StatusCodes.Status402PaymentRequired, $"This team already has {max} people, the most its plan allows.");
         }
 
         var person = await db.Users.AsNoTracking().SingleAsync(u => u.Id == userId, ct);
@@ -424,9 +448,11 @@ public static class TeamKharchaEndpoints
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Name"] = ["Enter the person's name."] });
         }
 
-        if (await db.TeamMembers.CountAsync(m => m.TeamId == id && !m.HasLeft, ct) >= FreeMaxMembers)
+        var owner = await db.Teams.AsNoTracking().Where(t => t.Id == id).Select(t => t.CreatedByUserId).SingleAsync(ct);
+        var max = await MaxMembersAsync(owner, db, ct);
+        if (await db.TeamMembers.CountAsync(m => m.TeamId == id && !m.HasLeft, ct) >= max)
         {
-            return Problem(StatusCodes.Status402PaymentRequired, $"A free team can have {FreeMaxMembers} people.");
+            return Problem(StatusCodes.Status402PaymentRequired, $"This team can have {max} people on its plan.");
         }
 
         db.TeamMembers.Add(new TeamMember { TeamId = id, DisplayName = name, Role = TeamRole.Member });

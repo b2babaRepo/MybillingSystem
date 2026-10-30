@@ -166,4 +166,30 @@ public sealed class TeamKharchaTests(ApiFactory api)
         Assert.Equal(0m, settled.Balances.Single(b => b.MemberId == rajuTeam.MyMemberId).Holds);
         Assert.Equal(2, settled.Entries.Count);
     }
+
+    [Fact]
+    public async Task A_team_owned_by_a_shop_paying_for_silver_holds_ten_people()
+    {
+        var (owner, auth) = await api.SignUpAsync("Silver shop");
+        var team = await (await owner.PostJsonAsync("/api/v1/teams", new { name = "Big family", consent = true })).ReadAsync<TeamDto>();
+        Assert.Equal(4, team.MaxMembers); // on trial: a free team
+
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var paid = new Npgsql.NpgsqlCommand("""
+                INSERT INTO subscriptions (id, shop_id, plan_code, term, trial_ends_at, paid_until, referral_rewarded, created_at, updated_at)
+                VALUES (gen_random_uuid(), @s, 'silver', 'Year1', now() - interval '1 day', now() + interval '300 days', false, now(), now())
+                ON CONFLICT (shop_id) DO UPDATE SET plan_code = 'silver', paid_until = now() + interval '300 days'
+                """, db);
+            paid.Parameters.AddWithValue("s", auth.ShopId!.Value);
+            await paid.ExecuteNonQueryAsync();
+        }
+
+        Assert.Equal(10, (await owner.GetJsonAsync<TeamDto>($"/api/v1/teams/{team.Id}")).MaxMembers);
+        foreach (var name in new[] { "A1", "B2", "C3", "D4", "E5" })
+        {
+            Assert.Equal(HttpStatusCode.OK, (await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/members", new { name })).StatusCode);
+        }
+    }
 }
