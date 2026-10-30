@@ -45,6 +45,7 @@ const StoreApp = lazy(() => import('./screens/store/StoreApp').then((module) => 
 const KhataLinkPage = lazy(() => import('./screens/khata/KhataViews').then((module) => ({ default: module.KhataLinkPage })))
 const AgentScreen = lazy(() => import('./screens/AgentScreen').then((module) => ({ default: module.AgentScreen })))
 const PlanBillPage = lazy(() => import('./screens/PlanBillPage').then((module) => ({ default: module.PlanBillPage })))
+const KharchaPrint = lazy(() => import('./screens/KharchaMonth').then((module) => ({ default: module.KharchaPrint })))
 const PlatformScreen = lazy(() => import('./screens/PlatformScreen').then((module) => ({ default: module.PlatformScreen })))
 const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
 
@@ -164,6 +165,14 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const isTab = tabs.some((tab) => tab.path === path)
   const unsynced = pending + failed
 
+  const kharchaPrint = path.match(/^\/print\/kharcha\/(\d{4}-\d{2})$/)
+  if (kharchaPrint) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <KharchaPrint shopId={shopId} shopName={shopName} month={kharchaPrint[1]} />
+      </Suspense>
+    )
+  }
   if (printMatch) {
     return (
       <Suspense fallback={<Loading />}>
@@ -223,7 +232,9 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/cashbook' ? (
           <CashBookScreen shopId={shopId} />
         ) : path === '/expenses' ? (
-          <ExpensesScreen shopId={shopId} />
+          <ExpensesScreen shopId={shopId} shopName={shopName} />
+        ) : path === '/expenses/month' ? (
+          <ExpensesScreen shopId={shopId} shopName={shopName} month />
         ) : path === '/plan' ? (
           <MyPlanScreen shopId={shopId} />
         ) : path === '/rates' ? (

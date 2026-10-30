@@ -57,6 +57,20 @@ public sealed record ExpenseDto(
     Guid Id, DateTimeOffset OccurredAt, decimal Amount, ExpenseCategory Category, string? Note, PaymentMode Mode, string? By, DateTimeOffset? StruckAt);
 
 /// <summary>One notebook page: the day's lines, and what went out by cash and by UPI (struck lines don't count).</summary>
+/// <summary>One heading's month: how much, how many lines.</summary>
+public sealed record ExpenseCategoryTotal(ExpenseCategory Category, decimal Total, int Count);
+
+public sealed record ExpenseDayTotal(DateOnly Date, decimal Total, int Count);
+
+/// <summary>
+/// A month's kharcha, rolled up from the daily lines (struck lines left out): totals by cash and UPI, by heading and
+/// by day, and every line for the printed report. "Taken home" is shown apart: it lowers the cash box, not the profit.
+/// </summary>
+public sealed record ExpenseMonthDto(
+    string Month, bool Complete, decimal Total, decimal Cash, decimal Upi, decimal TakenHome, decimal ShopKharcha, int Count,
+    IReadOnlyList<ExpenseCategoryTotal> ByCategory, IReadOnlyList<ExpenseDayTotal> ByDay, IReadOnlyList<ExpenseDto> Lines,
+    decimal? PreviousMonthShopKharcha);
+
 public sealed record ExpensePageDto(DateOnly Date, decimal Cash, decimal Upi, decimal Total, IReadOnlyList<ExpenseDto> Lines);
 
 public sealed record ExpenseReadRequest(string? Text);
@@ -76,6 +90,7 @@ public static class ExpenseEndpoints
     {
         var group = app.MapGroup("/api/v1/expenses").WithTags("Expenses").RequireAuthorization(AppPolicies.ShopMember);
         group.MapGet("", PageAsync);
+        group.MapGet("/month", MonthAsync);
         group.MapPost("", AddAsync);
         group.MapPost("/read", (ExpenseReadRequest request) => TypedResults.Ok(ExpenseReader.Read(request.Text)));
         group.MapPost("/{id:guid}/strike", StrikeAsync);
@@ -95,6 +110,43 @@ public static class ExpenseEndpoints
         }
 
         return TypedResults.Ok(await LoadPageAsync(db, day, ct));
+    }
+
+    /// <summary>The month's kharcha ("2026-10"; empty: this month). Complete once the month is over.</summary>
+    private static async Task<IResult> MonthAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var today = IndiaTime.Today(clock);
+        var chosen = string.IsNullOrEmpty(month) ? (today.Year, today.Month) : IndiaTime.ParseMonth(month);
+        if (chosen is not { } m)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
+        }
+
+        var (start, end) = IndiaTime.Month(m.Year, m.Month);
+        var lines = await (from e in db.Expenses.AsNoTracking()
+                           where e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null
+                           join u in db.Users.AsNoTracking() on e.CreatedByUserId equals u.Id into users
+                           from u in users.DefaultIfEmpty()
+                           orderby e.OccurredAt, e.CreatedAt
+                           select new ExpenseDto(e.Id, e.OccurredAt, e.Amount, e.Category, e.Note, e.Mode, u == null ? null : u.FullName, e.StruckAt))
+            .ToListAsync(ct);
+        var home = lines.Where(l => l.Category == ExpenseCategory.Home).Sum(l => l.Amount);
+        var total = lines.Sum(l => l.Amount);
+        var byCategory = lines.GroupBy(l => l.Category).Select(g => new ExpenseCategoryTotal(g.Key, g.Sum(l => l.Amount), g.Count()))
+            .OrderByDescending(c => c.Total).ToList();
+        var byDay = lines.GroupBy(l => DateOnly.FromDateTime(l.OccurredAt.ToOffset(IndiaTime.Offset).DateTime))
+            .Select(g => new ExpenseDayTotal(g.Key, g.Sum(l => l.Amount), g.Count())).OrderBy(d => d.Date).ToList();
+
+        // Last month's shop kharcha, to compare.
+        var (prevStart, prevEnd) = IndiaTime.Month(m.Month == 1 ? m.Year - 1 : m.Year, m.Month == 1 ? 12 : m.Month - 1);
+        var previous = await db.Expenses.AsNoTracking()
+            .Where(e => e.OccurredAt >= prevStart && e.OccurredAt < prevEnd && e.StruckAt == null && e.Category != ExpenseCategory.Home)
+            .SumAsync(e => (decimal?)e.Amount, ct);
+
+        return TypedResults.Ok(new ExpenseMonthDto(
+            $"{m.Year:D4}-{m.Month:D2}", end <= clock.GetUtcNow(), total,
+            lines.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount), lines.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount),
+            home, total - home, lines.Count, byCategory, byDay, lines, previous));
     }
 
     internal static async Task<ExpensePageDto> LoadPageAsync(AppDbContext db, DateOnly day, CancellationToken ct)

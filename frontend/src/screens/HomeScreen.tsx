@@ -50,9 +50,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         <button onClick={() => navigate('/cashbook')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
           <span>{t('book.todayLink')}</span><span aria-hidden="true">→</span>
         </button>
-        <button onClick={() => navigate('/expenses')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
-          <span>{t('expense.link')}</span><span aria-hidden="true">→</span>
-        </button>
+        <KharchaRow shopId={shopId} />
       </div>
 
       <div className="mx-4 mt-3 grid grid-cols-2 gap-3">
@@ -205,5 +203,31 @@ function PlanBanner({ shopId }: { shopId: string }) {
       <span>{t(`plan2.banner.${s.status}`, { count: s.daysLeft ?? 0, reason: s.holdReason ?? '' })}</span>
       <span aria-hidden="true">→</span>
     </button>
+  )
+}
+
+/** "Today's kharcha" with this month's total under it; in a month's first week, last month's closed kharcha too. */
+function KharchaRow({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const now = new Date(Date.now() + 5.5 * 3600_000)
+  const month = now.toISOString().slice(0, 7)
+  const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)).toISOString().slice(0, 7)
+  const firstWeek = now.getUTCDate() <= 7
+  const current = useQuery({ queryKey: [shopId, 'expenses', 'month', month], queryFn: () => api<{ shopKharcha: number }>(`/v1/expenses/month?month=${month}`), staleTime: 60_000 }).data
+  const previous = useQuery({ queryKey: [shopId, 'expenses', 'month', last], queryFn: () => api<{ shopKharcha: number; count: number }>(`/v1/expenses/month?month=${last}`), enabled: firstWeek, staleTime: 600_000 }).data
+  return (
+    <>
+      <button onClick={() => navigate('/expenses')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 py-2 text-left font-semibold">
+        <span className="flex flex-col"><span>{t('expense.link')}</span>
+          {current && <span className="text-xs font-normal text-muted">{t('kharchaMonth.homeThisMonth', { amount: formatRupees(current.shopKharcha) })}</span>}</span>
+        <span aria-hidden="true">→</span>
+      </button>
+      {firstWeek && previous && previous.count > 0 && (
+        <button onClick={() => navigate('/expenses/month')} className="col-span-2 flex min-h-12 items-center justify-between rounded-[18px] bg-teal-50 px-4 text-left font-semibold text-teal-900">
+          <span>{t('kharchaMonth.lastMonthReady', { month: new Date(`${last}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long' }), amount: formatRupees(previous.shopKharcha) })}</span>
+          <span aria-hidden="true">→</span>
+        </button>
+      )}
+    </>
   )
 }

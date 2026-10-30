@@ -8,6 +8,7 @@ import { formatRupees } from '../lib/format'
 import { shrinkPhoto } from '../lib/images'
 import { listOps, subscribeOutbox } from '../lib/outbox'
 import type { PaymentMode } from '../lib/types'
+import { KharchaMonth } from './KharchaMonth'
 
 export type ExpenseCategory = 'tea' | 'transport' | 'rent' | 'electricity' | 'salary' | 'purchase' | 'packaging' | 'repair' | 'home' | 'other'
 
@@ -115,8 +116,9 @@ function shiftDay(day: string, by: number) {
  * auto 120, thaili 250 upi"), check what was read, save. Or tap a heading and type just the amount. A wrong line is
  * struck through, never rubbed out. Cash lines come out of the drawer in the cash book; UPI ones don't.
  */
-export function ExpensesScreen({ shopId }: { shopId: string }) {
+export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: string; shopName: string; month?: boolean }) {
   const { t } = useTranslation()
+  const [view, setView] = useState<'day' | 'month'>(month ? 'month' : 'day')
   const queryClient = useQueryClient()
   const today = indiaToday()
   const [day, setDay] = useState(today)
@@ -210,8 +212,22 @@ export function ExpensesScreen({ shopId }: { shopId: string }) {
     setGuesses((current) => [...current, ...found.map((g) => ({ key: nextKey.current++, amount: String(g.amount), category: g.category, note: g.note ?? '', mode: g.mode }))])
   })
 
+  const viewSwitch = (
+    <div role="tablist" className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 font-semibold">
+      {(['day', 'month'] as const).map((v) => (
+        <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`min-h-11 rounded-xl ${view === v ? 'bg-teal-700 text-white' : ''}`}>
+          {t(`kharchaMonth.tab.${v}`)}
+        </button>
+      ))}
+    </div>
+  )
+  if (view === 'month') {
+    return <div className="flex flex-col gap-3 p-4">{viewSwitch}<KharchaMonth shopId={shopId} shopName={shopName} /></div>
+  }
+
   return (
     <div className="flex flex-col gap-3 p-4">
+      {viewSwitch}
       <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{isToday ? t('expense.today') : label}</span>

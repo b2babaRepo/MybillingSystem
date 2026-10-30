@@ -62,6 +62,38 @@ public sealed class ExpenseTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task The_days_kharcha_adds_up_into_the_month_on_every_plan_free_included()
+    {
+        var (shop, auth) = await api.SignUpAsync();
+        // On Free: the trial ended long ago. The month kharcha isn't a paid report, so it still works.
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var free = new Npgsql.NpgsqlCommand("""
+                INSERT INTO subscriptions (id, shop_id, trial_ends_at, referral_rewarded, created_at, updated_at)
+                VALUES (gen_random_uuid(), @s, now() - interval '60 days', false, now(), now())
+                """, db);
+            free.Parameters.AddWithValue("s", auth.ShopId!.Value);
+            await free.ExecuteNonQueryAsync();
+        }
+
+        await Add(shop, Guid.CreateVersion7(), 40m, "chai", "cash");
+        await Add(shop, Guid.CreateVersion7(), 1200m, "bijli", "upi");
+        await Add(shop, Guid.CreateVersion7(), 500m, "ghar", "cash");
+        var struck = Guid.CreateVersion7();
+        await Add(shop, struck, 999m, "galti", "cash");
+        await shop.PostJsonAsync($"/api/v1/expenses/{struck}/strike", new { reason = "wrong" });
+
+        var month = await shop.GetJsonAsync<ExpenseMonthDto>("/api/v1/expenses/month");
+        Assert.Equal((1740m, 540m, 1200m, 500m, 1240m, 3, false), (month.Total, month.Cash, month.Upi, month.TakenHome, month.ShopKharcha, month.Count, month.Complete));
+        Assert.Equal(ExpenseCategory.Electricity, month.ByCategory[0].Category);
+        Assert.Equal(1740m, Assert.Single(month.ByDay).Total);
+
+        // A month that is over is complete.
+        Assert.True((await shop.GetJsonAsync<ExpenseMonthDto>("/api/v1/expenses/month?month=2026-01")).Complete);
+    }
+
+    [Fact]
     public async Task One_shop_never_sees_another_shops_expenses()
     {
         var (sharma, _) = await api.SignUpAsync("Sharma General Store");

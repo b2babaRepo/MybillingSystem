@@ -5,6 +5,10 @@ import { api, request } from '../lib/api'
 import { BADGE_ICON, isValidAadhaar, type AgentPerformanceRow, type FieldAgent, type FieldAgentStatus, type Registration } from '../lib/agents'
 import { formatDateTime, formatPhone, formatRupees } from '../lib/format'
 import type { AdminRole } from '../lib/types'
+import { addText } from '../i18n'
+import { agentText } from '../i18n/agent'
+
+addText(agentText)
 
 const TABS: FieldAgentStatus[] = ['applied', 'approved', 'blocked', 'rejected']
 
