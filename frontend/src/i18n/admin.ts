@@ -4,6 +4,7 @@
  */
 export const adminText = {
   en: {
+    people: { addMore: 'Add owner or helper', save: 'Save people', added: 'Added. Owners sign in with an SMS code; helpers with their PIN.' },
     performance: {
       title: 'Agent performance and commission',
       hint: 'This month’s numbers for every agent, the cash they hold for the company, and commission. Record commission only after paying it.',
@@ -126,6 +127,9 @@ export const adminText = {
       ran: 'Looked at all shops.',
     },
     plans: {
+      owners: 'Owners',
+      ownersCount_one: '{{count}} owner',
+      ownersCount_other: '{{count}} owners',
       title: 'Plans: Basic, Silver, Gold',
       hint: 'Set what each plan costs, its limits and what it opens. New prices apply to payments from now on. A plan taken off sale stays with the shops on it until their period ends.',
       name: 'Plan name',
@@ -191,6 +195,7 @@ export const adminText = {
     },
   },
   hi: {
+    people: { addMore: 'मालिक या साथी जोड़ें', save: 'लोग सेव करें', added: 'जुड़ गए। मालिक SMS कोड से, साथी अपने PIN से लॉगिन करेंगे।' },
     performance: {
       title: 'एजेंट का काम और कमीशन',
       hint: 'हर एजेंट के इस महीने के आँकड़े, कंपनी का उनके पास नकद, और कमीशन। कमीशन देने के बाद ही दर्ज करें।',
@@ -313,6 +318,9 @@ export const adminText = {
       ran: 'सभी दुकानें देख लीं।',
     },
     plans: {
+      owners: 'मालिक',
+      ownersCount_one: '{{count}} मालिक',
+      ownersCount_other: '{{count}} मालिक',
       title: 'प्लान: Basic, Silver, Gold',
       hint: 'हर प्लान का दाम, सीमाएँ और सुविधाएँ तय करें। नए दाम आगे के भुगतान पर लगेंगे। बिक्री से हटाया प्लान उस पर चल रही दुकानों के पास उनकी अवधि तक रहेगा।',
       name: 'प्लान का नाम',

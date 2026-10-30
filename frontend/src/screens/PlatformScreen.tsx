@@ -152,6 +152,7 @@ function StatusChip({ shop }: { shop: ShopRow }) {
 function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
   const canApprove = role === 'super' || role === 'approver'
   const canSupport = role === 'super' || role === 'support'
+  const canPeople = role !== 'support'
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const detail = useQuery({ queryKey: ['platform', 'shop', id], queryFn: () => api<Detail>(`/v1/platform/shops/${id}`) })
@@ -207,9 +208,14 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
             <a href={`tel:${p.phone}`} className="flex min-h-11 items-center rounded-xl border border-line px-3 font-semibold no-underline">{t('platform.call')}</a>
             <a href={`https://wa.me/${p.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex min-h-11 items-center rounded-xl border border-line px-3 font-semibold no-underline">WhatsApp</a>
             {p.lockedOut && canSupport && <button disabled={busy} onClick={() => void run(`/v1/platform/users/${p.userId}/unlock`, {}, 'POST', t('platform.unlocked', { name: p.name }))} className="min-h-11 rounded-xl bg-amber-100 px-3 font-semibold text-amber-900">{t('platform.unlock')}</button>}
+            {canPeople && (
+              <button disabled={busy} onClick={() => (!p.isActive || confirm(t('staff.offConfirm', { name: p.name }))) && void run(`/v1/platform/shops/${id}/people/${p.membershipId}/active?active=${!p.isActive}`, {}, 'POST')}
+                className={`min-h-11 rounded-xl px-3 font-semibold ${p.isActive ? 'border border-line text-due' : 'bg-teal-700 text-white'}`}>{p.isActive ? t('staff.turnOff') : t('staff.turnOn')}</button>
+            )}
           </li>
         ))}
       </ul>
+      {canPeople && <AddPerson shopId={id} />}
 
       <label className="flex flex-col gap-1 text-sm font-bold">
         {t('platform.note')}
@@ -251,6 +257,7 @@ function NewShop() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const empty = { shopName: '', ownerName: '', phone: '', area: '', type: 'kirana', language: 'hi' }
+  const [people, setPeople] = useState<PersonDraft[]>([])
   const [form, setForm] = useState(empty)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -265,9 +272,11 @@ function NewShop() {
     try {
       const result = await api<{ shopId: string; newAccount: boolean; tempPassword: string | null; shopCode: string | null }>('/v1/platform/shops', 'POST', {
         ...form, shopName: form.shopName.trim(), ownerName: form.ownerName.trim(), phone: form.phone.trim(), area: form.area.trim() || null,
+        people: people.filter((p) => p.name.trim() && p.phone.trim()).map(toPerson),
       })
       setCreated({ name: form.shopName.trim(), phone: form.phone.trim(), password: result.tempPassword, code: result.shopCode })
       setForm(empty)
+      setPeople([])
       await queryClient.invalidateQueries({ queryKey: ['platform'] })
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e))
@@ -303,6 +312,7 @@ function NewShop() {
               <option value="hi">हिंदी</option><option value="en">English</option>
             </select></label>
         </div>
+        <PeopleRows people={people} onChange={setPeople} />
         <Button disabled={busy || form.shopName.trim().length < 2 || form.phone.trim().length < 10} onClick={() => void create()}>{t('openShop.create')}</Button>
         {created && (
           <div className="flex flex-col gap-1 rounded-xl bg-teal-50 p-3 text-sm text-teal-900">
@@ -387,5 +397,63 @@ function ManageAdmins() {
       {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
       </>}
     </section>
+  )
+}
+
+interface PersonDraft { name: string; phone: string; role: 'owner' | 'staff'; pin: string }
+const toPerson = (p: PersonDraft) => ({ name: p.name.trim(), phone: p.phone.trim(), role: p.role, pin: p.role === 'staff' ? p.pin : null })
+
+/** Extra owners and helpers typed in while opening a shop; the plan (trial: Gold) sets how many fit. */
+function PeopleRows({ people, onChange }: { people: PersonDraft[]; onChange: (p: PersonDraft[]) => void }) {
+  const { t } = useTranslation()
+  const set = (i: number, patch: Partial<PersonDraft>) => onChange(people.map((p, j) => (j === i ? { ...p, ...patch } : p)))
+  const box = 'h-11 min-w-0 rounded-xl border border-line bg-white px-2'
+  return (
+    <div className="flex flex-col gap-2">
+      {people.map((p, i) => (
+        <div key={i} className="grid grid-cols-2 gap-2 rounded-xl bg-ground p-2 text-sm">
+          <select aria-label={t('staff.roleLabel')} value={p.role} onChange={(e) => set(i, { role: e.target.value as PersonDraft['role'] })} className={box}>
+            <option value="owner">{t('staff.owner')}</option><option value="staff">{t('staff.helper')}</option>
+          </select>
+          <button type="button" onClick={() => onChange(people.filter((_, j) => j !== i))} className="min-h-11 rounded-xl border border-line font-semibold">{t('plans.cancel')}</button>
+          <input aria-label={t('staff.name')} placeholder={t('staff.name')} value={p.name} onChange={(e) => set(i, { name: e.target.value })} className={box} />
+          <input aria-label={t('staff.phone')} placeholder={t('staff.phone')} value={p.phone} inputMode="tel" onChange={(e) => set(i, { phone: e.target.value })} className={box} />
+          {p.role === 'staff' && <input aria-label={t('staff.pin')} placeholder={t('staff.pin')} value={p.pin} inputMode="numeric"
+            onChange={(e) => set(i, { pin: e.target.value.replace(/\D/g, '').slice(0, 6) })} className={`${box} col-span-2`} />}
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange([...people, { name: '', phone: '', role: 'owner', pin: '' }])}
+        className="min-h-11 rounded-xl border-2 border-dashed border-line font-semibold">+ {t('people.addMore')}</button>
+    </div>
+  )
+}
+
+/** In a shop's admin detail: add an owner or a helper (with a PIN), within the shop's plan. */
+function AddPerson({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [draft, setDraft] = useState<PersonDraft[]>([])
+  const [message, setMessage] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  async function save() {
+    setBusy(true)
+    setMessage(null)
+    try {
+      for (const p of draft.filter((x) => x.name.trim() && x.phone.trim())) await api(`/v1/platform/shops/${shopId}/people`, 'POST', toPerson(p))
+      setDraft([])
+      await queryClient.invalidateQueries({ queryKey: ['platform'] })
+      setMessage(t('people.added'))
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <PeopleRows people={draft} onChange={setDraft} />
+      {draft.length > 0 && <Button disabled={busy} onClick={() => void save()}>{t('people.save')}</Button>}
+      {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+    </div>
   )
 }

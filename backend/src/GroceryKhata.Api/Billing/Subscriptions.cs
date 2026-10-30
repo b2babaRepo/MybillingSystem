@@ -32,7 +32,11 @@ public sealed class Plan : Entity
     /// <summary>Null: no limit.</summary>
     public int? MaxCustomers { get; set; }
 
+    /// <summary>Helper logins (each with a PIN).</summary>
     public int MaxStaff { get; set; }
+
+    /// <summary>Owners: people with full access, signing in with their number.</summary>
+    public int MaxOwners { get; set; } = 1;
 
     public int WhatsAppPerMonth { get; set; }
 
@@ -228,7 +232,7 @@ public enum SubscriptionStatus
 
 public sealed record Entitlement(
     SubscriptionStatus Status, string PlanCode, string PlanName, IReadOnlySet<string> Features, int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth,
-    DateTimeOffset? EndsAt)
+    DateTimeOffset? EndsAt, int MaxOwners = 1)
 {
     public bool Has(string feature) => Features.Contains(feature);
 }
@@ -303,7 +307,7 @@ public sealed class Entitlements(AppDbContext db, TimeProvider clock, Microsoft.
         {
             var plan = plans.GetValueOrDefault(code) ?? plans.GetValueOrDefault("free");
             return new Entitlement(status, plan?.Code ?? "free", plan?.Name ?? "Free", (plan?.FeatureKeys ?? []).ToHashSet(),
-                plan?.MaxCustomers, plan?.MaxStaff ?? 0, plan?.WhatsAppPerMonth ?? 0, endsAt);
+                plan?.MaxCustomers, plan?.MaxStaff ?? 0, plan?.WhatsAppPerMonth ?? 0, endsAt, Math.Max(1, plan?.MaxOwners ?? 1));
         }
 
         if (s.HoldSince is not null)
@@ -336,17 +340,17 @@ public sealed class Entitlements(AppDbContext db, TimeProvider clock, Microsoft.
     /// <summary>The default plans (prices in rupees), added when the table is empty. Super admins change them later.</summary>
     public static IEnumerable<Plan> DefaultPlans() =>
     [
-        new() { Code = "free", Name = "Free", SortOrder = 0, MaxCustomers = 100, MaxStaff = 0, WhatsAppPerMonth = 0 },
+        new() { Code = "free", Name = "Free", SortOrder = 0, MaxCustomers = 100, MaxStaff = 0, MaxOwners = 1, WhatsAppPerMonth = 0 },
         new()
         {
             Code = "basic", Name = "Basic", SortOrder = 1, PriceMonthly = 59, PriceYear1 = 499, PriceYear3 = 1099, PriceYear5 = 1699,
-            FeatureKeys = [Features.Reports, Features.Store, Features.WhatsApp], MaxStaff = 0, WhatsAppPerMonth = 100,
+            FeatureKeys = [Features.Reports, Features.Store, Features.WhatsApp, Features.Staff], MaxStaff = 1, MaxOwners = 1, WhatsAppPerMonth = 100,
         },
         Silver(),
         new()
         {
             Code = "pro", Name = "Gold", SortOrder = 3, PriceMonthly = 199, PriceYear1 = 1999, PriceYear3 = 4499, PriceYear5 = 6999,
-            FeatureKeys = Features.All, MaxStaff = 5, WhatsAppPerMonth = 500,
+            FeatureKeys = Features.All, MaxStaff = 10, MaxOwners = 3, WhatsAppPerMonth = 500,
         },
     ];
 
@@ -354,7 +358,7 @@ public sealed class Entitlements(AppDbContext db, TimeProvider clock, Microsoft.
     public static Plan Silver() => new()
     {
         Code = "silver", Name = "Silver", SortOrder = 2, PriceMonthly = 99, PriceYear1 = 999, PriceYear3 = 2299, PriceYear5 = 3499,
-        FeatureKeys = [Features.Reports, Features.Store, Features.WhatsApp, Features.Staff, Features.BillPhoto], MaxStaff = 2, WhatsAppPerMonth = 300,
+        FeatureKeys = [Features.Reports, Features.Store, Features.WhatsApp, Features.Staff, Features.BillPhoto], MaxStaff = 3, MaxOwners = 2, WhatsAppPerMonth = 300,
     };
 
     public static Offer DefaultOffer() => new()

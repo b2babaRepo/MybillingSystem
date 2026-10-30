@@ -196,6 +196,10 @@ export const en = {
     again: 'Check again',
   },
   staff: {
+    roleLabel: 'Owner or helper',
+    ownerHint: 'An owner sees everything, like you. They sign in with their number and an SMS code.',
+    planLimit: 'Your plan sets how many owners and helpers you can have.',
+    ownerAdded: 'Owner added. They sign in with their number and an SMS code.',
     title: 'Staff',
     menuHint: 'Helpers who bill with a PIN',
     hint: 'Helpers sign in with their phone number and the PIN you set, straight into this shop. They can bill and keep khata, but not see reports, settings or answer disputes.',

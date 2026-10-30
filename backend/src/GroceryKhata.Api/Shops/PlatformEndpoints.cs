@@ -88,7 +88,8 @@ public sealed record BlockRequest(string? Reason);
 
 public sealed record NoteRequest(string? Note);
 
-public sealed record CreateShopRequest(string? ShopName, string? OwnerName, string? Phone, string? Area, ShopType? Type, string? Language);
+public sealed record CreateShopRequest(
+    string? ShopName, string? OwnerName, string? Phone, string? Area, ShopType? Type, string? Language, IReadOnlyList<AddPersonRequest>? People = null);
 
 /// <summary>The new shop. A new owner account gets a one-time password to pass on; an existing one keeps theirs.</summary>
 public sealed record CreatedShop(Guid ShopId, string Slug, bool NewAccount, string? TempPassword, string? ShopCode = null);
@@ -112,6 +113,9 @@ public static class PlatformEndpoints
         group.MapGet("/shops", ListAsync);
         group.MapGet("/shops/{id:guid}", GetAsync);
         group.MapPost("/shops", CreateShopAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
+        group.MapPost("/shops/{id:guid}/people", AddPersonAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
+        group.MapPost("/shops/{id:guid}/people/{membershipId:guid}/active", (Guid id, Guid membershipId, bool active, ClaimsPrincipal admin, AppDbContext db, CancellationToken ct) =>
+            ShopPeople.SetActiveAsync(membershipId, active, id, admin.UserId(), db, ct)).RequireAuthorization(AppPolicies.PlatformOpenShop);
         group.MapPost("/shops/{id:guid}/approve", ApproveAsync).RequireAuthorization(AppPolicies.PlatformApprover);
         group.MapPost("/shops/{id:guid}/block", BlockAsync).RequireAuthorization(AppPolicies.PlatformApprover);
         group.MapPost("/shops/{id:guid}/unblock", UnblockAsync).RequireAuthorization(AppPolicies.PlatformApprover);
@@ -130,7 +134,7 @@ public static class PlatformEndpoints
     /// </summary>
     private static async Task<IResult> CreateShopAsync(
         CreateShopRequest request, AppDbContext db, IPasswordHasher<User> hasher, TimeProvider clock, ClaimsPrincipal admin,
-        ILogger<PlatformAdmin> logger, CancellationToken ct)
+        Billing.Entitlements entitlements, ILogger<PlatformAdmin> logger, CancellationToken ct)
     {
         var phone = PhoneNumber.Normalize(request.Phone);
         var shopName = request.ShopName?.Trim();
@@ -168,8 +172,30 @@ public static class PlatformEndpoints
         db.Memberships.Add(new Membership { UserId = user.Id, ShopId = shop.Id, Role = ShopRole.Owner });
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Admin {AdminId} opened shop {ShopId} for user {UserId}", admin.UserId(), shop.Id, user.Id);
+
+        // More owners and helpers, as far as the shop's plan (the trial: Gold) allows; the first refusal stops here.
+        foreach (var person in request.People ?? [])
+        {
+            if (await ShopPeople.CheckAsync(person, shop.Id, db, entitlements, ct) is { } problem)
+            {
+                return problem;
+            }
+
+            await ShopPeople.AddAsync(person, shop.Id, db, hasher, ct);
+        }
         var number = await db.Shops.AsNoTracking().Where(s => s.Id == shop.Id).Select(s => s.Number).SingleAsync(ct);
         return TypedResults.Ok(new CreatedShop(shop.Id, shop.Slug, tempPassword is not null, tempPassword, Shop.FormatCode(number)));
+    }
+
+    private static async Task<IResult> AddPersonAsync(
+        Guid id, AddPersonRequest request, AppDbContext db, IPasswordHasher<User> hasher, Billing.Entitlements entitlements, CancellationToken ct)
+    {
+        if (!await db.Shops.AnyAsync(s => s.Id == id, ct))
+        {
+            return TypedResults.NotFound();
+        }
+
+        return await ShopPeople.CheckAsync(request, id, db, entitlements, ct) ?? await ShopPeople.AddAsync(request, id, db, hasher, ct);
     }
 
     private static async Task<IReadOnlyList<AdminDto>> ListAdminsAsync(AppDbContext db, CancellationToken ct) =>

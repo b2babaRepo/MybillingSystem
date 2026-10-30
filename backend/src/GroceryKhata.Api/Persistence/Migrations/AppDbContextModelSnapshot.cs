@@ -656,6 +656,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("max_customers");
 
+                    b.Property<int>("MaxOwners")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_owners");
+
                     b.Property<int>("MaxStaff")
                         .HasColumnType("integer")
                         .HasColumnName("max_staff");

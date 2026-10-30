@@ -10,8 +10,6 @@ namespace GroceryKhata.Api.Shops;
 
 public sealed record StaffDto(Guid MembershipId, Guid UserId, string Name, string Phone, ShopRole Role, bool IsActive, bool HasPin);
 
-public sealed record AddStaffRequest(string? Name, string? Phone, string? Pin);
-
 public sealed record PinRequest(string? Pin);
 
 /// <summary>
@@ -26,23 +24,10 @@ public static class StaffEndpoints
     {
         var group = app.MapGroup("/api/v1/shop/staff").WithTags("Staff").RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("", ListAsync);
-        group.MapPost("", AddAsync).RequireFeature(Billing.Features.Staff).AddEndpointFilter(StaffLimitAsync);
+        group.MapPost("", AddAsync);
         group.MapPost("/{membershipId:guid}/pin", SetPinAsync);
         group.MapPost("/{membershipId:guid}/active", SetActiveAsync);
         return app;
-    }
-
-    /// <summary>The plan's limit on helpers (Pro: 5). Turned-off helpers don't count.</summary>
-    private static async ValueTask<object?> StaffLimitAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
-    {
-        var services = context.HttpContext.RequestServices;
-        var tenant = services.GetRequiredService<ITenantContext>();
-        var entitlement = await services.GetRequiredService<Billing.Entitlements>().ForShopAsync(tenant.ShopId, context.HttpContext.RequestAborted);
-        var helpers = await services.GetRequiredService<AppDbContext>().Memberships
-            .CountAsync(m => m.ShopId == tenant.ShopId && m.Role == ShopRole.Staff && m.IsActive, context.HttpContext.RequestAborted);
-        return helpers >= entitlement.MaxStaff
-            ? TypedResults.Problem(statusCode: StatusCodes.Status402PaymentRequired, title: $"The {entitlement.PlanName} plan has room for {entitlement.MaxStaff} helpers.")
-            : await next(context);
     }
 
     private static async Task<IReadOnlyList<StaffDto>> ListAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
@@ -54,56 +39,22 @@ public static class StaffEndpoints
             .ToListAsync(ct);
 
     /// <summary>
-    /// Adds a helper. A new phone gets an account with no password (they sign in with the PIN); a phone that already
-    /// has an account (a household, or another shop's staff) just gains this shop.
+    /// Adds a helper (with a PIN) or, when the plan allows, another owner. A new phone gets an account; a phone that
+    /// already has one (a household, or another shop's staff) just gains this shop.
     /// </summary>
     private static async Task<IResult> AddAsync(
-        AddStaffRequest request, AppDbContext db, ITenantContext tenant, IPasswordHasher<User> hasher, ILogger<StaffDto> logger, CancellationToken ct)
+        AddPersonRequest request, AppDbContext db, ITenantContext tenant, Billing.Entitlements entitlements, IPasswordHasher<User> hasher,
+        ILogger<StaffDto> logger, CancellationToken ct)
     {
-        var errors = new Dictionary<string, string[]>();
-        var name = request.Name?.Trim();
-        var phone = PhoneNumber.Normalize(request.Phone);
-        if (name is not { Length: >= 2 and <= 120 })
+        request = request with { Role = request.Role ?? ShopRole.Staff };
+        if (await ShopPeople.CheckAsync(request, tenant.ShopId, db, entitlements, ct) is { } problem)
         {
-            errors[nameof(request.Name)] = ["Enter the helper's name."];
+            return problem;
         }
 
-        if (phone is null)
-        {
-            errors[nameof(request.Phone)] = ["Enter a 10-digit mobile number."];
-        }
-
-        if (Pins.Problem(request.Pin) is { } pinProblem)
-        {
-            errors[nameof(request.Pin)] = [pinProblem];
-        }
-
-        if (errors.Count > 0)
-        {
-            return TypedResults.ValidationProblem(errors);
-        }
-
-        var user = await db.Users.SingleOrDefaultAsync(u => u.Phone == phone, ct);
-        if (user is null)
-        {
-            user = new User { Phone = phone!, FullName = name! };
-            db.Users.Add(user);
-        }
-        else if (await db.Memberships.AnyAsync(m => m.UserId == user.Id && m.ShopId == tenant.ShopId, ct))
-        {
-            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This number is already in your staff list.");
-        }
-
-        db.Memberships.Add(new Membership
-        {
-            UserId = user.Id,
-            ShopId = tenant.ShopId,
-            Role = ShopRole.Staff,
-            PinHash = hasher.HashPassword(user, request.Pin!),
-        });
-        await db.SaveChangesAsync(ct);
-        logger.LogInformation("Shop {ShopId} added staff {UserId}", tenant.ShopId, user.Id);
-        return TypedResults.Created("/api/v1/shop/staff", (await ListAsync(db, tenant, ct)).Single(s => s.UserId == user.Id));
+        var result = await ShopPeople.AddAsync(request, tenant.ShopId, db, hasher, ct);
+        logger.LogInformation("Shop {ShopId} added a {Role}", tenant.ShopId, request.Role);
+        return result;
     }
 
     /// <summary>A new PIN for a helper (forgotten, or told to someone else). The old one stops working.</summary>
@@ -129,24 +80,8 @@ public static class StaffEndpoints
         return TypedResults.NoContent();
     }
 
-    /// <summary>Turns a helper's access off (they're signed out on their next request) or back on. The owner can't turn themself off.</summary>
-    private static async Task<IResult> SetActiveAsync(
-        Guid membershipId, bool active, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, CancellationToken ct)
-    {
-        var membership = await db.Memberships.SingleOrDefaultAsync(m => m.Id == membershipId && m.ShopId == tenant.ShopId, ct);
-        if (membership is null || membership.Role == ShopRole.Owner)
-        {
-            return membership is null ? TypedResults.NotFound() : TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "The owner's access can't be turned off.");
-        }
-
-        membership.IsActive = active;
-        if (!active)
-        {
-            // Their refresh tokens for this shop go too, so the phone can't quietly get a new access token.
-            await db.RefreshTokens.Where(t => t.MembershipId == membershipId).ExecuteDeleteAsync(ct);
-        }
-
-        await db.SaveChangesAsync(ct);
-        return TypedResults.NoContent();
-    }
+    /// <summary>Turns someone's access off (signed out on their next request) or back on. Not your own; never the last owner.</summary>
+    private static Task<IResult> SetActiveAsync(
+        Guid membershipId, bool active, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
+        ShopPeople.SetActiveAsync(membershipId, active, tenant.ShopId, user.UserId(), db, ct);
 }

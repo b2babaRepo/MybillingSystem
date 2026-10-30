@@ -27,6 +27,7 @@ export function StaffScreen() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [pin, setPin] = useState('')
+  const [role, setRole] = useState<'staff' | 'owner'>('staff')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -45,11 +46,11 @@ export function StaffScreen() {
   }
 
   const add = () => run(async () => {
-    await api('/v1/shop/staff', 'POST', { name: name.trim(), phone: phone.trim(), pin })
+    await api('/v1/shop/staff', 'POST', { name: name.trim(), phone: phone.trim(), role, pin: role === 'staff' ? pin : null })
     setName('')
     setPhone('')
     setPin('')
-  }, t('staff.added'))
+  }, role === 'owner' ? t('staff.ownerAdded') : t('staff.added'))
 
   function changePin(s: Staff) {
     const next = prompt(t('staff.newPinAsk', { name: s.name }))?.trim()
@@ -80,9 +81,9 @@ export function StaffScreen() {
                 {s.role === 'owner' ? t('staff.owner') : s.isActive ? t('staff.helper') : t('staff.off')}
               </span>
             </div>
-            {s.role === 'staff' && (
+            {(s.role === 'staff' || staff.data!.filter((x) => x.role === 'owner' && x.isActive).length > 1 || !s.isActive) && (
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <button disabled={busy} onClick={() => changePin(s)} className="min-h-11 rounded-xl border border-line font-semibold">🔑 {t('staff.changePin')}</button>
+                {s.role === 'staff' ? <button disabled={busy} onClick={() => changePin(s)} className="min-h-11 rounded-xl border border-line font-semibold">🔑 {t('staff.changePin')}</button> : <span />}
                 <button disabled={busy} onClick={() => setActive(s, !s.isActive)}
                   className={`min-h-11 rounded-xl font-semibold ${s.isActive ? 'border border-line text-due' : 'bg-teal-700 text-white'}`}>
                   {s.isActive ? t('staff.turnOff') : t('staff.turnOn')}
@@ -97,9 +98,18 @@ export function StaffScreen() {
         <h2 className="text-lg font-bold">{t('staff.addTitle')}</h2>
         <Field label={t('staff.name')} value={name} onChange={(e) => setName(e.target.value)} />
         <Field label={t('staff.phone')} value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
-        <Field label={t('staff.pin')} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" />
-        <p className="-mt-2 text-xs text-muted">{t('staff.pinHint')}</p>
-        <Button disabled={busy || name.trim().length < 2 || phone.trim().length < 10 || pin.length < 4} onClick={() => void add()}>
+        <div role="radiogroup" aria-label={t('staff.roleLabel')} className="grid grid-cols-2 gap-2">
+          {(['staff', 'owner'] as const).map((r) => (
+            <button key={r} type="button" role="radio" aria-checked={role === r} onClick={() => setRole(r)}
+              className={`min-h-12 rounded-xl font-semibold ${role === r ? 'bg-teal-700 text-white' : 'border border-line'}`}>{r === 'owner' ? t('staff.owner') : t('staff.helper')}</button>
+          ))}
+        </div>
+        {role === 'staff' ? <>
+          <Field label={t('staff.pin')} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" />
+          <p className="-mt-2 text-xs text-muted">{t('staff.pinHint')}</p>
+        </> : <p className="text-xs text-muted">{t('staff.ownerHint')}</p>}
+        <p className="text-xs text-muted">{t('staff.planLimit')}</p>
+        <Button disabled={busy || name.trim().length < 2 || phone.trim().length < 10 || (role === 'staff' && pin.length < 4)} onClick={() => void add()}>
           {t('staff.add')}
         </Button>
       </section>

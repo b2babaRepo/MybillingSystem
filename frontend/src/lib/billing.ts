@@ -15,6 +15,8 @@ export interface PlanInfo {
   features: string[]
   maxCustomers: number | null
   maxStaff: number
+  /** Owners allowed (full access). */
+  maxOwners?: number
   whatsAppPerMonth: number
   /** On sale (admins see plans taken off sale too). */
   isActive?: boolean

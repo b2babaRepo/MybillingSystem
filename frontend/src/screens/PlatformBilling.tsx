@@ -405,18 +405,18 @@ export function ActivityPanel() {
   )
 }
 
-type PlanDraft = { name: string; priceMonthly: string; priceYear1: string; priceYear3: string; priceYear5: string; maxCustomers: string; maxStaff: string; whatsAppPerMonth: string; features: string[] }
+type PlanDraft = { name: string; priceMonthly: string; priceYear1: string; priceYear3: string; priceYear5: string; maxCustomers: string; maxOwners: string; maxStaff: string; whatsAppPerMonth: string; features: string[] }
 const PRICE_KEYS = ['priceMonthly', 'priceYear1', 'priceYear3', 'priceYear5'] as const
-const blank: PlanDraft = { name: '', priceMonthly: '', priceYear1: '', priceYear3: '', priceYear5: '', maxCustomers: '', maxStaff: '0', whatsAppPerMonth: '0', features: [] }
+const blank: PlanDraft = { name: '', priceMonthly: '', priceYear1: '', priceYear3: '', priceYear5: '', maxCustomers: '', maxOwners: '1', maxStaff: '0', whatsAppPerMonth: '0', features: [] }
 const toDraft = (p: PlanInfo): PlanDraft => ({
   name: p.name, priceMonthly: String(p.priceMonthly ?? ''), priceYear1: String(p.priceYear1 ?? ''), priceYear3: String(p.priceYear3 ?? ''), priceYear5: String(p.priceYear5 ?? ''),
-  maxCustomers: String(p.maxCustomers ?? ''), maxStaff: String(p.maxStaff), whatsAppPerMonth: String(p.whatsAppPerMonth), features: p.features,
+  maxCustomers: String(p.maxCustomers ?? ''), maxOwners: String(p.maxOwners ?? 1), maxStaff: String(p.maxStaff), whatsAppPerMonth: String(p.whatsAppPerMonth), features: p.features,
 })
 const toBody = (d: PlanDraft) => {
   const num = (v: string) => (v.trim() === '' ? null : Number(v))
   return {
     name: d.name.trim(), priceMonthly: num(d.priceMonthly), priceYear1: num(d.priceYear1), priceYear3: num(d.priceYear3), priceYear5: num(d.priceYear5),
-    maxCustomers: num(d.maxCustomers), maxStaff: Number(d.maxStaff || 0), whatsAppPerMonth: Number(d.whatsAppPerMonth || 0), features: d.features,
+    maxCustomers: num(d.maxCustomers), maxOwners: Math.max(1, Number(d.maxOwners || 1)), maxStaff: Number(d.maxStaff || 0), whatsAppPerMonth: Number(d.whatsAppPerMonth || 0), features: d.features,
   }
 }
 
@@ -437,7 +437,9 @@ function PlanFields({ draft, onChange, disabled, free }: { draft: PlanDraft; onC
           ))}
         </div>
       )}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <label className="flex flex-col text-xs text-muted">{t('plans.owners')}
+          <input value={draft.maxOwners} disabled={disabled} onChange={digits('maxOwners')} inputMode="numeric" className={box} /></label>
         <label className="flex flex-col text-xs text-muted">{t('plans.customers')}
           <input value={draft.maxCustomers} disabled={disabled} onChange={digits('maxCustomers')} inputMode="numeric" placeholder={t('plans.noLimit')} className={box} /></label>
         <label className="flex flex-col text-xs text-muted">{t('plans.helpers')}
@@ -506,7 +508,7 @@ export function PlansPanel() {
                 </span>
                 <span className="text-xs text-muted">
                   {p.maxCustomers ? t('plan2.customersUpTo', { count: p.maxCustomers }) : t('plan2.customersUnlimited')}
-                  {` · ${t('plan2.staff', { count: p.maxStaff })} · ${t('plan2.whatsapp', { count: p.whatsAppPerMonth })}`}
+                  {` · ${t('plans.ownersCount', { count: p.maxOwners ?? 1 })} · ${t('plan2.staff', { count: p.maxStaff })} · ${t('plan2.whatsapp', { count: p.whatsAppPerMonth })}`}
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold" onClick={() => setDrafts({ ...drafts, [p.code]: toDraft(p) })}>{t('plans.edit')}</button>

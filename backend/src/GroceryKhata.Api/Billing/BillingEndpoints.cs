@@ -10,7 +10,7 @@ namespace GroceryKhata.Api.Billing;
 
 public sealed record PlanDto(
     string Code, string Name, decimal? PriceMonthly, decimal? PriceYear1, decimal? PriceYear3, decimal? PriceYear5, IReadOnlyList<string> Features,
-    int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth, bool IsActive = true, int Shops = 0);
+    int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth, bool IsActive = true, int Shops = 0, int MaxOwners = 1);
 
 public sealed record PaymentDto(
     Guid Id, string PlanCode, PlanTerm Term, decimal Amount, PaymentMethod Method, string? Reference, string? OfferCode, DateTimeOffset PaidAt,
@@ -42,7 +42,7 @@ public sealed record MovePlanRequest(string? PlanCode);
 
 public sealed record PlanUpdate(
     string? Name, decimal? PriceMonthly, decimal? PriceYear1, decimal? PriceYear3, decimal? PriceYear5, IReadOnlyList<string>? Features,
-    int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth);
+    int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth, int MaxOwners = 1);
 
 public sealed record OfferRequest(string? Code, string? Title, string? PlanCode, PlanTerm? Term, decimal Price, bool NewShopsOnly, DateTimeOffset? ValidUntil, int? MaxUses);
 
@@ -336,7 +336,7 @@ public static class BillingEndpoints
         plan.Name = request.Name.Trim();
         (plan.PriceMonthly, plan.PriceYear1, plan.PriceYear3, plan.PriceYear5) = (request.PriceMonthly, request.PriceYear1, request.PriceYear3, request.PriceYear5);
         plan.FeatureKeys = request.Features?.Distinct().ToArray() ?? plan.FeatureKeys;
-        (plan.MaxCustomers, plan.MaxStaff, plan.WhatsAppPerMonth) = (request.MaxCustomers, request.MaxStaff, request.WhatsAppPerMonth);
+        (plan.MaxCustomers, plan.MaxStaff, plan.WhatsAppPerMonth, plan.MaxOwners) = (request.MaxCustomers, request.MaxStaff, request.WhatsAppPerMonth, Math.Clamp(request.MaxOwners, 1, 20));
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Admin {AdminId} changed plan {Plan}", admin.UserId(), code);
         return TypedResults.Ok(await PlansAsync(db, ct, includeInactive: true));
@@ -362,6 +362,7 @@ public static class BillingEndpoints
             Code = code, Name = name, SortOrder = (await db.Plans.MaxAsync(p => (int?)p.SortOrder, ct) ?? 0) + 1,
             PriceMonthly = request.PriceMonthly, PriceYear1 = request.PriceYear1, PriceYear3 = request.PriceYear3, PriceYear5 = request.PriceYear5,
             FeatureKeys = request.Features?.Distinct().ToArray() ?? [], MaxCustomers = request.MaxCustomers, MaxStaff = request.MaxStaff, WhatsAppPerMonth = request.WhatsAppPerMonth,
+            MaxOwners = Math.Clamp(request.MaxOwners, 1, 20),
         });
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(await AdminPlansAsync(db, clock, ct));
@@ -488,7 +489,7 @@ public static class BillingEndpoints
 
     private static async Task<IReadOnlyList<PlanDto>> PlansAsync(AppDbContext db, CancellationToken ct, bool includeInactive = false) =>
         (await db.Plans.AsNoTracking().Where(p => includeInactive || p.IsActive).OrderBy(p => p.SortOrder).ToListAsync(ct))
-        .Select(p => new PlanDto(p.Code, p.Name, p.PriceMonthly, p.PriceYear1, p.PriceYear3, p.PriceYear5, p.FeatureKeys, p.MaxCustomers, p.MaxStaff, p.WhatsAppPerMonth, p.IsActive))
+        .Select(p => new PlanDto(p.Code, p.Name, p.PriceMonthly, p.PriceYear1, p.PriceYear3, p.PriceYear5, p.FeatureKeys, p.MaxCustomers, p.MaxStaff, p.WhatsAppPerMonth, p.IsActive, 0, p.MaxOwners))
         .ToList();
 
     private static async Task<IReadOnlyList<ClaimDto>> ClaimsAsync(AppDbContext db, Guid? shopId, ClaimStatus? status, CancellationToken ct) =>

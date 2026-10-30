@@ -169,7 +169,7 @@ public static class ShopRegistrationEndpoints
         // The plans on sale, with prices, for the agent to offer.
         agent.MapGet("/plans", async (AppDbContext db, CancellationToken ct) =>
             (await db.Plans.AsNoTracking().Where(p => p.IsActive && p.Code != "free").OrderBy(p => p.SortOrder).ToListAsync(ct))
-                .Select(p => new PlanDto(p.Code, p.Name, p.PriceMonthly, p.PriceYear1, p.PriceYear3, p.PriceYear5, p.FeatureKeys, p.MaxCustomers, p.MaxStaff, p.WhatsAppPerMonth)));
+                .Select(p => new PlanDto(p.Code, p.Name, p.PriceMonthly, p.PriceYear1, p.PriceYear3, p.PriceYear5, p.FeatureKeys, p.MaxCustomers, p.MaxStaff, p.WhatsAppPerMonth, true, 0, p.MaxOwners)));
 
         var admin = app.MapGroup("/api/v1/platform/registrations").WithTags("Agent shop sign-ups").RecordsActivity();
         admin.MapGet("", ListAsync).RequireAuthorization(AppPolicies.PlatformShopReview);
