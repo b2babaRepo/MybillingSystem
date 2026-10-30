@@ -44,6 +44,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Shops.PlatformAdmin> PlatformAdmins => Set<Shops.PlatformAdmin>();
 
+    public DbSet<Shops.PlatformActivity> PlatformActivities => Set<Shops.PlatformActivity>();
+
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
@@ -411,10 +413,23 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(x => x.Site).HasMaxLength(80);
             b.Property(x => x.VehicleNumber).HasMaxLength(15);
             b.HasIndex(x => new { x.ShopId, x.PainterId, x.OccurredAt });
+            b.Property(x => x.FinancialYear).HasMaxLength(7);
+            b.Ignore(x => x.BillNo);
+            b.HasIndex(x => new { x.ShopId, x.FinancialYear, x.Number }).IsUnique();
             b.HasMany(x => x.Lines).WithOne()
                 .HasForeignKey(l => new { l.ShopId, l.BillId })
                 .HasPrincipalKey(x => new { x.ShopId, x.Id })
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Shops.PlatformActivity>(b =>
+        {
+            b.ToTable("platform_activities");
+            b.Property(x => x.Action).HasMaxLength(120);
+            b.Property(x => x.Detail).HasColumnType("jsonb");
+            b.HasIndex(x => x.CreatedAt);
+            b.HasIndex(x => new { x.ShopId, x.CreatedAt });
+            b.HasIndex(x => new { x.AdminUserId, x.CreatedAt });
         });
 
         modelBuilder.Entity<BillLine>(b =>

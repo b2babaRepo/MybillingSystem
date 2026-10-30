@@ -101,6 +101,18 @@ public sealed class Bill : Entity, ITenantOwned
 
     public decimal Total { get; set; }
 
+    /// <summary>
+    /// The bill's serial number in its financial year (April to March), 1, 2, 3… with no gaps: a missing number would
+    /// show a bill was removed. Given by the server when the bill is saved, in the order bills reach it.
+    /// </summary>
+    public int Number { get; set; }
+
+    /// <summary>"2026-27".</summary>
+    public string FinancialYear { get; set; } = "";
+
+    /// <summary>"2026-27/0457", as printed.</summary>
+    public string BillNo => $"{FinancialYear}/{Number:D4}";
+
     public decimal PaidAmount { get; set; }
 
     public PaymentMode? PaymentMode { get; set; }

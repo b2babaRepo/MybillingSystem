@@ -31,18 +31,21 @@ public static class LedgerEndpoints
             await ledger.GetBillAsync(id, ct) is { } bill ? Results.Ok(bill) : Results.NotFound());
 
         group.MapPost("/khata-entries", async (KhataEntryRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
-            (await ledger.AddKhataEntryAsync(request, user.UserId()!.Value, ct)).ToHttp($"/api/v1/customers/{request.CustomerId}/statement"));
+            (await ledger.AddKhataEntryAsync(request, user.UserId()!.Value, ct, IsOwner(user))).ToHttp($"/api/v1/customers/{request.CustomerId}/statement"));
 
         group.MapPost("/ledger-entries/{id:guid}/reverse",
             async (Guid id, ReverseRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
-                (await ledger.ReverseAsync(id, request, user.UserId()!.Value, user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner)), ct)).ToHttp($"/api/v1/ledger-entries/{request.Id}"));
+                (await ledger.ReverseAsync(id, request, user.UserId()!.Value, IsOwner(user), ct)).ToHttp($"/api/v1/ledger-entries/{request.Id}"));
 
         group.MapPost("/bills", async (BillRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
-            (await ledger.CreateBillAsync(request, user.UserId()!.Value, ct)).ToHttp($"/api/v1/bills/{request.Id}"));
+            (await ledger.CreateBillAsync(request, user.UserId()!.Value, ct, isOwner: IsOwner(user))).ToHttp($"/api/v1/bills/{request.Id}"));
 
         group.MapGet("/ledger/reconcile", (LedgerService ledger, CancellationToken ct) => ledger.ReconcileAsync(ct))
             .RequireAuthorization(AppPolicies.ShopOwner);
 
         return app;
     }
+
+    private static bool IsOwner(ClaimsPrincipal user) => user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner));
 }
+

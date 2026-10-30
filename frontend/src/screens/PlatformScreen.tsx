@@ -6,7 +6,8 @@ import { Button } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatDateTime, formatPhone } from '../lib/format'
 import { useSession } from '../lib/data'
-import { AgentPanel, BillingPanel, ShopBillingPanel } from './PlatformBilling'
+import { ActivityPanel, AgentPanel, BillingPanel, PlansPanel, ShopBillingPanel } from './PlatformBilling'
+import { usePlans } from '../lib/billing'
 import type { AdminRole } from '../lib/types'
 import { navigate } from '../router'
 
@@ -22,6 +23,8 @@ interface ShopRow {
   blockedReason: string | null
   ownerName: string | null
   ownerPhone: string | null
+  planCode?: string | null
+  planStatus?: string | null
 }
 interface Person { userId: string; membershipId: string; name: string; phone: string; role: 'owner' | 'staff'; isActive: boolean; lockedOut: boolean }
 interface Detail { shop: ShopRow; address: string | null; adminNote: string | null; people: Person[]; customers: number; billsLast30Days: number; lastBillAt: string | null; lastBalanceCheck: { mismatches: number } | null }
@@ -39,11 +42,13 @@ export function PlatformScreen() {
   const role: AdminRole = useSession()?.user.platformRole ?? 'super'
   const [status, setStatus] = useState<Status>('new')
   const [q, setQ] = useState('')
+  const [plan, setPlan] = useState('')
+  const plans = usePlans().data ?? []
   const [openId, setOpenId] = useState<string | null>(null)
   const overview = useQuery({ queryKey: ['platform', 'overview'], queryFn: () => api<Overview>('/v1/platform/overview') })
   const shops = useQuery({
-    queryKey: ['platform', 'shops', status, q],
-    queryFn: () => api<ShopRow[]>(`/v1/platform/shops?status=${status}&q=${encodeURIComponent(q.trim())}`),
+    queryKey: ['platform', 'shops', status, q, plan],
+    queryFn: () => api<ShopRow[]>(`/v1/platform/shops?status=${status}&q=${encodeURIComponent(q.trim())}&plan=${plan}`),
   })
   const tiles: [string, number | undefined][] = [
     [t('platform.awaiting'), overview.data?.awaitingApproval],
@@ -72,8 +77,10 @@ export function PlatformScreen() {
       <div className="flex flex-col gap-3 px-4 pb-3">
         {role !== 'support' && <NewShop />}
         <AgentPanel role={role} />
-        {(role === 'super' || role === 'billing') && <BillingPanel role={role} />}
+        {(role === 'super' || role === 'billing') && <PlansPanel />}
+        {(role === 'super' || role === 'billing') && <BillingPanel />}
         {role === 'super' && <ManageAdmins />}
+        {role === 'super' && <ActivityPanel />}
       </div>
 
       <div className="flex flex-col gap-3 px-4">
@@ -86,6 +93,12 @@ export function PlatformScreen() {
         <label className="sr-only" htmlFor="platform-search">{t('platform.search')}</label>
         <input id="platform-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('platform.search')}
           className="min-h-12 rounded-2xl border border-line bg-white px-4" />
+        <label className="sr-only" htmlFor="platform-plan">{t('plans.filter')}</label>
+        <select id="platform-plan" value={plan} onChange={(e) => setPlan(e.target.value)} className="min-h-12 rounded-2xl border border-line bg-white px-4">
+          <option value="">{t('plans.allPlans')}</option>
+          <option value="trial">{t('plan2.status.trial')}</option>
+          {plans.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
+        </select>
 
         {shops.data?.length === 0 && <p className="p-6 text-center text-muted">{t('platform.none')}</p>}
         <ul className="flex flex-col gap-2">
@@ -97,7 +110,10 @@ export function PlatformScreen() {
                   <span className="truncate text-sm text-muted">
                     {[s.area, s.ownerName, formatPhone(s.ownerPhone)].filter(Boolean).join(' · ')}
                   </span>
-                  <span className="text-xs text-muted">{t('platform.opened', { date: formatDateTime(s.createdAt) })}</span>
+                  <span className="text-xs text-muted">
+                    {t('platform.opened', { date: formatDateTime(s.createdAt) })}
+                    {s.planCode && ` · ${s.planStatus === 'trial' ? t('plan2.status.trial') : plans.find((p) => p.code === s.planCode)?.name ?? s.planCode}`}
+                  </span>
                 </span>
                 <StatusChip shop={s} />
               </button>

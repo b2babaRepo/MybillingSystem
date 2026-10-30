@@ -56,8 +56,14 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 return LedgerResult<CustomerDto>.Created(new CustomerDto(customer.Id, customer.Name, customer.Phone, 0));
             });
 
+    /// <summary>How far back a helper may date an entry or bill; older needs the owner.</summary>
+    public static readonly TimeSpan HelperBackdateLimit = TimeSpan.FromDays(2);
+
+    /// <summary>An entry recorded this long after the date it carries is marked "entered later" on the khata.</summary>
+    public static readonly TimeSpan LateAfter = TimeSpan.FromHours(24);
+
     public Task<LedgerResult<KhataEntryResponse>> AddKhataEntryAsync(
-        KhataEntryRequest request, Guid userId, CancellationToken cancellationToken) =>
+        KhataEntryRequest request, Guid userId, CancellationToken cancellationToken, bool isOwner = true) =>
         WriteOnceAsync(
             () => FindEntryResponseAsync(request.Id, cancellationToken),
             async () =>
@@ -78,6 +84,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 {
                     errors[nameof(request.Note)] = ["Keep the note under 200 characters."];
                 }
+
+                CheckBackdate(request.OccurredAt, isOwner, errors);
 
                 var upiRef = string.IsNullOrWhiteSpace(request.UpiRef) ? null : request.UpiRef.Trim().ToUpperInvariant();
                 if (upiRef is not null && (request.Type != KhataEntryType.Payment || request.PaymentMode != PaymentMode.Upi))
@@ -208,7 +216,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
     /// paid now posts as a payment, so the statement shows both; without one it must be paid in full.
     /// </summary>
     /// <param name="stockAlreadyOut">True for an invoice made from delivery challans: the goods left the shelf with the challans.</param>
-    public Task<LedgerResult<BillDto>> CreateBillAsync(BillRequest request, Guid userId, CancellationToken cancellationToken, bool stockAlreadyOut = false) =>
+    public Task<LedgerResult<BillDto>> CreateBillAsync(BillRequest request, Guid userId, CancellationToken cancellationToken, bool stockAlreadyOut = false, bool isOwner = true) =>
         WriteOnceAsync(
             () => FindBillAsync(request.Id, cancellationToken),
             async () =>
@@ -283,6 +291,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                     errors[nameof(request.PaidAmount)] = ["Choose a customer to put the rest on khata."];
                 }
 
+                CheckBackdate(request.OccurredAt, isOwner, errors);
                 var site = string.IsNullOrWhiteSpace(request.Site) ? null : request.Site.Trim();
                 var vehicle = string.IsNullOrWhiteSpace(request.VehicleNumber) ? null : request.VehicleNumber.Trim().ToUpperInvariant().Replace(" ", "");
                 if (site?.Length > 80 || vehicle?.Length > 15)
@@ -323,6 +332,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 };
 
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+                (bill.FinancialYear, bill.Number) = await NextBillNumberAsync(cancellationToken);
                 db.Bills.Add(bill);
                 if (bill.CustomerId is { } billCustomerId)
                 {
@@ -397,7 +407,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 return LedgerResult<BillDto>.Created(new BillDto(
                     bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
                     lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode)).ToList(),
-                    balance, bill.Site, bill.VehicleNumber, bill.PainterId));
+                    balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo));
             });
 
     /// <summary>
@@ -453,7 +463,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
         {
             running += e.Amount;
             return new StatementLine(e.Id, e.Kind, e.Amount, e.PaymentMode, e.BillId, e.ReversesEntryId, e.Note, e.OccurredAt,
-                running, reversed.Contains(e.Id), e.BillId is { } billId && e.Kind != LedgerEntryKind.Return ? bills.GetValueOrDefault(billId) : null, names.GetValueOrDefault(e.CreatedByUserId), e.UpiRef, disputes.GetValueOrDefault(e.Id));
+                running, reversed.Contains(e.Id), e.BillId is { } billId && e.Kind != LedgerEntryKind.Return ? bills.GetValueOrDefault(billId) : null, names.GetValueOrDefault(e.CreatedByUserId), e.UpiRef, disputes.GetValueOrDefault(e.Id),
+                e.CreatedAt - e.OccurredAt > LateAfter, e.CreatedAt);
         }).ToList();
 
         return new StatementDto(customer, lines, opening, running,
@@ -525,7 +536,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
             bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
             bill.Lines.OrderBy(l => l.LineNo)
                 .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode)).ToList(),
-            balance, bill.Site, bill.VehicleNumber, bill.PainterId);
+            balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo);
     }
 
     private Task<decimal> BalanceAsync(Guid customerId, CancellationToken cancellationToken) =>
@@ -538,6 +549,39 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
     private async Task<decimal> AdjustBalanceAsync(Guid customerId, decimal delta, CancellationToken cancellationToken) =>
         (await db.Database.SqlQuery<decimal>($"UPDATE customers SET balance = balance + {delta} WHERE id = {customerId} RETURNING balance AS \"Value\"")
             .ToListAsync(cancellationToken)).Single();
+
+    /// <summary>
+    /// The next number in this shop's current financial year, taken inside the bill's transaction: if the bill isn't
+    /// saved the number isn't used either, so the series has no gaps. Two tills at once queue on the counter row.
+    /// </summary>
+    private async Task<(string Year, int Number)> NextBillNumberAsync(CancellationToken cancellationToken)
+    {
+        var year = FinancialYear(clock.GetUtcNow());
+        var number = (await db.Database.SqlQuery<int>($"""
+            INSERT INTO bill_counters (shop_id, financial_year, last_number)
+            VALUES (NULLIF(current_setting('app.shop_id', true), '')::uuid, {year}, 1)
+            ON CONFLICT (shop_id, financial_year) DO UPDATE SET last_number = bill_counters.last_number + 1
+            RETURNING last_number AS "Value"
+            """).ToListAsync(cancellationToken)).Single();
+        return (year, number);
+    }
+
+    /// <summary>India's financial year, April to March: 30 Oct 2026 → "2026-27".</summary>
+    public static string FinancialYear(DateTimeOffset at)
+    {
+        var local = at.ToOffset(IndiaTime.Offset);
+        var start = local.Month >= 4 ? local.Year : local.Year - 1;
+        return $"{start}-{(start + 1) % 100:D2}";
+    }
+
+    /// <summary>A helper can't date an entry more than two days back: older entries need the owner.</summary>
+    private void CheckBackdate(DateTimeOffset? requested, bool isOwner, Dictionary<string, string[]> errors)
+    {
+        if (!isOwner && requested is { } at && at < clock.GetUtcNow() - HelperBackdateLimit)
+        {
+            errors["OccurredAt"] = ["Only the owner can enter something older than 2 days. Ask the owner to add it."];
+        }
+    }
 
     /// <summary>The phone's time, unless it's in the future (a wrong clock): then now.</summary>
     private DateTimeOffset OccurredAt(DateTimeOffset? requested)

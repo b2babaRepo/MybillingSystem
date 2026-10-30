@@ -104,6 +104,10 @@ export interface StatementLine {
   upiRef?: string | null
   /** The latest dispute the customer raised on this line. */
   dispute?: DisputeView | null
+  /** Written more than a day after the date it carries. */
+  enteredLate?: boolean
+  /** When it was actually written down. */
+  recordedAt?: string | null
 }
 
 export interface DisputeView {
@@ -197,6 +201,8 @@ export interface BillView {
     site?: string | null
     vehicleNumber?: string | null
     painterId?: string | null
+    /** "2026-27/0457": the bill's serial number in its financial year. */
+    billNo?: string | null
   }
   customer: Customer | null
 }

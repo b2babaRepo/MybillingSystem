@@ -82,7 +82,7 @@ export function MyPlanScreen({ shopId }: { shopId: string }) {
       )}
 
       {/* Plans */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {s.plans.map((p) => (
           <button key={p.code} disabled={p.code === 'free'} onClick={() => { setPlanCode(p.code); setQuote(null) }}
             aria-pressed={planCode === p.code}
@@ -166,7 +166,7 @@ export function MyPlanScreen({ shopId }: { shopId: string }) {
           <ul className="divide-y divide-[#edf2f1] text-sm">
             {s.payments.map((p) => (
               <li key={p.id} className={`flex justify-between gap-2 py-2 ${p.refundedAt ? 'text-muted line-through' : ''}`}>
-                <span>{p.invoiceNo} · {t(`plan2.term.${p.term}`)} {p.planCode}<br /><span className="text-xs text-muted">{new Date(p.paidAt).toLocaleDateString('en-IN')} → {new Date(p.periodEnd).toLocaleDateString('en-IN')}</span></span>
+                <span>{p.invoiceNo} · {t(`plan2.term.${p.term}`)} {s.plans.find((x) => x.code === p.planCode)?.name ?? p.planCode}<br /><span className="text-xs text-muted">{new Date(p.paidAt).toLocaleDateString('en-IN')} → {new Date(p.periodEnd).toLocaleDateString('en-IN')}</span></span>
                 <span className="font-bold">{formatRupees(p.amount)}</span>
               </li>
             ))}

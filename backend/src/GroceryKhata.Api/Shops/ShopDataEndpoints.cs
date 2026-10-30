@@ -77,6 +77,7 @@ public static class ShopDataEndpoints
         var shopId = tenant.ShopId;
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.AuditEntries.ExecuteDeleteAsync(ct);
+        await db.Database.ExecuteSqlAsync($"DELETE FROM bill_counters", ct);
         await db.Expenses.ExecuteDeleteAsync(ct);
         await db.CashCounts.ExecuteDeleteAsync(ct);
         await db.Challans.ExecuteDeleteAsync(ct);

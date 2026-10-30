@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
-import type { Claim, Payment, PlanInfo, PlanTerm, SubscriptionStatus } from '../lib/billing'
+import { FEATURES, usePlans, type Claim, type Payment, type PlanInfo, type PlanTerm, type SubscriptionStatus } from '../lib/billing'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { AdminRole } from '../lib/types'
 
@@ -92,15 +92,14 @@ export function AgentPanel({ role }: { role: AdminRole }) {
   )
 }
 
-/** Money (billing and super admins): shops by plan status, money in, UPI payments to check, offers, plan prices. */
-export function BillingPanel({ role }: { role: AdminRole }) {
+/** Money (billing and super admins): shops by plan status, money in, UPI payments to check, offers. */
+export function BillingPanel() {
   const { t } = useTranslation()
   const overview = useQuery({ queryKey: ['platform', 'billing'], queryFn: () => api<Overview>('/v1/platform/billing') }).data
   const offers = useQuery({ queryKey: ['platform', 'offers'], queryFn: () => api<Offer[]>('/v1/platform/offers') }).data ?? []
-  const plans = useQuery({ queryKey: ['platform', 'plans'], queryFn: () => api<PlanInfo[]>('/v1/platform/plans') }).data ?? []
+  const plans = usePlans().data ?? []
   const { busy, message, run } = useRun()
   const [newOffer, setNewOffer] = useState({ code: '', title: '', planCode: 'basic', term: 'year1' as PlanTerm, price: '', newShopsOnly: true })
-  const [editing, setEditing] = useState<Record<string, Record<string, string>>>({})
 
   return (
     <Collapsible title={t('billing.title', { count: overview?.pendingClaims.length ?? 0 })} defaultOpen={(overview?.pendingClaims.length ?? 0) > 0}>
@@ -145,7 +144,7 @@ export function BillingPanel({ role }: { role: AdminRole }) {
         <input aria-label={t('billing.price')} placeholder={t('billing.price')} value={newOffer.price} inputMode="numeric" onChange={(e) => setNewOffer({ ...newOffer, price: e.target.value.replace(/\D/g, '') })} className="h-11 rounded-xl border border-line bg-white px-2" />
         <input aria-label={t('billing.offerTitle')} placeholder={t('billing.offerTitle')} value={newOffer.title} onChange={(e) => setNewOffer({ ...newOffer, title: e.target.value })} className="col-span-2 h-11 rounded-xl border border-line bg-white px-2" />
         <select aria-label={t('billing.plan')} value={newOffer.planCode} onChange={(e) => setNewOffer({ ...newOffer, planCode: e.target.value })} className="h-11 rounded-xl border border-line bg-white px-2">
-          <option value="basic">Basic</option><option value="pro">Pro</option>
+          {plans.filter((p) => p.code !== 'free' && p.isActive !== false).map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
         </select>
         <select aria-label={t('plan2.period')} value={newOffer.term} onChange={(e) => setNewOffer({ ...newOffer, term: e.target.value as PlanTerm })} className="h-11 rounded-xl border border-line bg-white px-2">
           {(['monthly', 'year1', 'year3', 'year5'] as const).map((x) => <option key={x} value={x}>{t(`plan2.term.${x}`)}</option>)}
@@ -155,34 +154,6 @@ export function BillingPanel({ role }: { role: AdminRole }) {
           onClick={() => void run(() => api('/v1/platform/offers', 'POST', { ...newOffer, price: Number(newOffer.price) }), t('billing.offerAdded'))}>{t('billing.addOffer')}</button>
       </div>
 
-      <h3 className="font-bold">{t('billing.plans')}</h3>
-      {plans.map((p) => {
-        const draft = editing[p.code]
-        const field = (key: keyof PlanInfo) => draft?.[key] ?? String(p[key] ?? '')
-        const set = (key: string, value: string) => setEditing({ ...editing, [p.code]: { ...(editing[p.code] ?? {}), [key]: value.replace(/\D/g, '') } })
-        return (
-          <div key={p.code} className="flex flex-col gap-2 rounded-xl border border-line p-3 text-sm">
-            <span className="font-bold">{p.name}</span>
-            <div className="grid grid-cols-4 gap-2">
-              {(['priceMonthly', 'priceYear1', 'priceYear3', 'priceYear5'] as const).map((k) => (
-                <label key={k} className="flex flex-col text-xs text-muted">{t(`billing.${k}`)}
-                  <input value={field(k)} disabled={role !== 'super' || p.code === 'free'} onChange={(e) => set(k, e.target.value)} inputMode="numeric" className="h-11 rounded-xl border border-line px-2 text-sm text-ink" />
-                </label>
-              ))}
-            </div>
-            {role === 'super' && draft && (
-              <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white" onClick={() => void run(async () => {
-                const num = (k: keyof PlanInfo) => { const v = field(k); return v === '' ? null : Number(v) }
-                await api(`/v1/platform/plans/${p.code}`, 'PUT', {
-                  name: p.name, priceMonthly: num('priceMonthly'), priceYear1: num('priceYear1'), priceYear3: num('priceYear3'), priceYear5: num('priceYear5'),
-                  features: p.features, maxCustomers: p.maxCustomers, maxStaff: p.maxStaff, whatsAppPerMonth: p.whatsAppPerMonth,
-                })
-                setEditing({ ...editing, [p.code]: undefined as never })
-              }, t('billing.planSaved'))}>{t('billing.savePlan')}</button>
-            )}
-          </div>
-        )
-      })}
       {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
     </Collapsible>
   )
@@ -194,13 +165,17 @@ export function ShopBillingPanel({ shopId, role }: { shopId: string; role: Admin
   const view = useQuery({ queryKey: ['platform', 'shop-billing', shopId], queryFn: () => api<ShopBilling>(`/v1/platform/shops/${shopId}/billing`) }).data
   const { busy, message, run } = useRun()
   const [pay, setPay] = useState({ planCode: 'basic', term: 'year1' as PlanTerm, method: 'cash', reference: '' })
+  const onSale = (usePlans().data ?? []).filter((p) => p.code !== 'free' && p.isActive !== false)
+  const [moveTo, setMoveTo] = useState('')
+  const [compPlan, setCompPlan] = useState('pro')
   if (!view) return null
+  const planName = (code: string) => onSale.find((p) => p.code === code)?.name ?? code
   const money = role === 'super' || role === 'billing'
   const approve = role === 'super' || role === 'approver'
 
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-ground p-3 text-sm">
-      <span className="font-bold">{t('billing.shopPlan')}: {t(`plan2.status.${view.status}`)} · {view.planCode}{view.endsAt ? ` · ${t('billing.until', { date: new Date(view.endsAt).toLocaleDateString('en-IN') })}` : ''}</span>
+      <span className="font-bold">{t('billing.shopPlan')}: {t(`plan2.status.${view.status}`)} · {planName(view.planCode)}{view.endsAt ? ` · ${t('billing.until', { date: new Date(view.endsAt).toLocaleDateString('en-IN') })}` : ''}</span>
       {view.compReason && <span>{t('billing.compBy', { reason: view.compReason })}</span>}
       {view.holdReason && <span className="text-red-800">{t('plan2.holdReason', { reason: view.holdReason })}</span>}
       {view.payments.map((p) => (
@@ -215,7 +190,7 @@ export function ShopBillingPanel({ shopId, role }: { shopId: string; role: Admin
 
       {money && (
         <div className="grid grid-cols-2 gap-2">
-          <select aria-label={t('billing.plan')} value={pay.planCode} onChange={(e) => setPay({ ...pay, planCode: e.target.value })} className="h-11 rounded-xl border border-line bg-white px-2"><option value="basic">Basic</option><option value="pro">Pro</option></select>
+          <select aria-label={t('billing.plan')} value={pay.planCode} onChange={(e) => setPay({ ...pay, planCode: e.target.value })} className="h-11 rounded-xl border border-line bg-white px-2">{onSale.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}</select>
           <select aria-label={t('plan2.period')} value={pay.term} onChange={(e) => setPay({ ...pay, term: e.target.value as PlanTerm })} className="h-11 rounded-xl border border-line bg-white px-2">
             {(['monthly', 'year1', 'year3', 'year5'] as const).map((x) => <option key={x} value={x}>{t(`plan2.term.${x}`)}</option>)}
           </select>
@@ -225,16 +200,25 @@ export function ShopBillingPanel({ shopId, role }: { shopId: string; role: Admin
           <input aria-label={t('billing.reference')} placeholder={t('billing.reference')} value={pay.reference} onChange={(e) => setPay({ ...pay, reference: e.target.value })} className="h-11 rounded-xl border border-line bg-white px-2" />
           <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-teal-700 font-bold text-white"
             onClick={() => void run(() => api(`/v1/platform/shops/${shopId}/payments`, 'POST', pay), t('billing.recorded'))}>{t('billing.record')}</button>
+          <select aria-label={t('plans.moveTo')} value={moveTo} onChange={(e) => setMoveTo(e.target.value)} className="h-11 rounded-xl border border-line bg-white px-2">
+            <option value="">{t('plans.moveTo')}</option>
+            {onSale.filter((p) => p.code !== view.planCode).map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
+          </select>
+          <button disabled={busy || !moveTo} className="min-h-11 rounded-xl border border-line font-semibold disabled:opacity-40"
+            onClick={() => void run(async () => { await api(`/v1/platform/shops/${shopId}/plan`, 'POST', { planCode: moveTo }); setMoveTo('') }, t('plans.moved'))}>{t('plans.move')}</button>
         </div>
       )}
 
       {approve && (
         <div className="grid grid-cols-2 gap-2">
+          <select aria-label={t('plans.freePlan')} value={compPlan} onChange={(e) => setCompPlan(e.target.value)} className="col-span-2 h-11 rounded-xl border border-line bg-white px-2">
+            {onSale.map((p) => <option key={p.code} value={p.code}>{t('plans.freeOn', { plan: p.name })}</option>)}
+          </select>
           <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold" onClick={() => {
             const months = prompt(t('billing.compAsk', { max: role === 'super' ? t('billing.anyLength') : 3 }))
             if (months === null) return
             const reason = prompt(t('billing.compReasonAsk'))
-            if (reason) void run(() => api(`/v1/platform/shops/${shopId}/complimentary`, 'POST', { planCode: 'pro', months: months.trim() ? Number(months) : null, reason }), t('billing.compGiven'))
+            if (reason) void run(() => api(`/v1/platform/shops/${shopId}/complimentary`, 'POST', { planCode: compPlan, months: months.trim() ? Number(months) : null, reason }), t('billing.compGiven'))
           }}>{t('billing.giveFree')}</button>
           {view.holdSince
             ? <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white" onClick={() => void run(() => api(`/v1/platform/shops/${shopId}/release`, 'POST', {}))}>{t('billing.release')}</button>
@@ -244,5 +228,191 @@ export function ShopBillingPanel({ shopId, role }: { shopId: string; role: Admin
       )}
       {message && <p className="font-semibold text-teal-900">{message}</p>}
     </div>
+  )
+}
+
+interface Activity { id: string; at: string; admin: string; action: string; shopId: string | null; shopName: string | null; detail: Record<string, unknown> }
+
+/** Route → what it means, for the activity list ("POST /shops/{id:guid}/block" → "Blocked shop"). */
+const ACTIONS: [RegExp, string][] = [
+  [/suggestions.*approve$/, 'agentApprove'], [/suggestions.*reject$/, 'agentReject'], [/agent\/run$/, 'agentRun'],
+  [/^POST \/shops$/, 'openShop'], [/approve$/, 'approve'], [/\/block$/, 'block'], [/unblock$/, 'unblock'], [/note$/, 'note'],
+  [/unlock$/, 'unlock'], [/^POST \/admins/, 'addAdmin'], [/^PUT \/admins/, 'changeAdmin'], [/^DELETE \/admins/, 'removeAdmin'],
+  [/confirm$/, 'confirmClaim'], [/claims.*reject$/, 'rejectClaim'], [/payments$/, 'recordPayment'], [/refund$/, 'refund'],
+  [/^POST .*complimentary$/, 'giveFree'], [/^DELETE .*complimentary$/, 'endFree'], [/hold$/, 'hold'], [/release$/, 'release'],
+  [/plans/, 'planPrice'], [/^POST \/offers$/, 'addOffer'], [/offers.*active$/, 'offerOnOff'],
+]
+
+/** Super admins: everything any admin changed, newest first. Written by the server; nobody can edit it. */
+export function ActivityPanel() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const rows = useQuery({ queryKey: ['platform', 'activity'], queryFn: () => api<Activity[]>('/v1/platform/activity'), enabled: open })
+  const label = (action: string) => {
+    // Unblock and unlock also end in "block"/"lock": match the longer ones first.
+    const key = action.endsWith('unblock') ? 'unblock' : action.endsWith('unlock') ? 'unlock' : ACTIONS.find(([re]) => re.test(action))?.[1]
+    return key ? t(`activity.actions.${key}`) : action
+  }
+  const said = (d: Record<string, unknown>) => {
+    const body = (d.body ?? {}) as Record<string, unknown>
+    return Object.entries(body).filter(([, v]) => v !== null && v !== '' && typeof v !== 'object').map(([k, v]) => `${k}: ${String(v)}`).join(' · ')
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
+        <h2 className="text-lg font-bold">{t('activity.title')}</h2>
+        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+      </button>
+      {open && <>
+        <p className="text-sm text-muted">{t('activity.hint')}</p>
+        {rows.data?.length === 0 && <p className="text-sm text-muted">{t('activity.none')}</p>}
+        <ul className="flex flex-col divide-y divide-[#edf2f1] text-sm">
+          {rows.data?.map((r) => (
+            <li key={r.id} className="flex flex-col py-2">
+              <span className="font-semibold">{label(r.action)}{r.shopName ? ` · ${r.shopName}` : ''}</span>
+              <span className="text-xs text-muted">{r.admin} · {formatDateTime(r.at)}</span>
+              {said(r.detail) && <span className="text-xs">{said(r.detail)}</span>}
+            </li>
+          ))}
+        </ul>
+      </>}
+    </section>
+  )
+}
+
+type PlanDraft = { name: string; priceMonthly: string; priceYear1: string; priceYear3: string; priceYear5: string; maxCustomers: string; maxStaff: string; whatsAppPerMonth: string; features: string[] }
+const PRICE_KEYS = ['priceMonthly', 'priceYear1', 'priceYear3', 'priceYear5'] as const
+const blank: PlanDraft = { name: '', priceMonthly: '', priceYear1: '', priceYear3: '', priceYear5: '', maxCustomers: '', maxStaff: '0', whatsAppPerMonth: '0', features: [] }
+const toDraft = (p: PlanInfo): PlanDraft => ({
+  name: p.name, priceMonthly: String(p.priceMonthly ?? ''), priceYear1: String(p.priceYear1 ?? ''), priceYear3: String(p.priceYear3 ?? ''), priceYear5: String(p.priceYear5 ?? ''),
+  maxCustomers: String(p.maxCustomers ?? ''), maxStaff: String(p.maxStaff), whatsAppPerMonth: String(p.whatsAppPerMonth), features: p.features,
+})
+const toBody = (d: PlanDraft) => {
+  const num = (v: string) => (v.trim() === '' ? null : Number(v))
+  return {
+    name: d.name.trim(), priceMonthly: num(d.priceMonthly), priceYear1: num(d.priceYear1), priceYear3: num(d.priceYear3), priceYear5: num(d.priceYear5),
+    maxCustomers: num(d.maxCustomers), maxStaff: Number(d.maxStaff || 0), whatsAppPerMonth: Number(d.whatsAppPerMonth || 0), features: d.features,
+  }
+}
+
+/** The fields of one plan: name, prices for each period, limits and what it opens. */
+function PlanFields({ draft, onChange, disabled, free }: { draft: PlanDraft; onChange: (d: PlanDraft) => void; disabled: boolean; free?: boolean }) {
+  const { t } = useTranslation()
+  const digits = (k: keyof PlanDraft) => (e: { target: { value: string } }) => onChange({ ...draft, [k]: e.target.value.replace(/\D/g, '') })
+  const box = 'h-11 rounded-xl border border-line bg-white px-2 text-sm text-ink'
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="flex flex-col text-xs text-muted">{t('plans.name')}
+        <input value={draft.name} disabled={disabled} onChange={(e) => onChange({ ...draft, name: e.target.value })} className={box} /></label>
+      {!free && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {PRICE_KEYS.map((k) => (
+            <label key={k} className="flex flex-col text-xs text-muted">{t(`billing.${k}`)} ₹
+              <input value={draft[k]} disabled={disabled} onChange={digits(k)} inputMode="numeric" className={box} /></label>
+          ))}
+        </div>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        <label className="flex flex-col text-xs text-muted">{t('plans.customers')}
+          <input value={draft.maxCustomers} disabled={disabled} onChange={digits('maxCustomers')} inputMode="numeric" placeholder={t('plans.noLimit')} className={box} /></label>
+        <label className="flex flex-col text-xs text-muted">{t('plans.helpers')}
+          <input value={draft.maxStaff} disabled={disabled} onChange={digits('maxStaff')} inputMode="numeric" className={box} /></label>
+        <label className="flex flex-col text-xs text-muted">{t('plans.whatsapp')}
+          <input value={draft.whatsAppPerMonth} disabled={disabled} onChange={digits('whatsAppPerMonth')} inputMode="numeric" className={box} /></label>
+      </div>
+      {!free && (
+        <div className="flex flex-wrap gap-2">
+          {FEATURES.map((f) => {
+            const on = draft.features.includes(f)
+            return (
+              <label key={f} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm ${on ? 'border-teal-700 bg-teal-50 font-semibold' : 'border-line'}`}>
+                <input type="checkbox" checked={on} disabled={disabled} className="h-5 w-5"
+                  onChange={() => onChange({ ...draft, features: on ? draft.features.filter((x) => x !== f) : [...draft.features, f] })} />
+                {t(`plan2.feature.${f}`)}
+              </label>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Plans (super and billing admins): Basic, Silver, Gold and any added later. Change prices, limits and what each
+ * opens; take a plan off sale (shops on it keep it until their period ends); add a new one. Prices apply to payments
+ * from now on; past payments don't change.
+ */
+export function PlansPanel() {
+  const { t } = useTranslation()
+  const plans = usePlans().data ?? []
+  const { busy, message, run } = useRun()
+  const [drafts, setDrafts] = useState<Record<string, PlanDraft>>({})
+  const [adding, setAdding] = useState<PlanDraft | null>(null)
+
+  return (
+    <Collapsible title={t('plans.title')}>
+      <p className="text-sm text-muted">{t('plans.hint')}</p>
+      {plans.map((p) => {
+        const draft = drafts[p.code]
+        return (
+          <div key={p.code} className={`flex flex-col gap-2 rounded-xl border p-3 ${p.isActive === false ? 'border-dashed border-line opacity-70' : 'border-line'}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-lg font-extrabold">{p.name}{p.code !== 'free' && p.priceYear1 ? ` · ${formatRupees(p.priceYear1)}/${t('plan2.year')}` : ''}</span>
+              <span className="text-xs text-muted">{t('plans.shops', { count: p.shops ?? 0 })}{p.isActive === false ? ` · ${t('plans.offSale')}` : ''}</span>
+            </div>
+            {draft ? (
+              <>
+                <PlanFields draft={draft} onChange={(d) => setDrafts({ ...drafts, [p.code]: d })} disabled={busy} free={p.code === 'free'} />
+                <div className="grid grid-cols-2 gap-2">
+                  <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white" onClick={() => void run(async () => {
+                    await api(`/v1/platform/plans/${p.code}`, 'PUT', toBody(draft))
+                    const next = { ...drafts }
+                    delete next[p.code]
+                    setDrafts(next)
+                  }, t('billing.planSaved'))}>{t('billing.savePlan')}</button>
+                  <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold" onClick={() => { const next = { ...drafts }; delete next[p.code]; setDrafts(next) }}>{t('plans.cancel')}</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="text-sm">
+                  {p.code === 'free' ? t('plan2.freeIncludes') : p.features.map((f) => t(`plan2.feature.${f}`)).join(' · ')}
+                </span>
+                <span className="text-xs text-muted">
+                  {p.maxCustomers ? t('plan2.customersUpTo', { count: p.maxCustomers }) : t('plan2.customersUnlimited')}
+                  {` · ${t('plan2.staff', { count: p.maxStaff })} · ${t('plan2.whatsapp', { count: p.whatsAppPerMonth })}`}
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold" onClick={() => setDrafts({ ...drafts, [p.code]: toDraft(p) })}>{t('plans.edit')}</button>
+                  {p.code !== 'free' && (
+                    <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold"
+                      onClick={() => void run(() => api(`/v1/platform/plans/${p.code}/active?active=${p.isActive === false}`, 'POST', {}))}>
+                      {p.isActive === false ? t('plans.putOnSale') : t('plans.takeOff')}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )
+      })}
+
+      {adding ? (
+        <div className="flex flex-col gap-2 rounded-xl bg-ground p-3">
+          <span className="font-bold">{t('plans.new')}</span>
+          <PlanFields draft={adding} onChange={setAdding} disabled={busy} />
+          <div className="grid grid-cols-2 gap-2">
+            <button disabled={busy || adding.name.trim().length < 2 || !adding.priceYear1} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white disabled:opacity-40"
+              onClick={() => void run(async () => { await api('/v1/platform/plans', 'POST', toBody(adding)); setAdding(null) }, t('plans.added'))}>{t('plans.add')}</button>
+            <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold" onClick={() => setAdding(null)}>{t('plans.cancel')}</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(blank)} className="min-h-11 rounded-xl border-2 border-dashed border-line font-semibold">+ {t('plans.new')}</button>
+      )}
+      {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+    </Collapsible>
   )
 }

@@ -98,7 +98,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
   const gst = gstSummary(bill.lines)
 
   return (
-    <Page title={shopName} subtitle={`${gstin && gst.length ? t('print.taxInvoice') : t('print.bill')} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
+    <Page title={shopName} subtitle={`${gstin && gst.length ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
       {(gstin || bill.site || bill.vehicleNumber) && (
         <p className="mb-3 text-sm">
           {[gstin && `GSTIN ${gstin}`, bill.site && `${t('trade.site')}: ${bill.site}`, bill.vehicleNumber && `${t('trade.vehicle')}: ${bill.vehicleNumber}`].filter(Boolean).join(' · ')}

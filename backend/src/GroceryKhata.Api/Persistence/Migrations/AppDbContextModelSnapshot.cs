@@ -1744,6 +1744,16 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
 
+                    b.Property<string>("FinancialYear")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("financial_year");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
@@ -1790,6 +1800,9 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ShopId", "CustomerId");
 
                     b.HasIndex("ShopId", "OccurredAt");
+
+                    b.HasIndex("ShopId", "FinancialYear", "Number")
+                        .IsUnique();
 
                     b.HasIndex("ShopId", "PainterId", "OccurredAt");
 
@@ -2841,6 +2854,51 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ListId");
 
                     b.ToTable("shopping_list_items", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Shops.PlatformActivity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid>("AdminUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("admin_user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("detail");
+
+                    b.Property<Guid?>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("AdminUserId", "CreatedAt");
+
+                    b.HasIndex("ShopId", "CreatedAt");
+
+                    b.ToTable("platform_activities", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Shops.PlatformAdmin", b =>

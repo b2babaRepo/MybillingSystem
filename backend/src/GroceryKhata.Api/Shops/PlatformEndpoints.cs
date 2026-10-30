@@ -73,7 +73,7 @@ public sealed record PlatformOverview(int Shops, int Active, int Blocked, int Aw
 
 public sealed record PlatformShopRow(
     Guid Id, string Name, string? Area, string Slug, DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt, bool IsActive,
-    string? BlockedReason, string? OwnerName, string? OwnerPhone);
+    string? BlockedReason, string? OwnerName, string? OwnerPhone, string? PlanCode = null, Billing.SubscriptionStatus? PlanStatus = null);
 
 public sealed record PlatformPerson(Guid UserId, Guid MembershipId, string Name, string Phone, ShopRole Role, bool IsActive, bool LockedOut);
 
@@ -102,7 +102,9 @@ public static class PlatformEndpoints
     {
         // Every admin sees the shops; approving and blocking is for approvers; notes and unlocking for support; managing
         // admins for super admins only. A super admin can do it all.
-        var group = app.MapGroup("/api/v1/platform").WithTags("Platform").RequireAuthorization(AppPolicies.PlatformAdmin);
+        var group = app.MapGroup("/api/v1/platform").WithTags("Platform").RequireAuthorization(AppPolicies.PlatformAdmin).RecordsActivity();
+        group.MapGet("/activity", (Guid? shopId, Guid? adminId, AppDbContext db, CancellationToken ct) => PlatformActivityLog.ListAsync(shopId, adminId, db, ct))
+            .RequireAuthorization(AppPolicies.PlatformSuper);
         group.MapGet("/overview", OverviewAsync);
         group.MapGet("/shops", ListAsync);
         group.MapGet("/shops/{id:guid}", GetAsync);
@@ -275,7 +277,7 @@ public static class PlatformEndpoints
     }
 
     /// <summary>Shops by newest; <paramref name="status"/> = new | active | blocked; <paramref name="q"/> matches name, area or owner phone.</summary>
-    private static async Task<IReadOnlyList<PlatformShopRow>> ListAsync(AppDbContext db, string? q, string? status, CancellationToken ct)
+    private static async Task<IReadOnlyList<PlatformShopRow>> ListAsync(AppDbContext db, TimeProvider clock, string? q, string? status, string? plan, CancellationToken ct)
     {
         var shops = db.Shops.AsNoTracking();
         shops = status switch
@@ -293,7 +295,17 @@ public static class PlatformEndpoints
                 || (digits.Length >= 4 && db.Memberships.Any(m => m.ShopId == s.Id && db.Users.Any(u => u.Id == m.UserId && u.Phone.Contains(digits)))));
         }
 
-        return await Rows(db, shops.OrderByDescending(s => s.CreatedAt).Take(200)).ToListAsync(ct);
+        // Plans are worked out from dates, not stored: "trial" picks shops on trial, any other value a plan's code.
+        var plans = await Billing.BillingEndpoints.ShopPlansAsync(db, clock, ct);
+        if (!string.IsNullOrWhiteSpace(plan))
+        {
+            var ids = plans.Where(p => plan == "trial" ? p.Value.Status == Billing.SubscriptionStatus.Trial
+                : p.Value.PlanCode == plan && p.Value.Status != Billing.SubscriptionStatus.Trial).Select(p => p.Key).ToList();
+            shops = shops.Where(s => ids.Contains(s.Id));
+        }
+
+        var rows = await Rows(db, shops.OrderByDescending(s => s.CreatedAt).Take(200)).ToListAsync(ct);
+        return rows.Select(r => plans.TryGetValue(r.Id, out var e) ? r with { PlanCode = e.PlanCode, PlanStatus = e.Status } : r).ToList();
     }
 
     private static async Task<IResult> GetAsync(Guid id, AppDbContext db, IServiceScopeFactory scopes, TimeProvider clock, ClaimsPrincipal admin, CancellationToken ct)

@@ -88,6 +88,9 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
               {formatDateTime(e.occurredAt)}
               {e.recordedBy && ` · ${t(e.kind === 'reversal' ? 'ledgerView.removedBy' : 'ledgerView.by', { name: e.recordedBy })}`}
             </div>
+            {e.enteredLate && e.recordedAt && (
+              <div className="text-xs font-semibold text-amber-800">{t('ledgerView.enteredLate', { date: formatDateTime(e.recordedAt) })}</div>
+            )}
             {e.note && (
               <div className={`text-xs ${e.kind === 'reversal' ? 'font-semibold text-due' : 'text-muted'}`}>
                 {e.kind === 'reversal' ? t('ledgerView.reason', { reason: e.note }) : e.note}

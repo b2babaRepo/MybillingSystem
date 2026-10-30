@@ -162,7 +162,7 @@ public static class AgentEndpoints
 {
     public static IEndpointRouteBuilder MapAgent(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/platform/agent").WithTags("Platform agent").RequireAuthorization(AppPolicies.PlatformAdmin);
+        var group = app.MapGroup("/api/v1/platform/agent").WithTags("Platform agent").RequireAuthorization(AppPolicies.PlatformAdmin).RecordsActivity();
         group.MapGet("/suggestions", ListAsync);
         group.MapPost("/suggestions/{id:guid}/approve", ApproveAsync);
         group.MapPost("/suggestions/{id:guid}/reject", RejectAsync);

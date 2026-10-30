@@ -10,7 +10,7 @@ namespace GroceryKhata.Api.Billing;
 
 public sealed record PlanDto(
     string Code, string Name, decimal? PriceMonthly, decimal? PriceYear1, decimal? PriceYear3, decimal? PriceYear5, IReadOnlyList<string> Features,
-    int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth);
+    int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth, bool IsActive = true, int Shops = 0);
 
 public sealed record PaymentDto(
     Guid Id, string PlanCode, PlanTerm Term, decimal Amount, PaymentMethod Method, string? Reference, string? OfferCode, DateTimeOffset PaidAt,
@@ -38,6 +38,8 @@ public sealed record CompRequest(string? PlanCode, int? Months, string? Reason);
 
 public sealed record HoldRequest(string? Reason);
 
+public sealed record MovePlanRequest(string? PlanCode);
+
 public sealed record PlanUpdate(
     string? Name, decimal? PriceMonthly, decimal? PriceYear1, decimal? PriceYear3, decimal? PriceYear5, IReadOnlyList<string>? Features,
     int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth);
@@ -55,7 +57,7 @@ public sealed record ShopBillingView(
 /// <summary>The billing page's numbers: shops by status, what needs doing, money this month and year.</summary>
 public sealed record BillingOverview(
     IReadOnlyDictionary<SubscriptionStatus, int> ByStatus, int TrialsEndingThisWeek, decimal RevenueThisMonth, decimal RevenueThisYear,
-    IReadOnlyList<ClaimDto> PendingClaims);
+    IReadOnlyList<ClaimDto> PendingClaims, IReadOnlyDictionary<string, int>? ByPlan = null);
 
 public static class BillingEndpoints
 {
@@ -77,7 +79,7 @@ public static class BillingEndpoints
         shop.MapPost("/quote", QuoteAsync);
         shop.MapPost("/claims", ClaimAsync).RequireAuthorization(AppPolicies.ShopOwner);
 
-        var admin = app.MapGroup("/api/v1/platform").WithTags("Platform billing").RequireAuthorization(AppPolicies.PlatformAdmin);
+        var admin = app.MapGroup("/api/v1/platform").WithTags("Platform billing").RequireAuthorization(AppPolicies.PlatformAdmin).RecordsActivity();
         admin.MapGet("/billing", OverviewAsync).RequireAuthorization(AppPolicies.PlatformBilling);
         admin.MapGet("/shops/{id:guid}/billing", ShopBillingAsync);
         admin.MapPost("/shops/{id:guid}/payments", RecordAsync).RequireAuthorization(AppPolicies.PlatformBilling);
@@ -88,8 +90,11 @@ public static class BillingEndpoints
         admin.MapDelete("/shops/{id:guid}/complimentary", EndCompAsync).RequireAuthorization(AppPolicies.PlatformApprover);
         admin.MapPost("/shops/{id:guid}/hold", HoldAsync).RequireAuthorization(AppPolicies.PlatformApprover);
         admin.MapPost("/shops/{id:guid}/release", ReleaseAsync).RequireAuthorization(AppPolicies.PlatformApprover);
-        admin.MapGet("/plans", (AppDbContext db, CancellationToken ct) => PlansAsync(db, ct, includeInactive: true));
-        admin.MapPut("/plans/{code}", UpdatePlanAsync).RequireAuthorization(AppPolicies.PlatformSuper);
+        admin.MapGet("/plans", (AppDbContext db, TimeProvider clock, CancellationToken ct) => AdminPlansAsync(db, clock, ct));
+        admin.MapPost("/plans", AddPlanAsync).RequireAuthorization(AppPolicies.PlatformBilling);
+        admin.MapPut("/plans/{code}", UpdatePlanAsync).RequireAuthorization(AppPolicies.PlatformBilling);
+        admin.MapPost("/plans/{code}/active", PlanActiveAsync).RequireAuthorization(AppPolicies.PlatformBilling);
+        admin.MapPost("/shops/{id:guid}/plan", MovePlanAsync).RequireAuthorization(AppPolicies.PlatformBilling);
         admin.MapGet("/offers", OffersAsync).RequireAuthorization(AppPolicies.PlatformBilling);
         admin.MapPost("/offers", AddOfferAsync).RequireAuthorization(AppPolicies.PlatformBilling);
         admin.MapPost("/offers/{code}/active", OfferActiveAsync).RequireAuthorization(AppPolicies.PlatformBilling);
@@ -160,12 +165,7 @@ public static class BillingEndpoints
     private static async Task<BillingOverview> OverviewAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var now = clock.GetUtcNow();
-        var plans = await db.Plans.AsNoTracking().ToDictionaryAsync(p => p.Code, ct);
-        var shops = await db.Shops.AsNoTracking().Where(s => s.IsActive).Select(s => new { s.Id, s.CreatedAt }).ToListAsync(ct);
-        var subs = await db.Subscriptions.AsNoTracking().ToDictionaryAsync(s => s.ShopId, ct);
-        var graceDays = 7;
-        var statuses = shops.Select(s => Entitlements.Compute(subs.GetValueOrDefault(s.Id) ?? new Subscription { ShopId = s.Id, TrialEndsAt = s.CreatedAt.AddDays(30) }, plans, now, graceDays))
-            .ToList();
+        var statuses = (await ShopPlansAsync(db, clock, ct)).Values.ToList();
         var india = now.ToOffset(TimeSpan.FromHours(5.5));
         var monthStart = new DateTimeOffset(india.Year, india.Month, 1, 0, 0, 0, TimeSpan.FromHours(5.5)).ToUniversalTime();
         var yearStart = new DateTimeOffset(india.Month >= 4 ? india.Year : india.Year - 1, 4, 1, 0, 0, 0, TimeSpan.FromHours(5.5)).ToUniversalTime();
@@ -175,7 +175,8 @@ public static class BillingEndpoints
             statuses.Count(x => x.Status == SubscriptionStatus.Trial && x.EndsAt < now.AddDays(7)),
             await paid.Where(p => p.PaidAt >= monthStart).SumAsync(p => (decimal?)p.Amount, ct) ?? 0,
             await paid.Where(p => p.PaidAt >= yearStart).SumAsync(p => (decimal?)p.Amount, ct) ?? 0,
-            await ClaimsAsync(db, null, ClaimStatus.Pending, ct));
+            await ClaimsAsync(db, null, ClaimStatus.Pending, ct),
+            statuses.GroupBy(x => x.PlanCode).ToDictionary(g => g.Key, g => g.Count()));
     }
 
     private static async Task<IResult> ShopBillingAsync(Guid id, AppDbContext db, Entitlements entitlements, CancellationToken ct)
@@ -260,10 +261,10 @@ public static class BillingEndpoints
         ILogger<Subscription> logger, CancellationToken ct)
     {
         var reason = request.Reason?.Trim();
-        if (request.PlanCode is not ("basic" or "pro") || request.Months is <= 0 or > 120 || reason is not { Length: >= 3 and <= 200 }
+        if (!await IsPaidPlanAsync(db, request.PlanCode, ct) || request.Months is <= 0 or > 120 || reason is not { Length: >= 3 and <= 200 }
             || !await db.Shops.AnyAsync(s => s.Id == id, ct))
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Reason"] = ["Choose Basic or Pro, how many months (empty: for life) and why."] });
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Reason"] = ["Choose a plan, how many months (empty: for life) and why."] });
         }
 
         var role = await db.PlatformAdmins.Where(a => a.UserId == admin.UserId()).Select(a => a.Role).SingleAsync(ct);
@@ -339,6 +340,117 @@ public static class BillingEndpoints
         return TypedResults.Ok(await PlansAsync(db, ct, includeInactive: true));
     }
 
+    /// <summary>A new plan on sale, after the others ("Platinum"). Its code comes from the name.</summary>
+    private static async Task<IResult> AddPlanAsync(PlanUpdate request, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var name = request.Name?.Trim();
+        var code = new string((name ?? "").ToLowerInvariant().Where(char.IsAsciiLetterOrDigit).ToArray());
+        if (name is not { Length: >= 2 and <= 30 } || code.Length < 2 || !ValidPlan(request))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Name"] = ["Give the plan a name (letters and digits), a 1-year price and check the limits."] });
+        }
+
+        if (await db.Plans.AnyAsync(p => p.Code == code, ct))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "A plan with this name already exists.");
+        }
+
+        db.Plans.Add(new Plan
+        {
+            Code = code, Name = name, SortOrder = (await db.Plans.MaxAsync(p => (int?)p.SortOrder, ct) ?? 0) + 1,
+            PriceMonthly = request.PriceMonthly, PriceYear1 = request.PriceYear1, PriceYear3 = request.PriceYear3, PriceYear5 = request.PriceYear5,
+            FeatureKeys = request.Features?.Distinct().ToArray() ?? [], MaxCustomers = request.MaxCustomers, MaxStaff = request.MaxStaff, WhatsAppPerMonth = request.WhatsAppPerMonth,
+        });
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(await AdminPlansAsync(db, clock, ct));
+    }
+
+    /// <summary>
+    /// Takes a plan off sale, or back on. Shops already on it keep it until their period ends. Free can't be turned
+    /// off, nor the last plan on sale.
+    /// </summary>
+    private static async Task<IResult> PlanActiveAsync(string code, bool active, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var plan = await db.Plans.SingleOrDefaultAsync(p => p.Code == code, ct);
+        if (plan is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (!active && (plan.Code == "free" || !await db.Plans.AnyAsync(p => p.IsActive && p.Code != "free" && p.Code != code, ct)))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Keep Free and at least one paid plan on sale.");
+        }
+
+        plan.IsActive = active;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(await AdminPlansAsync(db, clock, ct));
+    }
+
+    /// <summary>
+    /// Moves a shop to another plan for the time it has: a paid shop keeps its paid-until date, a shop on free access
+    /// keeps its end date. A shop on trial or Free has nothing to move: record a payment or give free access instead.
+    /// </summary>
+    private static async Task<IResult> MovePlanAsync(Guid id, MovePlanRequest request, AppDbContext db, Entitlements entitlements, TimeProvider clock, CancellationToken ct)
+    {
+        if (!await IsPaidPlanAsync(db, request.PlanCode, ct))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["PlanCode"] = ["Choose a plan that is on sale."] });
+        }
+
+        if (!await db.Shops.AnyAsync(s => s.Id == id, ct))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var s = await entitlements.FindOrNewAsync(id, ct, track: true);
+        var now = clock.GetUtcNow();
+        if (s.CompPlanCode is not null && (s.CompUntil is null || s.CompUntil > now))
+        {
+            s.CompPlanCode = request.PlanCode;
+        }
+        else if (s.PaidUntil > now)
+        {
+            s.PlanCode = request.PlanCode;
+        }
+        else
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This shop has no paid or free period to move. Record a payment or give free access.");
+        }
+
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
+    }
+
+    private static Task<bool> IsPaidPlanAsync(AppDbContext db, string? code, CancellationToken ct) =>
+        code is null || code == "free" ? Task.FromResult(false) : db.Plans.AnyAsync(p => p.Code == code && p.IsActive, ct);
+
+    private static bool ValidPlan(PlanUpdate r)
+    {
+        decimal?[] prices = [r.PriceMonthly, r.PriceYear1, r.PriceYear3, r.PriceYear5];
+        return r.PriceYear1 is > 0 && !prices.Any(p => p is < 0 or > 1_000_000) && r.MaxStaff is >= 0 and <= 100
+            && r.WhatsAppPerMonth is >= 0 and <= 100_000 && r.MaxCustomers is null or >= 1 && r.Features?.All(f => Features.All.Contains(f)) != false;
+    }
+
+    /// <summary>Every plan, on sale or not, with how many shops are on it today (shops on trial aren't counted).</summary>
+    private static async Task<IReadOnlyList<PlanDto>> AdminPlansAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var counts = await ShopPlansAsync(db, clock, ct);
+        return (await PlansAsync(db, ct, includeInactive: true))
+            .Select(p => p with { Shops = counts.Values.Count(e => e.PlanCode == p.Code && e.Status != SubscriptionStatus.Trial) }).ToList();
+    }
+
+    /// <summary>Each active shop's plan today (trial, paid, free access…), worked out from the dates.</summary>
+    public static async Task<Dictionary<Guid, Entitlement>> ShopPlansAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        var plans = await db.Plans.AsNoTracking().ToDictionaryAsync(p => p.Code, ct);
+        var shops = await db.Shops.AsNoTracking().Where(s => s.IsActive).Select(s => new { s.Id, s.CreatedAt }).ToListAsync(ct);
+        var subs = await db.Subscriptions.AsNoTracking().ToDictionaryAsync(s => s.ShopId, ct);
+        return shops.ToDictionary(s => s.Id, s => Entitlements.Compute(
+            subs.GetValueOrDefault(s.Id) ?? new Subscription { ShopId = s.Id, TrialEndsAt = s.CreatedAt.AddDays(30) }, plans, now, 7));
+    }
+
     private static async Task<IReadOnlyList<OfferDto>> OffersAsync(AppDbContext db, CancellationToken ct) =>
         await db.Offers.AsNoTracking().OrderByDescending(o => o.IsActive).ThenBy(o => o.Code)
             .Select(o => new OfferDto(o.Code, o.Title, o.PlanCode, o.Term, o.Price, o.NewShopsOnly, o.ValidUntil, o.MaxUses, o.Uses, o.IsActive)).ToListAsync(ct);
@@ -347,7 +459,7 @@ public static class BillingEndpoints
     {
         var code = request.Code?.Trim().ToUpperInvariant();
         if (code is not { Length: >= 4 and <= 20 } || !code.All(char.IsAsciiLetterOrDigit) || string.IsNullOrWhiteSpace(request.Title)
-            || request.PlanCode is not ("basic" or "pro") || request.Term is null || request.Price is < 0 or > 1_000_000)
+            || !await IsPaidPlanAsync(db, request.PlanCode, ct) || request.Term is null || request.Price is < 0 or > 1_000_000)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Code"] = ["Enter a code (4-20 letters/digits), a title, the plan, period and price."] });
         }
@@ -359,7 +471,7 @@ public static class BillingEndpoints
 
         db.Offers.Add(new Offer
         {
-            Code = code, Title = request.Title.Trim(), PlanCode = request.PlanCode, Term = request.Term.Value, Price = request.Price, NewShopsOnly = request.NewShopsOnly,
+            Code = code, Title = request.Title.Trim(), PlanCode = request.PlanCode!, Term = request.Term.Value, Price = request.Price, NewShopsOnly = request.NewShopsOnly,
             ValidUntil = request.ValidUntil, MaxUses = request.MaxUses,
         });
         await db.SaveChangesAsync(ct);
@@ -374,7 +486,7 @@ public static class BillingEndpoints
 
     private static async Task<IReadOnlyList<PlanDto>> PlansAsync(AppDbContext db, CancellationToken ct, bool includeInactive = false) =>
         (await db.Plans.AsNoTracking().Where(p => includeInactive || p.IsActive).OrderBy(p => p.SortOrder).ToListAsync(ct))
-        .Select(p => new PlanDto(p.Code, p.Name, p.PriceMonthly, p.PriceYear1, p.PriceYear3, p.PriceYear5, p.FeatureKeys, p.MaxCustomers, p.MaxStaff, p.WhatsAppPerMonth))
+        .Select(p => new PlanDto(p.Code, p.Name, p.PriceMonthly, p.PriceYear1, p.PriceYear3, p.PriceYear5, p.FeatureKeys, p.MaxCustomers, p.MaxStaff, p.WhatsAppPerMonth, p.IsActive))
         .ToList();
 
     private static async Task<IReadOnlyList<ClaimDto>> ClaimsAsync(AppDbContext db, Guid? shopId, ClaimStatus? status, CancellationToken ct) =>
@@ -400,6 +512,16 @@ public sealed class BillingSeeder(IServiceScopeFactory scopes) : IHostedService
         {
             db.Plans.AddRange(Entitlements.DefaultPlans());
             db.Offers.Add(Entitlements.DefaultOffer());
+            await db.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        // Plans from before Basic/Silver/Gold: add Silver between Basic and Pro, and Pro becomes Gold.
+        if (!await db.Plans.AnyAsync(p => p.Code == "silver", cancellationToken))
+        {
+            db.Plans.Add(Entitlements.Silver());
+            await db.Plans.Where(p => p.Code == "pro").ExecuteUpdateAsync(u => u
+                .SetProperty(p => p.SortOrder, 3).SetProperty(p => p.Name, p => p.Name == "Pro" ? "Gold" : p.Name), cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
         }
     }

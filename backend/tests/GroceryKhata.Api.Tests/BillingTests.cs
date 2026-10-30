@@ -18,7 +18,8 @@ public sealed class BillingTests(ApiFactory api)
         var view = await shop.GetJsonAsync<SubscriptionView>("/api/v1/subscription");
         Assert.Equal((SubscriptionStatus.Trial, "pro"), (view.Status, view.PlanCode));
         Assert.InRange(view.DaysLeft!.Value, 29, 30);
-        Assert.Equal(["free", "basic", "pro"], view.Plans.Select(p => p.Code));
+        Assert.Equal(["free", "basic", "silver", "pro"], view.Plans.Select(p => p.Code));
+        Assert.Equal(["Free", "Basic", "Silver", "Gold"], view.Plans.Select(p => p.Name));
         Assert.Equal(499m, view.Plans.Single(p => p.Code == "basic").PriceYear1);
     }
 
@@ -163,6 +164,38 @@ public sealed class BillingTests(ApiFactory api)
         var second = await (await approver.PostJsonAsync("/api/v1/platform/shops", body)).ReadAsync<GroceryKhata.Api.Shops.CreatedShop>();
         Assert.False(second.NewAccount);
         Assert.Null(second.TempPassword);
+    }
+
+    [Fact]
+    public async Task A_billing_admin_adds_a_plan_takes_it_off_sale_and_moves_a_paid_shop_to_another_plan()
+    {
+        var billing = await AdminAsync("Billing");
+        var name = "Platinum" + Random.Shared.Next(1000, 9999);
+        var body = new { name, priceMonthly = 299m, priceYear1 = 2999m, priceYear3 = 6999m, priceYear5 = 9999m, features = new[] { "reports", "staff" }, maxCustomers = (int?)null, maxStaff = 10, whatsAppPerMonth = 1000 };
+        var plans = await (await billing.PostJsonAsync("/api/v1/platform/plans", body)).ReadAsync<List<PlanDto>>();
+        var added = plans.Single(p => p.Name == name);
+        Assert.True(added.IsActive);
+        Assert.Equal(HttpStatusCode.Conflict, (await billing.PostJsonAsync("/api/v1/platform/plans", body)).StatusCode);
+
+        // Off sale: no longer offered to shops. Free can't be taken off.
+        await billing.PostJsonAsync($"/api/v1/platform/plans/{added.Code}/active?active=false", new { });
+        var (shop, auth) = await api.SignUpAsync();
+        Assert.DoesNotContain((await shop.GetJsonAsync<SubscriptionView>("/api/v1/subscription")).Plans, p => p.Code == added.Code);
+        Assert.Equal(HttpStatusCode.Conflict, (await billing.PostJsonAsync("/api/v1/platform/plans/free/active?active=false", new { })).StatusCode);
+
+        // A shop on trial has nothing to move; once paid for Basic it moves to Silver and keeps its dates.
+        Assert.Equal(HttpStatusCode.Conflict, (await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/plan", new { planCode = "silver" })).StatusCode);
+        await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/payments", new { planCode = "basic", term = "year1", method = "cash" });
+        var before = await shop.GetJsonAsync<SubscriptionView>("/api/v1/subscription");
+        Assert.Equal(HttpStatusCode.NoContent, (await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/plan", new { planCode = "silver" })).StatusCode);
+        var after = await shop.GetJsonAsync<SubscriptionView>("/api/v1/subscription");
+        Assert.Equal(("silver", "Silver", before.EndsAt), (after.PlanCode, after.PlanName, after.EndsAt));
+        Assert.Contains("staff", after.Features);
+
+        // The shop list filters by plan.
+        var silverShops = await billing.GetJsonAsync<List<GroceryKhata.Api.Shops.PlatformShopRow>>("/api/v1/platform/shops?status=all&plan=silver");
+        Assert.Contains(silverShops, r => r.Id == auth.ShopId);
+        Assert.All(silverShops, r => Assert.Equal("silver", r.PlanCode));
     }
 
     /// <summary>A new account given a platform-admin role directly in the database, then signed in.</summary>

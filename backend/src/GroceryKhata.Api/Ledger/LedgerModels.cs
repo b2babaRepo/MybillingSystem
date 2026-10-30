@@ -77,7 +77,8 @@ public sealed record BillDto(
     decimal? CustomerBalance,
     string? Site = null,
     string? VehicleNumber = null,
-    Guid? PainterId = null);
+    Guid? PainterId = null,
+    string? BillNo = null);
 
 public sealed record StatementLine(
     Guid Id,
@@ -93,7 +94,9 @@ public sealed record StatementLine(
     BillSummary? Bill = null,
     string? RecordedBy = null,
     string? UpiRef = null,
-    DisputeView? Dispute = null);
+    DisputeView? Dispute = null,
+    bool EnteredLate = false,
+    DateTimeOffset? RecordedAt = null);
 
 /// <summary>The latest dispute on an entry, as both sides see it.</summary>
 public sealed record DisputeView(

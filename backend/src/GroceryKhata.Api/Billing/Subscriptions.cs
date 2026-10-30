@@ -10,7 +10,7 @@ namespace GroceryKhata.Api.Billing;
 /// </summary>
 public sealed class Plan : Entity
 {
-    /// <summary>"free", "basic", "pro".</summary>
+    /// <summary>"free", "basic", "silver", "pro" (shown as Gold), or one an admin added.</summary>
     public required string Code { get; set; }
 
     public required string Name { get; set; }
@@ -326,6 +326,7 @@ public sealed class Entitlements(AppDbContext db, TimeProvider clock, Microsoft.
             }
         }
 
+        // The trial opens Gold, so a new shop sees everything it could buy.
         return s.TrialEndsAt > now ? As(SubscriptionStatus.Trial, "pro", s.TrialEndsAt) : As(SubscriptionStatus.Free, "free", null);
     }
 
@@ -338,12 +339,20 @@ public sealed class Entitlements(AppDbContext db, TimeProvider clock, Microsoft.
             Code = "basic", Name = "Basic", SortOrder = 1, PriceMonthly = 59, PriceYear1 = 499, PriceYear3 = 1099, PriceYear5 = 1699,
             FeatureKeys = [Features.Reports, Features.Store, Features.WhatsApp], MaxStaff = 0, WhatsAppPerMonth = 100,
         },
+        Silver(),
         new()
         {
-            Code = "pro", Name = "Pro", SortOrder = 2, PriceMonthly = 199, PriceYear1 = 1999, PriceYear3 = 4499, PriceYear5 = 6999,
+            Code = "pro", Name = "Gold", SortOrder = 3, PriceMonthly = 199, PriceYear1 = 1999, PriceYear3 = 4499, PriceYear5 = 6999,
             FeatureKeys = Features.All, MaxStaff = 5, WhatsAppPerMonth = 500,
         },
     ];
+
+    /// <summary>Between Basic and Gold: helpers and bill photos, without AI ordering or trade features.</summary>
+    public static Plan Silver() => new()
+    {
+        Code = "silver", Name = "Silver", SortOrder = 2, PriceMonthly = 99, PriceYear1 = 999, PriceYear3 = 2299, PriceYear5 = 3499,
+        FeatureKeys = [Features.Reports, Features.Store, Features.WhatsApp, Features.Staff, Features.BillPhoto], MaxStaff = 2, WhatsAppPerMonth = 300,
+    };
 
     public static Offer DefaultOffer() => new()
     {

@@ -16,6 +16,17 @@ export interface PlanInfo {
   maxCustomers: number | null
   maxStaff: number
   whatsAppPerMonth: number
+  /** On sale (admins see plans taken off sale too). */
+  isActive?: boolean
+  /** Admins: how many shops are on it today. */
+  shops?: number
+}
+
+export const FEATURES = ['reports', 'store', 'whatsapp', 'staff', 'bill_photo', 'trade', 'ai'] as const
+
+/** Every plan, for admins: on sale or not, with its shop count. */
+export function usePlans() {
+  return useQuery({ queryKey: ['platform', 'plans'], queryFn: () => api<PlanInfo[]>('/v1/platform/plans'), staleTime: 60_000 })
 }
 
 export interface Payment {
