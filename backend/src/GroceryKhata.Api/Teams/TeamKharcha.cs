@@ -29,6 +29,9 @@ public sealed class Team : Entity
     /// no notes. Null: no link. Only the owner turns it on; every member sees that it is on.
     /// </summary>
     public string? ViewToken { get; set; }
+
+    /// <summary>A member's line above this needs the owner's or an admin's OK before it counts. Null: no limit.</summary>
+    public decimal? ApprovalAbove { get; set; }
 }
 
 /// <summary>
@@ -54,6 +57,9 @@ public sealed class TeamMember : Entity
     public DateTimeOffset? ConsentAt { get; set; }
 
     public string? ConsentVersion { get; set; }
+
+    /// <summary>The most this person may spend in a month; a line past it waits for the owner's OK. Null: no limit.</summary>
+    public decimal? MonthlyLimit { get; set; }
 }
 
 public enum TeamRole
@@ -97,6 +103,18 @@ public sealed class TeamExpense : Entity
     public Guid? StruckByUserId { get; set; }
 
     public string? StruckReason { get; set; }
+
+    /// <summary>Waiting for the owner's or an admin's OK (over the approval amount or the person's monthly limit); not counted until then.</summary>
+    public DateTimeOffset? PendingSince { get; set; }
+
+    public Guid? ApprovedByUserId { get; set; }
+
+    public DateTimeOffset? ApprovedAt { get; set; }
+
+    /// <summary>A photo of the bill or receipt, shrunk on the phone (WebP/JPEG/PNG, under 150 KB).</summary>
+    public byte[]? Photo { get; set; }
+
+    public string? PhotoType { get; set; }
 }
 
 public sealed record CreateTeamRequest(string? Name, string? YourName, bool Consent);
@@ -109,17 +127,22 @@ public sealed record TeamRoleRequest(TeamRole? Role);
 
 public sealed record LeaveTeamRequest(bool DeleteMyLines);
 
-public sealed record TeamExpenseRequest(Guid Id, decimal Amount, ExpenseCategory? Category, string? Note, PaymentMode? Mode, Guid? MemberId, DateTimeOffset? OccurredAt);
+public sealed record TeamExpenseRequest(
+    Guid Id, decimal Amount, ExpenseCategory? Category, string? Note, PaymentMode? Mode, Guid? MemberId, DateTimeOffset? OccurredAt, string? PhotoDataUrl = null);
+
+public sealed record TeamRulesRequest(decimal? ApprovalAbove);
+
+public sealed record MemberLimitRequest(decimal? MonthlyLimit);
 
 public sealed record StrikeTeamExpenseRequest(string? Reason);
 
 public sealed record TeamSummary(Guid Id, string Name, TeamRole MyRole, int Members, decimal ThisMonth);
 
-public sealed record TeamMemberDto(Guid Id, string Name, TeamRole Role, bool HasLogin, bool IsMe, bool HasLeft);
+public sealed record TeamMemberDto(Guid Id, string Name, TeamRole Role, bool HasLogin, bool IsMe, bool HasLeft, decimal? MonthlyLimit = null, decimal SpentThisMonth = 0);
 
 public sealed record TeamDto(
     Guid Id, string Name, TeamRole MyRole, Guid MyMemberId, IReadOnlyList<TeamMemberDto> Members, string? InviteCode, DateTimeOffset? InviteExpiresAt, int MaxMembers,
-    bool ViewLinkOn = false, string? ViewToken = null);
+    bool ViewLinkOn = false, string? ViewToken = null, decimal? ApprovalAbove = null, int Pending = 0);
 
 /// <summary>What the view link shows: totals by name and heading for the month and today. No notes, no who-wrote-what.</summary>
 public sealed record TeamPublicView(
@@ -130,11 +153,12 @@ public sealed record TeamPreview(string Name, int Members, string CreatedBy, boo
 
 public sealed record TeamLineDto(
     Guid Id, DateTimeOffset OccurredAt, decimal Amount, ExpenseCategory Category, string? Note, PaymentMode Mode,
-    Guid MemberId, string MemberName, string? WrittenBy, DateTimeOffset? StruckAt, string? StruckReason, bool CanStrike);
+    Guid MemberId, string MemberName, string? WrittenBy, DateTimeOffset? StruckAt, string? StruckReason, bool CanStrike,
+    bool Pending = false, bool CanApprove = false, bool HasPhoto = false, string? ApprovedBy = null);
 
 public sealed record NameTotal(Guid MemberId, string Name, decimal Total, int Count);
 
-public sealed record TeamDayDto(DateOnly Date, decimal Total, IReadOnlyList<NameTotal> ByName, IReadOnlyList<TeamLineDto> Lines);
+public sealed record TeamDayDto(DateOnly Date, decimal Total, IReadOnlyList<NameTotal> ByName, IReadOnlyList<TeamLineDto> Lines, decimal PendingTotal = 0);
 
 public sealed record TeamMonthDto(
     string Month, bool Complete, decimal Total, decimal Cash, decimal Upi, int Count, IReadOnlyList<NameTotal> ByName,
@@ -171,6 +195,11 @@ public static class TeamKharchaEndpoints
         g.MapGet("/{id:guid}/day", DayAsync);
         g.MapGet("/{id:guid}/month", MonthAsync);
         g.MapPost("/{id:guid}/view-link", ViewLinkAsync);
+        g.MapPut("/{id:guid}/rules", RulesAsync);
+        g.MapPut("/{id:guid}/members/{memberId:guid}/limit", LimitAsync);
+        g.MapPost("/{id:guid}/expenses/{expenseId:guid}/approve", ApproveAsync);
+        g.MapGet("/{id:guid}/expenses/{expenseId:guid}/photo", PhotoAsync);
+        g.MapGet("/{id:guid}/pending", PendingAsync);
         app.MapGet("/api/v1/team-view/{id:guid}", PublicViewAsync).AllowAnonymous().WithTags("Team kharcha");
         return app;
     }
@@ -197,7 +226,7 @@ public static class TeamKharchaEndpoints
                       orderby t.Name
                       select new TeamSummary(t.Id, t.Name, m.Role,
                           db.TeamMembers.Count(x => x.TeamId == t.Id && !x.HasLeft),
-                          db.TeamExpenses.Where(e => e.TeamId == t.Id && e.StruckAt == null && e.OccurredAt >= start && e.OccurredAt < end).Sum(e => (decimal?)e.Amount) ?? 0))
+                          db.TeamExpenses.Where(e => e.TeamId == t.Id && e.StruckAt == null && e.PendingSince == null && e.OccurredAt >= start && e.OccurredAt < end).Sum(e => (decimal?)e.Amount) ?? 0))
             .ToListAsync(ct);
     }
 
@@ -236,10 +265,15 @@ public static class TeamKharchaEndpoints
         // Roles are stored as text, so order them here: owner, admins, members, viewers, each by when they joined.
         var members = (await db.TeamMembers.AsNoTracking().Where(m => m.TeamId == id).ToListAsync(ct)).OrderBy(m => m.Role).ThenBy(m => m.CreatedAt).ToList();
         var me = members.Single(m => m.UserId == userId && !m.HasLeft);
+        var (monthStart, monthEnd) = MonthNow();
+        var spent = await db.TeamExpenses.AsNoTracking()
+            .Where(e => e.TeamId == id && e.StruckAt == null && e.PendingSince == null && e.OccurredAt >= monthStart && e.OccurredAt < monthEnd)
+            .GroupBy(e => e.MemberId).Select(g => new { g.Key, Sum = g.Sum(e => e.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        var pending = await db.TeamExpenses.CountAsync(e => e.TeamId == id && e.StruckAt == null && e.PendingSince != null, ct);
         return new TeamDto(team.Id, team.Name, me.Role, me.Id,
-            members.Where(m => !m.HasLeft).Select(m => new TeamMemberDto(m.Id, m.DisplayName, m.Role, m.UserId != null, m.Id == me.Id, false)).ToList(),
+            members.Where(m => !m.HasLeft).Select(m => new TeamMemberDto(m.Id, m.DisplayName, m.Role, m.UserId != null, m.Id == me.Id, false, m.MonthlyLimit, spent.GetValueOrDefault(m.Id))).ToList(),
             Manages(me) ? team.InviteCode : null, Manages(me) ? team.InviteExpiresAt : null, FreeMaxMembers,
-            team.ViewToken != null, me.Role == TeamRole.Owner ? team.ViewToken : null);
+            team.ViewToken != null, me.Role == TeamRole.Owner ? team.ViewToken : null, team.ApprovalAbove, Manages(me) ? pending : 0);
     }
 
     /// <summary>A fresh invite code, open 48 hours; the old one stops working.</summary>
@@ -445,6 +479,23 @@ public static class TeamKharchaEndpoints
         var note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
         if (note?.Length > 120) errors["Note"] = ["Keep the note short (120 letters)."];
         if (request.Mode is not (null or PaymentMode.Cash or PaymentMode.Upi)) errors["Mode"] = ["Cash or UPI."];
+        byte[]? photo = null;
+        string? photoType = null;
+        if (!string.IsNullOrEmpty(request.PhotoDataUrl))
+        {
+            var parts = request.PhotoDataUrl.Split(',', 2);
+            photoType = parts is [var head, _] && head.StartsWith("data:", StringComparison.Ordinal) && head.EndsWith(";base64", StringComparison.Ordinal) ? head[5..^7] : null;
+            try
+            {
+                photo = photoType is "image/webp" or "image/jpeg" or "image/png" ? Convert.FromBase64String(parts[1]) : null;
+            }
+            catch (FormatException)
+            {
+            }
+
+            if (photo is not { Length: > 0 and <= 150_000 }) errors["PhotoDataUrl"] = ["Send the bill photo as WebP, JPEG or PNG under 150 KB."];
+        }
+
         var memberId = request.MemberId ?? me.Id;
         if (memberId != me.Id && !Manages(me)) errors["MemberId"] = ["Only the owner or an admin writes for someone else."];
         else if (!await db.TeamMembers.AnyAsync(m => m.Id == memberId && m.TeamId == id && !m.HasLeft, ct)) errors["MemberId"] = ["That person isn't in the team."];
@@ -454,11 +505,29 @@ public static class TeamKharchaEndpoints
         }
 
         var now = clock.GetUtcNow();
+        // An owner's or admin's own lines never wait. A member's line waits when it is above the team's approval amount
+        // or takes them past their monthly limit.
+        DateTimeOffset? pendingSince = null;
+        if (!Manages(me))
+        {
+            var team = await db.Teams.AsNoTracking().SingleAsync(t => t.Id == id, ct);
+            var member = await db.TeamMembers.AsNoTracking().SingleAsync(m => m.Id == memberId, ct);
+            var (monthStart, monthEnd) = MonthNow();
+            var spentSoFar = member.MonthlyLimit is null ? 0 : await db.TeamExpenses
+                .Where(e => e.TeamId == id && e.MemberId == memberId && e.StruckAt == null && e.OccurredAt >= monthStart && e.OccurredAt < monthEnd)
+                .SumAsync(e => (decimal?)e.Amount, ct) ?? 0;
+            if (request.Amount > team.ApprovalAbove || spentSoFar + request.Amount > member.MonthlyLimit)
+            {
+                pendingSince = now;
+            }
+        }
+
         db.TeamExpenses.Add(new TeamExpense
         {
             Id = request.Id, TeamId = id, MemberId = memberId, CreatedByUserId = me.UserId!.Value,
             OccurredAt = request.OccurredAt is { } at && at <= now ? at.ToUniversalTime() : now,
             Amount = request.Amount, Category = request.Category ?? ExpenseReader.Guess(note ?? "").Category, Note = note, Mode = request.Mode ?? PaymentMode.Cash,
+            PendingSince = pendingSince, Photo = photo, PhotoType = photo is null ? null : photoType,
         });
         await db.SaveChangesAsync(ct);
         return TypedResults.Created($"/api/v1/teams/{id}/expenses/{request.Id}", (await LinesAsync(id, me, db, e => e.Id == request.Id, ct)).Single());
@@ -502,11 +571,19 @@ public static class TeamKharchaEndpoints
                           join m in db.TeamMembers.AsNoTracking() on e.MemberId equals m.Id
                           join u in db.Users.AsNoTracking() on e.CreatedByUserId equals u.Id into writers
                           from u in writers.DefaultIfEmpty()
+                          join a in db.Users.AsNoTracking() on e.ApprovedByUserId equals (Guid?)a.Id into approvers
+                          from a in approvers.DefaultIfEmpty()
                           orderby e.OccurredAt, e.CreatedAt
-                          select new { E = e, m.DisplayName, m.HasLeft, Writer = u == null ? null : u.FullName })
+                          select new
+                          {
+                              e.Id, e.OccurredAt, e.Amount, e.Category, e.Note, e.Mode, e.MemberId, e.CreatedByUserId, e.StruckAt, e.StruckReason,
+                              e.PendingSince, HasPhoto = e.Photo != null, m.DisplayName, m.HasLeft, Writer = u == null ? null : u.FullName,
+                              Approver = a == null ? null : a.FullName,
+                          })
             .ToListAsync(ct);
-        return rows.Select(r => new TeamLineDto(r.E.Id, r.E.OccurredAt, r.E.Amount, r.E.Category, r.E.Note, r.E.Mode, r.E.MemberId,
-            r.HasLeft ? Former : r.DisplayName, r.Writer, r.E.StruckAt, r.E.StruckReason, r.E.StruckAt is null && CanStrike(me, r.E.MemberId, r.E.CreatedByUserId))).ToList();
+        return rows.Select(r => new TeamLineDto(r.Id, r.OccurredAt, r.Amount, r.Category, r.Note, r.Mode, r.MemberId,
+            r.HasLeft ? Former : r.DisplayName, r.Writer, r.StruckAt, r.StruckReason, r.StruckAt is null && CanStrike(me, r.MemberId, r.CreatedByUserId),
+            r.PendingSince != null && r.StruckAt == null, r.PendingSince != null && r.StruckAt == null && Manages(me), r.HasPhoto, r.Approver)).ToList();
     }
 
     private static List<NameTotal> ByName(IEnumerable<TeamLineDto> live) =>
@@ -523,8 +600,8 @@ public static class TeamKharchaEndpoints
         var day = DateOnly.TryParse(date, out var d) ? d : IndiaTime.Today(clock);
         var (start, end) = IndiaTime.Day(day);
         var lines = await LinesAsync(id, me, db, e => e.OccurredAt >= start && e.OccurredAt < end, ct);
-        var live = lines.Where(l => l.StruckAt is null).ToList();
-        return TypedResults.Ok(new TeamDayDto(day, live.Sum(l => l.Amount), ByName(live), lines));
+        var live = lines.Where(l => l.StruckAt is null && !l.Pending).ToList();
+        return TypedResults.Ok(new TeamDayDto(day, live.Sum(l => l.Amount), ByName(live), lines, lines.Where(l => l.Pending).Sum(l => l.Amount)));
     }
 
     private static async Task<IResult> MonthAsync(Guid id, string? month, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
@@ -537,7 +614,7 @@ public static class TeamKharchaEndpoints
         var today = IndiaTime.Today(clock);
         var m = string.IsNullOrEmpty(month) ? (today.Year, today.Month) : IndiaTime.ParseMonth(month) ?? (today.Year, today.Month);
         var (start, end) = IndiaTime.Month(m.Year, m.Month);
-        var live = (await LinesAsync(id, me, db, e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null, ct));
+        var live = (await LinesAsync(id, me, db, e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && e.PendingSince == null, ct));
         return TypedResults.Ok(new TeamMonthDto(
             $"{m.Year:D4}-{m.Month:D2}", end <= clock.GetUtcNow(), live.Sum(l => l.Amount),
             live.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount), live.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount), live.Count,
@@ -580,7 +657,7 @@ public static class TeamKharchaEndpoints
         var (monthStart, monthEnd) = IndiaTime.Month(today.Year, today.Month);
         var (dayStart, dayEnd) = IndiaTime.Day(today);
         var rows = await (from e in db.TeamExpenses.AsNoTracking()
-                          where e.TeamId == id && e.StruckAt == null && e.OccurredAt >= monthStart && e.OccurredAt < monthEnd
+                          where e.TeamId == id && e.StruckAt == null && e.PendingSince == null && e.OccurredAt >= monthStart && e.OccurredAt < monthEnd
                           join m in db.TeamMembers.AsNoTracking() on e.MemberId equals m.Id
                           select new { e.MemberId, Name = m.HasLeft ? Former : m.DisplayName, e.Amount, e.Category, e.OccurredAt })
             .ToListAsync(ct);
@@ -591,6 +668,108 @@ public static class TeamKharchaEndpoints
             rows.GroupBy(r => r.Category).Select(g => new ExpenseCategoryTotal(g.Key, g.Sum(r => r.Amount), g.Count())).OrderByDescending(c => c.Total).ToList(),
             todays.Sum(r => r.Amount),
             todays.GroupBy(r => (r.MemberId, r.Name)).Select(g => new NameTotal(g.Key.MemberId, g.Key.Name, g.Sum(r => r.Amount), g.Count())).OrderByDescending(n => n.Total).ToList()));
+    }
+
+    private static (DateTimeOffset Start, DateTimeOffset End) MonthNow()
+    {
+        var now = DateTimeOffset.UtcNow.ToOffset(IndiaTime.Offset);
+        return IndiaTime.Month(now.Year, now.Month);
+    }
+
+    /// <summary>The owner sets (or clears) the amount above which a member's line needs an OK.</summary>
+    private static async Task<IResult> RulesAsync(Guid id, TeamRulesRequest request, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    {
+        if (await MeAsync(id, user, db, ct) is not { } me)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (me.Role != TeamRole.Owner)
+        {
+            return Problem(StatusCodes.Status403Forbidden, "Only the owner sets the team's rules.");
+        }
+
+        if (request.ApprovalAbove is <= 0 or > 10_000_000)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["ApprovalAbove"] = ["Enter an amount above ₹0, or leave it empty for no approvals."] });
+        }
+
+        var team = await db.Teams.SingleAsync(t => t.Id == id, ct);
+        team.ApprovalAbove = request.ApprovalAbove;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(await ViewAsync(id, me.UserId!.Value, db, ct));
+    }
+
+    /// <summary>The owner sets (or clears) how much a person may spend in a month before lines wait for an OK.</summary>
+    private static async Task<IResult> LimitAsync(Guid id, Guid memberId, MemberLimitRequest request, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    {
+        if (await MeAsync(id, user, db, ct) is not { } me)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var member = await db.TeamMembers.SingleOrDefaultAsync(m => m.Id == memberId && m.TeamId == id && !m.HasLeft, ct);
+        if (me.Role != TeamRole.Owner || member is null)
+        {
+            return Problem(StatusCodes.Status403Forbidden, "Only the owner sets monthly limits.");
+        }
+
+        if (request.MonthlyLimit is <= 0 or > 10_000_000)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["MonthlyLimit"] = ["Enter an amount above ₹0, or leave it empty for no limit."] });
+        }
+
+        member.MonthlyLimit = request.MonthlyLimit;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(await ViewAsync(id, me.UserId!.Value, db, ct));
+    }
+
+    /// <summary>The owner or an admin says OK to a waiting line: it counts from now. (To refuse, strike it with a reason.)</summary>
+    private static async Task<IResult> ApproveAsync(Guid id, Guid expenseId, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (await MeAsync(id, user, db, ct) is not { } me)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (!Manages(me))
+        {
+            return Problem(StatusCodes.Status403Forbidden, "Only the owner or an admin approves lines.");
+        }
+
+        var line = await db.TeamExpenses.SingleOrDefaultAsync(e => e.Id == expenseId && e.TeamId == id, ct);
+        if (line is not { PendingSince: not null, StruckAt: null })
+        {
+            return line is null ? TypedResults.NotFound() : Problem(StatusCodes.Status409Conflict, "This line isn't waiting for an OK.");
+        }
+
+        (line.PendingSince, line.ApprovedAt, line.ApprovedByUserId) = (null, clock.GetUtcNow(), me.UserId);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>Every line waiting for an OK, any day (owner and admins).</summary>
+    private static async Task<IResult> PendingAsync(Guid id, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    {
+        if (await MeAsync(id, user, db, ct) is not { } me)
+        {
+            return TypedResults.NotFound();
+        }
+
+        return TypedResults.Ok(Manages(me) ? await LinesAsync(id, me, db, e => e.PendingSince != null && e.StruckAt == null, ct) : []);
+    }
+
+    private static async Task<IResult> PhotoAsync(Guid id, Guid expenseId, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    {
+        if (await MeAsync(id, user, db, ct) is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        return await db.TeamExpenses.AsNoTracking().Where(e => e.Id == expenseId && e.TeamId == id && e.Photo != null)
+            .Select(e => new { e.Photo, e.PhotoType }).SingleOrDefaultAsync(ct) is { } p
+            ? TypedResults.File(p.Photo!, p.PhotoType ?? "image/webp")
+            : TypedResults.NotFound();
     }
 
     private static string? Short(string? name) => name?.Trim() is { Length: >= 2 and <= 40 } n ? n : null;

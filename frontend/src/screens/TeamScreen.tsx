@@ -5,7 +5,8 @@ import { BackIcon } from '../components/Icons'
 import { Button } from '../components/ui'
 import { addText } from '../i18n'
 import { teamText } from '../i18n/team'
-import { api, ApiError } from '../lib/api'
+import { api, ApiError, request } from '../lib/api'
+import { shrinkPhoto } from '../lib/images'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import type { ExpenseCategory } from './ExpensesScreen'
@@ -15,12 +16,12 @@ import { teamViewLink } from './TeamViewPage'
 addText(teamText)
 
 type Role = 'owner' | 'admin' | 'member' | 'viewer'
-interface Member { id: string; name: string; role: Role; hasLogin: boolean; isMe: boolean }
-interface Team { id: string; name: string; myRole: Role; myMemberId: string; members: Member[]; inviteCode: string | null; inviteExpiresAt: string | null; maxMembers: number; viewLinkOn: boolean; viewToken: string | null }
+interface Member { id: string; name: string; role: Role; hasLogin: boolean; isMe: boolean; monthlyLimit: number | null; spentThisMonth: number }
+interface Team { id: string; name: string; myRole: Role; myMemberId: string; members: Member[]; inviteCode: string | null; inviteExpiresAt: string | null; maxMembers: number; viewLinkOn: boolean; viewToken: string | null; approvalAbove: number | null; pending: number }
 interface TeamSummary { id: string; name: string; myRole: Role; members: number; thisMonth: number }
-interface Line { id: string; occurredAt: string; amount: number; category: ExpenseCategory; note: string | null; mode: 'cash' | 'upi'; memberId: string; memberName: string; writtenBy: string | null; struckAt: string | null; struckReason: string | null; canStrike: boolean }
+interface Line { id: string; occurredAt: string; amount: number; category: ExpenseCategory; note: string | null; mode: 'cash' | 'upi'; memberId: string; memberName: string; writtenBy: string | null; struckAt: string | null; struckReason: string | null; canStrike: boolean; pending: boolean; canApprove: boolean; hasPhoto: boolean; approvedBy: string | null }
 interface NameTotal { memberId: string; name: string; total: number; count: number }
-interface Day { date: string; total: number; byName: NameTotal[]; lines: Line[] }
+interface Day { date: string; total: number; byName: NameTotal[]; lines: Line[]; pendingTotal: number }
 interface Month { month: string; complete: boolean; total: number; cash: number; upi: number; count: number; byName: NameTotal[]; byCategory: { category: ExpenseCategory; total: number; count: number }[]; byDay: { date: string; total: number }[]; lines: Line[] }
 
 const indiaToday = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
@@ -185,6 +186,7 @@ function TeamBook({ id }: { id: string }) {
             <button key={v} role="tab" aria-selected={tab === v} onClick={() => setTab(v)} className={`min-h-11 rounded-xl ${tab === v ? 'bg-teal-700 text-white' : ''}`}>{t(`team.tab.${v}`)}</button>
           ))}
         </div>
+        {x.pending > 0 && <p className="rounded-xl bg-amber-100 p-3 text-sm font-semibold text-amber-900">⏳ {t('team.pendingBanner', { count: x.pending })}</p>}
         {x.viewLinkOn && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">🔗 {t('team.viewOnNotice')}</p>}
         {tab === 'day' && <TeamDay team={x} />}
         {tab === 'month' && <TeamMonth team={x} />}
@@ -215,16 +217,16 @@ function TeamDay({ team }: { team: Team }) {
   const [day, setDay] = useState(indiaToday())
   const page = useQuery({ queryKey: ['team', team.id, 'day', day], queryFn: () => api<Day>(`/v1/teams/${team.id}/day?date=${day}`) }).data
   const manages = team.myRole === 'owner' || team.myRole === 'admin'
-  const [form, setForm] = useState({ amount: '', note: '', mode: 'cash' as 'cash' | 'upi', memberId: team.myMemberId })
+  const [form, setForm] = useState({ amount: '', note: '', mode: 'cash' as 'cash' | 'upi', memberId: team.myMemberId, photo: '' })
   const { busy, message, run } = useRun()
   const isToday = day === indiaToday()
 
   const add = () => run(async () => {
     await api(`/v1/teams/${team.id}/expenses`, 'POST', {
       id: crypto.randomUUID(), amount: Number(form.amount), note: form.note.trim() || null, mode: form.mode,
-      memberId: form.memberId, occurredAt: isToday ? null : `${day}T12:00:00+05:30`,
+      memberId: form.memberId, occurredAt: isToday ? null : `${day}T12:00:00+05:30`, photoDataUrl: form.photo || null,
     })
-    setForm({ ...form, amount: '', note: '' })
+    setForm({ ...form, amount: '', note: '', photo: '' })
     await queryClient.invalidateQueries({ queryKey: ['team', team.id] })
     await queryClient.invalidateQueries({ queryKey: ['teams'] })
   })
@@ -249,6 +251,12 @@ function TeamDay({ team }: { team: Team }) {
                 className={`min-h-11 rounded-xl font-semibold ${form.mode === m ? 'bg-teal-700 text-white' : 'border border-line'}`}>{m === 'cash' ? t('team.cash') : 'UPI'}</button>
             ))}
           </div>
+          <label className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border text-sm font-semibold ${form.photo ? 'border-teal-700 bg-teal-50 text-teal-900' : 'border-dashed border-line'}`}>
+            📷 {form.photo ? t('team.photoAdded') : t('team.addPhoto')}
+            <input type="file" accept="image/*" capture="environment" className="sr-only"
+              onChange={(e) => { const file = e.target.files?.[0]; if (file) void shrinkPhoto(file, 1024, 140_000, false).then((url) => setForm((f) => ({ ...f, photo: url }))) }} />
+          </label>
+          {team.approvalAbove && !manages && <p className="text-xs text-muted">{t('team.approvalNote', { amount: formatRupees(team.approvalAbove) })}</p>}
           {manages && (
             <label className="flex items-center gap-2 text-sm"><span className="text-muted">{t('team.spentBy')}</span>
               <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} className="h-11 flex-1 rounded-xl border border-line bg-white px-2">
@@ -264,6 +272,7 @@ function TeamDay({ team }: { team: Team }) {
       {page && (
         <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
           <div className="flex items-baseline justify-between"><h2 className="font-bold">{t('team.byName')}</h2><span className="text-2xl font-extrabold">{formatRupees(page.total)}</span></div>
+          {page.pendingTotal > 0 && <p className="text-sm font-semibold text-amber-800">⏳ {t('team.pendingTotal', { amount: formatRupees(page.pendingTotal) })}</p>}
           {page.byName.length === 0 ? <p className="text-sm text-muted">{t('team.nothing')}</p> : <NameBars rows={page.byName} />}
           {page.byName.length > 0 && (
             <a href={whatsAppLink(null, [
@@ -276,10 +285,14 @@ function TeamDay({ team }: { team: Team }) {
           )}
           <ul className="divide-y divide-[#edf2f1] text-sm">
             {page.lines.map((l) => (
-              <li key={l.id} className={`flex items-center justify-between gap-2 py-2 ${l.struckAt ? 'text-muted line-through' : ''}`}>
+              <li key={l.id} className={`flex items-center justify-between gap-2 py-2 ${l.struckAt ? 'text-muted line-through' : ''} ${l.pending ? 'rounded-lg bg-amber-50 px-2' : ''}`}>
                 <span className="min-w-0"><b>{l.memberName === 'Former member' ? t('team.former') : l.memberName}</b> · {l.note ?? t(`expense.cat.${l.category}`)} · {l.mode === 'upi' ? 'UPI' : t('team.cash')}
-                  {l.writtenBy && <span className="block text-xs text-muted">{t('team.writtenBy', { name: l.writtenBy })}{l.struckReason ? ` · ${l.struckReason}` : ''}</span>}</span>
+                  {l.writtenBy && <span className="block text-xs text-muted">{t('team.writtenBy', { name: l.writtenBy })}{l.approvedBy ? ` · ${t('team.okBy', { name: l.approvedBy })}` : ''}{l.struckReason ? ` · ${l.struckReason}` : ''}</span>}
+                  {l.pending && <span className="block text-xs font-semibold text-amber-800">⏳ {t('team.waiting')}</span>}</span>
                 <span className="flex items-center gap-2"><b>{formatRupees(l.amount)}</b>
+                  {l.hasPhoto && <button onClick={() => void openPhoto(team.id, l.id)} aria-label={t('team.seePhoto')} className="h-9 w-9 rounded-lg border border-line">📷</button>}
+                  {l.canApprove && <button disabled={busy} onClick={() => void run(async () => { await api(`/v1/teams/${team.id}/expenses/${l.id}/approve`, 'POST', {}); await queryClient.invalidateQueries({ queryKey: ['team', team.id] }) })}
+                    className="h-9 rounded-lg bg-teal-700 px-2 text-xs font-bold text-white">{t('team.ok')}</button>}
                   {l.canStrike && <button onClick={() => { const reason = prompt(t('team.strikeAsk')); if (reason !== null) void run(async () => { await api(`/v1/teams/${team.id}/expenses/${l.id}/strike`, 'POST', { reason }); await queryClient.invalidateQueries({ queryKey: ['team', team.id] }) }) }}
                     aria-label={t('team.strike')} className="h-9 w-9 rounded-lg border border-line text-due">✕</button>}</span>
               </li>
@@ -363,6 +376,31 @@ function TeamPeople({ team }: { team: Team }) {
       </ul>
       <p className="text-center text-xs text-muted">{t('team.limit', { count: team.members.length, max: team.maxMembers })}</p>
 
+      {team.myRole === 'owner' && (
+        <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
+          <h2 className="font-bold">{t('team.rulesTitle')}</h2>
+          <label className="flex items-center gap-2 text-sm"><span className="flex-1">{t('team.approvalAbove')}</span>
+            <input defaultValue={team.approvalAbove ?? ''} inputMode="numeric" placeholder={t('team.none')} aria-label={t('team.approvalAbove')}
+              onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); if (String(team.approvalAbove ?? '') !== v) void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/rules`, 'PUT', { approvalAbove: v ? Number(v) : null }))) }}
+              className="h-11 w-28 rounded-xl border border-line px-2 text-right" /></label>
+          {team.members.filter((m) => m.role !== 'owner' && m.role !== 'viewer').map((m) => (
+            <label key={m.id} className="flex flex-col gap-1 text-sm">
+              <span className="flex items-center gap-2"><span className="flex-1">{t('team.limitFor', { name: m.name })}</span>
+                <input defaultValue={m.monthlyLimit ?? ''} inputMode="numeric" placeholder={t('team.none')} aria-label={t('team.limitFor', { name: m.name })}
+                  onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); if (String(m.monthlyLimit ?? '') !== v) void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/members/${m.id}/limit`, 'PUT', { monthlyLimit: v ? Number(v) : null }))) }}
+                  className="h-11 w-28 rounded-xl border border-line px-2 text-right" /></span>
+              {m.monthlyLimit && (
+                <span className="flex items-center gap-2 text-xs text-muted">
+                  <span className="h-2 flex-1 rounded-full bg-ground"><span className={`block h-2 rounded-full ${m.spentThisMonth > m.monthlyLimit ? 'bg-red-500' : 'bg-teal-600'}`} style={{ width: `${Math.min(100, (m.spentThisMonth / m.monthlyLimit) * 100)}%` }} /></span>
+                  {formatRupees(m.spentThisMonth)} / {formatRupees(m.monthlyLimit)}
+                </span>
+              )}
+            </label>
+          ))}
+          <p className="text-xs text-muted">{t('team.rulesHint')}</p>
+        </section>
+      )}
+
       {manages && !full && (
         <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
           <h2 className="font-bold">{t('team.inviteTitle')}</h2>
@@ -418,4 +456,10 @@ function TeamPeople({ team }: { team: Team }) {
       {message && <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{message}</p>}
     </>
   )
+}
+
+/** Opens a line's bill photo (it needs the signed-in token, so it is fetched, then shown). */
+async function openPhoto(teamId: string, lineId: string) {
+  const response = await request(`/v1/teams/${teamId}/expenses/${lineId}/photo`)
+  if (response.ok) window.open(URL.createObjectURL(await response.blob()), '_blank')
 }

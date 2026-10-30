@@ -3438,6 +3438,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<decimal?>("ApprovalAbove")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("approval_above");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -3489,6 +3494,14 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("amount");
 
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by_user_id");
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -3521,6 +3534,18 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
+
+                    b.Property<DateTimeOffset?>("PendingSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pending_since");
+
+                    b.Property<byte[]>("Photo")
+                        .HasColumnType("bytea")
+                        .HasColumnName("photo");
+
+                    b.Property<string>("PhotoType")
+                        .HasColumnType("text")
+                        .HasColumnName("photo_type");
 
                     b.Property<DateTimeOffset?>("StruckAt")
                         .HasColumnType("timestamp with time zone")
@@ -3585,6 +3610,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LeftAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("left_at");
+
+                    b.Property<decimal?>("MonthlyLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("monthly_limit");
 
                     b.Property<string>("Role")
                         .IsRequired()

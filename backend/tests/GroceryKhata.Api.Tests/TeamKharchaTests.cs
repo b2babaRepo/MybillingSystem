@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using GroceryKhata.Api.Teams;
 
 namespace GroceryKhata.Api.Tests;
@@ -100,5 +101,45 @@ public sealed class TeamKharchaTests(ApiFactory api)
         }
 
         Assert.Equal(HttpStatusCode.PaymentRequired, (await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/members", new { name = "Farah" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Big_lines_and_lines_past_a_monthly_limit_wait_for_the_owners_ok_and_can_carry_a_bill_photo()
+    {
+        var (owner, _) = await api.SignUpAsync("Owner shop");
+        var team = await (await owner.PostJsonAsync("/api/v1/teams", new { name = "Shop staff", consent = true })).ReadAsync<TeamDto>();
+        var code = (await (await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/invite", new { })).ReadAsync<TeamDto>()).InviteCode;
+        var (raju, _) = await api.SignUpAsync("Raju shop");
+        var joined = await (await raju.PostJsonAsync("/api/v1/teams/join", new { code, yourName = "Raju", consent = true })).ReadAsync<TeamDto>();
+
+        // Approval above ₹500; Raju may spend ₹1,000 a month.
+        await owner.PutAsJsonAsync($"/api/v1/teams/{team.Id}/rules", new { approvalAbove = 500m });
+        Assert.Equal(HttpStatusCode.Forbidden, (await raju.PutAsJsonAsync($"/api/v1/teams/{team.Id}/rules", new { approvalAbove = 1m })).StatusCode);
+        await owner.PutAsJsonAsync($"/api/v1/teams/{team.Id}/members/{joined.MyMemberId}/limit", new { monthlyLimit = 1000m });
+
+        const string photo = "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==";
+        var small = await (await raju.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 300m, note = "tempo", photoDataUrl = photo })).ReadAsync<TeamLineDto>();
+        Assert.False(small.Pending);
+        Assert.True(small.HasPhoto);
+        var big = await (await raju.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 600m, note = "repair" })).ReadAsync<TeamLineDto>();
+        Assert.True(big.Pending);
+        var pastLimit = await (await raju.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 450m, note = "maal" })).ReadAsync<TeamLineDto>();
+        Assert.True(pastLimit.Pending); // 300 + 600 + 450 > 1,000
+
+        // Waiting lines don't count yet; the owner sees them, approves one and strikes the other.
+        var day = await owner.GetJsonAsync<TeamDayDto>($"/api/v1/teams/{team.Id}/day");
+        Assert.Equal((300m, 1050m), (day.Total, day.PendingTotal));
+        Assert.Equal(2, (await owner.GetJsonAsync<List<TeamLineDto>>($"/api/v1/teams/{team.Id}/pending")).Count);
+        Assert.Equal(HttpStatusCode.Forbidden, (await raju.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses/{big.Id}/approve", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses/{big.Id}/approve", new { })).StatusCode);
+        await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses/{pastLimit.Id}/strike", new { reason = "Over limit, not needed" });
+
+        var month = await raju.GetJsonAsync<TeamMonthDto>($"/api/v1/teams/{team.Id}/month");
+        Assert.Equal(900m, month.Total);
+        var me = (await raju.GetJsonAsync<TeamDto>($"/api/v1/teams/{team.Id}")).Members.Single(m => m.IsMe);
+        Assert.Equal((1000m, 900m), (me.MonthlyLimit, me.SpentThisMonth));
+
+        var image = await raju.GetAsync($"/api/v1/teams/{team.Id}/expenses/{small.Id}/photo");
+        Assert.Equal("image/webp", image.Content.Headers.ContentType?.MediaType);
     }
 }
