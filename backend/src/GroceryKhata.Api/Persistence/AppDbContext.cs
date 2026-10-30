@@ -62,6 +62,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Painter> Painters => Set<Painter>();
 
+    public DbSet<Billing.Plan> Plans => Set<Billing.Plan>();
+
+    public DbSet<Billing.Subscription> Subscriptions => Set<Billing.Subscription>();
+
+    public DbSet<Billing.SubscriptionPayment> SubscriptionPayments => Set<Billing.SubscriptionPayment>();
+
+    public DbSet<Billing.PaymentClaim> PaymentClaims => Set<Billing.PaymentClaim>();
+
+    public DbSet<Billing.Offer> Offers => Set<Billing.Offer>();
+
+    public DbSet<Billing.AgentProposal> AgentProposals => Set<Billing.AgentProposal>();
+
     public DbSet<Dispute> Disputes => Set<Dispute>();
 
     public DbSet<DisputeItem> DisputeItems => Set<DisputeItem>();
@@ -231,6 +243,63 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(p => new { p.ShopId, p.CatalogueItemId });
             b.HasOne<CatalogueItem>().WithMany().HasForeignKey(p => p.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Platform billing: not shop-owned (admins see every shop's); a shop reads only its own, by its id from the token.
+        modelBuilder.Entity<Billing.Plan>(b =>
+        {
+            b.ToTable("plans");
+            b.HasIndex(x => x.Code).IsUnique();
+            b.Property(x => x.Code).HasMaxLength(20);
+            b.Property(x => x.Name).HasMaxLength(40);
+        });
+        modelBuilder.Entity<Billing.Subscription>(b =>
+        {
+            b.ToTable("subscriptions");
+            b.HasIndex(x => x.ShopId).IsUnique();
+            b.Property(x => x.PlanCode).HasMaxLength(20);
+            b.Property(x => x.CompPlanCode).HasMaxLength(20);
+            b.Property(x => x.CompReason).HasMaxLength(200);
+            b.Property(x => x.HoldReason).HasMaxLength(200);
+            b.HasOne<Shop>().WithMany().HasForeignKey(x => x.ShopId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<Billing.SubscriptionPayment>(b =>
+        {
+            b.ToTable("subscription_payments");
+            b.HasIndex(x => new { x.ShopId, x.PaidAt });
+            b.HasIndex(x => x.InvoiceNo).IsUnique();
+            b.Property(x => x.PlanCode).HasMaxLength(20);
+            b.Property(x => x.Reference).HasMaxLength(60);
+            b.Property(x => x.OfferCode).HasMaxLength(20);
+            b.Property(x => x.InvoiceNo).HasMaxLength(30);
+            // Payments are tax records: a shop being deleted must not take them with it.
+        });
+        modelBuilder.Entity<Billing.PaymentClaim>(b =>
+        {
+            b.ToTable("payment_claims");
+            b.HasIndex(x => new { x.Status, x.CreatedAt });
+            b.HasIndex(x => x.UpiRef);
+            b.Property(x => x.UpiRef).HasMaxLength(30);
+            b.Property(x => x.PlanCode).HasMaxLength(20);
+            b.Property(x => x.OfferCode).HasMaxLength(20);
+            b.Property(x => x.Note).HasMaxLength(200);
+            b.Property(x => x.Status).HasDefaultValue(Billing.ClaimStatus.Pending);
+        });
+        modelBuilder.Entity<Billing.Offer>(b =>
+        {
+            b.ToTable("offers");
+            b.HasIndex(x => x.Code).IsUnique();
+            b.Property(x => x.Code).HasMaxLength(20);
+            b.Property(x => x.Title).HasMaxLength(80);
+            b.Property(x => x.PlanCode).HasMaxLength(20);
+        });
+        modelBuilder.Entity<Billing.AgentProposal>(b =>
+        {
+            b.ToTable("agent_proposals");
+            b.HasIndex(x => new { x.Status, x.CreatedAt });
+            b.HasIndex(x => new { x.ShopId, x.Kind, x.CreatedAt });
+            b.Property(x => x.Reason).HasMaxLength(300);
+            b.Property(x => x.Status).HasDefaultValue(Billing.ProposalStatus.Pending);
         });
 
         modelBuilder.Entity<Challan>(b =>

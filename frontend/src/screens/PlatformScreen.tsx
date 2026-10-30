@@ -6,6 +6,7 @@ import { Button } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatDateTime, formatPhone } from '../lib/format'
 import { useSession } from '../lib/data'
+import { AgentPanel, BillingPanel, ShopBillingPanel } from './PlatformBilling'
 import type { AdminRole } from '../lib/types'
 import { navigate } from '../router'
 
@@ -68,7 +69,11 @@ export function PlatformScreen() {
         ))}
       </div>
 
-      {role === 'super' && <div className="px-4 pb-3"><ManageAdmins /></div>}
+      <div className="flex flex-col gap-3 px-4 pb-3">
+        <AgentPanel role={role} />
+        {(role === 'super' || role === 'billing') && <BillingPanel role={role} />}
+        {role === 'super' && <ManageAdmins />}
+      </div>
 
       <div className="flex flex-col gap-3 px-4">
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-white p-1 text-sm font-semibold">
@@ -185,6 +190,8 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
         <Button tone="plain" disabled={busy} onClick={() => void run(`/v1/platform/shops/${id}/note`, { note }, 'PUT', t('platform.noteSaved')).then(() => setNote(null))}>{t('platform.saveNote')}</Button>
       )}
 
+      <ShopBillingPanel shopId={id} role={role} />
+
       {canApprove && <div className="grid grid-cols-2 gap-2">
         {d.shop.isActive && !d.shop.approvedAt && <Button disabled={busy} onClick={() => void run(`/v1/platform/shops/${id}/approve`)}>{t('platform.approve')}</Button>}
         {d.shop.isActive
@@ -197,7 +204,7 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
 
 interface Admin { userId: string; name: string; phone: string; role: AdminRole; addedAt: string; addedBy: string | null }
 
-const ROLES: AdminRole[] = ['super', 'approver', 'support']
+const ROLES: AdminRole[] = ['super', 'approver', 'support', 'billing']
 
 /**
  * Super admins only: who else has admin access, and what they may do. Add a person by their phone number (they need

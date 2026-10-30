@@ -1,3 +1,4 @@
+using GroceryKhata.Api.Billing;
 using System.Globalization;
 using System.Text;
 using GroceryKhata.Api.Common;
@@ -109,11 +110,12 @@ public static class ReportEndpoints
         var group = app.MapGroup("/api/v1").WithTags("Reports");
         group.MapGet("/reports/dues", (AppDbContext db, TimeProvider clock, CancellationToken ct) => DuesAsync(db, clock, ct))
             .RequireAuthorization(AppPolicies.ShopMember);
-        group.MapGet("/reports/month", MonthAsync).RequireAuthorization(AppPolicies.ShopMember);
+        // The month report and downloads are in Basic and Pro; the dues list (collecting money owed) is in every plan.
+        group.MapGet("/reports/month", MonthAsync).RequireAuthorization(AppPolicies.ShopMember).RequireFeature(Billing.Features.Reports);
         group.MapPost("/customers/{id:guid}/reminded", RemindedAsync).RequireAuthorization(AppPolicies.ShopMember);
         // Downloads hold every customer's dues or the month's figures: the owner's data to take away.
         group.MapGet("/reports/dues.csv", DuesCsvAsync).RequireAuthorization(AppPolicies.ShopOwner);
-        group.MapGet("/reports/month.csv", MonthCsvAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapGet("/reports/month.csv", MonthCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         return app;
     }
 

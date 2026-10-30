@@ -52,6 +52,16 @@ public sealed class AuthService(
         db.Shops.Add(shop);
         var membership = new Membership { UserId = user.Id, ShopId = shop.Id, Role = ShopRole.Owner };
         db.Memberships.Add(membership);
+        // Brought by another shop: both get a free month when this shop first pays.
+        if (!string.IsNullOrWhiteSpace(request.ReferralCode))
+        {
+            var code = request.ReferralCode.Trim().ToLowerInvariant();
+            var referrer = await db.Shops.AsNoTracking().Where(s => s.Slug == code && s.IsActive).Select(s => (Guid?)s.Id).SingleOrDefaultAsync(cancellationToken);
+            if (referrer is not null)
+            {
+                db.Subscriptions.Add(new Billing.Subscription { ShopId = shop.Id, TrialEndsAt = clock.GetUtcNow().AddDays(30), ReferredByShopId = referrer });
+            }
+        }
         logger.LogInformation("User {UserId} opened shop {ShopId}", user.Id, shop.Id);
 
         return AuthResult<AuthResponse>.Ok(await IssueAsync(user, membership, cancellationToken));

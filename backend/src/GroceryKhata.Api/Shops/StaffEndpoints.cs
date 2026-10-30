@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using GroceryKhata.Api.Billing;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
@@ -25,10 +26,23 @@ public static class StaffEndpoints
     {
         var group = app.MapGroup("/api/v1/shop/staff").WithTags("Staff").RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("", ListAsync);
-        group.MapPost("", AddAsync);
+        group.MapPost("", AddAsync).RequireFeature(Billing.Features.Staff).AddEndpointFilter(StaffLimitAsync);
         group.MapPost("/{membershipId:guid}/pin", SetPinAsync);
         group.MapPost("/{membershipId:guid}/active", SetActiveAsync);
         return app;
+    }
+
+    /// <summary>The plan's limit on helpers (Pro: 5). Turned-off helpers don't count.</summary>
+    private static async ValueTask<object?> StaffLimitAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        var services = context.HttpContext.RequestServices;
+        var tenant = services.GetRequiredService<ITenantContext>();
+        var entitlement = await services.GetRequiredService<Billing.Entitlements>().ForShopAsync(tenant.ShopId, context.HttpContext.RequestAborted);
+        var helpers = await services.GetRequiredService<AppDbContext>().Memberships
+            .CountAsync(m => m.ShopId == tenant.ShopId && m.Role == ShopRole.Staff && m.IsActive, context.HttpContext.RequestAborted);
+        return helpers >= entitlement.MaxStaff
+            ? TypedResults.Problem(statusCode: StatusCodes.Status402PaymentRequired, title: $"The {entitlement.PlanName} plan has room for {entitlement.MaxStaff} helpers.")
+            : await next(context);
     }
 
     private static async Task<IReadOnlyList<StaffDto>> ListAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct) =>

@@ -38,6 +38,7 @@ const StaffScreen = lazy(() => import('./screens/StaffScreen').then((module) => 
 const ExpensesScreen = lazy(() => import('./screens/ExpensesScreen').then((module) => ({ default: module.ExpensesScreen })))
 const RatesScreen = lazy(() => import('./screens/RatesScreen').then((module) => ({ default: module.RatesScreen })))
 const PaintersScreen = lazy(() => import('./screens/PaintersScreen').then((module) => ({ default: module.PaintersScreen })))
+const MyPlanScreen = lazy(() => import('./screens/MyPlanScreen').then((module) => ({ default: module.MyPlanScreen })))
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen').then((module) => ({ default: module.SettingsScreen })))
 const MyStoreScreen = lazy(() => import('./screens/MyStoreScreen').then((module) => ({ default: module.MyStoreScreen })))
 const StoreApp = lazy(() => import('./screens/store/StoreApp').then((module) => ({ default: module.StoreApp })))
@@ -180,6 +181,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           unsynced={unsynced}
           onSignOut={signOut}
           actions={[
+            ...(isOwner ? [{ label: t('plan2.myPlan'), onClick: () => navigate('/plan') }] : []),
             { label: t('plan.householdLists'), onClick: onHousehold },
             { label: t('account.syncStatus'), onClick: () => navigate('/sync') },
           ]}
@@ -204,6 +206,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <CashBookScreen shopId={shopId} />
         ) : path === '/expenses' ? (
           <ExpensesScreen shopId={shopId} />
+        ) : path === '/plan' ? (
+          <MyPlanScreen shopId={shopId} />
         ) : path === '/rates' ? (
           <RatesScreen shopId={shopId} />
         ) : path === '/painters' ? (

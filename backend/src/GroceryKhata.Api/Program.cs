@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using GroceryKhata.Api.Billing;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
@@ -24,6 +25,7 @@ builder.Services.AddOrderReading(builder.Configuration);
 builder.Services.AddAiPrivacy(builder.Configuration);
 builder.Services.AddWhatsAppOrders(builder.Configuration);
 builder.Services.AddBalanceChecks();
+builder.Services.AddBilling();
 builder.Services.AddBillPhotoReading(builder.Configuration);
 builder.Services.AddOtpSignIn(builder.Configuration, builder.Environment);
 
@@ -73,6 +75,8 @@ app.MapExpenses();
 app.MapBillPhotos();
 app.MapCashCounts();
 app.MapTrades();
+app.MapBilling();
+app.MapAgent();
 app.MapPlatform();
 app.MapOtpSignIn();
 app.MapKhataView();

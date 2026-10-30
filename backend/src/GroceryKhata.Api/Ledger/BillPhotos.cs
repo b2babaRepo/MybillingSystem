@@ -1,3 +1,4 @@
+using GroceryKhata.Api.Billing;
 using System.Security.Claims;
 using System.Text.Json;
 using Anthropic;
@@ -138,7 +139,8 @@ public static class BillPhotos
     {
         // A photo up to 1.5 MB arrives as base64, about a third larger.
         app.MapPost("/api/v1/expenses/photo", ReadAsync).WithTags("Expenses").RequireAuthorization(Identity.AppPolicies.ShopMember)
-            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(2_200_000));
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(2_200_000))
+            .RequireFeature(Billing.Features.BillPhoto);
         return app;
     }
 

@@ -30,6 +30,9 @@ public enum AdminRole
 
     /// <summary>Help shops: support notes and unlocking people locked out by wrong passwords.</summary>
     Support,
+
+    /// <summary>Plans, payments, offers and refunds; no approving or blocking shops.</summary>
+    Billing,
 }
 
 /// <summary>

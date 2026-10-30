@@ -5,6 +5,7 @@ import { BillIcon, CustomersIcon, PaymentIcon, PlusIcon } from '../components/Ic
 import { api, request } from '../lib/api'
 import { useProducts, useToday } from '../lib/data'
 import { formatRupees } from '../lib/format'
+import { useSubscription } from '../lib/billing'
 import { useShopSettings } from '../lib/reports'
 import { navigate } from '../router'
 
@@ -42,6 +43,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         <Action label={t('customers')} to="/khata" icon={<CustomersIcon size={28} className="text-blue-700" />} />
       </section>
 
+      {isOwner && <PlanBanner shopId={shopId} />}
       {isOwner && <BalanceAlert />}
 
       <div className="mx-4 mt-4 grid grid-cols-2 gap-3">
@@ -184,5 +186,24 @@ function BalanceAlert() {
         {t('balanceCheck.again')}
       </button>
     </div>
+  )
+}
+
+/**
+ * The plan in a line, only when it matters: the trial's last week, payment due (grace), on hold, or on Free.
+ * Taps through to My plan.
+ */
+function PlanBanner({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const s = useSubscription(shopId).data
+  if (!s) return null
+  const show = (s.status === 'trial' && (s.daysLeft ?? 99) <= 7) || s.status === 'grace' || s.status === 'on_hold' || s.status === 'free'
+  if (!show) return null
+  const tone = s.status === 'trial' ? 'bg-teal-50 text-teal-900' : 'bg-amber-50 text-amber-900'
+  return (
+    <button onClick={() => navigate('/plan')} className={`mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] px-4 text-left font-semibold ${tone}`}>
+      <span>{t(`plan2.banner.${s.status}`, { count: s.daysLeft ?? 0, reason: s.holdReason ?? '' })}</span>
+      <span aria-hidden="true">→</span>
+    </button>
   )
 }

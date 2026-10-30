@@ -42,6 +42,9 @@ public static class AppPolicies
 
     /// <summary>Super admins: everything, including managing admins.</summary>
     public const string PlatformSuper = nameof(PlatformSuper);
+
+    /// <summary>Platform admins who handle money: plans' payments, offers, refunds (billing or super).</summary>
+    public const string PlatformBilling = nameof(PlatformBilling);
 }
 
 /// <summary>Roles as they appear in tokens: ShopRole.Owner ↔ "owner".</summary>

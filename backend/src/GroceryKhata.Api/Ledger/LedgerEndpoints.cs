@@ -13,7 +13,8 @@ public static class LedgerEndpoints
         group.MapGet("/customers", (string? search, LedgerService ledger, CancellationToken ct) => ledger.ListCustomersAsync(search, ct));
 
         group.MapPost("/customers", async (CustomerRequest request, LedgerService ledger, CancellationToken ct) =>
-            (await ledger.CreateCustomerAsync(request, ct)).ToHttp($"/api/v1/customers/{request.Id}/statement"));
+            (await ledger.CreateCustomerAsync(request, ct)).ToHttp($"/api/v1/customers/{request.Id}/statement"))
+            .AddEndpointFilter(Billing.PlanGate.CustomerLimitAsync);
 
         group.MapGet("/customers/{id:guid}/statement", async (Guid id, string? month, LedgerService ledger, CancellationToken ct) =>
         {

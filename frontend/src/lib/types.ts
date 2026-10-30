@@ -2,7 +2,7 @@
 
 export type ShopRole = 'owner' | 'staff'
 /** A platform admin's role: super (everything), approver (approve and block shops), support (notes, unlocking). */
-export type AdminRole = 'super' | 'approver' | 'support'
+export type AdminRole = 'super' | 'approver' | 'support' | 'billing'
 
 export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre'
 export type PaymentMode = 'cash' | 'upi'

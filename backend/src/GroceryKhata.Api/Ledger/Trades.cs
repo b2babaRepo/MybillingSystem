@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using GroceryKhata.Api.Billing;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
@@ -77,14 +78,15 @@ public static class TradeEndpoints
     public static IEndpointRouteBuilder MapTrades(this IEndpointRouteBuilder app)
     {
         var shop = app.MapGroup("/api/v1").WithTags("Trades").RequireAuthorization(AppPolicies.ShopMember);
-        shop.MapGet("/challans", ListChallansAsync);
-        shop.MapPost("/challans", AddChallanAsync);
-        shop.MapPost("/challans/invoice", InvoiceAsync);
+        // Challans, sites and painters are trade features (Pro); the plan check runs on every call.
+        shop.MapGet("/challans", ListChallansAsync).RequireFeature(Billing.Features.Trade);
+        shop.MapPost("/challans", AddChallanAsync).RequireFeature(Billing.Features.Trade);
+        shop.MapPost("/challans/invoice", InvoiceAsync).RequireFeature(Billing.Features.Trade);
         shop.MapGet("/customers/{id:guid}/sites", SitesAsync);
         shop.MapPut("/customers/{id:guid}/credit-limit", SetLimitAsync).RequireAuthorization(AppPolicies.ShopOwner);
         shop.MapGet("/painters", (AppDbContext db, CancellationToken ct) =>
             db.Painters.AsNoTracking().OrderBy(p => p.Name).Select(p => new PainterDto(p.Id, p.Name, p.Phone, p.CommissionPercent)).ToListAsync(ct));
-        shop.MapPost("/painters", AddPainterAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapPost("/painters", AddPainterAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Trade);
         shop.MapGet("/painters/commission", CommissionAsync).RequireAuthorization(AppPolicies.ShopOwner);
         return app;
     }
