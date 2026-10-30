@@ -385,7 +385,7 @@ public sealed class AuthService(
     }
 
     /// <summary>"Sharma General Store" → "sharma-general-store-k3f9". The suffix keeps names unique without a lookup.</summary>
-    private static string NewSlug(string name)
+    internal static string NewSlug(string name)
     {
         var builder = new StringBuilder();
         foreach (var c in name.Trim().ToLowerInvariant())

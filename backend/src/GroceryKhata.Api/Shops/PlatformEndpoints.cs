@@ -4,6 +4,7 @@ using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
 using GroceryKhata.Api.Persistence;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Shops;
@@ -84,6 +85,11 @@ public sealed record BlockRequest(string? Reason);
 
 public sealed record NoteRequest(string? Note);
 
+public sealed record CreateShopRequest(string? ShopName, string? OwnerName, string? Phone, string? Area, ShopType? Type, string? Language);
+
+/// <summary>The new shop. A new owner account gets a one-time password to pass on; an existing one keeps theirs.</summary>
+public sealed record CreatedShop(Guid ShopId, string Slug, bool NewAccount, string? TempPassword);
+
 /// <summary>
 /// The super-admin's view of every shop: an overview, a searchable list, one shop's people and activity, approve,
 /// block or unblock (blocking signs everyone in that shop out on their next tap), a private support note, and
@@ -100,6 +106,7 @@ public static class PlatformEndpoints
         group.MapGet("/overview", OverviewAsync);
         group.MapGet("/shops", ListAsync);
         group.MapGet("/shops/{id:guid}", GetAsync);
+        group.MapPost("/shops", CreateShopAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
         group.MapPost("/shops/{id:guid}/approve", ApproveAsync).RequireAuthorization(AppPolicies.PlatformApprover);
         group.MapPost("/shops/{id:guid}/block", BlockAsync).RequireAuthorization(AppPolicies.PlatformApprover);
         group.MapPost("/shops/{id:guid}/unblock", UnblockAsync).RequireAuthorization(AppPolicies.PlatformApprover);
@@ -110,6 +117,53 @@ public static class PlatformEndpoints
         group.MapPut("/admins/{userId:guid}", ChangeAdminAsync).RequireAuthorization(AppPolicies.PlatformSuper);
         group.MapDelete("/admins/{userId:guid}", RemoveAdminAsync).RequireAuthorization(AppPolicies.PlatformSuper);
         return app;
+    }
+
+    /// <summary>
+    /// Opens a shop for a shopkeeper who can't sign up alone (on a visit or a call). It starts approved, on the usual
+    /// trial. A number with no account gets one with a one-time password, shown once, which the owner changes later.
+    /// </summary>
+    private static async Task<IResult> CreateShopAsync(
+        CreateShopRequest request, AppDbContext db, IPasswordHasher<User> hasher, TimeProvider clock, ClaimsPrincipal admin,
+        ILogger<PlatformAdmin> logger, CancellationToken ct)
+    {
+        var phone = PhoneNumber.Normalize(request.Phone);
+        var shopName = request.ShopName?.Trim();
+        var ownerName = request.OwnerName?.Trim();
+        var errors = new Dictionary<string, string[]>();
+        if (shopName is not { Length: >= 2 and <= 120 }) errors["ShopName"] = ["Enter the shop's name."];
+        if (phone is null) errors["Phone"] = ["Enter the owner's mobile number."];
+        if (request.Language is not (null or "en" or "hi")) errors["Language"] = ["Language must be en or hi."];
+        var user = phone is null ? null : await db.Users.SingleOrDefaultAsync(u => u.Phone == phone, ct);
+        if (user is null && ownerName is not { Length: >= 2 and <= 120 }) errors["OwnerName"] = ["Enter the owner's name."];
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        string? tempPassword = null;
+        if (user is null)
+        {
+            tempPassword = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(5)).ToLowerInvariant();
+            user = new User { Phone = phone!, FullName = ownerName!, PreferredLanguage = request.Language ?? "hi" };
+            user.PasswordHash = hasher.HashPassword(user, tempPassword);
+            db.Users.Add(user);
+        }
+
+        var area = request.Area?.Trim();
+        var shop = new Shop
+        {
+            Name = shopName!,
+            Slug = AuthService.NewSlug(shopName!),
+            Area = string.IsNullOrEmpty(area) ? null : area[..Math.Min(area.Length, 120)],
+            Type = request.Type ?? ShopType.Kirana,
+            ApprovedAt = clock.GetUtcNow(),
+        };
+        db.Shops.Add(shop);
+        db.Memberships.Add(new Membership { UserId = user.Id, ShopId = shop.Id, Role = ShopRole.Owner });
+        await db.SaveChangesAsync(ct);
+        logger.LogWarning("Admin {AdminId} opened shop {ShopId} for user {UserId}", admin.UserId(), shop.Id, user.Id);
+        return TypedResults.Ok(new CreatedShop(shop.Id, shop.Slug, tempPassword is not null, tempPassword));
     }
 
     private static async Task<IReadOnlyList<AdminDto>> ListAdminsAsync(AppDbContext db, CancellationToken ct) =>

@@ -140,6 +140,31 @@ public sealed class BillingTests(ApiFactory api)
         await upsert.ExecuteNonQueryAsync();
     }
 
+    [Fact]
+    public async Task A_billing_admin_opens_a_shop_for_a_shopkeeper_who_then_signs_in_with_the_one_time_password()
+    {
+        var support = await AdminAsync("Support");
+        var phone = ApiFactory.NewPhone();
+        var body = new { shopName = "Gupta Kirana", ownerName = "Ramesh Gupta", phone, area = "Lalpur", type = "Kirana", language = "hi" };
+        Assert.Equal(HttpStatusCode.Forbidden, (await support.PostJsonAsync("/api/v1/platform/shops", body)).StatusCode);
+
+        var approver = await AdminAsync("Billing");
+        var created = await (await approver.PostJsonAsync("/api/v1/platform/shops", body)).ReadAsync<GroceryKhata.Api.Shops.CreatedShop>();
+        Assert.True(created.NewAccount);
+        Assert.NotNull(created.TempPassword);
+
+        var signedIn = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-in", new { phone, password = created.TempPassword })).ReadAsync<AuthResponse>();
+        Assert.Equal(created.ShopId, signedIn.ShopId);
+        var owner = api.CreateClient();
+        owner.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", signedIn.AccessToken);
+        Assert.Equal(SubscriptionStatus.Trial, (await owner.GetJsonAsync<SubscriptionView>("/api/v1/subscription")).Status);
+
+        // The same number again: a second shop for the same owner, no new password.
+        var second = await (await approver.PostJsonAsync("/api/v1/platform/shops", body)).ReadAsync<GroceryKhata.Api.Shops.CreatedShop>();
+        Assert.False(second.NewAccount);
+        Assert.Null(second.TempPassword);
+    }
+
     /// <summary>A new account given a platform-admin role directly in the database, then signed in.</summary>
     private async Task<HttpClient> AdminAsync(string role)
     {

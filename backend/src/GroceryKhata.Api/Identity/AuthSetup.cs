@@ -72,6 +72,9 @@ public static class AuthSetup
             .AddPolicy(AppPolicies.PlatformBilling, policy => policy
                 .RequireAuthenticatedUser()
                 .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.Billing)))
+            .AddPolicy(AppPolicies.PlatformOpenShop, policy => policy
+                .RequireAuthenticatedUser()
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.Approver, Shops.AdminRole.Billing)))
             .AddPolicy(AppPolicies.PlatformSuper, policy => policy
                 .RequireAuthenticatedUser()
                 .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super)));

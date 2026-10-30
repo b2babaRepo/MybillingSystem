@@ -45,6 +45,9 @@ public static class AppPolicies
 
     /// <summary>Platform admins who handle money: plans' payments, offers, refunds (billing or super).</summary>
     public const string PlatformBilling = nameof(PlatformBilling);
+
+    /// <summary>Opening a shop for a shopkeeper: super, approver or billing (plans and payments) admins.</summary>
+    public const string PlatformOpenShop = nameof(PlatformOpenShop);
 }
 
 /// <summary>Roles as they appear in tokens: ShopRole.Owner ↔ "owner".</summary>

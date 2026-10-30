@@ -70,6 +70,7 @@ export function PlatformScreen() {
       </div>
 
       <div className="flex flex-col gap-3 px-4 pb-3">
+        {role !== 'support' && <NewShop />}
         <AgentPanel role={role} />
         {(role === 'super' || role === 'billing') && <BillingPanel role={role} />}
         {role === 'super' && <ManageAdmins />}
@@ -211,6 +212,83 @@ const ROLES: AdminRole[] = ['super', 'approver', 'support', 'billing']
  * an account, and on the live server must have signed in once with an SMS code), change their role, or remove them;
  * every change works on their next tap and is logged. There is always at least one super admin.
  */
+const SHOP_TYPES = ['kirana', 'building_materials', 'paint', 'hardware', 'other'] as const
+
+/**
+ * Opens a shop for a shopkeeper who can't sign up alone (on a visit or a call). It starts approved on the free trial.
+ * A new number gets a one-time password, shown once here, to read out to the owner.
+ */
+function NewShop() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const empty = { shopName: '', ownerName: '', phone: '', area: '', type: 'kirana', language: 'hi' }
+  const [form, setForm] = useState(empty)
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [created, setCreated] = useState<{ name: string; phone: string; password: string | null } | null>(null)
+  const set = (key: keyof typeof empty) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
+
+  async function create() {
+    setBusy(true)
+    setMessage(null)
+    setCreated(null)
+    try {
+      const result = await api<{ shopId: string; newAccount: boolean; tempPassword: string | null }>('/v1/platform/shops', 'POST', {
+        ...form, shopName: form.shopName.trim(), ownerName: form.ownerName.trim(), phone: form.phone.trim(), area: form.area.trim() || null,
+      })
+      setCreated({ name: form.shopName.trim(), phone: form.phone.trim(), password: result.tempPassword })
+      setForm(empty)
+      await queryClient.invalidateQueries({ queryKey: ['platform'] })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const input = 'h-12 rounded-xl border border-line bg-white px-3'
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
+        <h2 className="text-lg font-bold">{t('openShop.title')}</h2>
+        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+      </button>
+      {open && <>
+        <p className="text-sm text-muted">{t('openShop.hint')}</p>
+        <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('openShop.shopName')}</span>
+          <input value={form.shopName} onChange={set('shopName')} className={input} /></label>
+        <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('openShop.ownerName')}</span>
+          <input value={form.ownerName} onChange={set('ownerName')} className={input} /></label>
+        <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('openShop.phone')}</span>
+          <input value={form.phone} onChange={set('phone')} inputMode="tel" className={input} /></label>
+        <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('openShop.area')}</span>
+          <input value={form.area} onChange={set('area')} className={input} /></label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('shopType.label')}</span>
+            <select value={form.type} onChange={set('type')} className={input}>
+              {SHOP_TYPES.map((x) => <option key={x} value={x}>{t(`shopType.${x}`)}</option>)}
+            </select></label>
+          <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('openShop.language')}</span>
+            <select value={form.language} onChange={set('language')} className={input}>
+              <option value="hi">हिंदी</option><option value="en">English</option>
+            </select></label>
+        </div>
+        <Button disabled={busy || form.shopName.trim().length < 2 || form.phone.trim().length < 10} onClick={() => void create()}>{t('openShop.create')}</Button>
+        {created && (
+          <div className="flex flex-col gap-1 rounded-xl bg-teal-50 p-3 text-sm text-teal-900">
+            <span className="font-semibold">{t('openShop.done', { name: created.name })}</span>
+            {created.password
+              ? <span>{t('openShop.login', { phone: created.phone })} <span className="font-mono text-base font-bold">{created.password}</span><br />{t('openShop.once')}</span>
+              : <span>{t('openShop.existing')}</span>}
+          </div>
+        )}
+        {message && <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{message}</p>}
+      </>}
+    </section>
+  )
+}
+
 function ManageAdmins() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
