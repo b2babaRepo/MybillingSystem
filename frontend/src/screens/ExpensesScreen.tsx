@@ -9,6 +9,7 @@ import { shrinkPhoto } from '../lib/images'
 import { listOps, subscribeOutbox } from '../lib/outbox'
 import type { PaymentMode } from '../lib/types'
 import { KharchaMonth } from './KharchaMonth'
+import { navigate } from '../router'
 
 export type ExpenseCategory = 'tea' | 'transport' | 'rent' | 'electricity' | 'salary' | 'purchase' | 'packaging' | 'repair' | 'home' | 'other'
 
@@ -213,6 +214,10 @@ export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: st
   })
 
   const viewSwitch = (
+    <>
+    <button onClick={() => navigate('/team')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-teal-50 px-4 text-left font-semibold text-teal-900">
+      <span>👥 {t('teamLink')}</span><span aria-hidden="true">→</span>
+    </button>
     <div role="tablist" className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 font-semibold">
       {(['day', 'month'] as const).map((v) => (
         <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`min-h-11 rounded-xl ${view === v ? 'bg-teal-700 text-white' : ''}`}>
@@ -220,6 +225,7 @@ export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: st
         </button>
       ))}
     </div>
+    </>
   )
   if (view === 'month') {
     return <div className="flex flex-col gap-3 p-4">{viewSwitch}<KharchaMonth shopId={shopId} shopName={shopName} /></div>

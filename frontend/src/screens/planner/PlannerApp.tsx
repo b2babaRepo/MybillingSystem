@@ -73,6 +73,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
           onSignOut={signOut}
           actions={[
             { label: t('account.myKhata'), onClick: () => navigate('/khata') },
+            { label: t('teamLink'), onClick: () => navigate('/team') },
             ...(onSwitchToShop ? [{ label: t('plan.iAmShop'), onClick: onSwitchToShop }] : []),
           ]}
         />

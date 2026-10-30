@@ -46,6 +46,7 @@ const KhataLinkPage = lazy(() => import('./screens/khata/KhataViews').then((modu
 const AgentScreen = lazy(() => import('./screens/AgentScreen').then((module) => ({ default: module.AgentScreen })))
 const PlanBillPage = lazy(() => import('./screens/PlanBillPage').then((module) => ({ default: module.PlanBillPage })))
 const KharchaPrint = lazy(() => import('./screens/KharchaMonth').then((module) => ({ default: module.KharchaPrint })))
+const TeamScreen = lazy(() => import('./screens/TeamScreen').then((module) => ({ default: module.TeamScreen })))
 const PlatformScreen = lazy(() => import('./screens/PlatformScreen').then((module) => ({ default: module.PlatformScreen })))
 const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
 
@@ -79,6 +80,14 @@ export default function App() {
     )
   }
   if (!session) return <Suspense fallback={<Loading />}><AuthScreen /></Suspense>
+  // Team kharcha: any account (shop or household), any plan.
+  if (path === '/team' || path.startsWith('/team/')) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <TeamScreen path={path} userName={session.user.fullName} />
+      </Suspense>
+    )
+  }
   // Applying to be a field agent, and the agent's code once approved: any account.
   if (path === '/agent') {
     return (
@@ -209,6 +218,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           onSignOut={signOut}
           actions={[
             ...(isOwner ? [{ label: t('plan2.myPlan'), onClick: () => navigate('/plan') }] : []),
+            { label: t('teamLink'), onClick: () => navigate('/team') },
             { label: t('plan.householdLists'), onClick: onHousehold },
             { label: t('account.syncStatus'), onClick: () => navigate('/sync') },
           ]}

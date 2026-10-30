@@ -56,6 +56,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Agents.AgentPayout> AgentPayouts => Set<Agents.AgentPayout>();
 
+    public DbSet<Teams.Team> Teams => Set<Teams.Team>();
+
+    public DbSet<Teams.TeamMember> TeamMembers => Set<Teams.TeamMember>();
+
+    public DbSet<Teams.TeamExpense> TeamExpenses => Set<Teams.TeamExpense>();
+
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
@@ -460,6 +466,35 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("registration_photos");
             b.Property(x => x.Kind).HasMaxLength(10);
             b.Property(x => x.ContentType).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<Teams.Team>(b =>
+        {
+            b.ToTable("teams");
+            b.Property(x => x.Name).HasMaxLength(60);
+            b.Property(x => x.InviteCode).HasMaxLength(8);
+            b.HasIndex(x => x.InviteCode).IsUnique();
+        });
+
+        modelBuilder.Entity<Teams.TeamMember>(b =>
+        {
+            b.ToTable("team_members");
+            b.Property(x => x.DisplayName).HasMaxLength(40);
+            b.Property(x => x.ConsentVersion).HasMaxLength(30);
+            b.HasIndex(x => new { x.TeamId, x.UserId });
+            b.HasIndex(x => x.UserId);
+            b.HasOne<Teams.Team>().WithMany().HasForeignKey(x => x.TeamId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Teams.TeamExpense>(b =>
+        {
+            b.ToTable("team_expenses");
+            b.Property(x => x.Amount).HasPrecision(12, 2);
+            b.Property(x => x.Note).HasMaxLength(120);
+            b.Property(x => x.StruckReason).HasMaxLength(120);
+            b.HasIndex(x => new { x.TeamId, x.OccurredAt });
+            b.HasOne<Teams.Team>().WithMany().HasForeignKey(x => x.TeamId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Teams.TeamMember>().WithMany().HasForeignKey(x => x.MemberId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Agents.AgentPayout>(b =>

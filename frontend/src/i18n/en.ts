@@ -658,6 +658,7 @@ export const en = {
     homeThisMonth: 'This month {{amount}}',
     lastMonthReady: '{{month}} kharcha: {{amount}}. See the month →',
   },
+  teamLink: 'Team kharcha',
   book: {
     title: 'Cash book',
     todayLink: 'Today’s cash book',

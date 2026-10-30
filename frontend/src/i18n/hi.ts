@@ -660,6 +660,7 @@ export const hi: Texts = {
     homeThisMonth: 'इस महीने {{amount}}',
     lastMonthReady: '{{month}} का खर्चा: {{amount}}। महीना देखें →',
   },
+  teamLink: 'टीम खर्चा',
   book: {
     title: 'रोकड़ बही',
     todayLink: 'आज की रोकड़ बही',

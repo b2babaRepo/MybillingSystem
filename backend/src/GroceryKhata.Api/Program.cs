@@ -1,3 +1,4 @@
+using GroceryKhata.Api.Teams;
 using GroceryKhata.Api.Agents;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -85,6 +86,7 @@ app.MapFieldAgents();
 app.MapShopRegistrations();
 app.MapAgentPerformance();
 app.MapInvoices();
+app.MapTeamKharcha();
 app.MapOtpSignIn();
 app.MapKhataView();
 app.MapDisputes();

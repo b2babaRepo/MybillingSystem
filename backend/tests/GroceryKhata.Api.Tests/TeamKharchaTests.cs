@@ -1,0 +1,92 @@
+using System.Net;
+using GroceryKhata.Api.Teams;
+
+namespace GroceryKhata.Api.Tests;
+
+/// <summary>Team kharcha: a shared book several app users write into, adding up by name, day and month.</summary>
+[Collection(ApiCollection.Name)]
+public sealed class TeamKharchaTests(ApiFactory api)
+{
+    [Fact]
+    public async Task People_join_with_a_code_write_their_own_lines_and_see_the_book_by_name()
+    {
+        var (ravi, _) = await api.SignUpAsync("Ravi's shop");
+        Assert.Equal(HttpStatusCode.BadRequest, (await ravi.PostJsonAsync("/api/v1/teams", new { name = "Mishra family", consent = false })).StatusCode);
+        var team = await (await ravi.PostJsonAsync("/api/v1/teams", new { name = "Mishra family", yourName = "Ravi", consent = true })).ReadAsync<TeamDto>();
+        Assert.Equal(TeamRole.Owner, team.MyRole);
+
+        team = await (await ravi.PostJsonAsync($"/api/v1/teams/{team.Id}/invite", new { })).ReadAsync<TeamDto>();
+        Assert.Matches("^[A-Z2-9]{8}$", team.InviteCode);
+
+        // Sunita (a household account) sees the team before joining, and must agree to sharing.
+        var (sunita, _) = await api.SignUpAsync("Sunita's shop");
+        var preview = await sunita.GetJsonAsync<TeamPreview>($"/api/v1/teams/preview?code={team.InviteCode!.ToLowerInvariant()}");
+        Assert.Equal(("Mishra family", 1), (preview.Name, preview.Members));
+        Assert.Equal(HttpStatusCode.BadRequest, (await sunita.PostJsonAsync("/api/v1/teams/join", new { code = team.InviteCode, consent = false })).StatusCode);
+        var joined = await (await sunita.PostJsonAsync("/api/v1/teams/join", new { code = team.InviteCode, yourName = "Sunita", consent = true })).ReadAsync<TeamDto>();
+        Assert.Equal((TeamRole.Member, 2), (joined.MyRole, joined.Members.Count));
+
+        // The owner adds Dadi, who has no phone, and writes for her.
+        team = await (await ravi.PostJsonAsync($"/api/v1/teams/{team.Id}/members", new { name = "Dadi" })).ReadAsync<TeamDto>();
+        var dadi = team.Members.Single(m => m.Name == "Dadi");
+        Assert.False(dadi.HasLogin);
+
+        Assert.Equal(HttpStatusCode.Created, (await ravi.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 500m, note = "bijli", mode = "upi" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await ravi.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 200m, note = "dawai", memberId = dadi.Id })).StatusCode);
+        var sabzi = Guid.CreateVersion7();
+        Assert.Equal(HttpStatusCode.Created, (await sunita.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = sabzi, amount = 300m, note = "sabzi" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sunita.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = sabzi, amount = 300m, note = "sabzi" })).StatusCode); // sent twice: once
+
+        // A member writes only for themself.
+        Assert.Equal(HttpStatusCode.BadRequest, (await sunita.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 50m, memberId = dadi.Id })).StatusCode);
+
+        var day = await sunita.GetJsonAsync<TeamDayDto>($"/api/v1/teams/{team.Id}/day");
+        Assert.Equal(1000m, day.Total);
+        Assert.Equal(["Ravi 500", "Sunita 300", "Dadi 200"], day.ByName.Select(n => $"{n.Name} {n.Total:0}"));
+
+        // A strike takes the line out of the totals; a member can't strike someone else's line.
+        var bijli = day.Lines.Single(l => l.Note == "bijli");
+        Assert.False(bijli.CanStrike);
+        Assert.Equal(HttpStatusCode.Forbidden, (await sunita.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses/{bijli.Id}/strike", new { reason = "x" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await sunita.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses/{sabzi}/strike", new { reason = "double" })).StatusCode);
+
+        var month = await ravi.GetJsonAsync<TeamMonthDto>($"/api/v1/teams/{team.Id}/month");
+        Assert.Equal((700m, 2), (month.Total, month.Count));
+        Assert.Equal(["Ravi 500", "Dadi 200"], month.ByName.Select(n => $"{n.Name} {n.Total:0}"));
+
+        // Someone outside the team sees nothing.
+        var (stranger, _) = await api.SignUpAsync("Stranger shop");
+        Assert.Equal(HttpStatusCode.NotFound, (await stranger.GetAsync($"/api/v1/teams/{team.Id}/month")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Leaving_stops_sharing_and_can_delete_your_lines_and_a_free_team_has_four_people()
+    {
+        var (owner, _) = await api.SignUpAsync("Owner shop");
+        var team = await (await owner.PostJsonAsync("/api/v1/teams", new { name = "Trip to Puri", consent = true })).ReadAsync<TeamDto>();
+        var code = (await (await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/invite", new { })).ReadAsync<TeamDto>()).InviteCode;
+
+        var (a, _) = await api.SignUpAsync("A shop");
+        var (b, _) = await api.SignUpAsync("B shop");
+        await a.PostJsonAsync("/api/v1/teams/join", new { code, yourName = "Amit", consent = true });
+        await b.PostJsonAsync("/api/v1/teams/join", new { code, yourName = "Bina", consent = true });
+        await a.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 400m, note = "train" });
+        await b.PostJsonAsync($"/api/v1/teams/{team.Id}/expenses", new { id = Guid.CreateVersion7(), amount = 250m, note = "khana" });
+
+        // Amit leaves keeping his lines (they become "Former member"); Bina leaves and deletes hers.
+        Assert.Equal(HttpStatusCode.NoContent, (await a.PostJsonAsync($"/api/v1/teams/{team.Id}/leave", new { deleteMyLines = false })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await b.PostJsonAsync($"/api/v1/teams/{team.Id}/leave", new { deleteMyLines = true })).StatusCode);
+        var month = await owner.GetJsonAsync<TeamMonthDto>($"/api/v1/teams/{team.Id}/month");
+        Assert.Equal(["Former member 400"], month.ByName.Select(n => $"{n.Name} {n.Total:0}"));
+        Assert.Equal(HttpStatusCode.NotFound, (await a.GetAsync($"/api/v1/teams/{team.Id}/month")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/leave", new { deleteMyLines = false })).StatusCode);
+
+        // Four people at most on a free team (named members count).
+        foreach (var name in new[] { "Chhotu", "Dev", "Esha" })
+        {
+            await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/members", new { name });
+        }
+
+        Assert.Equal(HttpStatusCode.PaymentRequired, (await owner.PostJsonAsync($"/api/v1/teams/{team.Id}/members", new { name = "Farah" })).StatusCode);
+    }
+}
