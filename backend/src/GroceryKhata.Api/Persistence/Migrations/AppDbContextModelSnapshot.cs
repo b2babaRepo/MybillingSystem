@@ -2035,13 +2035,28 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("address");
+
                     b.Property<DateTimeOffset?>("AiConsentAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ai_consent_at");
 
+                    b.Property<string>("City")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("city");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("email");
 
                     b.Property<int>("FailedSignInCount")
                         .HasColumnType("integer")
@@ -2075,6 +2090,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateTimeOffset?>("PhoneVerifiedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("phone_verified_at");
+
+                    b.Property<string>("Pincode")
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("pincode");
 
                     b.Property<string>("PreferredLanguage")
                         .IsRequired()

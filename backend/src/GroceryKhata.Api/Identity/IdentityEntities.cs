@@ -12,6 +12,18 @@ public sealed class User : Entity
 
     public required string FullName { get; set; }
 
+    [System.ComponentModel.DataAnnotations.MaxLength(160)]
+    public string? Email { get; set; }
+
+    [System.ComponentModel.DataAnnotations.MaxLength(300)]
+    public string? Address { get; set; }
+
+    [System.ComponentModel.DataAnnotations.MaxLength(80)]
+    public string? City { get; set; }
+
+    [System.ComponentModel.DataAnnotations.MaxLength(6)]
+    public string? Pincode { get; set; }
+
     /// <summary>"en" or "hi".</summary>
     public string PreferredLanguage { get; set; } = "hi";
 

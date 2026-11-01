@@ -577,6 +577,7 @@ export const hi: Texts = {
     add: 'पहुँच दें',
     added: 'पहुँच दे दी। दोबारा लॉगिन करने पर उन्हें “प्लेटफ़ॉर्म एडमिन” दिखेगा।',
   },
+  profile: { title: 'मेरी प्रोफ़ाइल', name: 'पूरा नाम', phone: 'मोबाइल नंबर', email: 'ईमेल', address: 'पता', city: 'शहर', pincode: 'पिनकोड', language: 'भाषा' },
   plan2: {
     shopId: 'दुकान ID: {{code}}',
     myPlan: 'मेरा प्लान',

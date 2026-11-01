@@ -38,6 +38,7 @@ const StaffScreen = lazy(() => import('./screens/StaffScreen').then((module) => 
 const ExpensesScreen = lazy(() => import('./screens/ExpensesScreen').then((module) => ({ default: module.ExpensesScreen })))
 const RatesScreen = lazy(() => import('./screens/RatesScreen').then((module) => ({ default: module.RatesScreen })))
 const PaintersScreen = lazy(() => import('./screens/PaintersScreen').then((module) => ({ default: module.PaintersScreen })))
+const ProfileScreen = lazy(() => import('./screens/ProfileScreen').then((module) => ({ default: module.ProfileScreen })))
 const MyPlanScreen = lazy(() => import('./screens/MyPlanScreen').then((module) => ({ default: module.MyPlanScreen })))
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen').then((module) => ({ default: module.SettingsScreen })))
 const MyStoreScreen = lazy(() => import('./screens/MyStoreScreen').then((module) => ({ default: module.MyStoreScreen })))
@@ -226,6 +227,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           unsynced={unsynced}
           onSignOut={signOut}
           actions={[
+            { label: t('profile.title'), onClick: () => navigate('/profile') },
             ...(isOwner ? [{ label: t('plan2.myPlan'), onClick: () => navigate('/plan') }] : []),
             { label: t('teamLink'), onClick: () => navigate('/team') },
             { label: t('plan.householdLists'), onClick: onHousehold },
@@ -254,6 +256,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <ExpensesScreen shopId={shopId} shopName={shopName} />
         ) : path === '/expenses/month' ? (
           <ExpensesScreen shopId={shopId} shopName={shopName} month />
+        ) : path === '/profile' ? (
+          <ProfileScreen />
         ) : path === '/plan' || path === '/choose-plan' ? (
           <MyPlanScreen shopId={shopId} welcome={path === '/choose-plan'} />
         ) : path === '/rates' ? (

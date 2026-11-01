@@ -96,6 +96,7 @@ app.MapBalanceChecks();
 app.MapExpenses();
 app.MapBillPhotos();
 app.MapMarkets();
+app.MapProfile();
 app.MapCashCounts();
 app.MapTrades();
 app.MapBilling();

@@ -575,6 +575,7 @@ export const en = {
     add: 'Give access',
     added: 'Access given. They see “Platform admin” after signing in again.',
   },
+  profile: { title: 'My profile', name: 'Full name', phone: 'Mobile number', email: 'Email', address: 'Address', city: 'City', pincode: 'Pincode', language: 'Language' },
   plan2: {
     shopId: 'Shop ID: {{code}}',
     myPlan: 'My plan',
