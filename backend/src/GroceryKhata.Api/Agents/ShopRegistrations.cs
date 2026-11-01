@@ -390,7 +390,7 @@ public static class ShopRegistrationEndpoints
             db.Users.Add(user);
         }
 
-        var shop = new Shop { Name = r.ShopName, Slug = AuthService.NewSlug(r.ShopName), Area = r.Market, Type = r.Type, ApprovedAt = now };
+        var shop = new Shop { Name = r.ShopName, Slug = AuthService.NewSlug(r.ShopName), Area = r.Market, Type = r.Type, Gstin = r.Gstin, ApprovedAt = now };
         db.Shops.Add(shop);
         db.Memberships.Add(new Membership { UserId = user.Id, ShopId = shop.Id, Role = ShopRole.Owner });
         (r.Status, r.ShopId, r.ReviewedAt, r.ReviewedByUserId) = (RegistrationStatus.Approved, shop.Id, now, admin.UserId());

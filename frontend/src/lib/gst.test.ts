@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gstSummary } from './gst'
+import { gstSummary, gstUnsetAmount } from './gst'
 
 describe('gstSummary', () => {
   it('takes GST out of inclusive prices by rate and splits it into CGST and SGST', () => {
@@ -13,5 +13,13 @@ describe('gstSummary', () => {
 
   it('is empty when no line has a GST rate', () => {
     expect(gstSummary([{ amount: 120, gstRate: null }, { amount: 40 }])).toEqual([])
+  })
+
+  it('keeps 0% lines as a row', () => {
+    expect(gstSummary([{ amount: 100, gstRate: 0 }])).toEqual([{ rate: 0, amount: 100, taxable: 100, cgst: 0, sgst: 0 }])
+  })
+
+  it('adds up lines with no rate set, leaving out 0%', () => {
+    expect(gstUnsetAmount([{ amount: 120, gstRate: null }, { amount: 40 }, { amount: 100, gstRate: 0 }])).toBe(160)
   })
 })

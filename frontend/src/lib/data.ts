@@ -222,6 +222,8 @@ export interface NewProduct {
   category: string | null
   reorderLevel: number | null
   openingStock: number | null
+  gstRate?: number | null
+  hsnCode?: string | null
 }
 
 export async function addProduct(shopId: string, product: NewProduct) {

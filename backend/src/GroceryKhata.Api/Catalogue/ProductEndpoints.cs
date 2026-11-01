@@ -19,10 +19,10 @@ public sealed record ProductRequest(
     decimal? GstRate = null,
     string? HsnCode = null);
 
-/// <summary><see cref="GstRate"/> and <see cref="HsnCode"/>: null keeps what the item has (older apps don't send them).</summary>
+/// <summary><see cref="GstRate"/> and <see cref="HsnCode"/>: null keeps what the item has (older apps don't send them), unless <see cref="ReplaceTax"/> says null means clear it.</summary>
 public sealed record ProductUpdate(
     string? Name, Unit? Unit, decimal SellingPrice, decimal? CostPrice, string? Category, decimal? ReorderLevel, bool? IsActive,
-    decimal? GstRate = null, string? HsnCode = null);
+    decimal? GstRate = null, string? HsnCode = null, bool ReplaceTax = false);
 
 /// <summary><see cref="IsLow"/>: out of stock, or at/below the reorder level.</summary>
 public sealed record ProductDto(

@@ -682,6 +682,8 @@ export const hi: Texts = {
     gstTitle: 'इन दामों में GST',
     taxable: 'कर योग्य मूल्य',
     gstIncluded: 'दामों में GST शामिल है।',
+    gstUnset: 'दर नहीं डाली',
+    gstUnsetWarning: 'कुछ सामान में GST दर नहीं है, इसलिए यह सादा बिल छपेगा। उन सामान में दर डालें।',
     statement: 'खाते का हिसाब',
     monthStatement: 'महीने का हिसाब',
     openingBalance: 'पिछला बाकी',

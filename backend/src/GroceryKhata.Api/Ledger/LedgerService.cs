@@ -216,7 +216,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
     /// paid now posts as a payment, so the statement shows both; without one it must be paid in full.
     /// </summary>
     /// <param name="stockAlreadyOut">True for an invoice made from delivery challans: the goods left the shelf with the challans.</param>
-    public Task<LedgerResult<BillDto>> CreateBillAsync(BillRequest request, Guid userId, CancellationToken cancellationToken, bool stockAlreadyOut = false, bool isOwner = true) =>
+    /// <param name="taxSnapshot">GST and HSN per line, kept from the challans; without it each line takes the item's current ones.</param>
+    public Task<LedgerResult<BillDto>> CreateBillAsync(
+        BillRequest request, Guid userId, CancellationToken cancellationToken, bool stockAlreadyOut = false, bool isOwner = true,
+        IReadOnlyList<(decimal? GstRate, string? HsnCode)>? taxSnapshot = null) =>
         WriteOnceAsync(
             () => FindBillAsync(request.Id, cancellationToken),
             async () =>
@@ -270,8 +273,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                             Unit = line.Unit ?? product?.Unit ?? Catalogue.Unit.Piece,
                             UnitPrice = line.UnitPrice,
                             Amount = Money.LineAmount(line.Quantity, line.UnitPrice),
-                            GstRate = product?.GstRate,
-                            HsnCode = product?.HsnCode,
+                            GstRate = taxSnapshot is null ? product?.GstRate : taxSnapshot[i].GstRate,
+                            HsnCode = taxSnapshot is null ? product?.HsnCode : taxSnapshot[i].HsnCode,
                         });
                     }
                 }

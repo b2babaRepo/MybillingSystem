@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
+import { GST_RATES } from '../lib/gst'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, PendingDot, Sheet } from '../components/ui'
 import { addProduct, useProducts } from '../lib/data'
@@ -114,6 +115,8 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
   const [category, setCategory] = useState('')
   const [opening, setOpening] = useState('')
   const [reorder, setReorder] = useState('')
+  const [gst, setGst] = useState('')
+  const [hsn, setHsn] = useState('')
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -125,10 +128,13 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
       category: category.trim() || null,
       openingStock: opening ? Number(opening) : null,
       reorderLevel: reorder ? Number(reorder) : null,
+      gstRate: gst === '' ? null : Number(gst),
+      hsnCode: hsn.trim() || null,
     })
     setName('')
     setPrice('')
     setOpening('')
+    setHsn('')
   }
 
   return (
@@ -145,6 +151,16 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
         <div className="grid grid-cols-2 gap-2">
           <Field label={t('stock.openingStock')} value={opening} onChange={(e) => setOpening(e.target.value)} inputMode="decimal" />
           <Field label={t('stock.reorderLevel')} value={reorder} onChange={(e) => setReorder(e.target.value)} inputMode="decimal" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-muted">{t('stock.gst')}</span>
+            <select value={gst} onChange={(e) => setGst(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
+              <option value="">{t('stock.gstNotSet')}</option>
+              {GST_RATES.map((rate) => <option key={rate} value={rate}>{rate}%</option>)}
+            </select>
+          </label>
+          <Field label={t('stock.hsn')} value={hsn} onChange={(e) => setHsn(e.target.value)} inputMode="numeric" maxLength={8} />
         </div>
         <Button type="submit" className="w-full" disabled={!name.trim() || !(Number(price) > 0)}>
           {t('save')}

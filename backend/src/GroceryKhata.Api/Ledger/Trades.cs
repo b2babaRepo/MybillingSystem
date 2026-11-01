@@ -212,12 +212,12 @@ public static class TradeEndpoints
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Some of these challans are already billed.");
         }
 
-        var lines = challans.SelectMany(c => JsonSerializer.Deserialize<List<BillLineDto>>(c.Lines, Json)!)
-            .Select(l => new BillLineRequest(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice)).ToList();
+        var challanLines = challans.SelectMany(c => JsonSerializer.Deserialize<List<BillLineDto>>(c.Lines, Json)!).ToList();
+        var lines = challanLines.Select(l => new BillLineRequest(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice)).ToList();
         var sites = challans.Select(c => c.Site).Distinct().ToList();
         var result = await ledger.CreateBillAsync(
             new BillRequest(request.Id, challans[0].CustomerId, lines, request.PaidAmount, request.PaymentMode, null, sites.Count == 1 ? sites[0] : null),
-            user.UserId()!.Value, ct, stockAlreadyOut: true);
+            user.UserId()!.Value, ct, stockAlreadyOut: true, taxSnapshot: challanLines.Select(l => (l.GstRate, l.HsnCode)).ToList());
         if (result.Value is not { } bill)
         {
             return result.ToHttp($"/api/v1/bills/{request.Id}");

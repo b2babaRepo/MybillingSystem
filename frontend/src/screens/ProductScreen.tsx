@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field, Sheet } from '../components/ui'
 import { api, request } from '../lib/api'
 import { addStockMovement, useProducts } from '../lib/data'
+import { GST_RATES } from '../lib/gst'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { Product, StockMovement, StockReason, Unit } from '../lib/types'
 import { UnitSelect } from './BillScreen'
@@ -166,6 +167,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         reorderLevel: form.reorder ? Number(form.reorder) : null,
         gstRate: form.gst === '' ? null : Number(form.gst),
         hsnCode: form.hsn.trim() || null,
+        replaceTax: true,
       })
       setMessage(t('saved'))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
@@ -191,7 +193,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
           <span className="text-sm font-medium text-muted">{t('stock.gst')}</span>
           <select value={form.gst} onChange={set('gst')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
             <option value="">{t('stock.gstNotSet')}</option>
-            {['0', '5', '12', '18', '28', '40'].map((rate) => <option key={rate} value={rate}>{rate}%</option>)}
+            {[...new Set([...GST_RATES, ...(form.gst ? [form.gst] : [])])].sort((a, b) => Number(a) - Number(b)).map((rate) => <option key={rate} value={rate}>{rate}%</option>)}
           </select>
         </label>
         <Field label={t('stock.hsn')} value={form.hsn} onChange={set('hsn')} inputMode="numeric" maxLength={8} />

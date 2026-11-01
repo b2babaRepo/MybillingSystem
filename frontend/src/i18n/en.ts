@@ -680,6 +680,8 @@ export const en = {
     gstTitle: 'GST in these prices',
     taxable: 'Taxable value',
     gstIncluded: 'Prices include GST.',
+    gstUnset: 'Rate not set',
+    gstUnsetWarning: 'Some items have no GST rate, so this prints as a plain bill. Set the rate on those items.',
     statement: 'Khata statement',
     monthStatement: 'Month statement',
     openingBalance: 'Previous dues',

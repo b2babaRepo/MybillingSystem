@@ -81,13 +81,21 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             errors[nameof(request.OpeningStock)] = ["Enter how many are on the shelf, or leave it empty."];
         }
 
+        foreach (var (field, messages) in TaxErrors(request.GstRate, request.HsnCode))
+        {
+            errors[field] = messages;
+        }
+
         if (errors.Count > 0)
         {
             return (null, errors, false);
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        db.Products.Add(NewProduct(request.Id, request.Name!, request.Category, request.Unit!.Value, request.SellingPrice, request.CostPrice, request.ReorderLevel));
+        var product = NewProduct(request.Id, request.Name!, request.Category, request.Unit!.Value, request.SellingPrice, request.CostPrice, request.ReorderLevel);
+        product.GstRate = request.GstRate;
+        product.HsnCode = Clean(request.HsnCode);
+        db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)
         {
@@ -127,8 +135,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             return (null, taxErrors);
         }
 
-        product.GstRate = request.GstRate ?? product.GstRate;
-        product.HsnCode = Clean(request.HsnCode) ?? product.HsnCode;
+        product.GstRate = request.ReplaceTax ? request.GstRate : request.GstRate ?? product.GstRate;
+        product.HsnCode = request.ReplaceTax ? Clean(request.HsnCode) : Clean(request.HsnCode) ?? product.HsnCode;
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
@@ -385,7 +393,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var errors = new Dictionary<string, string[]>();
         if (gst is { } rate && rate is not (0m or 0.25m or 3m or 5m or 12m or 18m or 28m or 40m))
         {
-            errors["GstRate"] = ["Choose a GST rate: 0, 5, 12, 18, 28 or 40%."];
+            errors["GstRate"] = ["Choose a GST rate: 0, 5, 18 or 40%."];
         }
 
         if (!string.IsNullOrWhiteSpace(hsn) && hsn.Trim() is { } code && (code.Length is < 4 or > 8 || !code.All(char.IsAsciiDigit)))

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import type { ShopSettings } from '../lib/reports'
-import { gstSummary } from '../lib/gst'
+import { gstSummary, gstUnsetAmount } from '../lib/gst'
 import type { BillView, Statement } from '../lib/types'
 
 
@@ -95,10 +95,13 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
   const { bill, customer } = view
   const when = new Date(bill.occurredAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
   const share = t('print.billShare', { shop: shopName, total: bill.total, paid: bill.paidAmount, khata: bill.onKhata })
-  const gst = gstSummary(bill.lines)
+  // No GSTIN: not registered, so no tax on the bill at all.
+  const gst = gstin ? gstSummary(bill.lines) : []
+  const unset = gstin ? gstUnsetAmount(bill.lines) : 0
+  const isTaxInvoice = gst.length > 0 && unset === 0
 
   return (
-    <Page title={shopName} subtitle={`${gstin && gst.length ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
+    <Page title={shopName} subtitle={`${isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
       {(gstin || bill.site || bill.vehicleNumber) && (
         <p className="mb-3 text-sm">
           {[gstin && `GSTIN ${gstin}`, bill.site && `${t('trade.site')}: ${bill.site}`, bill.vehicleNumber && `${t('trade.vehicle')}: ${bill.vehicleNumber}`].filter(Boolean).join(' · ')}
@@ -113,7 +116,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
         <tbody>
           {bill.lines.map((l, i) => (
             <tr key={i} className="border-b border-gray-300">
-              <td className="py-1.5 pr-2">{l.name}{l.hsnCode && <span className="block text-xs text-gray-600">HSN {l.hsnCode}{l.gstRate ? ` · GST ${l.gstRate}%` : ''}</span>}</td>
+              <td className="py-1.5 pr-2">{l.name}{l.hsnCode && <span className="block text-xs text-gray-600">HSN {l.hsnCode}{gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}</span>}</td>
               <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`)}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.unitPrice)}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.amount)}</td>
@@ -143,10 +146,19 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
                 <td className="text-right">{formatRupees(g.sgst)}</td>
               </tr>
             ))}
+            {unset > 0 && (
+              <tr className="border-b border-gray-300">
+                <td className="py-1">{t('print.gstUnset')}</td>
+                <td className="text-right">{formatRupees(unset)}</td>
+                <td className="text-right">—</td>
+                <td className="text-right">—</td>
+              </tr>
+            )}
           </tbody>
         </table>
       )}
       {gst.length > 0 && <p className="mt-1 text-xs text-gray-600">{t('print.gstIncluded')}</p>}
+      {unset > 0 && <p className="mt-1 text-sm font-semibold text-due print:hidden">{t('print.gstUnsetWarning')}</p>}
       <p className="mt-6 text-center">{t('print.thanks')}</p>
     </Page>
   )
