@@ -443,6 +443,8 @@ export const en = {
     rowsReady: '{{count}} rows ready',
     importNow: 'Import {{count}} items',
     imported: '{{created}} added, {{skipped}} already there',
+    tradeStarter: { building_materials: 'Add common building material items', paint: 'Add common paint items' },
+    tradeStarterHint: 'Common items with units, GST and HSN. You add the prices.',
     starter: 'Add common kirana items',
     starterHint: '{{count}} everyday items with units and categories. You add the prices.',
     badUnit: 'Row {{row}}: unknown unit "{{unit}}"',

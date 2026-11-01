@@ -33,7 +33,11 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
 
   // A shop whose plan ended starts from the plan it had.
   const term = pickedTerm ?? s.chosenTerm ?? 'year1'
-  const planCode = picked ?? s.chosenPlanCode ?? (s.status !== 'trial' && s.planCode !== 'free' ? s.planCode : 'basic')
+  // A paying shop renews or moves up: its own plan and those above it, nothing below.
+  const paying = s.status === 'active' || s.status === 'grace'
+  const onSale = s.plans.filter((p) => p.code !== 'free')
+  const offered = paying ? onSale.slice(Math.max(0, onSale.findIndex((p) => p.code === s.planCode))) : onSale
+  const planCode = picked ?? (offered.some((p) => p.code === s.chosenPlanCode) ? s.chosenPlanCode : null) ?? (s.status !== 'trial' && s.planCode !== 'free' ? s.planCode : 'basic')
   const terms: PlanTerm[] = s.monthlyAvailable ? ['monthly', 'year1', 'year3', 'year5'] : ['year1', 'year3', 'year5']
   const chosen = s.plans.find((p) => p.code === planCode)
   const amount = quote && quote.planCode === planCode && quote.term === term && !quote.error ? quote.amount : chosen ? priceFor(chosen, term) : null
@@ -98,7 +102,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
 
       {/* Plans */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {s.plans.filter((p) => p.code !== 'free').map((p) => (
+        {offered.map((p) => (
           <button key={p.code} onClick={() => { setPicked(p.code); setQuote(null); remember(p.code, term) }}
             aria-pressed={planCode === p.code}
             className={`flex flex-col gap-1 rounded-[18px] border-2 bg-white p-4 text-left disabled:opacity-80 ${planCode === p.code ? 'border-teal-700' : 'border-transparent'}`}>

@@ -445,6 +445,8 @@ export const hi: Texts = {
     rowsReady: '{{count}} लाइन तैयार',
     importNow: '{{count}} सामान इम्पोर्ट करें',
     imported: '{{created}} जुड़े, {{skipped}} पहले से थे',
+    tradeStarter: { building_materials: 'आम बिल्डिंग मटीरियल जोड़ें', paint: 'आम पेंट सामान जोड़ें' },
+    tradeStarterHint: 'आम सामान, इकाई, GST और HSN के साथ। दाम आप डालें।',
     starter: 'आम किराना सामान जोड़ें',
     starterHint: '{{count}} रोज़ का सामान, इकाई और श्रेणी के साथ। दाम आप डालें।',
     badUnit: 'लाइन {{row}}: इकाई "{{unit}}" समझ नहीं आई',

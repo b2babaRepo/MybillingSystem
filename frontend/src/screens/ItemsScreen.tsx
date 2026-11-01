@@ -1,3 +1,4 @@
+import { useShopSettings } from '../lib/reports'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useGstBilling } from '../lib/billing'
 import { GST_RATES } from '../lib/gst'
@@ -11,6 +12,7 @@ import { UnitSelect } from './BillScreen'
 
 /** The catalogue with what's on the shelf: search, category chips, low-stock filter. */
 export function ItemsScreen({ shopId }: { shopId: string }) {
+  const isKirana = (useShopSettings(shopId).data?.type ?? 'kirana') === 'kirana'
   const { t } = useTranslation()
   const { products, isLoading } = useProducts(shopId)
   const [adding, setAdding] = useState(false)
@@ -40,6 +42,7 @@ export function ItemsScreen({ shopId }: { shopId: string }) {
           <Chip key={c} selected={category === c} onClick={() => setCategory(category === c ? null : c)}>{c}</Chip>
         ))}
       </div>
+      {isKirana && (
       <button
         onClick={() => navigate('/items/common')}
         className="flex min-h-16 items-center gap-3 rounded-[18px] bg-gradient-to-r from-amber-300 via-orange-400 to-pink-500 px-4 text-left font-bold text-white shadow"
@@ -51,6 +54,7 @@ export function ItemsScreen({ shopId }: { shopId: string }) {
         </span>
         <span aria-hidden>›</span>
       </button>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <Button tone="plain" onClick={() => navigate('/stocktake')}>{t('stock.stocktake')}</Button>
         <Button tone="plain" onClick={() => navigate('/import')}>{t('stock.import')}</Button>

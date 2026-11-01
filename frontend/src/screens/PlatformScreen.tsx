@@ -42,6 +42,7 @@ interface Person { userId: string; membershipId: string; name: string; phone: st
 interface Detail { shop: ShopRow; address: string | null; adminNote: string | null; people: Person[]; customers: number; billsLast30Days: number; lastBillAt: string | null; lastBalanceCheck: { mismatches: number } | null }
 
 type Status = 'new' | 'active' | 'blocked' | 'all'
+type Section = 'shops' | 'plans' | 'markets' | 'agents' | 'ai' | 'admins'
 
 /**
  * The platform admin's view of every shop: counts at the top, then new / active / blocked shops with search. Open a
@@ -57,6 +58,7 @@ export function PlatformScreen() {
   const [plan, setPlan] = useState('')
   const plans = usePlans().data ?? []
   const [openId, setOpenId] = useState<string | null>(null)
+  const [section, setSection] = useState<Section>('shops')
   const overview = useQuery({ queryKey: ['platform', 'overview'], queryFn: () => api<Overview>('/v1/platform/overview') })
   const shops = useQuery({
     queryKey: ['platform', 'shops', status, q, plan],
@@ -73,99 +75,109 @@ export function PlatformScreen() {
   function showPlan(code: string) {
     setStatus('all')
     setPlan(code)
-    document.getElementById('platform-plan')?.scrollIntoView({ behavior: 'smooth' })
   }
-  const tiles: [string, number | undefined][] = [
-    [t('platform.awaiting'), overview.data?.awaitingApproval],
-    [t('platform.active'), overview.data?.active],
-    [t('platform.blocked'), overview.data?.blocked],
-    [t('platform.newWeek'), overview.data?.newThisWeek],
-    [t('platform.households'), overview.data?.households],
+  const tiles: { label: string; value: number | undefined; onClick?: () => void; urgent?: boolean }[] = [
+    { label: t('platform.awaiting'), value: overview.data?.awaitingApproval, onClick: () => showStatus('new'), urgent: !!overview.data?.awaitingApproval },
+    { label: t('platform.active'), value: overview.data?.active, onClick: () => showStatus('active') },
+    { label: t('platform.blocked'), value: overview.data?.blocked, onClick: () => showStatus('blocked') },
+    { label: t('platform.newWeek'), value: overview.data?.newThisWeek },
+    { label: t('platform.households'), value: overview.data?.households },
+  ]
+  function showStatus(next: Status) {
+    setStatus(next)
+    setPlan('')
+  }
+  const sections: { id: Section; label: string; show: boolean }[] = [
+    { id: 'shops', label: t('platform.title'), show: true },
+    { id: 'plans', label: t('platformNav.plans'), show: seesBilling },
+    { id: 'markets', label: t('platformNav.markets'), show: role !== 'support' },
+    { id: 'agents', label: t('platformNav.agents'), show: role !== 'support' },
+    { id: 'ai', label: t('platformNav.ai'), show: true },
+    { id: 'admins', label: t('platformNav.admins'), show: role === 'super' },
   ]
 
   return (
-    <div className="mx-auto min-h-dvh max-w-3xl pb-10">
-      <header className="sticky top-0 z-10 flex items-center gap-2 bg-slate-800 px-4 py-3 text-white">
-        <button onClick={() => navigate('/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}><BackIcon /></button>
-        <h1 className="text-xl font-bold">{t('platform.title')}</h1>
-      </header>
-
-      <div className="grid grid-cols-3 gap-2 p-4 sm:grid-cols-5">
-        {tiles.map(([label, value]) => (
-          <div key={label} className="rounded-2xl bg-white p-3">
-            <div className="text-2xl font-extrabold tabular-nums">{value ?? '–'}</div>
-            <div className="text-xs text-muted">{label}</div>
+    <div className="min-h-dvh bg-ground">
+      <div className="mx-auto flex max-w-6xl flex-col pb-10 lg:flex-row">
+        <nav aria-label={t('platform.title')} className="z-10 bg-slate-800 text-white lg:sticky lg:top-0 lg:h-dvh lg:w-60 lg:shrink-0 lg:p-3">
+          <div className="flex items-center gap-2 px-4 py-3 lg:px-2">
+            <button onClick={() => navigate('/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}><BackIcon /></button>
+            <span className="text-lg font-bold">{t('platformNav.brand')}</span>
           </div>
-        ))}
-      </div>
-
-      {seesBilling && (
-        <section className="px-4 pb-4">
-          <h2 className="mb-2 text-sm font-bold text-muted">{t('plans.shopsByPlan')}</h2>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-            {planTiles.map(([code, label]) => (
-              <button key={code} onClick={() => showPlan(code)} className="rounded-2xl bg-white p-3 text-left">
-                <div className="text-2xl font-extrabold tabular-nums">{byPlan ? byPlan[code] ?? 0 : '–'}</div>
-                <div className="text-xs text-muted">{label}</div>
-              </button>
+          <div className="flex gap-1 overflow-x-auto px-3 pb-2 lg:flex-col lg:overflow-visible lg:px-0">
+            {sections.filter((x) => x.show).map((x) => (
+              <button key={x.id} onClick={() => setSection(x.id)} aria-current={section === x.id ? 'page' : undefined}
+                className={`min-h-11 shrink-0 rounded-xl px-3 text-left font-semibold ${section === x.id ? 'bg-teal-700' : 'text-slate-200'}`}>{x.label}</button>
             ))}
           </div>
-        </section>
-      )}
+        </nav>
 
-      <div className="flex flex-col gap-3 px-4 pb-3">
-        {role !== 'support' && <NewShop canBill={seesBilling} />}
-        {role !== 'support' && <MarketsPanel />}
-        <AgentPanel role={role} />
-        {role !== 'support' && <RegistrationsPanel role={role} />}
-        {(role === 'super' || role === 'agent_manager') && <AgentsPanel />}
-        {(role === 'super' || role === 'agent_manager' || role === 'billing') && <PerformancePanel role={role} />}
-        {(role === 'super' || role === 'billing') && <PlansPanel />}
-        {(role === 'super' || role === 'billing') && <BillingPanel />}
-        {role === 'super' && <ManageAdmins />}
-        {role === 'super' && <ActivityPanel />}
-      </div>
+        <main className="flex min-w-0 flex-1 flex-col gap-3 p-4">
+          {section === 'shops' && <>
+            <h1 className="text-2xl font-extrabold">{t('platform.title')}</h1>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {tiles.map((x) => {
+                const body = <><div className="text-2xl font-extrabold tabular-nums">{x.value ?? '–'}</div><div className="text-xs">{x.label}</div></>
+                const style = `rounded-2xl p-3 text-left ${x.urgent ? 'bg-amber-100 text-amber-900' : 'bg-white'}`
+                return x.onClick ? <button key={x.label} onClick={x.onClick} className={style}>{body}</button> : <div key={x.label} className={style}>{body}</div>
+              })}
+            </div>
+            {role !== 'support' && <NewShop canBill={seesBilling} />}
+            <section className="flex flex-col gap-3 rounded-2xl bg-white p-3">
+              <label className="sr-only" htmlFor="platform-search">{t('platform.search')}</label>
+              <input id="platform-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('platform.searchWithId')}
+                className="min-h-12 rounded-2xl border border-line bg-white px-4" />
+              <div role="tablist" className="grid grid-cols-4 gap-1 text-sm font-semibold">
+                {(['new', 'active', 'blocked', 'all'] as const).map((x) => (
+                  <button key={x} role="tab" aria-selected={status === x} onClick={() => setStatus(x)}
+                    className={`min-h-11 rounded-xl ${status === x ? 'bg-teal-700 text-white' : 'bg-ground'}`}>{t(`platform.tab.${x}`)}</button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2" aria-label={t('plans.filter')}>
+                <button aria-pressed={plan === ''} onClick={() => setPlan('')} className={`min-h-11 rounded-full px-4 text-sm font-semibold ${plan === '' ? 'bg-teal-700 text-white' : 'border border-line'}`}>{t('plans.allPlans')}</button>
+                {seesBilling
+                  ? planTiles.map(([code, label]) => (
+                    <button key={code} aria-pressed={plan === code} onClick={() => showPlan(code)} className={`min-h-11 rounded-full px-4 text-sm font-semibold ${plan === code ? 'bg-teal-700 text-white' : 'border border-line'}`}>{label} · {byPlan ? byPlan[code] ?? 0 : '–'}</button>
+                  ))
+                  : plans.map((p) => (
+                    <button key={p.code} aria-pressed={plan === p.code} onClick={() => showPlan(p.code)} className={`min-h-11 rounded-full px-4 text-sm font-semibold ${plan === p.code ? 'bg-teal-700 text-white' : 'border border-line'}`}>{p.name}</button>
+                  ))}
+              </div>
+            </section>
 
-      <div className="flex flex-col gap-3 px-4">
-        <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-white p-1 text-sm font-semibold">
-          {(['new', 'active', 'blocked', 'all'] as const).map((s) => (
-            <button key={s} role="tab" aria-selected={status === s} onClick={() => setStatus(s)}
-              className={`min-h-11 rounded-xl ${status === s ? 'bg-teal-700 text-white' : ''}`}>{t(`platform.tab.${s}`)}</button>
-          ))}
-        </div>
-        <label className="sr-only" htmlFor="platform-search">{t('platform.search')}</label>
-        <input id="platform-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('platform.searchWithId')}
-          className="min-h-12 rounded-2xl border border-line bg-white px-4" />
-        <label className="sr-only" htmlFor="platform-plan">{t('plans.filter')}</label>
-        <select id="platform-plan" value={plan} onChange={(e) => setPlan(e.target.value)} className="min-h-12 rounded-2xl border border-line bg-white px-4">
-          <option value="">{t('plans.allPlans')}</option>
-          <option value="paid">{t('billing.paidShops')}</option>
-          <option value="trial">{t('plan2.status.trial')}</option>
-          {plans.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
-        </select>
-
-        {shops.data?.length === 0 && <p className="p-6 text-center text-muted">{t('platform.none')}</p>}
-        <ul className="flex flex-col gap-2">
-          {shops.data?.map((s) => (
-            <li key={s.id} className="rounded-2xl bg-white">
-              <button onClick={() => setOpenId(openId === s.id ? null : s.id)} aria-expanded={openId === s.id} className="flex w-full items-start gap-3 p-4 text-left">
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[17px] font-bold">{s.name}{s.shopCode && <span className="ml-2 font-mono text-xs font-semibold text-muted">{s.shopCode}</span>}</span>
-                  <span className="truncate text-sm text-muted">
-                    {[s.area, s.ownerName, formatPhone(s.ownerPhone)].filter(Boolean).join(' · ')}
-                  </span>
-                  <span className="text-xs text-muted">
-                    {t('platform.opened', { date: formatDateTime(s.createdAt) })}
-                    {s.planCode && ` · ${s.planStatus === 'trial' ? t('plan2.status.trial') : `${plans.find((p) => p.code === s.planCode)?.name ?? s.planCode}${s.planStatus === 'active' || s.planStatus === 'grace' ? ` ${t('billing.paidTag')}` : ''}`}`}
-                    {s.planEndsAt && ` · ${t('billing.until', { date: new Date(s.planEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) })}`}
-                  </span>
-                </span>
-                <StatusChip shop={s} />
-              </button>
-              {openId === s.id && <ShopDetail id={s.id} role={role} />}
-            </li>
-          ))}
-        </ul>
+            {shops.data?.length === 0 && <p className="p-6 text-center text-muted">{t('platform.none')}</p>}
+            <ul className="flex flex-col gap-2">
+              {shops.data?.map((s) => (
+                <li key={s.id} className="rounded-2xl bg-white">
+                  <button onClick={() => setOpenId(openId === s.id ? null : s.id)} aria-expanded={openId === s.id} className="flex w-full items-start gap-3 p-4 text-left">
+                    <span className="flex min-w-0 flex-1 flex-col lg:grid lg:grid-cols-[2fr_1fr_1fr] lg:gap-3">
+                      <span className="min-w-0">
+                        <span className="block truncate text-[17px] font-bold">{s.name}{s.shopCode && <span className="ml-2 font-mono text-xs font-semibold text-muted">{s.shopCode}</span>}</span>
+                        <span className="block truncate text-sm text-muted">{[s.area, formatDateTime(s.createdAt)].filter(Boolean).join(' · ')}</span>
+                      </span>
+                      <span className="truncate text-sm text-muted">{[s.ownerName, formatPhone(s.ownerPhone)].filter(Boolean).join(' · ')}</span>
+                      <span className="text-sm text-muted">
+                        {s.planCode && (s.planStatus === 'trial' ? t('plan2.status.trial') : `${plans.find((p) => p.code === s.planCode)?.name ?? s.planCode}${s.planStatus === 'active' || s.planStatus === 'grace' ? ` ${t('billing.paidTag')}` : ''}`)}
+                        {s.planEndsAt && ` · ${t('billing.until', { date: new Date(s.planEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) })}`}
+                      </span>
+                    </span>
+                    <StatusChip shop={s} />
+                  </button>
+                  {openId === s.id && <ShopDetail id={s.id} role={role} />}
+                </li>
+              ))}
+            </ul>
+          </>}
+          {section === 'plans' && <><PlansPanel /><BillingPanel /></>}
+          {section === 'markets' && <MarketsPanel />}
+          {section === 'agents' && <>
+            {role !== 'support' && <RegistrationsPanel role={role} />}
+            {(role === 'super' || role === 'agent_manager') && <AgentsPanel />}
+            {(role === 'super' || role === 'agent_manager' || role === 'billing') && <PerformancePanel role={role} />}
+          </>}
+          {section === 'ai' && <AgentPanel role={role} />}
+          {section === 'admins' && <><ManageAdmins /><ActivityPanel /></>}
+        </main>
       </div>
     </div>
   )
