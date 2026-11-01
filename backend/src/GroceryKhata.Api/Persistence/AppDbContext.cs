@@ -127,7 +127,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("markets");
             b.Property(m => m.Name).HasMaxLength(120);
             b.Property(m => m.City).HasMaxLength(80);
-            b.HasIndex(m => m.Name).IsUnique();
+            b.Property(m => m.State).HasMaxLength(80);
+            b.Property(m => m.District).HasMaxLength(80);
+            b.Property(m => m.Village).HasMaxLength(80);
+            b.HasIndex(m => m.Name);
         });
 
         modelBuilder.Entity<ShopPhoto>(b =>
@@ -141,6 +144,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         modelBuilder.Entity<Shop>(b =>
         {
             b.ToTable("shops");
+            b.Property(s => s.State).HasMaxLength(80);
+            b.Property(s => s.District).HasMaxLength(80);
+            b.Property(s => s.City).HasMaxLength(80);
+            b.Property(s => s.Village).HasMaxLength(80);
             b.HasOne<Market>().WithMany().HasForeignKey(s => s.MarketId).OnDelete(DeleteBehavior.SetNull);
             b.Property(s => s.Name).HasMaxLength(120);
             b.Property(s => s.Number).HasDefaultValueSql("nextval('shop_number_seq')").ValueGeneratedOnAdd();

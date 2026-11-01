@@ -17,7 +17,9 @@ import type { AdminRole } from '../lib/types'
 import { navigate } from '../router'
 import { shrinkPhoto } from '../lib/images'
 
-interface MarketRow { id: string; name: string; city: string | null; isActive: boolean; shops: number }
+interface MarketRow { id: string; name: string; state: string | null; district: string | null; city: string | null; village: string | null; isActive: boolean; shops: number }
+
+const marketPlace = (m: MarketRow) => [m.village, m.city, m.district, m.state].filter(Boolean).join(', ')
 interface Overview { shops: number; active: number; blocked: number; awaitingApproval: number; newThisWeek: number; households: number }
 interface ShopRow {
   id: string
@@ -288,12 +290,14 @@ function useMarkets() {
 }
 
 /** The platform's list of markets: add one, rename it, or stop offering it. Shops keep the market they have. */
+const emptyMarket = { name: '', state: '', district: '', city: '', village: '' }
+
 function MarketsPanel() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const markets = useMarkets().data ?? []
   const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState({ name: '', city: '' })
+  const [draft, setDraft] = useState(emptyMarket)
   const [message, setMessage] = useState<string | null>(null)
 
   async function run(action: () => Promise<unknown>) {
@@ -307,12 +311,12 @@ function MarketsPanel() {
   }
 
   const add = () => run(async () => {
-    await api('/v1/platform/markets', 'POST', { name: draft.name.trim(), city: draft.city.trim() || null })
-    setDraft({ name: '', city: '' })
+    await api('/v1/platform/markets', 'POST', { name: draft.name.trim(), state: draft.state.trim() || null, district: draft.district.trim() || null, city: draft.city.trim() || null, village: draft.village.trim() || null })
+    setDraft({ ...emptyMarket, state: draft.state, district: draft.district })
   })
   const rename = (m: MarketRow) => {
     const name = window.prompt(t('markets.name'), m.name)?.trim()
-    if (name) void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { name, city: m.city, isActive: m.isActive }))
+    if (name) void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { ...m, name }))
   }
 
   const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
@@ -324,17 +328,19 @@ function MarketsPanel() {
       </button>
       {open && <>
         <div className="grid grid-cols-2 gap-2">
-          <input aria-label={t('markets.name')} placeholder={t('markets.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={input} />
-          <input aria-label={t('markets.city')} placeholder={t('markets.city')} value={draft.city} onChange={(e) => setDraft({ ...draft, city: e.target.value })} className={input} />
+          <input aria-label={t('markets.name')} placeholder={t('markets.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={`${input} col-span-2`} />
+          {(['state', 'district', 'city', 'village'] as const).map((key) => (
+            <input key={key} aria-label={t(`markets.${key}`)} placeholder={t(`markets.${key}`)} value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} className={input} />
+          ))}
         </div>
         <Button disabled={draft.name.trim().length < 2} onClick={() => void add()}>{t('markets.add')}</Button>
         {message && <p className="text-sm text-due">{message}</p>}
         <ul className="flex flex-col gap-2">
           {markets.map((m) => (
             <li key={m.id} className={`flex items-center gap-2 border-t border-line pt-2 ${m.isActive ? '' : 'opacity-60'}`}>
-              <span className="min-w-0 flex-1 truncate">{m.name}{m.city ? `, ${m.city}` : ''} · {t('markets.shops', { count: m.shops })}</span>
+              <span className="min-w-0 flex-1 truncate">{m.name}{marketPlace(m) ? `, ${marketPlace(m)}` : ''} · {t('markets.shops', { count: m.shops })}</span>
               <button onClick={() => rename(m)} className="min-h-11 px-2 text-sm font-semibold text-teal-700">{t('markets.rename')}</button>
-              <button onClick={() => void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { name: m.name, city: m.city, isActive: !m.isActive }))} className="min-h-11 px-2 text-sm font-semibold">{m.isActive ? t('markets.stop') : t('markets.restart')}</button>
+              <button onClick={() => void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { ...m, isActive: !m.isActive }))} className="min-h-11 px-2 text-sm font-semibold">{m.isActive ? t('markets.stop') : t('markets.restart')}</button>
             </li>
           ))}
         </ul>
@@ -349,14 +355,29 @@ function NewShop({ canBill }: { canBill: boolean }) {
   // Empty plan: the shop starts on the usual free trial.
   const markets = useMarkets().data ?? []
   const [marketId, setMarketId] = useState('')
-  const [ids, setIds] = useState({ gstin: '', shopNo: '' })
+  const emptyIds = { gstin: '', shopNo: '', state: '', district: '', city: '', village: '' }
+  const [ids, setIds] = useState(emptyIds)
   const [gps, setGps] = useState<{ latitude: number; longitude: number } | null>(null)
   const [photo, setPhoto] = useState<string | null>(null)
   const locate = () => navigator.geolocation.getCurrentPosition(
-    (p) => setGps({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+    (p) => {
+      setGps({ latitude: p.coords.latitude, longitude: p.coords.longitude })
+      // Fills what it finds; anything it can't find stays as typed.
+      void api<Record<'state' | 'district' | 'city' | 'village', string | null>>(`/v1/platform/markets/place?lat=${p.coords.latitude}&lng=${p.coords.longitude}`)
+        .then((f) => setIds((x) => ({ ...x, state: f.state ?? x.state, district: f.district ?? x.district, city: f.city ?? x.city, village: f.village ?? x.village })))
+        .catch(() => undefined)
+    },
     () => setMessage(t('markets.gpsFailed')),
     { enableHighAccuracy: true, timeout: 20_000 },
   )
+  // Only the markets of the place entered: the village if given, else the city, else the district or state.
+  const same = (a: string | null, b: string) => (a ?? '').trim().toLowerCase() === b.trim().toLowerCase()
+  const placeMarkets = markets.filter((m) => m.isActive && (
+    ids.village.trim() ? same(m.village, ids.village)
+      : ids.city.trim() ? same(m.city, ids.city)
+        : ids.district.trim() ? same(m.district, ids.district)
+          : ids.state.trim() ? same(m.state, ids.state) : true))
+  const chosenMarket = placeMarkets.some((m) => m.id === marketId) ? marketId : ''
   const [paid, setPaid] = useState({ planCode: '', term: 'year1', method: 'cash', reference: '' })
   const queryClient = useQueryClient()
   const empty = { shopName: '', ownerName: '', phone: '', area: '', type: 'kirana', language: 'hi' }
@@ -377,10 +398,11 @@ function NewShop({ canBill }: { canBill: boolean }) {
         ...form, shopName: form.shopName.trim(), ownerName: form.ownerName.trim(), phone: form.phone.trim(), area: form.area.trim() || null,
         people: people.filter((p) => p.name.trim() && p.phone.trim()).map(toPerson),
         gstin: ids.gstin.trim() || null, shopNo: ids.shopNo.trim() || null,
-        marketId: marketId || null, latitude: gps?.latitude ?? null, longitude: gps?.longitude ?? null, photoDataUrl: photo,
+        state: ids.state.trim() || null, district: ids.district.trim() || null, city: ids.city.trim() || null, village: ids.village.trim() || null,
+        marketId: chosenMarket || null, latitude: gps?.latitude ?? null, longitude: gps?.longitude ?? null, photoDataUrl: photo,
       })
       setMarketId('')
-      setIds({ gstin: '', shopNo: '' })
+      setIds(emptyIds)
       setGps(null)
       setPhoto(null)
       setCreated({ name: form.shopName.trim(), phone: form.phone.trim(), password: result.tempPassword, code: result.shopCode })
@@ -443,10 +465,21 @@ function NewShop({ canBill }: { canBill: boolean }) {
               <option value="hi">हिंदी</option><option value="en">English</option>
             </select></label>
         </div>
+        <button type="button" onClick={locate} className="min-h-11 rounded-xl border border-line font-semibold">{gps ? t('markets.gpsDone') : t('markets.gps')}</button>
+        <div className="grid grid-cols-2 gap-2">
+          {(['state', 'district', 'city', 'village'] as const).map((key) => (
+            <label key={key} className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t(`markets.${key}`)}</span>
+              <input value={ids[key]} onChange={(e) => setIds({ ...ids, [key]: e.target.value })} maxLength={80} className={`${input} min-w-0`} /></label>
+          ))}
+        </div>
         <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('markets.market')}</span>
-          <select value={marketId} onChange={(e) => setMarketId(e.target.value)} className={input}>
-            <option value="">{t('markets.none')}</option>
-            {markets.filter((m) => m.isActive).map((m) => <option key={m.id} value={m.id}>{m.name}{m.city ? `, ${m.city}` : ''}</option>)}
+          <select value={chosenMarket} onChange={(e) => {
+            setMarketId(e.target.value)
+            const m = markets.find((x) => x.id === e.target.value)
+            if (m) setIds((x) => ({ ...x, state: m.state ?? x.state, district: m.district ?? x.district, city: m.city ?? x.city, village: m.village ?? x.village }))
+          }} className={input}>
+            <option value="">{t(placeMarkets.length ? 'markets.none' : 'markets.noneHere')}</option>
+            {placeMarkets.map((m) => <option key={m.id} value={m.id}>{m.name}{marketPlace(m) ? `, ${marketPlace(m)}` : ''}</option>)}
           </select></label>
         <div className="grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('markets.shopNo')}</span>
@@ -454,7 +487,6 @@ function NewShop({ canBill }: { canBill: boolean }) {
           <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('markets.gstin')}</span>
             <input value={ids.gstin} onChange={(e) => setIds({ ...ids, gstin: e.target.value.toUpperCase() })} maxLength={15} className={`${input} min-w-0 uppercase`} /></label>
         </div>
-        <button type="button" onClick={locate} className="min-h-11 rounded-xl border border-line font-semibold">{gps ? t('markets.gpsDone') : t('markets.gps')}</button>
         <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-line font-semibold">
           {photo ? t('markets.photoDone') : t('markets.photo')}
           <input type="file" accept="image/*" capture="environment" className="sr-only"

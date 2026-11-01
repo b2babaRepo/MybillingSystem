@@ -90,7 +90,8 @@ public sealed record NoteRequest(string? Note);
 
 public sealed record CreateShopRequest(
     string? ShopName, string? OwnerName, string? Phone, string? Area, ShopType? Type, string? Language, IReadOnlyList<AddPersonRequest>? People = null,
-    Guid? MarketId = null, double? Latitude = null, double? Longitude = null, string? PhotoDataUrl = null, string? Gstin = null, string? ShopNo = null);
+    Guid? MarketId = null, double? Latitude = null, double? Longitude = null, string? PhotoDataUrl = null, string? Gstin = null, string? ShopNo = null,
+    string? State = null, string? District = null, string? City = null, string? Village = null);
 
 /// <summary>The new shop. A new owner account gets a one-time password to pass on; an existing one keeps theirs.</summary>
 public sealed record CreatedShop(Guid ShopId, string Slug, bool NewAccount, string? TempPassword, string? ShopCode = null);
@@ -174,6 +175,10 @@ public static class PlatformEndpoints
         {
             Id = shopId,
             MarketId = request.MarketId,
+            State = Markets.Clean(request.State),
+            District = Markets.Clean(request.District),
+            City = Markets.Clean(request.City),
+            Village = Markets.Clean(request.Village),
             Gstin = gstin,
             ShopNo = string.IsNullOrEmpty(shopNo) ? null : shopNo,
             Latitude = request.Latitude,

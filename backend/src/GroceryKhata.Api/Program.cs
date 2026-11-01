@@ -21,6 +21,24 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower)));
 builder.Services.AddPersistence();
 builder.Services.AddAppAuthentication();
+// Place lookups use IPv4: a network with broken IPv6 would otherwise hang until the timeout.
+builder.Services.AddHttpClient("place").ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    ConnectCallback = async (context, ct) =>
+    {
+        var socket = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.InterNetwork, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp) { NoDelay = true };
+        try
+        {
+            await socket.ConnectAsync(context.DnsEndPoint.Host, context.DnsEndPoint.Port, ct);
+            return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+    },
+});
 builder.Services.AddScoped<LedgerService>();
 builder.Services.AddScoped<StockService>();
 builder.Services.AddOrderReading(builder.Configuration);

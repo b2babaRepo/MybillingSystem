@@ -3304,6 +3304,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("District")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("district");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
@@ -3314,14 +3319,23 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("name");
 
+                    b.Property<string>("State")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("state");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
+                    b.Property<string>("Village")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("village");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .IsUnique();
+                    b.HasIndex("Name");
 
                     b.ToTable("markets", (string)null);
                 });
@@ -3439,9 +3453,19 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("blocked_reason");
 
+                    b.Property<string>("City")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("city");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("District")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("district");
 
                     b.Property<string>("Gstin")
                         .HasColumnType("text")
@@ -3491,6 +3515,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(80)")
                         .HasColumnName("slug");
 
+                    b.Property<string>("State")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("state");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -3507,6 +3536,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("character varying(60)")
                         .HasColumnName("upi_id");
+
+                    b.Property<string>("Village")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("village");
 
                     b.HasKey("Id");
 

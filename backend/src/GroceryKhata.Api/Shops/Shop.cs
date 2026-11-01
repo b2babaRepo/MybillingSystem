@@ -53,6 +53,14 @@ public sealed class Shop : Entity
     [System.ComponentModel.DataAnnotations.MaxLength(30)]
     public string? ShopNo { get; set; }
 
+    public string? State { get; set; }
+
+    public string? District { get; set; }
+
+    public string? City { get; set; }
+
+    public string? Village { get; set; }
+
     /// <summary>The market from the platform's list. Optional: <see cref="Area"/> stays as the shop's own words.</summary>
     public Guid? MarketId { get; set; }
 
