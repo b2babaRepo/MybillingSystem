@@ -203,6 +203,9 @@ export interface BillView {
     painterId?: string | null
     /** "2026-27/0457": the bill's serial number in its financial year. */
     billNo?: string | null
+    gstin?: string | null
+    cancelledAt?: string | null
+    cancelReason?: string | null
   }
   customer: Customer | null
 }

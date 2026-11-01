@@ -64,7 +64,7 @@ public static class CashBookEndpoints
     {
         var (start, end) = IndiaTime.Day(day);
         var bills = await (from b in db.Bills.AsNoTracking()
-                           where b.OccurredAt >= start && b.OccurredAt < end
+                           where b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null
                            join c in db.Customers.AsNoTracking() on b.CustomerId equals c.Id into customers
                            from c in customers.DefaultIfEmpty()
                            select new { b.Id, b.OccurredAt, b.Total, b.PaidAmount, b.PaymentMode, Name = c == null ? null : c.Name })

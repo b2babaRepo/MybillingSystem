@@ -367,7 +367,7 @@ public static class ShopRegistrationEndpoints
     /// payment is confirmed.
     /// </summary>
     private static async Task<IResult> ApproveAsync(
-        Guid id, ClaimsPrincipal admin, AppDbContext db, IPasswordHasher<User> hasher, TimeProvider clock, CancellationToken ct)
+        Guid id, ClaimsPrincipal admin, AppDbContext db, IPasswordHasher<User> hasher, TimeProvider clock, Billing.Entitlements entitlements, CancellationToken ct)
     {
         var r = await db.ShopRegistrations.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (r is null)
@@ -391,9 +391,22 @@ public static class ShopRegistrationEndpoints
         }
 
         var shop = new Shop { Name = r.ShopName, Slug = AuthService.NewSlug(r.ShopName), Area = r.Market, Type = r.Type, Gstin = r.Gstin, ApprovedAt = now };
+        // What the agent collected at the shop stays with it.
+        (shop.Address, shop.Latitude, shop.Longitude) = (r.Address[..Math.Min(r.Address.Length, 200)], r.Latitude, r.Longitude);
+        var marketName = r.Market.Trim().ToLower();
+        shop.MarketId = await db.Markets.Where(m => m.Name.ToLower() == marketName).Select(m => (Guid?)m.Id).FirstOrDefaultAsync(ct);
         db.Shops.Add(shop);
+        if (await db.RegistrationPhotos.AsNoTracking().Where(p => p.RegistrationId == r.Id && p.Kind == "front").FirstOrDefaultAsync(ct) is { } front)
+        {
+            db.ShopPhotos.Add(new ShopPhoto { ShopId = shop.Id, ContentType = front.ContentType, Data = front.Data });
+        }
+
         db.Memberships.Add(new Membership { UserId = user.Id, ShopId = shop.Id, Role = ShopRole.Owner });
         (r.Status, r.ShopId, r.ReviewedAt, r.ReviewedByUserId) = (RegistrationStatus.Approved, shop.Id, now, admin.UserId());
+        await db.SaveChangesAsync(ct);
+        // The agent's plan waits on the shop until it is paid: My plan opens on it.
+        var subscription = await entitlements.FindOrNewAsync(shop.Id, ct, track: true);
+        (subscription.ChosenPlanCode, subscription.ChosenTerm) = (r.PlanCode, r.Term);
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok((await ViewsAsync(db, db.ShopRegistrations.Where(x => x.Id == id), ct)).Single());
     }

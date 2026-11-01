@@ -24,7 +24,10 @@ public sealed record SubscriptionView(
     SubscriptionStatus Status, string PlanCode, string PlanName, DateTimeOffset? EndsAt, int? DaysLeft, IReadOnlyList<string> Features,
     int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth, string? CompReason, string? HoldReason, DateTimeOffset? PriceLockUntil,
     IReadOnlyList<PlanDto> Plans, IReadOnlyList<PaymentDto> Payments, ClaimDto? PendingClaim,
-    string? PayToUpi, string PayeeName, bool MonthlyAvailable, bool GstRegistered, string ReferralCode, int ReferralBonusDays, string? ShopCode = null);
+    string? PayToUpi, string PayeeName, bool MonthlyAvailable, bool GstRegistered, string ReferralCode, int ReferralBonusDays, string? ShopCode = null,
+    string? ChosenPlanCode = null, PlanTerm? ChosenTerm = null);
+
+public sealed record PlanChoiceRequest(string? PlanCode, PlanTerm? Term);
 
 public sealed record QuoteRequest(string? PlanCode, PlanTerm? Term, string? OfferCode);
 
@@ -38,7 +41,7 @@ public sealed record CompRequest(string? PlanCode, int? Months, string? Reason);
 
 public sealed record HoldRequest(string? Reason);
 
-public sealed record MovePlanRequest(string? PlanCode);
+public sealed record MovePlanRequest(string? PlanCode, string? Reason = null);
 
 public sealed record PlanUpdate(
     string? Name, decimal? PriceMonthly, decimal? PriceYear1, decimal? PriceYear3, decimal? PriceYear5, IReadOnlyList<string>? Features,
@@ -78,6 +81,7 @@ public static class BillingEndpoints
         shop.MapGet("", ViewAsync);
         shop.MapPost("/quote", QuoteAsync);
         shop.MapPost("/claims", ClaimAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapPost("/choice", ChooseAsync).RequireAuthorization(AppPolicies.ShopOwner);
 
         var admin = app.MapGroup("/api/v1/platform").WithTags("Platform billing").RequireAuthorization(AppPolicies.PlatformAdmin).RecordsActivity();
         admin.MapGet("/billing", OverviewAsync).RequireAuthorization(AppPolicies.PlatformBilling);
@@ -122,7 +126,7 @@ public static class BillingEndpoints
             e.Status, e.PlanCode, e.PlanName, e.EndsAt, e.EndsAt is { } end ? Math.Max(0, (int)Math.Ceiling((end - now).TotalDays)) : null,
             e.Features.Order().ToList(), e.MaxCustomers, e.MaxStaff, e.WhatsAppPerMonth, s.CompPlanCode is null ? null : s.CompReason, s.HoldReason,
             s.PriceLockUntil > now ? s.PriceLockUntil : null, await PlansAsync(db, ct), payments, claim,
-            string.IsNullOrWhiteSpace(o.UpiId) ? null : o.UpiId, o.PayeeName, o.AutoPayEnabled, o.GstRegistered, slug, o.ReferralBonusDays, GroceryKhata.Api.Shops.Shop.FormatCode(number));
+            string.IsNullOrWhiteSpace(o.UpiId) ? null : o.UpiId, o.PayeeName, o.AutoPayEnabled, o.GstRegistered, slug, o.ReferralBonusDays, GroceryKhata.Api.Shops.Shop.FormatCode(number), s.ChosenPlanCode, s.ChosenTerm);
     }
 
     private static async Task<IResult> QuoteAsync(QuoteRequest request, ITenantContext tenant, BillingService billing, CancellationToken ct) =>
@@ -146,6 +150,11 @@ public static class BillingEndpoints
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["OfferCode"] = [error] });
         }
 
+        if (await db.PaymentClaims.AnyAsync(c => c.ShopId == tenant.ShopId && c.Status == ClaimStatus.Pending, ct))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Your last payment is still being checked.");
+        }
+
         if (await db.PaymentClaims.AnyAsync(c => c.UpiRef == upiRef && c.Status != ClaimStatus.Rejected, ct)
             || await db.SubscriptionPayments.AnyAsync(p => p.Reference == upiRef, ct))
         {
@@ -160,6 +169,20 @@ public static class BillingEndpoints
         db.PaymentClaims.Add(claim);
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(new ClaimDto(claim.Id, claim.ShopId, null, claim.PlanCode, claim.Term, claim.Amount, claim.UpiRef, claim.OfferCode, claim.Status, claim.CreatedAt, null));
+    }
+
+    /// <summary>Remembers the plan picked, so a shop that pays later comes back to it. Opens nothing.</summary>
+    private static async Task<IResult> ChooseAsync(PlanChoiceRequest request, AppDbContext db, ITenantContext tenant, Entitlements entitlements, CancellationToken ct)
+    {
+        if (request.PlanCode is null or "free" || request.Term is null || !await db.Plans.AnyAsync(p => p.Code == request.PlanCode, ct))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["PlanCode"] = ["Choose a plan and period."] });
+        }
+
+        var subscription = await entitlements.FindOrNewAsync(tenant.ShopId, ct, track: true);
+        (subscription.ChosenPlanCode, subscription.ChosenTerm) = (request.PlanCode, request.Term);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
     }
 
     // ---- Admins ----
@@ -178,7 +201,8 @@ public static class BillingEndpoints
             await paid.Where(p => p.PaidAt >= monthStart).SumAsync(p => (decimal?)p.Amount, ct) ?? 0,
             await paid.Where(p => p.PaidAt >= yearStart).SumAsync(p => (decimal?)p.Amount, ct) ?? 0,
             await ClaimsAsync(db, null, ClaimStatus.Pending, ct),
-            statuses.GroupBy(x => x.PlanCode).ToDictionary(g => g.Key, g => g.Count()));
+            // Trials run on Gold but count apart, as the shop list's plan filter does.
+            statuses.GroupBy(x => x.Status == SubscriptionStatus.Trial ? "trial" : x.PlanCode).ToDictionary(g => g.Key, g => g.Count()));
     }
 
     private static async Task<IResult> ShopBillingAsync(Guid id, AppDbContext db, Entitlements entitlements, IOptions<BillingOptions> options, CancellationToken ct)
@@ -401,6 +425,12 @@ public static class BillingEndpoints
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["PlanCode"] = ["Choose a plan that is on sale."] });
         }
 
+        var reason = request.Reason?.Trim();
+        if (reason is not { Length: >= 3 and <= 200 })
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Reason"] = ["Say why: a move takes no payment."] });
+        }
+
         if (!await db.Shops.AnyAsync(s => s.Id == id, ct))
         {
             return TypedResults.NotFound();
@@ -408,11 +438,12 @@ public static class BillingEndpoints
 
         var s = await entitlements.FindOrNewAsync(id, ct, track: true);
         var now = clock.GetUtcNow();
+        var inGrace = (await entitlements.ForShopAsync(id, ct)).Status == SubscriptionStatus.Grace;
         if (s.CompPlanCode is not null && (s.CompUntil is null || s.CompUntil > now))
         {
             s.CompPlanCode = request.PlanCode;
         }
-        else if (s.PaidUntil > now)
+        else if (s.PaidUntil > now || inGrace)
         {
             s.PlanCode = request.PlanCode;
         }
@@ -421,6 +452,7 @@ public static class BillingEndpoints
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This shop has no paid or free period to move. Record a payment or give free access.");
         }
 
+        s.MoveReason = reason;
         await db.SaveChangesAsync(ct);
         return TypedResults.NoContent();
     }

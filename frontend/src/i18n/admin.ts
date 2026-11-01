@@ -126,6 +126,7 @@ export const adminText = {
       runNow: 'Look at all shops now',
       ran: 'Looked at all shops.',
     },
+    markets: { title: 'Markets ({{count}})', market: 'Market', none: 'No market', name: 'Market name', city: 'City', add: 'Add market', rename: 'Rename', stop: 'Stop', restart: 'Restart', shops: '{{count}} shops', gps: 'Capture shop location', gpsDone: 'Location captured ✓', gpsFailed: 'Could not get the location. Allow location and try again.', photo: 'Add shop photo', photoDone: 'Photo added ✓', shopNo: 'Shop number', gstin: 'GST number (if any)' },
     plans: {
       owners: 'Owners',
       ownersCount_one: '{{count}} owner',
@@ -148,6 +149,8 @@ export const adminText = {
       add: 'Add plan',
       added: 'Plan added.',
       filter: 'Plan',
+      shopsByPlan: 'Shops by plan',
+      moveReason: 'Why move this shop? No payment is taken.',
       allPlans: 'All plans',
       moveTo: 'Move to plan…',
       move: 'Move',
@@ -317,6 +320,7 @@ export const adminText = {
       runNow: 'अभी सभी दुकानें देखें',
       ran: 'सभी दुकानें देख लीं।',
     },
+    markets: { title: 'बाज़ार ({{count}})', market: 'बाज़ार', none: 'कोई बाज़ार नहीं', name: 'बाज़ार का नाम', city: 'शहर', add: 'बाज़ार जोड़ें', rename: 'नाम बदलें', stop: 'बंद करें', restart: 'फिर चालू करें', shops: '{{count}} दुकानें', gps: 'दुकान की लोकेशन लें', gpsDone: 'लोकेशन मिल गई ✓', gpsFailed: 'लोकेशन नहीं मिली। अनुमति देकर फिर कोशिश करें।', photo: 'दुकान की फ़ोटो जोड़ें', photoDone: 'फ़ोटो जुड़ गई ✓', shopNo: 'दुकान नंबर', gstin: 'GST नंबर (अगर है)' },
     plans: {
       owners: 'मालिक',
       ownersCount_one: '{{count}} मालिक',
@@ -339,6 +343,8 @@ export const adminText = {
       add: 'प्लान जोड़ें',
       added: 'प्लान जुड़ गया।',
       filter: 'प्लान',
+      shopsByPlan: 'किस प्लान में कितनी दुकानें',
+      moveReason: 'यह दुकान क्यों बदल रहे हैं? कोई पैसा नहीं लिया जाएगा।',
       allPlans: 'सभी प्लान',
       moveTo: 'इस प्लान पर ले जाएँ…',
       move: 'बदलें',

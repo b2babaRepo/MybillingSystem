@@ -166,7 +166,7 @@ public static class ReportEndpoints
     {
         var (start, end) = IndiaTime.Month(period.Year, period.Month);
         var bills = await db.Bills.AsNoTracking().Include(b => b.Lines)
-            .Where(b => b.OccurredAt >= start && b.OccurredAt < end)
+            .Where(b => b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null)
             .ToListAsync(ct);
         var entries = await db.LedgerEntries.AsNoTracking()
             .Where(e => e.OccurredAt >= start && e.OccurredAt < end)

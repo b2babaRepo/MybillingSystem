@@ -77,6 +77,7 @@ app.MapStaff();
 app.MapBalanceChecks();
 app.MapExpenses();
 app.MapBillPhotos();
+app.MapMarkets();
 app.MapCashCounts();
 app.MapTrades();
 app.MapBilling();

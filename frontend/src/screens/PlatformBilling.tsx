@@ -331,7 +331,7 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
               {plans.filter((p) => p.code !== view.planCode).map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
             </select>
             <button disabled={busy || !moveTo} className="min-h-11 rounded-xl border border-line bg-white font-semibold disabled:opacity-40"
-              onClick={() => void run(async () => { await api(`/v1/platform/shops/${shopId}/plan`, 'POST', { planCode: moveTo }); setMoveTo('') }, t('plans.moved'))}>{t('plans.move')}</button>
+              onClick={() => { const reason = window.prompt(t('plans.moveReason'))?.trim(); if (reason) void run(async () => { await api(`/v1/platform/shops/${shopId}/plan`, 'POST', { planCode: moveTo, reason }); setMoveTo('') }, t('plans.moved')) }}>{t('plans.move')}</button>
           </>}
           {approve && <>
             <select aria-label={t('plans.freePlan')} value={compPlan} onChange={(e) => setCompPlan(e.target.value)} className="col-span-2 h-11 rounded-xl border border-line bg-white px-2">

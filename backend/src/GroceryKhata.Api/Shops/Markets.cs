@@ -1,0 +1,121 @@
+using GroceryKhata.Api.Common;
+using GroceryKhata.Api.Identity;
+using GroceryKhata.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace GroceryKhata.Api.Shops;
+
+/// <summary>A market shops belong to ("Raja Park bazaar"). The platform's own list, not a shop's data.</summary>
+public sealed class Market : Entity
+{
+    public required string Name { get; set; }
+
+    public string? City { get; set; }
+
+    /// <summary>False: kept on the shops that have it, but no longer offered for new ones.</summary>
+    public bool IsActive { get; set; } = true;
+}
+
+/// <summary>The shop-front photo. Its own table, so loading shops doesn't load pictures.</summary>
+public sealed class ShopPhoto : Entity
+{
+    public Guid ShopId { get; set; }
+
+    public required string ContentType { get; set; }
+
+    public required byte[] Data { get; set; }
+}
+
+public sealed record MarketDto(Guid Id, string Name, string? City, bool IsActive, int Shops);
+
+public sealed record MarketRequest(string? Name, string? City, bool? IsActive = null);
+
+public static class Markets
+{
+    private const int MaxPhotoBytes = 150 * 1024;
+    private static readonly string[] ImageTypes = ["image/jpeg", "image/webp"];
+
+    public static IEndpointRouteBuilder MapMarkets(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/v1/platform/markets").WithTags("Platform").RequireAuthorization(AppPolicies.PlatformAdmin).RecordsActivity();
+        group.MapGet("", ListAsync);
+        group.MapPost("", AddAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
+        group.MapPut("/{id:guid}", ChangeAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
+        return app;
+    }
+
+    /// <summary>A photo from a data URL, or null if it isn't a small JPEG or WebP.</summary>
+    public static ShopPhoto? ParsePhoto(Guid shopId, string? dataUrl)
+    {
+        var parts = dataUrl?.Split(',', 2);
+        var type = parts is [var head, _] && head.StartsWith("data:", StringComparison.Ordinal) && head.EndsWith(";base64", StringComparison.Ordinal) ? head[5..^7] : null;
+        if (type is null || !ImageTypes.Contains(type))
+        {
+            return null;
+        }
+
+        try
+        {
+            var data = Convert.FromBase64String(parts![1]);
+            return data.Length is > 0 and <= MaxPhotoBytes ? new ShopPhoto { ShopId = shopId, ContentType = type, Data = data } : null;
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+
+    private static async Task<IReadOnlyList<MarketDto>> ListAsync(AppDbContext db, CancellationToken ct) =>
+        await db.Markets.AsNoTracking().OrderBy(m => m.Name)
+            .Select(m => new MarketDto(m.Id, m.Name, m.City, m.IsActive, db.Shops.Count(s => s.MarketId == m.Id)))
+            .ToListAsync(ct);
+
+    private static async Task<IResult> AddAsync(MarketRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var name = request.Name?.Trim();
+        if (name is not { Length: >= 2 and <= 120 })
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Name"] = ["Enter the market's name."] });
+        }
+
+        if (await db.Markets.AnyAsync(m => m.Name.ToLower() == name.ToLower(), ct))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This market is already on the list.");
+        }
+
+        var market = new Market { Name = name, City = Clean(request.City) };
+        db.Markets.Add(market);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(new MarketDto(market.Id, market.Name, market.City, market.IsActive, 0));
+    }
+
+    private static async Task<IResult> ChangeAsync(Guid id, MarketRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var market = await db.Markets.SingleOrDefaultAsync(m => m.Id == id, ct);
+        if (market is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var name = request.Name?.Trim();
+        if (name is not { Length: >= 2 and <= 120 })
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Name"] = ["Enter the market's name."] });
+        }
+
+        if (await db.Markets.AnyAsync(m => m.Id != id && m.Name.ToLower() == name.ToLower(), ct))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This market is already on the list.");
+        }
+
+        (market.Name, market.City, market.IsActive) = (name, Clean(request.City), request.IsActive ?? market.IsActive);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
+    }
+
+    private static string? Clean(string? value)
+    {
+        var text = value?.Trim();
+        return string.IsNullOrEmpty(text) ? null : text[..Math.Min(text.Length, 80)];
+    }
+}

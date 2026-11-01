@@ -53,7 +53,8 @@ public sealed class BillingService(AppDbContext db, Entitlements entitlements, T
     {
         var now = clock.GetUtcNow();
         var subscription = await entitlements.FindOrNewAsync(shopId, ct, track: true);
-        var start = subscription.PaidUntil > now ? subscription.PaidUntil.Value : now;
+        // Paying early loses nothing: the paid time starts after what's left of the plan or the trial.
+        var start = new[] { subscription.PaidUntil ?? now, subscription.TrialEndsAt, now }.Max();
         var end = quote.Term switch
         {
             PlanTerm.Monthly => start.AddMonths(1),
@@ -71,6 +72,7 @@ public sealed class BillingService(AppDbContext db, Entitlements entitlements, T
         subscription.PlanCode = quote.PlanCode;
         subscription.Term = quote.Term;
         subscription.PaidUntil = end;
+        (subscription.ChosenPlanCode, subscription.ChosenTerm) = (null, null);
         var payment = new SubscriptionPayment
         {
             ShopId = shopId, PlanCode = quote.PlanCode, Term = quote.Term, Amount = quote.Amount, Method = method, Reference = reference,
@@ -121,6 +123,12 @@ public sealed class BillingService(AppDbContext db, Entitlements entitlements, T
         payment.RefundedAt = now;
         var subscription = await db.Subscriptions.SingleAsync(s => s.ShopId == payment.ShopId, ct);
         subscription.PaidUntil = subscription.PaidUntil - (payment.PeriodEnd - payment.PeriodStart);
+        // A payment made during the trial started after it: taking it back leaves the trial, not paid days.
+        if (subscription.PaidUntil <= subscription.TrialEndsAt && subscription.TrialEndsAt > now)
+        {
+            subscription.PaidUntil = null;
+        }
+
         await db.SaveChangesAsync(ct);
         return null;
     }

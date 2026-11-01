@@ -131,6 +131,18 @@ public sealed class Bill : Entity, ITenantOwned
 
     /// <summary>The painter who brought the customer (paint shops): their commission is counted from these bills.</summary>
     public Guid? PainterId { get; set; }
+
+    /// <summary>The shop's GSTIN when billed (kept, so a later change doesn't rewrite old bills). Null: not registered then.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(15)]
+    public string? Gstin { get; set; }
+
+    /// <summary>Set when the bill is cancelled. It keeps its number (no gaps) but no longer counts as a sale.</summary>
+    public DateTimeOffset? CancelledAt { get; set; }
+
+    [System.ComponentModel.DataAnnotations.MaxLength(200)]
+    public string? CancelReason { get; set; }
+
+    public Guid? CancelledByUserId { get; set; }
 }
 
 public sealed class BillLine : Entity, ITenantOwned

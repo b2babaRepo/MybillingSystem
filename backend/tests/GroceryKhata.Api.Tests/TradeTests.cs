@@ -45,6 +45,29 @@ public sealed class TradeTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Cancelling_a_bill_undoes_it_but_keeps_its_number()
+    {
+        var shop = await SignUpAsync("building_materials");
+        await shop.PostJsonAsync("/api/v1/products/starter", new { });
+        var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Gupta");
+        var bill = await (await shop.PostJsonAsync("/api/v1/bills", new
+        {
+            id = Guid.CreateVersion7(), customerId = customer, paidAmount = 100m,
+            lines = new[] { new { productId = cement.Id, quantity = 2m, unitPrice = 400m } },
+        })).ReadAsync<BillDto>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/bills/{bill.Id}/cancel", new { reason = "" })).StatusCode);
+        var cancelled = await (await shop.PostJsonAsync($"/api/v1/bills/{bill.Id}/cancel", new { reason = "Wrong customer" })).ReadAsync<BillDto>();
+        var again = await (await shop.PostJsonAsync($"/api/v1/bills/{bill.Id}/cancel", new { reason = "Twice" })).ReadAsync<BillDto>();
+
+        Assert.Equal(("Wrong customer", bill.BillNo), (cancelled.CancelReason, cancelled.BillNo));
+        Assert.Equal("Wrong customer", again.CancelReason);
+        Assert.Equal(0m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance);
+        Assert.Equal(0m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).Stock);
+    }
+
+    [Fact]
     public async Task A_credit_limit_is_kept_on_the_customer()
     {
         var shop = await SignUpAsync("building_materials");

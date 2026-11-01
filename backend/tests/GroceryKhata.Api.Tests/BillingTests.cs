@@ -44,7 +44,7 @@ public sealed class BillingTests(ApiFactory api)
 
         var view = await shop.GetJsonAsync<SubscriptionView>("/api/v1/subscription");
         Assert.Equal((SubscriptionStatus.Active, "basic"), (view.Status, view.PlanCode));
-        Assert.InRange(view.DaysLeft!.Value, 364, 366);
+        Assert.InRange(view.DaysLeft!.Value, 394, 396); // a year after the 30-day trial it paid during
 
         // The welcome price is for the first payment only.
         var again = await (await shop.PostJsonAsync("/api/v1/subscription/quote", new { planCode = "basic", term = "year1", offerCode = "WELCOME299" })).ReadAsync<Quote>();
@@ -188,7 +188,7 @@ public sealed class BillingTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.Conflict, (await billing.PostJsonAsync("/api/v1/platform/plans/free/active?active=false", new { })).StatusCode);
 
         // A shop on trial has nothing to move; once paid for Basic it moves to Silver and keeps its dates.
-        Assert.Equal(HttpStatusCode.Conflict, (await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/plan", new { planCode = "silver" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/plan", new { planCode = "silver", reason = "Plan correction" })).StatusCode);
         var recorded = await (await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/payments", new { planCode = "basic", term = "year1", method = "cash", reference = "R-77" })).ReadAsync<PaymentDto>();
 
         // The bill opens from its link without signing in; a wrong link shows nothing.
@@ -198,7 +198,7 @@ public sealed class BillingTests(ApiFactory api)
         Assert.Matches("^GKS-", bill.ShopCode);
         Assert.Equal(HttpStatusCode.NotFound, (await anyone.GetAsync($"/api/v1/bills/plan/{recorded.Id}?t=0000")).StatusCode);
         var before = await shop.GetJsonAsync<SubscriptionView>("/api/v1/subscription");
-        Assert.Equal(HttpStatusCode.NoContent, (await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/plan", new { planCode = "silver" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await billing.PostJsonAsync($"/api/v1/platform/shops/{auth.ShopId}/plan", new { planCode = "silver", reason = "Plan correction" })).StatusCode);
         var after = await shop.GetJsonAsync<SubscriptionView>("/api/v1/subscription");
         Assert.Equal(("silver", "Silver", before.EndsAt), (after.PlanCode, after.PlanName, after.EndsAt));
         Assert.Contains("staff", after.Features);

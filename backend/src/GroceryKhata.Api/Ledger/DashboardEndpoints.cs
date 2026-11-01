@@ -37,7 +37,7 @@ public static class DashboardEndpoints
         var end = start.AddDays(1);
 
         var bills = await db.Bills.AsNoTracking()
-            .Where(b => b.OccurredAt >= start && b.OccurredAt < end)
+            .Where(b => b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null)
             .Select(b => new { b.Total, b.PaidAmount, b.PaymentMode })
             .ToListAsync(ct);
         var entries = await db.LedgerEntries.AsNoTracking()

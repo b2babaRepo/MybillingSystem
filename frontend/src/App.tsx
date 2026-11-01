@@ -254,8 +254,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <ExpensesScreen shopId={shopId} shopName={shopName} />
         ) : path === '/expenses/month' ? (
           <ExpensesScreen shopId={shopId} shopName={shopName} month />
-        ) : path === '/plan' ? (
-          <MyPlanScreen shopId={shopId} />
+        ) : path === '/plan' || path === '/choose-plan' ? (
+          <MyPlanScreen shopId={shopId} welcome={path === '/choose-plan'} />
         ) : path === '/rates' ? (
           <RatesScreen shopId={shopId} />
         ) : path === '/painters' ? (

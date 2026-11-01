@@ -235,7 +235,7 @@ public static class TradeEndpoints
     /// <summary>A contractor's khata by site: what was billed at each, and challans still to bill there.</summary>
     private static async Task<IReadOnlyList<SiteTotal>> SitesAsync(Guid id, AppDbContext db, CancellationToken ct)
     {
-        var billed = await db.Bills.AsNoTracking().Where(b => b.CustomerId == id)
+        var billed = await db.Bills.AsNoTracking().Where(b => b.CustomerId == id && b.CancelledAt == null)
             .GroupBy(b => b.Site ?? "")
             .Select(g => new { Site = g.Key, Bills = g.Count(), Billed = g.Sum(b => b.Total) })
             .ToListAsync(ct);
@@ -292,7 +292,7 @@ public static class TradeEndpoints
         var (year, m) = IndiaTime.ParseMonth(month) ?? (today.Year, today.Month);
         var (start, end) = IndiaTime.Month(year, m);
         var sales = await db.Bills.AsNoTracking()
-            .Where(b => b.PainterId != null && b.OccurredAt >= start && b.OccurredAt < end)
+            .Where(b => b.PainterId != null && b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null)
             .GroupBy(b => b.PainterId!.Value).Select(g => new { PainterId = g.Key, Bills = g.Count(), Sales = g.Sum(b => b.Total) })
             .ToListAsync(ct);
         var painters = await db.Painters.AsNoTracking().OrderBy(p => p.Name).ToListAsync(ct);

@@ -5,6 +5,7 @@ import { Button } from '../components/ui'
 import { api } from '../lib/api'
 import { priceFor, useSubscription, type PlanTerm, type Quote } from '../lib/billing'
 import { formatRupees, whatsAppLink } from '../lib/format'
+import { navigate } from '../router'
 
 const STATUS_STYLE: Record<string, string> = {
   trial: 'bg-teal-50 text-teal-900', active: 'bg-emerald-50 text-emerald-900', complimentary: 'bg-violet-50 text-violet-900',
@@ -16,12 +17,12 @@ const STATUS_STYLE: Record<string, string> = {
  * shown amount to Grocery Khata's UPI ID, then send the UPI reference so the team can confirm it. The shop's own khata,
  * bills and customers work on every plan, Free included.
  */
-export function MyPlanScreen({ shopId }: { shopId: string }) {
+export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welcome?: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const subscription = useSubscription(shopId)
-  const [planCode, setPlanCode] = useState('basic')
-  const [term, setTerm] = useState<PlanTerm>('year1')
+  const [picked, setPicked] = useState<string | null>(null)
+  const [pickedTerm, setTerm] = useState<PlanTerm | null>(null)
   const [offer, setOffer] = useState('')
   const [quote, setQuote] = useState<Quote | null>(null)
   const [utr, setUtr] = useState('')
@@ -30,6 +31,9 @@ export function MyPlanScreen({ shopId }: { shopId: string }) {
   const s = subscription.data
   if (!s) return <p className="p-4 text-muted">…</p>
 
+  // A shop whose plan ended starts from the plan it had.
+  const term = pickedTerm ?? s.chosenTerm ?? 'year1'
+  const planCode = picked ?? s.chosenPlanCode ?? (s.status !== 'trial' && s.planCode !== 'free' ? s.planCode : 'basic')
   const terms: PlanTerm[] = s.monthlyAvailable ? ['monthly', 'year1', 'year3', 'year5'] : ['year1', 'year3', 'year5']
   const chosen = s.plans.find((p) => p.code === planCode)
   const amount = quote && quote.planCode === planCode && quote.term === term && !quote.error ? quote.amount : chosen ? priceFor(chosen, term) : null
@@ -49,6 +53,9 @@ export function MyPlanScreen({ shopId }: { shopId: string }) {
     }
   }
 
+  // Only a bookmark: if it fails the shop can still pay what's on screen.
+  const remember = (code: string, period: PlanTerm) => { if (period !== 'monthly') void api('/v1/subscription/choice', 'POST', { planCode: code, term: period }).catch(() => undefined) }
+
   const applyOffer = () => run(async () => {
     const q = await api<Quote>('/v1/subscription/quote', 'POST', { planCode, term, offerCode: offer.trim() || null })
     setQuote(q)
@@ -64,10 +71,17 @@ export function MyPlanScreen({ shopId }: { shopId: string }) {
 
   return (
     <div className="flex flex-col gap-3 p-4">
+      {welcome && (
+        <section className="flex flex-col gap-1">
+          <h2 className="text-2xl font-extrabold">{t('plan2.welcomeTitle')}</h2>
+          <button onClick={() => navigate('/')} className="min-h-11 text-left font-semibold text-teal-700 underline">{t('plan2.tryFree')}</button>
+        </section>
+      )}
+
       {/* Where the shop stands */}
       <section className={`flex flex-col gap-1 rounded-[20px] p-4 ${STATUS_STYLE[s.status]}`}>
         <span className="text-sm font-semibold">{t(`plan2.status.${s.status}`)}</span>
-        <span className="text-2xl font-extrabold">{s.planName}</span>
+        {s.status !== 'free' && <span className="text-2xl font-extrabold">{s.planName}</span>}
         {s.shopCode && <span className="text-sm">{t('plan2.shopId', { code: s.shopCode })}</span>}
         {s.daysLeft !== null && <span className="text-sm">{t('plan2.daysLeft', { count: s.daysLeft })}</span>}
         {s.compReason && <span className="text-sm">{s.compReason}</span>}
@@ -84,32 +98,32 @@ export function MyPlanScreen({ shopId }: { shopId: string }) {
 
       {/* Plans */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {s.plans.map((p) => (
-          <button key={p.code} disabled={p.code === 'free'} onClick={() => { setPlanCode(p.code); setQuote(null) }}
+        {s.plans.filter((p) => p.code !== 'free').map((p) => (
+          <button key={p.code} onClick={() => { setPicked(p.code); setQuote(null); remember(p.code, term) }}
             aria-pressed={planCode === p.code}
             className={`flex flex-col gap-1 rounded-[18px] border-2 bg-white p-4 text-left disabled:opacity-80 ${planCode === p.code ? 'border-teal-700' : 'border-transparent'}`}>
             <span className="flex items-baseline justify-between">
               <span className="text-lg font-extrabold">{p.name}</span>
-              <span className="font-bold">{p.code === 'free' ? '₹0' : `${formatRupees(p.priceYear1 ?? 0)}/${t('plan2.year')}`}</span>
+              <span className="font-bold">{`${formatRupees(p.priceYear1 ?? 0)}/${t('plan2.year')}`}</span>
             </span>
             <span className="text-xs text-muted">
               {p.maxCustomers ? t('plan2.customersUpTo', { count: p.maxCustomers }) : t('plan2.customersUnlimited')}
               {p.maxStaff > 0 ? ` · ${t('plan2.staff', { count: p.maxStaff })}` : ''}
               {p.whatsAppPerMonth > 0 ? ` · ${t('plan2.whatsapp', { count: p.whatsAppPerMonth })}` : ''}
             </span>
-            <span className="text-xs">{p.code === 'free' ? t('plan2.freeIncludes') : p.features.map((f) => t(`plan2.feature.${f}`)).join(' · ')}</span>
+            <span className="text-xs">{p.features.map((f) => t(`plan2.feature.${f}`)).join(' · ')}</span>
           </button>
         ))}
       </div>
 
       {/* Period, offer, pay */}
-      {chosen && chosen.code !== 'free' && (
+      {chosen && (
         <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
           <div role="radiogroup" aria-label={t('plan2.period')} className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {terms.map((x) => {
               const price = priceFor(chosen, x)
               return price === null ? null : (
-                <button key={x} role="radio" aria-checked={term === x} onClick={() => { setTerm(x); setQuote(null) }}
+                <button key={x} role="radio" aria-checked={term === x} onClick={() => { setTerm(x); setQuote(null); remember(planCode, x) }}
                   className={`flex min-h-14 flex-col items-center justify-center rounded-xl text-sm font-semibold ${term === x ? 'bg-teal-700 text-white' : 'border border-line'}`}>
                   <span>{t(`plan2.term.${x}`)}</span>
                   <span>{formatRupees(price)}{x === 'year5' ? `/${t('plan2.year')}` : ''}</span>

@@ -89,7 +89,8 @@ public sealed record BlockRequest(string? Reason);
 public sealed record NoteRequest(string? Note);
 
 public sealed record CreateShopRequest(
-    string? ShopName, string? OwnerName, string? Phone, string? Area, ShopType? Type, string? Language, IReadOnlyList<AddPersonRequest>? People = null);
+    string? ShopName, string? OwnerName, string? Phone, string? Area, ShopType? Type, string? Language, IReadOnlyList<AddPersonRequest>? People = null,
+    Guid? MarketId = null, double? Latitude = null, double? Longitude = null, string? PhotoDataUrl = null, string? Gstin = null, string? ShopNo = null);
 
 /// <summary>The new shop. A new owner account gets a one-time password to pass on; an existing one keeps theirs.</summary>
 public sealed record CreatedShop(Guid ShopId, string Slug, bool NewAccount, string? TempPassword, string? ShopCode = null);
@@ -145,6 +146,15 @@ public static class PlatformEndpoints
         if (request.Language is not (null or "en" or "hi")) errors["Language"] = ["Language must be en or hi."];
         var user = phone is null ? null : await db.Users.SingleOrDefaultAsync(u => u.Phone == phone, ct);
         if (user is null && ownerName is not { Length: >= 2 and <= 120 }) errors["OwnerName"] = ["Enter the owner's name."];
+        if (request.MarketId is { } marketId && !await db.Markets.AnyAsync(m => m.Id == marketId, ct)) errors["MarketId"] = ["Choose a market from the list."];
+        if (request.Latitude is not null != request.Longitude is not null || request.Latitude is < -90 or > 90 || request.Longitude is < -180 or > 180) errors["Latitude"] = ["The location isn't valid."];
+        var gstin = string.IsNullOrWhiteSpace(request.Gstin) ? null : request.Gstin.Trim().ToUpperInvariant();
+        if (gstin is not null && (gstin.Length != 15 || !gstin.All(char.IsAsciiLetterOrDigit))) errors["Gstin"] = ["A GSTIN has 15 letters and digits."];
+        var shopNo = request.ShopNo?.Trim();
+        if (shopNo?.Length > 30) errors["ShopNo"] = ["Keep the shop number short."];
+        var shopId = Guid.CreateVersion7();
+        var photo = Markets.ParsePhoto(shopId, request.PhotoDataUrl);
+        if (request.PhotoDataUrl is not null && photo is null) errors["PhotoDataUrl"] = ["Send a JPEG or WebP photo under 150 KB."];
         if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(errors);
@@ -162,6 +172,12 @@ public static class PlatformEndpoints
         var area = request.Area?.Trim();
         var shop = new Shop
         {
+            Id = shopId,
+            MarketId = request.MarketId,
+            Gstin = gstin,
+            ShopNo = string.IsNullOrEmpty(shopNo) ? null : shopNo,
+            Latitude = request.Latitude,
+            Longitude = request.Longitude,
             Name = shopName!,
             Slug = AuthService.NewSlug(shopName!),
             Area = string.IsNullOrEmpty(area) ? null : area[..Math.Min(area.Length, 120)],
@@ -169,6 +185,7 @@ public static class PlatformEndpoints
             ApprovedAt = clock.GetUtcNow(),
         };
         db.Shops.Add(shop);
+        if (photo is not null) db.ShopPhotos.Add(photo);
         db.Memberships.Add(new Membership { UserId = user.Id, ShopId = shop.Id, Role = ShopRole.Owner });
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Admin {AdminId} opened shop {ShopId} for user {UserId}", admin.UserId(), shop.Id, user.Id);

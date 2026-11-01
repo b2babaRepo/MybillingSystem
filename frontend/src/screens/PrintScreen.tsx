@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
-import type { ShopSettings } from '../lib/reports'
 import { gstSummary, gstUnsetAmount } from '../lib/gst'
 import type { BillView, Statement } from '../lib/types'
 
@@ -88,11 +87,22 @@ function StatementPrint({ shopName, customerId, month }: { shopName: string; cus
 function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
   const { t } = useTranslation()
   const query = useServer<BillView>(['print', 'bill', billId], `/v1/bills/${billId}`)
-  const gstin = useServer<ShopSettings>(['print', 'shop'], '/v1/shop').data?.gstin
   if (query.isError) return <Problem error={query.error} />
   const view = query.data
   if (!view) return <p className="p-6">…</p>
   const { bill, customer } = view
+  const gstin = bill.gstin
+
+  async function cancel() {
+    const reason = window.prompt(t('print.cancelReason'))?.trim()
+    if (!reason) return
+    try {
+      await api(`/v1/bills/${billId}/cancel`, 'POST', { reason })
+      await query.refetch()
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : t('error'))
+    }
+  }
   const when = new Date(bill.occurredAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
   const share = t('print.billShare', { shop: shopName, total: bill.total, paid: bill.paidAmount, khata: bill.onKhata })
   // No GSTIN: not registered, so no tax on the bill at all.
@@ -102,6 +112,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
 
   return (
     <Page title={shopName} subtitle={`${isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
+      {bill.cancelledAt && <p className="mb-3 border-2 border-black p-2 text-center font-extrabold">{t('print.cancelled')}{bill.cancelReason && ` · ${bill.cancelReason}`}</p>}
       {(gstin || bill.site || bill.vehicleNumber) && (
         <p className="mb-3 text-sm">
           {[gstin && `GSTIN ${gstin}`, bill.site && `${t('trade.site')}: ${bill.site}`, bill.vehicleNumber && `${t('trade.vehicle')}: ${bill.vehicleNumber}`].filter(Boolean).join(' · ')}
@@ -160,6 +171,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
       {gst.length > 0 && <p className="mt-1 text-xs text-gray-600">{t('print.gstIncluded')}</p>}
       {unset > 0 && <p className="mt-1 text-sm font-semibold text-due print:hidden">{t('print.gstUnsetWarning')}</p>}
       <p className="mt-6 text-center">{t('print.thanks')}</p>
+      {!bill.cancelledAt && <button onClick={cancel} className="mt-6 h-11 w-full rounded-xl border border-line font-semibold text-due print:hidden">{t('print.cancelBill')}</button>}
     </Page>
   )
 }

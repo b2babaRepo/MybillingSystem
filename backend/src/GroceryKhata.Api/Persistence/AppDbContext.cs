@@ -34,6 +34,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Shop> Shops => Set<Shop>();
 
+    public DbSet<Market> Markets => Set<Market>();
+
+    public DbSet<ShopPhoto> ShopPhotos => Set<ShopPhoto>();
+
     public DbSet<User> Users => Set<User>();
 
     public DbSet<Membership> Memberships => Set<Membership>();
@@ -118,9 +122,26 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Market>(b =>
+        {
+            b.ToTable("markets");
+            b.Property(m => m.Name).HasMaxLength(120);
+            b.Property(m => m.City).HasMaxLength(80);
+            b.HasIndex(m => m.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<ShopPhoto>(b =>
+        {
+            b.ToTable("shop_photos");
+            b.Property(p => p.ContentType).HasMaxLength(40);
+            b.HasIndex(p => p.ShopId).IsUnique();
+            b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Shop>(b =>
         {
             b.ToTable("shops");
+            b.HasOne<Market>().WithMany().HasForeignKey(s => s.MarketId).OnDelete(DeleteBehavior.SetNull);
             b.Property(s => s.Name).HasMaxLength(120);
             b.Property(s => s.Number).HasDefaultValueSql("nextval('shop_number_seq')").ValueGeneratedOnAdd();
             b.HasIndex(s => s.Number).IsUnique();

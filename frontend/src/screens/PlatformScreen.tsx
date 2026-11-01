@@ -15,7 +15,9 @@ import { adminText } from '../i18n/admin'
 addText(adminText)
 import type { AdminRole } from '../lib/types'
 import { navigate } from '../router'
+import { shrinkPhoto } from '../lib/images'
 
+interface MarketRow { id: string; name: string; city: string | null; isActive: boolean; shops: number }
 interface Overview { shops: number; active: number; blocked: number; awaitingApproval: number; newThisWeek: number; households: number }
 interface ShopRow {
   id: string
@@ -58,6 +60,19 @@ export function PlatformScreen() {
     queryKey: ['platform', 'shops', status, q, plan],
     queryFn: () => api<ShopRow[]>(`/v1/platform/shops?status=${status}&q=${encodeURIComponent(q.trim())}&plan=${plan}`),
   })
+  const seesBilling = role === 'super' || role === 'billing'
+  const byPlan = useQuery({
+    queryKey: ['platform', 'billing', 'byPlan'],
+    queryFn: () => api<{ byPlan?: Record<string, number> }>('/v1/platform/billing'),
+    enabled: seesBilling,
+    select: (data) => data.byPlan ?? {},
+  }).data
+  const planTiles: [string, string][] = [['trial', t('plan2.status.trial')], ...plans.map((p): [string, string] => [p.code, p.name])]
+  function showPlan(code: string) {
+    setStatus('all')
+    setPlan(code)
+    document.getElementById('platform-plan')?.scrollIntoView({ behavior: 'smooth' })
+  }
   const tiles: [string, number | undefined][] = [
     [t('platform.awaiting'), overview.data?.awaitingApproval],
     [t('platform.active'), overview.data?.active],
@@ -82,8 +97,23 @@ export function PlatformScreen() {
         ))}
       </div>
 
+      {seesBilling && (
+        <section className="px-4 pb-4">
+          <h2 className="mb-2 text-sm font-bold text-muted">{t('plans.shopsByPlan')}</h2>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {planTiles.map(([code, label]) => (
+              <button key={code} onClick={() => showPlan(code)} className="rounded-2xl bg-white p-3 text-left">
+                <div className="text-2xl font-extrabold tabular-nums">{byPlan ? byPlan[code] ?? 0 : '–'}</div>
+                <div className="text-xs text-muted">{label}</div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="flex flex-col gap-3 px-4 pb-3">
-        {role !== 'support' && <NewShop />}
+        {role !== 'support' && <NewShop canBill={seesBilling} />}
+        {role !== 'support' && <MarketsPanel />}
         <AgentPanel role={role} />
         {role !== 'support' && <RegistrationsPanel role={role} />}
         {(role === 'super' || role === 'agent_manager') && <AgentsPanel />}
@@ -253,8 +283,81 @@ const SHOP_TYPES = ['kirana', 'building_materials', 'paint', 'hardware', 'other'
  * Opens a shop for a shopkeeper who can't sign up alone (on a visit or a call). It starts approved on the free trial.
  * A new number gets a one-time password, shown once here, to read out to the owner.
  */
-function NewShop() {
+function useMarkets() {
+  return useQuery({ queryKey: ['platform', 'markets'], queryFn: () => api<MarketRow[]>('/v1/platform/markets') })
+}
+
+/** The platform's list of markets: add one, rename it, or stop offering it. Shops keep the market they have. */
+function MarketsPanel() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const markets = useMarkets().data ?? []
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState({ name: '', city: '' })
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function run(action: () => Promise<unknown>) {
+    setMessage(null)
+    try {
+      await action()
+      await queryClient.invalidateQueries({ queryKey: ['platform', 'markets'] })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const add = () => run(async () => {
+    await api('/v1/platform/markets', 'POST', { name: draft.name.trim(), city: draft.city.trim() || null })
+    setDraft({ name: '', city: '' })
+  })
+  const rename = (m: MarketRow) => {
+    const name = window.prompt(t('markets.name'), m.name)?.trim()
+    if (name) void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { name, city: m.city, isActive: m.isActive }))
+  }
+
+  const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
+        <h2 className="text-lg font-bold">{t('markets.title', { count: markets.length })}</h2>
+        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+      </button>
+      {open && <>
+        <div className="grid grid-cols-2 gap-2">
+          <input aria-label={t('markets.name')} placeholder={t('markets.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={input} />
+          <input aria-label={t('markets.city')} placeholder={t('markets.city')} value={draft.city} onChange={(e) => setDraft({ ...draft, city: e.target.value })} className={input} />
+        </div>
+        <Button disabled={draft.name.trim().length < 2} onClick={() => void add()}>{t('markets.add')}</Button>
+        {message && <p className="text-sm text-due">{message}</p>}
+        <ul className="flex flex-col gap-2">
+          {markets.map((m) => (
+            <li key={m.id} className={`flex items-center gap-2 border-t border-line pt-2 ${m.isActive ? '' : 'opacity-60'}`}>
+              <span className="min-w-0 flex-1 truncate">{m.name}{m.city ? `, ${m.city}` : ''} · {t('markets.shops', { count: m.shops })}</span>
+              <button onClick={() => rename(m)} className="min-h-11 px-2 text-sm font-semibold text-teal-700">{t('markets.rename')}</button>
+              <button onClick={() => void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { name: m.name, city: m.city, isActive: !m.isActive }))} className="min-h-11 px-2 text-sm font-semibold">{m.isActive ? t('markets.stop') : t('markets.restart')}</button>
+            </li>
+          ))}
+        </ul>
+      </>}
+    </section>
+  )
+}
+
+function NewShop({ canBill }: { canBill: boolean }) {
+  const { t } = useTranslation()
+  const plans = usePlans().data ?? []
+  // Empty plan: the shop starts on the usual free trial.
+  const markets = useMarkets().data ?? []
+  const [marketId, setMarketId] = useState('')
+  const [ids, setIds] = useState({ gstin: '', shopNo: '' })
+  const [gps, setGps] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [photo, setPhoto] = useState<string | null>(null)
+  const locate = () => navigator.geolocation.getCurrentPosition(
+    (p) => setGps({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+    () => setMessage(t('markets.gpsFailed')),
+    { enableHighAccuracy: true, timeout: 20_000 },
+  )
+  const [paid, setPaid] = useState({ planCode: '', term: 'year1', method: 'cash', reference: '' })
   const queryClient = useQueryClient()
   const empty = { shopName: '', ownerName: '', phone: '', area: '', type: 'kirana', language: 'hi' }
   const [people, setPeople] = useState<PersonDraft[]>([])
@@ -273,8 +376,19 @@ function NewShop() {
       const result = await api<{ shopId: string; newAccount: boolean; tempPassword: string | null; shopCode: string | null }>('/v1/platform/shops', 'POST', {
         ...form, shopName: form.shopName.trim(), ownerName: form.ownerName.trim(), phone: form.phone.trim(), area: form.area.trim() || null,
         people: people.filter((p) => p.name.trim() && p.phone.trim()).map(toPerson),
+        gstin: ids.gstin.trim() || null, shopNo: ids.shopNo.trim() || null,
+        marketId: marketId || null, latitude: gps?.latitude ?? null, longitude: gps?.longitude ?? null, photoDataUrl: photo,
       })
+      setMarketId('')
+      setIds({ gstin: '', shopNo: '' })
+      setGps(null)
+      setPhoto(null)
       setCreated({ name: form.shopName.trim(), phone: form.phone.trim(), password: result.tempPassword, code: result.shopCode })
+      if (paid.planCode) {
+        // The shop exists either way: a failed payment can be recorded again from the shop's billing panel.
+        await api(`/v1/platform/shops/${result.shopId}/payments`, 'POST', { ...paid, reference: paid.reference.trim() || null })
+        setPaid({ ...paid, planCode: '', reference: '' })
+      }
       setForm(empty)
       setPeople([])
       await queryClient.invalidateQueries({ queryKey: ['platform'] })
@@ -294,6 +408,23 @@ function NewShop() {
       </button>
       {open && <>
         <p className="text-sm text-muted">{t('openShop.hint')}</p>
+        {canBill && (
+          <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('billing.plan')}</span>
+            <select value={paid.planCode} onChange={(e) => setPaid({ ...paid, planCode: e.target.value })} className={input}>
+              <option value="">{t('plan2.status.trial')}</option>
+              {plans.filter((p) => p.code !== 'free').map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
+            </select></label>
+        )}
+        {canBill && paid.planCode && (
+          <div className="grid grid-cols-2 gap-2">
+            <select aria-label={t('billing.plan')} value={paid.term} onChange={(e) => setPaid({ ...paid, term: e.target.value })} className={input}>
+              {['year1', 'year3', 'year5'].map((term) => <option key={term} value={term}>{t(`plan2.term.${term}`)}</option>)}
+            </select>
+            <select aria-label={t('billing.plan')} value={paid.method} onChange={(e) => setPaid({ ...paid, method: e.target.value })} className={input}>
+              {['cash', 'upi'].map((method) => <option key={method} value={method}>{t(`billing.methods.${method}`)}</option>)}
+            </select>
+          </div>
+        )}
         <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('openShop.shopName')}</span>
           <input value={form.shopName} onChange={set('shopName')} className={input} /></label>
         <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('openShop.ownerName')}</span>
@@ -312,6 +443,23 @@ function NewShop() {
               <option value="hi">हिंदी</option><option value="en">English</option>
             </select></label>
         </div>
+        <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('markets.market')}</span>
+          <select value={marketId} onChange={(e) => setMarketId(e.target.value)} className={input}>
+            <option value="">{t('markets.none')}</option>
+            {markets.filter((m) => m.isActive).map((m) => <option key={m.id} value={m.id}>{m.name}{m.city ? `, ${m.city}` : ''}</option>)}
+          </select></label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('markets.shopNo')}</span>
+            <input value={ids.shopNo} onChange={(e) => setIds({ ...ids, shopNo: e.target.value })} maxLength={30} className={`${input} min-w-0`} /></label>
+          <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('markets.gstin')}</span>
+            <input value={ids.gstin} onChange={(e) => setIds({ ...ids, gstin: e.target.value.toUpperCase() })} maxLength={15} className={`${input} min-w-0 uppercase`} /></label>
+        </div>
+        <button type="button" onClick={locate} className="min-h-11 rounded-xl border border-line font-semibold">{gps ? t('markets.gpsDone') : t('markets.gps')}</button>
+        <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-line font-semibold">
+          {photo ? t('markets.photoDone') : t('markets.photo')}
+          <input type="file" accept="image/*" capture="environment" className="sr-only"
+            onChange={(e) => { const file = e.target.files?.[0]; if (file) void shrinkPhoto(file, 1024, 140_000, false).then(setPhoto) }} />
+        </label>
         <PeopleRows people={people} onChange={setPeople} />
         <Button disabled={busy || form.shopName.trim().length < 2 || form.phone.trim().length < 10} onClick={() => void create()}>{t('openShop.create')}</Button>
         {created && (

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field, Sheet } from '../components/ui'
 import { api, request } from '../lib/api'
 import { addStockMovement, useProducts } from '../lib/data'
+import { useGstBilling } from '../lib/billing'
 import { GST_RATES } from '../lib/gst'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { Product, StockMovement, StockReason, Unit } from '../lib/types'
@@ -152,6 +153,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     gst: product.gstRate == null ? '' : String(product.gstRate),
     hsn: product.hsnCode ?? '',
   })
+  const gstBilling = useGstBilling(shopId)
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
 
@@ -188,7 +190,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         <Field label={t('stock.reorderLevel')} value={form.reorder} onChange={set('reorder')} inputMode="decimal" />
       </div>
       <Field label={t('stock.category')} value={form.category} onChange={set('category')} />
-      <div className="grid grid-cols-2 gap-2">
+      {gstBilling && <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-muted">{t('stock.gst')}</span>
           <select value={form.gst} onChange={set('gst')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
@@ -197,7 +199,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
           </select>
         </label>
         <Field label={t('stock.hsn')} value={form.hsn} onChange={set('hsn')} inputMode="numeric" maxLength={8} />
-      </div>
+      </div>}
       <Button tone="plain" onClick={save} disabled={!form.name.trim() || product.pending}>{t('stock.saveDetails')}</Button>
       {message && <p className="text-sm text-muted">{message}</p>}
     </section>

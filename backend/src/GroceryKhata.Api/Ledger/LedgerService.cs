@@ -10,7 +10,7 @@ namespace GroceryKhata.Api.Ledger;
 /// entries are append-only (fix with a reversal); a customer's balance changes only in the same
 /// transaction as the entry that moves it; every write carries the app's own ID, so a retry is a no-op.
 /// </summary>
-public sealed class LedgerService(AppDbContext db, TimeProvider clock)
+public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantContext tenant, Billing.Entitlements entitlements)
 {
     public async Task<IReadOnlyList<CustomerDto>> ListCustomersAsync(string? search, CancellationToken cancellationToken)
     {
@@ -332,6 +332,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                     Site = site,
                     VehicleNumber = vehicle,
                     PainterId = request.PainterId,
+                    Gstin = await BillGstinAsync(cancellationToken),
                 };
 
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -410,8 +411,88 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
                 return LedgerResult<BillDto>.Created(new BillDto(
                     bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
                     lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode)).ToList(),
-                    balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo));
+                    balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin));
             });
+
+    /// <summary>
+    /// Cancels a whole bill, owner only, with a reason. Nothing is deleted: the number stays used, its khata entries are
+    /// reversed, shelf stock comes back and challans can be billed again (their goods stay out). Safe to repeat.
+    /// </summary>
+    public async Task<LedgerResult<BillDto>> CancelBillAsync(Guid id, CancelBillRequest request, Guid userId, CancellationToken cancellationToken)
+    {
+        var reason = request.Reason?.Trim();
+        if (reason is not { Length: >= 3 and <= 200 })
+        {
+            return LedgerResult<BillDto>.Invalid(nameof(request.Reason), "Say why this bill is being cancelled.");
+        }
+
+        var bill = await db.Bills.AsNoTracking().SingleOrDefaultAsync(b => b.Id == id, cancellationToken);
+        if (bill is null)
+        {
+            return LedgerResult<BillDto>.Missing();
+        }
+
+        var entries = await db.LedgerEntries.AsNoTracking().Where(e => e.BillId == id).ToListAsync(cancellationToken);
+        if (entries.Any(e => e.Kind == LedgerEntryKind.Return))
+        {
+            return LedgerResult<BillDto>.Conflicted("Items on this bill were returned, so it can't be cancelled as a whole.");
+        }
+
+        var now = clock.GetUtcNow();
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        // One update decides who cancels: a second attempt changes no row and gets the saved bill back.
+        var claimed = await db.Bills.Where(b => b.Id == id && b.CancelledAt == null).ExecuteUpdateAsync(s => s
+            .SetProperty(b => b.CancelledAt, now).SetProperty(b => b.CancelReason, reason).SetProperty(b => b.CancelledByUserId, userId), cancellationToken);
+        if (claimed == 0)
+        {
+            return LedgerResult<BillDto>.Replay((await FindBillAsync(id, cancellationToken))!);
+        }
+
+        var reversed = entries.Where(e => e.ReversesEntryId != null).Select(e => e.ReversesEntryId!.Value).ToHashSet();
+        var reversals = entries.Where(e => e.Kind != LedgerEntryKind.Reversal && !reversed.Contains(e.Id)).Select(e => new LedgerEntry
+        {
+            CustomerId = e.CustomerId,
+            Kind = LedgerEntryKind.Reversal,
+            Amount = -e.Amount,
+            PaymentMode = e.PaymentMode,
+            BillId = id,
+            ReversesEntryId = e.Id,
+            Note = reason,
+            OccurredAt = now,
+            CreatedByUserId = userId,
+        }).ToList();
+        db.LedgerEntries.AddRange(reversals);
+
+        var sold = (await db.StockMovements.AsNoTracking().Where(m => m.BillId == id && m.Kind == StockMovementKind.Sale).ToListAsync(cancellationToken))
+            .GroupBy(m => m.ProductId).Select(g => (ProductId: g.Key, Quantity: -g.Sum(m => m.Quantity))).OrderBy(x => x.ProductId).ToList();
+        foreach (var (productId, quantity) in sold)
+        {
+            db.StockMovements.Add(new StockMovement
+            {
+                ProductId = productId, Kind = StockMovementKind.Adjustment, Quantity = quantity, BillId = id, OccurredAt = now,
+                CreatedByUserId = userId, Note = "Bill cancelled",
+            });
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        if (sold.Count > 0)
+        {
+            var ids = sold.Select(x => x.ProductId).ToArray();
+            var quantities = sold.Select(x => x.Quantity).ToArray();
+            await db.Database.ExecuteSqlAsync(
+                $"UPDATE products AS p SET stock = p.stock + v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", cancellationToken);
+        }
+
+        var delta = reversals.Sum(r => r.Amount);
+        if (bill.CustomerId is { } customerId && delta != 0)
+        {
+            await AdjustBalanceAsync(customerId, delta, cancellationToken);
+        }
+
+        await db.Challans.Where(c => c.InvoiceId == id).ExecuteUpdateAsync(s => s.SetProperty(c => c.InvoiceId, (Guid?)null), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return LedgerResult<BillDto>.Created((await FindBillAsync(id, cancellationToken))!);
+    }
 
     /// <summary>
     /// The customer's khata. With a month ("2026-10"), only that month's entries, starting from the balance
@@ -526,6 +607,13 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
         return entry is null ? null : new KhataEntryResponse(LedgerEntryDto.From(entry), await BalanceAsync(entry.CustomerId, cancellationToken));
     }
 
+    /// <summary>The GSTIN a new bill carries: none unless the shop's plan has GST billing, so it prints as a plain bill.</summary>
+    private async Task<string?> BillGstinAsync(CancellationToken cancellationToken)
+    {
+        var gstin = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.Gstin).SingleOrDefaultAsync(cancellationToken);
+        return gstin is not null && (await entitlements.ForShopAsync(tenant.ShopId, cancellationToken)).Has(Billing.Features.Gst) ? gstin : null;
+    }
+
     private async Task<BillDto?> FindBillAsync(Guid id, CancellationToken cancellationToken)
     {
         var bill = await db.Bills.AsNoTracking().Include(b => b.Lines).SingleOrDefaultAsync(b => b.Id == id, cancellationToken);
@@ -539,7 +627,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock)
             bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
             bill.Lines.OrderBy(l => l.LineNo)
                 .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode)).ToList(),
-            balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo);
+            balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, bill.CancelledAt, bill.CancelReason);
     }
 
     private Task<decimal> BalanceAsync(Guid customerId, CancellationToken cancellationToken) =>

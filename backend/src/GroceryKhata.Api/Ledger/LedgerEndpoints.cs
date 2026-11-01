@@ -40,6 +40,10 @@ public static class LedgerEndpoints
         group.MapPost("/bills", async (BillRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
             (await ledger.CreateBillAsync(request, user.UserId()!.Value, ct, isOwner: IsOwner(user))).ToHttp($"/api/v1/bills/{request.Id}"));
 
+        group.MapPost("/bills/{id:guid}/cancel", async (Guid id, CancelBillRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
+            (await ledger.CancelBillAsync(id, request, user.UserId()!.Value, ct)).ToHttp($"/api/v1/bills/{id}"))
+            .RequireAuthorization(AppPolicies.ShopOwner);
+
         group.MapGet("/ledger/reconcile", (LedgerService ledger, CancellationToken ct) => ledger.ReconcileAsync(ct))
             .RequireAuthorization(AppPolicies.ShopOwner);
 

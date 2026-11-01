@@ -27,7 +27,10 @@ export function AuthScreen() {
     try {
       if (useOtp) await otp()
       else if (mode === 'sign-in') await authenticate('/v1/auth/sign-in', { phone: form.phone, password: form.password })
-      else if (role === 'shop') await authenticate('/v1/auth/sign-up', { ...form, language: i18n.language })
+      else if (role === 'shop') {
+        await authenticate('/v1/auth/sign-up', { ...form, language: i18n.language })
+        navigate('/choose-plan')
+      }
       else await authenticate('/v1/auth/register', { fullName: form.fullName, phone: form.phone, password: form.password, language: i18n.language })
     } catch (err) {
       setError(err instanceof Error ? err.message : t('error'))

@@ -78,7 +78,12 @@ public sealed record BillDto(
     string? Site = null,
     string? VehicleNumber = null,
     Guid? PainterId = null,
-    string? BillNo = null);
+    string? BillNo = null,
+    string? Gstin = null,
+    DateTimeOffset? CancelledAt = null,
+    string? CancelReason = null);
+
+public sealed record CancelBillRequest(string? Reason);
 
 public sealed record StatementLine(
     Guid Id,

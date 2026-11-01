@@ -1,3 +1,4 @@
+import { useGstBilling } from '../lib/billing'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +16,7 @@ export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
 
 function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: boolean; initial: ShopSettings }) {
   const { t } = useTranslation()
+  const gstBilling = useGstBilling(shopId)
   const queryClient = useQueryClient()
   const [form, setForm] = useState({
     name: initial.name,
@@ -58,7 +60,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
             {SHOP_TYPES.map((type) => <option key={type} value={type}>{t(`shopType.${type}`)}</option>)}
           </select>
         </label>
-        <Field label={t('settings.gstin')} value={form.gstin} onChange={set('gstin')} maxLength={15} autoCapitalize="characters" placeholder="08ABCDE1234F1Z5" />
+        {gstBilling && <Field label={t('settings.gstin')} value={form.gstin} onChange={set('gstin')} maxLength={15} autoCapitalize="characters" placeholder="08ABCDE1234F1Z5" />}
         <Field label={t('settings.area')} value={form.area} onChange={set('area')} />
         <Field label={t('settings.address')} value={form.address} onChange={set('address')} />
         <div>

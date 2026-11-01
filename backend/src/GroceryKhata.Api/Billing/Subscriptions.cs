@@ -71,8 +71,9 @@ public static class Features
     public const string Ai = "ai";
     public const string Trade = "trade";
     public const string BillPhoto = "bill_photo";
+    public const string Gst = "gst";
 
-    public static readonly string[] All = [Reports, Store, WhatsApp, Staff, Ai, Trade, BillPhoto];
+    public static readonly string[] All = [Reports, Store, WhatsApp, Staff, Ai, Trade, BillPhoto, Gst];
 }
 
 /// <summary>
@@ -89,6 +90,16 @@ public sealed class Subscription : Entity
     public PlanTerm? Term { get; set; }
 
     public DateTimeOffset TrialEndsAt { get; set; }
+
+    /// <summary>The plan and term the owner or agent picked, not yet paid: My plan opens on it. Cleared by the payment.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(20)]
+    public string? ChosenPlanCode { get; set; }
+
+    public PlanTerm? ChosenTerm { get; set; }
+
+    /// <summary>Why an admin last moved this shop's plan: a move takes no money, so it must say why.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(200)]
+    public string? MoveReason { get; set; }
 
     /// <summary>Paid up to this moment. Null: never paid.</summary>
     public DateTimeOffset? PaidUntil { get; set; }

@@ -49,6 +49,18 @@ public sealed class Shop : Entity
     /// <summary>What the shop sells: switches on that trade's units, starter items and bill buttons.</summary>
     public ShopType Type { get; set; } = ShopType.Kirana;
 
+    /// <summary>The number on the shop itself in its market ("Shop 12"), for finding it. Not the GKS shop ID.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(30)]
+    public string? ShopNo { get; set; }
+
+    /// <summary>The market from the platform's list. Optional: <see cref="Area"/> stays as the shop's own words.</summary>
+    public Guid? MarketId { get; set; }
+
+    /// <summary>Where the shop is (GPS). Null: not captured yet.</summary>
+    public double? Latitude { get; set; }
+
+    public double? Longitude { get; set; }
+
     /// <summary>The shop's GSTIN, printed on tax bills. Null: not registered (bills show no GST split).</summary>
     public string? Gstin { get; set; }
 
