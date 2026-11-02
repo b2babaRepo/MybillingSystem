@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -81,6 +82,58 @@ function StatementPrint({ shopName, customerId, month }: { shopName: string; cus
         <span>{t('print.closingBalance')}</span><span>{formatRupees(s.closingBalance)}</span>
       </p>
     </Page>
+  )
+}
+
+/** Goods taken back on this bill: earlier credit notes, and a form to make one. Owner only (the server checks). */
+function CreditNotesPanel({ billId, lines }: { billId: string; lines: BillView['bill']['lines'] }) {
+  const { t } = useTranslation()
+  const notes = useQuery({ queryKey: ['credit-notes', billId], queryFn: () => api<{ id: string; noteNo: string; reason: string; total: number; occurredAt: string; lines: { billLineNo: number; quantity: number }[] }[]>(`/v1/bills/${billId}/credit-notes`), retry: false })
+  const [open, setOpen] = useState(false)
+  const [qty, setQty] = useState<Record<number, string>>({})
+  const [reason, setReason] = useState('')
+  const [restock, setRestock] = useState(true)
+  const [message, setMessage] = useState('')
+  if (notes.isError) return null
+  const back = (lineNo: number) => (notes.data ?? []).flatMap((n) => n.lines).filter((l) => l.billLineNo === lineNo).reduce((s, l) => s + l.quantity, 0)
+
+  async function save() {
+    setMessage('')
+    try {
+      await api(`/v1/bills/${billId}/credit-notes`, 'POST', {
+        id: crypto.randomUUID(), reason: reason.trim(), restock,
+        lines: Object.entries(qty).filter(([, q]) => Number(q) > 0).map(([lineNo, q]) => ({ lineNo: Number(lineNo), quantity: Number(q) })),
+      })
+      setQty({}); setReason(''); setOpen(false)
+      await notes.refetch()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+
+  return (
+    <section className="mt-6 flex flex-col gap-2 print:hidden">
+      {notes.data?.map((n) => (
+        <p key={n.id} className="flex justify-between text-sm"><span>{n.noteNo} · {new Date(n.occurredAt).toLocaleDateString('en-IN')} · {n.reason}</span><span>−{formatRupees(n.total)}</span></p>
+      ))}
+      {!open ? (
+        <button onClick={() => setOpen(true)} className="h-11 rounded-xl border border-line font-semibold">{t('creditNote.start')}</button>
+      ) : (
+        <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
+          {lines.map((l, i) => {
+            const left = l.quantity - back(i + 1)
+            return left > 0 ? (
+              <label key={i} className="flex items-center justify-between gap-2 text-sm"><span>{l.name} ({t('creditNote.upTo', { qty: left })})</span>
+                <input inputMode="decimal" value={qty[i + 1] ?? ''} onChange={(e) => setQty({ ...qty, [i + 1]: e.target.value })} className="h-11 w-24 rounded-lg border border-line px-2" /></label>
+            ) : null
+          })}
+          <input aria-label={t('creditNote.reason')} placeholder={t('creditNote.reason')} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} className="h-11 rounded-lg border border-line px-3" />
+          <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} className="h-5 w-5" />{t('creditNote.restock')}</label>
+          <button disabled={reason.trim().length < 3 || !Object.values(qty).some((q) => Number(q) > 0)} onClick={() => void save()} className="h-11 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-40">{t('creditNote.save')}</button>
+          {message && <p className="text-sm text-due">{message}</p>}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -175,6 +228,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
       {bill.billOfSupply && <p className="mt-2 text-sm">{t('print.compositionNote')}</p>}
       {unset > 0 && <p className="mt-1 text-sm font-semibold text-due print:hidden">{t('print.gstUnsetWarning')}</p>}
       <p className="mt-6 text-center">{t('print.thanks')}</p>
+      {!bill.cancelledAt && <CreditNotesPanel billId={billId} lines={bill.lines} />}
       {!bill.cancelledAt && <button onClick={cancel} className="mt-6 h-11 w-full rounded-xl border border-line font-semibold text-due print:hidden">{t('print.cancelBill')}</button>}
     </Page>
   )

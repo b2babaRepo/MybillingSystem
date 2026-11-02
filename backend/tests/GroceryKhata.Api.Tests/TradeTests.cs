@@ -194,6 +194,30 @@ public sealed class TradeTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_credit_note_takes_back_part_of_a_bill_with_its_tax()
+    {
+        var shop = await SignUpAsync("building_materials");
+        await shop.PostJsonAsync("/api/v1/products/starter", new { });
+        var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
+        var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" });
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Gupta");
+        var bill = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), customerId = customer, paidAmount = 0m, lines = new[] { new { productId = cement.Id, quantity = 4m, unitPrice = 1180m } } })).ReadAsync<BillDto>();
+
+        var note = await (await shop.PostJsonAsync($"/api/v1/bills/{bill.Id}/credit-notes", new { id = Guid.CreateVersion7(), reason = "Two bags torn", lines = new[] { new { lineNo = 1, quantity = 2m } } }))
+            .ReadAsync<GroceryKhata.Api.Ledger.CreditNoteDto>();
+        Assert.Equal((2360m, 2000m, 180m, 180m), (note.Total, note.Lines[0].TaxableValue, note.Lines[0].Cgst, note.Lines[0].Sgst));
+        Assert.StartsWith("CN/", note.NoteNo);
+        Assert.Equal(2360m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance);
+        Assert.Equal(-2m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).Stock); // 4 sold, 2 back
+
+        var tooMany = await shop.PostJsonAsync($"/api/v1/bills/{bill.Id}/credit-notes", new { id = Guid.CreateVersion7(), reason = "More", lines = new[] { new { lineNo = 1, quantity = 3m } } });
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+        var month = await shop.GetJsonAsync<GroceryKhata.Api.Ledger.GstMonthDto>("/api/v1/gst/month");
+        Assert.Equal((1, 2360m), (month.CreditNotes, month.CreditNoteValue));
+    }
+
+    [Fact]
     public void Razorpay_signatures_are_checked()
     {
         var good = Convert.ToHexStringLower(System.Security.Cryptography.HMACSHA256.HashData("secret"u8, "order|pay"u8));

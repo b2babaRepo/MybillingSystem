@@ -16,7 +16,8 @@ public sealed record GstCheck(string Code, int Count);
 /// <summary>One month of GST for the owner: what goes to the CA, and what to fix first.</summary>
 public sealed record GstMonthDto(
     string Month, bool Composition, int Bills, int Cancelled, string? FirstBillNo, string? LastBillNo,
-    decimal Sales, decimal Taxable, decimal Cgst, decimal Sgst, decimal Igst, decimal B2bSales, IReadOnlyList<GstCheck> Checks, bool CanDownload);
+    decimal Sales, decimal Taxable, decimal Cgst, decimal Sgst, decimal Igst, decimal B2bSales, IReadOnlyList<GstCheck> Checks, bool CanDownload,
+    int CreditNotes = 0, decimal CreditNoteValue = 0, decimal CreditNoteTax = 0);
 
 /// <summary>
 /// "GST &amp; Tally": a month's bills as Tally import files (parties first, then sales) and a summary sheet, for the
@@ -63,18 +64,20 @@ public static class GstExport
         return chars[(36 - (sum % 36)) % 36] == gstin[14];
     }
 
-    private sealed record MonthData(List<Bill> Bills, List<Bill> Cancelled, Dictionary<Guid, (string Name, string? Gstin)> Customers, bool Composition, string? ShopGstin, int Returns);
+    private sealed record MonthData(List<Bill> Bills, List<Bill> Cancelled, Dictionary<Guid, (string Name, string? Gstin)> Customers, bool Composition, string? ShopGstin, int Returns, List<CreditNote> Notes);
 
     private static async Task<MonthData> LoadAsync(AppDbContext db, ITenantContext tenant, (int Year, int Month) period, CancellationToken ct)
     {
         var (start, end) = IndiaTime.Month(period.Year, period.Month);
         var all = await db.Bills.AsNoTracking().Include(b => b.Lines).Where(b => b.OccurredAt >= start && b.OccurredAt < end)
             .OrderBy(b => b.FinancialYear).ThenBy(b => b.Number).ToListAsync(ct);
-        var ids = all.Where(b => b.CustomerId != null).Select(b => b.CustomerId!.Value).Distinct().ToList();
+        var notes = await db.CreditNotes.AsNoTracking().Include(n => n.Lines).Where(n => n.OccurredAt >= start && n.OccurredAt < end).OrderBy(n => n.FinancialYear).ThenBy(n => n.Number).ToListAsync(ct);
+        var ids = all.Where(b => b.CustomerId != null).Select(b => b.CustomerId!.Value).Concat(notes.Where(n => n.CustomerId != null).Select(n => n.CustomerId!.Value)).Distinct().ToList();
         var customers = await db.Customers.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => (c.Name, c.Gstin), ct);
         var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.GstComposition, s.Gstin }).SingleAsync(ct);
-        var returns = await db.LedgerEntries.AsNoTracking().CountAsync(e => e.Kind == LedgerEntryKind.Return && e.OccurredAt >= start && e.OccurredAt < end, ct);
-        return new MonthData(all.Where(b => b.CancelledAt == null).ToList(), all.Where(b => b.CancelledAt != null).ToList(), customers, shop.GstComposition, shop.Gstin, returns);
+        // Returns from order disputes have no credit note: they still need one from the CA.
+        var returns = await db.LedgerEntries.AsNoTracking().CountAsync(e => e.Kind == LedgerEntryKind.Return && e.OccurredAt >= start && e.OccurredAt < end && (e.Note == null || !e.Note.StartsWith("CN/")), ct);
+        return new MonthData(all.Where(b => b.CancelledAt == null).ToList(), all.Where(b => b.CancelledAt != null).ToList(), customers, shop.GstComposition, shop.Gstin, returns, notes);
     }
 
     private static (decimal Taxable, decimal Cgst, decimal Sgst, decimal Igst) Tax(Bill b) =>
@@ -125,7 +128,8 @@ public static class GstExport
             d.Bills.Concat(d.Cancelled).OrderBy(b => b.FinancialYear).ThenBy(b => b.Number).LastOrDefault()?.BillNo,
             d.Bills.Sum(b => b.Total), taxes.Sum(x => x.Taxable), taxes.Sum(x => x.Cgst), taxes.Sum(x => x.Sgst), taxes.Sum(x => x.Igst),
             d.Bills.Where(b => b.BuyerGstin is not null && IsValidGstin(b.BuyerGstin)).Sum(b => b.Total), checks,
-            (await entitlements.ForShopAsync(tenant.ShopId, ct)).Has(Features.GstExport)));
+            (await entitlements.ForShopAsync(tenant.ShopId, ct)).Has(Features.GstExport),
+            d.Notes.Count, d.Notes.Sum(n => n.Total), d.Notes.Sum(n => n.Lines.Sum(l => l.Cgst + l.Sgst + l.Igst))));
     }
 
     private static async Task<IResult> ExportAsync(string? month, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
@@ -225,6 +229,28 @@ public static class GstExport
             body.Append("</VOUCHER></TALLYMESSAGE>\n");
         }
 
+        // Credit notes: the sale turned round. The party is credited; sales and tax are debited.
+        foreach (var n in d.Notes)
+        {
+            var party = n.CustomerId is { } id && d.Customers.TryGetValue(id, out var c) ? c.Name : "Cash";
+            var debits = new List<(string Ledger, decimal Amount)> { ("Sales", n.Lines.Sum(l => l.TaxableValue)), ("Output CGST", n.Lines.Sum(l => l.Cgst)), ("Output SGST", n.Lines.Sum(l => l.Sgst)), ("Output IGST", n.Lines.Sum(l => l.Igst)) };
+            var roundOff = n.Total - debits.Sum(x => x.Amount);
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"Credit Note\" ACTION=\"Create\"><GUID>gk-{n.Id}</GUID><DATE>{n.OccurredAt.ToOffset(IndiaTime.Offset):yyyyMMdd}</DATE><VOUCHERTYPENAME>Credit Note</VOUCHERTYPENAME>")
+                .Append($"<VOUCHERNUMBER>{X(n.NoteNo)}</VOUCHERNUMBER><PARTYLEDGERNAME>{X(party)}</PARTYLEDGERNAME><NARRATION>{X(n.Reason)}</NARRATION><PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>")
+                .Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(party)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{Amount(n.Total)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
+            foreach (var (ledger, amount) in debits.Where(x => x.Amount != 0))
+            {
+                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{ledger}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{Amount(amount)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
+            }
+
+            if (roundOff != 0)
+            {
+                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>Round Off</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{Amount(roundOff)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
+            }
+
+            body.Append("</VOUCHER></TALLYMESSAGE>\n");
+        }
+
         return Envelope("Vouchers", body.ToString());
     }
 
@@ -246,6 +272,15 @@ public static class GstExport
         foreach (var g in taxed.GroupBy(l => l.GstRate).OrderBy(g => g.Key))
         {
             csv.AppendJoin(',', g.Key is { } r ? $"{r:0.##}%" : "Rate not set", Amount(g.Sum(l => LineTax(l).Taxable)), Amount(g.Sum(l => LineTax(l).Cgst)), Amount(g.Sum(l => LineTax(l).Sgst)), Amount(g.Sum(l => LineTax(l).Igst))).Append('\n');
+        }
+
+        csv.Append("\nCredit note,Date,Against bill,Party,Reason,Total,Taxable,CGST,SGST,IGST\n");
+        foreach (var n in d.Notes)
+        {
+            var bill = d.Bills.Concat(d.Cancelled).FirstOrDefault(b => b.Id == n.BillId)?.BillNo ?? "(earlier month)";
+            var party = n.CustomerId is { } id && d.Customers.TryGetValue(id, out var cust) ? cust.Name : "Cash";
+            csv.AppendJoin(',', n.NoteNo, n.OccurredAt.ToOffset(IndiaTime.Offset).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), bill, C(party), C(n.Reason),
+                Amount(n.Total), Amount(n.Lines.Sum(l => l.TaxableValue)), Amount(n.Lines.Sum(l => l.Cgst)), Amount(n.Lines.Sum(l => l.Sgst)), Amount(n.Lines.Sum(l => l.Igst))).Append('\n');
         }
 
         csv.Append("\nHSN,GST rate,Quantity,Taxable,Total tax\n");

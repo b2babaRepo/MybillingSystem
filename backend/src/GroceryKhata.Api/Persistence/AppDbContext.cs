@@ -18,7 +18,7 @@ namespace GroceryKhata.Api.Persistence;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenant) : DbContext(options)
 {
     /// <summary>Tables protected by row-level security. Keep in step with <see cref="ITenantOwned"/> entities.</summary>
-    public static readonly string[] ShopOwnedTables = ["products", "customers", "ledger_entries", "bills", "bill_lines", "orders", "order_lines", "stock_movements", "audit_log", "expenses", "balance_checks", "cash_counts", "challans", "painters", "suppliers", "purchases", "purchase_lines", "supplier_entries"];
+    public static readonly string[] ShopOwnedTables = ["products", "customers", "ledger_entries", "bills", "bill_lines", "orders", "order_lines", "stock_movements", "audit_log", "expenses", "balance_checks", "cash_counts", "challans", "painters", "suppliers", "purchases", "purchase_lines", "supplier_entries", "credit_notes", "credit_note_lines"];
 
     private Guid CurrentShopId => tenant.ShopId;
 
@@ -43,6 +43,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<Common.SeenMessage> SeenMessages => Set<Common.SeenMessage>();
 
     public DbSet<Supplier> Suppliers => Set<Supplier>();
+
+    public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
+
+    public DbSet<CreditNoteLine> CreditNoteLines => Set<CreditNoteLine>();
 
     public DbSet<Purchase> Purchases => Set<Purchase>();
 
@@ -430,6 +434,34 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(c => c.Note).HasMaxLength(200);
             b.HasIndex(c => new { c.ShopId, c.Day }).IsUnique();
+        });
+
+        modelBuilder.Entity<CreditNote>(b =>
+        {
+            b.ToTable("credit_notes");
+            b.HasTenantKey();
+            b.Ignore(n => n.NoteNo);
+            b.Property(n => n.FinancialYear).HasMaxLength(7);
+            b.Property(n => n.Reason).HasMaxLength(200);
+            b.Property(n => n.Total).HasPrecision(12, 2);
+            b.HasIndex(n => new { n.ShopId, n.FinancialYear, n.Number }).IsUnique();
+            b.HasIndex(n => new { n.ShopId, n.BillId });
+            b.HasMany(n => n.Lines).WithOne().HasForeignKey(l => l.CreditNoteId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CreditNoteLine>(b =>
+        {
+            b.ToTable("credit_note_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Name).HasMaxLength(120);
+            b.Property(l => l.HsnCode).HasMaxLength(8);
+            b.Property(l => l.Quantity).HasPrecision(12, 3);
+            foreach (var money in new[] { nameof(CreditNoteLine.Amount), nameof(CreditNoteLine.TaxableValue), nameof(CreditNoteLine.Cgst), nameof(CreditNoteLine.Sgst), nameof(CreditNoteLine.Igst) })
+            {
+                b.Property(money).HasPrecision(12, 2);
+            }
+
+            b.Property(l => l.GstRate).HasPrecision(5, 2);
         });
 
         modelBuilder.Entity<Supplier>(b =>

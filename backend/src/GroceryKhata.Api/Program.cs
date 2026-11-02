@@ -99,6 +99,7 @@ app.MapMarkets();
 app.MapProfile();
 app.MapAddresses();
 app.MapGstExport();
+app.MapCreditNotes();
 app.MapRazorpay();
 app.MapSuppliers();
 app.MapCashCounts();

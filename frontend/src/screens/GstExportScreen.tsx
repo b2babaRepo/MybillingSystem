@@ -9,6 +9,7 @@ import { navigate } from '../router'
 interface GstMonth {
   month: string; composition: boolean; bills: number; cancelled: number; firstBillNo: string | null; lastBillNo: string | null
   sales: number; taxable: number; cgst: number; sgst: number; igst: number; b2bSales: number; checks: { code: string; count: number }[]; canDownload: boolean
+  creditNotes?: number; creditNoteValue?: number; creditNoteTax?: number
 }
 
 const FIX: Record<string, string> = { noRate: '/items', noHsn: '/items', badBuyerGstin: '/khata', noGstin: '/plan' }
@@ -69,6 +70,7 @@ export function GstExportScreen() {
           {row('CGST', formatRupees(data.cgst))}
           {row('SGST', formatRupees(data.sgst))}
           {data.b2bSales > 0 && row(t('gstExport.b2b'), formatRupees(data.b2bSales))}
+          {!!data.creditNotes && row(t('gstExport.creditNotes', { count: data.creditNotes }), `−${formatRupees(data.creditNoteValue ?? 0)} (${t('gstExport.tax')} ${formatRupees(data.creditNoteTax ?? 0)})`)}
         </section>
         {data.canDownload
           ? <Button disabled={data.bills + data.cancelled === 0} onClick={() => void send()}>{t('gstExport.send')}</Button>
