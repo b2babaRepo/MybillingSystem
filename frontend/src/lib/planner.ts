@@ -327,6 +327,7 @@ export interface SendChoice {
   slot: string
   payment: OrderPayment
   note: string
+  address?: string | null
 }
 
 /**
@@ -381,6 +382,7 @@ export async function sendList(userId: string, userName: string, items: ListItem
       slot: choice.slot || null,
       payment: choice.payment,
       note: choice.note || null,
+      address: choice.fulfilment === 'delivery' ? choice.address ?? null : null,
       choices: Object.entries(lineChoices).map(([listItemId, c]) => ({ listItemId, productId: c.productId, preference: c.preference })),
       draft,
     },

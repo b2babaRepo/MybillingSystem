@@ -97,6 +97,7 @@ app.MapExpenses();
 app.MapBillPhotos();
 app.MapMarkets();
 app.MapProfile();
+app.MapAddresses();
 app.MapRazorpay();
 app.MapSuppliers();
 app.MapCashCounts();

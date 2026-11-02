@@ -1,3 +1,5 @@
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../../lib/api'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../../lib/format'
@@ -16,6 +18,18 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
   const findNear = () => navigator.geolocation.getCurrentPosition((p) => setNear({ lat: p.coords.latitude, lng: p.coords.longitude }), () => setNear(null), { timeout: 15_000 })
   const [shop, setShop] = useState<ShopEntry | null>(null)
   const [fulfilment, setFulfilment] = useState<Fulfilment>('delivery')
+  const addresses = useQuery({ queryKey: ['addresses'], queryFn: () => api<{ id: string; label: string; text: string; landmark: string | null; pincode: string | null }[]>('/v1/addresses'), retry: false })
+  const [addressId, setAddressId] = useState('')
+  const [newAddress, setNewAddress] = useState({ label: '', text: '', landmark: '', pincode: '' })
+  const chosenAddress = addresses.data?.find((a) => a.id === addressId) ?? addresses.data?.[0]
+  const addressText = chosenAddress ? [chosenAddress.text, chosenAddress.landmark, chosenAddress.pincode].filter(Boolean).join(', ') : null
+  async function saveAddress() {
+    const id = crypto.randomUUID()
+    await api('/v1/addresses', 'POST', { id, ...newAddress })
+    setNewAddress({ label: '', text: '', landmark: '', pincode: '' })
+    await addresses.refetch()
+    setAddressId(id)
+  }
   const [slot, setSlot] = useState('')
   const [payment, setPayment] = useState<OrderPayment>('cash')
   const [note, setNote] = useState('')
@@ -29,7 +43,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
   async function send() {
     if (!shop) return
     setBusy(true)
-    await sendList(userId, userName, items, { shop, kind, fulfilment, slot: slot.trim(), payment, note: note.trim() }, choices)
+    await sendList(userId, userName, items, { shop, kind, fulfilment, slot: slot.trim(), payment, note: note.trim(), address: addressText }, choices)
     navigate('/orders')
   }
 
@@ -137,6 +151,28 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
           <button onClick={() => setFulfilment('delivery')} aria-pressed={fulfilment === 'delivery'} className={chip(fulfilment === 'delivery')}>{t('plan.delivery')}</button>
           <button onClick={() => setFulfilment('pickup')} aria-pressed={fulfilment === 'pickup'} className={chip(fulfilment === 'pickup')}>{t('plan.pickup')}</button>
         </div>
+        {fulfilment === 'delivery' && (
+          <div className="flex flex-col gap-2">
+            <span className="text-base font-bold">{t('plan.deliverTo')}</span>
+            {(addresses.data?.length ?? 0) > 0 && (
+              <select aria-label={t('plan.deliverTo')} value={chosenAddress?.id ?? ''} onChange={(e) => setAddressId(e.target.value)} className="h-12 rounded-[14px] border border-line bg-white px-3">
+                {addresses.data!.map((a) => <option key={a.id} value={a.id}>{a.label}: {a.text}</option>)}
+              </select>
+            )}
+            <details className="rounded-[14px] border border-line p-2">
+              <summary className="min-h-11 cursor-pointer font-semibold text-teal-700">{t('plan.addAddress')}</summary>
+              <div className="mt-2 flex flex-col gap-2">
+                <input aria-label={t('plan.addressLabel')} placeholder={t('plan.addressLabel')} value={newAddress.label} onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })} maxLength={30} className="h-12 rounded-[14px] border border-line px-3" />
+                <input aria-label={t('plan.addressText')} placeholder={t('plan.addressText')} value={newAddress.text} onChange={(e) => setNewAddress({ ...newAddress, text: e.target.value })} maxLength={300} className="h-12 rounded-[14px] border border-line px-3" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input aria-label={t('plan.landmark')} placeholder={t('plan.landmark')} value={newAddress.landmark} onChange={(e) => setNewAddress({ ...newAddress, landmark: e.target.value })} maxLength={120} className="h-12 min-w-0 rounded-[14px] border border-line px-3" />
+                  <input aria-label={t('plan.pincode')} placeholder={t('plan.pincode')} value={newAddress.pincode} onChange={(e) => setNewAddress({ ...newAddress, pincode: e.target.value })} inputMode="numeric" maxLength={6} className="h-12 min-w-0 rounded-[14px] border border-line px-3" />
+                </div>
+                <button disabled={!newAddress.label.trim() || newAddress.text.trim().length < 5} onClick={() => void saveAddress()} className="min-h-11 rounded-[14px] bg-teal-700 font-semibold text-white disabled:opacity-40">{t('save')}</button>
+              </div>
+            </details>
+          </div>
+        )}
         <label className="mt-1 block">
           <span className="mb-1 block text-base font-bold">{t('plan.when')}</span>
           <input value={slot} onChange={(e) => setSlot(e.target.value)} maxLength={80} placeholder={t('plan.whenPlaceholder')} className="h-12 w-full rounded-[14px] border border-line px-3 text-[17px]" />

@@ -2130,6 +2130,54 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Identity.SavedAddress", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("label");
+
+                    b.Property<string>("Landmark")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("landmark");
+
+                    b.Property<string>("Pincode")
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("pincode");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("saved_addresses", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Identity.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4281,6 +4329,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Identity.RefreshToken", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Identity.SavedAddress", b =>
                 {
                     b.HasOne("GroceryKhata.Api.Identity.User", null)
                         .WithMany()

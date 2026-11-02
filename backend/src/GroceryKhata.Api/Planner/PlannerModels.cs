@@ -50,7 +50,8 @@ public sealed record PlaceOrderRequest(
     string? Slot,
     OrderPayment? Payment,
     string? Note,
-    IReadOnlyList<LineChoice>? Choices = null);
+    IReadOnlyList<LineChoice>? Choices = null,
+    string? Address = null);
 
 public sealed record OrderLineDto(
     Guid Id,

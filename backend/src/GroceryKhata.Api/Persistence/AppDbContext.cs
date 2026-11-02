@@ -36,6 +36,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Market> Markets => Set<Market>();
 
+    public DbSet<SavedAddress> SavedAddresses => Set<SavedAddress>();
+
     public DbSet<Common.JobRun> JobRuns => Set<Common.JobRun>();
 
     public DbSet<Common.SeenMessage> SeenMessages => Set<Common.SeenMessage>();
@@ -158,6 +160,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("seen_messages");
             b.HasKey(m => m.MessageId);
             b.Property(m => m.MessageId).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<SavedAddress>(b =>
+        {
+            b.ToTable("saved_addresses");
+            b.Property(a => a.Label).HasMaxLength(30);
+            b.Property(a => a.Text).HasMaxLength(300);
+            b.Property(a => a.Landmark).HasMaxLength(120);
+            b.Property(a => a.Pincode).HasMaxLength(6);
+            b.HasIndex(a => a.UserId);
+            b.HasOne<User>().WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Market>(b =>

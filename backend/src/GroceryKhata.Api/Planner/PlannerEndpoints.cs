@@ -233,6 +233,8 @@ public static class PlannerEndpoints
             Slot = string.IsNullOrWhiteSpace(request.Slot) ? null : request.Slot.Trim(),
             Payment = request.Payment ?? OrderPayment.Cash,
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
+            // A copy of the words: changing or deleting the saved address later doesn't change this order.
+            Address = (request.Fulfilment ?? Fulfilment.Pickup) == Fulfilment.Delivery && !string.IsNullOrWhiteSpace(request.Address) ? request.Address.Trim()[..Math.Min(request.Address.Trim().Length, 300)] : null,
             Lines = list.Items.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id)
                 .Select(i => OrderLines.FromListItem(i, choices.GetValueOrDefault(i.Id), products, shopItems, userId, ++lineNo)).ToList(),
         };
