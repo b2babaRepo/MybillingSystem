@@ -72,6 +72,9 @@ public sealed class Shop : Entity
     /// <summary>On the composition scheme: bills are bills of supply, with no tax collected.</summary>
     public bool GstComposition { get; set; }
 
+    /// <summary>Other trades the shop also works in ("kirana" plus "sweets"). The <see cref="Type"/> is its main one.</summary>
+    public string[] ExtraTypes { get; set; } = [];
+
     /// <summary>The shop's GSTIN, printed on tax bills. Null: not registered (bills show no GST split).</summary>
     public string? Gstin { get; set; }
 
@@ -94,4 +97,11 @@ public enum ShopType
     Paint,
     Hardware,
     Other,
+    /// <summary>20 L cans and jars delivered on rounds.</summary>
+    WaterSupply,
+    /// <summary>Salon and beauty parlour: services and products.</summary>
+    Beauty,
+    Sweets,
+    Toys,
+    Clothes,
 }

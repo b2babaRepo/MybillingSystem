@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { navigate } from '../router'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
-import { buildReminder, DEFAULT_REMINDER, SHOP_TYPES, useShopSettings, type ShopSettings } from '../lib/reports'
+import { buildReminder, DEFAULT_REMINDER, SHOP_TYPES, useShopSettings, type ShopSettings, type ShopType } from '../lib/reports'
 
 /** The shop's name and place, its UPI ID, and the reminder wording, with a live preview. */
 export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
@@ -18,6 +18,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   const { t } = useTranslation()
   const gstBilling = useGstBilling(shopId)
   const queryClient = useQueryClient()
+  const [extra, setExtra] = useState<ShopType[]>(initial.extraTypes ?? [])
   const [form, setForm] = useState({
     name: initial.name,
     area: initial.area ?? '',
@@ -35,7 +36,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   async function save() {
     setMessage('')
     try {
-      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition })
+      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, extraTypes: extra.filter((x) => x !== form.type) })
       queryClient.setQueryData([shopId, 'settings'], saved)
       setMessage(t('settings.saved'))
     } catch (err) {
@@ -61,6 +62,17 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
             {SHOP_TYPES.map((type) => <option key={type} value={type}>{t(`shopType.${type}`)}</option>)}
           </select>
         </label>
+        <fieldset className="flex flex-col gap-1">
+          <legend className="text-sm font-medium text-muted">{t('shopType.extra')}</legend>
+          <div className="grid grid-cols-2 gap-1">
+            {SHOP_TYPES.filter((type) => type !== form.type && type !== 'other').map((type) => (
+              <label key={type} className="flex min-h-11 items-center gap-2 text-sm">
+                <input type="checkbox" checked={extra.includes(type)} onChange={(e) => setExtra(e.target.checked ? [...extra, type] : extra.filter((x) => x !== type))} className="h-5 w-5" />
+                {t(`shopType.${type}`)}
+              </label>
+            ))}
+          </div>
+        </fieldset>
         {gstBilling && <Field label={t('settings.gstin')} value={form.gstin} onChange={set('gstin')} maxLength={15} autoCapitalize="characters" placeholder="08ABCDE1234F1Z5" />}
         {gstBilling && form.gstin.trim() && (
           <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!!form.gstComposition} onChange={(e) => setForm({ ...form, gstComposition: e.target.checked ? 'yes' : '' })} className="h-5 w-5" />

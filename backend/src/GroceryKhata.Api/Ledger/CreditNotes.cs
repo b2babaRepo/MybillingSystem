@@ -29,6 +29,9 @@ public sealed class CreditNote : Entity, ITenantOwned
 
     public decimal Total { get; set; }
 
+    /// <summary>The goods went back on the shelf (not damaged or missing).</summary>
+    public bool Restocked { get; set; }
+
     public DateTimeOffset OccurredAt { get; set; }
 
     public Guid CreatedByUserId { get; set; }
@@ -145,7 +148,7 @@ public static class CreditNotes
         var note = new CreditNote
         {
             Id = request.Id, BillId = billId, CustomerId = bill.CustomerId, FinancialYear = year, Number = number, Reason = reason!,
-            Total = total, OccurredAt = now, CreatedByUserId = userId, Lines = lines,
+            Total = total, Restocked = request.Restock, OccurredAt = now, CreatedByUserId = userId, Lines = lines,
         };
         db.CreditNotes.Add(note);
         if (bill.CustomerId is { } customerId)

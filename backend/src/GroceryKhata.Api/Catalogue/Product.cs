@@ -82,6 +82,11 @@ public enum Unit
     Brass,
     Cft,
     Metre,
+    Pair,
+    Dozen,
+    Box,
+    /// <summary>A 20 L water jar or can.</summary>
+    Jar,
 }
 
 /// <summary>

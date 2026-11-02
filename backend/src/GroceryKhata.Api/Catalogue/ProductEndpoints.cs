@@ -129,10 +129,13 @@ public static class ProductEndpoints
             }).RequireAuthorization(AppPolicies.ShopOwner);
 
         // A new shop of another trade starts with that trade's usual items (prices to fill in on the rates screen).
-        products.MapPost("/starter", async (ClaimsPrincipal user, StockService stock, AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
+        products.MapPost("/starter", async (string? type, ClaimsPrincipal user, StockService stock, AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
         {
-            var type = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.Type).SingleAsync(ct);
-            var rows = StarterItems.For(type);
+            // One of the shop's own trades ("sweets"), else its main one.
+            var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.Type, s.ExtraTypes }).SingleAsync(ct);
+            var asked = Enum.TryParse<GroceryKhata.Api.Shops.ShopType>(type?.Replace("_", ""), ignoreCase: true, out var t) ? t : shop.Type;
+            var trade = asked == shop.Type || shop.ExtraTypes.Contains(GroceryKhata.Api.Shops.ShopTypes.Name(asked)) ? asked : shop.Type;
+            var rows = StarterItems.For(trade);
             if (rows.Count == 0)
             {
                 return Results.Ok(new ImportResult(0, 0));

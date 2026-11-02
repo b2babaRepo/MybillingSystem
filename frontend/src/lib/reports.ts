@@ -59,10 +59,22 @@ export interface ShopSettings {
   /** Printed on tax bills. */
   gstin?: string | null
   gstComposition?: boolean
+  extraTypes?: ShopType[] | null
 }
 
-export type ShopType = 'kirana' | 'building_materials' | 'paint' | 'hardware' | 'other'
-export const SHOP_TYPES: ShopType[] = ['kirana', 'building_materials', 'paint', 'hardware', 'other']
+export type ShopType = 'kirana' | 'water_supply' | 'beauty' | 'sweets' | 'toys' | 'clothes' | 'building_materials' | 'paint' | 'hardware' | 'other'
+export const SHOP_TYPES: ShopType[] = ['kirana', 'water_supply', 'beauty', 'sweets', 'toys', 'clothes', 'building_materials', 'paint', 'hardware', 'other']
+/** Trades with a starter list of common items. */
+export const STARTER_TYPES: ShopType[] = ['kirana', 'water_supply', 'beauty', 'sweets', 'toys', 'clothes', 'building_materials', 'paint']
+const TRADE_TYPES: ShopType[] = ['building_materials', 'paint', 'hardware']
+
+/** The shop's trades: its main type and any others it works in. */
+export function shopTypes(s?: { type?: ShopType; extraTypes?: ShopType[] | null }): ShopType[] {
+  return [s?.type ?? 'kirana', ...(s?.extraTypes ?? [])]
+}
+
+/** Building material, paint or hardware: site, challan and rates screens. */
+export const isTrade = (types: ShopType[]) => types.some((x) => TRADE_TYPES.includes(x))
 
 export function useShopSettings(shopId: string) {
   return useQuery({ queryKey: [shopId, 'settings'], queryFn: () => api<ShopSettings>('/v1/shop'), staleTime: 5 * 60_000 })

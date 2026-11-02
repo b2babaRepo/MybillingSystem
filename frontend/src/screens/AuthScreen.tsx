@@ -1,3 +1,4 @@
+import { SHOP_TYPES } from '../lib/reports'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { navigate, usePath } from '../router'
@@ -91,7 +92,7 @@ export function AuthScreen() {
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-muted">{t('shopType.label')}</span>
               <select value={form.type} onChange={set('type')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
-                {(['kirana', 'building_materials', 'paint', 'hardware', 'other'] as const).map((type) => <option key={type} value={type}>{t(`shopType.${type}`)}</option>)}
+                {SHOP_TYPES.map((type) => <option key={type} value={type}>{t(`shopType.${type}`)}</option>)}
               </select>
             </label>
           )}

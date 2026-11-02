@@ -7,7 +7,7 @@ import { saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } f
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { PaymentMode, Unit } from '../lib/types'
-import { useShopSettings } from '../lib/reports'
+import { useShopSettings, shopTypes, isTrade } from '../lib/reports'
 import { navigate } from '../router'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
@@ -32,7 +32,9 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   const [mode, setMode] = useState<PaymentMode>('cash')
   // A loose item, or a charge line ("Transport") with its name filled in.
   const [loose, setLoose] = useState<false | { name: string; unit: Unit }>(false)
-  const shopType = useShopSettings(shopId).data?.type ?? 'kirana'
+  const settings = useShopSettings(shopId).data
+  const shopType = settings?.type ?? 'kirana'
+  const types = shopTypes(settings)
   const [extras, setExtras] = useState({ site: '', vehicleNumber: '', painterId: '' })
   const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; customer: { name: string; phone: string | null } | null } | null>(null)
 
@@ -104,7 +106,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
           />
         ))}
         {/* Building-material bills carry transport and loading as their own lines. */}
-        {shopType === 'building_materials' && (['transport', 'loading'] as const).map((charge) => (
+        {types.includes('building_materials') && (['transport', 'loading'] as const).map((charge) => (
           <button key={charge} onClick={() => setLoose({ name: t(`charge.${charge}`), unit: 'piece' })}
             className="min-h-20 rounded-xl border-2 border-dashed border-udhaar p-2 font-semibold text-udhaar">
             + {t(`charge.${charge}`)}
@@ -189,7 +191,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
               {t('onKhata')}: {formatRupees(round2(total - paidAmount))}
             </p>
           )}
-          {shopType !== 'kirana' && (
+          {isTrade(types) && (
             <Suspense fallback={null}>
               <TradeBillPanel shopId={shopId} shopType={shopType} customer={customer} total={total} onKhata={customer ? round2(total - paidAmount) : 0}
                 cart={cart} products={products} extras={extras} onExtras={setExtras} onAddLine={add}
@@ -259,7 +261,7 @@ function LooseItemSheet({ onClose, onAdd, initialName = '', initialUnit = 'kg' }
   )
 }
 
-const UNITS: Unit[] = ['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'bag', 'tonne', 'brass', 'cft', 'metre']
+const UNITS: Unit[] = ['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'pair', 'dozen', 'box', 'jar', 'bag', 'tonne', 'brass', 'cft', 'metre']
 
 export function UnitSelect({ value, onChange }: { value: Unit; onChange: (unit: Unit) => void }) {
   const { t } = useTranslation()

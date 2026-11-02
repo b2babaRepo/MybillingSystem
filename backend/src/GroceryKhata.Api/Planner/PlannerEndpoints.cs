@@ -119,7 +119,8 @@ public static class PlannerEndpoints
         // "building_materials", as the app writes it.
         if (Enum.TryParse<Shops.ShopType>(type?.Replace("_", ""), ignoreCase: true, out var wanted))
         {
-            query = query.Where(s => s.Type == wanted);
+            var name = Shops.ShopTypes.Name(wanted);
+            query = query.Where(s => s.Type == wanted || s.ExtraTypes.Contains(name));
         }
 
         // Near me: shops with a location within 5 km, nearest first. The point is used for this search only, never stored.

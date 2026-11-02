@@ -45,7 +45,7 @@ interface Placed {
 type Cart = Record<string, number>
 interface MyOrder { id: string; token: string; at: string }
 
-const STEP: Record<Unit, number> = { piece: 1, packet: 1, kg: 0.5, litre: 0.5, g: 100, ml: 100, bag: 1, tonne: 0.5, brass: 0.5, cft: 10, metre: 1 }
+const STEP: Record<Unit, number> = { piece: 1, packet: 1, kg: 0.5, litre: 0.5, g: 100, ml: 100, bag: 1, tonne: 0.5, brass: 0.5, cft: 10, metre: 1, pair: 1, dozen: 1, box: 1, jar: 1 }
 
 /** Per-store memory on this phone: the cart, the customer's details, and their orders' private links. */
 function remembered<T>(key: string, fallback: T): T {

@@ -6,7 +6,7 @@ import { api, request } from '../lib/api'
 import { useProducts, useToday } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { useSubscription } from '../lib/billing'
-import { useShopSettings } from '../lib/reports'
+import { useShopSettings, shopTypes, isTrade } from '../lib/reports'
 import { navigate } from '../router'
 
 /**
@@ -36,7 +36,8 @@ function Digest() {
 }
 
 export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
-  const shopType = useShopSettings(shopId).data?.type ?? 'kirana'
+  const settings = useShopSettings(shopId).data
+  const types = shopTypes(settings)
   const { t } = useTranslation()
   const { today } = useToday(shopId)
   const { products } = useProducts(shopId)
@@ -93,13 +94,13 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         <span aria-hidden="true">→</span>
       </button>
 
-      {isOwner && shopType === 'paint' && (
+      {isOwner && types.includes('paint') && (
         <button onClick={() => navigate('/painters')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
           <span>{t('painters.link')}</span><span aria-hidden="true">→</span>
         </button>
       )}
 
-      {isOwner && shopType !== 'kirana' && (
+      {isOwner && isTrade(types) && (
         <button onClick={() => navigate('/rates')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
           <span>{t('rates.link')}</span><span aria-hidden="true">→</span>
         </button>

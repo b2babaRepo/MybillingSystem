@@ -1,3 +1,4 @@
+import { SHOP_TYPES } from '../../lib/reports'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import { useState } from 'react'
@@ -64,7 +65,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
         <div className="grid grid-cols-2 gap-2">
           <select aria-label={t('shopType.label')} value={type} onChange={(e) => setType(e.target.value)} className="h-12 rounded-[14px] border border-line bg-white px-2">
             <option value="">{t('plan.allTypes')}</option>
-            {['kirana', 'building_materials', 'paint', 'hardware', 'other'].map((x) => <option key={x} value={x}>{t(`shopType.${x}`)}</option>)}
+            {SHOP_TYPES.map((x) => <option key={x} value={x}>{t(`shopType.${x}`)}</option>)}
           </select>
           <button onClick={() => (near ? setNear(null) : findNear())} aria-pressed={!!near} className={`h-12 rounded-[14px] font-semibold ${near ? 'bg-teal-700 text-white' : 'border border-line'}`}>{t('plan.nearMe')}</button>
         </div>
