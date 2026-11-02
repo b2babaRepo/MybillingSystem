@@ -48,6 +48,8 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
+  // A line with no price would go out free: the bill waits until every line has one.
+  const unpriced = cart.some((l) => !(l.unitPrice > 0))
   const total = useMemo(() => round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [cart])
   const customer = customers.find((c) => c.id === customerId) ?? null
   const paidAmount = paid === null || !customer ? total : Math.min(Number(paid) || 0, total)
@@ -152,14 +154,13 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
                 />
                 /{t(`units.${l.unit}`)}
               </label>
+              {tmtKgPerBar(l.name) && l.unit === 'kg' && (
+                <button onClick={() => { const bars = Number(window.prompt(t('bars.ask', { name: l.name })) || 0); if (bars > 0) setQuantity(i, Math.round(bars * tmtKgPerBar(l.name)! * 1000) / 1000) }}
+                  className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('bars.button', { kg: tmtKgPerBar(l.name) })}</button>
+              )}
             </div>
             <button className="h-11 w-11 rounded-lg bg-[#edf2f1] text-xl" onClick={() => setQuantity(i, round2(l.quantity - 1))}>−</button>
-            <input
-              value={l.quantity}
-              onChange={(e) => setQuantity(i, Number(e.target.value) || 0)}
-              inputMode="decimal"
-              className="h-11 w-16 rounded-lg border border-line text-center"
-            />
+            <QuantityInput value={l.quantity} onChange={(q) => setQuantity(i, q)} label={`${t('quantity')}: ${l.name}`} />
             <button className="h-11 w-11 rounded-lg bg-[#edf2f1] text-xl" onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
             <div className="w-20 text-right font-semibold">{formatRupees(round2(l.quantity * l.unitPrice))}</div>
           </div>
@@ -205,7 +206,8 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
               </button>
             ))}
           </div>
-          <Button className="w-full" onClick={save} disabled={total <= 0}>
+          {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
+          <Button className="w-full" onClick={save} disabled={total <= 0 || unpriced}>
             {t('saveBill')} · {formatRupees(total)}
           </Button>
         </div>
@@ -296,4 +298,28 @@ function billReceipt(
     bill.customer && due > 0 ? t('billReceipt.onKhata', { due: formatRupees(due) }) : '',
     t('billReceipt.check'),
   ].filter(Boolean).join('\n')
+}
+
+/**
+ * Typed quantities stay as typed ("0.", "" while typing), so weights like 0.5 kg or 245.5 kg can be entered; the line
+ * only changes once the text is a number above 0.
+ */
+function QuantityInput({ value, onChange, label }: { value: number; onChange: (q: number) => void; label: string }) {
+  const [text, setText] = useState(String(value))
+  useEffect(() => { if (Number(text) !== value) setText(String(value)) }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <input
+      value={text}
+      onChange={(e) => { const next = e.target.value.replace(/[^\d.]/g, ''); setText(next); if (Number(next) > 0) onChange(Number(next)) }}
+      inputMode="decimal"
+      aria-label={label}
+      className="h-11 w-16 rounded-lg border border-line text-center"
+    />
+  )
+}
+
+/** A 12 m TMT bar's standard weight in kg (d² ÷ 162 kg a metre), read from a name like "TMT bar 16 mm". */
+function tmtKgPerBar(name: string) {
+  const mm = /TMT.*?(\d+)\s*mm/i.exec(name)?.[1]
+  return mm ? Math.round((Number(mm) ** 2 / 162) * 12 * 100) / 100 : null
 }
