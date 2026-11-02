@@ -594,7 +594,7 @@ export const hi: Texts = {
     holdReason: 'रुका हुआ: {{reason}}',
     priceLock: 'आपका 5 साल का दाम {{date}} तक तय है।',
     alwaysFree: 'आपका खाता, बिल, ग्राहक, रोकड़ और डेटा डाउनलोड हर प्लान में चलता है, फ़्री में भी। आपके ग्राहक कभी पैसे नहीं देते।',
-    pending: '{{amount}} का भुगतान (UTR {{ref}}) भेजा: ग्रोसरी खाता जल्द पक्का करेगा।',
+    rejected: '{{amount}} का पेमेंट (UTR {{ref}}) नहीं मिला: {{reason}} UTR जाँचकर फिर भेजें।',    pending: '{{amount}} का भुगतान (UTR {{ref}}) भेजा: ग्रोसरी खाता जल्द पक्का करेगा।',
     year: 'साल',
     customersUpTo: '{{count}} ग्राहक तक',
     customersUnlimited: 'असीमित ग्राहक',

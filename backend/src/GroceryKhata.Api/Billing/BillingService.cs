@@ -31,7 +31,8 @@ public sealed class BillingService(AppDbContext db, Entitlements entitlements, T
 
         var code = offerCode.Trim().ToUpperInvariant();
         var offer = await db.Offers.AsNoTracking().SingleOrDefaultAsync(o => o.Code == code && o.IsActive, ct);
-        var everPaid = await db.SubscriptionPayments.AnyAsync(p => p.ShopId == shopId && p.RefundedAt == null, ct);
+        // A refunded first payment still used the first-payment offer.
+        var everPaid = await db.SubscriptionPayments.AnyAsync(p => p.ShopId == shopId, ct);
         var error = offer switch
         {
             null => "This offer code isn't valid.",

@@ -81,6 +81,7 @@ export interface SubscriptionView {
   plans: PlanInfo[]
   payments: Payment[]
   pendingClaim: Claim | null
+  rejectedClaim?: Claim | null
   payToUpi: string | null
   payeeName: string
   monthlyAvailable: boolean

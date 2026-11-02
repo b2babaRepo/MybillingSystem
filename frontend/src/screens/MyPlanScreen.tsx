@@ -116,6 +116,11 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
         <span className="mt-1 text-xs opacity-80">{t('plan2.alwaysFree')}</span>
       </section>
 
+      {s.rejectedClaim && (
+        <p className="rounded-[14px] bg-red-50 p-3 text-sm text-red-900">
+          {t('plan2.rejected', { amount: formatRupees(s.rejectedClaim.amount), ref: s.rejectedClaim.upiRef, reason: s.rejectedClaim.note ?? '' })}
+        </p>
+      )}
       {s.pendingClaim && (
         <p className="rounded-[14px] bg-amber-50 p-3 text-sm text-amber-900">
           {t('plan2.pending', { amount: formatRupees(s.pendingClaim.amount), ref: s.pendingClaim.upiRef })}

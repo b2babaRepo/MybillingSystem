@@ -25,7 +25,7 @@ public sealed record SubscriptionView(
     int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth, string? CompReason, string? HoldReason, DateTimeOffset? PriceLockUntil,
     IReadOnlyList<PlanDto> Plans, IReadOnlyList<PaymentDto> Payments, ClaimDto? PendingClaim,
     string? PayToUpi, string PayeeName, bool MonthlyAvailable, bool GstRegistered, string ReferralCode, int ReferralBonusDays, string? ShopCode = null,
-    string? ChosenPlanCode = null, PlanTerm? ChosenTerm = null, bool OnlinePay = false);
+    string? ChosenPlanCode = null, PlanTerm? ChosenTerm = null, bool OnlinePay = false, ClaimDto? RejectedClaim = null);
 
 public sealed record PlanChoiceRequest(string? PlanCode, PlanTerm? Term);
 
@@ -120,13 +120,22 @@ public static class BillingEndpoints
         var claim = await db.PaymentClaims.AsNoTracking().Where(c => c.ShopId == tenant.ShopId && c.Status == ClaimStatus.Pending)
             .OrderByDescending(c => c.CreatedAt).Select(c => new ClaimDto(c.Id, c.ShopId, null, c.PlanCode, c.Term, c.Amount, c.UpiRef, c.OfferCode, c.Status, c.CreatedAt, c.Note))
             .FirstOrDefaultAsync(ct);
+        // The last claim the team turned down, if nothing was sent or paid since: the owner sees why.
+        var rejected = await db.PaymentClaims.AsNoTracking().Where(c => c.ShopId == tenant.ShopId && c.Status == ClaimStatus.Rejected)
+            .OrderByDescending(c => c.CreatedAt).Select(c => new ClaimDto(c.Id, c.ShopId, null, c.PlanCode, c.Term, c.Amount, c.UpiRef, c.OfferCode, c.Status, c.CreatedAt, c.Note))
+            .FirstOrDefaultAsync(ct);
+        if (rejected is not null && (claim is not null || payments.Any(p => p.PaidAt > rejected.CreatedAt)))
+        {
+            rejected = null;
+        }
+
         var shopRow = await db.Shops.AsNoTracking().Where(x => x.Id == tenant.ShopId).Select(x => new { x.Slug, x.Number }).SingleAsync(ct);
         var (slug, number) = (shopRow.Slug, shopRow.Number);
         return new SubscriptionView(
             e.Status, e.PlanCode, e.PlanName, e.EndsAt, e.EndsAt is { } end ? Math.Max(0, (int)Math.Ceiling((end - now).TotalDays)) : null,
             e.Features.Order().ToList(), e.MaxCustomers, e.MaxStaff, e.WhatsAppPerMonth, s.CompPlanCode is null ? null : s.CompReason, s.HoldReason,
             s.PriceLockUntil > now ? s.PriceLockUntil : null, await PlansAsync(db, ct), payments, claim,
-            string.IsNullOrWhiteSpace(o.UpiId) ? null : o.UpiId, o.PayeeName, o.AutoPayEnabled, o.GstRegistered, slug, o.ReferralBonusDays, GroceryKhata.Api.Shops.Shop.FormatCode(number), s.ChosenPlanCode, s.ChosenTerm, RazorpayCheckout.IsOn(o));
+            string.IsNullOrWhiteSpace(o.UpiId) ? null : o.UpiId, o.PayeeName, o.AutoPayEnabled, o.GstRegistered, slug, o.ReferralBonusDays, GroceryKhata.Api.Shops.Shop.FormatCode(number), s.ChosenPlanCode, s.ChosenTerm, RazorpayCheckout.IsOn(o), rejected);
     }
 
     private static async Task<IResult> QuoteAsync(QuoteRequest request, ITenantContext tenant, BillingService billing, CancellationToken ct) =>

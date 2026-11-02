@@ -592,6 +592,7 @@ export const en = {
     holdReason: 'On hold: {{reason}}',
     priceLock: 'Your 5-year price is locked until {{date}}.',
     alwaysFree: 'Your khata, bills, customers, cash book and data download work on every plan, Free included. Your customers never pay.',
+    rejected: 'Payment of {{amount}} (UTR {{ref}}) was not found: {{reason}} Check the UTR and send it again.',
     pending: 'Payment of {{amount}} (UTR {{ref}}) sent: Grocery Khata will confirm it soon.',
     year: 'year',
     customersUpTo: 'up to {{count}} customers',
