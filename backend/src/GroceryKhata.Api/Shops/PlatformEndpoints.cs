@@ -72,7 +72,8 @@ public sealed record AddAdminRequest(string? Phone, AdminRole? Role);
 
 public sealed record AdminRoleRequest(AdminRole? Role);
 
-public sealed record PlatformOverview(int Shops, int Active, int Blocked, int AwaitingApproval, int NewThisWeek, int Households);
+/// <summary><see cref="OldClaims"/>: UPI payments waiting over a day. <see cref="JobsBehind"/>: daily jobs that failed or haven't run for over a day.</summary>
+public sealed record PlatformOverview(int Shops, int Active, int Blocked, int AwaitingApproval, int NewThisWeek, int Households, int OldClaims = 0, int JobsBehind = 0);
 
 public sealed record PlatformShopRow(
     Guid Id, string Name, string? Area, string Slug, DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt, bool IsActive,
@@ -322,7 +323,9 @@ public static class PlatformEndpoints
 
     private static async Task<PlatformOverview> OverviewAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var weekAgo = clock.GetUtcNow().AddDays(-7);
+        var now = clock.GetUtcNow();
+        var weekAgo = now.AddDays(-7);
+        var dayAgo = now.AddHours(-26);
         var shops = db.Shops.AsNoTracking();
         return new PlatformOverview(
             await shops.CountAsync(ct),
@@ -330,7 +333,9 @@ public static class PlatformEndpoints
             await shops.CountAsync(s => !s.IsActive, ct),
             await shops.CountAsync(s => s.IsActive && s.ApprovedAt == null, ct),
             await shops.CountAsync(s => s.CreatedAt >= weekAgo, ct),
-            await db.Users.CountAsync(u => !db.Memberships.Any(m => m.UserId == u.Id), ct));
+            await db.Users.CountAsync(u => !db.Memberships.Any(m => m.UserId == u.Id), ct),
+            await db.PaymentClaims.CountAsync(c => c.Status == Billing.ClaimStatus.Pending && c.CreatedAt < now.AddDays(-1), ct),
+            await db.JobRuns.CountAsync(r => !r.Succeeded || r.LastRanAt < dayAgo, ct));
     }
 
     /// <summary>Shops by newest; <paramref name="status"/> = new | active | blocked; <paramref name="q"/> matches name, area or owner phone.</summary>

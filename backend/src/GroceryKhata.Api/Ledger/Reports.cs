@@ -26,6 +26,9 @@ public sealed record ProfitLossReport(
     string FinancialYear, decimal Sales, decimal Turnover, decimal Gst, decimal GoodsProfit, decimal Returns, decimal StockLoss, decimal Expenses, decimal NetProfit,
     decimal TakenHome, decimal Purchases, decimal OpeningStock, decimal ClosingStock, DateOnly ClosingDate, decimal SupplierDue, decimal CustomerDue, int ItemsWithoutCost, decimal ProfitCoverage);
 
+/// <summary>What the owner should look at today: old dues to chase and what suppliers are owed.</summary>
+public sealed record DigestDto(int OldDueCustomers, decimal OldDueAmount, decimal SupplierDue);
+
 /// <summary>One customer's dues by age. The three buckets always add up to <see cref="Balance"/>.</summary>
 public sealed record DueDto(
     Guid CustomerId,
@@ -137,6 +140,11 @@ public static class ReportEndpoints
         group.MapPost("/customers/{id:guid}/reminded", RemindedAsync).RequireAuthorization(AppPolicies.ShopMember);
         // Downloads hold every customer's dues or the month's figures: the owner's data to take away.
         group.MapGet("/reports/dues.csv", DuesCsvAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapGet("/digest", async (AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        {
+            var dues = await DuesAsync(db, clock, ct);
+            return new DigestDto(dues.Customers.Count(d => d.Over30 > 0), dues.Over30, await db.SupplierEntries.AsNoTracking().SumAsync(e => (decimal?)e.Amount, ct) ?? 0m);
+        }).RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("/reports/pnl", ProfitLossAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/pnl.csv", ProfitLossCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/year", YearAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);

@@ -20,7 +20,7 @@ import { shrinkPhoto } from '../lib/images'
 interface MarketRow { id: string; name: string; state: string | null; district: string | null; city: string | null; village: string | null; isActive: boolean; shops: number }
 
 const marketPlace = (m: MarketRow) => [m.village, m.city, m.district, m.state].filter(Boolean).join(', ')
-interface Overview { shops: number; active: number; blocked: number; awaitingApproval: number; newThisWeek: number; households: number }
+interface Overview { shops: number; active: number; blocked: number; awaitingApproval: number; newThisWeek: number; households: number; oldClaims?: number; jobsBehind?: number }
 interface ShopRow {
   id: string
   name: string
@@ -82,6 +82,8 @@ export function PlatformScreen() {
     { label: t('platform.blocked'), value: overview.data?.blocked, onClick: () => showStatus('blocked') },
     { label: t('platform.newWeek'), value: overview.data?.newThisWeek },
     { label: t('platform.households'), value: overview.data?.households },
+    ...(seesBilling && overview.data?.oldClaims ? [{ label: t('platformNav.oldClaims'), value: overview.data.oldClaims, onClick: () => setSection('plans' as Section), urgent: true }] : []),
+    ...(overview.data?.jobsBehind ? [{ label: t('platformNav.jobsBehind'), value: overview.data.jobsBehind, urgent: true }] : []),
   ]
   function showStatus(next: Status) {
     setStatus(next)

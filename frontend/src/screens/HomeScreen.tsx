@@ -13,6 +13,28 @@ import { navigate } from '../router'
  * Dashboard A, "Clean Teal": today's sales with the cash / UPI / udhaar split, four big actions,
  * and who owes the most. The teal band continues the app header; the summary card overlaps it.
  */
+/** The owner's to-do for today: customers to chase for old dues, and what suppliers are owed. Hidden when nothing is due. */
+function Digest() {
+  const { t } = useTranslation()
+  const d = useQuery({ queryKey: ['digest'], queryFn: () => api<{ oldDueCustomers: number; oldDueAmount: number; supplierDue: number }>('/v1/digest'), retry: false, staleTime: 300_000 }).data
+  if (!d || (d.oldDueCustomers === 0 && d.supplierDue <= 0)) return null
+  return (
+    <section className="mx-4 mt-4 flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <h2 className="font-bold">{t('digest.title')}</h2>
+      {d.oldDueCustomers > 0 && (
+        <button onClick={() => navigate('/dues')} className="flex min-h-11 items-center justify-between text-left">
+          <span>{t('digest.oldDues', { count: d.oldDueCustomers })}</span><span className="font-bold text-due">{formatRupees(d.oldDueAmount)}</span>
+        </button>
+      )}
+      {d.supplierDue > 0 && (
+        <button onClick={() => navigate('/suppliers')} className="flex min-h-11 items-center justify-between text-left">
+          <span>{t('digest.suppliers')}</span><span className="font-bold text-due">{formatRupees(d.supplierDue)}</span>
+        </button>
+      )}
+    </section>
+  )
+}
+
 export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const shopType = useShopSettings(shopId).data?.type ?? 'kirana'
   const { t } = useTranslation()
@@ -45,6 +67,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
 
       {isOwner && <PlanBanner shopId={shopId} />}
       {isOwner && <BalanceAlert />}
+      {isOwner && <Digest />}
 
       <div className="mx-4 mt-4 grid grid-cols-2 gap-3">
         <button onClick={() => navigate('/cashbook')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
