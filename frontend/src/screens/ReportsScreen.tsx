@@ -22,6 +22,12 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
   const [error, setError] = useState('')
   const report = useQuery({ queryKey: [shopId, 'report', month], queryFn: () => api<MonthReport>(`/v1/reports/month?month=${month}`) })
   const data = report.data
+  const today = new Date()
+  const fy = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1
+  const year = useQuery({
+    queryKey: [shopId, 'report-year', fy], enabled: isOwner, retry: false,
+    queryFn: () => api<{ financialYear: string; total: { sales: number; gst: number; turnover: number; noRate: number; cash: number; digital: number } }>(`/v1/reports/year?fy=${fy}`),
+  }).data
   const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
   const peak = Math.max(1, ...(data?.days.map((d) => d.sales) ?? [1]))
 
@@ -102,6 +108,19 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
                   </li>
                 ))}
               </ol>
+            </section>
+          )}
+
+          {year && (
+            <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+              <h2 className="text-base font-bold">{t('reports.yearTitle', { fy: year.financialYear })}</h2>
+              <p className="flex justify-between font-bold"><span>{t('reports.turnover')}</span><span>{formatRupees(year.total.turnover)}</span></p>
+              <p className="flex justify-between text-sm"><span>{t('reports.gstInside')}</span><span>{formatRupees(year.total.gst)}</span></p>
+              <p className="flex justify-between text-sm"><span>{t('reports.cashReceived')}</span><span>{formatRupees(year.total.cash)}</span></p>
+              <p className="flex justify-between text-sm"><span>{t('reports.digitalReceived')}</span><span>{formatRupees(year.total.digital)}</span></p>
+              {year.total.noRate > 0 && <p className="text-sm font-semibold text-due">{t('reports.noRate', { amount: formatRupees(year.total.noRate) })}</p>}
+              <p className="text-xs text-muted">{t('reports.yearHint')}</p>
+              <Button tone="plain" onClick={() => download(`/v1/reports/year.csv?fy=${fy}`, `year-${year.financialYear}.csv`)}>{t('reports.yearCsv')}</Button>
             </section>
           )}
 

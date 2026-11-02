@@ -45,6 +45,38 @@ public sealed class TradeTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task The_year_report_takes_out_gst_only_on_gst_bills_and_skips_cancelled_ones()
+    {
+        var shop = await SignUpAsync("building_materials");
+        await shop.PostJsonAsync("/api/v1/products/starter", new { });
+        var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
+        async Task<BillDto> Bill() => await (await shop.PostJsonAsync("/api/v1/bills", new
+        {
+            id = Guid.CreateVersion7(), paidAmount = 1180m, paymentMode = "upi",
+            lines = new[] { new { productId = cement.Id, quantity = 1m, unitPrice = 1180m } },
+        })).ReadAsync<BillDto>();
+
+        await Bill(); // no GSTIN yet: no GST in it
+        var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" });
+        await Bill();
+        var cancelled = await Bill();
+        await shop.PostJsonAsync($"/api/v1/bills/{cancelled.Id}/cancel", new { reason = "Wrong bill" });
+
+        var year = await shop.GetJsonAsync<GroceryKhata.Api.Ledger.YearReport>("/api/v1/reports/year");
+        Assert.Equal((2, 2360m, 180m, 2180m, 2360m), (year.Total.Bills, year.Total.Sales, year.Total.Gst, year.Total.Turnover, year.Total.Digital));
+    }
+
+    [Fact]
+    public void Razorpay_signatures_are_checked()
+    {
+        var good = Convert.ToHexStringLower(System.Security.Cryptography.HMACSHA256.HashData("secret"u8, "order|pay"u8));
+        Assert.True(GroceryKhata.Api.Billing.RazorpayCheckout.SignatureMatches("order|pay", good, "secret"));
+        Assert.False(GroceryKhata.Api.Billing.RazorpayCheckout.SignatureMatches("order|other", good, "secret"));
+        Assert.False(GroceryKhata.Api.Billing.RazorpayCheckout.SignatureMatches("order|pay", null, "secret"));
+    }
+
+    [Fact]
     public async Task Cancelling_a_bill_undoes_it_but_keeps_its_number()
     {
         var shop = await SignUpAsync("building_materials");

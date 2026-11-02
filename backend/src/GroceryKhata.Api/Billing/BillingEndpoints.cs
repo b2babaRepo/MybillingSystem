@@ -25,7 +25,7 @@ public sealed record SubscriptionView(
     int? MaxCustomers, int MaxStaff, int WhatsAppPerMonth, string? CompReason, string? HoldReason, DateTimeOffset? PriceLockUntil,
     IReadOnlyList<PlanDto> Plans, IReadOnlyList<PaymentDto> Payments, ClaimDto? PendingClaim,
     string? PayToUpi, string PayeeName, bool MonthlyAvailable, bool GstRegistered, string ReferralCode, int ReferralBonusDays, string? ShopCode = null,
-    string? ChosenPlanCode = null, PlanTerm? ChosenTerm = null);
+    string? ChosenPlanCode = null, PlanTerm? ChosenTerm = null, bool OnlinePay = false);
 
 public sealed record PlanChoiceRequest(string? PlanCode, PlanTerm? Term);
 
@@ -126,7 +126,7 @@ public static class BillingEndpoints
             e.Status, e.PlanCode, e.PlanName, e.EndsAt, e.EndsAt is { } end ? Math.Max(0, (int)Math.Ceiling((end - now).TotalDays)) : null,
             e.Features.Order().ToList(), e.MaxCustomers, e.MaxStaff, e.WhatsAppPerMonth, s.CompPlanCode is null ? null : s.CompReason, s.HoldReason,
             s.PriceLockUntil > now ? s.PriceLockUntil : null, await PlansAsync(db, ct), payments, claim,
-            string.IsNullOrWhiteSpace(o.UpiId) ? null : o.UpiId, o.PayeeName, o.AutoPayEnabled, o.GstRegistered, slug, o.ReferralBonusDays, GroceryKhata.Api.Shops.Shop.FormatCode(number), s.ChosenPlanCode, s.ChosenTerm);
+            string.IsNullOrWhiteSpace(o.UpiId) ? null : o.UpiId, o.PayeeName, o.AutoPayEnabled, o.GstRegistered, slug, o.ReferralBonusDays, GroceryKhata.Api.Shops.Shop.FormatCode(number), s.ChosenPlanCode, s.ChosenTerm, RazorpayCheckout.IsOn(o));
     }
 
     private static async Task<IResult> QuoteAsync(QuoteRequest request, ITenantContext tenant, BillingService billing, CancellationToken ct) =>

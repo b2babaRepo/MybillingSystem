@@ -60,6 +60,28 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
   // Only a bookmark: if it fails the shop can still pay what's on screen.
   const remember = (code: string, period: PlanTerm) => { if (period !== 'monthly') void api('/v1/subscription/choice', 'POST', { planCode: code, term: period }).catch(() => undefined) }
 
+  // Razorpay's own page takes the payment; the server opens the plan only on its signature.
+  const payOnline = () => run(async () => {
+    const order = await api<{ orderId: string; keyId: string; amountPaise: number }>('/v1/subscription/checkout', 'POST', { planCode, term, offerCode: quote?.offerCode ?? null })
+    await new Promise<void>((resolve, reject) => {
+      if ((window as unknown as { Razorpay?: unknown }).Razorpay) return resolve()
+      const script = document.createElement('script')
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      script.onload = () => resolve()
+      script.onerror = () => reject(new Error(t('plan2.payFailed')))
+      document.head.appendChild(script)
+    })
+    const Razorpay = (window as unknown as { Razorpay: new (options: unknown) => { open(): void } }).Razorpay
+    new Razorpay({
+      key: order.keyId, order_id: order.orderId, amount: order.amountPaise, currency: 'INR', name: 'Grocery Khata',
+      handler: (r: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void run(async () => {
+        await api('/v1/subscription/checkout/verify', 'POST', { orderId: r.razorpay_order_id, paymentId: r.razorpay_payment_id, signature: r.razorpay_signature })
+        await queryClient.invalidateQueries({ queryKey: [shopId, 'subscription'] })
+        setMessage(t('plan2.paidOnline'))
+      }),
+    }).open()
+  })
+
   const applyOffer = () => run(async () => {
     const q = await api<Quote>('/v1/subscription/quote', 'POST', { planCode, term, offerCode: offer.trim() || null })
     setQuote(q)
@@ -154,6 +176,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
             <p className="text-sm text-muted">{t('plan2.monthlyAutoPay')}</p>
           ) : (
             <>
+              {s.onlinePay && <Button disabled={busy || amount === null} onClick={() => void payOnline()}>{t('plan2.payOnline')}</Button>}
               {upiLink
                 ? <a href={upiLink} className="flex h-12 items-center justify-center rounded-2xl bg-teal-700 font-bold text-white">{t('plan2.payUpi', { upi: s.payToUpi })}</a>
                 : <p className="rounded-xl bg-ground p-3 text-sm">{t('plan2.noUpi')}</p>}

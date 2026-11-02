@@ -76,6 +76,7 @@ export interface SubscriptionView {
   holdReason: string | null
   chosenPlanCode?: string | null
   chosenTerm?: PlanTerm | null
+  onlinePay?: boolean
   priceLockUntil: string | null
   plans: PlanInfo[]
   payments: Payment[]

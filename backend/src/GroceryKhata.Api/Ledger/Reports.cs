@@ -8,6 +8,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Ledger;
 
+/// <summary>
+/// One month of the year report. <see cref="Turnover"/> is sales without the GST inside them; <see cref="NoRate"/> is
+/// sales on GST bills with no rate set, counted in turnover as they are, so a CA can check them.
+/// </summary>
+public sealed record YearMonthRow(string Month, int Bills, decimal Sales, decimal Gst, decimal Turnover, decimal NoRate, decimal Cash, decimal Digital);
+
+/// <summary>A financial year (April to March) for the owner and their CA. A working aid: not a return.</summary>
+public sealed record YearReport(string FinancialYear, IReadOnlyList<YearMonthRow> Months, YearMonthRow Total);
+
 /// <summary>One customer's dues by age. The three buckets always add up to <see cref="Balance"/>.</summary>
 public sealed record DueDto(
     Guid CustomerId,
@@ -115,6 +124,8 @@ public static class ReportEndpoints
         group.MapPost("/customers/{id:guid}/reminded", RemindedAsync).RequireAuthorization(AppPolicies.ShopMember);
         // Downloads hold every customer's dues or the month's figures: the owner's data to take away.
         group.MapGet("/reports/dues.csv", DuesCsvAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapGet("/reports/year", YearAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
+        group.MapGet("/reports/year.csv", YearCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/month.csv", MonthCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         return app;
     }
@@ -226,6 +237,58 @@ public static class ReportEndpoints
         }
 
         return Csv(csv, $"dues-{IndiaTime.Today(clock):yyyy-MM-dd}.csv");
+    }
+
+    private static async Task<IResult> YearAsync(int? fy, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        TypedResults.Ok(await BuildYearAsync(db, fy ?? ThisFinancialYear(clock), ct));
+
+    private static async Task<IResult> YearCsvAsync(int? fy, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var report = await BuildYearAsync(db, fy ?? ThisFinancialYear(clock), ct);
+        var csv = new StringBuilder("Month,Bills,Sales with GST,GST,Turnover without GST,GST rate not set,Cash received,Digital received\n");
+        foreach (var m in report.Months.Append(report.Total))
+        {
+            csv.AppendJoin(',', m.Month, m.Bills.ToString(CultureInfo.InvariantCulture), Num(m.Sales), Num(m.Gst), Num(m.Turnover), Num(m.NoRate), Num(m.Cash), Num(m.Digital)).Append('\n');
+        }
+
+        return Csv(csv, $"year-{report.FinancialYear}.csv");
+    }
+
+    private static int ThisFinancialYear(TimeProvider clock)
+    {
+        var today = IndiaTime.Today(clock);
+        return today.Month >= 4 ? today.Year : today.Year - 1;
+    }
+
+    /// <summary>The financial year starting 1 April of <paramref name="startYear"/>. Cancelled bills don't count.</summary>
+    public static async Task<YearReport> BuildYearAsync(AppDbContext db, int startYear, CancellationToken ct)
+    {
+        var (start, _) = IndiaTime.Month(startYear, 4);
+        var (end, _) = IndiaTime.Month(startYear + 1, 4);
+        var bills = await db.Bills.AsNoTracking().Include(b => b.Lines)
+            .Where(b => b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null).ToListAsync(ct);
+        var khata = await db.LedgerEntries.AsNoTracking()
+            .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.BillId == null && e.PaymentMode != null)
+            .Select(e => new { e.OccurredAt, e.Amount, e.PaymentMode }).ToListAsync(ct);
+
+        var rows = new List<YearMonthRow>();
+        for (var i = 0; i < 12; i++)
+        {
+            var (year, month) = i < 9 ? (startYear, i + 4) : (startYear + 1, i - 8);
+            var (from, to) = IndiaTime.Month(year, month);
+            var own = bills.Where(b => b.OccurredAt >= from && b.OccurredAt < to).ToList();
+            var ownKhata = khata.Where(e => e.OccurredAt >= from && e.OccurredAt < to).ToList();
+            // GST exists only on bills of a registered shop; prices include it.
+            var gstLines = own.Where(b => b.Gstin != null).SelectMany(b => b.Lines).ToList();
+            var gst = gstLines.Where(l => l.GstRate is > 0).GroupBy(l => l.GstRate!.Value)
+                .Sum(g => { var amount = g.Sum(l => l.Amount); return amount - decimal.Round(amount / (1 + (g.Key / 100)), 2); });
+            decimal Received(PaymentMode mode) => own.Where(b => b.PaymentMode == mode).Sum(b => b.PaidAmount) - ownKhata.Where(e => e.PaymentMode == mode).Sum(e => e.Amount);
+            var sales = own.Sum(b => b.Total);
+            rows.Add(new YearMonthRow($"{year:D4}-{month:D2}", own.Count, sales, gst, sales - gst, gstLines.Where(l => l.GstRate == null).Sum(l => l.Amount), Received(PaymentMode.Cash), Received(PaymentMode.Upi)));
+        }
+
+        var total = new YearMonthRow("Total", rows.Sum(r => r.Bills), rows.Sum(r => r.Sales), rows.Sum(r => r.Gst), rows.Sum(r => r.Turnover), rows.Sum(r => r.NoRate), rows.Sum(r => r.Cash), rows.Sum(r => r.Digital));
+        return new YearReport($"{startYear}-{(startYear + 1) % 100:D2}", rows, total);
     }
 
     private static async Task<IResult> MonthCsvAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct)

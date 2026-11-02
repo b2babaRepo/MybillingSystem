@@ -36,6 +36,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Market> Markets => Set<Market>();
 
+    public DbSet<Billing.GatewayOrder> GatewayOrders => Set<Billing.GatewayOrder>();
+
     public DbSet<ShopPhoto> ShopPhotos => Set<ShopPhoto>();
 
     public DbSet<User> Users => Set<User>();
@@ -122,6 +124,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Billing.GatewayOrder>(b =>
+        {
+            b.ToTable("gateway_orders");
+            b.Property(o => o.OrderId).HasMaxLength(40);
+            b.Property(o => o.PlanCode).HasMaxLength(20);
+            b.Property(o => o.OfferCode).HasMaxLength(40);
+            b.Property(o => o.PaymentId).HasMaxLength(40);
+            b.HasIndex(o => o.OrderId).IsUnique();
+        });
+
         modelBuilder.Entity<Market>(b =>
         {
             b.ToTable("markets");

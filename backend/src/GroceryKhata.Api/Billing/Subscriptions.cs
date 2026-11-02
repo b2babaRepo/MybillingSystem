@@ -253,6 +253,13 @@ public sealed class BillingOptions
 {
     public const string SectionName = "Billing";
 
+    /// <summary>Razorpay keys. Empty: online payment stays off and shops pay by UPI reference.</summary>
+    public string RazorpayKeyId { get; set; } = string.Empty;
+
+    public string RazorpayKeySecret { get; set; } = string.Empty;
+
+    public string RazorpayWebhookSecret { get; set; } = string.Empty;
+
     /// <summary>The platform's UPI ID that shops pay ("groceryk@okicici"). Empty: the shop's plan screen asks them to call.</summary>
     public string UpiId { get; set; } = string.Empty;
 
