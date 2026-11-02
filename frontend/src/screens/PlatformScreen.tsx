@@ -39,7 +39,7 @@ interface ShopRow {
   shopCode?: string | null
 }
 interface Person { userId: string; membershipId: string; name: string; phone: string; role: 'owner' | 'staff'; isActive: boolean; lockedOut: boolean }
-interface Detail { shop: ShopRow; address: string | null; adminNote: string | null; people: Person[]; customers: number; billsLast30Days: number; lastBillAt: string | null; lastBalanceCheck: { mismatches: number } | null }
+interface Detail { shopNo?: string | null; gstin?: string | null; market?: string | null; place?: string | null; latitude?: number | null; longitude?: number | null; hasPhoto?: boolean; shop: ShopRow; address: string | null; adminNote: string | null; people: Person[]; customers: number; billsLast30Days: number; lastBillAt: string | null; lastBalanceCheck: { mismatches: number } | null }
 
 type Status = 'new' | 'active' | 'blocked' | 'all'
 type Section = 'shops' | 'plans' | 'markets' | 'agents' | 'ai' | 'admins'
@@ -193,6 +193,29 @@ function StatusChip({ shop }: { shop: ShopRow }) {
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${style}`}>{label}</span>
 }
 
+/** Where the shop is and how to know it: photo, numbers, market and map. */
+function ShopFacts({ id, d }: { id: string; d: Detail }) {
+  const { t } = useTranslation()
+  const photo = useQuery({
+    queryKey: ['platform', 'shop-photo', id], enabled: !!d.hasPhoto, staleTime: Infinity,
+    queryFn: async () => URL.createObjectURL(await (await request(`/v1/platform/shops/${id}/photo`)).blob()),
+  }).data
+  const facts = [
+    d.shopNo && `${t('markets.shopNo')}: ${d.shopNo}`, d.gstin && `GSTIN ${d.gstin}`, d.market && `${t('markets.market')}: ${d.market}`, d.place, d.address,
+  ].filter(Boolean)
+  return (
+    <div className="flex gap-3">
+      {photo && <img src={photo} alt={t('markets.photo')} className="h-24 w-24 shrink-0 rounded-xl object-cover" />}
+      <div className="flex min-w-0 flex-col gap-1 text-sm text-muted">
+        {facts.map((x) => <span key={x as string}>{x}</span>)}
+        {d.latitude != null && d.longitude != null && (
+          <a href={`https://www.google.com/maps?q=${d.latitude},${d.longitude}`} target="_blank" rel="noreferrer" className="min-h-11 font-semibold">{t('markets.openMap')}</a>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
   const canApprove = role === 'super' || role === 'approver'
   const canSupport = role === 'super' || role === 'support'
@@ -242,7 +265,7 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
           <div key={label} className="rounded-xl bg-ground p-2"><dt className="text-xs text-muted">{label}</dt><dd className="font-bold">{value}</dd></div>
         ))}
       </dl>
-      {d.address && <p className="text-sm text-muted">{d.address}</p>}
+      <ShopFacts id={id} d={d} />
 
       <h3 className="font-bold">{t('platform.people')}</h3>
       <ul className="flex flex-col gap-2">
@@ -310,6 +333,7 @@ function MarketsPanel() {
   const markets = useMarkets().data ?? []
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(emptyMarket)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   async function run(action: () => Promise<unknown>) {
@@ -323,12 +347,17 @@ function MarketsPanel() {
   }
 
   const add = () => run(async () => {
-    await api('/v1/platform/markets', 'POST', { name: draft.name.trim(), state: draft.state.trim() || null, district: draft.district.trim() || null, city: draft.city.trim() || null, village: draft.village.trim() || null })
+    const body = { name: draft.name.trim(), state: draft.state.trim() || null, district: draft.district.trim() || null, city: draft.city.trim() || null, village: draft.village.trim() || null }
+    const editing = markets.find((m) => m.id === editingId)
+    if (editing) await api(`/v1/platform/markets/${editing.id}`, 'PUT', { ...body, isActive: editing.isActive })
+    else await api('/v1/platform/markets', 'POST', body)
+    setEditingId(null)
     setDraft({ ...emptyMarket, state: draft.state, district: draft.district })
   })
+  // Editing fills the form above with the market, so its place can be changed too.
   const rename = (m: MarketRow) => {
-    const name = window.prompt(t('markets.name'), m.name)?.trim()
-    if (name) void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { ...m, name }))
+    setEditingId(m.id)
+    setDraft({ name: m.name, state: m.state ?? '', district: m.district ?? '', city: m.city ?? '', village: m.village ?? '' })
   }
 
   const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
@@ -345,13 +374,14 @@ function MarketsPanel() {
             <input key={key} aria-label={t(`markets.${key}`)} placeholder={t(`markets.${key}`)} value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} className={input} />
           ))}
         </div>
-        <Button disabled={draft.name.trim().length < 2} onClick={() => void add()}>{t('markets.add')}</Button>
+        <Button disabled={draft.name.trim().length < 2} onClick={() => void add()}>{editingId ? t('save') : t('markets.add')}</Button>
+        {editingId && <button onClick={() => { setEditingId(null); setDraft(emptyMarket) }} className="min-h-11 font-semibold text-teal-700">{t('cancel')}</button>}
         {message && <p className="text-sm text-due">{message}</p>}
         <ul className="flex flex-col gap-2">
           {markets.map((m) => (
             <li key={m.id} className={`flex items-center gap-2 border-t border-line pt-2 ${m.isActive ? '' : 'opacity-60'}`}>
               <span className="min-w-0 flex-1 truncate">{m.name}{marketPlace(m) ? `, ${marketPlace(m)}` : ''} · {t('markets.shops', { count: m.shops })}</span>
-              <button onClick={() => rename(m)} className="min-h-11 px-2 text-sm font-semibold text-teal-700">{t('markets.rename')}</button>
+              <button onClick={() => rename(m)} className="min-h-11 px-2 text-sm font-semibold text-teal-700">{t('markets.edit')}</button>
               <button onClick={() => void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { ...m, isActive: !m.isActive }))} className="min-h-11 px-2 text-sm font-semibold">{m.isActive ? t('markets.stop') : t('markets.restart')}</button>
             </li>
           ))}

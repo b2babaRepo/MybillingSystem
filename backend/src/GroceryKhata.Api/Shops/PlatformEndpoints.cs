@@ -82,7 +82,8 @@ public sealed record PlatformPerson(Guid UserId, Guid MembershipId, string Name,
 
 public sealed record PlatformShopDetail(
     PlatformShopRow Shop, string? Address, string? AdminNote, IReadOnlyList<PlatformPerson> People,
-    int Customers, int BillsLast30Days, DateTimeOffset? LastBillAt, BalanceCheckDto? LastBalanceCheck);
+    int Customers, int BillsLast30Days, DateTimeOffset? LastBillAt, BalanceCheckDto? LastBalanceCheck,
+    string? ShopNo = null, string? Gstin = null, string? Market = null, string? Place = null, double? Latitude = null, double? Longitude = null, bool HasPhoto = false);
 
 public sealed record BlockRequest(string? Reason);
 
@@ -114,6 +115,10 @@ public static class PlatformEndpoints
         group.MapGet("/overview", OverviewAsync);
         group.MapGet("/shops", ListAsync);
         group.MapGet("/shops/{id:guid}", GetAsync);
+        group.MapGet("/shops/{id:guid}/photo", async (Guid id, AppDbContext db, CancellationToken ct) =>
+            await db.ShopPhotos.AsNoTracking().Where(p => p.ShopId == id).Select(p => new { p.Data, p.ContentType }).SingleOrDefaultAsync(ct) is { } photo
+                ? Results.File(photo.Data, photo.ContentType)
+                : Results.NotFound());
         group.MapPost("/shops", CreateShopAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
         group.MapPost("/shops/{id:guid}/people", AddPersonAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
         group.MapPost("/shops/{id:guid}/people/{membershipId:guid}/active", (Guid id, Guid membershipId, bool active, ClaimsPrincipal admin, AppDbContext db, CancellationToken ct) =>
@@ -397,7 +402,11 @@ public static class PlatformEndpoints
             await shopDb.Customers.CountAsync(ct),
             await shopDb.Bills.CountAsync(b => b.CreatedAt >= monthAgo, ct),
             await shopDb.Bills.MaxAsync(b => (DateTimeOffset?)b.CreatedAt, ct),
-            check is null ? null : BalanceChecks.ToDto(check)));
+            check is null ? null : BalanceChecks.ToDto(check),
+            shop.ShopNo, shop.Gstin,
+            shop.MarketId is { } marketId ? await db.Markets.AsNoTracking().Where(m => m.Id == marketId).Select(m => m.Name).SingleOrDefaultAsync(ct) : null,
+            string.Join(", ", new[] { shop.Village, shop.City, shop.District, shop.State }.Where(x => !string.IsNullOrEmpty(x))) is { Length: > 0 } place ? place : null,
+            shop.Latitude, shop.Longitude, await db.ShopPhotos.AnyAsync(p => p.ShopId == id, ct)));
     }
 
     private static Task<IResult> ApproveAsync(Guid id, AppDbContext db, TimeProvider clock, ClaimsPrincipal user, IServiceScopeFactory scopes, ILogger<PlatformAdmin> logger, CancellationToken ct) =>
