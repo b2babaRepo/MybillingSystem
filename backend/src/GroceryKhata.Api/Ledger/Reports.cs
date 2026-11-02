@@ -316,7 +316,7 @@ public static class ReportEndpoints
         return new ProfitLossReport(
             year.FinancialYear, year.Total.Sales, year.Total.Turnover, year.Total.Gst, profit + returns + loss, returns, loss, expenses, profit - expenses,
             months.Sum(m => m.TakenHome),
-            await db.Purchases.AsNoTracking().Where(p => p.OccurredAt >= start && p.OccurredAt < end).SumAsync(p => (decimal?)p.Total, ct) ?? 0m,
+            await db.Purchases.AsNoTracking().Where(p => p.OccurredAt >= start && p.OccurredAt < end && p.CancelledAt == null).SumAsync(p => (decimal?)p.Total, ct) ?? 0m,
             opening, closing, DateOnly.FromDateTime(closeAt.AddTicks(-1).ToOffset(IndiaTime.Offset).DateTime),
             await db.SupplierEntries.AsNoTracking().SumAsync(e => (decimal?)e.Amount, ct) ?? 0m,
             await db.Customers.AsNoTracking().Where(c => c.Balance > 0).SumAsync(c => (decimal?)c.Balance, ct) ?? 0m,

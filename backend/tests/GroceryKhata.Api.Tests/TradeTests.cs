@@ -105,6 +105,13 @@ public sealed class TradeTests(ApiFactory api)
         var item = await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}");
         var detail = await shop.GetJsonAsync<GroceryKhata.Api.Ledger.SupplierDetail>($"/api/v1/suppliers/{supplier}");
         Assert.Equal((20m, 350m, 5500m), (item.Stock, item.CostPrice, detail.Supplier.Due));
+
+        // The second bill was a mistake: its 10 bags go out again and its ₹4,000 comes off.
+        var second = detail.Entries.Last(e => e.Amount == 4000m).PurchaseId!.Value;
+        await shop.PostJsonAsync($"/api/v1/suppliers/purchases/{second}/cancel", new { });
+        await shop.PostJsonAsync($"/api/v1/suppliers/purchases/{second}/cancel", new { });
+        Assert.Equal(10m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).Stock);
+        Assert.Equal(1500m, (await shop.GetJsonAsync<GroceryKhata.Api.Ledger.SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
     }
 
     [Fact]

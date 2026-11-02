@@ -2979,6 +2979,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(40)")
                         .HasColumnName("bill_no");
 
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");

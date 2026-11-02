@@ -33,6 +33,9 @@ public sealed class Purchase : Entity, ITenantOwned
 
     public Guid CreatedByUserId { get; set; }
 
+    /// <summary>Set when the bill was entered by mistake: stock and the amount owed are taken back.</summary>
+    public DateTimeOffset? CancelledAt { get; set; }
+
     public List<PurchaseLine> Lines { get; set; } = [];
 }
 
@@ -71,7 +74,7 @@ public sealed record SupplierRequest(Guid Id, string? Name, string? Phone);
 
 public sealed record SupplierDto(Guid Id, string Name, string? Phone, decimal Due);
 
-public sealed record SupplierEntryDto(Guid Id, decimal Amount, Guid? PurchaseId, string? Note, DateTimeOffset OccurredAt);
+public sealed record SupplierEntryDto(Guid Id, decimal Amount, Guid? PurchaseId, string? Note, DateTimeOffset OccurredAt, bool Cancelled = false);
 
 public sealed record SupplierDetail(SupplierDto Supplier, IReadOnlyList<SupplierEntryDto> Entries);
 
@@ -96,6 +99,8 @@ public static class SupplierEndpoints
         group.MapGet("/{id:guid}", GetAsync);
         group.MapPost("/{id:guid}/pay", PayAsync);
         group.MapPost("/purchases", PurchaseAsync);
+        group.MapPut("/{id:guid}", ChangeAsync);
+        group.MapPost("/purchases/{id:guid}/cancel", CancelPurchaseAsync);
         return app;
     }
 
@@ -130,7 +135,8 @@ public static class SupplierEndpoints
         }
 
         var entries = await db.SupplierEntries.AsNoTracking().Where(e => e.SupplierId == id).OrderByDescending(e => e.OccurredAt)
-            .Select(e => new SupplierEntryDto(e.Id, e.Amount, e.PurchaseId, e.Note, e.OccurredAt)).ToListAsync(ct);
+            .Select(e => new SupplierEntryDto(e.Id, e.Amount, e.PurchaseId, e.Note, e.OccurredAt,
+                e.Amount > 0 && db.Purchases.Any(p => p.Id == e.PurchaseId && p.CancelledAt != null))).ToListAsync(ct);
         return TypedResults.Ok(new SupplierDetail(new SupplierDto(id, supplier.Name, supplier.Phone, entries.Sum(e => e.Amount)), entries));
     }
 
@@ -185,6 +191,63 @@ public static class SupplierEndpoints
         await db.Database.ExecuteSqlAsync($"UPDATE products AS p SET stock = p.stock + v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", ct);
         await transaction.CommitAsync(ct);
         return TypedResults.Ok(new { request.Id });
+    }
+
+    private static async Task<IResult> ChangeAsync(Guid id, SupplierRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var name = request.Name?.Trim();
+        var supplier = await db.Suppliers.SingleOrDefaultAsync(s => s.Id == id, ct);
+        if (supplier is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (name is not { Length: >= 2 and <= 120 })
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Name"] = ["Enter the supplier's name."] });
+        }
+
+        (supplier.Name, supplier.Phone) = (name, string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim());
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Takes back a bill entered by mistake: its stock goes out again and the amount owed comes off. Money already paid
+    /// stays paid (the supplier owes it back, shown as a credit). Item costs keep their average. Safe to repeat.
+    /// </summary>
+    private static async Task<IResult> CancelPurchaseAsync(Guid id, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var purchase = await db.Purchases.AsNoTracking().Include(p => p.Lines).SingleOrDefaultAsync(p => p.Id == id, ct);
+        if (purchase is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        if (await db.Purchases.Where(p => p.Id == id && p.CancelledAt == null).ExecuteUpdateAsync(s => s.SetProperty(p => p.CancelledAt, now), ct) == 0)
+        {
+            return TypedResults.NoContent();
+        }
+
+        db.SupplierEntries.Add(new SupplierEntry { SupplierId = purchase.SupplierId, Amount = -purchase.Total, PurchaseId = id, Note = "Bill cancelled", OccurredAt = now, CreatedByUserId = userId });
+        foreach (var line in purchase.Lines)
+        {
+            db.StockMovements.Add(new StockMovement
+            {
+                ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -line.Quantity, OccurredAt = now,
+                CreatedByUserId = userId, Note = "Supplier bill cancelled",
+            });
+        }
+
+        await db.SaveChangesAsync(ct);
+        var lines = purchase.Lines.OrderBy(l => l.ProductId).ToList();
+        var ids = lines.Select(l => l.ProductId).ToArray();
+        var quantities = lines.Select(l => l.Quantity).ToArray();
+        await db.Database.ExecuteSqlAsync($"UPDATE products AS p SET stock = p.stock - v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", ct);
+        await transaction.CommitAsync(ct);
+        return TypedResults.NoContent();
     }
 
     private static async Task<IResult> PayAsync(Guid id, SupplierPaymentRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)

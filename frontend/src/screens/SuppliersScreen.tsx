@@ -7,7 +7,7 @@ import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 
 interface Supplier { id: string; name: string; phone: string | null; due: number }
-interface Detail { supplier: Supplier; entries: { id: string; amount: number; note: string | null; occurredAt: string }[] }
+interface Detail { supplier: Supplier; entries: { id: string; amount: number; purchaseId: string | null; note: string | null; occurredAt: string; cancelled: boolean }[] }
 interface Row { productId: string; quantity: string; unitCost: string }
 
 /** Who the shop buys from and what it owes them: add a supplier's bill (stock goes up), or pay them. Needs a connection. */
@@ -96,6 +96,11 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
     setBillNo('')
     setPaid('')
   })
+  const cancelBill = (purchaseId: string) => { if (window.confirm(t('suppliers.cancelConfirm'))) void run(() => api(`/v1/suppliers/purchases/${purchaseId}/cancel`, 'POST', {})) }
+  const rename = () => {
+    const name = window.prompt(t('suppliers.name'), s?.name)?.trim()
+    if (name) void run(() => api(`/v1/suppliers/${id}`, 'PUT', { id, name, phone: s?.phone ?? null }))
+  }
   const savePayment = () => run(async () => {
     await api(`/v1/suppliers/${id}/pay`, 'POST', { id: crypto.randomUUID(), amount: Number(pay), paymentMode: mode })
     setPay('')
@@ -108,7 +113,7 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
     <div className="flex flex-col gap-3 p-4">
       <button onClick={onBack} className="min-h-11 self-start font-semibold text-teal-700">← {t('suppliers.all')}</button>
       <section className="flex items-center justify-between rounded-[18px] bg-white p-4">
-        <span className="text-lg font-bold">{s?.name}</span><span className="text-xl font-extrabold text-due">{s ? formatRupees(s.due) : '–'}</span>
+        <button onClick={rename} className="min-h-11 text-left text-lg font-bold underline decoration-dotted">{s?.name}</button><span className="text-xl font-extrabold text-due">{s ? formatRupees(s.due) : '–'}</span>
       </section>
 
       <label className="flex flex-col gap-1 rounded-[18px] bg-white p-4"><span className="text-sm font-medium text-muted">{t('suppliers.mode')}</span>
@@ -148,7 +153,8 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
         {detail.data?.entries.map((e) => (
           <li key={e.id} className="flex justify-between border-b border-line py-1 text-sm">
             <span>{new Date(e.occurredAt).toLocaleDateString('en-IN')} · {e.amount > 0 ? t('suppliers.billLine') : t('suppliers.paidLine')}{e.note ? ` ${e.note}` : ''}</span>
-            <span className="font-semibold">{formatRupees(Math.abs(e.amount))}</span>
+            <span className={`font-semibold ${e.cancelled ? 'line-through' : ''}`}>{formatRupees(Math.abs(e.amount))}</span>
+            {e.amount > 0 && e.purchaseId && !e.cancelled && <button onClick={() => cancelBill(e.purchaseId!)} className="min-h-11 px-2 text-xs font-semibold text-due">{t('suppliers.cancelBill')}</button>}
           </li>
         ))}
       </ul>
