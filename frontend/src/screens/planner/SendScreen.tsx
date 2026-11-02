@@ -10,7 +10,10 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
   const { lists } = useLists(userId)
   const items = lists.find((l) => l.kind === kind)!.items
   const [search, setSearch] = useState('')
-  const shops = useShopSearch(search)
+  const [type, setType] = useState('')
+  const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
+  const shops = useShopSearch(search, type, near)
+  const findNear = () => navigator.geolocation.getCurrentPosition((p) => setNear({ lat: p.coords.latitude, lng: p.coords.longitude }), () => setNear(null), { timeout: 15_000 })
   const [shop, setShop] = useState<ShopEntry | null>(null)
   const [fulfilment, setFulfilment] = useState<Fulfilment>('delivery')
   const [slot, setSlot] = useState('')
@@ -44,6 +47,13 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
           aria-label={t('plan.searchShop')}
           className="h-12 rounded-[14px] border border-line px-3 text-[17px] outline-none focus:border-teal-600"
         />
+        <div className="grid grid-cols-2 gap-2">
+          <select aria-label={t('shopType.label')} value={type} onChange={(e) => setType(e.target.value)} className="h-12 rounded-[14px] border border-line bg-white px-2">
+            <option value="">{t('plan.allTypes')}</option>
+            {['kirana', 'building_materials', 'paint', 'hardware', 'other'].map((x) => <option key={x} value={x}>{t(`shopType.${x}`)}</option>)}
+          </select>
+          <button onClick={() => (near ? setNear(null) : findNear())} aria-pressed={!!near} className={`h-12 rounded-[14px] font-semibold ${near ? 'bg-teal-700 text-white' : 'border border-line'}`}>{t('plan.nearMe')}</button>
+        </div>
         {shops.isError && <p className="text-sm text-due">{shops.error.message}</p>}
         {shops.data?.length === 0 && <p className="text-sm text-muted">{t('plan.noShops')}</p>}
         <ul className="flex max-h-64 flex-col gap-2 overflow-y-auto">
@@ -59,7 +69,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
                 </span>
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate font-bold">{s.name}</span>
-                  {(s.area || s.address) && <span className="truncate text-sm text-muted">{[s.area, s.address].filter(Boolean).join(' · ')}</span>}
+                  {(s.area || s.address || s.distanceKm != null) && <span className="truncate text-sm text-muted">{[s.distanceKm != null ? t('plan.km', { km: s.distanceKm }) : null, s.area, s.address].filter(Boolean).join(' · ')}</span>}
                 </span>
               </button>
             </li>

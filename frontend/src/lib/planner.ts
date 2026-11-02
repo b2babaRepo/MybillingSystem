@@ -60,6 +60,8 @@ export interface ShopEntry {
   name: string
   area: string | null
   address: string | null
+  type?: string
+  distanceKm?: number | null
 }
 
 export interface OrderLine {
@@ -277,10 +279,12 @@ export function searchCatalogue(catalogue: CatalogueItem[], text: string) {
 }
 
 /** Shops to send a list to. Needs the network: there is nothing useful to show from yesterday's search. */
-export function useShopSearch(search: string) {
+export function useShopSearch(search: string, type = '', near: { lat: number; lng: number } | null = null) {
+  // The point is rounded to about 100 m before it leaves the phone, and the server doesn't keep it.
+  const point = near ? `&lat=${near.lat.toFixed(3)}&lng=${near.lng.toFixed(3)}` : ''
   return useQuery({
-    queryKey: ['shops', search.trim()],
-    queryFn: () => api<ShopEntry[]>(`/v1/shops?search=${encodeURIComponent(search.trim())}`),
+    queryKey: ['shops', search.trim(), type, point],
+    queryFn: () => api<ShopEntry[]>(`/v1/shops?search=${encodeURIComponent(search.trim())}${type ? `&type=${type}` : ''}${point}`),
     staleTime: 60_000,
   })
 }

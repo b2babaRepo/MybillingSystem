@@ -104,19 +104,47 @@ public static class PlannerEndpoints
     }
 
     private static async Task<IReadOnlyList<ShopDirectoryDto>> SearchShopsAsync(
-        string? search, AppDbContext db, Microsoft.Extensions.Options.IOptions<Shops.PlatformOptions> platform, CancellationToken ct)
+        string? search, string? type, double? lat, double? lng, AppDbContext db, Microsoft.Extensions.Options.IOptions<Shops.PlatformOptions> platform, CancellationToken ct)
     {
         var hold = platform.Value.HoldNewShops;
         var query = db.Shops.AsNoTracking().Where(s => s.IsActive && (!hold || s.ApprovedAt != null));
         if (!string.IsNullOrWhiteSpace(search))
         {
             var pattern = $"%{search.Trim()}%";
-            query = query.Where(s => EF.Functions.ILike(s.Name, pattern) || (s.Area != null && EF.Functions.ILike(s.Area, pattern)));
+            query = query.Where(s => EF.Functions.ILike(s.Name, pattern) || (s.Area != null && EF.Functions.ILike(s.Area, pattern))
+                || (s.City != null && EF.Functions.ILike(s.City, pattern)) || (s.Village != null && EF.Functions.ILike(s.Village, pattern))
+                || db.Markets.Any(m => m.Id == s.MarketId && EF.Functions.ILike(m.Name, pattern)));
+        }
+
+        // "building_materials", as the app writes it.
+        if (Enum.TryParse<Shops.ShopType>(type?.Replace("_", ""), ignoreCase: true, out var wanted))
+        {
+            query = query.Where(s => s.Type == wanted);
+        }
+
+        // Near me: shops with a location within 5 km, nearest first. The point is used for this search only, never stored.
+        if (lat is >= -90 and <= 90 && lng is >= -180 and <= 180)
+        {
+            const double radiusKm = 5;
+            var (dLat, dLng) = (radiusKm / 111.0, radiusKm / (111.0 * Math.Cos(lat.Value * Math.PI / 180)));
+            var near = await query.Where(s => s.Latitude != null && s.Longitude != null
+                    && s.Latitude > lat - dLat && s.Latitude < lat + dLat && s.Longitude > lng - dLng && s.Longitude < lng + dLng)
+                .Select(s => new { s.Id, s.Name, s.Area, s.Address, s.Type, Lat = s.Latitude!.Value, Lng = s.Longitude!.Value }).Take(500).ToListAsync(ct);
+            return near.Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, Math.Round(DistanceKm(lat.Value, lng!.Value, s.Lat, s.Lng), 1)))
+                .Where(s => s.DistanceKm <= radiusKm).OrderBy(s => s.DistanceKm).Take(50).ToList();
         }
 
         return await query.OrderBy(s => s.Area).ThenBy(s => s.Name).Take(50)
-            .Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address))
+            .Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, null))
             .ToListAsync(ct);
+    }
+
+    /// <summary>Straight-line distance on the earth (haversine).</summary>
+    private static double DistanceKm(double lat1, double lng1, double lat2, double lng2)
+    {
+        double Rad(double degrees) => degrees * Math.PI / 180;
+        var a = Math.Pow(Math.Sin(Rad(lat2 - lat1) / 2), 2) + (Math.Cos(Rad(lat1)) * Math.Cos(Rad(lat2)) * Math.Pow(Math.Sin(Rad(lng2 - lng1) / 2), 2));
+        return 6371 * 2 * Math.Asin(Math.Sqrt(a));
     }
 
     private static async Task<IReadOnlyList<OrderDto>> GetMyOrdersAsync(ClaimsPrincipal user, AppDbContext db, CancellationToken ct)

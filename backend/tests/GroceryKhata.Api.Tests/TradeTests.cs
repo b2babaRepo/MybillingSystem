@@ -130,6 +130,19 @@ public sealed class TradeTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Households_find_shops_nearby_and_by_kind()
+    {
+        var shop = await SignUpAsync("building_materials");
+        var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
+        var near = await shop.GetJsonAsync<List<GroceryKhata.Api.Planner.ShopDirectoryDto>>("/api/v1/shops?type=building_materials&lat=26.9&lng=75.8");
+        Assert.DoesNotContain(near, s => s.Name == settings.Name); // no location saved: not "near" anything
+        var byKind = await shop.GetJsonAsync<List<GroceryKhata.Api.Planner.ShopDirectoryDto>>($"/api/v1/shops?type=building_materials&search={Uri.EscapeDataString(settings.Name)}");
+        Assert.Contains(byKind, s => s.Name == settings.Name);
+        var otherKind = await shop.GetJsonAsync<List<GroceryKhata.Api.Planner.ShopDirectoryDto>>($"/api/v1/shops?type=paint&search={Uri.EscapeDataString(settings.Name)}");
+        Assert.All(otherKind, s => Assert.Equal(GroceryKhata.Api.Shops.ShopType.Paint, s.Type)); // other tests' shops share names
+    }
+
+    [Fact]
     public void Razorpay_signatures_are_checked()
     {
         var good = Convert.ToHexStringLower(System.Security.Cryptography.HMACSHA256.HashData("secret"u8, "order|pay"u8));
