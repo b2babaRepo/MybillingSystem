@@ -41,14 +41,16 @@ export function TradeBillPanel({ shopId, shopType, customer, total, onKhata, car
   onChallanSaved: (total: number) => void
 }) {
   const { t } = useTranslation()
-  const building = shopType === 'building_materials' || shopType === 'hardware'
+  const building = shopType === 'building_materials' || shopType === 'hardware' || shopType === 'electrical'
   const paint = shopType === 'paint'
+  // Painters bring paint customers, electricians bring electrical ones: the same commission.
+  const fitters = paint || shopType === 'electrical'
   const sites = useQuery({
     queryKey: [shopId, 'sites', customer?.id],
     queryFn: () => api<{ site: string }[]>(`/v1/customers/${customer!.id}/sites`),
     enabled: building && !!customer,
   }).data
-  const painters = useQuery({ queryKey: [shopId, 'painters'], queryFn: () => api<Painter[]>('/v1/painters'), enabled: paint }).data
+  const painters = useQuery({ queryKey: [shopId, 'painters'], queryFn: () => api<Painter[]>('/v1/painters'), enabled: fitters }).data
   const [tinting, setTinting] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -101,7 +103,7 @@ export function TradeBillPanel({ shopId, shopType, customer, total, onKhata, car
         </>
       )}
 
-      {paint && (
+      {fitters && (
         <>
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-muted">{t('trade.painter')}</span>
@@ -111,9 +113,9 @@ export function TradeBillPanel({ shopId, shopType, customer, total, onKhata, car
               {painters?.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.commissionPercent}%)</option>)}
             </select>
           </label>
-          <button onClick={() => setTinting(true)} className="min-h-12 rounded-2xl border-2 border-dashed border-udhaar font-bold text-udhaar">
+          {paint && <button onClick={() => setTinting(true)} className="min-h-12 rounded-2xl border-2 border-dashed border-udhaar font-bold text-udhaar">
             🎨 {t('trade.addTinted')}
-          </button>
+          </button>}
         </>
       )}
 

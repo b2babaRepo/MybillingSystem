@@ -15,7 +15,7 @@ namespace GroceryKhata.Api.Tests;
 [Collection(ApiCollection.Name)]
 public sealed class ShopDayTests(ApiFactory api)
 {
-    public static TheoryData<string> Trades => ["water_supply", "beauty", "sweets", "toys", "clothes", "building_materials", "paint"];
+    public static TheoryData<string> Trades => ["water_supply", "beauty", "sweets", "toys", "clothes", "building_materials", "paint", "hardware", "electrical"];
 
     [Theory]
     [MemberData(nameof(Trades))]

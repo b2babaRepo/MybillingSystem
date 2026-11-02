@@ -6,7 +6,7 @@ import { api, request } from '../lib/api'
 import { useProducts, useToday } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { useSubscription } from '../lib/billing'
-import { useShopSettings, shopTypes, isTrade } from '../lib/reports'
+import { useShopSettings, shopTypes, isTrade, COMMISSION_TYPES } from '../lib/reports'
 import { navigate } from '../router'
 
 /**
@@ -94,7 +94,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         <span aria-hidden="true">→</span>
       </button>
 
-      {isOwner && types.includes('paint') && (
+      {isOwner && types.some((x) => COMMISSION_TYPES.includes(x)) && (
         <button onClick={() => navigate('/painters')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
           <span>{t('painters.link')}</span><span aria-hidden="true">→</span>
         </button>

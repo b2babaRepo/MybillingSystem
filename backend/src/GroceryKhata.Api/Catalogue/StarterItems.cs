@@ -18,6 +18,8 @@ public static class StarterItems
         ShopType.Sweets => Sweets,
         ShopType.Toys => Toys,
         ShopType.Clothes => Clothes,
+        ShopType.Hardware => Hardware,
+        ShopType.Electrical => Electrical,
         _ => [],
     };
 
@@ -115,6 +117,43 @@ public static class StarterItems
         Item("Kids' frock", "Kids", Unit.Piece, 5, "6209"),
         Item("Socks", "Accessories", Unit.Pair, 5, "6115"),
         Item("Handkerchief", "Accessories", Unit.Dozen, 5, "6213"),
+    ];
+
+    // Most hardware and electrical goods are 18%; HSN codes are the usual ones. A CA should check both.
+    private static readonly ImportRow[] Hardware =
+    [
+        Item("Door hinge 4 inch", "Hinges", Unit.Pair, 18, "8302"),
+        Item("Tower bolt 6 inch", "Bolts", Unit.Piece, 18, "8302"),
+        Item("Padlock", "Locks", Unit.Piece, 18, "8301"),
+        Item("Door handle", "Fittings", Unit.Piece, 18, "8302"),
+        Item("Wood screw 1 inch", "Screws & nails", Unit.Box, 18, "7318"),
+        Item("Wire nails 2 inch", "Screws & nails", Unit.Kg, 18, "7317"),
+        Item("PVC pipe 1 inch", "Plumbing", Unit.Metre, 18, "3917"),
+        Item("CPVC elbow 1 inch", "Plumbing", Unit.Piece, 18, "3917"),
+        Item("Ball valve 1/2 inch", "Plumbing", Unit.Piece, 18, "8481"),
+        Item("Water tap", "Plumbing", Unit.Piece, 18, "8481"),
+        Item("Hacksaw blade", "Tools", Unit.Piece, 18, "8202"),
+        Item("Hammer", "Tools", Unit.Piece, 18, "8205"),
+        Item("Fevicol 1 kg", "Adhesives", Unit.Piece, 18, "3506"),
+        Item("M-seal", "Adhesives", Unit.Piece, 18, "3214"),
+    ];
+
+    private static readonly ImportRow[] Electrical =
+    [
+        Item("Wire 1.0 sq mm (90 m coil)", "Wires", Unit.Box, 18, "8544"),
+        Item("Wire 1.5 sq mm (90 m coil)", "Wires", Unit.Box, 18, "8544"),
+        Item("Wire 2.5 sq mm (90 m coil)", "Wires", Unit.Box, 18, "8544"),
+        Item("Wire 1.5 sq mm (per metre)", "Wires", Unit.Metre, 18, "8544"),
+        Item("Switch 6 A", "Switches", Unit.Piece, 18, "8536"),
+        Item("Socket 6 A", "Switches", Unit.Piece, 18, "8536"),
+        Item("Switch board 4 module", "Switches", Unit.Piece, 18, "8538"),
+        Item("MCB 16 A", "Protection", Unit.Piece, 18, "8536"),
+        Item("LED bulb 9 W", "Lights", Unit.Piece, 18, "8539"),
+        Item("LED tube light 20 W", "Lights", Unit.Piece, 18, "8539"),
+        Item("Ceiling fan", "Fans", Unit.Piece, 18, "8414"),
+        Item("Exhaust fan", "Fans", Unit.Piece, 18, "8414"),
+        Item("PVC conduit pipe 20 mm", "Fittings", Unit.Metre, 18, "3917"),
+        Item("Insulation tape", "Fittings", Unit.Piece, 18, "3919"),
     ];
 
     private static readonly ImportRow[] Paint =

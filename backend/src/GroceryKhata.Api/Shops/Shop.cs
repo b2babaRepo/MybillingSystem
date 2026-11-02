@@ -104,4 +104,6 @@ public enum ShopType
     Sweets,
     Toys,
     Clothes,
+    /// <summary>Wires, switches, lights and fans; electricians bring customers.</summary>
+    Electrical,
 }

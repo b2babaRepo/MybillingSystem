@@ -1,4 +1,4 @@
-import { useShopSettings, type ShopType } from '../lib/reports'
+import { STARTER_TYPES, useShopSettings, type ShopType } from '../lib/reports'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +13,8 @@ import { parseCsv, STARTER_CATALOGUE, type ImportRow } from '../lib/catalogue'
 const PLACEHOLDER: Partial<Record<ShopType, string>> = {
   building_materials: 'Cement OPC 53 (50 kg), bag, 385, 360, Cement, 100, 20\nसरिया 12 mm, किलो, 62',
   paint: 'Wall Emulsion 20 L, piece, 4200, 3900, Paint, 5, 2\nप्राइमर 4 L, piece, 650',
-  hardware: 'Door hinge 4 inch, piece, 45, 35, Hinges, 50, 10\nपेंच 1 इंच, piece, 2',
+  hardware: 'Door hinge 4 inch, pair, 45, 35, Hinges, 50, 10\nपेंच 1 इंच, piece, 2',
+  electrical: 'LED bulb 9 W, piece, 120, 90, Lights, 50, 10\nतार 1.5 sq mm, metre, 18',
   other: 'Item name, piece, 100, 80, Category, 10, 2',
 }
 
@@ -25,7 +26,7 @@ export function ImportScreen({ shopId }: { shopId: string }) {
   const [busy, setBusy] = useState(false)
   const parsed = parseCsv(text)
   const type = useShopSettings(shopId).data?.type ?? 'kirana'
-  const hasTradeList = type === 'building_materials' || type === 'paint'
+  const hasTradeList = type !== 'kirana' && STARTER_TYPES.includes(type)
 
   async function upload(rows: ImportRow[]) {
     setBusy(true)
