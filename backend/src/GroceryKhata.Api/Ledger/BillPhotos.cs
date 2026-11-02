@@ -18,7 +18,7 @@ public interface IBillPhotoReader
 /// kharcha slip becomes one line per entry. Structured output, nothing acts on it: the shop checks every line before
 /// saving, and the photo itself is never stored.
 /// </summary>
-public sealed class ClaudeBillPhotoReader(AnthropicClient client, string model) : IBillPhotoReader
+public sealed class ClaudeBillPhotoReader(AnthropicClient client, string model, ILogger? logger = null) : IBillPhotoReader
 {
     private const string Instructions = """
         You read photos that an Indian shopkeeper takes for their expense book (kharcha): a printed bill or receipt they
@@ -62,6 +62,7 @@ public sealed class ClaudeBillPhotoReader(AnthropicClient client, string model) 
 
     public async Task<IReadOnlyList<ExpenseGuess>> ReadAsync(string mediaType, string base64, CancellationToken ct)
     {
+        GroceryKhata.Api.Common.AiBudget.Take();
         var response = await client.Messages.Create(new MessageCreateParams
         {
             Model = model,
@@ -87,6 +88,7 @@ public sealed class ClaudeBillPhotoReader(AnthropicClient client, string model) 
                 },
             ],
         }, ct);
+        GroceryKhata.Api.Common.AiBudget.Record(logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, "bill photo", model, response.Usage.InputTokens, response.Usage.OutputTokens, response.Usage.CacheReadInputTokens ?? 0);
 
         if (response.StopReason != "end_turn")
         {
@@ -129,7 +131,7 @@ public static class BillPhotos
         var key = configuration["Ai:ApiKey"] ?? Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
         if (configuration.GetValue("Ai:Enabled", true) && !string.IsNullOrWhiteSpace(key))
         {
-            services.AddSingleton<IBillPhotoReader>(new ClaudeBillPhotoReader(new AnthropicClient { ApiKey = key }, configuration["Ai:Model"] ?? "claude-opus-5-5"));
+            services.AddSingleton<IBillPhotoReader>(provider => new ClaudeBillPhotoReader(new AnthropicClient { ApiKey = key }, configuration["Ai:PhotoModel"] ?? "claude-sonnet-5-5", provider.GetRequiredService<ILogger<ClaudeBillPhotoReader>>()));
         }
 
         return services;

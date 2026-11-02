@@ -71,9 +71,12 @@ public static class OrderDrafts
         // typed notes are read by rules and photos are refused. Ai:Enabled=false forces the rules (tests).
         var key = configuration["Ai:ApiKey"] ?? Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
         var enabled = configuration.GetValue("Ai:Enabled", true);
-        var model = configuration["Ai:Model"] ?? "claude-opus-5-5";
-        services.AddSingleton<IOrderReader>(enabled && !string.IsNullOrWhiteSpace(key)
-            ? new ClaudeOrderReader(new AnthropicClient { ApiKey = key }, model)
+        // Cheap first: Haiku reads typed notes; photos of handwritten lists go to Sonnet. Both can be set in config.
+        var model = configuration["Ai:Model"] ?? "claude-haiku-5-5";
+        var photoModel = configuration["Ai:PhotoModel"] ?? "claude-sonnet-5-5";
+        GroceryKhata.Api.Common.AiBudget.DailyLimit = configuration.GetValue("Ai:DailyCallLimit", 5000);
+        services.AddSingleton<IOrderReader>(provider => enabled && !string.IsNullOrWhiteSpace(key)
+            ? new ClaudeOrderReader(new AnthropicClient { ApiKey = key }, model, photoModel, provider.GetRequiredService<ILogger<ClaudeOrderReader>>())
             : new RuleOrderReader());
         return services;
     }

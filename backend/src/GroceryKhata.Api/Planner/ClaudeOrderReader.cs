@@ -12,7 +12,8 @@ namespace GroceryKhata.Api.Planner;
 /// checked on the server (<see cref="OrderDrafts"/>) before anyone sees it. Words and photos from households are
 /// data to read, never instructions: the prompt says so, and nothing the model returns can act.
 /// </summary>
-public sealed class ClaudeOrderReader(AnthropicClient client, string model) : IOrderReader
+/// <summary>Typed notes go to <paramref name="model"/>; photos to <paramref name="photoModel"/> (handwriting needs more), else the same.</summary>
+public sealed class ClaudeOrderReader(AnthropicClient client, string model, string? photoModel = null, ILogger? logger = null) : IOrderReader
 {
     public string Name => model;
 
@@ -44,15 +45,18 @@ public sealed class ClaudeOrderReader(AnthropicClient client, string model) : IO
             Text = "<household_order>\n" + (string.IsNullOrWhiteSpace(input.Text) ? "(see the photo)" : input.Text.Trim()) + "\n</household_order>",
         });
 
+        var used = input.ImageBase64 is not null ? photoModel ?? model : model;
+        GroceryKhata.Api.Common.AiBudget.Take();
         var response = await client.Messages.Create(new MessageCreateParams
         {
-            Model = model,
+            Model = used,
             MaxTokens = 4000,
             OutputConfig = new OutputConfig { Effort = Effort.Low, Format = new JsonOutputFormat { Schema = Schema } },
             System = new List<TextBlockParam> { new() { Text = Instructions, CacheControl = new CacheControlEphemeral() } },
             Messages = [new UserMessageParam { Content = content }],
         }, ct);
 
+        GroceryKhata.Api.Common.AiBudget.Record(logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, "order", used, response.Usage.InputTokens, response.Usage.OutputTokens, response.Usage.CacheReadInputTokens ?? 0);
         if (response.StopReason != "end_turn")
         {
             throw new InvalidOperationException($"The order could not be read ({response.StopReason}).");
