@@ -738,6 +738,8 @@ export const en = {
   },
   suppliers: { title: 'Suppliers', totalDue: 'You owe suppliers', add: 'Add supplier', name: 'Supplier name', phone: 'Mobile number', all: 'All suppliers', mode: 'Paid by', pay: 'Pay supplier', bill: 'Add supplier bill', billNo: 'Bill number', item: 'Item', qty: 'Quantity', cost: 'Cost each', addRow: 'Add item', paidNow: 'Paid now', saveBill: 'Save bill and add stock', billLine: 'Bill', paidLine: 'Paid' },
   reports: {
+    stockValue: 'Stock value today, at cost',
+    supplierDue: 'Owed to suppliers today',
     lessLosses: 'After returns {{returns}} and stock lost {{loss}}.',
     yearTitle: 'Year {{fy}} for your CA',
     turnover: 'Turnover without GST',

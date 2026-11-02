@@ -81,6 +81,10 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             {((data.stockPurchases ?? 0) > 0 || (data.takenHome ?? 0) > 0) && (
               <span className="text-xs text-muted">{t('reports.notCosts', { stock: formatRupees(data.stockPurchases ?? 0), home: formatRupees(data.takenHome ?? 0) })}</span>
             )}
+            <div className="mt-2 flex flex-col gap-1 border-t border-[#edf2f1] pt-2 text-sm">
+              <span className="flex justify-between"><span className="text-muted">{t('reports.stockValue')}</span><span className="font-bold">{formatRupees(data.stockValue ?? 0)}</span></span>
+              <span className="flex justify-between"><span className="text-muted">{t('reports.supplierDue')}</span><span className="font-bold text-due">{formatRupees(data.supplierDue ?? 0)}</span></span>
+            </div>
             </>}
             <span className="mt-2 flex justify-between border-t border-[#edf2f1] pt-2 text-sm">
               <span className="text-muted">{t('reports.outstanding')}</span>

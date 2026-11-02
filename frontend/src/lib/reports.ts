@@ -36,6 +36,8 @@ export interface MonthReport {
   profitCoverage: number
   returns?: number
   stockLoss?: number
+  stockValue?: number
+  supplierDue?: number
   /** Running costs from the kharcha book (not stock bought, not money taken home). */
   expenses?: number
   stockPurchases?: number

@@ -58,7 +58,9 @@ public sealed record MonthReport(
     decimal StockPurchases = 0,
     decimal TakenHome = 0,
     decimal Returns = 0,
-    decimal StockLoss = 0)
+    decimal StockLoss = 0,
+    decimal StockValue = 0,
+    decimal SupplierDue = 0)
 {
     /// <summary>Estimated profit less running costs. Stock bought isn't taken off (sales already count goods at cost); money taken home isn't a cost.</summary>
     public decimal NetProfit => EstimatedProfit - Expenses;
@@ -176,7 +178,7 @@ public static class ReportEndpoints
             // Profit shows what goods cost: for the owner, not helpers.
             ? TypedResults.Ok(await BuildMonthAsync(db, period, ct) is var report && user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))
                 ? report
-                : report with { EstimatedProfit = 0, ProfitCoverage = 0, Expenses = 0, StockPurchases = 0, TakenHome = 0, Returns = 0, StockLoss = 0 })
+                : report with { EstimatedProfit = 0, ProfitCoverage = 0, Expenses = 0, StockPurchases = 0, TakenHome = 0, Returns = 0, StockLoss = 0, StockValue = 0, SupplierDue = 0 })
             : TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
 
     public static async Task<MonthReport> BuildMonthAsync(AppDbContext db, (int Year, int Month) period, CancellationToken ct)
@@ -238,10 +240,13 @@ public static class ReportEndpoints
             .GroupBy(e => e.Category).Select(g => new { g.Key, Total = g.Sum(e => e.Amount) })
             .ToDictionaryAsync(g => g.Key, g => g.Total, ct);
         decimal Spent(ExpenseCategory c) => spent.GetValueOrDefault(c);
+        // Today's figures, whichever month is open: stock at cost (items with a count and a cost) and what suppliers are owed.
+        var stockValue = await db.Products.AsNoTracking().Where(p => p.IsActive && p.Stock > 0 && p.CostPrice != null).SumAsync(p => (decimal?)(p.Stock * p.CostPrice!.Value), ct) ?? 0m;
+        var supplierDue = await db.SupplierEntries.AsNoTracking().SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
         return new MonthReport(
             $"{period.Year:D4}-{period.Month:D2}", sales, bills.Count, Received(PaymentMode.Cash), Received(PaymentMode.Upi), udhaar, khataCollected,
             outstanding, profit, sales == 0 ? 0 : decimal.Round(costed.Sum(l => l.Amount) / sales, 2), top, days,
-            spent.Values.Sum() - Spent(ExpenseCategory.Purchase) - Spent(ExpenseCategory.Home), Spent(ExpenseCategory.Purchase), Spent(ExpenseCategory.Home), returns, stockLoss);
+            spent.Values.Sum() - Spent(ExpenseCategory.Purchase) - Spent(ExpenseCategory.Home), Spent(ExpenseCategory.Purchase), Spent(ExpenseCategory.Home), returns, stockLoss, stockValue, supplierDue);
     }
 
     private static async Task<IResult> DuesCsvAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
