@@ -112,6 +112,14 @@ public static class WhatsAppOrders
         {
             try
             {
+                // Taken once: a resent message changes no row and is skipped.
+                var messageId = message.TryGetProperty("id", out var id) ? id.GetString() : null;
+                var now = clock.GetUtcNow();
+                if (messageId is not null && await db.Database.ExecuteSqlAsync($"INSERT INTO seen_messages (message_id, seen_at) VALUES ({messageId}, {now}) ON CONFLICT DO NOTHING", ct) == 0)
+                {
+                    continue;
+                }
+
                 var reply = await HandleAsync(message, db, reader, whatsapp, speech, clock, ct);
                 if (reply is not null && whatsapp is not null)
                 {

@@ -36,6 +36,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Market> Markets => Set<Market>();
 
+    public DbSet<Common.JobRun> JobRuns => Set<Common.JobRun>();
+
+    public DbSet<Common.SeenMessage> SeenMessages => Set<Common.SeenMessage>();
+
     public DbSet<Supplier> Suppliers => Set<Supplier>();
 
     public DbSet<Purchase> Purchases => Set<Purchase>();
@@ -140,6 +144,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(o => o.OfferCode).HasMaxLength(40);
             b.Property(o => o.PaymentId).HasMaxLength(40);
             b.HasIndex(o => o.OrderId).IsUnique();
+        });
+
+        modelBuilder.Entity<Common.JobRun>(b =>
+        {
+            b.ToTable("job_runs");
+            b.HasKey(r => r.Job);
+            b.Property(r => r.Job).HasMaxLength(60);
+        });
+
+        modelBuilder.Entity<Common.SeenMessage>(b =>
+        {
+            b.ToTable("seen_messages");
+            b.HasKey(m => m.MessageId);
+            b.Property(m => m.MessageId).HasMaxLength(200);
         });
 
         modelBuilder.Entity<Market>(b =>

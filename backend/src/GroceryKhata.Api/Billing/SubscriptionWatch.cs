@@ -71,14 +71,20 @@ public sealed class SubscriptionWatch(IServiceScopeFactory scopes, TimeProvider 
                 next = next.AddDays(1);
             }
 
-            await Task.Delay(next - india, clock, stoppingToken);
             try
             {
+                if (!await JobRuns.MissedAsync(scopes, nameof(SubscriptionWatch), clock, stoppingToken))
+                {
+                    await Task.Delay(next - india, clock, stoppingToken);
+                }
+
                 await RunAsync(stoppingToken);
+                await JobRuns.RecordAsync(scopes, nameof(SubscriptionWatch), true, clock, stoppingToken);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 logger.LogError(exception, "Subscription watch failed");
+                await Task.Delay(TimeSpan.FromHours(1), clock, stoppingToken);
             }
         }
     }

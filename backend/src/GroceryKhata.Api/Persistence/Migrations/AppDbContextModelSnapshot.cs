@@ -1950,6 +1950,42 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("stock_movements", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Common.JobRun", b =>
+                {
+                    b.Property<string>("Job")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("job");
+
+                    b.Property<DateTimeOffset>("LastRanAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_ran_at");
+
+                    b.Property<bool>("Succeeded")
+                        .HasColumnType("boolean")
+                        .HasColumnName("succeeded");
+
+                    b.HasKey("Job");
+
+                    b.ToTable("job_runs", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Common.SeenMessage", b =>
+                {
+                    b.Property<string>("MessageId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("message_id");
+
+                    b.Property<DateTimeOffset>("SeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("seen_at");
+
+                    b.HasKey("MessageId");
+
+                    b.ToTable("seen_messages", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Identity.Membership", b =>
                 {
                     b.Property<Guid>("Id")

@@ -84,8 +84,22 @@ public sealed class NightlyBalanceCheck(IServiceScopeFactory scopes, TimeProvide
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            await Task.Delay(UntilNextRun(clock.GetUtcNow()), clock, stoppingToken);
-            await RunAsync(stoppingToken);
+            try
+            {
+                if (!await JobRuns.MissedAsync(scopes, nameof(NightlyBalanceCheck), clock, stoppingToken))
+                {
+                    await Task.Delay(UntilNextRun(clock.GetUtcNow()), clock, stoppingToken);
+                }
+
+                await RunAsync(stoppingToken);
+                await JobRuns.RecordAsync(scopes, nameof(NightlyBalanceCheck), true, clock, stoppingToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // One bad night must not stop the API: note it, wait, and try again.
+                logger.LogError(exception, "Nightly balance check failed");
+                await Task.Delay(TimeSpan.FromHours(1), clock, stoppingToken);
+            }
         }
     }
 
