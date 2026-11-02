@@ -739,6 +739,7 @@ export const hi: Texts = {
     noPhone: 'नंबर नहीं है',
   },
   reports: {
+    lessLosses: 'वापसी {{returns}} और स्टॉक नुकसान {{loss}} घटाकर।',
     yearTitle: 'साल {{fy}}: CA के लिए',
     turnover: 'बिना GST का टर्नओवर',
     gstInside: 'बिक्री में GST',

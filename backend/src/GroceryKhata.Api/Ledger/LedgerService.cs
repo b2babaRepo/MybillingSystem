@@ -272,6 +272,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                             Quantity = line.Quantity,
                             Unit = line.Unit ?? product?.Unit ?? Catalogue.Unit.Piece,
                             UnitPrice = line.UnitPrice,
+                            UnitCost = product?.CostPrice,
                             Amount = Money.LineAmount(line.Quantity, line.UnitPrice),
                             GstRate = taxSnapshot is null ? product?.GstRate : taxSnapshot[i].GstRate,
                             HsnCode = taxSnapshot is null ? product?.HsnCode : taxSnapshot[i].HsnCode,

@@ -2386,6 +2386,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("unit");
 
+                    b.Property<decimal?>("UnitCost")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("unit_cost");
+
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")

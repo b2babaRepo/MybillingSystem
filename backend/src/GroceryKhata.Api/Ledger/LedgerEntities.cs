@@ -171,4 +171,7 @@ public sealed class BillLine : Entity, ITenantOwned
     public decimal? GstRate { get; set; }
 
     public string? HsnCode { get; set; }
+
+    /// <summary>The item's cost when sold, so a later cost change doesn't rewrite past profit. Null: not known.</summary>
+    public decimal? UnitCost { get; set; }
 }

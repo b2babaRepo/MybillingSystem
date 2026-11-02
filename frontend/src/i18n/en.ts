@@ -737,6 +737,7 @@ export const en = {
     noPhone: 'No phone number',
   },
   reports: {
+    lessLosses: 'After returns {{returns}} and stock lost {{loss}}.',
     yearTitle: 'Year {{fy}} for your CA',
     turnover: 'Turnover without GST',
     gstInside: 'GST in sales',

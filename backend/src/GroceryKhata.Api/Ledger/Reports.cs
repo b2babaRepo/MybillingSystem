@@ -1,6 +1,7 @@
 using GroceryKhata.Api.Billing;
 using System.Globalization;
 using System.Text;
+using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
@@ -55,7 +56,9 @@ public sealed record MonthReport(
     IReadOnlyList<DailyTotals> Days,
     decimal Expenses = 0,
     decimal StockPurchases = 0,
-    decimal TakenHome = 0)
+    decimal TakenHome = 0,
+    decimal Returns = 0,
+    decimal StockLoss = 0)
 {
     /// <summary>Estimated profit less running costs. Stock bought isn't taken off (sales already count goods at cost); money taken home isn't a cost.</summary>
     public decimal NetProfit => EstimatedProfit - Expenses;
@@ -168,9 +171,12 @@ public static class ReportEndpoints
         return updated == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
     }
 
-    private static async Task<IResult> MonthAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+    private static async Task<IResult> MonthAsync(string? month, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
         ParseOrThisMonth(month, clock) is { } period
-            ? TypedResults.Ok(await BuildMonthAsync(db, period, ct))
+            // Profit shows what goods cost: for the owner, not helpers.
+            ? TypedResults.Ok(await BuildMonthAsync(db, period, ct) is var report && user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))
+                ? report
+                : report with { EstimatedProfit = 0, ProfitCoverage = 0, Expenses = 0, StockPurchases = 0, TakenHome = 0, Returns = 0, StockLoss = 0 })
             : TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
 
     public static async Task<MonthReport> BuildMonthAsync(AppDbContext db, (int Year, int Month) period, CancellationToken ct)
@@ -196,8 +202,20 @@ public static class ReportEndpoints
             + entries.Where(e => e.PaymentMode != null && e.BillId != null).Sum(e => e.Amount);
 
         var lines = bills.SelectMany(b => b.Lines).ToList();
-        var costed = lines.Where(l => l.ProductId is { } id && costs.ContainsKey(id)).ToList();
-        var profit = costed.Sum(l => l.Amount - Money.LineAmount(l.Quantity, costs[l.ProductId!.Value]));
+        // The cost when sold; bills from before that was kept use today's. Lines with neither aren't counted.
+        decimal? Cost(BillLine l) => l.UnitCost ?? (l.ProductId is { } id && costs.TryGetValue(id, out var cost) ? cost : null);
+        var costed = lines.Where(l => Cost(l) is not null).ToList();
+        var taxed = bills.Where(b => b.Gstin != null).Select(b => b.Id).ToHashSet();
+        // GST inside the price belongs to the government, not the shop.
+        decimal WithoutGst(BillLine l) => taxed.Contains(l.BillId) && l.GstRate is > 0 ? decimal.Round(l.Amount / (1 + (l.GstRate.Value / 100)), 2) : l.Amount;
+        var returns = -await db.LedgerEntries.AsNoTracking().Where(e => e.Kind == LedgerEntryKind.Return && e.OccurredAt >= start && e.OccurredAt < end).SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
+        StockReason[] lossReasons = [StockReason.Damage, StockReason.Wastage, StockReason.CountCorrection];
+        var moved = await (from m in db.StockMovements.AsNoTracking()
+                           where m.Kind == StockMovementKind.Adjustment && m.OccurredAt >= start && m.OccurredAt < end && m.Reason != null && lossReasons.Contains(m.Reason.Value)
+                           join p in db.Products.AsNoTracking() on m.ProductId equals p.Id
+                           select new { m.Quantity, Cost = m.CostPrice ?? p.CostPrice }).ToListAsync(ct);
+        var stockLoss = moved.Where(m => m.Cost != null).Sum(m => decimal.Round(-m.Quantity * m.Cost!.Value, 2));
+        var profit = costed.Sum(l => WithoutGst(l) - Money.LineAmount(l.Quantity, Cost(l)!.Value)) - returns - stockLoss;
         var sales = bills.Sum(b => b.Total);
 
         var days = Enumerable.Range(0, DateTime.DaysInMonth(period.Year, period.Month)).Select(i =>
@@ -223,7 +241,7 @@ public static class ReportEndpoints
         return new MonthReport(
             $"{period.Year:D4}-{period.Month:D2}", sales, bills.Count, Received(PaymentMode.Cash), Received(PaymentMode.Upi), udhaar, khataCollected,
             outstanding, profit, sales == 0 ? 0 : decimal.Round(costed.Sum(l => l.Amount) / sales, 2), top, days,
-            spent.Values.Sum() - Spent(ExpenseCategory.Purchase) - Spent(ExpenseCategory.Home), Spent(ExpenseCategory.Purchase), Spent(ExpenseCategory.Home));
+            spent.Values.Sum() - Spent(ExpenseCategory.Purchase) - Spent(ExpenseCategory.Home), Spent(ExpenseCategory.Purchase), Spent(ExpenseCategory.Home), returns, stockLoss);
     }
 
     private static async Task<IResult> DuesCsvAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)

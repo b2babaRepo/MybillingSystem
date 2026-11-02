@@ -68,6 +68,23 @@ public sealed class TradeTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Past_profit_keeps_the_cost_at_sale_and_takes_out_gst()
+    {
+        var shop = await SignUpAsync("building_materials");
+        await shop.PostJsonAsync("/api/v1/products/starter", new { });
+        var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
+        var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" });
+        async Task SetCost(decimal cost) => await shop.PutAsJsonAsync($"/api/v1/products/{cement.Id}", new { name = cement.Name, unit = "bag", sellingPrice = 1180m, costPrice = cost });
+        await SetCost(800m);
+        await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), paidAmount = 1180m, lines = new[] { new { productId = cement.Id, quantity = 1m, unitPrice = 1180m } } });
+        await SetCost(5000m);
+
+        var month = await shop.GetJsonAsync<GroceryKhata.Api.Ledger.MonthReport>("/api/v1/reports/month");
+        Assert.Equal(200m, month.EstimatedProfit); // 1000 without GST, less 800
+    }
+
+    [Fact]
     public void Razorpay_signatures_are_checked()
     {
         var good = Convert.ToHexStringLower(System.Security.Cryptography.HMACSHA256.HashData("secret"u8, "order|pay"u8));
