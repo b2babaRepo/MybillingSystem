@@ -24,7 +24,7 @@ export interface PlanInfo {
   shops?: number
 }
 
-export const FEATURES = ['reports', 'store', 'whatsapp', 'staff', 'bill_photo', 'gst', 'trade', 'ai'] as const
+export const FEATURES = ['reports', 'store', 'whatsapp', 'staff', 'bill_photo', 'gst', 'gst_export', 'trade', 'ai'] as const
 
 /** Every plan, for admins: on sale or not, with its shop count. */
 export function usePlans() {

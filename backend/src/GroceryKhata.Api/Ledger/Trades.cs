@@ -274,9 +274,9 @@ public static class TradeEndpoints
     private static async Task<IResult> SetGstinAsync(Guid id, CustomerGstinRequest request, AppDbContext db, CancellationToken ct)
     {
         var gstin = string.IsNullOrWhiteSpace(request.Gstin) ? null : request.Gstin.Trim().ToUpperInvariant();
-        if (gstin is not null && (gstin.Length != 15 || !gstin.All(char.IsAsciiLetterOrDigit) || !char.IsAsciiDigit(gstin[0]) || !char.IsAsciiDigit(gstin[1])))
+        if (gstin is not null && !GstExport.IsValidGstin(gstin))
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Gstin"] = ["A GSTIN has 15 letters and digits, starting with the state code, like 08ABCDE1234F1Z5."] });
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Gstin"] = ["This GSTIN isn't valid: check each letter and digit (the last one is a check digit)."] });
         }
 
         var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);

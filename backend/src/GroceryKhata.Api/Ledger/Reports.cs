@@ -404,8 +404,10 @@ public static class ReportEndpoints
             var ownKhata = khata.Where(e => e.OccurredAt >= from && e.OccurredAt < to).ToList();
             // GST exists only on bills of a registered shop; prices include it.
             var gstLines = own.Where(b => b.Gstin != null).SelectMany(b => b.Lines).ToList();
-            var gst = gstLines.Where(l => l.GstRate is > 0).GroupBy(l => l.GstRate!.Value)
-                .Sum(g => { var amount = g.Sum(l => l.Amount); return amount - decimal.Round(amount / (1 + (g.Key / 100)), 2); });
+            // The tax kept on each bill since it was stored; older bills work it out from the rates.
+            var gst = gstLines.Where(l => l.TaxableValue != null).Sum(l => (l.Cgst ?? 0) + (l.Sgst ?? 0) + (l.Igst ?? 0))
+                + gstLines.Where(l => l.TaxableValue == null && l.GstRate is > 0).GroupBy(l => l.GstRate!.Value)
+                    .Sum(g => { var amount = g.Sum(l => l.Amount); return amount - decimal.Round(amount / (1 + (g.Key / 100)), 2); });
             decimal Received(PaymentMode mode) => own.Where(b => b.PaymentMode == mode).Sum(b => b.PaidAmount) - ownKhata.Where(e => e.PaymentMode == mode).Sum(e => e.Amount);
             var sales = own.Sum(b => b.Total);
             rows.Add(new YearMonthRow($"{year:D4}-{month:D2}", own.Count, sales, gst, sales - gst, gstLines.Where(l => l.GstRate == null).Sum(l => l.Amount), Received(PaymentMode.Cash), Received(PaymentMode.Upi)));
