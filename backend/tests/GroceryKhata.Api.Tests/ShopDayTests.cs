@@ -247,6 +247,47 @@ public sealed class ShopDayTests(ApiFactory api)
         (await other.GetAsync($"/api/v1/store/{settings.Slug}")).EnsureSuccessStatusCode();
     }
 
+    [Fact]
+    public async Task A_phone_set_to_last_month_still_dates_entries_today()
+    {
+        var shop = await SignUpAsync("kirana");
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Gupta");
+        var phoneNow = DateTimeOffset.UtcNow.AddDays(-31);
+        using var message = new HttpRequestMessage(HttpMethod.Post, "/api/v1/khata-entries")
+        {
+            Content = JsonContent.Create(new { id = Guid.CreateVersion7(), customerId = customer, type = "credit", amount = 100m, occurredAt = phoneNow.AddMinutes(-10) }, options: ApiFactory.Json),
+        };
+        message.Headers.Add("X-Client-Time", phoneNow.ToString("O"));
+        (await shop.SendAsync(message)).EnsureSuccessStatusCode();
+
+        var statement = await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement");
+        var at = Assert.Single(statement.Entries).OccurredAt;
+        Assert.InRange(at, DateTimeOffset.UtcNow.AddMinutes(-12), DateTimeOffset.UtcNow.AddMinutes(-8));
+    }
+
+    [Fact]
+    public async Task A_khata_link_stops_after_90_days_and_sharing_again_makes_a_new_one()
+    {
+        var shop = await SignUpAsync("kirana");
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Gupta");
+        var link = await (await shop.PostJsonAsync($"/api/v1/customers/{customer}/khata-link", new { })).ReadAsync<KhataLinkDto>();
+        var anyone = api.CreateClient();
+        (await anyone.GetAsync($"/api/v1/khata/{link.ShopSlug}/{customer}?t={link.Token}")).EnsureSuccessStatusCode();
+
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var age = new Npgsql.NpgsqlCommand("UPDATE customers SET khata_token_at = now() - interval '91 days' WHERE id = @c", db);
+            age.Parameters.AddWithValue("c", customer);
+            await age.ExecuteNonQueryAsync();
+        }
+
+        Assert.Equal(HttpStatusCode.NotFound, (await anyone.GetAsync($"/api/v1/khata/{link.ShopSlug}/{customer}?t={link.Token}")).StatusCode);
+        var fresh = await (await shop.PostJsonAsync($"/api/v1/customers/{customer}/khata-link", new { })).ReadAsync<KhataLinkDto>();
+        Assert.NotEqual(link.Token, fresh.Token);
+        (await anyone.GetAsync($"/api/v1/khata/{link.ShopSlug}/{customer}?t={fresh.Token}")).EnsureSuccessStatusCode();
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {

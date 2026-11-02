@@ -10,7 +10,7 @@ namespace GroceryKhata.Api.Ledger;
 /// entries are append-only (fix with a reversal); a customer's balance changes only in the same
 /// transaction as the entry that moves it; every write carries the app's own ID, so a retry is a no-op.
 /// </summary>
-public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantContext tenant, Billing.Entitlements entitlements)
+public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantContext tenant, Billing.Entitlements entitlements, IHttpContextAccessor? http = null)
 {
     public async Task<IReadOnlyList<CustomerDto>> ListCustomersAsync(string? search, CancellationToken cancellationToken)
     {
@@ -698,17 +698,38 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
     /// <summary>A helper can't date an entry more than a week back (room for a phone offline for days): older entries need the owner.</summary>
     private void CheckBackdate(DateTimeOffset? requested, bool isOwner, Dictionary<string, string[]> errors)
     {
-        if (!isOwner && requested is { } at && at < clock.GetUtcNow() - HelperBackdateLimit)
+        if (!isOwner && Corrected(requested) is { } at && at < clock.GetUtcNow() - HelperBackdateLimit)
         {
             errors["OccurredAt"] = ["Only the owner can enter something older than 7 days. Ask the owner to add it."];
         }
     }
 
-    /// <summary>The phone's time, unless it's in the future (a wrong clock): then now.</summary>
+    /// <summary>The phone's time, put right for a wrong phone clock, and never in the future.</summary>
     private DateTimeOffset OccurredAt(DateTimeOffset? requested)
     {
         var now = clock.GetUtcNow();
-        return requested is { } at && at <= now ? at.ToUniversalTime() : now;
+        return Corrected(requested) is { } at && at <= now ? at.ToUniversalTime() : now;
+    }
+
+    /// <summary>Phone clocks this far off the server's are put right; closer than this is ordinary drift.</summary>
+    public static readonly TimeSpan ClockTolerance = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// The app sends the phone's clock with every request (X-Client-Time). When it is wrong (a phone set to last month),
+    /// the entry's time moves by the same error, so a sale lands on the day it really happened, in the right GST month.
+    /// An entry queued offline keeps its place: the error is measured when it is sent, from the same clock.
+    /// </summary>
+    private DateTimeOffset? Corrected(DateTimeOffset? requested)
+    {
+        if (requested is not { } at
+            || http?.HttpContext?.Request.Headers["X-Client-Time"].ToString() is not { Length: > 0 } header
+            || !DateTimeOffset.TryParse(header, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var phoneNow))
+        {
+            return requested;
+        }
+
+        var error = clock.GetUtcNow() - phoneNow;
+        return error.Duration() > ClockTolerance ? at + error : at;
     }
 
     private static void RequireId(Guid id, Dictionary<string, string[]> errors)

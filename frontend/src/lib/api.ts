@@ -46,6 +46,8 @@ async function fetchOrThrow(path: string, method: string, body: unknown, token?:
       headers: {
         ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        // The phone's clock: the server puts entry times right when it is wrong.
+        'X-Client-Time': new Date().toISOString(),
       },
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     })

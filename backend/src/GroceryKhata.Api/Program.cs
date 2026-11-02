@@ -39,6 +39,7 @@ builder.Services.AddHttpClient("place").ConfigurePrimaryHttpMessageHandler(() =>
         }
     },
 });
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<LedgerService>();
 builder.Services.AddScoped<StockService>();
 builder.Services.AddOrderReading(builder.Configuration);

@@ -30,6 +30,9 @@ public sealed class Customer : Entity, ITenantOwned
     /// </summary>
     public string? KhataToken { get; set; }
 
+    /// <summary>When <see cref="KhataToken"/> was made: a link works for <c>KhataViewEndpoints.LinkLife</c> after it.</summary>
+    public DateTimeOffset? KhataTokenAt { get; set; }
+
     /// <summary>A business customer's GSTIN, printed on their tax invoices; its first two digits are their state.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(15)]
     public string? Gstin { get; set; }

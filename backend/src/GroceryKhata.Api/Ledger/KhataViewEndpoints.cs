@@ -37,7 +37,13 @@ public static class KhataViewEndpoints
         return app;
     }
 
-    /// <summary>The customer's link: the same one every time, so links already sent keep working.</summary>
+    /// <summary>How long a khata link works. A forwarded or old link stops on its own.</summary>
+    public static readonly TimeSpan LinkLife = TimeSpan.FromDays(90);
+
+    /// <summary>Sharing again in the link's last week makes a fresh one, so the customer never gets one about to stop.</summary>
+    private static readonly TimeSpan RenewWithin = TimeSpan.FromDays(7);
+
+    /// <summary>The customer's link: the same one while it works, so links already sent keep working.</summary>
     private static async Task<IResult> GetOrCreateLinkAsync(Guid id, AppDbContext db, ITenantContext tenant, CancellationToken ct)
     {
         var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
@@ -46,9 +52,9 @@ public static class KhataViewEndpoints
             return TypedResults.NotFound();
         }
 
-        if (customer.KhataToken is null)
+        if (customer.KhataToken is null || customer.KhataTokenAt is not { } made || made + LinkLife - RenewWithin <= DateTimeOffset.UtcNow)
         {
-            customer.KhataToken = Secrets.NewRefreshToken();
+            (customer.KhataToken, customer.KhataTokenAt) = (Secrets.NewRefreshToken(), DateTimeOffset.UtcNow);
             await db.SaveChangesAsync(ct);
         }
 
@@ -65,7 +71,7 @@ public static class KhataViewEndpoints
             return TypedResults.NotFound();
         }
 
-        customer.KhataToken = Secrets.NewRefreshToken();
+        (customer.KhataToken, customer.KhataTokenAt) = (Secrets.NewRefreshToken(), DateTimeOffset.UtcNow);
         await db.SaveChangesAsync(ct);
         var slug = await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.Slug).SingleAsync(ct);
         return TypedResults.Ok(new KhataLinkDto(slug, customer.Id, customer.KhataToken));
@@ -96,7 +102,8 @@ public static class KhataViewEndpoints
             return null;
         }
 
-        var token = await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => c.KhataToken).SingleOrDefaultAsync(ct);
+        var link = await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new { c.KhataToken, c.KhataTokenAt }).SingleOrDefaultAsync(ct);
+        var token = link is { KhataTokenAt: { } made } && made + LinkLife > DateTimeOffset.UtcNow ? link.KhataToken : null;
         return token is not null && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
             System.Text.Encoding.UTF8.GetBytes(token), System.Text.Encoding.UTF8.GetBytes(t)) ? shop : null;
     }
