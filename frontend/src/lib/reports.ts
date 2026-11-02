@@ -58,6 +58,7 @@ export interface ShopSettings {
   type?: ShopType
   /** Printed on tax bills. */
   gstin?: string | null
+  gstComposition?: boolean
 }
 
 export type ShopType = 'kirana' | 'building_materials' | 'paint' | 'hardware' | 'other'

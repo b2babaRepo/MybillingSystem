@@ -674,6 +674,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(l => l.GstRate).HasPrecision(5, 2);
             b.Property(l => l.HsnCode).HasMaxLength(8);
             b.Property(l => l.UnitCost).HasPrecision(12, 2);
+            b.Property(l => l.TaxableValue).HasPrecision(12, 2);
+            b.Property(l => l.Cgst).HasPrecision(12, 2);
+            b.Property(l => l.Sgst).HasPrecision(12, 2);
+            b.Property(l => l.Igst).HasPrecision(12, 2);
             b.HasIndex(l => new { l.ShopId, l.BillId, l.LineNo }).IsUnique();
             b.HasTenantForeignKey<BillLine, Product>(nameof(BillLine.ProductId));
         });

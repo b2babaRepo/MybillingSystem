@@ -396,6 +396,7 @@ export const en = {
     addressText: 'House, street, area',
     landmark: 'Landmark',
     pincode: 'Pincode',
+    removeAddress: 'Remove this address',
     km: '{{km}} km away',
     noShops: 'No shop found. Try the market name.',
     howGet: 'How will you get it?',
@@ -531,6 +532,7 @@ export const en = {
     loading: 'Loading',
   },
   trade: {
+    gstinSet: 'Buyer GSTIN', gstinAsk: 'Customer GSTIN (leave empty to remove)', gstinSaved: 'GSTIN saved. New bills will show it.',
     site: 'Site',
     sitePlaceholder: 'e.g. Mansarovar plot 12',
     vehicle: 'Vehicle no.',
@@ -702,6 +704,9 @@ export const en = {
     cancelBill: 'Cancel this bill',
     cancelReason: 'Why is this bill being cancelled?',
     gstUnset: 'Rate not set',
+    billOfSupply: 'Bill of supply',
+    buyerGstin: 'Buyer GSTIN',
+    compositionNote: 'Composition taxable person, not eligible to collect tax on supplies.',
     gstUnsetWarning: 'Some items have no GST rate, so this prints as a plain bill. Set the rate on those items.',
     statement: 'Khata statement',
     monthStatement: 'Month statement',
@@ -785,6 +790,7 @@ export const en = {
   },
   settings: {
     gstin: 'GSTIN (if registered)',
+    composition: 'Composition scheme (bills of supply, no tax collected)',
     title: 'Shop settings',
     link: 'Shop settings',
     shopName: 'Shop name',

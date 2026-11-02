@@ -124,6 +124,16 @@ public sealed class BillingService(AppDbContext db, Entitlements entitlements, T
         payment.RefundedAt = now;
         var subscription = await db.Subscriptions.SingleAsync(s => s.ShopId == payment.ShopId, ct);
         subscription.PaidUntil = subscription.PaidUntil - (payment.PeriodEnd - payment.PeriodStart);
+        // The first payment earned both shops a referral month: a refund takes it back from both.
+        var first = await db.SubscriptionPayments.Where(p => p.ShopId == payment.ShopId).OrderBy(p => p.PaidAt).Select(p => p.Id).FirstAsync(ct);
+        if (first == payment.Id && subscription.ReferralRewarded && subscription.ReferredByShopId is { } referrer)
+        {
+            var days = entitlements.Options.ReferralBonusDays;
+            subscription.PaidUntil = subscription.PaidUntil?.AddDays(-days);
+            subscription.ReferralRewarded = false;
+            await TakeBonusAsync(referrer, days, now, ct);
+        }
+
         // A payment made during the trial started after it: taking it back leaves the trial, not paid days.
         if (subscription.PaidUntil <= subscription.TrialEndsAt && subscription.TrialEndsAt > now)
         {
@@ -148,6 +158,20 @@ public sealed class BillingService(AppDbContext db, Entitlements entitlements, T
             subscription.CompPlanCode ??= "basic";
             subscription.CompUntil = (subscription.CompUntil > now ? subscription.CompUntil.Value : now).AddDays(days);
             subscription.CompReason ??= "Referral reward";
+        }
+    }
+
+    /// <summary>Takes back a referral month: from the paid period it was added to, else from the free month given.</summary>
+    private async Task TakeBonusAsync(Guid shopId, int days, DateTimeOffset now, CancellationToken ct)
+    {
+        var subscription = await entitlements.FindOrNewAsync(shopId, ct, track: true);
+        if (subscription.PaidUntil > now)
+        {
+            subscription.PaidUntil = subscription.PaidUntil.Value.AddDays(-days);
+        }
+        else if (subscription.CompReason == "Referral reward" && subscription.CompUntil is { } until)
+        {
+            subscription.CompUntil = until.AddDays(-days);
         }
     }
 

@@ -398,6 +398,7 @@ export const hi: Texts = {
     addressText: 'मकान, गली, इलाका',
     landmark: 'पास में कोई पहचान',
     pincode: 'पिनकोड',
+    removeAddress: 'यह पता हटाएँ',
     km: '{{km}} किमी दूर',
     noShops: 'कोई दुकान नहीं मिली। बाज़ार का नाम लिखकर देखें।',
     howGet: 'कैसे लेंगे?',
@@ -533,6 +534,7 @@ export const hi: Texts = {
     loading: 'लदाई',
   },
   trade: {
+    gstinSet: 'खरीदार GSTIN', gstinAsk: 'ग्राहक का GSTIN (हटाने के लिए खाली छोड़ें)', gstinSaved: 'GSTIN सेव हो गया। नए बिलों पर दिखेगा।',
     site: 'साइट',
     sitePlaceholder: 'जैसे मानसरोवर प्लॉट 12',
     vehicle: 'गाड़ी नं.',
@@ -703,6 +705,9 @@ export const hi: Texts = {
     cancelBill: 'यह बिल रद्द करें',
     cancelReason: 'यह बिल क्यों रद्द कर रहे हैं?',
     gstUnset: 'दर नहीं डाली',
+    billOfSupply: 'बिल ऑफ़ सप्लाई',
+    buyerGstin: 'खरीदार GSTIN',
+    compositionNote: 'Composition taxable person, not eligible to collect tax on supplies.',
     gstUnsetWarning: 'कुछ सामान में GST दर नहीं है, इसलिए यह सादा बिल छपेगा। उन सामान में दर डालें।',
     statement: 'खाते का हिसाब',
     monthStatement: 'महीने का हिसाब',
@@ -786,6 +791,7 @@ export const hi: Texts = {
   },
   settings: {
     gstin: 'GSTIN (अगर रजिस्टर्ड हैं)',
+    composition: 'कंपोज़िशन स्कीम (बिल ऑफ़ सप्लाई, टैक्स नहीं लिया जाता)',
     title: 'दुकान की सेटिंग',
     link: 'दुकान की सेटिंग',
     shopName: 'दुकान का नाम',

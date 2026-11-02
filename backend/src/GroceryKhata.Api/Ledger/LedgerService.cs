@@ -335,6 +335,11 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     PainterId = request.PainterId,
                     Gstin = await BillGstinAsync(cancellationToken),
                 };
+                if (bill.Gstin is not null)
+                {
+                    TaxLines(bill, lines, await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.GstComposition).SingleAsync(cancellationToken),
+                        bill.CustomerId is { } buyerId ? await db.Customers.AsNoTracking().Where(c => c.Id == buyerId).Select(c => c.Gstin).SingleOrDefaultAsync(cancellationToken) : null);
+                }
 
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
                 (bill.FinancialYear, bill.Number) = await NextBillNumberAsync(cancellationToken);
@@ -411,8 +416,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 await transaction.CommitAsync(cancellationToken);
                 return LedgerResult<BillDto>.Created(new BillDto(
                     bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
-                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode)).ToList(),
-                    balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin));
+                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst)).ToList(),
+                    balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, BuyerGstin: bill.BuyerGstin, BillOfSupply: bill.BillOfSupply));
             });
 
     /// <summary>
@@ -608,6 +613,30 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         return entry is null ? null : new KhataEntryResponse(LedgerEntryDto.From(entry), await BalanceAsync(entry.CustomerId, cancellationToken));
     }
 
+    /// <summary>
+    /// Works out and keeps each line's tax (prices include GST), so returns read the bill as it was. A composition shop
+    /// collects no tax: its bill is a bill of supply. A buyer whose GSTIN shows another state is charged IGST, others
+    /// CGST and SGST (the place of supply is the buyer's state when known, else the shop's).
+    /// </summary>
+    private static void TaxLines(Bill bill, List<BillLine> lines, bool composition, string? buyerGstin)
+    {
+        bill.BillOfSupply = composition;
+        bill.BuyerGstin = buyerGstin;
+        if (composition)
+        {
+            return;
+        }
+
+        var interState = buyerGstin is { Length: 15 } && bill.Gstin is { Length: 15 } && buyerGstin[..2] != bill.Gstin[..2];
+        foreach (var line in lines.Where(l => l.GstRate is not null))
+        {
+            var taxable = decimal.Round(line.Amount / (1 + (line.GstRate!.Value / 100)), 2);
+            var tax = line.Amount - taxable;
+            var half = decimal.Round(tax / 2, 2);
+            (line.TaxableValue, line.Igst, line.Cgst, line.Sgst) = interState ? (taxable, tax, 0m, 0m) : (taxable, 0m, half, tax - half);
+        }
+    }
+
     /// <summary>The GSTIN a new bill carries: none unless the shop's plan has GST billing, so it prints as a plain bill.</summary>
     private async Task<string?> BillGstinAsync(CancellationToken cancellationToken)
     {
@@ -627,8 +656,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         return new BillDto(
             bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
             bill.Lines.OrderBy(l => l.LineNo)
-                .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode)).ToList(),
-            balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, bill.CancelledAt, bill.CancelReason);
+                .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst)).ToList(),
+            balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, bill.CancelledAt, bill.CancelReason, bill.BuyerGstin, bill.BillOfSupply);
     }
 
     private Task<decimal> BalanceAsync(Guid customerId, CancellationToken cancellationToken) =>

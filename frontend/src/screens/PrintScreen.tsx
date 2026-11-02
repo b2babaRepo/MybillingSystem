@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
-import { gstSummary, gstUnsetAmount } from '../lib/gst'
+import { gstSummary, gstUnsetAmount, storedSummary } from '../lib/gst'
 import type { BillView, Statement } from '../lib/types'
 
 
@@ -106,16 +106,18 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
   const when = new Date(bill.occurredAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
   const share = t('print.billShare', { shop: shopName, total: bill.total, paid: bill.paidAmount, khata: bill.onKhata })
   // No GSTIN: not registered, so no tax on the bill at all.
-  const gst = gstin ? gstSummary(bill.lines) : []
+  // A composition shop's bill of supply shows no tax. Bills keep their tax since it was stored; older ones work it out.
+  const gst = gstin && !bill.billOfSupply ? storedSummary(bill.lines) ?? gstSummary(bill.lines).map((g) => ({ ...g, igst: 0 })) : []
+  const igst = gst.some((g) => g.igst > 0)
   const unset = gstin ? gstUnsetAmount(bill.lines) : 0
   const isTaxInvoice = gst.length > 0 && unset === 0
 
   return (
-    <Page title={shopName} subtitle={`${isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
+    <Page title={shopName} subtitle={`${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
       {bill.cancelledAt && <p className="mb-3 border-2 border-black p-2 text-center font-extrabold">{t('print.cancelled')}{bill.cancelReason && ` · ${bill.cancelReason}`}</p>}
       {(gstin || bill.site || bill.vehicleNumber) && (
         <p className="mb-3 text-sm">
-          {[gstin && `GSTIN ${gstin}`, bill.site && `${t('trade.site')}: ${bill.site}`, bill.vehicleNumber && `${t('trade.vehicle')}: ${bill.vehicleNumber}`].filter(Boolean).join(' · ')}
+          {[gstin && `GSTIN ${gstin}`, bill.buyerGstin && `${t('print.buyerGstin')} ${bill.buyerGstin}`, bill.site && `${t('trade.site')}: ${bill.site}`, bill.vehicleNumber && `${t('trade.vehicle')}: ${bill.vehicleNumber}`].filter(Boolean).join(' · ')}
         </p>
       )}
       <table className="w-full border-collapse text-[15px]">
@@ -145,7 +147,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
           <caption className="mb-1 text-left font-bold">{t('print.gstTitle')}</caption>
           <thead>
             <tr className="border-b border-black text-left">
-              <th className="py-1">GST</th><th className="text-right">{t('print.taxable')}</th><th className="text-right">CGST</th><th className="text-right">SGST</th>
+              <th className="py-1">GST</th><th className="text-right">{t('print.taxable')}</th>{igst ? <th className="text-right">IGST</th> : <><th className="text-right">CGST</th><th className="text-right">SGST</th></>}
             </tr>
           </thead>
           <tbody>
@@ -153,8 +155,9 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
               <tr key={g.rate} className="border-b border-gray-300">
                 <td className="py-1">{g.rate}%</td>
                 <td className="text-right">{formatRupees(g.taxable)}</td>
+                {igst ? <td className="text-right">{formatRupees(g.igst)}</td> : <>
                 <td className="text-right">{formatRupees(g.cgst)}</td>
-                <td className="text-right">{formatRupees(g.sgst)}</td>
+                <td className="text-right">{formatRupees(g.sgst)}</td></>}
               </tr>
             ))}
             {unset > 0 && (
@@ -162,13 +165,14 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
                 <td className="py-1">{t('print.gstUnset')}</td>
                 <td className="text-right">{formatRupees(unset)}</td>
                 <td className="text-right">—</td>
-                <td className="text-right">—</td>
+                {!igst && <td className="text-right">—</td>}
               </tr>
             )}
           </tbody>
         </table>
       )}
       {gst.length > 0 && <p className="mt-1 text-xs text-gray-600">{t('print.gstIncluded')}</p>}
+      {bill.billOfSupply && <p className="mt-2 text-sm">{t('print.compositionNote')}</p>}
       {unset > 0 && <p className="mt-1 text-sm font-semibold text-due print:hidden">{t('print.gstUnsetWarning')}</p>}
       <p className="mt-6 text-center">{t('print.thanks')}</p>
       {!bill.cancelledAt && <button onClick={cancel} className="mt-6 h-11 w-full rounded-xl border border-line font-semibold text-due print:hidden">{t('print.cancelBill')}</button>}

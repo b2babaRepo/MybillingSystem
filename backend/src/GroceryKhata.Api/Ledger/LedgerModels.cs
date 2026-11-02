@@ -63,7 +63,8 @@ public sealed record LedgerEntryDto(
 /// <summary>The entry and the customer's balance after it.</summary>
 public sealed record KhataEntryResponse(LedgerEntryDto Entry, decimal CustomerBalance);
 
-public sealed record BillLineDto(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Amount, decimal? GstRate = null, string? HsnCode = null);
+public sealed record BillLineDto(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Amount, decimal? GstRate = null, string? HsnCode = null,
+    decimal? TaxableValue = null, decimal? Cgst = null, decimal? Sgst = null, decimal? Igst = null);
 
 public sealed record BillDto(
     Guid Id,
@@ -81,7 +82,9 @@ public sealed record BillDto(
     string? BillNo = null,
     string? Gstin = null,
     DateTimeOffset? CancelledAt = null,
-    string? CancelReason = null);
+    string? CancelReason = null,
+    string? BuyerGstin = null,
+    bool BillOfSupply = false);
 
 public sealed record CancelBillRequest(string? Reason);
 

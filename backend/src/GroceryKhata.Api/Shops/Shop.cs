@@ -69,6 +69,9 @@ public sealed class Shop : Entity
 
     public double? Longitude { get; set; }
 
+    /// <summary>On the composition scheme: bills are bills of supply, with no tax collected.</summary>
+    public bool GstComposition { get; set; }
+
     /// <summary>The shop's GSTIN, printed on tax bills. Null: not registered (bills show no GST split).</summary>
     public string? Gstin { get; set; }
 

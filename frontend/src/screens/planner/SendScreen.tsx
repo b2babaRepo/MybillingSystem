@@ -159,6 +159,10 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
                 {addresses.data!.map((a) => <option key={a.id} value={a.id}>{a.label}: {a.text}</option>)}
               </select>
             )}
+            {chosenAddress && (
+              <button onClick={() => { if (window.confirm(t('plan.removeAddress'))) void api(`/v1/addresses/${chosenAddress.id}`, 'DELETE').then(() => { setAddressId(''); void addresses.refetch() }) }}
+                className="min-h-11 self-start text-sm font-semibold text-due">{t('plan.removeAddress')}</button>
+            )}
             <details className="rounded-[14px] border border-line p-2">
               <summary className="min-h-11 cursor-pointer font-semibold text-teal-700">{t('plan.addAddress')}</summary>
               <div className="mt-2 flex flex-col gap-2">

@@ -29,6 +29,10 @@ public sealed class Customer : Entity, ITenantOwned
     /// the same link again; replacing it cuts off the old link. Null until the shop first shares one.
     /// </summary>
     public string? KhataToken { get; set; }
+
+    /// <summary>A business customer's GSTIN, printed on their tax invoices; its first two digits are their state.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(15)]
+    public string? Gstin { get; set; }
 }
 
 /// <summary>
@@ -143,6 +147,13 @@ public sealed class Bill : Entity, ITenantOwned
     public string? CancelReason { get; set; }
 
     public Guid? CancelledByUserId { get; set; }
+
+    /// <summary>The buyer's GSTIN when billed (B2B). Null: an ordinary customer.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(15)]
+    public string? BuyerGstin { get; set; }
+
+    /// <summary>A composition shop's bill: a bill of supply, no tax on it.</summary>
+    public bool BillOfSupply { get; set; }
 }
 
 public sealed class BillLine : Entity, ITenantOwned
@@ -174,4 +185,13 @@ public sealed class BillLine : Entity, ITenantOwned
 
     /// <summary>The item's cost when sold, so a later cost change doesn't rewrite past profit. Null: not known.</summary>
     public decimal? UnitCost { get; set; }
+
+    /// <summary>The tax worked out when billed (prices include GST): value without tax, and the tax by head. Null: no tax on this line.</summary>
+    public decimal? TaxableValue { get; set; }
+
+    public decimal? Cgst { get; set; }
+
+    public decimal? Sgst { get; set; }
+
+    public decimal? Igst { get; set; }
 }

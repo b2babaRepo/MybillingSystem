@@ -26,6 +26,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     reminderTemplate: initial.reminderTemplate ?? '',
     type: initial.type ?? 'kirana',
     gstin: initial.gstin ?? '',
+    gstComposition: initial.gstComposition ? 'yes' : '',
   })
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
@@ -34,7 +35,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   async function save() {
     setMessage('')
     try {
-      const saved = await api<ShopSettings>('/v1/shop', 'PUT', form)
+      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition })
       queryClient.setQueryData([shopId, 'settings'], saved)
       setMessage(t('settings.saved'))
     } catch (err) {
@@ -61,6 +62,10 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
           </select>
         </label>
         {gstBilling && <Field label={t('settings.gstin')} value={form.gstin} onChange={set('gstin')} maxLength={15} autoCapitalize="characters" placeholder="08ABCDE1234F1Z5" />}
+        {gstBilling && form.gstin.trim() && (
+          <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!!form.gstComposition} onChange={(e) => setForm({ ...form, gstComposition: e.target.checked ? 'yes' : '' })} className="h-5 w-5" />
+            <span>{t('settings.composition')}</span></label>
+        )}
         <Field label={t('settings.area')} value={form.area} onChange={set('area')} />
         <Field label={t('settings.address')} value={form.address} onChange={set('address')} />
         <div>

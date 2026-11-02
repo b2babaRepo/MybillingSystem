@@ -143,6 +143,31 @@ public sealed class TradeTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Bills_keep_their_tax_igst_for_another_state_and_none_on_composition()
+    {
+        var shop = await SignUpAsync("building_materials");
+        await shop.PostJsonAsync("/api/v1/products/starter", new { });
+        var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
+        var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" });
+        var buyer = await KhataTests.CreateCustomerAsync(shop, "Delhi Builders");
+        async Task<BillDto> Bill(Guid? customer) => await (await shop.PostJsonAsync("/api/v1/bills", new
+        {
+            id = Guid.CreateVersion7(), customerId = customer, paidAmount = 1180m,
+            lines = new[] { new { productId = cement.Id, quantity = 1m, unitPrice = 1180m } },
+        })).ReadAsync<BillDto>();
+
+        var local = await Bill(null);
+        Assert.Equal((1000m, 90m, 90m, 0m), (local.Lines[0].TaxableValue, local.Lines[0].Cgst, local.Lines[0].Sgst, local.Lines[0].Igst));
+        (await shop.PutAsJsonAsync($"/api/v1/customers/{buyer}/gstin", new { gstin = "07AAACD1234E1Z2" })).EnsureSuccessStatusCode();
+        var other = await Bill(buyer);
+        Assert.Equal(("07AAACD1234E1Z2", 180m, 0m), (other.BuyerGstin, other.Lines[0].Igst, other.Lines[0].Cgst));
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5", GstComposition = true });
+        var supply = await Bill(null);
+        Assert.Equal((true, (decimal?)null), (supply.BillOfSupply, supply.Lines[0].TaxableValue));
+    }
+
+    [Fact]
     public void Razorpay_signatures_are_checked()
     {
         var good = Convert.ToHexStringLower(System.Security.Cryptography.HMACSHA256.HashData("secret"u8, "order|pay"u8));

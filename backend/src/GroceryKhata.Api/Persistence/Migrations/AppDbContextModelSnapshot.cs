@@ -2316,6 +2316,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<bool>("BillOfSupply")
+                        .HasColumnType("boolean")
+                        .HasColumnName("bill_of_supply");
+
+                    b.Property<string>("BuyerGstin")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)")
+                        .HasColumnName("buyer_gstin");
+
                     b.Property<string>("CancelReason")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -2427,6 +2436,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("bill_id");
 
+                    b.Property<decimal?>("Cgst")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("cgst");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -2440,6 +2454,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("character varying(8)")
                         .HasColumnName("hsn_code");
+
+                    b.Property<decimal?>("Igst")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("igst");
 
                     b.Property<int>("LineNo")
                         .HasColumnType("integer")
@@ -2460,9 +2479,19 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(12,3)")
                         .HasColumnName("quantity");
 
+                    b.Property<decimal?>("Sgst")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("sgst");
+
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
+
+                    b.Property<decimal?>("TaxableValue")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("taxable_value");
 
                     b.Property<string>("Unit")
                         .IsRequired()
@@ -2644,6 +2673,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("credit_limit");
+
+                    b.Property<string>("Gstin")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)")
+                        .HasColumnName("gstin");
 
                     b.Property<string>("KhataToken")
                         .HasMaxLength(64)
@@ -3830,6 +3864,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
                         .HasColumnName("district");
+
+                    b.Property<bool>("GstComposition")
+                        .HasColumnType("boolean")
+                        .HasColumnName("gst_composition");
 
                     b.Property<string>("Gstin")
                         .HasColumnType("text")

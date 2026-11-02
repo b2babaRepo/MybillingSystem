@@ -21,6 +21,20 @@ export function gstSummary(lines: Pick<BillLineView, 'amount' | 'gstRate'>[]) {
   })
 }
 
+/** Tax by rate as kept on the bill when it was made; null for bills from before tax was kept. */
+export function storedSummary(lines: Pick<BillLineView, 'amount' | 'gstRate' | 'taxableValue' | 'cgst' | 'sgst' | 'igst'>[]) {
+  if (!lines.some((l) => l.taxableValue != null)) return null
+  const byRate = new Map<number, { rate: number; amount: number; taxable: number; cgst: number; sgst: number; igst: number }>()
+  for (const l of lines) {
+    if (l.gstRate == null || l.taxableValue == null) continue
+    const row = byRate.get(l.gstRate) ?? { rate: l.gstRate, amount: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0 }
+    row.amount += l.amount; row.taxable += l.taxableValue; row.cgst += l.cgst ?? 0; row.sgst += l.sgst ?? 0; row.igst += l.igst ?? 0
+    byRate.set(l.gstRate, row)
+  }
+  const round = (n: number) => Math.round(n * 100) / 100
+  return [...byRate.values()].sort((a, b) => a.rate - b.rate).map((r) => ({ ...r, taxable: round(r.taxable), cgst: round(r.cgst), sgst: round(r.sgst), igst: round(r.igst) }))
+}
+
 /** What's on the bill with no GST rate set, so the table can still add up to the total. */
 export function gstUnsetAmount(lines: Pick<BillLineView, 'amount' | 'gstRate'>[]) {
   return Math.round(lines.reduce((sum, l) => sum + (l.gstRate == null ? l.amount : 0), 0) * 100) / 100

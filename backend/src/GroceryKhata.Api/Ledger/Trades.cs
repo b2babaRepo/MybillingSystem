@@ -59,6 +59,8 @@ public sealed record InvoiceChallansRequest(Guid Id, IReadOnlyList<Guid>? Challa
 
 public sealed record CreditLimitRequest(decimal? CreditLimit);
 
+public sealed record CustomerGstinRequest(string? Gstin);
+
 /// <summary>What a contractor's khata adds up to at one site.</summary>
 public sealed record SiteTotal(string Site, int Bills, decimal Billed, int OpenChallans);
 
@@ -84,6 +86,9 @@ public static class TradeEndpoints
         shop.MapPost("/challans/invoice", InvoiceAsync).RequireFeature(Billing.Features.Trade);
         shop.MapGet("/customers/{id:guid}/sites", SitesAsync);
         shop.MapPut("/customers/{id:guid}/credit-limit", SetLimitAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapGet("/customers/{id:guid}/gstin", async (Guid id, AppDbContext db, CancellationToken ct) =>
+            Results.Ok(new CustomerGstinRequest(await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Gstin).SingleOrDefaultAsync(ct))));
+        shop.MapPut("/customers/{id:guid}/gstin", SetGstinAsync).RequireAuthorization(AppPolicies.ShopOwner);
         shop.MapGet("/painters", (AppDbContext db, CancellationToken ct) =>
             db.Painters.AsNoTracking().OrderBy(p => p.Name).Select(p => new PainterDto(p.Id, p.Name, p.Phone, p.CommissionPercent)).ToListAsync(ct));
         shop.MapPost("/painters", AddPainterAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Trade);
@@ -263,6 +268,26 @@ public static class TradeEndpoints
         customer.CreditLimit = request.CreditLimit is > 0 ? request.CreditLimit : null;
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(new CustomerDto(customer.Id, customer.Name, customer.Phone, customer.Balance, customer.CreditLimit));
+    }
+
+    /// <summary>A business customer's GSTIN, for their tax invoices. Empty clears it.</summary>
+    private static async Task<IResult> SetGstinAsync(Guid id, CustomerGstinRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var gstin = string.IsNullOrWhiteSpace(request.Gstin) ? null : request.Gstin.Trim().ToUpperInvariant();
+        if (gstin is not null && (gstin.Length != 15 || !gstin.All(char.IsAsciiLetterOrDigit) || !char.IsAsciiDigit(gstin[0]) || !char.IsAsciiDigit(gstin[1])))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Gstin"] = ["A GSTIN has 15 letters and digits, starting with the state code, like 08ABCDE1234F1Z5."] });
+        }
+
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        customer.Gstin = gstin;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(request with { Gstin = gstin });
     }
 
     private static async Task<IResult> AddPainterAsync(PainterRequest request, AppDbContext db, CancellationToken ct)

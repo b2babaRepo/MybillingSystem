@@ -185,6 +185,10 @@ export interface BillLineView {
   amount: number
   gstRate?: number | null
   hsnCode?: string | null
+  taxableValue?: number | null
+  cgst?: number | null
+  sgst?: number | null
+  igst?: number | null
 }
 
 export interface BillView {
@@ -206,6 +210,8 @@ export interface BillView {
     gstin?: string | null
     cancelledAt?: string | null
     cancelReason?: string | null
+    buyerGstin?: string | null
+    billOfSupply?: boolean
   }
   customer: Customer | null
 }
