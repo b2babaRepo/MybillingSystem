@@ -240,6 +240,11 @@ public sealed class ShopDayTests(ApiFactory api)
         (await shop.PutAsJsonAsync("/api/v1/shop", settings with { UpiId = "suresh@okaxis" }, ApiFactory.Json)).EnsureSuccessStatusCode();
         var pay = await anyone.GetJsonAsync<GroceryKhata.Api.Planner.StorePayDto>($"/api/v1/store/{settings.Slug}/pay");
         Assert.Equal((settings.Name, "suresh@okaxis"), (pay.Name, pay.UpiId));
+
+        // A shopkeeper signed in to their own shop can open another shop's public pages too.
+        var other = await SignUpAsync("hardware");
+        Assert.Equal("suresh@okaxis", (await other.GetJsonAsync<GroceryKhata.Api.Planner.StorePayDto>($"/api/v1/store/{settings.Slug}/pay")).UpiId);
+        (await other.GetAsync($"/api/v1/store/{settings.Slug}")).EnsureSuccessStatusCode();
     }
 
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>

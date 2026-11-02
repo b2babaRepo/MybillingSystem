@@ -18,9 +18,12 @@ public sealed class TenantMiddleware(RequestDelegate next)
         }
 
         var shopClaim = context.User.FindFirst(AppClaims.ShopId)?.Value;
-        if (context.User.Identity?.IsAuthenticated != true || shopClaim is null)
+        // Public pages (a shop's store, pay page, khata link) pick their own shop from the address: a signed-in
+        // visitor's shop must not be set first, or opening another shop's page fails.
+        var isPublic = context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null;
+        if (context.User.Identity?.IsAuthenticated != true || shopClaim is null || isPublic)
         {
-            // Anonymous, or a user token before a shop is picked: no shop, so shop-owned queries return nothing.
+            // Anonymous, a user token before a shop is picked, or a public page: no shop, so shop-owned queries return nothing.
             await next(context);
             return;
         }
