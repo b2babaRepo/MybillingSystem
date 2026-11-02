@@ -113,6 +113,11 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         </button>
       )}
 
+      {isOwner && products.length === 0 && (
+        <button onClick={() => navigate('/items/pick')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-teal-700 px-4 text-left font-semibold text-white">
+          <span>{t('pick.start')}</span><span aria-hidden="true">→</span>
+        </button>
+      )}
       {lowCount > 0 && (
         <button onClick={() => navigate('/items')} className="mx-4 mt-4 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-orange-50 px-4 text-left font-semibold text-orange-800">
           <span>{t('stock.lowCount', { count: lowCount })}</span>

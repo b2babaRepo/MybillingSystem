@@ -93,7 +93,7 @@ public sealed record NoteRequest(string? Note);
 public sealed record CreateShopRequest(
     string? ShopName, string? OwnerName, string? Phone, string? Area, ShopType? Type, string? Language, IReadOnlyList<AddPersonRequest>? People = null,
     Guid? MarketId = null, double? Latitude = null, double? Longitude = null, string? PhotoDataUrl = null, string? Gstin = null, string? ShopNo = null,
-    string? State = null, string? District = null, string? City = null, string? Village = null);
+    string? State = null, string? District = null, string? City = null, string? Village = null, bool AddTradeItems = false);
 
 /// <summary>The new shop. A new owner account gets a one-time password to pass on; an existing one keeps theirs.</summary>
 public sealed record CreatedShop(Guid ShopId, string Slug, bool NewAccount, string? TempPassword, string? ShopCode = null);
@@ -142,7 +142,7 @@ public static class PlatformEndpoints
     /// </summary>
     private static async Task<IResult> CreateShopAsync(
         CreateShopRequest request, AppDbContext db, IPasswordHasher<User> hasher, TimeProvider clock, ClaimsPrincipal admin,
-        Billing.Entitlements entitlements, ILogger<PlatformAdmin> logger, CancellationToken ct)
+        Billing.Entitlements entitlements, ILogger<PlatformAdmin> logger, IServiceScopeFactory scopes, CancellationToken ct)
     {
         var phone = PhoneNumber.Normalize(request.Phone);
         var shopName = request.ShopName?.Trim();
@@ -200,6 +200,11 @@ public static class PlatformEndpoints
         db.Memberships.Add(new Membership { UserId = user.Id, ShopId = shop.Id, Role = ShopRole.Owner });
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Admin {AdminId} opened shop {ShopId} for user {UserId}", admin.UserId(), shop.Id, user.Id);
+
+        if (request.AddTradeItems)
+        {
+            await Catalogue.MasterItems.AddTradeListAsync(scopes, shop.Id, user.Id, ct);
+        }
 
         // More owners and helpers, as far as the shop's plan (the trial: Gold) allows; the first refusal stops here.
         foreach (var person in request.People ?? [])

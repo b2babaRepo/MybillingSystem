@@ -126,6 +126,36 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.BadRequest, foreign.StatusCode);
     }
 
+    [Fact]
+    public async Task Admins_import_items_into_a_trades_master_list()
+    {
+        var admin = await AdminAsync();
+        var result = await (await admin.PostJsonAsync("/api/v1/platform/master-items/import", new
+        {
+            trade = "beauty",
+            text = "name,hindi,category,unit,gst,hsn\nHair spa,हेयर स्पा,Services,piece,5,999721\nBad line,,,,7,\nFacial,फ़ेशियल,Services,piece,5,999722",
+        })).ReadAsync<MasterImportResult>();
+        Assert.Equal((1, 1, 1), (result.Added, result.Updated, result.Problems.Count));
+    }
+
+    [Fact]
+    public async Task An_item_with_pack_sizes_becomes_one_shop_item_per_size()
+    {
+        var admin = await AdminAsync();
+        var item = await (await admin.PostJsonAsync("/api/v1/platform/master-items", new
+        {
+            trade = "sweets", category = "Namkeen", name = $"Bhujia {Guid.NewGuid():N}"[..14], unit = "kg", packSizes = new[] { "200 g", "1 kg", "1 KG" },
+        })).ReadAsync<MasterItemDto>();
+        Assert.Equal(["200 g", "1 kg"], item.PackSizes);
+
+        var shop = await SignUpAsync("sweets");
+        var picked = await (await shop.PostJsonAsync("/api/v1/products/from-master", new { ids = new[] { item.Id } })).ReadAsync<ImportResult>();
+        Assert.Equal(2, picked.Created);
+        var mine = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Where(p => p.Name.StartsWith(item.Name)).ToList();
+        Assert.All(mine, p => Assert.Equal(Unit.Packet, p.Unit));
+        Assert.Contains(mine, p => p.Name == $"{item.Name} 200 g");
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {
@@ -134,6 +164,25 @@ public sealed class ShopDayTests(ApiFactory api)
         })).ReadAsync<BillDto>();
 
     private static Task<ProductDto> Item(HttpClient shop, Guid id) => shop.GetJsonAsync<ProductDto>($"/api/v1/products/{id}");
+
+    /// <summary>A new account given the Approver platform role directly in the database, then signed in.</summary>
+    private async Task<HttpClient> AdminAsync()
+    {
+        var phone = ApiFactory.NewPhone();
+        var (_, auth) = await api.SignUpAsync("Admin's own shop", phone);
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var insert = new Npgsql.NpgsqlCommand("INSERT INTO platform_admins (id, user_id, role, created_at, updated_at) VALUES (gen_random_uuid(), @u, 'Approver', now(), now())", db);
+            insert.Parameters.AddWithValue("u", auth.User.Id);
+            await insert.ExecuteNonQueryAsync();
+        }
+
+        var signedIn = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-in", new { phone, password = "secret123" })).ReadAsync<AuthResponse>();
+        var client = api.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", signedIn.AccessToken);
+        return client;
+    }
 
     private async Task<HttpClient> SignUpAsync(string type)
     {

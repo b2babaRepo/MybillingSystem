@@ -395,7 +395,7 @@ function MarketsPanel() {
   )
 }
 
-interface MasterRow { id: number; trade: string; category: string; name: string; nameHi: string | null; unit: string; gstRate: number | null; hsnCode: string | null; isActive: boolean }
+interface MasterRow { id: number; trade: string; category: string; name: string; nameHi: string | null; unit: string; gstRate: number | null; hsnCode: string | null; isActive: boolean; packSizes: string[] }
 
 /** The master item lists every shop picks from, one per trade: add, edit, or turn an item off (never deleted). */
 function MasterItemsPanel() {
@@ -403,12 +403,12 @@ function MasterItemsPanel() {
   const queryClient = useQueryClient()
   const [trade, setTrade] = useState<ShopType>('kirana')
   const [q, setQ] = useState('')
-  const empty = { name: '', nameHi: '', category: '', unit: 'piece', gst: '', hsn: '' }
+  const empty = { name: '', nameHi: '', category: '', unit: 'piece', gst: '', hsn: '', packs: '' }
   const [draft, setDraft] = useState(empty)
   const [editing, setEditing] = useState<number | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const rows = useQuery({ queryKey: ['platform', 'master', trade, q], queryFn: () => api<MasterRow[]>(`/v1/platform/master-items?trade=${trade}&q=${encodeURIComponent(q.trim())}`) }).data ?? []
-  const body = (d: typeof empty, isActive?: boolean) => ({ trade, name: d.name.trim(), nameHi: d.nameHi.trim() || null, category: d.category.trim(), unit: d.unit, gstRate: d.gst === '' ? null : Number(d.gst), hsnCode: d.hsn.trim() || null, isActive })
+  const body = (d: typeof empty, isActive?: boolean) => ({ trade, name: d.name.trim(), nameHi: d.nameHi.trim() || null, category: d.category.trim(), unit: d.unit, gstRate: d.gst === '' ? null : Number(d.gst), hsnCode: d.hsn.trim() || null, isActive, packSizes: d.packs.split(',').map((s) => s.trim()).filter(Boolean) })
 
   async function run(action: () => Promise<unknown>) {
     setMessage(null)
@@ -426,7 +426,13 @@ function MasterItemsPanel() {
     setDraft({ ...empty, category: draft.category, unit: draft.unit })
     setEditing(null)
   })
-  const edit = (r: MasterRow) => { setEditing(r.id); setDraft({ name: r.name, nameHi: r.nameHi ?? '', category: r.category, unit: r.unit, gst: r.gstRate == null ? '' : String(r.gstRate), hsn: r.hsnCode ?? '' }) }
+  const [csv, setCsv] = useState('')
+  const importCsv = () => run(async () => {
+    const r = await api<{ added: number; updated: number; problems: string[] }>('/v1/platform/master-items/import', 'POST', { trade, text: csv })
+    setCsv('')
+    setMessage([t('masterItems.imported', r), ...r.problems].join('\n'))
+  })
+  const edit = (r: MasterRow) => { setEditing(r.id); setDraft({ name: r.name, nameHi: r.nameHi ?? '', category: r.category, unit: r.unit, gst: r.gstRate == null ? '' : String(r.gstRate), hsn: r.hsnCode ?? '', packs: r.packSizes.join(', ') }) }
 
   const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
   return (
@@ -449,15 +455,22 @@ function MasterItemsPanel() {
           <option value="">{t('masterItems.gst')}: –</option>{['0', '5', '18', '40'].map((r) => <option key={r} value={r}>{r}%</option>)}
         </select>
         <input aria-label={t('masterItems.hsn')} placeholder={t('masterItems.hsn')} value={draft.hsn} onChange={(e) => setDraft({ ...draft, hsn: e.target.value })} inputMode="numeric" maxLength={8} className={input} />
+        <input aria-label={t('masterItems.packs')} placeholder={t('masterItems.packs')} value={draft.packs} onChange={(e) => setDraft({ ...draft, packs: e.target.value })} className={`${input} col-span-2`} />
         <Button className="col-span-2" disabled={draft.name.trim().length < 2 || draft.category.trim().length < 2} onClick={() => void save()}>{editing ? t('save') : t('masterItems.add')}</Button>
       </div>
-      {message && <p className="text-sm text-due">{message}</p>}
+      <details className="rounded-xl bg-ground p-2">
+        <summary className="min-h-11 cursor-pointer font-semibold">{t('masterItems.import')}</summary>
+        <p className="text-xs text-muted">{t('masterItems.importHint')}</p>
+        <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={6} placeholder={'Toor dal, तूर दाल, Dal, kg, 5, 0713, 500 g|1 kg'} className="mt-2 w-full rounded-xl border border-line p-2 font-mono text-sm" />
+        <Button disabled={!csv.trim()} onClick={() => void importCsv()}>{t('masterItems.importButton')}</Button>
+      </details>
+      {message && <p className="whitespace-pre-line text-sm text-due">{message}</p>}
       <ul className="flex max-h-[32rem] flex-col overflow-y-auto">
         {rows.map((r) => (
           <li key={r.id} className={`flex items-center gap-2 border-t border-line py-1 text-sm ${r.isActive ? '' : 'opacity-50'}`}>
-            <span className="min-w-0 flex-1 truncate">{r.name}{r.nameHi ? ` · ${r.nameHi}` : ''}<span className="block text-xs text-muted">{r.category} · {t(`units.${r.unit}`)}{r.gstRate != null ? ` · ${r.gstRate}%` : ''}{r.hsnCode ? ` · ${r.hsnCode}` : ''}</span></span>
+            <span className="min-w-0 flex-1 truncate">{r.name}{r.nameHi ? ` · ${r.nameHi}` : ''}<span className="block text-xs text-muted">{r.category} · {t(`units.${r.unit}`)}{r.gstRate != null ? ` · ${r.gstRate}%` : ''}{r.hsnCode ? ` · ${r.hsnCode}` : ''}{r.packSizes.length ? ` · ${r.packSizes.join(' / ')}` : ''}</span></span>
             <button onClick={() => edit(r)} className="min-h-11 px-2 font-semibold text-teal-700">{t('masterItems.edit')}</button>
-            <button onClick={() => void run(() => api(`/v1/platform/master-items/${r.id}`, 'PUT', { ...body({ name: r.name, nameHi: r.nameHi ?? '', category: r.category, unit: r.unit, gst: r.gstRate == null ? '' : String(r.gstRate), hsn: r.hsnCode ?? '' }), isActive: !r.isActive }))}
+            <button onClick={() => void run(() => api(`/v1/platform/master-items/${r.id}`, 'PUT', { ...body({ name: r.name, nameHi: r.nameHi ?? '', category: r.category, unit: r.unit, gst: r.gstRate == null ? '' : String(r.gstRate), hsn: r.hsnCode ?? '', packs: r.packSizes.join(', ') }), isActive: !r.isActive }))}
               className="min-h-11 px-2 font-semibold">{r.isActive ? t('masterItems.off') : t('masterItems.on')}</button>
           </li>
         ))}
@@ -474,6 +487,7 @@ function NewShop({ canBill }: { canBill: boolean }) {
   const [marketId, setMarketId] = useState('')
   const emptyIds = { gstin: '', shopNo: '', state: '', district: '', city: '', village: '' }
   const [ids, setIds] = useState(emptyIds)
+  const [addItems, setAddItems] = useState(true)
   const [gps, setGps] = useState<{ latitude: number; longitude: number } | null>(null)
   const [photo, setPhoto] = useState<string | null>(null)
   const locate = () => navigator.geolocation.getCurrentPosition(
@@ -514,7 +528,7 @@ function NewShop({ canBill }: { canBill: boolean }) {
       const result = await api<{ shopId: string; newAccount: boolean; tempPassword: string | null; shopCode: string | null }>('/v1/platform/shops', 'POST', {
         ...form, shopName: form.shopName.trim(), ownerName: form.ownerName.trim(), phone: form.phone.trim(), area: form.area.trim() || null,
         people: people.filter((p) => p.name.trim() && p.phone.trim()).map(toPerson),
-        gstin: ids.gstin.trim() || null, shopNo: ids.shopNo.trim() || null,
+        gstin: ids.gstin.trim() || null, shopNo: ids.shopNo.trim() || null, addTradeItems: addItems,
         state: ids.state.trim() || null, district: ids.district.trim() || null, city: ids.city.trim() || null, village: ids.village.trim() || null,
         marketId: chosenMarket || null, latitude: gps?.latitude ?? null, longitude: gps?.longitude ?? null, photoDataUrl: photo,
       })
@@ -609,6 +623,7 @@ function NewShop({ canBill }: { canBill: boolean }) {
           <input type="file" accept="image/*" capture="environment" className="sr-only"
             onChange={(e) => { const file = e.target.files?.[0]; if (file) void shrinkPhoto(file, 1024, 140_000, false).then(setPhoto) }} />
         </label>
+        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={addItems} onChange={(e) => setAddItems(e.target.checked)} className="h-5 w-5" />{t('masterItems.addToShop')}</label>
         <PeopleRows people={people} onChange={setPeople} />
         <Button disabled={busy || form.shopName.trim().length < 2 || form.phone.trim().length < 10} onClick={() => void create()}>{t('openShop.create')}</Button>
         {created && (

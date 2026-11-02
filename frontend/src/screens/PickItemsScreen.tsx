@@ -5,7 +5,7 @@ import { Button } from '../components/ui'
 import { api } from '../lib/api'
 import type { Unit } from '../lib/types'
 
-interface MasterItem { id: number; trade: string; category: string; name: string; nameHi: string | null; unit: Unit; gstRate: number | null }
+interface MasterItem { id: number; trade: string; category: string; name: string; nameHi: string | null; unit: Unit; gstRate: number | null; packSizes: string[] }
 
 /** Pick items for the shop from its trades' master lists: search, a category at a time, or all of them. */
 export function PickItemsScreen({ shopId }: { shopId: string }) {
@@ -66,7 +66,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
           <li key={i.id}>
             <label className="flex min-h-12 items-center gap-3 px-2">
               <input type="checkbox" checked={chosen.has(i.id)} onChange={() => toggle(i.id)} className="h-5 w-5" />
-              <span className="min-w-0 flex-1">{label(i)}<span className="block text-xs text-muted">{i.category} · {t(`units.${i.unit}`)}{i.gstRate != null ? ` · GST ${i.gstRate}%` : ''}</span></span>
+              <span className="min-w-0 flex-1">{label(i)}<span className="block text-xs text-muted">{i.category} · {t(`units.${i.unit}`)}{i.gstRate != null ? ` · GST ${i.gstRate}%` : ''}{i.packSizes.length ? ` · ${i.packSizes.join(' / ')}` : ''}</span></span>
             </label>
           </li>
         ))}
