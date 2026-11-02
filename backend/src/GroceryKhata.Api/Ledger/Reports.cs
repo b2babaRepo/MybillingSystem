@@ -18,6 +18,14 @@ public sealed record YearMonthRow(string Month, int Bills, decimal Sales, decima
 /// <summary>A financial year (April to March) for the owner and their CA. A working aid: not a return.</summary>
 public sealed record YearReport(string FinancialYear, IReadOnlyList<YearMonthRow> Months, YearMonthRow Total);
 
+/// <summary>
+/// A financial year's profit and loss. Opening and closing stock are rebuilt from the append-only stock movements,
+/// so 31 March can be read back at any time. <see cref="ItemsWithoutCost"/> are left out of stock value.
+/// </summary>
+public sealed record ProfitLossReport(
+    string FinancialYear, decimal Sales, decimal Turnover, decimal Gst, decimal GoodsProfit, decimal Returns, decimal StockLoss, decimal Expenses, decimal NetProfit,
+    decimal TakenHome, decimal Purchases, decimal OpeningStock, decimal ClosingStock, DateOnly ClosingDate, decimal SupplierDue, decimal CustomerDue, int ItemsWithoutCost, decimal ProfitCoverage);
+
 /// <summary>One customer's dues by age. The three buckets always add up to <see cref="Balance"/>.</summary>
 public sealed record DueDto(
     Guid CustomerId,
@@ -129,6 +137,8 @@ public static class ReportEndpoints
         group.MapPost("/customers/{id:guid}/reminded", RemindedAsync).RequireAuthorization(AppPolicies.ShopMember);
         // Downloads hold every customer's dues or the month's figures: the owner's data to take away.
         group.MapGet("/reports/dues.csv", DuesCsvAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapGet("/reports/pnl", ProfitLossAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
+        group.MapGet("/reports/pnl.csv", ProfitLossCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/year", YearAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/year.csv", YearCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/month.csv", MonthCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
@@ -262,6 +272,89 @@ public static class ReportEndpoints
         return Csv(csv, $"dues-{IndiaTime.Today(clock):yyyy-MM-dd}.csv");
     }
 
+    private static async Task<IResult> ProfitLossAsync(int? fy, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        TypedResults.Ok(await BuildProfitLossAsync(db, clock, fy ?? ThisFinancialYear(clock), ct));
+
+    private static async Task<IResult> ProfitLossCsvAsync(int? fy, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var r = await BuildProfitLossAsync(db, clock, fy ?? ThisFinancialYear(clock), ct);
+        var csv = new StringBuilder("Line,Amount\n");
+        foreach (var (label, amount) in new[]
+        {
+            ("Sales with GST", r.Sales), ("GST in sales", r.Gst), ("Turnover without GST", r.Turnover), ("Profit on goods", r.GoodsProfit), ("Returns", -r.Returns), ("Stock lost", -r.StockLoss),
+            ("Running expenses", -r.Expenses), ("Net profit", r.NetProfit), ("Taken home", r.TakenHome), ("Supplier bills", r.Purchases), ("Opening stock at cost", r.OpeningStock),
+            ($"Closing stock at cost {r.ClosingDate:yyyy-MM-dd}", r.ClosingStock), ("Owed to suppliers today", r.SupplierDue), ("Owed by customers today", r.CustomerDue),
+        })
+        {
+            csv.AppendJoin(',', label, Num(amount)).Append('\n');
+        }
+
+        csv.AppendJoin(',', "Items without a cost", r.ItemsWithoutCost.ToString(CultureInfo.InvariantCulture)).Append('\n');
+        return Csv(csv, $"profit-loss-{r.FinancialYear}.csv");
+    }
+
+    public static async Task<ProfitLossReport> BuildProfitLossAsync(AppDbContext db, TimeProvider clock, int startYear, CancellationToken ct)
+    {
+        var (start, _) = IndiaTime.Month(startYear, 4);
+        var (end, _) = IndiaTime.Month(startYear + 1, 4);
+        var months = new List<MonthReport>();
+        for (var i = 0; i < 12; i++)
+        {
+            months.Add(await BuildMonthAsync(db, i < 9 ? (startYear, i + 4) : (startYear + 1, i - 8), ct));
+        }
+
+        var year = await BuildYearAsync(db, startYear, ct);
+        var now = clock.GetUtcNow();
+        var closeAt = end < now ? end : now;
+        var returns = months.Sum(m => m.Returns);
+        var loss = months.Sum(m => m.StockLoss);
+        var profit = months.Sum(m => m.EstimatedProfit);
+        var (opening, _) = await StockValueAtAsync(db, start, ct);
+        var (closing, missing) = await StockValueAtAsync(db, closeAt, ct);
+        var expenses = months.Sum(m => m.Expenses);
+        var coveredSales = months.Sum(m => m.ProfitCoverage * m.Sales);
+        return new ProfitLossReport(
+            year.FinancialYear, year.Total.Sales, year.Total.Turnover, year.Total.Gst, profit + returns + loss, returns, loss, expenses, profit - expenses,
+            months.Sum(m => m.TakenHome),
+            await db.Purchases.AsNoTracking().Where(p => p.OccurredAt >= start && p.OccurredAt < end).SumAsync(p => (decimal?)p.Total, ct) ?? 0m,
+            opening, closing, DateOnly.FromDateTime(closeAt.AddTicks(-1).ToOffset(IndiaTime.Offset).DateTime),
+            await db.SupplierEntries.AsNoTracking().SumAsync(e => (decimal?)e.Amount, ct) ?? 0m,
+            await db.Customers.AsNoTracking().Where(c => c.Balance > 0).SumAsync(c => (decimal?)c.Balance, ct) ?? 0m,
+            missing, year.Total.Sales == 0 ? 0 : decimal.Round(coveredSales / year.Total.Sales, 2));
+    }
+
+    /// <summary>
+    /// Stock at cost just before a moment: each item's count from its movements, at the last purchase cost by then,
+    /// else its cost today. Items held with no cost are counted, not valued.
+    /// </summary>
+    private static async Task<(decimal Value, int Missing)> StockValueAtAsync(AppDbContext db, DateTimeOffset at, CancellationToken ct)
+    {
+        var moves = await db.StockMovements.AsNoTracking().Where(m => m.OccurredAt < at)
+            .Select(m => new { m.ProductId, m.Quantity, m.CostPrice, m.Kind, m.OccurredAt }).ToListAsync(ct);
+        var today = await db.Products.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.CostPrice, ct);
+        var (value, missing) = (0m, 0);
+        foreach (var item in moves.GroupBy(m => m.ProductId))
+        {
+            var held = item.Sum(m => m.Quantity);
+            if (held <= 0)
+            {
+                continue;
+            }
+
+            var cost = item.Where(m => m.Kind == StockMovementKind.Purchase && m.CostPrice != null).OrderBy(m => m.OccurredAt).LastOrDefault()?.CostPrice ?? today.GetValueOrDefault(item.Key);
+            if (cost is { } known)
+            {
+                value += decimal.Round(held * known, 2);
+            }
+            else
+            {
+                missing++;
+            }
+        }
+
+        return (value, missing);
+    }
+
     private static async Task<IResult> YearAsync(int? fy, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
         TypedResults.Ok(await BuildYearAsync(db, fy ?? ThisFinancialYear(clock), ct));
 
@@ -329,6 +422,9 @@ public static class ReportEndpoints
         }
 
         csv.Append('\n').AppendJoin(',', "Total", Num(report.Sales), Num(report.Cash + report.Upi)).Append('\n');
+        csv.AppendJoin(',', "Estimated profit", Num(report.EstimatedProfit), "").Append('\n');
+        csv.AppendJoin(',', "Running expenses", Num(report.Expenses), "").Append('\n');
+        csv.AppendJoin(',', "Net profit", Num(report.NetProfit), "").Append('\n');
         return Csv(csv, $"month-{report.Month}.csv");
     }
 

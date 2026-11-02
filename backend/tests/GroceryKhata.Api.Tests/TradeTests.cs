@@ -108,6 +108,21 @@ public sealed class TradeTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Profit_and_loss_rebuilds_closing_stock_at_purchase_cost()
+    {
+        var shop = await SignUpAsync("building_materials");
+        await shop.PostJsonAsync("/api/v1/products/starter", new { });
+        var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
+        var supplier = Guid.CreateVersion7();
+        await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jaipur Cement" });
+        await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = Guid.CreateVersion7(), supplierId = supplier, paidAmount = 0m, lines = new[] { new { productId = cement.Id, quantity = 10m, unitCost = 300m } } });
+        await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), paidAmount = 400m, lines = new[] { new { productId = cement.Id, quantity = 1m, unitPrice = 400m } } });
+
+        var pnl = await shop.GetJsonAsync<GroceryKhata.Api.Ledger.ProfitLossReport>("/api/v1/reports/pnl");
+        Assert.Equal((2700m, 3000m, 100m, 3000m), (pnl.ClosingStock, pnl.SupplierDue, pnl.NetProfit, pnl.Purchases));
+    }
+
+    [Fact]
     public void Razorpay_signatures_are_checked()
     {
         var good = Convert.ToHexStringLower(System.Security.Cryptography.HMACSHA256.HashData("secret"u8, "order|pay"u8));

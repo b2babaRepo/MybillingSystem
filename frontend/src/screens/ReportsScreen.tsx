@@ -1,3 +1,4 @@
+import { navigate } from '../router'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -118,6 +119,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             </section>
           )}
 
+          {isOwner && <Button tone="plain" onClick={() => navigate('/pnl')}>{t('pnl.title')}</Button>}
           {year && (
             <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
               <h2 className="text-base font-bold">{t('reports.yearTitle', { fy: year.financialYear })}</h2>
