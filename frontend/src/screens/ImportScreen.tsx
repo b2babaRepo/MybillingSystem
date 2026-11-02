@@ -1,3 +1,4 @@
+import { navigate } from '../router'
 import { STARTER_TYPES, useShopSettings, type ShopType } from '../lib/reports'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type ChangeEvent } from 'react'
@@ -66,6 +67,7 @@ export function ImportScreen({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3 p-4">
       {message && <p className="rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800">{message}</p>}
+      <Button onClick={() => navigate('/items/pick')}>{t('pick.title')}</Button>
 
       {type === 'kirana' && (
       <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">

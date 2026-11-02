@@ -108,6 +108,24 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Contains(found, s => s.Name == settings.Name);
     }
 
+    [Fact]
+    public async Task A_shop_picks_items_from_its_trades_master_list_only()
+    {
+        var shop = await SignUpAsync("hardware");
+        var list = await shop.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items");
+        Assert.NotEmpty(list);
+        Assert.All(list, i => Assert.Equal("hardware", i.Trade));
+        var picked = await (await shop.PostJsonAsync("/api/v1/products/from-master", new { ids = list.Take(3).Select(i => i.Id) })).ReadAsync<ImportResult>();
+        Assert.Equal(3, picked.Created);
+        var again = await (await shop.PostJsonAsync("/api/v1/products/from-master", new { ids = list.Take(3).Select(i => i.Id) })).ReadAsync<ImportResult>();
+        Assert.Equal((0, 3), (again.Created, again.Skipped));
+
+        var grocery = await (await api.SignUpAsync()).Client.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items");
+        Assert.All(grocery, i => Assert.Equal("kirana", i.Trade));
+        var foreign = await shop.PostJsonAsync("/api/v1/products/from-master", new { ids = new[] { grocery[0].Id } });
+        Assert.Equal(HttpStatusCode.BadRequest, foreign.StatusCode);
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {

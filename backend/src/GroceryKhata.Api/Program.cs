@@ -63,6 +63,9 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 }
 
+// The master item lists start from the lists the app was built with (once; admins own them after).
+await MasterItems.SeedAsync(app.Services);
+
 if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Database:SeedDemo"))
 {
     await DemoSeeder.RunAsync(app.Services, app.Environment.ContentRootPath, app.Logger);
@@ -100,6 +103,7 @@ app.MapProfile();
 app.MapAddresses();
 app.MapGstExport();
 app.MapCreditNotes();
+app.MapMasterItems();
 app.MapRazorpay();
 app.MapSuppliers();
 app.MapCashCounts();

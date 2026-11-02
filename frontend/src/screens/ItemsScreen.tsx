@@ -56,6 +56,7 @@ export function ItemsScreen({ shopId }: { shopId: string }) {
       </button>
       )}
       <div className="grid grid-cols-2 gap-2">
+        <Button tone="plain" onClick={() => navigate('/items/pick')}>{t('pick.title')}</Button>
         <Button tone="plain" onClick={() => navigate('/stocktake')}>{t('stock.stocktake')}</Button>
         <Button tone="plain" onClick={() => navigate('/import')}>{t('stock.import')}</Button>
       </div>

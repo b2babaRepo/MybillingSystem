@@ -36,6 +36,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Market> Markets => Set<Market>();
 
+    public DbSet<MasterItem> MasterItems => Set<MasterItem>();
+
     public DbSet<SavedAddress> SavedAddresses => Set<SavedAddress>();
 
     public DbSet<Common.JobRun> JobRuns => Set<Common.JobRun>();
@@ -175,6 +177,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(a => a.Pincode).HasMaxLength(6);
             b.HasIndex(a => a.UserId);
             b.HasOne<User>().WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // The platform's master item lists: shared by every shop, owned by none.
+        modelBuilder.Entity<MasterItem>(b =>
+        {
+            b.ToTable("master_items");
+            b.Property(i => i.Trade).HasMaxLength(30);
+            b.Property(i => i.Category).HasMaxLength(60);
+            b.Property(i => i.Name).HasMaxLength(120);
+            b.Property(i => i.NameHi).HasMaxLength(120);
+            b.Property(i => i.GstRate).HasPrecision(5, 2);
+            b.Property(i => i.HsnCode).HasMaxLength(8);
+            b.HasIndex(i => new { i.Trade, i.Category });
+            b.HasOne<CatalogueItem>().WithMany().HasForeignKey(i => i.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Market>(b =>

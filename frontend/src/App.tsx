@@ -39,6 +39,7 @@ const ExpensesScreen = lazy(() => import('./screens/ExpensesScreen').then((modul
 const RatesScreen = lazy(() => import('./screens/RatesScreen').then((module) => ({ default: module.RatesScreen })))
 const PaintersScreen = lazy(() => import('./screens/PaintersScreen').then((module) => ({ default: module.PaintersScreen })))
 const GstExportScreen = lazy(() => import('./screens/GstExportScreen').then((module) => ({ default: module.GstExportScreen })))
+const PickItemsScreen = lazy(() => import('./screens/PickItemsScreen').then((module) => ({ default: module.PickItemsScreen })))
 const ProfitLossScreen = lazy(() => import('./screens/ProfitLossScreen').then((module) => ({ default: module.ProfitLossScreen })))
 const SuppliersScreen = lazy(() => import('./screens/SuppliersScreen').then((module) => ({ default: module.SuppliersScreen })))
 const ProfileScreen = lazy(() => import('./screens/ProfileScreen').then((module) => ({ default: module.ProfileScreen })))
@@ -176,7 +177,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const orderMatch = path.match(/^\/o\/([0-9a-f-]+)$/)
   const productMatch = path.match(/^\/p\/([0-9a-f-]+)$/)
   const printMatch = path.match(/^\/print\/(statement|bill)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
-  const isItemsPage = !!productMatch || path === '/stocktake' || path === '/import' || path === '/items/common'
+  const isItemsPage = !!productMatch || path === '/items/pick' || path === '/stocktake' || path === '/import' || path === '/items/common'
   const tabs: { path: string; label: string; icon: ReactNode; badge?: number }[] = [
     { path: '/', label: t('home'), icon: <HomeIcon size={22} /> },
     { path: '/khata', label: t('khata'), icon: <KhataIcon size={22} /> },
@@ -260,6 +261,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <ExpensesScreen shopId={shopId} shopName={shopName} />
         ) : path === '/expenses/month' ? (
           <ExpensesScreen shopId={shopId} shopName={shopName} month />
+        ) : path === '/items/pick' ? (
+          <PickItemsScreen shopId={shopId} />
         ) : path === '/gst' && isOwner ? (
           <GstExportScreen />
         ) : path === '/pnl' && isOwner ? (

@@ -1,3 +1,4 @@
+import { SHOP_TYPES, type ShopType } from '../lib/reports'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,7 +43,7 @@ interface Person { userId: string; membershipId: string; name: string; phone: st
 interface Detail { shopNo?: string | null; gstin?: string | null; market?: string | null; place?: string | null; latitude?: number | null; longitude?: number | null; hasPhoto?: boolean; shop: ShopRow; address: string | null; adminNote: string | null; people: Person[]; customers: number; billsLast30Days: number; lastBillAt: string | null; lastBalanceCheck: { mismatches: number } | null }
 
 type Status = 'new' | 'active' | 'blocked' | 'all'
-type Section = 'shops' | 'plans' | 'markets' | 'agents' | 'ai' | 'admins'
+type Section = 'shops' | 'plans' | 'markets' | 'items' | 'agents' | 'ai' | 'admins'
 
 /**
  * The platform admin's view of every shop: counts at the top, then new / active / blocked shops with search. Open a
@@ -93,6 +94,7 @@ export function PlatformScreen() {
     { id: 'shops', label: t('platform.title'), show: true },
     { id: 'plans', label: t('platformNav.plans'), show: seesBilling },
     { id: 'markets', label: t('platformNav.markets'), show: role !== 'support' },
+    { id: 'items', label: t('masterItems.title'), show: role !== 'support' },
     { id: 'agents', label: t('platformNav.agents'), show: role !== 'support' },
     { id: 'ai', label: t('platformNav.ai'), show: true },
     { id: 'admins', label: t('platformNav.admins'), show: role === 'super' },
@@ -172,6 +174,7 @@ export function PlatformScreen() {
           </>}
           {section === 'plans' && <><PlansPanel /><BillingPanel /></>}
           {section === 'markets' && <MarketsPanel />}
+          {section === 'items' && <MasterItemsPanel />}
           {section === 'agents' && <>
             {role !== 'support' && <RegistrationsPanel role={role} />}
             {(role === 'super' || role === 'agent_manager') && <AgentsPanel />}
@@ -316,7 +319,6 @@ const ROLES: AdminRole[] = ['super', 'approver', 'support', 'billing', 'agent_ma
  * an account, and on the live server must have signed in once with an SMS code), change their role, or remove them;
  * every change works on their next tap and is logged. There is always at least one super admin.
  */
-const SHOP_TYPES = ['kirana', 'building_materials', 'paint', 'hardware', 'other'] as const
 
 /**
  * Opens a shop for a shopkeeper who can't sign up alone (on a visit or a call). It starts approved on the free trial.
@@ -389,6 +391,77 @@ function MarketsPanel() {
           ))}
         </ul>
       </>}
+    </section>
+  )
+}
+
+interface MasterRow { id: number; trade: string; category: string; name: string; nameHi: string | null; unit: string; gstRate: number | null; hsnCode: string | null; isActive: boolean }
+
+/** The master item lists every shop picks from, one per trade: add, edit, or turn an item off (never deleted). */
+function MasterItemsPanel() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [trade, setTrade] = useState<ShopType>('kirana')
+  const [q, setQ] = useState('')
+  const empty = { name: '', nameHi: '', category: '', unit: 'piece', gst: '', hsn: '' }
+  const [draft, setDraft] = useState(empty)
+  const [editing, setEditing] = useState<number | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const rows = useQuery({ queryKey: ['platform', 'master', trade, q], queryFn: () => api<MasterRow[]>(`/v1/platform/master-items?trade=${trade}&q=${encodeURIComponent(q.trim())}`) }).data ?? []
+  const body = (d: typeof empty, isActive?: boolean) => ({ trade, name: d.name.trim(), nameHi: d.nameHi.trim() || null, category: d.category.trim(), unit: d.unit, gstRate: d.gst === '' ? null : Number(d.gst), hsnCode: d.hsn.trim() || null, isActive })
+
+  async function run(action: () => Promise<unknown>) {
+    setMessage(null)
+    try {
+      await action()
+      await queryClient.invalidateQueries({ queryKey: ['platform', 'master'] })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const save = () => run(async () => {
+    if (editing) await api(`/v1/platform/master-items/${editing}`, 'PUT', body(draft))
+    else await api('/v1/platform/master-items', 'POST', body(draft))
+    setDraft({ ...empty, category: draft.category, unit: draft.unit })
+    setEditing(null)
+  })
+  const edit = (r: MasterRow) => { setEditing(r.id); setDraft({ name: r.name, nameHi: r.nameHi ?? '', category: r.category, unit: r.unit, gst: r.gstRate == null ? '' : String(r.gstRate), hsn: r.hsnCode ?? '' }) }
+
+  const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
+      <h2 className="text-lg font-bold">{t('masterItems.title')} · {t('masterItems.count', { count: rows.length })}</h2>
+      <div className="grid grid-cols-2 gap-2">
+        <select aria-label={t('masterItems.trade')} value={trade} onChange={(e) => { setTrade(e.target.value as ShopType); setEditing(null) }} className={input}>
+          {SHOP_TYPES.filter((x) => x !== 'other').map((x) => <option key={x} value={x}>{t(`shopType.${x}`)}</option>)}
+        </select>
+        <input aria-label={t('masterItems.search')} placeholder={t('masterItems.search')} value={q} onChange={(e) => setQ(e.target.value)} className={input} />
+      </div>
+      <div className="grid grid-cols-2 gap-2 rounded-xl bg-ground p-2">
+        <input aria-label={t('masterItems.name')} placeholder={t('masterItems.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={input} />
+        <input aria-label={t('masterItems.nameHi')} placeholder={t('masterItems.nameHi')} value={draft.nameHi} onChange={(e) => setDraft({ ...draft, nameHi: e.target.value })} className={input} />
+        <input aria-label={t('masterItems.category')} placeholder={t('masterItems.category')} value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className={input} />
+        <select aria-label={t('masterItems.unit')} value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} className={input}>
+          {['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'pair', 'dozen', 'box', 'jar', 'bag', 'tonne', 'brass', 'cft', 'metre'].map((u) => <option key={u} value={u}>{t(`units.${u}`)}</option>)}
+        </select>
+        <select aria-label={t('masterItems.gst')} value={draft.gst} onChange={(e) => setDraft({ ...draft, gst: e.target.value })} className={input}>
+          <option value="">{t('masterItems.gst')}: –</option>{['0', '5', '18', '40'].map((r) => <option key={r} value={r}>{r}%</option>)}
+        </select>
+        <input aria-label={t('masterItems.hsn')} placeholder={t('masterItems.hsn')} value={draft.hsn} onChange={(e) => setDraft({ ...draft, hsn: e.target.value })} inputMode="numeric" maxLength={8} className={input} />
+        <Button className="col-span-2" disabled={draft.name.trim().length < 2 || draft.category.trim().length < 2} onClick={() => void save()}>{editing ? t('save') : t('masterItems.add')}</Button>
+      </div>
+      {message && <p className="text-sm text-due">{message}</p>}
+      <ul className="flex max-h-[32rem] flex-col overflow-y-auto">
+        {rows.map((r) => (
+          <li key={r.id} className={`flex items-center gap-2 border-t border-line py-1 text-sm ${r.isActive ? '' : 'opacity-50'}`}>
+            <span className="min-w-0 flex-1 truncate">{r.name}{r.nameHi ? ` · ${r.nameHi}` : ''}<span className="block text-xs text-muted">{r.category} · {t(`units.${r.unit}`)}{r.gstRate != null ? ` · ${r.gstRate}%` : ''}{r.hsnCode ? ` · ${r.hsnCode}` : ''}</span></span>
+            <button onClick={() => edit(r)} className="min-h-11 px-2 font-semibold text-teal-700">{t('masterItems.edit')}</button>
+            <button onClick={() => void run(() => api(`/v1/platform/master-items/${r.id}`, 'PUT', { ...body({ name: r.name, nameHi: r.nameHi ?? '', category: r.category, unit: r.unit, gst: r.gstRate == null ? '' : String(r.gstRate), hsn: r.hsnCode ?? '' }), isActive: !r.isActive }))}
+              className="min-h-11 px-2 font-semibold">{r.isActive ? t('masterItems.off') : t('masterItems.on')}</button>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }
