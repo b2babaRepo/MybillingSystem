@@ -98,6 +98,7 @@ app.MapBillPhotos();
 app.MapMarkets();
 app.MapProfile();
 app.MapRazorpay();
+app.MapSuppliers();
 app.MapCashCounts();
 app.MapTrades();
 app.MapBilling();

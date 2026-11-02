@@ -88,6 +88,10 @@ public static class ShopDataEndpoints
         // Reversals point at the entries they cancel: delete those first.
         await db.LedgerEntries.Where(e => e.ReversesEntryId != null).ExecuteDeleteAsync(ct);
         await db.LedgerEntries.ExecuteDeleteAsync(ct);
+        await db.SupplierEntries.ExecuteDeleteAsync(ct);
+        await db.PurchaseLines.ExecuteDeleteAsync(ct);
+        await db.Purchases.ExecuteDeleteAsync(ct);
+        await db.Suppliers.ExecuteDeleteAsync(ct);
         await db.BillLines.ExecuteDeleteAsync(ct);
         await db.Bills.ExecuteDeleteAsync(ct);
         await db.Painters.ExecuteDeleteAsync(ct);

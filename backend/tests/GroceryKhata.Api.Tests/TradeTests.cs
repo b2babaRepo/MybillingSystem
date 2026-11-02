@@ -85,6 +85,29 @@ public sealed class TradeTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_supplier_bill_adds_stock_averages_cost_and_tracks_what_is_owed()
+    {
+        var shop = await SignUpAsync("building_materials");
+        await shop.PostJsonAsync("/api/v1/products/starter", new { });
+        var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
+        var supplier = Guid.CreateVersion7();
+        await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jaipur Cement" });
+        async Task Buy(decimal qty, decimal cost, decimal paid) => (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new
+        {
+            id = Guid.CreateVersion7(), supplierId = supplier, paidAmount = paid, paymentMode = "cash",
+            lines = new[] { new { productId = cement.Id, quantity = qty, unitCost = cost } },
+        })).EnsureSuccessStatusCode();
+
+        await Buy(10m, 300m, 1000m);
+        await Buy(10m, 400m, 0m);
+        await shop.PostJsonAsync($"/api/v1/suppliers/{supplier}/pay", new { id = Guid.CreateVersion7(), amount = 500m, paymentMode = "upi" });
+
+        var item = await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}");
+        var detail = await shop.GetJsonAsync<GroceryKhata.Api.Ledger.SupplierDetail>($"/api/v1/suppliers/{supplier}");
+        Assert.Equal((20m, 350m, 5500m), (item.Stock, item.CostPrice, detail.Supplier.Due));
+    }
+
+    [Fact]
     public void Razorpay_signatures_are_checked()
     {
         var good = Convert.ToHexStringLower(System.Security.Cryptography.HMACSHA256.HashData("secret"u8, "order|pay"u8));

@@ -18,7 +18,7 @@ namespace GroceryKhata.Api.Persistence;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenant) : DbContext(options)
 {
     /// <summary>Tables protected by row-level security. Keep in step with <see cref="ITenantOwned"/> entities.</summary>
-    public static readonly string[] ShopOwnedTables = ["products", "customers", "ledger_entries", "bills", "bill_lines", "orders", "order_lines", "stock_movements", "audit_log", "expenses", "balance_checks", "cash_counts", "challans", "painters"];
+    public static readonly string[] ShopOwnedTables = ["products", "customers", "ledger_entries", "bills", "bill_lines", "orders", "order_lines", "stock_movements", "audit_log", "expenses", "balance_checks", "cash_counts", "challans", "painters", "suppliers", "purchases", "purchase_lines", "supplier_entries"];
 
     private Guid CurrentShopId => tenant.ShopId;
 
@@ -35,6 +35,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<Shop> Shops => Set<Shop>();
 
     public DbSet<Market> Markets => Set<Market>();
+
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+
+    public DbSet<Purchase> Purchases => Set<Purchase>();
+
+    public DbSet<PurchaseLine> PurchaseLines => Set<PurchaseLine>();
+
+    public DbSet<SupplierEntry> SupplierEntries => Set<SupplierEntry>();
 
     public DbSet<Billing.GatewayOrder> GatewayOrders => Set<Billing.GatewayOrder>();
 
@@ -391,6 +399,40 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(c => c.Note).HasMaxLength(200);
             b.HasIndex(c => new { c.ShopId, c.Day }).IsUnique();
+        });
+
+        modelBuilder.Entity<Supplier>(b =>
+        {
+            b.ToTable("suppliers");
+            b.HasTenantKey();
+            b.Property(s => s.Name).HasMaxLength(120);
+            b.Property(s => s.Phone).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<Purchase>(b =>
+        {
+            b.ToTable("purchases");
+            b.HasTenantKey();
+            b.Property(p => p.BillNo).HasMaxLength(40);
+            b.Property(p => p.Total).HasPrecision(12, 2);
+            b.HasMany(p => p.Lines).WithOne().HasForeignKey(l => l.PurchaseId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PurchaseLine>(b =>
+        {
+            b.ToTable("purchase_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Quantity).HasPrecision(12, 3);
+            b.Property(l => l.UnitCost).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<SupplierEntry>(b =>
+        {
+            b.ToTable("supplier_entries");
+            b.HasTenantKey();
+            b.Property(e => e.Amount).HasPrecision(12, 2);
+            b.Property(e => e.Note).HasMaxLength(40);
+            b.HasIndex(e => new { e.ShopId, e.SupplierId });
         });
 
         modelBuilder.Entity<Expense>(b =>

@@ -1,0 +1,157 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Button, Field } from '../components/ui'
+import { api } from '../lib/api'
+import { useProducts } from '../lib/data'
+import { formatRupees } from '../lib/format'
+
+interface Supplier { id: string; name: string; phone: string | null; due: number }
+interface Detail { supplier: Supplier; entries: { id: string; amount: number; note: string | null; occurredAt: string }[] }
+interface Row { productId: string; quantity: string; unitCost: string }
+
+/** Who the shop buys from and what it owes them: add a supplier's bill (stock goes up), or pay them. Needs a connection. */
+export function SuppliersScreen({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const suppliers = useQuery({ queryKey: [shopId, 'suppliers'], queryFn: () => api<Supplier[]>('/v1/suppliers') })
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [draft, setDraft] = useState({ name: '', phone: '' })
+  const [message, setMessage] = useState('')
+  const refresh = () => queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
+
+  async function add() {
+    setMessage('')
+    try {
+      const id = crypto.randomUUID()
+      await api('/v1/suppliers', 'POST', { id, name: draft.name.trim(), phone: draft.phone.trim() || null })
+      setDraft({ name: '', phone: '' })
+      await refresh()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+
+  const due = (suppliers.data ?? []).reduce((sum, s) => sum + s.due, 0)
+  if (openId) return <SupplierPage shopId={shopId} id={openId} onBack={() => setOpenId(null)} />
+  return (
+    <div className="flex flex-col gap-3 p-4">
+      <section className="rounded-[18px] bg-white p-4">
+        <span className="text-sm font-semibold text-muted">{t('suppliers.totalDue')}</span>
+        <p className="text-2xl font-extrabold text-due">{formatRupees(due)}</p>
+      </section>
+      <ul className="flex flex-col gap-2">
+        {suppliers.data?.map((s) => (
+          <li key={s.id}>
+            <button onClick={() => setOpenId(s.id)} className="flex min-h-14 w-full items-center justify-between rounded-[18px] bg-white px-4 text-left">
+              <span className="font-bold">{s.name}</span><span className="font-bold text-due">{formatRupees(s.due)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <h2 className="font-bold">{t('suppliers.add')}</h2>
+        <Field label={t('suppliers.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={120} />
+        <Field label={t('suppliers.phone')} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} inputMode="tel" />
+        <Button disabled={draft.name.trim().length < 2} onClick={() => void add()}>{t('suppliers.add')}</Button>
+        {message && <p className="text-sm text-due">{message}</p>}
+      </section>
+    </div>
+  )
+}
+
+function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: () => void }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const { products } = useProducts(shopId)
+  const detail = useQuery({ queryKey: [shopId, 'suppliers', id], queryFn: () => api<Detail>(`/v1/suppliers/${id}`) })
+  const empty: Row = { productId: '', quantity: '', unitCost: '' }
+  const [rows, setRows] = useState<Row[]>([empty])
+  const [billNo, setBillNo] = useState('')
+  const [paid, setPaid] = useState('')
+  const [pay, setPay] = useState('')
+  const [mode, setMode] = useState<'cash' | 'upi'>('cash')
+  const [message, setMessage] = useState('')
+  const valid = rows.filter((r) => r.productId && Number(r.quantity) > 0 && r.unitCost !== '')
+  const total = valid.reduce((sum, r) => sum + Number(r.quantity) * Number(r.unitCost), 0)
+
+  async function run(action: () => Promise<unknown>) {
+    setMessage('')
+    try {
+      await action()
+      await queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
+      void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+      setMessage(t('saved'))
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+
+  const saveBill = () => run(async () => {
+    await api('/v1/suppliers/purchases', 'POST', {
+      id: crypto.randomUUID(), supplierId: id, billNo: billNo.trim() || null, paidAmount: Number(paid) || 0, paymentMode: mode,
+      lines: valid.map((r) => ({ productId: r.productId, quantity: Number(r.quantity), unitCost: Number(r.unitCost) })),
+    })
+    setRows([empty])
+    setBillNo('')
+    setPaid('')
+  })
+  const savePayment = () => run(async () => {
+    await api(`/v1/suppliers/${id}/pay`, 'POST', { id: crypto.randomUUID(), amount: Number(pay), paymentMode: mode })
+    setPay('')
+  })
+  const set = (i: number, key: keyof Row, value: string) => setRows(rows.map((r, x) => (x === i ? { ...r, [key]: value } : r)))
+
+  const s = detail.data?.supplier
+  const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
+  return (
+    <div className="flex flex-col gap-3 p-4">
+      <button onClick={onBack} className="min-h-11 self-start font-semibold text-teal-700">← {t('suppliers.all')}</button>
+      <section className="flex items-center justify-between rounded-[18px] bg-white p-4">
+        <span className="text-lg font-bold">{s?.name}</span><span className="text-xl font-extrabold text-due">{s ? formatRupees(s.due) : '–'}</span>
+      </section>
+
+      <label className="flex flex-col gap-1 rounded-[18px] bg-white p-4"><span className="text-sm font-medium text-muted">{t('suppliers.mode')}</span>
+        <select value={mode} onChange={(e) => setMode(e.target.value as 'cash' | 'upi')} className={input}>
+          <option value="cash">{t('cash')}</option><option value="upi">{t('upi')}</option>
+        </select></label>
+
+      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <h2 className="font-bold">{t('suppliers.pay')}</h2>
+        <div className="flex gap-2">
+          <input aria-label={t('suppliers.pay')} value={pay} onChange={(e) => setPay(e.target.value)} inputMode="decimal" className={`${input} flex-1`} />
+          <Button disabled={!(Number(pay) > 0)} onClick={() => void savePayment()}>{t('save')}</Button>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <h2 className="font-bold">{t('suppliers.bill')}</h2>
+        <Field label={t('suppliers.billNo')} value={billNo} onChange={(e) => setBillNo(e.target.value)} maxLength={40} />
+        {rows.map((r, i) => (
+          <div key={i} className="grid grid-cols-2 gap-2">
+            <select aria-label={t('suppliers.item')} value={r.productId} onChange={(e) => set(i, 'productId', e.target.value)} className={`${input} col-span-2`}>
+              <option value="">{t('suppliers.item')}</option>
+              {products.filter((p) => p.id === r.productId || !rows.some((x) => x.productId === p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <input aria-label={t('suppliers.qty')} placeholder={t('suppliers.qty')} value={r.quantity} onChange={(e) => set(i, 'quantity', e.target.value)} inputMode="decimal" className={input} />
+            <input aria-label={t('suppliers.cost')} placeholder={t('suppliers.cost')} value={r.unitCost} onChange={(e) => set(i, 'unitCost', e.target.value)} inputMode="decimal" className={input} />
+          </div>
+        ))}
+        <button onClick={() => setRows([...rows, empty])} className="min-h-11 font-semibold text-teal-700">+ {t('suppliers.addRow')}</button>
+        <p className="flex justify-between font-bold"><span>{t('print.total')}</span><span>{formatRupees(total)}</span></p>
+        <Field label={t('suppliers.paidNow')} value={paid} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
+        <Button disabled={valid.length === 0} onClick={() => void saveBill()}>{t('suppliers.saveBill')}</Button>
+      </section>
+      {message && <p className="text-sm text-muted">{message}</p>}
+
+      <ul className="flex flex-col gap-1 rounded-[18px] bg-white p-4">
+        {detail.data?.entries.map((e) => (
+          <li key={e.id} className="flex justify-between border-b border-line py-1 text-sm">
+            <span>{new Date(e.occurredAt).toLocaleDateString('en-IN')} · {e.amount > 0 ? t('suppliers.billLine') : t('suppliers.paidLine')}{e.note ? ` ${e.note}` : ''}</span>
+            <span className="font-semibold">{formatRupees(Math.abs(e.amount))}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}

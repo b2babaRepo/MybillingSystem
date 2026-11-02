@@ -738,6 +738,7 @@ export const hi: Texts = {
     empty: 'किसी पर कुछ बाकी नहीं। बहुत बढ़िया!',
     noPhone: 'नंबर नहीं है',
   },
+  suppliers: { title: 'सप्लायर', totalDue: 'सप्लायर को देना है', add: 'सप्लायर जोड़ें', name: 'सप्लायर का नाम', phone: 'मोबाइल नंबर', all: 'सभी सप्लायर', mode: 'कैसे दिया', pay: 'सप्लायर को पैसे दें', bill: 'सप्लायर का बिल जोड़ें', billNo: 'बिल नंबर', item: 'सामान', qty: 'मात्रा', cost: 'एक की लागत', addRow: 'सामान जोड़ें', paidNow: 'अभी दिए', saveBill: 'बिल सेव करें, स्टॉक बढ़ाएँ', billLine: 'बिल', paidLine: 'दिए' },
   reports: {
     lessLosses: 'वापसी {{returns}} और स्टॉक नुकसान {{loss}} घटाकर।',
     yearTitle: 'साल {{fy}}: CA के लिए',
