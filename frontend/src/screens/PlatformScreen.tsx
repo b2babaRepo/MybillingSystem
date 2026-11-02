@@ -397,6 +397,44 @@ function MarketsPanel() {
 
 interface MasterRow { id: number; trade: string; category: string; name: string; nameHi: string | null; unit: string; gstRate: number | null; hsnCode: string | null; isActive: boolean; packSizes: string[] }
 
+interface SuggestionRow { id: number; shopName: string; trade: string; category: string; name: string; unit: string; note: string | null }
+
+/** Items shops asked for: approve (it joins that trade's master list) or turn down. */
+function SuggestionsQueue({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const rows = useQuery({ queryKey: ['platform', 'suggestions'], queryFn: () => api<SuggestionRow[]>('/v1/platform/master-items/suggestions') }).data ?? []
+  const [message, setMessage] = useState<string | null>(null)
+  const decide = async (r: SuggestionRow, approve: boolean) => {
+    setMessage(null)
+    try {
+      await (approve
+        ? api(`/v1/platform/master-items/suggestions/${r.id}/approve`, 'POST', { trade: r.trade, name: r.name, category: r.category, unit: r.unit })
+        : api(`/v1/platform/master-items/suggestions/${r.id}/reject`, 'POST', {}))
+      void queryClient.invalidateQueries({ queryKey: ['platform', 'suggestions'] })
+      onDone()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+  if (rows.length === 0) return null
+  return (
+    <div className="rounded-xl bg-amber-50 p-3">
+      <h3 className="font-bold">{t('masterItems.suggestions', { count: rows.length })}</h3>
+      {message && <p className="text-sm text-due">{message}</p>}
+      <ul className="mt-2 flex flex-col gap-1">
+        {rows.map((r) => (
+          <li key={r.id} className="flex items-center gap-2 rounded-xl bg-white px-2">
+            <span className="min-w-0 flex-1">{r.name}<span className="block text-xs text-muted">{t(`shopType.${r.trade}`)} · {r.category} · {t(`units.${r.unit}`)} · {r.shopName}{r.note ? ` · ${r.note}` : ''}</span></span>
+            <button onClick={() => void decide(r, true)} className="min-h-11 px-2 font-semibold text-teal-700">{t('masterItems.approve')}</button>
+            <button onClick={() => void decide(r, false)} className="min-h-11 px-2 font-semibold">{t('masterItems.reject')}</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /** The master item lists every shop picks from, one per trade: add, edit, or turn an item off (never deleted). */
 function MasterItemsPanel() {
   const { t } = useTranslation()
@@ -458,6 +496,7 @@ function MasterItemsPanel() {
         <input aria-label={t('masterItems.packs')} placeholder={t('masterItems.packs')} value={draft.packs} onChange={(e) => setDraft({ ...draft, packs: e.target.value })} className={`${input} col-span-2`} />
         <Button className="col-span-2" disabled={draft.name.trim().length < 2 || draft.category.trim().length < 2} onClick={() => void save()}>{editing ? t('save') : t('masterItems.add')}</Button>
       </div>
+      <SuggestionsQueue onDone={() => void queryClient.invalidateQueries({ queryKey: ['platform', 'master'] })} />
       <details className="rounded-xl bg-ground p-2">
         <summary className="min-h-11 cursor-pointer font-semibold">{t('masterItems.import')}</summary>
         <p className="text-xs text-muted">{t('masterItems.importHint')}</p>

@@ -1811,6 +1811,81 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("master_items", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Catalogue.MasterSuggestion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<int?>("MasterItemId")
+                        .HasColumnType("integer")
+                        .HasColumnName("master_item_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<string>("ShopName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("shop_name");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Trade")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("trade");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("unit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopId");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("master_suggestions", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Catalogue.Product", b =>
                 {
                     b.Property<Guid>("Id")

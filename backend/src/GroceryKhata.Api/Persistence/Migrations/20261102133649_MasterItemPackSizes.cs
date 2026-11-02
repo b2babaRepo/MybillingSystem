@@ -15,7 +15,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
                 name: "pack_sizes",
                 table: "master_items",
                 type: "text[]",
-                nullable: false);
+                nullable: false,
+                defaultValueSql: "'{}'::text[]");
         }
 
         /// <inheritdoc />

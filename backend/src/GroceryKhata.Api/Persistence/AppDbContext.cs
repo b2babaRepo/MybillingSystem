@@ -38,6 +38,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<MasterItem> MasterItems => Set<MasterItem>();
 
+    public DbSet<MasterSuggestion> MasterSuggestions => Set<MasterSuggestion>();
+
     public DbSet<SavedAddress> SavedAddresses => Set<SavedAddress>();
 
     public DbSet<Common.JobRun> JobRuns => Set<Common.JobRun>();
@@ -191,6 +193,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(i => i.HsnCode).HasMaxLength(8);
             b.HasIndex(i => new { i.Trade, i.Category });
             b.HasOne<CatalogueItem>().WithMany().HasForeignKey(i => i.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<MasterSuggestion>(b =>
+        {
+            b.ToTable("master_suggestions");
+            b.Property(s => s.ShopName).HasMaxLength(120);
+            b.Property(s => s.Trade).HasMaxLength(30);
+            b.Property(s => s.Category).HasMaxLength(60);
+            b.Property(s => s.Name).HasMaxLength(120);
+            b.Property(s => s.Note).HasMaxLength(200);
+            b.HasIndex(s => new { s.Status, s.CreatedAt });
+            b.HasIndex(s => s.ShopId);
         });
 
         modelBuilder.Entity<Market>(b =>

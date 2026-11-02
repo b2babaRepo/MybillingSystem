@@ -156,6 +156,48 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Contains(mine, p => p.Name == $"{item.Name} 200 g");
     }
 
+    [Fact]
+    public async Task A_shops_suggestion_joins_the_master_list_once_approved()
+    {
+        var shop = await SignUpAsync("toys");
+        var name = $"Kite {Guid.NewGuid():N}"[..12];
+        var suggestion = await (await shop.PostJsonAsync("/api/v1/master-items/suggest", new { name, category = "Outdoor", unit = "piece" })).ReadAsync<SuggestionDto>();
+        Assert.Equal(("toys", SuggestionStatus.Pending), (suggestion.Trade, suggestion.Status));
+        Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync("/api/v1/master-items/suggest", new { name, category = "Outdoor", unit = "piece" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/master-items/suggest", new { trade = "paint", name, category = "Outdoor", unit = "piece" })).StatusCode);
+
+        var admin = await AdminAsync();
+        Assert.Contains(await admin.GetJsonAsync<List<SuggestionDto>>("/api/v1/platform/master-items/suggestions"), s => s.Id == suggestion.Id);
+        (await admin.PostJsonAsync($"/api/v1/platform/master-items/suggestions/{suggestion.Id}/approve", new { trade = "toys", name, category = "Outdoor", unit = "piece", gstRate = 18m })).EnsureSuccessStatusCode();
+        Assert.Contains(await shop.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items"), i => i.Name == name && i.GstRate == 18m);
+        Assert.DoesNotContain(await admin.GetJsonAsync<List<SuggestionDto>>("/api/v1/platform/master-items/suggestions"), s => s.Id == suggestion.Id);
+    }
+
+    [Fact]
+    public async Task A_master_correction_is_offered_to_shops_that_have_the_item()
+    {
+        var admin = await AdminAsync();
+        var name = $"Diya {Guid.NewGuid():N}"[..12];
+        var item = await (await admin.PostJsonAsync("/api/v1/platform/master-items", new { trade = "sweets", category = "Puja", name, unit = "piece" })).ReadAsync<MasterItemDto>();
+
+        var shop = await SignUpAsync("sweets");
+        var updates = await shop.GetJsonAsync<MasterUpdatesDto>("/api/v1/master-items/updates");
+        Assert.Contains(updates.NewItems, i => i.Id == item.Id);
+        (await shop.PostJsonAsync("/api/v1/products/from-master", new { ids = new[] { item.Id } })).EnsureSuccessStatusCode();
+        Assert.DoesNotContain((await shop.GetJsonAsync<MasterUpdatesDto>("/api/v1/master-items/updates")).Changes, c => c.ProductName == name);
+
+        (await admin.PutAsJsonAsync($"/api/v1/platform/master-items/{item.Id}", new { trade = "sweets", category = "Puja", name, unit = "piece", gstRate = 5m, hsnCode = "6913" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        updates = await shop.GetJsonAsync<MasterUpdatesDto>("/api/v1/master-items/updates");
+        var change = Assert.Single(updates.Changes, c => c.ProductName == name);
+        Assert.Equal((null, 5m, "6913"), (change.GstFrom, change.GstTo, change.HsnTo));
+        Assert.DoesNotContain(updates.NewItems, i => i.Id == item.Id);
+
+        (await shop.PostJsonAsync("/api/v1/master-items/updates/apply", new { productIds = new[] { change.ProductId } })).EnsureSuccessStatusCode();
+        var product = await Item(shop, change.ProductId);
+        Assert.Equal((5m, "6913"), (product.GstRate, product.HsnCode));
+        Assert.DoesNotContain((await shop.GetJsonAsync<MasterUpdatesDto>("/api/v1/master-items/updates")).Changes, c => c.ProductName == name);
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {

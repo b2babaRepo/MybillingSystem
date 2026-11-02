@@ -41,6 +41,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
   const { t } = useTranslation()
   const { today } = useToday(shopId)
   const { products } = useProducts(shopId)
+  const masterUpdates = useQuery({ queryKey: [shopId, 'master-updates'], queryFn: () => api<{ changes: unknown[] }>('/v1/master-items/updates'), enabled: isOwner, retry: false, staleTime: 600_000 }).data
   const lowCount = products.filter((p) => p.isLow).length
 
   return (
@@ -113,6 +114,11 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         </button>
       )}
 
+      {isOwner && (masterUpdates?.changes.length ?? 0) > 0 && (
+        <button onClick={() => navigate('/items/pick')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-amber-100 px-4 text-left font-semibold">
+          <span>{t('pick.updatesBanner')} ({masterUpdates!.changes.length})</span><span aria-hidden="true">→</span>
+        </button>
+      )}
       {isOwner && products.length === 0 && (
         <button onClick={() => navigate('/items/pick')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-teal-700 px-4 text-left font-semibold text-white">
           <span>{t('pick.start')}</span><span aria-hidden="true">→</span>

@@ -44,6 +44,57 @@ public sealed class MasterItem
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
+/// <summary>
+/// An item a shop asks to have on its trade's master list. Admins approve it (it becomes a master item) or turn it
+/// down. Read across shops by admins, so it carries the shop's name and has no row-level security.
+/// </summary>
+public sealed class MasterSuggestion
+{
+    public int Id { get; set; }
+
+    public Guid ShopId { get; set; }
+
+    public required string ShopName { get; set; }
+
+    public required string Trade { get; set; }
+
+    public required string Category { get; set; }
+
+    public required string Name { get; set; }
+
+    public Unit Unit { get; set; }
+
+    public string? Note { get; set; }
+
+    public SuggestionStatus Status { get; set; }
+
+    /// <summary>The master item it became, once approved.</summary>
+    public int? MasterItemId { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset? DecidedAt { get; set; }
+}
+
+public enum SuggestionStatus
+{
+    Pending,
+    Approved,
+    Rejected,
+}
+
+public sealed record SuggestRequest(string? Trade, string? Category, string? Name, Unit? Unit, string? Note);
+
+public sealed record SuggestionDto(int Id, string ShopName, string Trade, string Category, string Name, Unit Unit, string? Note, SuggestionStatus Status, int? MasterItemId, DateTimeOffset CreatedAt);
+
+/// <summary>The master list's GST rate or HSN for an item the shop has differs from the shop's own.</summary>
+public sealed record MasterChangeDto(Guid ProductId, string ProductName, decimal? GstFrom, decimal? GstTo, string? HsnFrom, string? HsnTo);
+
+/// <summary>What the master list offers a shop: corrections to its items, and items added to its trades lately that it doesn't have.</summary>
+public sealed record MasterUpdatesDto(IReadOnlyList<MasterChangeDto> Changes, IReadOnlyList<MasterItemDto> NewItems);
+
+public sealed record ApplyChangesRequest(IReadOnlyList<Guid>? ProductIds);
+
 public sealed record MasterItemDto(int Id, string Trade, string Category, string Name, string? NameHi, Unit Unit, decimal? GstRate, string? HsnCode, bool IsActive, IReadOnlyList<string> PackSizes);
 
 public sealed record MasterItemRequest(string? Trade, string? Category, string? Name, string? NameHi, Unit? Unit, decimal? GstRate, string? HsnCode, bool? IsActive = null, IReadOnlyList<string>? PackSizes = null);
@@ -62,6 +113,9 @@ public static class MasterItems
         // Shops: the lists of their own trades, and picking from them.
         app.MapGet("/api/v1/master-items", ShopListAsync).WithTags("Catalogue").RequireAuthorization(AppPolicies.ShopMember);
         app.MapPost("/api/v1/products/from-master", PickAsync).WithTags("Catalogue").RequireAuthorization(AppPolicies.ShopMember);
+        app.MapGet("/api/v1/master-items/updates", UpdatesAsync).WithTags("Catalogue").RequireAuthorization(AppPolicies.ShopMember);
+        app.MapPost("/api/v1/master-items/updates/apply", ApplyChangesAsync).WithTags("Catalogue").RequireAuthorization(AppPolicies.ShopMember);
+        app.MapPost("/api/v1/master-items/suggest", SuggestAsync).WithTags("Catalogue").RequireAuthorization(AppPolicies.ShopMember);
 
         // Platform admins look after the lists.
         var admin = app.MapGroup("/api/v1/platform/master-items").WithTags("Platform").RequireAuthorization(AppPolicies.PlatformAdmin).RecordsActivity();
@@ -69,6 +123,9 @@ public static class MasterItems
         admin.MapPost("", AddAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
         admin.MapPut("/{id:int}", ChangeAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
         admin.MapPost("/import", ImportAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
+        admin.MapGet("/suggestions", SuggestionsAsync);
+        admin.MapPost("/suggestions/{id:int}/approve", ApproveAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
+        admin.MapPost("/suggestions/{id:int}/reject", RejectAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
         return app;
     }
 
@@ -216,6 +273,136 @@ public static class MasterItems
 
     private static List<string> Sizes(IReadOnlyList<string>? sizes) =>
         (sizes ?? []).Select(s => s.Trim()).Where(s => s.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    /// <summary>How long an item added to a trade's list shows as new to its shops.</summary>
+    private static readonly TimeSpan NewFor = TimeSpan.FromDays(30);
+
+    /// <summary>
+    /// The shop's items matched to its trades' master items by the name picking gives them ("तूर दाल", "Bhujia 1 kg"),
+    /// paired where the master's GST rate or HSN (when set) differs. Items the shop renamed or made itself never match.
+    /// </summary>
+    private static async Task<(List<(Product Product, MasterItem Master)> Changed, List<MasterItem> Fresh)> CompareAsync(AppDbContext db, ITenantContext tenant, bool track, CancellationToken ct)
+    {
+        var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.Type, s.ExtraTypes }).SingleAsync(ct);
+        var trades = shop.ExtraTypes.Append(ShopTypes.Name(shop.Type)).ToList();
+        var masters = await db.MasterItems.AsNoTracking().Where(i => i.IsActive && trades.Contains(i.Trade)).ToListAsync(ct);
+        var products = await (track ? db.Products : db.Products.AsNoTracking()).Where(p => p.IsActive).ToListAsync(ct);
+
+        var byName = new Dictionary<string, MasterItem>(StringComparer.OrdinalIgnoreCase);
+        foreach (var m in masters)
+        {
+            var name = m.NameHi ?? m.Name;
+            foreach (var n in m.PackSizes.Count == 0 ? [name, m.Name] : m.PackSizes.SelectMany(size => new[] { $"{name} {size}", $"{m.Name} {size}" }))
+            {
+                byName.TryAdd(n, m);
+            }
+        }
+
+        var changed = products
+            .Where(p => byName.ContainsKey(p.Name.Trim()))
+            .Select(p => (Product: p, Master: byName[p.Name.Trim()]))
+            .Where(x => (x.Master.GstRate is { } g && x.Product.GstRate != g) || (x.Master.HsnCode is { } h && x.Product.HsnCode != h))
+            .ToList();
+        var held = products.Select(p => p.Name.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var since = DateTimeOffset.UtcNow - NewFor;
+        var fresh = masters
+            .Where(m => m.UpdatedAt >= since && !byName.Where(kv => kv.Value == m).Any(kv => held.Contains(kv.Key)))
+            .OrderBy(m => m.Category).ThenBy(m => m.Name).Take(200).ToList();
+        return (changed, fresh);
+    }
+
+    private static async Task<MasterUpdatesDto> UpdatesAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var (changed, fresh) = await CompareAsync(db, tenant, track: false, ct);
+        return new MasterUpdatesDto(
+            changed.Select(x => new MasterChangeDto(x.Product.Id, x.Product.Name, x.Product.GstRate, x.Master.GstRate ?? x.Product.GstRate, x.Product.HsnCode, x.Master.HsnCode ?? x.Product.HsnCode)).ToList(),
+            fresh.Select(ToDto).ToList());
+    }
+
+    /// <summary>Takes the master's GST rate and HSN for the chosen items. Bills already made keep the rate they were made with.</summary>
+    private static async Task<IResult> ApplyChangesAsync(ApplyChangesRequest request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var ids = (request.ProductIds ?? []).ToHashSet();
+        var (changed, _) = await CompareAsync(db, tenant, track: true, ct);
+        var applied = 0;
+        foreach (var (product, master) in changed.Where(x => ids.Contains(x.Product.Id)))
+        {
+            (product.GstRate, product.HsnCode) = (master.GstRate ?? product.GstRate, master.HsnCode ?? product.HsnCode);
+            applied++;
+        }
+
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(new { applied });
+    }
+
+    private static SuggestionDto ToDto(MasterSuggestion s) => new(s.Id, s.ShopName, s.Trade, s.Category, s.Name, s.Unit, s.Note, s.Status, s.MasterItemId, s.CreatedAt);
+
+    /// <summary>A shop asks for an item missing from one of its trades' lists. Its own copy is made the usual way; this only reaches the admins.</summary>
+    private static async Task<IResult> SuggestAsync(SuggestRequest request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.Name, s.Type, s.ExtraTypes }).SingleAsync(ct);
+        var trades = shop.ExtraTypes.Append(ShopTypes.Name(shop.Type)).ToList();
+        var trade = request.Trade ?? ShopTypes.Name(shop.Type);
+        var errors = Check(new MasterItemRequest(trade, request.Category, request.Name, null, request.Unit, null, null));
+        if (!trades.Contains(trade)) errors["Trade"] = ["Suggest for one of your shop's trades."];
+        if (request.Note?.Length > 200) errors["Note"] = ["Keep the note under 200 letters."];
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        var name = request.Name!.Trim();
+        if (await db.MasterSuggestions.AnyAsync(s => s.ShopId == tenant.ShopId && s.Trade == trade && s.Status == SuggestionStatus.Pending && s.Name.ToLower() == name.ToLower(), ct))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "You've already suggested this item.");
+        }
+
+        var suggestion = new MasterSuggestion
+        {
+            ShopId = tenant.ShopId, ShopName = shop.Name, Trade = trade, Category = request.Category!.Trim(), Name = name, Unit = request.Unit!.Value,
+            Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(), CreatedAt = DateTimeOffset.UtcNow,
+        };
+        db.MasterSuggestions.Add(suggestion);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(ToDto(suggestion));
+    }
+
+    private static async Task<IReadOnlyList<SuggestionDto>> SuggestionsAsync(SuggestionStatus? status, AppDbContext db, CancellationToken ct) =>
+        await db.MasterSuggestions.AsNoTracking().Where(s => s.Status == (status ?? SuggestionStatus.Pending))
+            .OrderBy(s => s.CreatedAt).Take(500).Select(s => ToDto(s)).ToListAsync(ct);
+
+    /// <summary>Puts the suggested item on the master list, with the admin's corrections (name, Hindi name, GST, HSN, sizes).</summary>
+    private static async Task<IResult> ApproveAsync(int id, MasterItemRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var suggestion = await db.MasterSuggestions.SingleOrDefaultAsync(s => s.Id == id && s.Status == SuggestionStatus.Pending, ct);
+        if (suggestion is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var added = await AddAsync(request with { Trade = suggestion.Trade }, db, ct);
+        if (added is not Microsoft.AspNetCore.Http.HttpResults.Ok<MasterItemDto> ok)
+        {
+            return added;
+        }
+
+        (suggestion.Status, suggestion.MasterItemId, suggestion.DecidedAt) = (SuggestionStatus.Approved, ok.Value!.Id, DateTimeOffset.UtcNow);
+        await db.SaveChangesAsync(ct);
+        return added;
+    }
+
+    private static async Task<IResult> RejectAsync(int id, AppDbContext db, CancellationToken ct)
+    {
+        var suggestion = await db.MasterSuggestions.SingleOrDefaultAsync(s => s.Id == id && s.Status == SuggestionStatus.Pending, ct);
+        if (suggestion is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        (suggestion.Status, suggestion.DecidedAt) = (SuggestionStatus.Rejected, DateTimeOffset.UtcNow);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
+    }
 
     private static async Task<IReadOnlyList<MasterItemDto>> AdminListAsync(string? trade, string? q, AppDbContext db, CancellationToken ct)
     {
