@@ -10,8 +10,12 @@ mkdir -p "$dir"
 file="$dir/khata-$(date -u +%Y-%m-%dT%H%MZ).dump.age"
 pg_dump --format=custom --no-owner "$PGURL" | age -r "$BACKUP_AGE_RECIPIENT" > "$file"
 # Off the server too, when a remote is set (else scripts/deploy.ps1 -FetchBackups brings them to your PC).
-[ -n "${BACKUP_REMOTE:-}" ] && rclone copy "$file" "$BACKUP_REMOTE"
+if [ -n "${BACKUP_REMOTE:-}" ]; then
+  rclone copy "$file" "$BACKUP_REMOTE"
+fi
 find "$dir" -name 'khata-*.dump.age' -mtime +14 -delete
 # Tell the uptime monitor the backup ran (a missed ping raises the "backup missed" alert).
-[ -n "${BACKUP_HEARTBEAT_URL:-}" ] && curl -fsS -m 10 "$BACKUP_HEARTBEAT_URL" > /dev/null
+if [ -n "${BACKUP_HEARTBEAT_URL:-}" ]; then
+  curl -fsS -m 10 "$BACKUP_HEARTBEAT_URL" > /dev/null
+fi
 echo "backup ok: $file"

@@ -125,4 +125,6 @@ grep -q ssl_certificate /etc/nginx/sites-available/grocery-khata || sed -i \
 nginx -t
 systemctl restart nginx
 
+# Marks the whole setup as done: until then, scripts/deploy.ps1 runs it again (each step is safe to repeat).
+touch /etc/grocery-khata/.setup-done
 echo "SETUP DONE"

@@ -51,12 +51,16 @@ if ($FetchBackups) {
 }
 
 Write-Host '== Server setup (first run only)'
-ssh @sshOpts $target 'test -f /etc/grocery-khata/env'
+# Set up until setup-server.sh finished once: a run that stopped half way (DNS, certificate) is picked up again.
+ssh @sshOpts $target 'test -f /etc/grocery-khata/.setup-done'
 $isNew = $LASTEXITCODE -ne 0
 if ($isNew) {
     if (-not $Email -or -not $AdminPhone) { throw 'First deploy: also give -Email (for the HTTPS certificate) and -AdminPhone (your login as platform admin).' }
+    New-Item -ItemType Directory -Force (Join-Path $root 'out') | Out-Null
     tar -C $root -czf (Join-Path $root 'out\setup.tgz') deploy scripts/backup.sh
+    if ($LASTEXITCODE -ne 0) { throw 'Could not pack the setup files.' }
     scp @sshOpts (Join-Path $root 'out\setup.tgz') "${target}:/tmp/gk-setup.tgz"
+    if ($LASTEXITCODE -ne 0) { throw 'Could not upload the setup files.' }
     Remote "set -e; rm -rf /tmp/gk-setup && mkdir /tmp/gk-setup && tar -xzf /tmp/gk-setup.tgz -C /tmp/gk-setup && bash /tmp/gk-setup/deploy/setup-server.sh '$Domain' '$Email' '$AdminPhone'"
     # The backup key's private half comes to this PC and leaves the server.
     $backupKey = Join-Path $HOME 'GroceryKhata-backup-key.txt'
