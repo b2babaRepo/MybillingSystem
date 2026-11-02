@@ -147,7 +147,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
     </div>
   )
 
-  const reminder = buildReminder(settings.data?.reminderTemplate, { name: customer.name, amount: customer.balance, shop: shopName, upi: settings.data?.upiId ?? null })
+  const reminder = buildReminder(settings.data?.reminderTemplate, { name: customer.name, amount: customer.balance, shop: shopName, upi: settings.data?.upiId ?? null, slug: settings.data?.slug })
 
   return (
     <div className="flex flex-col gap-3 p-4">

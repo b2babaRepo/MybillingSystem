@@ -54,6 +54,7 @@ const KharchaPrint = lazy(() => import('./screens/KharchaMonth').then((module) =
 const TeamScreen = lazy(() => import('./screens/TeamScreen').then((module) => ({ default: module.TeamScreen })))
 const TeamViewPage = lazy(() => import('./screens/TeamViewPage').then((module) => ({ default: module.TeamViewPage })))
 const PlatformScreen = lazy(() => import('./screens/PlatformScreen').then((module) => ({ default: module.PlatformScreen })))
+const PayPage = lazy(() => import('./screens/PayPage').then((module) => ({ default: module.PayPage })))
 const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
 
 export default function App() {
@@ -66,6 +67,14 @@ export default function App() {
     return (
       <Suspense fallback={<Loading />}>
         <StoreApp path={path} />
+      </Suspense>
+    )
+  }
+  // The pay page from a dues reminder: the shop's UPI ID and the amount, no account needed.
+  if (path.startsWith('/p/')) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <PayPage path={path} />
       </Suspense>
     )
   }

@@ -31,6 +31,8 @@ public sealed record StoreOrderPlaced(OrderDto Order, string StatusToken);
 /// The shop's public online store at /s/{slug}: catalogue, guest checkout (no account) and a status page reached
 /// by a secret link. Anonymous, so every call is rate-limited, and the shop comes only from the slug.
 /// </summary>
+public sealed record StorePayDto(string Name, string UpiId);
+
 public static class StoreEndpoints
 {
     public const string StoreRateLimit = "store";
@@ -42,7 +44,20 @@ public static class StoreEndpoints
         group.MapGet("", GetStoreAsync);
         group.MapPost("/orders", PlaceAsync);
         group.MapGet("/orders/{id:guid}", GetOrderAsync);
+        group.MapGet("/pay", GetPayAsync);
         return app;
+    }
+
+    /// <summary>The shop's name and UPI ID, for the pay page a dues reminder links to. 404 when the shop has no UPI ID.</summary>
+    private static async Task<IResult> GetPayAsync(string slug, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    {
+        if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var upi = await db.Shops.AsNoTracking().Where(s => s.Id == shop.Id).Select(s => s.UpiId).SingleOrDefaultAsync(ct);
+        return string.IsNullOrWhiteSpace(upi) ? TypedResults.NotFound() : TypedResults.Ok(new StorePayDto(shop.Name, upi));
     }
 
     private static async Task<IResult> GetStoreAsync(string slug, AppDbContext db, TenantContext tenant, CancellationToken ct)

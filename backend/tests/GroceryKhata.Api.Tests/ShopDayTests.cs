@@ -229,6 +229,19 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Empty(updates.NewItems); // the starting list never shows as new
     }
 
+    [Fact]
+    public async Task The_pay_page_shows_the_shops_upi_only_once_it_has_one()
+    {
+        var shop = await SignUpAsync("kirana");
+        var settings = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
+        var anyone = api.CreateClient();
+        Assert.Equal(HttpStatusCode.NotFound, (await anyone.GetAsync($"/api/v1/store/{settings.Slug}/pay")).StatusCode);
+
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { UpiId = "suresh@okaxis" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        var pay = await anyone.GetJsonAsync<GroceryKhata.Api.Planner.StorePayDto>($"/api/v1/store/{settings.Slug}/pay");
+        Assert.Equal((settings.Name, "suresh@okaxis"), (pay.Name, pay.UpiId));
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {

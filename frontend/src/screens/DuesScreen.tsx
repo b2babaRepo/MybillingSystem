@@ -28,7 +28,7 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
   const shown = data.customers.filter((d) =>
     bucket === 'all' || (bucket === 'd0' && d.days0To7 > 0) || (bucket === 'd8' && d.days8To30 > 0) || (bucket === 'd30' && d.over30 > 0))
   const reminderFor = (d: Due) =>
-    buildReminder(settings.data?.reminderTemplate, { name: d.name, amount: d.balance, shop: shopName, upi: settings.data?.upiId ?? null })
+    buildReminder(settings.data?.reminderTemplate, { name: d.name, amount: d.balance, shop: shopName, upi: settings.data?.upiId ?? null, slug: settings.data?.slug })
   // Opening WhatsApp must not wait for the server (pop-up blockers); the "reminded" mark goes in the background.
   const markReminded = (d: Due) => {
     void request(`/v1/customers/${d.customerId}/reminded`, 'POST').then(() => queryClient.invalidateQueries({ queryKey: [shopId, 'dues'] })).catch(() => {})

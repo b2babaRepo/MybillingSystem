@@ -90,13 +90,22 @@ export const DEFAULT_REMINDER =
  * The reminder for one customer: the shop's template with {name}, {amount}, {shop} and {upi} filled in. When the
  * shop has a UPI ID but the template doesn't mention it, a "Pay by UPI" line is added, so customers can pay at once.
  */
-export function buildReminder(template: string | null | undefined, values: { name: string; amount: number; shop: string; upi: string | null }) {
+/** The pay page a reminder links to: opens the customer's UPI app with the shop's ID and the amount filled in. */
+export const payLink = (slug: string, amount: number) => `${window.location.origin}/#/p/${encodeURIComponent(slug)}/${amount.toFixed(2)}`
+
+/** A upi:// address any UPI app opens (GPay, PhonePe, Paytm, BHIM), with the payee, amount and a note set. */
+export const upiUri = (upiId: string, name: string, amount: number, note: string) =>
+  `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(name)}&am=${amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`
+
+export function buildReminder(template: string | null | undefined, values: { name: string; amount: number; shop: string; upi: string | null; slug?: string }) {
   const text = (template || DEFAULT_REMINDER)
     .replaceAll('{name}', values.name)
     .replaceAll('{amount}', values.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 }))
     .replaceAll('{shop}', values.shop)
     .replaceAll('{upi}', values.upi ?? '')
-  return values.upi && !(template ?? '').includes('{upi}') ? `${text}\nUPI: ${values.upi}` : text
+  const withUpi = values.upi && !(template ?? '').includes('{upi}') ? `${text}\nUPI: ${values.upi}` : text
+  // A tap-to-pay link: WhatsApp doesn't open upi:// links, so it goes through the shop's pay page.
+  return values.upi && values.slug && values.amount > 0 ? `${withUpi}\n${payLink(values.slug, values.amount)}` : withUpi
 }
 
 /** Downloads an owner-only CSV with the signed-in token (a plain link would have none). */
