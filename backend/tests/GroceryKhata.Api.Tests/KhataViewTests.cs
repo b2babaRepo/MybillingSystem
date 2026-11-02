@@ -44,6 +44,16 @@ public sealed class KhataViewTests(ApiFactory api)
         await KhataTests.AddEntryAsync(sharma, atSharma, "credit", 640m);
 
         var priya = await RegisterAsync("Priya Agarwal", phone);
+        // A password account hasn't proved the number is hers: it sees nothing until an SMS code does.
+        Assert.Empty(await priya.GetJsonAsync<List<MyKhataDto>>("/api/v1/me/khata"));
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var verify = new Npgsql.NpgsqlCommand("UPDATE users SET phone_verified_at = now() WHERE phone = @p", db);
+            verify.Parameters.AddWithValue("p", GroceryKhata.Api.Common.PhoneNumber.Normalize(phone)!);
+            await verify.ExecuteNonQueryAsync();
+        }
+
         var stranger = await RegisterAsync("Stranger", ApiFactory.NewPhone());
 
         var mine = await priya.GetJsonAsync<List<MyKhataDto>>("/api/v1/me/khata");

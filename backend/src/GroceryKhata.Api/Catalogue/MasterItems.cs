@@ -42,6 +42,9 @@ public sealed class MasterItem
     public List<string> PackSizes { get; set; } = [];
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>When an admin added it; null for the list the app started with. Shops see it as new for a while after.</summary>
+    public DateTimeOffset? CreatedAt { get; set; }
 }
 
 /// <summary>
@@ -229,9 +232,10 @@ public static class MasterItems
         }
 
         var (added, updated, problems) = (0, 0, new List<string>());
+        var inPaste = new Dictionary<string, MasterItem>();
         foreach (var (line, index) in lines.Select((l, i) => (l, i + 1)))
         {
-            var f = line.Split(',').Select(x => x.Trim()).ToArray();
+            var f = SplitCsv(line);
             if (index == 1 && f[0].Equals("name", StringComparison.OrdinalIgnoreCase))
             {
                 continue; // a header row
@@ -239,7 +243,7 @@ public static class MasterItems
 
             string? At(int i) => f.Length > i && f[i].Length > 0 ? f[i] : null;
             var row = new MasterItemRequest(request.Trade, At(2), At(0), At(1),
-                Enum.TryParse<Unit>(At(3) ?? "piece", ignoreCase: true, out var unit) ? unit : null,
+                At(3) is { } u && u.All(char.IsAsciiDigit) ? null : Enum.TryParse<Unit>(At(3) ?? "piece", ignoreCase: true, out var unit) ? unit : null,
                 decimal.TryParse(At(4)?.TrimEnd('%'), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var gst) ? gst : null, At(5), null, At(6)?.Split('|'));
             if (Check(row) is { Count: > 0 } errors)
             {
@@ -249,10 +253,11 @@ public static class MasterItems
 
             var key = row.Name!.Trim().ToLower();
             var trade = ShopTypes.Name(Enum.Parse<ShopType>(row.Trade!.Replace("_", ""), ignoreCase: true));
-            var item = await db.MasterItems.FirstOrDefaultAsync(i => i.Trade == trade && i.Name.ToLower() == key, ct);
+            var item = inPaste.GetValueOrDefault($"{trade}|{key}") ?? await db.MasterItems.FirstOrDefaultAsync(i => i.Trade == trade && i.Name.ToLower() == key, ct);
             if (item is null)
             {
-                item = new MasterItem { Trade = "", Category = "", Name = "" };
+                item = new MasterItem { Trade = "", Category = "", Name = "", CreatedAt = DateTimeOffset.UtcNow };
+                inPaste[$"{trade}|{key}"] = item;
                 db.MasterItems.Add(item);
                 added++;
             }
@@ -274,7 +279,7 @@ public static class MasterItems
     private static List<string> Sizes(IReadOnlyList<string>? sizes) =>
         (sizes ?? []).Select(s => s.Trim()).Where(s => s.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
-    /// <summary>How long an item added to a trade's list shows as new to its shops.</summary>
+    /// <summary>How long an item an admin adds to a trade's list shows as new to its shops (edits don't count).</summary>
     private static readonly TimeSpan NewFor = TimeSpan.FromDays(30);
 
     /// <summary>
@@ -306,7 +311,7 @@ public static class MasterItems
         var held = products.Select(p => p.Name.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var since = DateTimeOffset.UtcNow - NewFor;
         var fresh = masters
-            .Where(m => m.UpdatedAt >= since && !byName.Where(kv => kv.Value == m).Any(kv => held.Contains(kv.Key)))
+            .Where(m => m.CreatedAt >= since && !byName.Where(kv => kv.Value == m).Any(kv => held.Contains(kv.Key)))
             .OrderBy(m => m.Category).ThenBy(m => m.Name).Take(200).ToList();
         return (changed, fresh);
     }
@@ -404,6 +409,37 @@ public static class MasterItems
         return TypedResults.NoContent();
     }
 
+    /// <summary>One CSV line's fields: commas inside double quotes stay in the field, and "" is a quote.</summary>
+    private static string[] SplitCsv(string line)
+    {
+        var (fields, field, quoted) = (new List<string>(), new System.Text.StringBuilder(), false);
+        for (var i = 0; i < line.Length; i++)
+        {
+            var c = line[i];
+            if (c == '"' && quoted && i + 1 < line.Length && line[i + 1] == '"')
+            {
+                field.Append('"');
+                i++;
+            }
+            else if (c == '"')
+            {
+                quoted = !quoted;
+            }
+            else if (c == ',' && !quoted)
+            {
+                fields.Add(field.ToString().Trim());
+                field.Clear();
+            }
+            else
+            {
+                field.Append(c);
+            }
+        }
+
+        fields.Add(field.ToString().Trim());
+        return [.. fields];
+    }
+
     private static async Task<IReadOnlyList<MasterItemDto>> AdminListAsync(string? trade, string? q, AppDbContext db, CancellationToken ct)
     {
         var query = db.MasterItems.AsNoTracking();
@@ -449,7 +485,7 @@ public static class MasterItems
             return TypedResults.ValidationProblem(errors);
         }
 
-        var item = new MasterItem { Trade = "", Category = "", Name = "" };
+        var item = new MasterItem { Trade = "", Category = "", Name = "", CreatedAt = DateTimeOffset.UtcNow };
         Apply(item, request);
         if (await db.MasterItems.AnyAsync(i => i.Trade == item.Trade && i.Name.ToLower() == item.Name.ToLower(), ct))
         {

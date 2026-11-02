@@ -102,13 +102,20 @@ public static class KhataViewEndpoints
     }
 
     /// <summary>
+    /// The signed-in person's phone, once an SMS code has proved it is theirs; otherwise a value no khata has. A password
+    /// account can be opened with anyone's number, so it never sees the khatas kept against that number.
+    /// </summary>
+    private static async Task<string> VerifiedPhoneAsync(ClaimsPrincipal user, AppDbContext db, CancellationToken ct) =>
+        await db.Users.AsNoTracking().Where(u => u.Id == user.UserId() && u.PhoneVerifiedAt != null).Select(u => u.Phone).SingleOrDefaultAsync(ct) ?? "unverified";
+
+    /// <summary>
     /// A scope working as <paramref name="shopId"/>, or null unless the customer there has the signed-in person's
     /// phone. The caller disposes it.
     /// </summary>
     internal static async Task<AsyncServiceScope?> OpenMineAsync(
         Guid shopId, Guid customerId, ClaimsPrincipal user, IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct)
     {
-        var phone = await db.Users.AsNoTracking().Where(u => u.Id == user.UserId()).Select(u => u.Phone).SingleAsync(ct);
+        var phone = await VerifiedPhoneAsync(user, db, ct);
         var scope = scopes.CreateAsyncScope();
         var tenant = scope.ServiceProvider.GetRequiredService<TenantContext>();
         tenant.SetShop(shopId);
@@ -129,7 +136,7 @@ public static class KhataViewEndpoints
     /// </summary>
     private static async Task<IReadOnlyList<MyKhataDto>> GetMineAsync(ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
     {
-        var phone = await db.Users.AsNoTracking().Where(u => u.Id == user.UserId()).Select(u => u.Phone).SingleAsync(ct);
+        var phone = await VerifiedPhoneAsync(user, db, ct);
         return await (from c in db.Customers.IgnoreQueryFilters().AsNoTracking()
                       join s in db.Shops.AsNoTracking() on c.ShopId equals s.Id
                       where c.Phone == phone && s.IsActive
@@ -142,7 +149,7 @@ public static class KhataViewEndpoints
     private static async Task<IResult> GetMineAtShopAsync(
         Guid shopId, Guid customerId, ClaimsPrincipal user, IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct)
     {
-        var phone = await db.Users.AsNoTracking().Where(u => u.Id == user.UserId()).Select(u => u.Phone).SingleAsync(ct);
+        var phone = await VerifiedPhoneAsync(user, db, ct);
 
         // A scope of its own: this request may already be working as another shop (a shopkeeper's own khata elsewhere).
         await using var scope = scopes.CreateAsyncScope();

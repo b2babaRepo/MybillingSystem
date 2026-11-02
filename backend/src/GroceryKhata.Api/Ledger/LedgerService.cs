@@ -57,7 +57,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
             });
 
     /// <summary>How far back a helper may date an entry or bill; older needs the owner.</summary>
-    public static readonly TimeSpan HelperBackdateLimit = TimeSpan.FromDays(2);
+    public static readonly TimeSpan HelperBackdateLimit = TimeSpan.FromDays(7);
 
     /// <summary>An entry recorded this long after the date it carries is marked "entered later" on the khata.</summary>
     public static readonly TimeSpan LateAfter = TimeSpan.FromHours(24);
@@ -695,12 +695,12 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         return $"{start}-{(start + 1) % 100:D2}";
     }
 
-    /// <summary>A helper can't date an entry more than two days back: older entries need the owner.</summary>
+    /// <summary>A helper can't date an entry more than a week back (room for a phone offline for days): older entries need the owner.</summary>
     private void CheckBackdate(DateTimeOffset? requested, bool isOwner, Dictionary<string, string[]> errors)
     {
         if (!isOwner && requested is { } at && at < clock.GetUtcNow() - HelperBackdateLimit)
         {
-            errors["OccurredAt"] = ["Only the owner can enter something older than 2 days. Ask the owner to add it."];
+            errors["OccurredAt"] = ["Only the owner can enter something older than 7 days. Ask the owner to add it."];
         }
     }
 

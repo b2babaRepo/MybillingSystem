@@ -1756,6 +1756,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(60)")
                         .HasColumnName("category");
 
+                    b.Property<DateTimeOffset?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
                     b.Property<decimal?>("GstRate")
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)")

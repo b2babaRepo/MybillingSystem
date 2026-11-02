@@ -198,6 +198,37 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.DoesNotContain((await shop.GetJsonAsync<MasterUpdatesDto>("/api/v1/master-items/updates")).Changes, c => c.ProductName == name);
     }
 
+    [Fact]
+    public async Task Csv_import_keeps_quoted_commas_merges_repeats_and_refuses_number_units()
+    {
+        var admin = await AdminAsync();
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var result = await (await admin.PostJsonAsync("/api/v1/platform/master-items/import", new
+        {
+            trade = "clothes",
+            text = $"\"Kurta, cotton {tag}\",,Kurta,piece,5,\nKurta, cotton {tag},,Kurta,piece,12,\nShawl {tag},,Winter,5,5,",
+        })).ReadAsync<MasterImportResult>();
+        Assert.Equal((1, 0, 2), (result.Added, result.Updated, result.Problems.Count)); // line 2 splits wrongly unquoted; line 3 has unit "5"
+
+        result = await (await admin.PostJsonAsync("/api/v1/platform/master-items/import", new
+        {
+            trade = "clothes",
+            text = $"Dupatta {tag},,Dupatta,piece,5,\nDupatta {tag},,Dupatta,piece,12,",
+        })).ReadAsync<MasterImportResult>();
+        Assert.Equal((1, 1), (result.Added, result.Updated));
+        var rows = await admin.GetJsonAsync<List<MasterItemDto>>($"/api/v1/platform/master-items?trade=clothes&q={tag}");
+        Assert.Equal(12m, Assert.Single(rows, r => r.Name.StartsWith("Dupatta")).GstRate);
+        Assert.Contains(rows, r => r.Name == $"Kurta, cotton {tag}");
+    }
+
+    [Fact]
+    public async Task Only_items_admins_added_lately_show_as_new()
+    {
+        var shop = await SignUpAsync("paint");
+        var updates = await shop.GetJsonAsync<MasterUpdatesDto>("/api/v1/master-items/updates");
+        Assert.Empty(updates.NewItems); // the starting list never shows as new
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {
