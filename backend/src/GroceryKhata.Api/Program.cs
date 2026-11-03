@@ -120,6 +120,7 @@ app.MapPharmacyProfile();
 app.MapBatches();
 app.MapPrescriptions();
 app.MapSupplierReturns();
+app.MapPharmacyMonth();
 app.MapStylistPay();
 app.MapPrepaid();
 app.MapCashCounts();

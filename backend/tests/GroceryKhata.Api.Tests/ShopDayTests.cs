@@ -788,6 +788,39 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_medical_month_counts_input_gst_cost_of_sales_expiry_loss_and_cash_vs_digital()
+    {
+        var shop = await SignUpAsync("medical");
+        var settings = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        var med = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = med, name = "Montelukast (strip)", unit = "piece", sellingPrice = 42m, gstRate = 5m, hsnCode = "3004" })).EnsureSuccessStatusCode();
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jaipur Medical Agency" })).EnsureSuccessStatusCode();
+
+        // 10 strips at ₹20 + 5% GST: ₹210 owed, ₹10 of it input credit; each strip costs ₹20.
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new
+        {
+            id = Guid.CreateVersion7(), supplierId = supplier, paidAmount = 0m,
+            lines = new[] { new { productId = med, quantity = 10m, unitCost = 20m, gstRate = 5m, batchNo = "M1", expiryMonth = DateTime.Today.AddMonths(6).ToString("yyyy-MM"), mrp = 42m } },
+        })).EnsureSuccessStatusCode();
+        Assert.Equal(210m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
+        Assert.Equal(20m, (await Item(shop, med)).CostPrice);
+
+        // 3 strips for cash, 1 by UPI.
+        foreach (var (qty, mode) in new[] { (3m, "cash"), (1m, "upi") })
+        {
+            (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = med, quantity = qty, unitPrice = 42m } }, paidAmount = qty * 42m, paymentMode = mode })).EnsureSuccessStatusCode();
+        }
+
+        var month = await shop.GetJsonAsync<PharmacyMonthDto>("/api/v1/pharmacy/month");
+        Assert.Equal((168m, 210m, 10m, 80m), (month.Sales, month.Purchases, month.InputGst, month.CostOfSales));
+        Assert.Equal((126m, 42m, 0), (month.CashReceipts, month.DigitalReceipts, month.LinesWithoutCost));
+        Assert.Equal(month.SalesTaxable - 80m, month.GrossProfit);
+        Assert.Equal(Math.Max(0, month.OutputGst - 10m), month.GstPayable);
+    }
+
+    [Fact]
     public async Task Services_use_their_products_from_stock_and_client_cards_keep_the_formula()
     {
         var shop = await SignUpAsync("beauty");

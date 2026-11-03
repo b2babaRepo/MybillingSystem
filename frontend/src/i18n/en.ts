@@ -898,6 +898,16 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  pmonth: {
+    link: 'Month: GST and profit', month: 'Month', gst: 'GST this month', outputGst: 'GST on sales', inputGst: 'Input credit (GST on distributor bills)', payable: 'GST to pay',
+    carried: 'Credit carried to next month', gstHint: 'From your bills and distributor bills entered with GST %. Your CA checks the figures and files GSTR-3B.',
+    compositionHint: 'Composition scheme: you pay the fixed rate on sales and can’t claim input credit. Your CA files CMP-08.',
+    profit: 'Profit', sales: 'Sales (with GST)', salesTaxable: 'Sales before GST', cost: 'Cost of medicines sold', gross: 'Gross profit ({{percent}}%)',
+    expiryLoss: 'Expiry loss (returns settled)', afterExpiry: 'Profit after expiry', expiredOnShelf: 'Expired stock still on the shelf: {{value}} at cost. Return it to the distributor.',
+    noCost_one: '{{count}} line sold without a cost price; profit is overstated.', noCost_other: '{{count}} lines sold without a cost price; profit is overstated.', purchases: 'Distributor bills',
+    receipts: 'Money received', digital: 'Digital (UPI)', receiptsHint: 'Presumptive income tax (s.44AD) counts 6% of digital and 8% of cash receipts as profit. Ask your CA.',
+    purchaseGst: 'GST %', belowCost: 'Below cost: {{percent}}% margin', thinMargin: 'Thin margin: {{percent}}%',
+  },
   returns: {
     link: 'Expiry returns to distributors', discount: 'Trade discount %', title: 'Return to a distributor', hint: 'Pick near-expiry or expired batches to send back. Stock leaves now; what you owe the distributor comes down when their credit note arrives.',
     supplier: 'Distributor', chooseSupplier: 'Choose the distributor', send: 'Send back', sent: 'Return saved. Waiting for the credit note.', open: 'Waiting for credit notes ({{count}})', none: 'No returns waiting.',

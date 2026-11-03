@@ -86,7 +86,7 @@ public static class GstExport
             : b.Lines.Select(LineTax).Aggregate((Taxable: 0m, Cgst: 0m, Sgst: 0m, Igst: 0m), (t, l) => (t.Taxable + l.Taxable, t.Cgst + l.Cgst, t.Sgst + l.Sgst, t.Igst + l.Igst));
 
     /// <summary>A line's tax as kept when billed; lines from before tax was kept are worked out from their rate (within the state).</summary>
-    private static (decimal Taxable, decimal Cgst, decimal Sgst, decimal Igst) LineTax(BillLine l)
+    public static (decimal Taxable, decimal Cgst, decimal Sgst, decimal Igst) LineTax(BillLine l)
     {
         if (l.TaxableValue is { } kept)
         {

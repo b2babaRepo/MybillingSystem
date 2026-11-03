@@ -573,6 +573,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(l => l.UnitCost).HasPrecision(12, 2);
             b.Property(l => l.FreeQuantity).HasPrecision(12, 3);
             b.Property(l => l.DiscountPercent).HasPrecision(5, 2);
+            b.Property(l => l.GstRate).HasPrecision(5, 2);
+            b.Property(l => l.Taxable).HasPrecision(12, 2);
+            b.Property(l => l.Gst).HasPrecision(12, 2);
         });
 
         modelBuilder.Entity<SupplierReturn>(b =>

@@ -4521,6 +4521,16 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(12,3)")
                         .HasColumnName("free_quantity");
 
+                    b.Property<decimal>("Gst")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("gst");
+
+                    b.Property<decimal?>("GstRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("gst_rate");
+
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid")
                         .HasColumnName("product_id");
@@ -4537,6 +4547,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
+
+                    b.Property<decimal>("Taxable")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("taxable");
 
                     b.Property<decimal>("UnitCost")
                         .HasPrecision(12, 2)

@@ -10,7 +10,7 @@ import { shopTypes, useShopSettings } from '../lib/reports'
 interface Supplier { id: string; name: string; phone: string | null; due: number }
 interface Detail { supplier: Supplier; entries: { id: string; amount: number; purchaseId: string | null; note: string | null; occurredAt: string; cancelled: boolean }[] }
 /** Medicines also carry batch, expiry month (yyyy-mm), MRP, free units (scheme) and trade discount %. */
-interface Row { productId: string; quantity: string; unitCost: string; batchNo: string; expiry: string; mrp: string; free: string; discount: string }
+interface Row { productId: string; quantity: string; unitCost: string; batchNo: string; expiry: string; mrp: string; free: string; discount: string; gst: string }
 
 /** Who the shop buys from and what it owes them: add a supplier's bill (stock goes up), or pay them. Needs a connection. */
 export function SuppliersScreen({ shopId }: { shopId: string }) {
@@ -67,7 +67,7 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
   const queryClient = useQueryClient()
   const { products } = useProducts(shopId)
   const detail = useQuery({ queryKey: [shopId, 'suppliers', id], queryFn: () => api<Detail>(`/v1/suppliers/${id}`) })
-  const empty: Row = { productId: '', quantity: '', unitCost: '', batchNo: '', expiry: '', mrp: '', free: '', discount: '' }
+  const empty: Row = { productId: '', quantity: '', unitCost: '', batchNo: '', expiry: '', mrp: '', free: '', discount: '', gst: '' }
   const medical = shopTypes(useShopSettings(shopId).data).includes('medical')
   const [rows, setRows] = useState<Row[]>([empty])
   const [billNo, setBillNo] = useState('')
@@ -76,7 +76,9 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
   const [mode, setMode] = useState<'cash' | 'upi'>('cash')
   const [message, setMessage] = useState('')
   const valid = rows.filter((r) => r.productId && Number(r.quantity) > 0 && r.unitCost !== '' && (!medical || !r.batchNo.trim() || (r.expiry && Number(r.mrp) > 0)))
-  const lineTotal = (r: Row) => Math.round(Number(r.quantity) * Number(r.unitCost) * (100 - (Number(r.discount) || 0))) / 100
+  // Before GST (after trade discount), then with the GST the distributor charged on top.
+  const taxable = (r: Row) => Math.round(Number(r.quantity) * Number(r.unitCost) * (100 - (Number(r.discount) || 0))) / 100
+  const lineTotal = (r: Row) => taxable(r) + Math.round(taxable(r) * (Number(r.gst) || 0)) / 100
   const total = valid.reduce((sum, r) => sum + lineTotal(r), 0)
 
   async function run(action: () => Promise<unknown>) {
@@ -96,6 +98,7 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
       id: crypto.randomUUID(), supplierId: id, billNo: billNo.trim() || null, paidAmount: Number(paid) || 0, paymentMode: mode,
       lines: valid.map((r) => ({
         productId: r.productId, quantity: Number(r.quantity), unitCost: Number(r.unitCost), freeQuantity: Number(r.free) || 0, discountPercent: Number(r.discount) || 0,
+        gstRate: r.gst === '' ? null : Number(r.gst),
         ...(r.batchNo.trim() ? { batchNo: r.batchNo.trim(), expiryMonth: r.expiry, mrp: Number(r.mrp) } : {}),
       })),
     })
@@ -153,7 +156,10 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
                 <input aria-label={t('batches.expiry')} type="month" value={r.expiry} onChange={(e) => set(i, 'expiry', e.target.value)} className={input} />
                 <input aria-label="MRP" placeholder="MRP" value={r.mrp} onChange={(e) => set(i, 'mrp', e.target.value)} inputMode="decimal" className={input} />
                 <input aria-label={t('batches.free')} placeholder={t('batches.free')} value={r.free} onChange={(e) => set(i, 'free', e.target.value)} inputMode="decimal" className={input} />
-                <input aria-label={t('returns.discount')} placeholder={t('returns.discount')} value={r.discount} onChange={(e) => set(i, 'discount', e.target.value)} inputMode="decimal" className={`${input} col-span-2`} />
+                <input aria-label={t('returns.discount')} placeholder={t('returns.discount')} value={r.discount} onChange={(e) => set(i, 'discount', e.target.value)} inputMode="decimal" className={input} />
+                <select aria-label={t('pmonth.purchaseGst')} value={r.gst} onChange={(e) => set(i, 'gst', e.target.value)} className={input}>
+                  <option value="">{t('pmonth.purchaseGst')}</option>{['0', '5', '12', '18'].map((g) => <option key={g} value={g}>GST {g}%</option>)}
+                </select>
               </>
             )}
           </div>

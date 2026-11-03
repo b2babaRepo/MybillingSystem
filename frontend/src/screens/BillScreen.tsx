@@ -172,6 +172,14 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
                 />
                 /{t(`units.${l.unit}`)}
               </label>
+              {(() => {
+                // Medicines run on thin margins: warn when this price, before GST, is at or under what the item cost.
+                const p = products.find((x) => x.id === l.productId)
+                if (!p || p.costPrice == null || !(l.unitPrice > 0)) return null
+                const net = l.unitPrice / (1 + (p.gstRate ?? 0) / 100)
+                const margin = ((net - p.costPrice) / net) * 100
+                return margin < 5 ? <p className={`text-xs font-semibold ${margin <= 0 ? 'text-due' : 'text-amber-800'}`}>{t(margin <= 0 ? 'pmonth.belowCost' : 'pmonth.thinMargin', { percent: Math.round(margin * 10) / 10 })}</p> : null
+              })()}
               {tmtKgPerBar(l.name) && l.unit === 'kg' && (
                 <button onClick={() => { const bars = Number(window.prompt(t('bars.ask', { name: l.name })) || 0); if (bars > 0) setQuantity(i, Math.round(bars * tmtKgPerBar(l.name)! * 1000) / 1000) }}
                   className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('bars.button', { kg: tmtKgPerBar(l.name) })}</button>

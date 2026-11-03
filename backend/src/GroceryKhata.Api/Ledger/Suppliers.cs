@@ -59,6 +59,14 @@ public sealed class PurchaseLine : Entity, ITenantOwned
 
     /// <summary>Medicines: the batch these units went into.</summary>
     public Guid? BatchId { get; set; }
+
+    /// <summary>GST % the supplier charged on top of the rate; its tax is the shop's input credit. Null: no GST on the bill.</summary>
+    public decimal? GstRate { get; set; }
+
+    /// <summary>The line's value before GST (after discount), and the GST on it.</summary>
+    public decimal Taxable { get; set; }
+
+    public decimal Gst { get; set; }
 }
 
 /// <summary>The supplier's khata, append-only: + a bill, − a payment. What the shop owes is the sum.</summary>
@@ -92,7 +100,8 @@ public sealed record SupplierDetail(SupplierDto Supplier, IReadOnlyList<Supplier
 /// <see cref="FreeQuantity"/> and <see cref="DiscountPercent"/> are the distributor's scheme and trade discount.
 /// </summary>
 public sealed record PurchaseLineRequest(
-    Guid ProductId, decimal Quantity, decimal UnitCost, decimal FreeQuantity = 0, decimal DiscountPercent = 0, string? BatchNo = null, string? ExpiryMonth = null, decimal? Mrp = null);
+    Guid ProductId, decimal Quantity, decimal UnitCost, decimal FreeQuantity = 0, decimal DiscountPercent = 0, string? BatchNo = null, string? ExpiryMonth = null, decimal? Mrp = null,
+    decimal? GstRate = null);
 
 /// <summary><see cref="Id"/> is made by the app, so a repeated tap saves once.</summary>
 public sealed record PurchaseRequest(Guid Id, Guid SupplierId, string? BillNo, IReadOnlyList<PurchaseLineRequest>? Lines, decimal PaidAmount, PaymentMode? PaymentMode);
@@ -167,7 +176,7 @@ public static class SupplierEndpoints
         // A product can come in two batches on one bill, but not the same batch twice.
         if (request.Id == Guid.Empty || lines.Count is 0 or > 200 || lines.Select(l => (l.ProductId, l.BatchNo?.Trim().ToUpperInvariant())).Distinct().Count() != lines.Count
             || lines.Any(l => !products.ContainsKey(l.ProductId) || !Money.IsValidQuantity(l.Quantity) || l.UnitCost < 0 || l.UnitCost > Money.MaxAmount || decimal.Round(l.UnitCost, 2) != l.UnitCost
-                || l.FreeQuantity < 0 || (l.FreeQuantity > 0 && !Money.IsValidQuantity(l.FreeQuantity)) || l.DiscountPercent is < 0 or >= 100)
+                || l.FreeQuantity < 0 || (l.FreeQuantity > 0 && !Money.IsValidQuantity(l.FreeQuantity)) || l.DiscountPercent is < 0 or >= 100 || l.GstRate is < 0 or > 40)
             || total <= 0 || request.PaidAmount < 0 || request.PaidAmount > total || !await db.Suppliers.AnyAsync(s => s.Id == request.SupplierId, ct))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = ["Check the supplier, items, quantities, costs and amount paid."] });
@@ -196,8 +205,8 @@ public static class SupplierEndpoints
         {
             var product = products[line.ProductId];
             var units = line.Quantity + line.FreeQuantity;
-            // What one unit really cost: the line's amount over paid and free units together.
-            var unitCost = decimal.Round(LineTotal(line) / units, 2, MidpointRounding.AwayFromZero);
+            // What one unit really cost: the line's value before GST (the GST comes back as input credit) over paid and free units together.
+            var unitCost = decimal.Round(Taxable(line) / units, 2, MidpointRounding.AwayFromZero);
             var held = Math.Max(0, product.Stock + added.GetValueOrDefault(line.ProductId));
             product.CostPrice = product.CostPrice is { } cost && held > 0
                 ? decimal.Round(((held * cost) + (units * unitCost)) / (held + units), 2)
@@ -212,6 +221,7 @@ public static class SupplierEndpoints
             purchase.Lines.Add(new PurchaseLine
             {
                 ProductId = line.ProductId, Quantity = line.Quantity, UnitCost = line.UnitCost, FreeQuantity = line.FreeQuantity, DiscountPercent = line.DiscountPercent, BatchId = batch?.Id,
+                GstRate = line.GstRate, Taxable = Taxable(line), Gst = LineTotal(line) - Taxable(line),
             });
             db.StockMovements.Add(new StockMovement
             {
@@ -236,9 +246,13 @@ public static class SupplierEndpoints
 
     private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
-    /// <summary>What the line costs: paid units at the rate, less the trade discount. Free units cost nothing.</summary>
-    private static decimal LineTotal(PurchaseLineRequest l) =>
+    /// <summary>The line's value before GST: paid units at the rate, less the trade discount. Free units cost nothing.</summary>
+    private static decimal Taxable(PurchaseLineRequest l) =>
         decimal.Round(l.Quantity * l.UnitCost * (100 - l.DiscountPercent) / 100, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>What the line costs on the bill: its value plus the GST charged on it.</summary>
+    private static decimal LineTotal(PurchaseLineRequest l) =>
+        Taxable(l) + (l.GstRate is { } rate ? decimal.Round(Taxable(l) * rate / 100, 2, MidpointRounding.AwayFromZero) : 0);
 
     private static async Task<IResult> ChangeAsync(Guid id, SupplierRequest request, AppDbContext db, CancellationToken ct)
     {
