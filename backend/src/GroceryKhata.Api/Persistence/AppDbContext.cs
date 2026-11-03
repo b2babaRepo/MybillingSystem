@@ -110,6 +110,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Machine> Machines => Set<Machine>();
 
+    public DbSet<Venue> Venues => Set<Venue>();
+
+    public DbSet<Booking> Bookings => Set<Booking>();
+
     public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
@@ -545,6 +549,28 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(j => j.Price).HasPrecision(12, 2);
             b.Property(j => j.EstimatedCost).HasPrecision(12, 2);
             b.HasIndex(j => new { j.ShopId, j.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<Venue>(b =>
+        {
+            b.ToTable("venues");
+            b.HasTenantKey();
+            b.Property(v => v.Name).HasMaxLength(60);
+        });
+
+        modelBuilder.Entity<Booking>(b =>
+        {
+            b.ToTable("bookings");
+            b.HasTenantKey();
+            b.Property(x => x.PlateRate).HasPrecision(12, 2);
+            b.Property(x => x.HallRent).HasPrecision(12, 2);
+            b.Property(x => x.Deposit).HasPrecision(12, 2);
+            b.Property(x => x.DepositTaken).HasPrecision(12, 2);
+            b.Property(x => x.DepositReturned).HasPrecision(12, 2);
+            b.Property(x => x.Note).HasMaxLength(300);
+            b.Property(x => x.CancelReason).HasMaxLength(200);
+            b.HasIndex(x => new { x.ShopId, x.Number }).IsUnique();
+            b.HasIndex(x => new { x.ShopId, x.VenueId, x.Date });
         });
 
         modelBuilder.Entity<Machine>(b =>

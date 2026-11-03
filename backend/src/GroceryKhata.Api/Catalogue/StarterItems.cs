@@ -21,6 +21,7 @@ public static class StarterItems
         ShopType.Hardware => Hardware,
         ShopType.Electrical => Electrical,
         ShopType.Woodwork => Woodwork,
+        ShopType.Banquet => Banquet,
         _ => [],
     };
 
@@ -164,6 +165,21 @@ public static class StarterItems
         Item("Drawer channel 18 inch", "Fittings", Unit.Pair, 18, "8302"),
         Item("Cabinet handle", "Fittings", Unit.Piece, 18, "8302"),
         Item("Wood screw 1 inch (box)", "Fittings", Unit.Box, 18, "7318"),
+    ];
+
+    // Extras a hall adds to a function's final bill. GST on hall packages is unsettled (5% or 18%): left for the shop and its CA to set.
+    private static readonly ImportRow[] Banquet =
+    [
+        Item("Decoration package", "Decoration", Unit.Piece, null, null),
+        Item("Stage and flower decoration", "Decoration", Unit.Piece, null, null),
+        Item("DJ and sound", "Music", Unit.Piece, null, null),
+        Item("Generator (per hour)", "Power", Unit.Piece, null, null),
+        Item("Room for baraat (per night)", "Rooms", Unit.Piece, null, null),
+        Item("Extra plate", "Food", Unit.Piece, null, null),
+        Item("Birthday cake (per kg)", "Food", Unit.Kg, null, null),
+        Item("Balloon decoration", "Decoration", Unit.Piece, null, null),
+        Item("Valet parking", "Services", Unit.Piece, null, null),
+        Item("Mineral water 1 L", "Food", Unit.Piece, null, null),
     ];
 
     private static readonly ImportRow[] Electrical =

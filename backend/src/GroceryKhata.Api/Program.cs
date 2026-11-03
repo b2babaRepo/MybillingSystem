@@ -109,6 +109,7 @@ app.MapRazorpay();
 app.MapSuppliers();
 app.MapJobs();
 app.MapWorkshop();
+app.MapBookings();
 app.MapCashCounts();
 app.MapTrades();
 app.MapBilling();

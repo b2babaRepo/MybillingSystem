@@ -15,7 +15,7 @@ namespace GroceryKhata.Api.Tests;
 [Collection(ApiCollection.Name)]
 public sealed class ShopDayTests(ApiFactory api)
 {
-    public static TheoryData<string> Trades => ["water_supply", "beauty", "sweets", "toys", "clothes", "building_materials", "paint", "hardware", "electrical", "woodwork"];
+    public static TheoryData<string> Trades => ["water_supply", "beauty", "sweets", "toys", "clothes", "building_materials", "paint", "hardware", "electrical", "woodwork", "banquet"];
 
     [Theory]
     [MemberData(nameof(Trades))]
@@ -405,6 +405,58 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.True(big[0].Crossed);
         Assert.Contains(ReportEndpoints.TurnoverAlerts(3_000_000m, 60_000_000m), a => a.Key == "einvoice" && a.Crossed); // last year counts for e-invoices
         Assert.Equal(14_000m, ReportEndpoints.PresumedProfit(100_000m, 100_000m));
+    }
+
+    [Fact]
+    public async Task A_wedding_is_held_confirmed_settled_on_guests_and_never_double_booked()
+    {
+        var shop = await SignUpAsync("banquet");
+        var hall = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/venues", new { id = hall, name = "Main hall", capacity = 500 })).EnsureSuccessStatusCode();
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Gupta family");
+        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(40));
+
+        // A hold keeps the evening; nobody else gets it, even a full-day booking.
+        var hold = await (await shop.PostJsonAsync("/api/v1/bookings", new { id = Guid.CreateVersion7(), venueId = hall, date, slot = "evening", customerId = customer, occasion = "wedding", guests = 300, plateRate = 600m, hallRent = 50000m, deposit = 20000m, hold = true })).ReadAsync<BookingDto>();
+        Assert.Equal("hold", hold.Status);
+        Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync("/api/v1/bookings", new { id = Guid.CreateVersion7(), venueId = hall, date, slot = "full_day", customerId = customer, guests = 100, plateRate = 500m, hallRent = 0m, deposit = 0m })).StatusCode);
+        var morning = await shop.PostJsonAsync("/api/v1/bookings", new { id = Guid.CreateVersion7(), venueId = hall, date, slot = "morning", customerId = customer, occasion = "birthday", guests = 50, plateRate = 400m, hallRent = 0m, deposit = 0m });
+        Assert.Equal(HttpStatusCode.OK, morning.StatusCode); // the morning is still free
+
+        // Confirmed: a job carries the money. ₹50,000 + 300 × ₹600 = ₹2,30,000 expected.
+        var booking = await (await shop.PostJsonAsync($"/api/v1/bookings/{hold.Id}/confirm", new { })).ReadAsync<BookingDto>();
+        Assert.Equal(("confirmed", 230000m), (booking.Status, booking.Estimate));
+        (await shop.PostJsonAsync($"/api/v1/jobs/{booking.JobId}/advance", new { id = Guid.CreateVersion7(), amount = 100000m, mode = "upi" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/jobs/{booking.JobId}/other", new { id = Guid.CreateVersion7(), description = "Decorator", amount = 30000m })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/bookings/{hold.Id}/deposit", new { amount = 20000m })).EnsureSuccessStatusCode();
+
+        // 340 came (more than the 300 guaranteed), DJ extra, ₹5,000 damage taken from the deposit.
+        var settled = await (await shop.PostJsonAsync($"/api/v1/bookings/{hold.Id}/settle", new
+        {
+            billId = Guid.CreateVersion7(), actualGuests = 340, extras = new[] { new { name = "DJ", amount = 15000m } }, damage = 5000m, paidAmount = 0m,
+        })).ReadAsync<BookingDto>();
+        Assert.Equal(("settled", 15000m), (settled.Status, settled.DepositReturned));
+        // Bill: 50,000 + 340 × 600 + 15,000 + 5,000 = 2,74,000; the advance 1,00,000 and 5,000 from the deposit are paid.
+        Assert.Equal(169000m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance);
+        var job = (await shop.GetJsonAsync<JobDetail>($"/api/v1/jobs/{booking.JobId}")).Job;
+        Assert.Equal((JobStatus.Delivered, 274000m, 30000m), (job.Status, job.Price, job.Other));
+    }
+
+    [Fact]
+    public async Task Cancelling_keeps_the_charge_on_the_khata_and_frees_the_slot()
+    {
+        var shop = await SignUpAsync("banquet");
+        var hall = Guid.CreateVersion7();
+        await shop.PostJsonAsync("/api/v1/venues", new { id = hall, name = "Garden" });
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Sharma");
+        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(10));
+        var b = await (await shop.PostJsonAsync("/api/v1/bookings", new { id = Guid.CreateVersion7(), venueId = hall, date, slot = "full_day", customerId = customer, occasion = "anniversary", guests = 80, plateRate = 500m, hallRent = 10000m, deposit = 0m })).ReadAsync<BookingDto>();
+        (await shop.PostJsonAsync($"/api/v1/jobs/{b.JobId}/advance", new { id = Guid.CreateVersion7(), amount = 20000m })).EnsureSuccessStatusCode();
+
+        var cancelled = await (await shop.PostJsonAsync($"/api/v1/bookings/{b.Id}/cancel", new { reason = "Date changed", keep = 5000m })).ReadAsync<BookingDto>();
+        Assert.Equal("cancelled", cancelled.Status);
+        Assert.Equal(-15000m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance); // ₹15,000 to give back
+        Assert.Equal(HttpStatusCode.OK, (await shop.PostJsonAsync("/api/v1/bookings", new { id = Guid.CreateVersion7(), venueId = hall, date, slot = "evening", customerId = customer, guests = 50, plateRate = 400m, hallRent = 0m, deposit = 0m })).StatusCode);
     }
 
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>

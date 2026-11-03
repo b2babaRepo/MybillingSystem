@@ -118,7 +118,8 @@ function NewJob({ shopId, onDone }: { shopId: string; onDone: (id?: string) => v
   )
 }
 
-function JobPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: () => void }) {
+/** One job's page. <paramref>embedded</paramref>: shown inside a hall booking, which has its own back, stages, final bill and cancel. */
+export function JobPage({ shopId, id, onBack, embedded = false }: { shopId: string; id: string; onBack?: () => void; embedded?: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const detail = useQuery({ queryKey: [shopId, 'job', id], queryFn: () => api<{ job: Job; entries: Entry[]; overhead: number }>(`/v1/jobs/${id}`) })
@@ -159,8 +160,8 @@ function JobPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: (
   )
 
   return (
-    <div className="flex flex-col gap-3 p-4 pb-28">
-      <button onClick={onBack} className="min-h-11 self-start font-semibold text-teal-700">← {t('jobs.all')}</button>
+    <div className={embedded ? "flex flex-col gap-3" : "flex flex-col gap-3 p-4 pb-28"}>
+      {!embedded && <button onClick={onBack} className="min-h-11 self-start font-semibold text-teal-700">← {t('jobs.all')}</button>}
       <div className="rounded-[18px] bg-white p-4">
         <h2 className="text-lg font-bold">#{job.number} {job.title}</h2>
         <p className="text-sm text-muted">{t(`jobs.status.${job.status}`)}{job.customerName ? ` · ${job.customerName}` : ''}{job.dueOn ? ` · ${t('jobs.due', { date: job.dueOn })}` : ''}</p>
@@ -189,8 +190,8 @@ function JobPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: (
           <Button tone="plain" onClick={() => setForm('material')}>{t('jobs.useMaterial')}</Button>
           <Button tone="plain" onClick={() => setForm('labour')}>{t('jobs.payKarigar')}</Button>
           <Button tone="plain" onClick={() => setForm('other')}>{t('jobs.otherSpend')}</Button>
-          {NEXT[job.status] && <Button tone="plain" onClick={() => void run('/status', { status: NEXT[job.status] })}>{t('jobs.moveTo', { status: t(`jobs.status.${NEXT[job.status]}`) })}</Button>}
-          <Button onClick={() => { setForm('deliver'); setF({ ...f, amount: String(job.customerId ? 0 : job.price) }) }}>{t('jobs.deliver')}</Button>
+          {!embedded && NEXT[job.status] && <Button tone="plain" onClick={() => void run('/status', { status: NEXT[job.status] })}>{t('jobs.moveTo', { status: t(`jobs.status.${NEXT[job.status]}`) })}</Button>}
+          {!embedded && <Button onClick={() => { setForm('deliver'); setF({ ...f, amount: String(job.customerId ? 0 : job.price) }) }}>{t('jobs.deliver')}</Button>}
         </div>
       )}
 
@@ -233,7 +234,7 @@ function JobPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: (
           </li>
         ))}
       </ul>
-      {open && <button onClick={() => { if (confirm(t('jobs.cancelConfirm'))) void run('/status', { status: 'cancelled' }) }} className="min-h-11 text-sm font-semibold text-due">{t('jobs.cancelJob')}</button>}
+      {open && !embedded && <button onClick={() => { if (confirm(t('jobs.cancelConfirm'))) void run('/status', { status: 'cancelled' }) }} className="min-h-11 text-sm font-semibold text-due">{t('jobs.cancelJob')}</button>}
     </div>
   )
 }

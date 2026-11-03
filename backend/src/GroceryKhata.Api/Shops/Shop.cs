@@ -108,4 +108,6 @@ public enum ShopType
     Electrical,
     /// <summary>Plywood, timber, laminates and fittings; carpenters bring customers. Workshops making furniture too.</summary>
     Woodwork,
+    /// <summary>Banquet hall, marriage garden or party hall: books dates for weddings, birthdays and anniversaries.</summary>
+    Banquet,
 }
