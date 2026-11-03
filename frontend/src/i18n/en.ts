@@ -898,6 +898,12 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  returns: {
+    link: 'Expiry returns to distributors', discount: 'Trade discount %', title: 'Return to a distributor', hint: 'Pick near-expiry or expired batches to send back. Stock leaves now; what you owe the distributor comes down when their credit note arrives.',
+    supplier: 'Distributor', chooseSupplier: 'Choose the distributor', send: 'Send back', sent: 'Return saved. Waiting for the credit note.', open: 'Waiting for credit notes ({{count}})', none: 'No returns waiting.',
+    line: '#{{number}} · {{supplier}} · {{days}} days', creditNo: 'Credit note no.', creditAmount: 'Credit amount', settle: 'Credit note received', settled: 'Settled. The distributor’s due came down.',
+    qty: 'Qty to return', settledList: 'Settled', loss: 'Loss {{value}}',
+  },
   rx: {
     badge: 'Sch {{schedule}}', needed: 'Prescription medicine: enter the doctor and patient.', neededH1: 'Schedule H1/X: enter the doctor (with address) and patient. It goes in the H1 register.',
     doctor: 'Doctor’s name', regNo: 'Doctor’s reg. no.', doctorAddress: 'Doctor’s address', doctorAddressRequired: 'Doctor’s address (needed)', patient: 'Patient’s name', patientAddress: 'Patient’s address',

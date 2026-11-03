@@ -122,18 +122,7 @@ public static class Batches
         var cost = request.CostPrice is { } paid ? decimal.Round(paid * request.Quantity / units, 2, MidpointRounding.AwayFromZero) : (decimal?)null;
         var now = clock.GetUtcNow();
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var batch = await db.ProductBatches.SingleOrDefaultAsync(b => b.ProductId == productId && b.BatchNo == batchNo && b.Expiry == expiry, ct);
-        if (batch is null)
-        {
-            batch = new ProductBatch { ProductId = productId, BatchNo = batchNo, Expiry = expiry, Mrp = request.Mrp, CostPrice = cost, ReceivedAt = now };
-            db.ProductBatches.Add(batch);
-        }
-        else
-        {
-            (batch.Mrp, batch.CostPrice) = (request.Mrp, cost ?? batch.CostPrice);
-        }
-
-        batch.Quantity += units;
+        await AddToBatchAsync(db, productId, batchNo, expiry, request.Mrp, cost, units, now, ct);
         db.StockMovements.Add(new StockMovement
         {
             Id = request.Id, ProductId = productId, Kind = StockMovementKind.Purchase, Quantity = units, CostPrice = cost,
@@ -145,6 +134,29 @@ public static class Batches
         await db.Products.Where(p => p.Id == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Stock, p => p.Stock + units), ct);
         await transaction.CommitAsync(ct);
         return await ListAsync(productId, db, clock, ct);
+    }
+
+    /// <summary>"2027-05" → 31 May 2027 (packs are good to the end of the month), or null when it isn't a month.</summary>
+    public static DateOnly? ParseExpiry(string? month) =>
+        DateOnly.TryParseExact($"{month}-01", "yyyy-MM-dd", out var first) ? first.AddMonths(1).AddDays(-1) : null;
+
+    /// <summary>Adds units to a batch on the shelf (same number and expiry), or starts one. The caller moves the item's stock.</summary>
+    public static async Task<ProductBatch> AddToBatchAsync(AppDbContext db, Guid productId, string batchNo, DateOnly expiry, decimal mrp, decimal? cost, decimal units, DateTimeOffset now, CancellationToken ct)
+    {
+        var batch = db.ProductBatches.Local.SingleOrDefault(b => b.ProductId == productId && b.BatchNo == batchNo && b.Expiry == expiry)
+            ?? await db.ProductBatches.SingleOrDefaultAsync(b => b.ProductId == productId && b.BatchNo == batchNo && b.Expiry == expiry, ct);
+        if (batch is null)
+        {
+            batch = new ProductBatch { ProductId = productId, BatchNo = batchNo, Expiry = expiry, Mrp = mrp, CostPrice = cost, ReceivedAt = now };
+            db.ProductBatches.Add(batch);
+        }
+        else
+        {
+            (batch.Mrp, batch.CostPrice) = (mrp, cost ?? batch.CostPrice);
+        }
+
+        batch.Quantity += units;
+        return batch;
     }
 
     /// <summary>Batches expired or expiring within <paramref name="days"/> (90 by default), soonest first, with their value at cost: what to return to the distributor.</summary>

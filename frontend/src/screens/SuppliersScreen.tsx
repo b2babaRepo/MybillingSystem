@@ -5,10 +5,12 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
+import { shopTypes, useShopSettings } from '../lib/reports'
 
 interface Supplier { id: string; name: string; phone: string | null; due: number }
 interface Detail { supplier: Supplier; entries: { id: string; amount: number; purchaseId: string | null; note: string | null; occurredAt: string; cancelled: boolean }[] }
-interface Row { productId: string; quantity: string; unitCost: string }
+/** Medicines also carry batch, expiry month (yyyy-mm), MRP, free units (scheme) and trade discount %. */
+interface Row { productId: string; quantity: string; unitCost: string; batchNo: string; expiry: string; mrp: string; free: string; discount: string }
 
 /** Who the shop buys from and what it owes them: add a supplier's bill (stock goes up), or pay them. Needs a connection. */
 export function SuppliersScreen({ shopId }: { shopId: string }) {
@@ -65,15 +67,17 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
   const queryClient = useQueryClient()
   const { products } = useProducts(shopId)
   const detail = useQuery({ queryKey: [shopId, 'suppliers', id], queryFn: () => api<Detail>(`/v1/suppliers/${id}`) })
-  const empty: Row = { productId: '', quantity: '', unitCost: '' }
+  const empty: Row = { productId: '', quantity: '', unitCost: '', batchNo: '', expiry: '', mrp: '', free: '', discount: '' }
+  const medical = shopTypes(useShopSettings(shopId).data).includes('medical')
   const [rows, setRows] = useState<Row[]>([empty])
   const [billNo, setBillNo] = useState('')
   const [paid, setPaid] = useState('')
   const [pay, setPay] = useState('')
   const [mode, setMode] = useState<'cash' | 'upi'>('cash')
   const [message, setMessage] = useState('')
-  const valid = rows.filter((r) => r.productId && Number(r.quantity) > 0 && r.unitCost !== '')
-  const total = valid.reduce((sum, r) => sum + Number(r.quantity) * Number(r.unitCost), 0)
+  const valid = rows.filter((r) => r.productId && Number(r.quantity) > 0 && r.unitCost !== '' && (!medical || !r.batchNo.trim() || (r.expiry && Number(r.mrp) > 0)))
+  const lineTotal = (r: Row) => Math.round(Number(r.quantity) * Number(r.unitCost) * (100 - (Number(r.discount) || 0))) / 100
+  const total = valid.reduce((sum, r) => sum + lineTotal(r), 0)
 
   async function run(action: () => Promise<unknown>) {
     setMessage('')
@@ -90,7 +94,10 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
   const saveBill = () => run(async () => {
     await api('/v1/suppliers/purchases', 'POST', {
       id: crypto.randomUUID(), supplierId: id, billNo: billNo.trim() || null, paidAmount: Number(paid) || 0, paymentMode: mode,
-      lines: valid.map((r) => ({ productId: r.productId, quantity: Number(r.quantity), unitCost: Number(r.unitCost) })),
+      lines: valid.map((r) => ({
+        productId: r.productId, quantity: Number(r.quantity), unitCost: Number(r.unitCost), freeQuantity: Number(r.free) || 0, discountPercent: Number(r.discount) || 0,
+        ...(r.batchNo.trim() ? { batchNo: r.batchNo.trim(), expiryMonth: r.expiry, mrp: Number(r.mrp) } : {}),
+      })),
     })
     setRows([empty])
     setBillNo('')
@@ -136,10 +143,19 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
           <div key={i} className="grid grid-cols-2 gap-2">
             <select aria-label={t('suppliers.item')} value={r.productId} onChange={(e) => set(i, 'productId', e.target.value)} className={`${input} col-span-2`}>
               <option value="">{t('suppliers.item')}</option>
-              {products.filter((p) => p.id === r.productId || !rows.some((x) => x.productId === p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {products.filter((p) => !p.isService && (medical || p.id === r.productId || !rows.some((x) => x.productId === p.id))).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <input aria-label={t('suppliers.qty')} placeholder={t('suppliers.qty')} value={r.quantity} onChange={(e) => set(i, 'quantity', e.target.value)} inputMode="decimal" className={input} />
             <input aria-label={t('suppliers.cost')} placeholder={t('suppliers.cost')} value={r.unitCost} onChange={(e) => set(i, 'unitCost', e.target.value)} inputMode="decimal" className={input} />
+            {medical && (
+              <>
+                <input aria-label={t('batches.batchNo')} placeholder={t('batches.batchNo')} value={r.batchNo} onChange={(e) => set(i, 'batchNo', e.target.value)} className={input} />
+                <input aria-label={t('batches.expiry')} type="month" value={r.expiry} onChange={(e) => set(i, 'expiry', e.target.value)} className={input} />
+                <input aria-label="MRP" placeholder="MRP" value={r.mrp} onChange={(e) => set(i, 'mrp', e.target.value)} inputMode="decimal" className={input} />
+                <input aria-label={t('batches.free')} placeholder={t('batches.free')} value={r.free} onChange={(e) => set(i, 'free', e.target.value)} inputMode="decimal" className={input} />
+                <input aria-label={t('returns.discount')} placeholder={t('returns.discount')} value={r.discount} onChange={(e) => set(i, 'discount', e.target.value)} inputMode="decimal" className={`${input} col-span-2`} />
+              </>
+            )}
           </div>
         ))}
         <button onClick={() => setRows([...rows, empty])} className="min-h-11 font-semibold text-teal-700">+ {t('suppliers.addRow')}</button>

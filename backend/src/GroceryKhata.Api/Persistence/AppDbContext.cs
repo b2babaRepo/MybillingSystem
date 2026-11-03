@@ -56,6 +56,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<PurchaseLine> PurchaseLines => Set<PurchaseLine>();
 
+    public DbSet<SupplierReturn> SupplierReturns => Set<SupplierReturn>();
+
+    public DbSet<SupplierReturnLine> SupplierReturnLines => Set<SupplierReturnLine>();
+
     public DbSet<SupplierEntry> SupplierEntries => Set<SupplierEntry>();
 
     public DbSet<Billing.GatewayOrder> GatewayOrders => Set<Billing.GatewayOrder>();
@@ -566,6 +570,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("purchase_lines");
             b.HasTenantKey();
             b.Property(l => l.Quantity).HasPrecision(12, 3);
+            b.Property(l => l.UnitCost).HasPrecision(12, 2);
+            b.Property(l => l.FreeQuantity).HasPrecision(12, 3);
+            b.Property(l => l.DiscountPercent).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<SupplierReturn>(b =>
+        {
+            b.ToTable("supplier_returns");
+            b.HasTenantKey();
+            b.Property(r => r.Value).HasPrecision(12, 2);
+            b.Property(r => r.CreditAmount).HasPrecision(12, 2);
+            b.Property(r => r.CreditNoteNo).HasMaxLength(40);
+            b.HasMany(r => r.Lines).WithOne().HasForeignKey(l => l.ReturnId);
+            b.HasIndex(r => new { r.ShopId, r.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<SupplierReturnLine>(b =>
+        {
+            b.ToTable("supplier_return_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Quantity).HasPrecision(14, 3);
             b.Property(l => l.UnitCost).HasPrecision(12, 2);
         });
 

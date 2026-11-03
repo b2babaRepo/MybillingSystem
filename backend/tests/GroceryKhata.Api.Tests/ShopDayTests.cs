@@ -744,6 +744,50 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Distributor_bills_bring_batches_with_schemes_and_expiry_returns_wait_for_the_credit_note()
+    {
+        var shop = await SignUpAsync("medical");
+        var med = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = med, name = "Cetirizine (strip)", unit = "piece", sellingPrice = 30m, gstRate = 5m, hsnCode = "3004" })).EnsureSuccessStatusCode();
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Shree Pharma Distributors" })).EnsureSuccessStatusCode();
+        string Month(int add) => DateTime.Today.AddMonths(add).ToString("yyyy-MM");
+
+        // Batch A: 10 + 1 free at ₹22, 10% trade discount = ₹198 → ₹18 a strip. Batch B: 5 at ₹20 = ₹100.
+        var bill = new
+        {
+            id = Guid.CreateVersion7(), supplierId = supplier, billNo = "SPD/881", paidAmount = 0m, paymentMode = "cash",
+            lines = new object[]
+            {
+                new { productId = med, quantity = 10m, unitCost = 22m, freeQuantity = 1m, discountPercent = 10m, batchNo = "a1", expiryMonth = Month(2), mrp = 35m },
+                new { productId = med, quantity = 5m, unitCost = 20m, batchNo = "B2", expiryMonth = Month(9), mrp = 36m },
+            },
+        };
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { bill.id, bill.supplierId, bill.paidAmount, lines = new[] { new { productId = med, quantity = 5m, unitCost = 20m, batchNo = "C3", expiryMonth = Month(3) } } })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", bill)).EnsureSuccessStatusCode();
+        Assert.Equal(298m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
+        var item = await Item(shop, med);
+        Assert.Equal((16m, 36m), (item.Stock, item.SellingPrice));
+        var batches = await shop.GetJsonAsync<List<BatchDto>>($"/api/v1/products/{med}/batches");
+        Assert.Equal(("A1", 11m, 18m), (batches[0].BatchNo, batches[0].Quantity, batches[0].CostPrice));
+
+        // Batch A is near expiry: 6 strips go back (worth ₹108). The due stays until the credit note comes.
+        var returnId = Guid.CreateVersion7();
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/suppliers/returns", new { id = returnId, supplierId = supplier, lines = new[] { new { batchId = batches[0].Id, quantity = 20m } } })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/suppliers/returns", new { id = returnId, supplierId = supplier, lines = new[] { new { batchId = batches[0].Id, quantity = 6m } } })).EnsureSuccessStatusCode();
+        Assert.Equal(10m, (await Item(shop, med)).Stock);
+        var open = Assert.Single(await shop.GetJsonAsync<List<SupplierReturnDto>>("/api/v1/suppliers/returns"));
+        Assert.Equal((108m, (decimal?)null), (open.Value, open.CreditAmount));
+        Assert.Equal(298m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
+
+        // The credit note gives ₹100: the due comes down, ₹8 is the expiry loss.
+        (await shop.PostJsonAsync($"/api/v1/suppliers/returns/{returnId}/credit-note", new { creditNoteNo = "CN-42", amount = 100m })).EnsureSuccessStatusCode();
+        Assert.Empty(await shop.GetJsonAsync<List<SupplierReturnDto>>("/api/v1/suppliers/returns"));
+        Assert.Equal(8m, Assert.Single(await shop.GetJsonAsync<List<SupplierReturnDto>>("/api/v1/suppliers/returns?all=true")).Loss);
+        Assert.Equal(198m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
+    }
+
+    [Fact]
     public async Task Services_use_their_products_from_stock_and_client_cards_keep_the_formula()
     {
         var shop = await SignUpAsync("beauty");

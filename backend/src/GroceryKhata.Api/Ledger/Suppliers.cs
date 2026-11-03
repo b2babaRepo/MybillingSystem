@@ -50,6 +50,15 @@ public sealed class PurchaseLine : Entity, ITenantOwned
     public decimal Quantity { get; set; }
 
     public decimal UnitCost { get; set; }
+
+    /// <summary>Free units on a scheme (10+1): they come into stock at no cost, lowering each unit's real cost.</summary>
+    public decimal FreeQuantity { get; set; }
+
+    /// <summary>Trade discount % off the rate.</summary>
+    public decimal DiscountPercent { get; set; }
+
+    /// <summary>Medicines: the batch these units went into.</summary>
+    public Guid? BatchId { get; set; }
 }
 
 /// <summary>The supplier's khata, append-only: + a bill, − a payment. What the shop owes is the sum.</summary>
@@ -78,7 +87,12 @@ public sealed record SupplierEntryDto(Guid Id, decimal Amount, Guid? PurchaseId,
 
 public sealed record SupplierDetail(SupplierDto Supplier, IReadOnlyList<SupplierEntryDto> Entries);
 
-public sealed record PurchaseLineRequest(Guid ProductId, decimal Quantity, decimal UnitCost);
+/// <summary>
+/// <see cref="UnitCost"/>: the rate (PTR) per unit. Medicines also send the batch, expiry month ("2027-05") and MRP;
+/// <see cref="FreeQuantity"/> and <see cref="DiscountPercent"/> are the distributor's scheme and trade discount.
+/// </summary>
+public sealed record PurchaseLineRequest(
+    Guid ProductId, decimal Quantity, decimal UnitCost, decimal FreeQuantity = 0, decimal DiscountPercent = 0, string? BatchNo = null, string? ExpiryMonth = null, decimal? Mrp = null);
 
 /// <summary><see cref="Id"/> is made by the app, so a repeated tap saves once.</summary>
 public sealed record PurchaseRequest(Guid Id, Guid SupplierId, string? BillNo, IReadOnlyList<PurchaseLineRequest>? Lines, decimal PaidAmount, PaymentMode? PaymentMode);
@@ -149,12 +163,23 @@ public static class SupplierEndpoints
 
         var lines = request.Lines ?? [];
         var products = await db.Products.Where(p => lines.Select(l => l.ProductId).Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        var total = lines.Sum(l => Money.LineAmount(l.Quantity, l.UnitCost));
-        if (request.Id == Guid.Empty || lines.Count is 0 or > 200 || lines.Select(l => l.ProductId).Distinct().Count() != lines.Count
-            || lines.Any(l => !products.ContainsKey(l.ProductId) || !Money.IsValidQuantity(l.Quantity) || l.UnitCost < 0 || l.UnitCost > Money.MaxAmount || decimal.Round(l.UnitCost, 2) != l.UnitCost)
+        var total = lines.Sum(LineTotal);
+        // A product can come in two batches on one bill, but not the same batch twice.
+        if (request.Id == Guid.Empty || lines.Count is 0 or > 200 || lines.Select(l => (l.ProductId, l.BatchNo?.Trim().ToUpperInvariant())).Distinct().Count() != lines.Count
+            || lines.Any(l => !products.ContainsKey(l.ProductId) || !Money.IsValidQuantity(l.Quantity) || l.UnitCost < 0 || l.UnitCost > Money.MaxAmount || decimal.Round(l.UnitCost, 2) != l.UnitCost
+                || l.FreeQuantity < 0 || (l.FreeQuantity > 0 && !Money.IsValidQuantity(l.FreeQuantity)) || l.DiscountPercent is < 0 or >= 100)
             || total <= 0 || request.PaidAmount < 0 || request.PaidAmount > total || !await db.Suppliers.AnyAsync(s => s.Id == request.SupplierId, ct))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = ["Check the supplier, items, quantities, costs and amount paid."] });
+        }
+
+        var today = DateOnly.FromDateTime(clock.GetUtcNow().ToOffset(IndiaTime.Offset).DateTime);
+        foreach (var l in lines.Where(l => !string.IsNullOrWhiteSpace(l.BatchNo)))
+        {
+            var name = products[l.ProductId].Name;
+            if (l.BatchNo!.Trim().Length > 30) return Invalid("Lines", $"{name}: the batch number is too long.");
+            if (Batches.ParseExpiry(l.ExpiryMonth) is not { } expiry || expiry < today) return Invalid("Lines", $"{name}: enter an expiry month that hasn't passed.");
+            if (l.Mrp is not { } mrp || mrp <= 0 || !Money.IsValidAmount(mrp)) return Invalid("Lines", $"{name}: enter the MRP for batch {l.BatchNo.Trim()}.");
         }
 
         var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
@@ -163,21 +188,37 @@ public static class SupplierEndpoints
         db.Purchases.Add(new Purchase
         {
             Id = request.Id, SupplierId = request.SupplierId, BillNo = string.IsNullOrEmpty(billNo) ? null : billNo[..Math.Min(billNo.Length, 40)], Total = total, OccurredAt = now, CreatedByUserId = userId,
-            Lines = lines.Select(l => new PurchaseLine { ProductId = l.ProductId, Quantity = l.Quantity, UnitCost = l.UnitCost }).ToList(),
         });
         db.SupplierEntries.Add(new SupplierEntry { SupplierId = request.SupplierId, Amount = total, PurchaseId = request.Id, Note = billNo, OccurredAt = now, CreatedByUserId = userId });
+        var purchase = db.Purchases.Local.Single(p => p.Id == request.Id);
+        var added = new Dictionary<Guid, decimal>();
         foreach (var line in lines)
         {
             var product = products[line.ProductId];
-            var held = Math.Max(0, product.Stock);
+            var units = line.Quantity + line.FreeQuantity;
+            // What one unit really cost: the line's amount over paid and free units together.
+            var unitCost = decimal.Round(LineTotal(line) / units, 2, MidpointRounding.AwayFromZero);
+            var held = Math.Max(0, product.Stock + added.GetValueOrDefault(line.ProductId));
             product.CostPrice = product.CostPrice is { } cost && held > 0
-                ? decimal.Round(((held * cost) + (line.Quantity * line.UnitCost)) / (held + line.Quantity), 2)
-                : line.UnitCost;
+                ? decimal.Round(((held * cost) + (units * unitCost)) / (held + units), 2)
+                : unitCost;
+            ProductBatch? batch = null;
+            if (!string.IsNullOrWhiteSpace(line.BatchNo))
+            {
+                batch = await Batches.AddToBatchAsync(db, line.ProductId, line.BatchNo.Trim().ToUpperInvariant(), Batches.ParseExpiry(line.ExpiryMonth)!.Value, line.Mrp!.Value, unitCost, units, now, ct);
+                product.SellingPrice = line.Mrp!.Value;
+            }
+
+            purchase.Lines.Add(new PurchaseLine
+            {
+                ProductId = line.ProductId, Quantity = line.Quantity, UnitCost = line.UnitCost, FreeQuantity = line.FreeQuantity, DiscountPercent = line.DiscountPercent, BatchId = batch?.Id,
+            });
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = line.Quantity, CostPrice = line.UnitCost,
-                OccurredAt = now, CreatedByUserId = userId, Note = "Supplier bill",
+                ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = units, CostPrice = unitCost,
+                OccurredAt = now, CreatedByUserId = userId, Note = batch is null ? "Supplier bill" : $"Supplier bill · batch {batch.BatchNo}",
             });
+            added[line.ProductId] = added.GetValueOrDefault(line.ProductId) + units;
         }
 
         if (request.PaidAmount > 0)
@@ -186,12 +227,18 @@ public static class SupplierEndpoints
         }
 
         await db.SaveChangesAsync(ct);
-        var ids = lines.OrderBy(l => l.ProductId).Select(l => l.ProductId).ToArray();
-        var quantities = lines.OrderBy(l => l.ProductId).Select(l => l.Quantity).ToArray();
+        var ids = added.Keys.Order().ToArray();
+        var quantities = ids.Select(i => added[i]).ToArray();
         await db.Database.ExecuteSqlAsync($"UPDATE products AS p SET stock = p.stock + v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", ct);
         await transaction.CommitAsync(ct);
         return TypedResults.Ok(new { request.Id });
     }
+
+    private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
+
+    /// <summary>What the line costs: paid units at the rate, less the trade discount. Free units cost nothing.</summary>
+    private static decimal LineTotal(PurchaseLineRequest l) =>
+        decimal.Round(l.Quantity * l.UnitCost * (100 - l.DiscountPercent) / 100, 2, MidpointRounding.AwayFromZero);
 
     private static async Task<IResult> ChangeAsync(Guid id, SupplierRequest request, AppDbContext db, CancellationToken ct)
     {
@@ -236,15 +283,21 @@ public static class SupplierEndpoints
         {
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -line.Quantity, OccurredAt = now,
+                ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -(line.Quantity + line.FreeQuantity), OccurredAt = now,
                 CreatedByUserId = userId, Note = "Supplier bill cancelled",
             });
+            if (line.BatchId is { } batchId)
+            {
+                // Whatever of the batch is left goes back; units already sold stay sold.
+                var units = line.Quantity + line.FreeQuantity;
+                await db.ProductBatches.Where(b => b.Id == batchId).ExecuteUpdateAsync(s => s.SetProperty(b => b.Quantity, b => b.Quantity > units ? b.Quantity - units : 0), ct);
+            }
         }
 
         await db.SaveChangesAsync(ct);
-        var lines = purchase.Lines.OrderBy(l => l.ProductId).ToList();
-        var ids = lines.Select(l => l.ProductId).ToArray();
-        var quantities = lines.Select(l => l.Quantity).ToArray();
+        var byProduct = purchase.Lines.GroupBy(l => l.ProductId).OrderBy(g => g.Key).ToList();
+        var ids = byProduct.Select(g => g.Key).ToArray();
+        var quantities = byProduct.Select(g => g.Sum(l => l.Quantity + l.FreeQuantity)).ToArray();
         await db.Database.ExecuteSqlAsync($"UPDATE products AS p SET stock = p.stock - v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", ct);
         await transaction.CommitAsync(ct);
         return TypedResults.NoContent();
