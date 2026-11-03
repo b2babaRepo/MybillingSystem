@@ -62,10 +62,10 @@ export interface ShopSettings {
   extraTypes?: ShopType[] | null
 }
 
-export type ShopType = 'kirana' | 'water_supply' | 'beauty' | 'sweets' | 'toys' | 'clothes' | 'building_materials' | 'paint' | 'hardware' | 'electrical' | 'woodwork' | 'banquet' | 'restaurant' | 'other'
-export const SHOP_TYPES: ShopType[] = ['kirana', 'water_supply', 'beauty', 'sweets', 'toys', 'clothes', 'building_materials', 'paint', 'hardware', 'electrical', 'woodwork', 'banquet', 'restaurant', 'other']
+export type ShopType = 'kirana' | 'water_supply' | 'beauty' | 'sweets' | 'toys' | 'clothes' | 'building_materials' | 'paint' | 'hardware' | 'electrical' | 'woodwork' | 'banquet' | 'restaurant' | 'lodge' | 'other'
+export const SHOP_TYPES: ShopType[] = ['kirana', 'water_supply', 'beauty', 'sweets', 'toys', 'clothes', 'building_materials', 'paint', 'hardware', 'electrical', 'woodwork', 'banquet', 'restaurant', 'lodge', 'other']
 /** Trades with a starter list of common items. */
-export const STARTER_TYPES: ShopType[] = ['kirana', 'water_supply', 'beauty', 'sweets', 'toys', 'clothes', 'building_materials', 'paint', 'hardware', 'electrical', 'woodwork', 'banquet', 'restaurant']
+export const STARTER_TYPES: ShopType[] = ['kirana', 'water_supply', 'beauty', 'sweets', 'toys', 'clothes', 'building_materials', 'paint', 'hardware', 'electrical', 'woodwork', 'banquet', 'restaurant', 'lodge']
 const TRADE_TYPES: ShopType[] = ['building_materials', 'paint', 'hardware', 'electrical', 'woodwork']
 /** Trades where a fitter (painter, electrician, carpenter) brings customers for a commission. */
 export const COMMISSION_TYPES: ShopType[] = ['paint', 'electrical', 'woodwork']

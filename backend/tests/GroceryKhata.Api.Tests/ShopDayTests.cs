@@ -15,7 +15,7 @@ namespace GroceryKhata.Api.Tests;
 [Collection(ApiCollection.Name)]
 public sealed class ShopDayTests(ApiFactory api)
 {
-    public static TheoryData<string> Trades => ["water_supply", "beauty", "sweets", "toys", "clothes", "building_materials", "paint", "hardware", "electrical", "woodwork", "banquet", "restaurant"];
+    public static TheoryData<string> Trades => ["water_supply", "beauty", "sweets", "toys", "clothes", "building_materials", "paint", "hardware", "electrical", "woodwork", "banquet", "restaurant", "lodge"];
 
     [Theory]
     [MemberData(nameof(Trades))]
@@ -483,6 +483,38 @@ public sealed class ShopDayTests(ApiFactory api)
         var day = await shop.GetJsonAsync<TableDayDto>($"/api/v1/table-bookings?date={date:yyyy-MM-dd}");
         Assert.Equal((2, 16), (day.Bookings.Count, day.People));
         Assert.Equal("Walk-in Mehta", day.Bookings[0].Name); // 7:30 before 8:00
+    }
+
+    [Fact]
+    public async Task A_room_stay_is_never_double_booked_and_checks_out_on_one_bill()
+    {
+        var shop = await SignUpAsync("lodge");
+        var room = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/rooms", new { id = room, name = "101", kind = "Deluxe", rate = 2000m })).EnsureSuccessStatusCode();
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Mr Kapoor");
+        var today = DateOnly.FromDateTime(DateTime.Today);
+
+        var id = Guid.CreateVersion7();
+        var stay = await (await shop.PostJsonAsync("/api/v1/stays", new { id, roomId = room, checkIn = today, checkOut = today.AddDays(3), customerId = customer, guests = 2, commission = 900m, source = "make_my_trip", sourceRef = "MMT123", foreigner = true })).ReadAsync<StayDto>();
+        Assert.Equal((3, 6000m), (stay.Nights, stay.RoomTotal));
+        // Night 2 is taken; the morning it frees up, the room can be booked again.
+        Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync("/api/v1/stays", new { id = Guid.CreateVersion7(), roomId = room, checkIn = today.AddDays(2), checkOut = today.AddDays(4), guestName = "Late guest", guests = 1 })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/stays", new { id = Guid.CreateVersion7(), roomId = room, checkIn = today.AddDays(3), checkOut = today.AddDays(4), guestName = "Next guest", guests = 1 })).EnsureSuccessStatusCode();
+
+        // Check-in keeps only the last four of the ID; a foreign guest's Form C is due until marked filed.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/stays/{id}/check-in", new { idType = "Passport" })).StatusCode);
+        stay = await (await shop.PostJsonAsync($"/api/v1/stays/{id}/check-in", new { idType = "Passport", idNumber = "Z1234567" })).ReadAsync<StayDto>();
+        Assert.Equal((StayStatus.CheckedIn, "4567", true), (stay.Status, stay.IdLast4, stay.FormCDue));
+        Assert.False((await (await shop.PostJsonAsync($"/api/v1/stays/{id}/form-c", new { })).ReadAsync<StayDto>()).FormCDue);
+
+        (await shop.PostJsonAsync($"/api/v1/stays/{id}/advance", new { amount = 3000m, mode = "upi" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/stays/{id}/charges", new { id = Guid.CreateVersion7(), name = "Dinner", amount = 450m })).EnsureSuccessStatusCode();
+        stay = await (await shop.PostJsonAsync($"/api/v1/stays/{id}/checkout", new { billId = Guid.CreateVersion7(), paidAmount = 0m })).ReadAsync<StayDto>();
+        Assert.Equal((StayStatus.CheckedOut, 6450m), (stay.Status, stay.Total));
+        Assert.NotNull(stay.BillId);
+        Assert.Equal(3450m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance); // 6,450 less the 3,000 advance
+        var kharcha = await shop.GetJsonAsync<ExpensePageDto>("/api/v1/expenses");
+        Assert.Contains(kharcha.Lines, e => e.Amount == 900m && e.Note!.Contains("MMT123"));
     }
 
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>

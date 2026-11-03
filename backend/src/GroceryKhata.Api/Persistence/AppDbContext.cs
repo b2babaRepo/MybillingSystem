@@ -116,6 +116,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<TableBooking> TableBookings => Set<TableBooking>();
 
+    public DbSet<Room> Rooms => Set<Room>();
+
+    public DbSet<Stay> Stays => Set<Stay>();
+
+    public DbSet<StayCharge> StayCharges => Set<StayCharge>();
+
     public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
@@ -587,6 +593,40 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(x => x.Deposit).HasPrecision(12, 2);
             b.HasIndex(x => new { x.ShopId, x.Number }).IsUnique();
             b.HasIndex(x => new { x.ShopId, x.Date });
+        });
+
+        modelBuilder.Entity<Room>(b =>
+        {
+            b.ToTable("rooms");
+            b.HasTenantKey();
+            b.Property(r => r.Name).HasMaxLength(30);
+            b.Property(r => r.Kind).HasMaxLength(40);
+            b.Property(r => r.Rate).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<Stay>(b =>
+        {
+            b.ToTable("stays");
+            b.HasTenantKey();
+            b.Property(s => s.GuestName).HasMaxLength(80);
+            b.Property(s => s.Phone).HasMaxLength(20);
+            b.Property(s => s.IdType).HasMaxLength(30);
+            b.Property(s => s.IdLast4).HasMaxLength(4);
+            b.Property(s => s.SourceRef).HasMaxLength(40);
+            b.Property(s => s.Note).HasMaxLength(200);
+            b.Property(s => s.Rate).HasPrecision(12, 2);
+            b.Property(s => s.Commission).HasPrecision(12, 2);
+            b.HasMany(s => s.Charges).WithOne().HasForeignKey(c => c.StayId);
+            b.HasIndex(s => new { s.ShopId, s.Number }).IsUnique();
+            b.HasIndex(s => new { s.ShopId, s.RoomId, s.CheckIn });
+        });
+
+        modelBuilder.Entity<StayCharge>(b =>
+        {
+            b.ToTable("stay_charges");
+            b.HasTenantKey();
+            b.Property(c => c.Name).HasMaxLength(60);
+            b.Property(c => c.Amount).HasPrecision(12, 2);
         });
 
         modelBuilder.Entity<Machine>(b =>

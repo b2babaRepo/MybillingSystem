@@ -23,6 +23,7 @@ public static class StarterItems
         ShopType.Woodwork => Woodwork,
         ShopType.Banquet => Banquet,
         ShopType.Restaurant => Restaurant,
+        ShopType.Lodge => Lodge,
         _ => [],
     };
 
@@ -199,6 +200,20 @@ public static class StarterItems
         Item("Gulab jamun (2 pc)", "Sweets", Unit.Piece, null, null),
         Item("Birthday cake (per kg)", "Party", Unit.Kg, null, null),
         Item("Party decoration", "Party", Unit.Piece, null, null),
+    ];
+
+    // Extras a lodge adds to a room bill. Room GST depends on the night's rate (a CA sets it), so rates are left empty.
+    private static readonly ImportRow[] Lodge =
+    [
+        Item("Extra bed (per night)", "Room extras", Unit.Piece, null, null),
+        Item("Early check-in", "Room extras", Unit.Piece, null, null),
+        Item("Late check-out", "Room extras", Unit.Piece, null, null),
+        Item("Laundry (per piece)", "Services", Unit.Piece, null, null),
+        Item("Breakfast", "Food", Unit.Piece, null, null),
+        Item("Lunch / dinner thali", "Food", Unit.Piece, null, null),
+        Item("Tea / coffee", "Food", Unit.Piece, null, null),
+        Item("Mineral water 1 L", "Food", Unit.Piece, null, null),
+        Item("Airport / station pickup", "Services", Unit.Piece, null, null),
     ];
 
     private static readonly ImportRow[] Electrical =

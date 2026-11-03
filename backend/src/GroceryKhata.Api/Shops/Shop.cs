@@ -112,4 +112,6 @@ public enum ShopType
     Banquet,
     /// <summary>Restaurant, cafe or dhaba: a menu, table bookings, birthday and anniversary parties.</summary>
     Restaurant,
+    /// <summary>Hotel, lodge, guest house or dharamshala: rooms booked by the night.</summary>
+    Lodge,
 }

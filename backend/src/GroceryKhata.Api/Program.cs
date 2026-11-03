@@ -111,6 +111,7 @@ app.MapJobs();
 app.MapWorkshop();
 app.MapBookings();
 app.MapTableBookings();
+app.MapStays();
 app.MapCashCounts();
 app.MapTrades();
 app.MapBilling();
