@@ -675,6 +675,39 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Medicines_sell_from_the_batch_expiring_first_and_expired_stock_is_never_sold()
+    {
+        var shop = await SignUpAsync("medical");
+        var med = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = med, name = "Paracetamol 500 (strip)", unit = "piece", sellingPrice = 30m, gstRate = 5m, hsnCode = "3004" })).EnsureSuccessStatusCode();
+        string Month(int add) => DateTime.Today.AddMonths(add).ToString("yyyy-MM");
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/products/{med}/batches", new { id = Guid.CreateVersion7(), batchNo = "OLD", expiryMonth = Month(-2), mrp = 30m, quantity = 5m })).StatusCode);
+        // 10 paid + 1 free at ₹22 each: ₹20 a strip really.
+        (await shop.PostJsonAsync($"/api/v1/products/{med}/batches", new { id = Guid.CreateVersion7(), batchNo = "late1", expiryMonth = Month(8), mrp = 32m, costPrice = 22m, quantity = 10m, freeQuantity = 1m })).EnsureSuccessStatusCode();
+        var batches = await (await shop.PostJsonAsync($"/api/v1/products/{med}/batches", new { id = Guid.CreateVersion7(), batchNo = "SOON1", expiryMonth = Month(1), mrp = 30m, costPrice = 20m, quantity = 3m })).ReadAsync<List<BatchDto>>();
+        Assert.Equal(("SOON1", "LATE1", 20m), (batches[0].BatchNo, batches[1].BatchNo, batches[1].CostPrice));
+        Assert.Equal(14m, (await Item(shop, med)).Stock);
+
+        // 5 strips: 3 from the batch expiring next month, 2 from the later one.
+        var bill = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = med, quantity = 5m, unitPrice = 30m } }, paidAmount = 150m, paymentMode = "cash" })).ReadAsync<BillDto>();
+        Assert.Contains("SOON1", bill.Lines[0].Batch);
+        Assert.Contains("LATE1", bill.Lines[0].Batch);
+        var left = await shop.GetJsonAsync<List<BatchDto>>($"/api/v1/products/{med}/batches");
+        Assert.Equal(("LATE1", 9m), (Assert.Single(left).BatchNo, left[0].Quantity));
+        Assert.Contains((await shop.GetJsonAsync<List<ExpiringDto>>("/api/v1/batches/expiring?days=300")), e => e.BatchNo == "LATE1");
+
+        // More than the batches hold: refused, nothing changes.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = med, quantity = 20m, unitPrice = 30m } }, paidAmount = 600m, paymentMode = "cash" })).StatusCode);
+        Assert.Equal(9m, (await Item(shop, med)).Stock);
+
+        // Cancelling the bill puts the strips back on their batches.
+        (await shop.PostJsonAsync($"/api/v1/bills/{bill.Id}/cancel", new { reason = "Wrong item" })).EnsureSuccessStatusCode();
+        Assert.Equal(2, (await shop.GetJsonAsync<List<BatchDto>>($"/api/v1/products/{med}/batches")).Count);
+        Assert.Equal(14m, (await Item(shop, med)).Stock);
+    }
+
+    [Fact]
     public async Task Services_use_their_products_from_stock_and_client_cards_keep_the_formula()
     {
         var shop = await SignUpAsync("beauty");

@@ -117,6 +117,7 @@ app.MapAppointments();
 app.MapBridal();
 app.MapSalonCards();
 app.MapPharmacyProfile();
+app.MapBatches();
 app.MapStylistPay();
 app.MapPrepaid();
 app.MapCashCounts();

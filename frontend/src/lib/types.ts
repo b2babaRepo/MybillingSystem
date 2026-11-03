@@ -180,6 +180,8 @@ export interface CashBook {
 }
 
 export interface BillLineView {
+  /** Medicines: the batches it came from, "B123 exp 05/27". */
+  batch?: string | null
   productId: string | null
   name: string
   quantity: number

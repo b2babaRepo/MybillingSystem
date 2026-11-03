@@ -136,6 +136,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<PharmacyProfile> PharmacyProfiles => Set<PharmacyProfile>();
 
+    public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
+
+    public DbSet<BatchSale> BatchSales => Set<BatchSale>();
+
     public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();
 
     public DbSet<StylistRate> StylistRates => Set<StylistRate>();
@@ -698,6 +702,26 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(s => new { s.ShopId, s.ServiceId, s.ProductId }).IsUnique();
         });
 
+        modelBuilder.Entity<ProductBatch>(b =>
+        {
+            b.ToTable("product_batches");
+            b.HasTenantKey();
+            b.Property(x => x.BatchNo).HasMaxLength(30);
+            b.Property(x => x.Mrp).HasPrecision(12, 2);
+            b.Property(x => x.CostPrice).HasPrecision(12, 2);
+            b.Property(x => x.Quantity).HasPrecision(14, 3);
+            b.HasIndex(x => new { x.ShopId, x.ProductId, x.BatchNo, x.Expiry }).IsUnique();
+            b.HasIndex(x => new { x.ShopId, x.Expiry });
+        });
+
+        modelBuilder.Entity<BatchSale>(b =>
+        {
+            b.ToTable("batch_sales");
+            b.HasTenantKey();
+            b.Property(x => x.Quantity).HasPrecision(14, 3);
+            b.HasIndex(x => new { x.ShopId, x.BillId });
+        });
+
         modelBuilder.Entity<PharmacyProfile>(b =>
         {
             b.ToTable("pharmacy_profiles");
@@ -1018,6 +1042,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(l => l.Quantity).HasPrecision(12, 3);
             b.Property(l => l.GstRate).HasPrecision(5, 2);
             b.Property(l => l.HsnCode).HasMaxLength(8);
+            b.Property(l => l.Batch).HasMaxLength(200);
             b.Property(l => l.UnitCost).HasPrecision(12, 2);
             b.Property(l => l.TaxableValue).HasPrecision(12, 2);
             b.Property(l => l.Cgst).HasPrecision(12, 2);

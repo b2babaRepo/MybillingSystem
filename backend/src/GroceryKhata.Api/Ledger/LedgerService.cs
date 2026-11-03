@@ -408,6 +408,13 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                         cancellationToken);
                 }
 
+                // Medicines kept by batch leave the batch that expires first; expired stock stops the bill.
+                if (await Catalogue.Batches.AllocateAsync(db, bill.Id, lines, sold.Select(x => x.ProductId).ToList(),
+                        DateOnly.FromDateTime(clock.GetUtcNow().ToOffset(IndiaTime.Offset).DateTime), cancellationToken) is { } shortage)
+                {
+                    return LedgerResult<BillDto>.Invalid(nameof(request.Lines), shortage);
+                }
+
                 decimal? balance = null;
                 if (bill.CustomerId is { } owingCustomerId)
                 {
@@ -420,7 +427,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 await transaction.CommitAsync(cancellationToken);
                 return LedgerResult<BillDto>.Created(new BillDto(
                     bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
-                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst)).ToList(),
+                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch)).ToList(),
                     balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, BuyerGstin: bill.BuyerGstin, BillOfSupply: bill.BillOfSupply));
             });
 
@@ -491,6 +498,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
             var quantities = sold.Select(x => x.Quantity).ToArray();
             await db.Database.ExecuteSqlAsync(
                 $"UPDATE products AS p SET stock = p.stock + v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", cancellationToken);
+            await Catalogue.Batches.RestoreAsync(db, id, cancellationToken);
         }
 
         var delta = reversals.Sum(r => r.Amount);
@@ -660,7 +668,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         return new BillDto(
             bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
             bill.Lines.OrderBy(l => l.LineNo)
-                .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst)).ToList(),
+                .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch)).ToList(),
             balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, bill.CancelledAt, bill.CancelReason, bill.BuyerGstin, bill.BillOfSupply);
     }
 

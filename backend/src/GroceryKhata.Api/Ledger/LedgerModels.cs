@@ -64,7 +64,7 @@ public sealed record LedgerEntryDto(
 public sealed record KhataEntryResponse(LedgerEntryDto Entry, decimal CustomerBalance);
 
 public sealed record BillLineDto(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Amount, decimal? GstRate = null, string? HsnCode = null,
-    decimal? TaxableValue = null, decimal? Cgst = null, decimal? Sgst = null, decimal? Igst = null);
+    decimal? TaxableValue = null, decimal? Cgst = null, decimal? Sgst = null, decimal? Igst = null, string? Batch = null);
 
 public sealed record BillDto(
     Guid Id,

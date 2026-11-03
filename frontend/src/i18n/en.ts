@@ -898,6 +898,13 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  batches: {
+    link: 'Stock by batch and expiry', receive: 'Receive a batch', medicine: 'Medicine', chooseMedicine: 'Choose a medicine', batchNo: 'Batch no.', expiry: 'Expiry (month)',
+    cost: 'Rate paid (PTR, without GST)', quantity: 'Quantity (paid)', free: 'Free (scheme)', realCost: 'With free units, each one really costs {{cost}}.', save: 'Save batch', received: 'Batch saved. Stock and MRP updated.',
+    batchLine: 'Batch {{batch}} · exp {{month}} · {{qty}} left', expired: 'Expired', daysLeft_one: '{{count}} day left', daysLeft_other: '{{count}} days left',
+    expiring: 'Expired and expiring', within: 'Within', days_one: '{{count}} day', days_other: '{{count}} days', noneExpiring: 'Nothing expiring in this time.',
+    expiringHint: 'Bills sell the batch that expires first, and never an expired one. Return these to the distributor in time.', expiredValue: 'Expired stock worth {{value}} at cost: return it to the distributor.',
+  },
   medical: {
     signUpTitle: 'Register your medical shop / chemist', homeTitle: 'Medical shop', finishSetup: 'Add your drug licence and pharmacist to finish setup.',
     retentionDue: 'Drug licence retention fee due by {{date}}. Pay it at the drug control office.', setupLink: 'Licence, pharmacist and medicines',

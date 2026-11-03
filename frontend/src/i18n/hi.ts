@@ -899,6 +899,13 @@ export const hi: Texts = {
     walkInName: 'वॉक-इन', startNow: 'अभी शुरू करें', whoDid: 'किसने किया?', tip: 'स्टाइलिस्ट की टिप (वैकल्पिक)',
     status: { booked: 'बुक', arrived: 'कुर्सी पर', done: 'हो गया, बिल बना', no_show: 'नहीं आए', cancelled: 'रद्द' },
   },
+  batches: {
+    link: 'बैच और एक्सपायरी के साथ स्टॉक', receive: 'नया बैच लें', medicine: 'दवाई', chooseMedicine: 'दवाई चुनें', batchNo: 'बैच नं.', expiry: 'एक्सपायरी (महीना)',
+    cost: 'खरीद रेट (PTR, बिना GST)', quantity: 'मात्रा (पैसे वाली)', free: 'फ़्री (स्कीम)', realCost: 'फ़्री मिलाकर हर एक असल में {{cost}} का पड़ा।', save: 'बैच सेव करें', received: 'बैच सेव हो गया। स्टॉक और MRP अपडेट हुए।',
+    batchLine: 'बैच {{batch}} · एक्स. {{month}} · {{qty}} बचे', expired: 'एक्सपायर', daysLeft_one: '{{count}} दिन बचा', daysLeft_other: '{{count}} दिन बचे',
+    expiring: 'एक्सपायर और जल्द एक्सपायर', within: 'कितने दिन में', days_one: '{{count}} दिन', days_other: '{{count}} दिन', noneExpiring: 'इस समय में कुछ एक्सपायर नहीं हो रहा।',
+    expiringHint: 'बिल में पहले वही बैच बिकता है जो जल्दी एक्सपायर होगा, एक्सपायर कभी नहीं। इन्हें समय पर डिस्ट्रीब्यूटर को लौटाएँ।', expiredValue: '{{value}} (लागत पर) का स्टॉक एक्सपायर: डिस्ट्रीब्यूटर को लौटाएँ।',
+  },
   medical: {
     signUpTitle: 'अपनी मेडिकल शॉप / केमिस्ट रजिस्टर करें', homeTitle: 'मेडिकल शॉप', finishSetup: 'सेटअप पूरा करने के लिए ड्रग लाइसेंस और फ़ार्मासिस्ट जोड़ें।',
     retentionDue: 'ड्रग लाइसेंस रिटेंशन फ़ीस {{date}} तक जमा करें। ड्रग कंट्रोल ऑफ़िस में भरें।', setupLink: 'लाइसेंस, फ़ार्मासिस्ट और दवाइयाँ',

@@ -23,6 +23,7 @@ export function MedicalHomeCard({ shopId }: { shopId: string }) {
       <h3 className="font-bold">{t('medical.homeTitle')}</h3>
       {profile && !profile.complete && <p className="rounded-xl bg-amber-50 p-2 text-sm">{t('medical.finishSetup')}</p>}
       {profile?.retentionSoon && profile.retentionDueOn && <p className="rounded-xl bg-red-50 p-2 text-sm font-semibold text-due">{t('medical.retentionDue', { date: day(profile.retentionDueOn) })}</p>}
+      <button onClick={() => navigate('/medical/stock')} className={row}><span>{t('batches.link')}</span><span aria-hidden="true">→</span></button>
       <button onClick={() => navigate('/medical/setup')} className={row}><span>{t('medical.setupLink')}</span><span aria-hidden="true">→</span></button>
     </section>
   )
