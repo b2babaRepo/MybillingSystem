@@ -107,6 +107,7 @@ app.MapCreditNotes();
 app.MapMasterItems();
 app.MapRazorpay();
 app.MapSuppliers();
+app.MapJobs();
 app.MapCashCounts();
 app.MapTrades();
 app.MapBilling();

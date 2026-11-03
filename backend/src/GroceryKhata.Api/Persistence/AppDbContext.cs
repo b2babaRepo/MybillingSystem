@@ -104,6 +104,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Expense> Expenses => Set<Expense>();
 
+    public DbSet<Job> Jobs => Set<Job>();
+
+    public DbSet<JobEntry> JobEntries => Set<JobEntry>();
+
     public DbSet<CashCount> CashCounts => Set<CashCount>();
 
     public DbSet<Challan> Challans => Set<Challan>();
@@ -526,6 +530,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(e => e.Amount).HasPrecision(12, 2);
             b.Property(e => e.Note).HasMaxLength(40);
             b.HasIndex(e => new { e.ShopId, e.SupplierId });
+        });
+
+        modelBuilder.Entity<Job>(b =>
+        {
+            b.ToTable("jobs");
+            b.HasTenantKey();
+            b.Property(j => j.Title).HasMaxLength(120);
+            b.Property(j => j.Note).HasMaxLength(300);
+            b.Property(j => j.Price).HasPrecision(12, 2);
+            b.Property(j => j.EstimatedCost).HasPrecision(12, 2);
+            b.HasIndex(j => new { j.ShopId, j.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<JobEntry>(b =>
+        {
+            b.ToTable("job_entries");
+            b.HasTenantKey();
+            b.Property(e => e.Description).HasMaxLength(120);
+            b.Property(e => e.Amount).HasPrecision(12, 2);
+            b.Property(e => e.Quantity).HasPrecision(12, 3);
+            b.HasIndex(e => new { e.ShopId, e.JobId });
         });
 
         modelBuilder.Entity<Expense>(b =>

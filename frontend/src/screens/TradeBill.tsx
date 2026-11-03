@@ -41,10 +41,10 @@ export function TradeBillPanel({ shopId, shopType, customer, total, onKhata, car
   onChallanSaved: (total: number) => void
 }) {
   const { t } = useTranslation()
-  const building = shopType === 'building_materials' || shopType === 'hardware' || shopType === 'electrical'
+  const building = shopType === 'building_materials' || shopType === 'hardware' || shopType === 'electrical' || shopType === 'woodwork'
   const paint = shopType === 'paint'
   // Painters bring paint customers, electricians bring electrical ones: the same commission.
-  const fitters = paint || shopType === 'electrical'
+  const fitters = paint || shopType === 'electrical' || shopType === 'woodwork'
   const sites = useQuery({
     queryKey: [shopId, 'sites', customer?.id],
     queryFn: () => api<{ site: string }[]>(`/v1/customers/${customer!.id}/sites`),

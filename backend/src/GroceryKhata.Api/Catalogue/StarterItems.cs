@@ -20,6 +20,7 @@ public static class StarterItems
         ShopType.Clothes => Clothes,
         ShopType.Hardware => Hardware,
         ShopType.Electrical => Electrical,
+        ShopType.Woodwork => Woodwork,
         _ => [],
     };
 
@@ -136,6 +137,33 @@ public static class StarterItems
         Item("Hammer", "Tools", Unit.Piece, 18, "8205"),
         Item("Fevicol 1 kg", "Adhesives", Unit.Piece, 18, "3506"),
         Item("M-seal", "Adhesives", Unit.Piece, 18, "3214"),
+    ];
+
+    // Plywood, boards and timber are 18% since 22 Sep 2025; HSN codes are the usual ones. A CA should check both.
+    private static readonly ImportRow[] Woodwork =
+    [
+        Item("Plywood 6 mm 8x4", "Plywood & boards", Unit.Piece, 18, "4412"),
+        Item("Plywood 12 mm 8x4", "Plywood & boards", Unit.Piece, 18, "4412"),
+        Item("Plywood 18 mm 8x4", "Plywood & boards", Unit.Piece, 18, "4412"),
+        Item("Block board 19 mm 8x4", "Plywood & boards", Unit.Piece, 18, "4412"),
+        Item("MDF 12 mm 8x4", "Plywood & boards", Unit.Piece, 18, "4411"),
+        Item("Particle board 18 mm 8x4", "Plywood & boards", Unit.Piece, 18, "4410"),
+        Item("Laminate 1 mm 8x4", "Laminates & veneer", Unit.Piece, 18, "4823"),
+        Item("Veneer", "Laminates & veneer", Unit.SqFt, 18, "4408"),
+        Item("Teak (sagwan) wood", "Timber", Unit.Cft, 18, "4407"),
+        Item("Sal wood", "Timber", Unit.Cft, 18, "4407"),
+        Item("Pine wood", "Timber", Unit.Cft, 18, "4407"),
+        Item("Sheesham wood", "Timber", Unit.Cft, 18, "4407"),
+        Item("Beading (patti)", "Beading & edging", Unit.RunningFt, 18, "4409"),
+        Item("Edge band tape", "Beading & edging", Unit.RunningFt, 18, "3920"),
+        Item("Fevicol SH 1 kg", "Adhesives & polish", Unit.Piece, 18, "3506"),
+        Item("Wood polish 1 L", "Adhesives & polish", Unit.Piece, 18, "3208"),
+        Item("Sofa foam 4 inch", "Upholstery", Unit.Piece, 18, "3921"),
+        Item("Sofa fabric", "Upholstery", Unit.Metre, 5, "5407"),
+        Item("Hinge 4 inch", "Fittings", Unit.Pair, 18, "8302"),
+        Item("Drawer channel 18 inch", "Fittings", Unit.Pair, 18, "8302"),
+        Item("Cabinet handle", "Fittings", Unit.Piece, 18, "8302"),
+        Item("Wood screw 1 inch (box)", "Fittings", Unit.Box, 18, "7318"),
     ];
 
     private static readonly ImportRow[] Electrical =

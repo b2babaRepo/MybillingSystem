@@ -263,7 +263,7 @@ function LooseItemSheet({ onClose, onAdd, initialName = '', initialUnit = 'kg' }
   )
 }
 
-const UNITS: Unit[] = ['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'pair', 'dozen', 'box', 'jar', 'bag', 'tonne', 'brass', 'cft', 'metre']
+const UNITS: Unit[] = ['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'pair', 'dozen', 'box', 'jar', 'bag', 'tonne', 'brass', 'cft', 'metre', 'sq_ft', 'running_ft']
 
 export function UnitSelect({ value, onChange }: { value: Unit; onChange: (unit: Unit) => void }) {
   const { t } = useTranslation()

@@ -15,6 +15,7 @@ const PLACEHOLDER: Partial<Record<ShopType, string>> = {
   building_materials: 'Cement OPC 53 (50 kg), bag, 385, 360, Cement, 100, 20\nसरिया 12 mm, किलो, 62',
   paint: 'Wall Emulsion 20 L, piece, 4200, 3900, Paint, 5, 2\nप्राइमर 4 L, piece, 650',
   hardware: 'Door hinge 4 inch, pair, 45, 35, Hinges, 50, 10\nपेंच 1 इंच, piece, 2',
+  woodwork: 'Plywood 18 mm 8x4, piece, 2400, 2000, Plywood, 20, 5\nबीडिंग पट्टी, running_ft, 12',
   electrical: 'LED bulb 9 W, piece, 120, 90, Lights, 50, 10\nतार 1.5 sq mm, metre, 18',
   other: 'Item name, piece, 100, 80, Category, 10, 2',
 }

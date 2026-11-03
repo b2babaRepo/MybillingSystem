@@ -487,7 +487,7 @@ function MasterItemsPanel() {
         <input aria-label={t('masterItems.nameHi')} placeholder={t('masterItems.nameHi')} value={draft.nameHi} onChange={(e) => setDraft({ ...draft, nameHi: e.target.value })} className={input} />
         <input aria-label={t('masterItems.category')} placeholder={t('masterItems.category')} value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className={input} />
         <select aria-label={t('masterItems.unit')} value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} className={input}>
-          {['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'pair', 'dozen', 'box', 'jar', 'bag', 'tonne', 'brass', 'cft', 'metre'].map((u) => <option key={u} value={u}>{t(`units.${u}`)}</option>)}
+          {['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'pair', 'dozen', 'box', 'jar', 'bag', 'tonne', 'brass', 'cft', 'metre', 'sq_ft', 'running_ft'].map((u) => <option key={u} value={u}>{t(`units.${u}`)}</option>)}
         </select>
         <select aria-label={t('masterItems.gst')} value={draft.gst} onChange={(e) => setDraft({ ...draft, gst: e.target.value })} className={input}>
           <option value="">{t('masterItems.gst')}: –</option>{['0', '5', '18', '40'].map((r) => <option key={r} value={r}>{r}%</option>)}

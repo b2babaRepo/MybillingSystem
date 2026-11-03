@@ -133,24 +133,25 @@ public static class MasterItems
     }
 
     /// <summary>
-    /// Fills an empty master list from the lists the app was built with: the grocery common list and each trade's
-    /// starter items. Runs at start-up; does nothing once the list has rows (admins own it from then on).
+    /// Fills the master list from the lists the app was built with: the grocery common list and each trade's starter
+    /// items. Runs at start-up and fills only trades with no rows yet, so a trade added later gets its list while
+    /// trades admins already look after are left alone.
     /// </summary>
     public static async Task SeedAsync(IServiceProvider services, CancellationToken ct = default)
     {
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        if (await db.MasterItems.AnyAsync(ct))
+        var filled = (await db.MasterItems.Select(i => i.Trade).Distinct().ToListAsync(ct)).ToHashSet();
+        var now = DateTimeOffset.UtcNow;
+        if (!filled.Contains("kirana"))
         {
-            return;
+            db.MasterItems.AddRange(CommonCatalogue.Items.Select(i => new MasterItem
+            {
+                Trade = "kirana", Category = i.Category, Name = i.NameEn, NameHi = i.Name, Unit = i.Unit, CatalogueItemId = i.Id, UpdatedAt = now,
+            }));
         }
 
-        var now = DateTimeOffset.UtcNow;
-        db.MasterItems.AddRange(CommonCatalogue.Items.Select(i => new MasterItem
-        {
-            Trade = "kirana", Category = i.Category, Name = i.NameEn, NameHi = i.Name, Unit = i.Unit, CatalogueItemId = i.Id, UpdatedAt = now,
-        }));
-        foreach (var type in Enum.GetValues<ShopType>().Where(t => t != ShopType.Kirana))
+        foreach (var type in Enum.GetValues<ShopType>().Where(t => t != ShopType.Kirana && !filled.Contains(ShopTypes.Name(t))))
         {
             db.MasterItems.AddRange(StarterItems.For(type).Select(r => new MasterItem
             {

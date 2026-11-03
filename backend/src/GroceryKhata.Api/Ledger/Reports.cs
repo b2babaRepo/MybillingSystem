@@ -24,7 +24,8 @@ public sealed record YearReport(string FinancialYear, IReadOnlyList<YearMonthRow
 /// </summary>
 public sealed record ProfitLossReport(
     string FinancialYear, decimal Sales, decimal Turnover, decimal Gst, decimal GoodsProfit, decimal Returns, decimal StockLoss, decimal Expenses, decimal NetProfit,
-    decimal TakenHome, decimal Purchases, decimal OpeningStock, decimal ClosingStock, DateOnly ClosingDate, decimal SupplierDue, decimal CustomerDue, int ItemsWithoutCost, decimal ProfitCoverage);
+    decimal TakenHome, decimal Purchases, decimal OpeningStock, decimal ClosingStock, DateOnly ClosingDate, decimal SupplierDue, decimal CustomerDue, int ItemsWithoutCost, decimal ProfitCoverage,
+    decimal WorkInProgress = 0);
 
 /// <summary>What the owner should look at today: old dues to chase and what suppliers are owed.</summary>
 public sealed record DigestDto(int OldDueCustomers, decimal OldDueAmount, decimal SupplierDue);
@@ -307,6 +308,7 @@ public static class ReportEndpoints
             ("Sales with GST", r.Sales), ("GST in sales", r.Gst), ("Turnover without GST", r.Turnover), ("Profit on goods", r.GoodsProfit), ("Returns", -r.Returns), ("Stock lost", -r.StockLoss),
             ("Running expenses", -r.Expenses), ("Net profit", r.NetProfit), ("Taken home", r.TakenHome), ("Supplier bills", r.Purchases), ("Opening stock at cost", r.OpeningStock),
             ($"Closing stock at cost {r.ClosingDate:yyyy-MM-dd}", r.ClosingStock), ("Owed to suppliers today", r.SupplierDue), ("Owed by customers today", r.CustomerDue),
+            ("Jobs being made, at cost (today)", r.WorkInProgress),
         })
         {
             csv.AppendJoin(',', label, Num(amount)).Append('\n');
@@ -343,7 +345,8 @@ public static class ReportEndpoints
             opening, closing, DateOnly.FromDateTime(closeAt.AddTicks(-1).ToOffset(IndiaTime.Offset).DateTime),
             await db.SupplierEntries.AsNoTracking().SumAsync(e => (decimal?)e.Amount, ct) ?? 0m,
             await db.Customers.AsNoTracking().Where(c => c.Balance > 0).SumAsync(c => (decimal?)c.Balance, ct) ?? 0m,
-            missing, year.Total.Sales == 0 ? 0 : decimal.Round(coveredSales / year.Total.Sales, 2));
+            missing, year.Total.Sales == 0 ? 0 : decimal.Round(coveredSales / year.Total.Sales, 2),
+            await Jobs.WorkInProgressAsync(db, ct));
     }
 
     /// <summary>

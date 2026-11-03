@@ -87,6 +87,10 @@ public enum Unit
     Box,
     /// <summary>A 20 L water jar or can.</summary>
     Jar,
+    /// <summary>Square feet: laminates, veneer and sheets quoted by area.</summary>
+    SqFt,
+    /// <summary>Running feet: beading, patti and edge band.</summary>
+    RunningFt,
 }
 
 /// <summary>
@@ -132,6 +136,9 @@ public enum StockMovementKind
 
     /// <summary>Damage, wastage, a stocktake correction, a customer return.</summary>
     Adjustment,
+
+    /// <summary>Taken off the shelf to make something to order (a job): its cost counts on the job's bill.</summary>
+    UsedOnJob,
 }
 
 public enum StockReason

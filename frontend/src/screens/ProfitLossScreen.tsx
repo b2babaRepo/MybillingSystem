@@ -7,7 +7,7 @@ import { formatRupees } from '../lib/format'
 
 interface ProfitLoss {
   financialYear: string; sales: number; turnover: number; gst: number; goodsProfit: number; returns: number; stockLoss: number; expenses: number; netProfit: number
-  takenHome: number; purchases: number; openingStock: number; closingStock: number; closingDate: string; supplierDue: number; customerDue: number; itemsWithoutCost: number; profitCoverage: number
+  takenHome: number; purchases: number; openingStock: number; closingStock: number; closingDate: string; supplierDue: number; customerDue: number; itemsWithoutCost: number; profitCoverage: number; workInProgress?: number
 }
 
 /** A financial year's statement for the owner and their CA, with 31 March stock read back from the movements. */
@@ -62,6 +62,7 @@ export function ProfitLossScreen() {
           {row(t('pnl.opening'), r.openingStock)}
           {row(t('pnl.purchases'), r.purchases)}
           {row(t('pnl.closing', { date: new Date(r.closingDate).toLocaleDateString('en-IN') }), r.closingStock)}
+          {(r.workInProgress ?? 0) > 0 && row(t('pnl.wip'), r.workInProgress ?? 0)}
           {row(t('pnl.home'), r.takenHome)}
           {row(t('pnl.suppliers'), r.supplierDue)}
           {row(t('pnl.customers'), r.customerDue)}

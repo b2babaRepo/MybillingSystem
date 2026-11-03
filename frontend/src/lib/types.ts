@@ -4,7 +4,7 @@ export type ShopRole = 'owner' | 'staff'
 /** A platform admin's role: super (everything), approver (approve and block shops), support (notes, unlocking). */
 export type AdminRole = 'super' | 'approver' | 'support' | 'billing' | 'agent_manager'
 
-export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'pair' | 'dozen' | 'box' | 'jar' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre'
+export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'pair' | 'dozen' | 'box' | 'jar' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre' | 'sq_ft' | 'running_ft'
 export type PaymentMode = 'cash' | 'upi'
 export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return'
 export type KhataEntryType = 'credit' | 'payment'

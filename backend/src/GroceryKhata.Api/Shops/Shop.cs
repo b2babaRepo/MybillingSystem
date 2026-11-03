@@ -106,4 +106,6 @@ public enum ShopType
     Clothes,
     /// <summary>Wires, switches, lights and fans; electricians bring customers.</summary>
     Electrical,
+    /// <summary>Plywood, timber, laminates and fittings; carpenters bring customers. Workshops making furniture too.</summary>
+    Woodwork,
 }

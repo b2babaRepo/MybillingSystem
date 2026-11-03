@@ -15,7 +15,7 @@ namespace GroceryKhata.Api.Tests;
 [Collection(ApiCollection.Name)]
 public sealed class ShopDayTests(ApiFactory api)
 {
-    public static TheoryData<string> Trades => ["water_supply", "beauty", "sweets", "toys", "clothes", "building_materials", "paint", "hardware", "electrical"];
+    public static TheoryData<string> Trades => ["water_supply", "beauty", "sweets", "toys", "clothes", "building_materials", "paint", "hardware", "electrical", "woodwork"];
 
     [Theory]
     [MemberData(nameof(Trades))]
@@ -286,6 +286,47 @@ public sealed class ShopDayTests(ApiFactory api)
         var fresh = await (await shop.PostJsonAsync($"/api/v1/customers/{customer}/khata-link", new { })).ReadAsync<KhataLinkDto>();
         Assert.NotEqual(link.Token, fresh.Token);
         (await anyone.GetAsync($"/api/v1/khata/{link.ShopSlug}/{customer}?t={fresh.Token}")).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task A_sofa_job_goes_from_quote_to_delivery_and_shows_its_profit()
+    {
+        var shop = await SignUpAsync("woodwork");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var ply = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Plywood 18 mm 8x4");
+        (await shop.PutAsJsonAsync($"/api/v1/products/{ply.Id}", new { name = ply.Name, unit = ply.Unit, sellingPrice = 2600m, costPrice = 2000m, gstRate = 18m, hsnCode = ply.HsnCode, replaceTax = true }, ApiFactory.Json))
+            .EnsureSuccessStatusCode();
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Sharma ji");
+
+        var id = Guid.CreateVersion7();
+        var job = (await (await shop.PostJsonAsync("/api/v1/jobs", new { id, customerId = customer, title = "Sofa set 3+1+1", price = 45000m, estimatedCost = 30000m, status = "quote" })).ReadAsync<JobDetail>()).Job;
+        Assert.Equal((1, JobStatus.Quote), (job.Number, job.Status));
+
+        // The advance goes on the khata and makes it an order.
+        job = (await (await shop.PostJsonAsync($"/api/v1/jobs/{id}/advance", new { id = Guid.CreateVersion7(), amount = 20000m, mode = "upi" })).ReadAsync<JobDetail>()).Job;
+        Assert.Equal((JobStatus.Order, 20000m), (job.Status, job.Advance));
+        Assert.Equal(-20000m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance);
+
+        // Five sheets off the stock list, karigar wages and transport into the kharcha book.
+        (await shop.PostJsonAsync($"/api/v1/jobs/{id}/material", new { id = Guid.CreateVersion7(), productId = ply.Id, quantity = 5m })).EnsureSuccessStatusCode();
+        Assert.Equal(-5m, (await Item(shop, ply.Id)).Stock);
+        (await shop.PostJsonAsync($"/api/v1/jobs/{id}/labour", new { id = Guid.CreateVersion7(), description = "Ramesh, 8 days", amount = 8000m, mode = "cash" })).EnsureSuccessStatusCode();
+        job = (await (await shop.PostJsonAsync($"/api/v1/jobs/{id}/other", new { id = Guid.CreateVersion7(), description = "Tempo to site", amount = 500m })).ReadAsync<JobDetail>()).Job;
+        Assert.Equal((JobStatus.Making, 10000m, 8000m, 500m, 18500m, 26500m), (job.Status, job.Material, job.Labour, job.Other, job.Cost, job.Profit));
+
+        // Rent of ₹4,000 against ₹8,000 of wages this month: the job carries half its wages again as overhead.
+        (await shop.PostJsonAsync("/api/v1/expenses", new { id = Guid.CreateVersion7(), amount = 4000m, category = "rent", mode = "cash", note = "Workshop rent" })).EnsureSuccessStatusCode();
+        Assert.Equal(4000m, (await shop.GetJsonAsync<JobDetail>($"/api/v1/jobs/{id}")).Overhead);
+        Assert.Equal(18500m, (await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl")).WorkInProgress);
+
+        // Delivery makes the bill; the customer owes the price less the advance.
+        var detail = await (await shop.PostJsonAsync($"/api/v1/jobs/{id}/deliver", new { billId = Guid.CreateVersion7(), paidAmount = 0m })).ReadAsync<JobDetail>();
+        Assert.Equal(JobStatus.Delivered, detail.Job.Status);
+        Assert.NotNull(detail.Job.BillId);
+        Assert.Equal(25000m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance);
+        Assert.Equal(HttpStatusCode.NotFound, (await shop.PostJsonAsync($"/api/v1/jobs/{id}/labour", new { id = Guid.CreateVersion7(), description = "Late", amount = 10m })).StatusCode);
+        Assert.Contains(await shop.GetJsonAsync<List<JobDto>>("/api/v1/jobs?done=true"), j => j.Id == id);
+        Assert.Equal(0m, (await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl")).WorkInProgress);
     }
 
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
