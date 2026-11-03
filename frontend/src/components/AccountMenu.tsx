@@ -47,7 +47,8 @@ export function AccountMenu({ name, role, actions, unsynced, onSignOut }: {
       {/* On the page itself, not inside the sticky header, so it sits above the bottom tabs. */}
       {open && createPortal(
         <div role="dialog" aria-modal="true" aria-label={t('account.title')} className="fixed inset-0 z-30 flex items-end justify-center bg-black/55 text-ink" onClick={() => setOpen(false)}>
-          <div className="flex w-full max-w-xl flex-col gap-2.5 rounded-t-[26px] bg-white px-4 pb-[calc(1.75rem+env(safe-area-inset-bottom))] pt-3" onClick={(e) => e.stopPropagation()}>
+          {/* Never taller than the screen: with many actions the list scrolls inside the sheet instead of being cut off. */}
+          <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-xl flex-col gap-2 overflow-y-auto overscroll-contain rounded-t-[26px] bg-white px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3" onClick={(e) => e.stopPropagation()}>
             <span aria-hidden className="h-1.5 w-11 self-center rounded-full bg-[#cfd8d6]" />
             <div className="flex items-center gap-3 py-2">
               <span aria-hidden className="flex h-13 w-13 items-center justify-center rounded-full bg-amber-400 text-[22px] font-extrabold text-amber-950">{initial}</span>
@@ -57,12 +58,12 @@ export function AccountMenu({ name, role, actions, unsynced, onSignOut }: {
               </span>
             </div>
             {[...shared, ...actions].map((a) => (
-              <button key={a.label} onClick={run(a.onClick)} className="min-h-14 rounded-2xl border border-line px-4 text-left font-semibold">{a.label}</button>
+              <button key={a.label} onClick={run(a.onClick)} className="min-h-12 shrink-0 rounded-2xl border border-line px-4 text-left font-semibold">{a.label}</button>
             ))}
-            <button onClick={() => setLanguage(i18n.language === 'hi' ? 'en' : 'hi')} className="min-h-14 rounded-2xl border border-line px-4 text-left font-semibold">
+            <button onClick={() => setLanguage(i18n.language === 'hi' ? 'en' : 'hi')} className="min-h-12 shrink-0 rounded-2xl border border-line px-4 text-left font-semibold">
               {t('account.language')}: {i18n.language === 'hi' ? 'हिंदी → English' : 'English → हिंदी'}
             </button>
-            <button onClick={run(onSignOut)} className="mt-1.5 min-h-14 rounded-2xl bg-red-50 text-[17px] font-bold text-red-700">{t('signOut')}</button>
+            <button onClick={run(onSignOut)} className="mt-1.5 min-h-14 shrink-0 rounded-2xl bg-red-50 text-[17px] font-bold text-red-700">{t('signOut')}</button>
             {unsynced > 0 && <p className="text-center text-sm text-muted">{t('account.unsynced', { count: unsynced })}</p>}
           </div>
         </div>,
