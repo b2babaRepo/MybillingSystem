@@ -40,12 +40,17 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; mode: 'cash' | 'upi'; customer: { name: string; phone: string | null } | null } | null>(null)
 
   // On a phone the bill sits below the item grid: a bar above the tabs shows the total until the bill is in view.
+  // Shown only while the bill is still below the screen: once scrolled to it, or past it down to the payment and
+  // save button (a UPI QR makes that box tall), the bar would only cover them.
   const billRef = useRef<HTMLDivElement>(null)
-  const [billInView, setBillInView] = useState(false)
+  const [billBelow, setBillBelow] = useState(true)
+  const billInView = !billBelow
   useEffect(() => {
     const element = billRef.current
     if (!element || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(([entry]) => setBillInView(entry.isIntersecting), { rootMargin: '0px 0px -68px 0px' })
+    const observer = new IntersectionObserver(
+      ([entry]) => setBillBelow(!entry.isIntersecting && entry.boundingClientRect.top > 0),
+      { rootMargin: '0px 0px -68px 0px' })
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
