@@ -74,6 +74,9 @@ public sealed class Product : Entity, ITenantOwned
 
     /// <summary>Medicines: the drug schedule. H, H1 and X sell only on a prescription, with the doctor and patient on the bill. Null: over the counter.</summary>
     public DrugSchedule? Schedule { get; set; }
+
+    /// <summary>Medicines: tablets in a strip (10, 15). Stock stays in strips; a loose sale takes that fraction of one. Null: sold whole only.</summary>
+    public int? UnitsPerPack { get; set; }
 }
 
 public enum DrugSchedule

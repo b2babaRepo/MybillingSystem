@@ -123,6 +123,7 @@ app.MapBatches();
 app.MapPrescriptions();
 app.MapSupplierReturns();
 app.MapPharmacyMonth();
+app.MapPharmacyAssist();
 app.MapStylistPay();
 app.MapPrepaid();
 app.MapCashCounts();

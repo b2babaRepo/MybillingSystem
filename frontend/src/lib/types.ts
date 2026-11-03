@@ -60,6 +60,8 @@ export interface Product {
   durationMinutes?: number | null
   /** Medicines: the drug schedule; H, H1 and X need a prescription. Null: over the counter. */
   schedule?: DrugSchedule | null
+  /** Medicines: tablets in a strip; a loose sale is that fraction of a strip. */
+  unitsPerPack?: number | null
   /** Held for online orders not yet delivered. */
   reserved?: number
   /** The common-list item this is (for its picture, and so households find it). */

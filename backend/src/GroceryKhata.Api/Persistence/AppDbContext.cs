@@ -146,6 +146,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<BillPrescription> BillPrescriptions => Set<BillPrescription>();
 
+    public DbSet<PrescriptionPhoto> PrescriptionPhotos => Set<PrescriptionPhoto>();
+
     public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();
 
     public DbSet<StylistRate> StylistRates => Set<StylistRate>();
@@ -742,6 +744,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(x => x.Quantity).HasPrecision(14, 3);
             b.HasIndex(x => new { x.ShopId, x.ProductId, x.BatchNo, x.Expiry }).IsUnique();
             b.HasIndex(x => new { x.ShopId, x.Expiry });
+        });
+
+        modelBuilder.Entity<PrescriptionPhoto>(b =>
+        {
+            b.ToTable("prescription_photos");
+            b.HasKey(p => p.BillId);
+            b.Property(p => p.ContentType).HasMaxLength(20);
+            b.HasIndex(p => p.ShopId);
         });
 
         modelBuilder.Entity<BillPrescription>(b =>

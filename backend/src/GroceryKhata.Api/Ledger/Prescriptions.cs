@@ -29,6 +29,26 @@ public sealed class BillPrescription : Entity, ITenantOwned
     public DateOnly? PrescribedOn { get; set; }
 }
 
+/// <summary>
+/// A photo of the prescription a bill was sold on (the drug rules ask a copy to be kept for Schedule X; it helps for H1
+/// too). Patient health data: never public, only the shop's own signed-in people can see it. Kept with the shop's data.
+/// </summary>
+public sealed class PrescriptionPhoto : ITenantOwned
+{
+    /// <summary>The bill's id: one photo per bill.</summary>
+    public Guid BillId { get; set; }
+
+    public Guid ShopId { get; set; }
+
+    public required string ContentType { get; set; }
+
+    public required byte[] Data { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed record PrescriptionPhotoRequest(string? DataUrl);
+
 public sealed record H1RegisterRow(
     DateTimeOffset SoldAt, string? BillNo, string PatientName, string? PatientAddress, string DoctorName, string? DoctorAddress, string? DoctorRegNo,
     string Medicine, decimal Quantity, string? Batch, bool Cancelled);
@@ -38,8 +58,56 @@ public static class Prescriptions
     public static IEndpointRouteBuilder MapPrescriptions(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/v1/pharmacy/h1-register", RegisterAsync).WithTags("Shops").RequireAuthorization(AppPolicies.ShopMember);
+        var photo = app.MapGroup("/api/v1/bills/{id:guid}/prescription-photo").WithTags("Shops").RequireAuthorization(AppPolicies.ShopMember);
+        photo.MapPut("", PutPhotoAsync).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(700_000));
+        photo.MapGet("", GetPhotoAsync);
         return app;
     }
+
+    /// <summary>Largest photo accepted after the phone has shrunk it: enough to read a prescription.</summary>
+    private const int MaxPhotoBytes = 450_000;
+
+    private static async Task<IResult> PutPhotoAsync(Guid id, PrescriptionPhotoRequest request, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var parts = request.DataUrl?.Split(',', 2);
+        var type = parts is [var head, _] && head.StartsWith("data:", StringComparison.Ordinal) && head.EndsWith(";base64", StringComparison.Ordinal) ? head[5..^7] : null;
+        byte[]? data = null;
+        try
+        {
+            data = type is "image/webp" or "image/jpeg" or "image/png" ? Convert.FromBase64String(parts![1]) : null;
+        }
+        catch (FormatException)
+        {
+        }
+
+        if (data is not { Length: > 0 and <= MaxPhotoBytes })
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["DataUrl"] = ["Send a WebP, JPEG or PNG photo under 450 KB."] });
+        }
+
+        if (!await db.Bills.AnyAsync(b => b.Id == id, ct))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var photo = await db.PrescriptionPhotos.SingleOrDefaultAsync(p => p.BillId == id, ct);
+        if (photo is null)
+        {
+            db.PrescriptionPhotos.Add(new PrescriptionPhoto { BillId = id, ContentType = type!, Data = data, UpdatedAt = clock.GetUtcNow() });
+        }
+        else
+        {
+            (photo.ContentType, photo.Data, photo.UpdatedAt) = (type!, data, clock.GetUtcNow());
+        }
+
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
+    }
+
+    private static async Task<IResult> GetPhotoAsync(Guid id, AppDbContext db, CancellationToken ct) =>
+        await db.PrescriptionPhotos.AsNoTracking().SingleOrDefaultAsync(p => p.BillId == id, ct) is { } photo
+            ? TypedResults.File(photo.Data, photo.ContentType)
+            : TypedResults.NotFound();
 
     /// <summary>
     /// Checks a bill's prescription: none needed without H, H1 or X medicines; otherwise the doctor's and patient's names

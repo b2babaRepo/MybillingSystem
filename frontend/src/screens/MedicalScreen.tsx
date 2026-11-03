@@ -24,6 +24,8 @@ export function MedicalHomeCard({ shopId }: { shopId: string }) {
       {profile && !profile.complete && <p className="rounded-xl bg-amber-50 p-2 text-sm">{t('medical.finishSetup')}</p>}
       {profile?.retentionSoon && profile.retentionDueOn && <p className="rounded-xl bg-red-50 p-2 text-sm font-semibold text-due">{t('medical.retentionDue', { date: day(profile.retentionDueOn) })}</p>}
       <button onClick={() => navigate('/medical/stock')} className={row}><span>{t('batches.link')}</span><span aria-hidden="true">→</span></button>
+      <button onClick={() => navigate('/medical/refills')} className={row}><span>{t('refills.link')}</span><span aria-hidden="true">→</span></button>
+      <button onClick={() => navigate('/medical/reorder')} className={row}><span>{t('reorder.link')}</span><span aria-hidden="true">→</span></button>
       <button onClick={() => navigate('/medical/month')} className={row}><span>{t('pmonth.link')}</span><span aria-hidden="true">→</span></button>
       <button onClick={() => navigate('/medical/returns')} className={row}><span>{t('returns.link')}</span><span aria-hidden="true">→</span></button>
       <button onClick={() => navigate('/medical/h1')} className={row}><span>{t('rx.register')}</span><span aria-hidden="true">→</span></button>

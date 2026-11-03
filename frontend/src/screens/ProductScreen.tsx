@@ -155,6 +155,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     gst: product.gstRate == null ? '' : String(product.gstRate),
     hsn: product.hsnCode ?? '',
     schedule: product.schedule ?? '',
+    perPack: product.unitsPerPack ? String(product.unitsPerPack) : '',
   })
   const gstBilling = useGstBilling(shopId)
   const medical = shopTypes(useShopSettings(shopId).data).includes('medical')
@@ -171,7 +172,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     gstRate: form.gst === '' ? null : Number(form.gst),
     hsnCode: form.hsn.trim() || null,
     replaceTax: true,
-    ...(medical ? { schedule: form.schedule || null, replaceSchedule: true } : {}),
+    ...(medical ? { schedule: form.schedule || null, replaceSchedule: true, unitsPerPack: Number(form.perPack) || 0 } : {}),
     isActive,
   })
 
@@ -220,6 +221,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
           </select>
         </label>
       )}
+      {medical && !product.isService && <Field label={t('loose.perPack')} value={form.perPack} onChange={set('perPack')} inputMode="numeric" placeholder="10" />}
       {gstBilling && <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-muted">{t('stock.gst')}</span>

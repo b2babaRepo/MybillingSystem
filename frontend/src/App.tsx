@@ -46,6 +46,8 @@ const BridalScreen = lazy(() => import('./screens/BridalScreen').then((module) =
 const PackagesScreen = lazy(() => import('./screens/PackagesScreen').then((module) => ({ default: module.PackagesScreen })))
 const StylistEarningsScreen = lazy(() => import('./screens/SalonSetupScreen').then((module) => ({ default: module.StylistEarningsScreen })))
 const AppointmentsScreen = lazy(() => import('./screens/AppointmentsScreen').then((module) => ({ default: module.AppointmentsScreen })))
+const RefillsScreen = lazy(() => import('./screens/PharmacyAssistScreens').then((module) => ({ default: module.RefillsScreen })))
+const ReorderScreen = lazy(() => import('./screens/PharmacyAssistScreens').then((module) => ({ default: module.ReorderScreen })))
 const PharmacyMonthScreen = lazy(() => import('./screens/PharmacyMonthScreen').then((module) => ({ default: module.PharmacyMonthScreen })))
 const ReturnsScreen = lazy(() => import('./screens/ReturnsScreen').then((module) => ({ default: module.ReturnsScreen })))
 const H1RegisterScreen = lazy(() => import('./screens/H1RegisterScreen').then((module) => ({ default: module.H1RegisterScreen })))
@@ -302,6 +304,10 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <StylistEarningsScreen shopId={shopId} />
         ) : path === '/appointments' ? (
           <AppointmentsScreen shopId={shopId} shopName={shopName} />
+        ) : path === '/medical/refills' ? (
+          <RefillsScreen shopId={shopId} shopName={shopName} />
+        ) : path === '/medical/reorder' && isOwner ? (
+          <ReorderScreen shopId={shopId} shopName={shopName} />
         ) : path === '/medical/month' && isOwner ? (
           <PharmacyMonthScreen shopId={shopId} />
         ) : path === '/medical/returns' && isOwner ? (

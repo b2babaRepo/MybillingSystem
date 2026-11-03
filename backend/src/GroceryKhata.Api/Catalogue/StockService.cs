@@ -97,6 +97,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.HsnCode = Clean(request.HsnCode);
         (product.IsService, product.DurationMinutes) = (request.IsService, request.DurationMinutes is > 0 and <= 1440 ? request.DurationMinutes : null);
         product.Schedule = request.IsService ? null : request.Schedule;
+        product.UnitsPerPack = request.IsService ? null : request.UnitsPerPack is > 1 and <= 1000 ? request.UnitsPerPack : null;
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)
@@ -143,6 +144,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.DurationMinutes = request.DurationMinutes is { } minutes ? (minutes is > 0 and <= 1440 ? minutes : null) : product.DurationMinutes;
         // Older apps don't send a schedule: null keeps it, unless ReplaceSchedule says null means over the counter.
         product.Schedule = product.IsService ? null : request.Schedule ?? (request.ReplaceSchedule ? null : product.Schedule);
+        // 0 or 1 clears it (sold whole only); null keeps it.
+        product.UnitsPerPack = request.UnitsPerPack is { } perPack ? (perPack is > 1 and <= 1000 && !product.IsService ? perPack : null) : product.UnitsPerPack;
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
@@ -329,6 +332,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             // A SAC code (99…) is a service's: from a master list, a haircut comes in as a service even without the flag.
             (product.IsService, product.DurationMinutes) = (row.IsService || (row.HsnCode?.Trim().StartsWith("99") ?? false), row.DurationMinutes);
             product.Schedule = product.IsService ? null : row.Schedule;
+            product.UnitsPerPack = product.IsService ? null : row.UnitsPerPack;
             db.Products.Add(product);
             if (row.OpeningStock is > 0)
             {
@@ -471,7 +475,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     private static readonly System.Linq.Expressions.Expression<Func<Product, ProductDto>> AsDto = p => new ProductDto(
         p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.CostPrice, p.Stock, p.ReorderLevel,
         !p.IsService && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption, p.ImageAt,
-        p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule);
+        p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack);
 
     private static StockMovementDto ToDto(StockMovement m) =>
         new(m.Id, m.ProductId, m.Kind, m.Quantity, m.Reason, m.BillId, m.CostPrice, m.Note, m.OccurredAt);

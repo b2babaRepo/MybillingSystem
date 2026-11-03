@@ -79,6 +79,17 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
     setCart((current) => (quantity <= 0 ? current.filter((_, i) => i !== index) : current.map((l, i) => (i === index ? { ...l, quantity } : l))))
   }
 
+  /** A medicine sold loose: so many tablets of a strip, as that fraction of the strip at the strip's price. */
+  function sellLoose(index: number, perPack: number) {
+    const tablets = Math.round(Number(window.prompt(t('loose.ask', { count: perPack })) || 0))
+    if (!(tablets > 0)) return
+    setCart((current) => current.map((l, i) => {
+      if (i !== index) return l
+      const base = l.name.replace(/ \(\d+ of \d+\)$/, '')
+      return { ...l, name: `${base} (${tablets} of ${perPack})`, quantity: Math.round((tablets / perPack) * 1000) / 1000 }
+    }))
+  }
+
   /** Prices change, and starter-catalogue items have none yet: the counter price is editable per line. */
   function setPrice(index: number, unitPrice: number) {
     setCart((current) => current.map((l, i) => (i === index ? { ...l, unitPrice } : l)))
@@ -159,7 +170,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
         {cart.map((l, i) => (
           <div key={`${l.productId ?? l.name}-${i}`} className="flex items-center gap-2 border-b border-[#edf2f1] py-2 last:border-0">
             <div className="flex-1">
-              <div className="font-semibold">{l.name}{(() => { const s = products.find((p) => p.id === l.productId)?.schedule; return s && s !== 'g' ? <span className="ml-1 rounded bg-red-50 px-1 text-xs text-due">{t('rx.badge', { schedule: s.toUpperCase() })}</span> : null })()}</div>
+              <div className="font-semibold">{l.name}{(() => { const s = products.find((p) => p.id === l.productId)?.schedule; return s && s !== 'g' ? <span className="ml-1 whitespace-nowrap rounded bg-red-50 px-1 text-xs text-due">{t('rx.badge', { schedule: s.toUpperCase() })}</span> : null })()}</div>
               <label className="flex items-center gap-1 text-xs text-muted">
                 ₹
                 <input
@@ -180,6 +191,9 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
                 const margin = ((net - p.costPrice) / net) * 100
                 return margin < 5 ? <p className={`text-xs font-semibold ${margin <= 0 ? 'text-due' : 'text-amber-800'}`}>{t(margin <= 0 ? 'pmonth.belowCost' : 'pmonth.thinMargin', { percent: Math.round(margin * 10) / 10 })}</p> : null
               })()}
+              {(() => { const per = products.find((p) => p.id === l.productId)?.unitsPerPack; return per ? (
+                <button onClick={() => sellLoose(i, per)} className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('loose.button')}</button>
+              ) : null })()}
               {tmtKgPerBar(l.name) && l.unit === 'kg' && (
                 <button onClick={() => { const bars = Number(window.prompt(t('bars.ask', { name: l.name })) || 0); if (bars > 0) setQuantity(i, Math.round(bars * tmtKgPerBar(l.name)! * 1000) / 1000) }}
                   className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('bars.button', { kg: tmtKgPerBar(l.name) })}</button>

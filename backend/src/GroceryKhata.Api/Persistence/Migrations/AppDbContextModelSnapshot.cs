@@ -2043,6 +2043,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("unit");
 
+                    b.Property<int?>("UnitsPerPack")
+                        .HasColumnType("integer")
+                        .HasColumnName("units_per_pack");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -4442,6 +4446,39 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasAlternateKey("ShopId", "Id");
 
                     b.ToTable("prepaid_plans", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.PrescriptionPhoto", b =>
+                {
+                    b.Property<Guid>("BillId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("data");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("BillId");
+
+                    b.HasIndex("ShopId");
+
+                    b.ToTable("prescription_photos", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Purchase", b =>

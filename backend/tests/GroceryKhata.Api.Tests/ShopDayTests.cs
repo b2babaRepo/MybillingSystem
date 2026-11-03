@@ -1,3 +1,5 @@
+﻿using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Json;
@@ -25,7 +27,7 @@ public sealed class ShopDayTests(ApiFactory api)
         var settings = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
         (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" }, ApiFactory.Json)).EnsureSuccessStatusCode();
 
-        // Stock list from the trade's starter items, priced at ₹500 and costed at ₹350.
+        // Stock list from the trade's starter items, priced at â‚¹500 and costed at â‚¹350.
         (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
         var products = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
         var stocked = products.Where(p => !p.IsService).ToList(); // a salon's services carry no stock
@@ -36,7 +38,7 @@ public sealed class ShopDayTests(ApiFactory api)
                 .EnsureSuccessStatusCode();
         }
 
-        // Buying: 20 of each on a supplier bill, ₹100 paid now.
+        // Buying: 20 of each on a supplier bill, â‚¹100 paid now.
         var supplier = Guid.CreateVersion7();
         await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Wholesaler" });
         (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new
@@ -134,7 +136,7 @@ public sealed class ShopDayTests(ApiFactory api)
         var result = await (await admin.PostJsonAsync("/api/v1/platform/master-items/import", new
         {
             trade = "beauty",
-            text = "name,hindi,category,unit,gst,hsn\nHair spa gold,हेयर स्पा गोल्ड,Services,piece,5,999721\nBad line,,,,7,\nFacial,फ़ेशियल,Services,piece,5,999722",
+            text = "name,hindi,category,unit,gst,hsn\nHair spa gold,à¤¹à¥‡à¤¯à¤° à¤¸à¥à¤ªà¤¾ à¤—à¥‹à¤²à¥à¤¡,Services,piece,5,999721\nBad line,,,,7,\nFacial,à¤«à¤¼à¥‡à¤¶à¤¿à¤¯à¤²,Services,piece,5,999722",
         })).ReadAsync<MasterImportResult>();
         Assert.Equal((1, 1, 1), (result.Added, result.Updated, result.Problems.Count));
     }
@@ -315,7 +317,7 @@ public sealed class ShopDayTests(ApiFactory api)
         job = (await (await shop.PostJsonAsync($"/api/v1/jobs/{id}/other", new { id = Guid.CreateVersion7(), description = "Tempo to site", amount = 500m })).ReadAsync<JobDetail>()).Job;
         Assert.Equal((JobStatus.Making, 10000m, 8000m, 500m, 18500m, 26500m), (job.Status, job.Material, job.Labour, job.Other, job.Cost, job.Profit));
 
-        // Rent of ₹4,000 against ₹8,000 of wages this month: the job carries half its wages again as overhead.
+        // Rent of â‚¹4,000 against â‚¹8,000 of wages this month: the job carries half its wages again as overhead.
         (await shop.PostJsonAsync("/api/v1/expenses", new { id = Guid.CreateVersion7(), amount = 4000m, category = "rent", mode = "cash", note = "Workshop rent" })).EnsureSuccessStatusCode();
         Assert.Equal(4000m, (await shop.GetJsonAsync<JobDetail>($"/api/v1/jobs/{id}")).Overhead);
         Assert.Equal(18500m, (await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl")).WorkInProgress);
@@ -424,20 +426,20 @@ public sealed class ShopDayTests(ApiFactory api)
         var morning = await shop.PostJsonAsync("/api/v1/bookings", new { id = Guid.CreateVersion7(), venueId = hall, date, slot = "morning", customerId = customer, occasion = "birthday", guests = 50, plateRate = 400m, hallRent = 0m, deposit = 0m });
         Assert.Equal(HttpStatusCode.OK, morning.StatusCode); // the morning is still free
 
-        // Confirmed: a job carries the money. ₹50,000 + 300 × ₹600 = ₹2,30,000 expected.
+        // Confirmed: a job carries the money. â‚¹50,000 + 300 Ã— â‚¹600 = â‚¹2,30,000 expected.
         var booking = await (await shop.PostJsonAsync($"/api/v1/bookings/{hold.Id}/confirm", new { })).ReadAsync<BookingDto>();
         Assert.Equal(("confirmed", 230000m), (booking.Status, booking.Estimate));
         (await shop.PostJsonAsync($"/api/v1/jobs/{booking.JobId}/advance", new { id = Guid.CreateVersion7(), amount = 100000m, mode = "upi" })).EnsureSuccessStatusCode();
         (await shop.PostJsonAsync($"/api/v1/jobs/{booking.JobId}/other", new { id = Guid.CreateVersion7(), description = "Decorator", amount = 30000m })).EnsureSuccessStatusCode();
         (await shop.PostJsonAsync($"/api/v1/bookings/{hold.Id}/deposit", new { amount = 20000m })).EnsureSuccessStatusCode();
 
-        // 340 came (more than the 300 guaranteed), DJ extra, ₹5,000 damage taken from the deposit.
+        // 340 came (more than the 300 guaranteed), DJ extra, â‚¹5,000 damage taken from the deposit.
         var settled = await (await shop.PostJsonAsync($"/api/v1/bookings/{hold.Id}/settle", new
         {
             billId = Guid.CreateVersion7(), actualGuests = 340, extras = new[] { new { name = "DJ", amount = 15000m } }, damage = 5000m, paidAmount = 0m,
         })).ReadAsync<BookingDto>();
         Assert.Equal(("settled", 15000m), (settled.Status, settled.DepositReturned));
-        // Bill: 50,000 + 340 × 600 + 15,000 + 5,000 = 2,74,000; the advance 1,00,000 and 5,000 from the deposit are paid.
+        // Bill: 50,000 + 340 Ã— 600 + 15,000 + 5,000 = 2,74,000; the advance 1,00,000 and 5,000 from the deposit are paid.
         Assert.Equal(169000m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance);
         var job = (await shop.GetJsonAsync<JobDetail>($"/api/v1/jobs/{booking.JobId}")).Job;
         Assert.Equal((JobStatus.Delivered, 274000m, 30000m), (job.Status, job.Price, job.Other));
@@ -456,7 +458,7 @@ public sealed class ShopDayTests(ApiFactory api)
 
         var cancelled = await (await shop.PostJsonAsync($"/api/v1/bookings/{b.Id}/cancel", new { reason = "Date changed", keep = 5000m })).ReadAsync<BookingDto>();
         Assert.Equal("cancelled", cancelled.Status);
-        Assert.Equal(-15000m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance); // ₹15,000 to give back
+        Assert.Equal(-15000m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance); // â‚¹15,000 to give back
         Assert.Equal(HttpStatusCode.OK, (await shop.PostJsonAsync("/api/v1/bookings", new { id = Guid.CreateVersion7(), venueId = hall, date, slot = "evening", customerId = customer, guests = 50, plateRate = 400m, hallRent = 0m, deposit = 0m })).StatusCode);
     }
 
@@ -474,7 +476,7 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal(("Riya's family", PartyOccasion.Birthday, TableBookingStatus.Booked), (booking.Name, booking.Occasion, booking.Status));
         (await shop.PostJsonAsync("/api/v1/table-bookings", new { id = Guid.CreateVersion7(), date, time = "19:30", people = 4, name = "Walk-in Mehta", phone = "98765 43210" })).EnsureSuccessStatusCode();
 
-        // A ₹2,000 deposit is a khata payment; the ₹6,500 table bill leaves ₹4,500 to pay.
+        // A â‚¹2,000 deposit is a khata payment; the â‚¹6,500 table bill leaves â‚¹4,500 to pay.
         booking = await (await shop.PostJsonAsync($"/api/v1/table-bookings/{id}/deposit", new { amount = 2000m, mode = "upi" })).ReadAsync<TableBookingDto>();
         Assert.Equal(2000m, booking.Deposit);
         (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), customerId = customer, paidAmount = 0m, lines = new[] { new { name = "Party dinner", quantity = 1m, unit = "piece", unitPrice = 6500m } } })).EnsureSuccessStatusCode();
@@ -527,7 +529,7 @@ public sealed class ShopDayTests(ApiFactory api)
         var room = Guid.CreateVersion7();
         (await shop.PostJsonAsync("/api/v1/rooms", new { id = room, name = "301", rate = 2000m })).EnsureSuccessStatusCode();
         var today = DateOnly.FromDateTime(DateTime.Today);
-        // Festival: the first two nights at ₹3,500 for every room.
+        // Festival: the first two nights at â‚¹3,500 for every room.
         (await shop.PostJsonAsync("/api/v1/room-rates", new { id = Guid.CreateVersion7(), name = "Diwali", from = today, to = today.AddDays(1), rate = 3500m })).EnsureSuccessStatusCode();
         var quote = await shop.GetJsonAsync<QuoteDto>($"/api/v1/rooms/{room}/quote?checkIn={today:yyyy-MM-dd}&checkOut={today.AddDays(3):yyyy-MM-dd}");
         Assert.Equal((3, 9000m), (quote.Nights, quote.Total));
@@ -539,7 +541,7 @@ public sealed class ShopDayTests(ApiFactory api)
         stay = await (await shop.PostJsonAsync($"/api/v1/stays/{id}/checkout", new { billId = Guid.CreateVersion7(), paidAmount = 9000m, mode = "upi" })).ReadAsync<StayDto>();
         var bill = await shop.GetJsonAsync<BillView>($"/api/v1/bills/{stay.BillId}");
         var line = Assert.Single(bill.Bill.Lines);
-        Assert.Equal((5m, "996311", 9000m), (line.GstRate, line.HsnCode, line.Amount)); // ₹3,000 a night on average: 5%
+        Assert.Equal((5m, "996311", 9000m), (line.GstRate, line.HsnCode, line.Amount)); // â‚¹3,000 a night on average: 5%
         Assert.NotNull(line.TaxableValue);
         Assert.Equal((0m, 5m, 18m), (Stays.RoomGstRate(900m), Stays.RoomGstRate(7500m), Stays.RoomGstRate(7501m)));
     }
@@ -641,8 +643,13 @@ public sealed class ShopDayTests(ApiFactory api)
         (await shop.PostJsonAsync("/api/v1/appointments", new { id = Guid.CreateVersion7(), date, start = "13:15", stylistId = stylist, name = "Ritu", serviceIds = new[] { cut.Id } })).EnsureSuccessStatusCode();
         (await shop.PostJsonAsync("/api/v1/appointments", new { id = Guid.CreateVersion7(), date, start = "12:00", name = "Any stylist", serviceIds = new[] { cut.Id } })).EnsureSuccessStatusCode();
 
-        // A walk-in starts now and is already in the chair.
-        var walkIn = await (await shop.PostJsonAsync("/api/v1/appointments", new { id = Guid.CreateVersion7(), date, walkIn = true, serviceIds = new[] { cut.Id } })).ReadAsync<AppointmentDto>();
+        // A walk-in starts now and is already in the chair. "Now" is fixed at 11:00 India time, so the test passes at any hour
+        // (a real walk-in at 23:30 can't finish the same day, and is rightly refused).
+        var at11 = new DateTimeOffset(DateTime.SpecifyKind(DateTime.UtcNow.AddHours(5.5).Date.AddHours(11), DateTimeKind.Unspecified), TimeSpan.FromHours(5.5));
+        using var morning = api.WithWebHostBuilder(b => b.ConfigureServices(s => s.AddSingleton<TimeProvider>(new FixedClock(at11))));
+        var counter = morning.CreateClient();
+        counter.DefaultRequestHeaders.Authorization = shop.DefaultRequestHeaders.Authorization;
+        var walkIn = await (await counter.PostJsonAsync("/api/v1/appointments", new { id = Guid.CreateVersion7(), date, walkIn = true, serviceIds = new[] { cut.Id } })).ReadAsync<AppointmentDto>();
         Assert.Equal(("Walk-in", AppointmentStatus.Arrived), (walkIn.Name, walkIn.Status));
 
         (await shop.PostJsonAsync($"/api/v1/appointments/{id}/status", new { status = "arrived" })).EnsureSuccessStatusCode();
@@ -683,7 +690,7 @@ public sealed class ShopDayTests(ApiFactory api)
         string Month(int add) => DateTime.Today.AddMonths(add).ToString("yyyy-MM");
 
         Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/products/{med}/batches", new { id = Guid.CreateVersion7(), batchNo = "OLD", expiryMonth = Month(-2), mrp = 30m, quantity = 5m })).StatusCode);
-        // 10 paid + 1 free at ₹22 each: ₹20 a strip really.
+        // 10 paid + 1 free at â‚¹22 each: â‚¹20 a strip really.
         (await shop.PostJsonAsync($"/api/v1/products/{med}/batches", new { id = Guid.CreateVersion7(), batchNo = "late1", expiryMonth = Month(8), mrp = 32m, costPrice = 22m, quantity = 10m, freeQuantity = 1m })).EnsureSuccessStatusCode();
         var batches = await (await shop.PostJsonAsync($"/api/v1/products/{med}/batches", new { id = Guid.CreateVersion7(), batchNo = "SOON1", expiryMonth = Month(1), mrp = 30m, costPrice = 20m, quantity = 3m })).ReadAsync<List<BatchDto>>();
         Assert.Equal(("SOON1", "LATE1", 20m), (batches[0].BatchNo, batches[1].BatchNo, batches[1].CostPrice));
@@ -753,7 +760,7 @@ public sealed class ShopDayTests(ApiFactory api)
         (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Shree Pharma Distributors" })).EnsureSuccessStatusCode();
         string Month(int add) => DateTime.Today.AddMonths(add).ToString("yyyy-MM");
 
-        // Batch A: 10 + 1 free at ₹22, 10% trade discount = ₹198 → ₹18 a strip. Batch B: 5 at ₹20 = ₹100.
+        // Batch A: 10 + 1 free at â‚¹22, 10% trade discount = â‚¹198 â†’ â‚¹18 a strip. Batch B: 5 at â‚¹20 = â‚¹100.
         var bill = new
         {
             id = Guid.CreateVersion7(), supplierId = supplier, billNo = "SPD/881", paidAmount = 0m, paymentMode = "cash",
@@ -771,7 +778,7 @@ public sealed class ShopDayTests(ApiFactory api)
         var batches = await shop.GetJsonAsync<List<BatchDto>>($"/api/v1/products/{med}/batches");
         Assert.Equal(("A1", 11m, 18m), (batches[0].BatchNo, batches[0].Quantity, batches[0].CostPrice));
 
-        // Batch A is near expiry: 6 strips go back (worth ₹108). The due stays until the credit note comes.
+        // Batch A is near expiry: 6 strips go back (worth â‚¹108). The due stays until the credit note comes.
         var returnId = Guid.CreateVersion7();
         Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/suppliers/returns", new { id = returnId, supplierId = supplier, lines = new[] { new { batchId = batches[0].Id, quantity = 20m } } })).StatusCode);
         (await shop.PostJsonAsync("/api/v1/suppliers/returns", new { id = returnId, supplierId = supplier, lines = new[] { new { batchId = batches[0].Id, quantity = 6m } } })).EnsureSuccessStatusCode();
@@ -780,7 +787,7 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal((108m, (decimal?)null), (open.Value, open.CreditAmount));
         Assert.Equal(298m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
 
-        // The credit note gives ₹100: the due comes down, ₹8 is the expiry loss.
+        // The credit note gives â‚¹100: the due comes down, â‚¹8 is the expiry loss.
         (await shop.PostJsonAsync($"/api/v1/suppliers/returns/{returnId}/credit-note", new { creditNoteNo = "CN-42", amount = 100m })).EnsureSuccessStatusCode();
         Assert.Empty(await shop.GetJsonAsync<List<SupplierReturnDto>>("/api/v1/suppliers/returns"));
         Assert.Equal(8m, Assert.Single(await shop.GetJsonAsync<List<SupplierReturnDto>>("/api/v1/suppliers/returns?all=true")).Loss);
@@ -798,7 +805,7 @@ public sealed class ShopDayTests(ApiFactory api)
         var supplier = Guid.CreateVersion7();
         (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jaipur Medical Agency" })).EnsureSuccessStatusCode();
 
-        // 10 strips at ₹20 + 5% GST: ₹210 owed, ₹10 of it input credit; each strip costs ₹20.
+        // 10 strips at â‚¹20 + 5% GST: â‚¹210 owed, â‚¹10 of it input credit; each strip costs â‚¹20.
         (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new
         {
             id = Guid.CreateVersion7(), supplierId = supplier, paidAmount = 0m,
@@ -818,6 +825,59 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal((126m, 42m, 0), (month.CashReceipts, month.DigitalReceipts, month.LinesWithoutCost));
         Assert.Equal(month.SalesTaxable - 80m, month.GrossProfit);
         Assert.Equal(Math.Max(0, month.OutputGst - 10m), month.GstPayable);
+    }
+
+    [Fact]
+    public async Task Loose_tablets_sell_as_part_of_a_strip_and_the_reorder_draft_covers_a_month()
+    {
+        var shop = await SignUpAsync("medical");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var para = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Paracetamol 500 mg (strip of 10)");
+        Assert.Equal(10, para.UnitsPerPack);
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Shree Pharma", phone = "9829935486" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new
+        {
+            id = Guid.CreateVersion7(), supplierId = supplier, paidAmount = 0m,
+            lines = new[] { new { productId = para.Id, quantity = 5m, unitCost = 14m, batchNo = "P1", expiryMonth = DateTime.Today.AddMonths(8).ToString("yyyy-MM"), mrp = 20m } },
+        })).EnsureSuccessStatusCode();
+
+        // 3 loose tablets: 0.3 of a strip at the strip's MRP, ₹6.
+        var bill = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = para.Id, name = "Paracetamol 500 mg (3 of 10)", quantity = 0.3m, unitPrice = 20m } }, paidAmount = 6m, paymentMode = "cash" })).ReadAsync<BillDto>();
+        Assert.Equal(6m, bill.Total);
+        Assert.Equal(4.7m, (await Item(shop, para.Id)).Stock);
+
+        // 4.4 more strips sold this month: with 0.3 left, a month's worth is due from Shree Pharma at the last rate.
+        (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = para.Id, quantity = 4.4m, unitPrice = 20m } }, paidAmount = 88m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+        var group = Assert.Single(await shop.GetJsonAsync<List<ReorderGroupDto>>("/api/v1/pharmacy/reorder"), g => g.SupplierId == supplier);
+        var line = Assert.Single(group.Lines);
+        Assert.Equal((4.7m, 5m, 14m), (line.SoldLast30Days, line.Suggested, line.LastRate!.Value));
+        Assert.Equal("9829935486", group.Phone);
+
+        // A prescription photo stays with the bill, for the shop only.
+        var png = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 1, 2, 3 });
+        Assert.Equal(HttpStatusCode.NotFound, (await shop.GetAsync($"/api/v1/bills/{bill.Id}/prescription-photo")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await shop.PutAsJsonAsync($"/api/v1/bills/{bill.Id}/prescription-photo", new { dataUrl = png }, ApiFactory.Json)).StatusCode);
+        Assert.Equal("image/png", (await shop.GetAsync($"/api/v1/bills/{bill.Id}/prescription-photo")).Content.Headers.ContentType!.MediaType);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.CreateClient().GetAsync($"/api/v1/bills/{bill.Id}/prescription-photo")).StatusCode);
+    }
+
+    [Fact]
+    public void Refills_are_due_when_a_regular_patients_usual_gap_runs_out()
+    {
+        var (riya, sunil, bp, cough) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var today = new DateOnly(2026, 11, 4);
+        var sales = new List<(Guid, Guid, DateOnly, decimal)>
+        {
+            // Riya buys her BP medicine every 30 days; last on 6 Oct, so it's due 5 Nov: shown from 3 Nov.
+            (riya, bp, new(2026, 8, 7), 2), (riya, bp, new(2026, 9, 6), 2), (riya, bp, new(2026, 10, 6), 2),
+            // Only twice: not regular yet.
+            (sunil, cough, new(2026, 10, 1), 1), (sunil, cough, new(2026, 10, 20), 1),
+            // Monthly too, but 40 days late: moved on.
+            (sunil, bp, new(2026, 6, 25), 1), (sunil, bp, new(2026, 7, 25), 1), (sunil, bp, new(2026, 8, 24), 1),
+        };
+        var due = Assert.Single(PharmacyAssist.Refills(sales, today));
+        Assert.Equal((riya, bp, 30, new DateOnly(2026, 11, 5), -1), (due.CustomerId, due.ProductId, due.EveryDays, due.DueOn, due.DaysLate));
     }
 
     [Fact]
@@ -871,7 +931,7 @@ public sealed class ShopDayTests(ApiFactory api)
         var booking = await (await shop.PostJsonAsync("/api/v1/bridal", Request(id, "08:00"))).ReadAsync<BridalDto>();
         Assert.Equal((27000m, 2), (booking.Total, booking.Events.Count));
 
-        // The stylist is now away 08:00–12:00 that day, so the chair can't be booked.
+        // The stylist is now away 08:00â€“12:00 that day, so the chair can't be booked.
         Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync("/api/v1/appointments", new { id = Guid.CreateVersion7(), date = wedding, start = "10:00", stylistId = stylist, name = "Late", serviceIds = new[] { cut.Id } })).StatusCode);
 
         (await shop.PostJsonAsync($"/api/v1/bridal/{id}/payment", new { amount = 2000m, mode = "upi", trial = true })).EnsureSuccessStatusCode();
@@ -898,7 +958,7 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/stylists/{stylist}/commission", new { percent = 120m }, ApiFactory.Json)).StatusCode);
         (await shop.PutAsJsonAsync($"/api/v1/stylists/{stylist}/commission", new { percent = 30m }, ApiFactory.Json)).EnsureSuccessStatusCode();
 
-        // Booked for any stylist; the bill says who did it, with a ₹100 tip.
+        // Booked for any stylist; the bill says who did it, with a â‚¹100 tip.
         var id = Guid.CreateVersion7();
         (await shop.PostJsonAsync("/api/v1/appointments", new { id, date = DateOnly.FromDateTime(DateTime.Today.AddDays(1)), start = "10:00", name = "Asha", serviceIds = new[] { facial.Id } })).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/appointments/{id}/bill", new { billId = Guid.CreateVersion7(), paidAmount = 1000m, tip = 100m })).StatusCode);
@@ -940,7 +1000,7 @@ public sealed class ShopDayTests(ApiFactory api)
         (await shop.PostJsonAsync("/api/v1/customer-plans", new { id = Guid.CreateVersion7(), customerId = customer, planId = gold, mode = "cash" })).EnsureSuccessStatusCode();
         Assert.Equal(-2400m, await Balance());
 
-        // A facial and a haircut: the facial comes off the package (₹800, its share), the haircut gets 10% off.
+        // A facial and a haircut: the facial comes off the package (â‚¹800, its share), the haircut gets 10% off.
         var id = Guid.CreateVersion7();
         (await shop.PostJsonAsync("/api/v1/appointments", new { id, date = DateOnly.FromDateTime(DateTime.Today.AddDays(1)), start = "15:00", customerId = customer, serviceIds = new[] { facial.Id, cut.Id } })).EnsureSuccessStatusCode();
         var quote = await shop.GetJsonAsync<AppointmentQuoteDto>($"/api/v1/appointments/{id}/quote");

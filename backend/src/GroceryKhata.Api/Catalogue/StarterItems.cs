@@ -32,10 +32,10 @@ public static class StarterItems
     // differ, so the shop checks each rate with its CA. Sold by the strip or bottle; prices are the MRP, filled in later.
     private static readonly ImportRow[] Medical =
     [
-        Item("Paracetamol 500 mg (strip of 10)", "Fever & pain", Unit.Piece, 5, "3004"),
-        Item("Paracetamol 650 mg (strip of 15)", "Fever & pain", Unit.Piece, 5, "3004"),
+        Medicine("Paracetamol 500 mg (strip of 10)", "Fever & pain", null),
+        Medicine("Paracetamol 650 mg (strip of 15)", "Fever & pain", null),
         Medicine("Ibuprofen 400 mg (strip of 10)", "Fever & pain", DrugSchedule.H),
-        Item("Cetirizine 10 mg (strip of 10)", "Cold & allergy", Unit.Piece, 5, "3004"),
+        Medicine("Cetirizine 10 mg (strip of 10)", "Cold & allergy", null),
         Item("Cough syrup 100 ml", "Cold & allergy", Unit.Piece, 5, "3004"),
         Item("Antacid gel 170 ml", "Stomach", Unit.Piece, 5, "3004"),
         Medicine("Pantoprazole 40 mg (strip of 15)", "Stomach", DrugSchedule.H),
@@ -45,8 +45,8 @@ public static class StarterItems
         Medicine("Metformin 500 mg (strip of 10)", "Diabetes & BP", DrugSchedule.H),
         Medicine("Amlodipine 5 mg (strip of 10)", "Diabetes & BP", DrugSchedule.H),
         Medicine("Cefixime 200 mg (strip of 10)", "Antibiotics", DrugSchedule.H1),
-        Item("Vitamin D3 60K (strip of 4)", "Vitamins", Unit.Piece, 5, "3004"),
-        Item("Multivitamin (strip of 15)", "Vitamins", Unit.Piece, 5, "3004"),
+        Medicine("Vitamin D3 60K (strip of 4)", "Vitamins", null),
+        Medicine("Multivitamin (strip of 15)", "Vitamins", null),
         Item("Glucometer strips (50)", "Devices", Unit.Packet, 5, "3822"),
         Item("Digital thermometer", "Devices", Unit.Piece, 5, "9025"),
         Item("Bandage roll", "First aid", Unit.Piece, 5, "3005"),
@@ -59,7 +59,11 @@ public static class StarterItems
         new(name, unit, 0, null, category, null, null, GstRate: gst, HsnCode: hsn);
 
     private static ImportRow Medicine(string name, string category, DrugSchedule? schedule) =>
-        new(name, Unit.Piece, 0, null, category, null, null, GstRate: 5, HsnCode: "3004", Schedule: schedule);
+        new(name, Unit.Piece, 0, null, category, null, null, GstRate: 5, HsnCode: "3004", Schedule: schedule, UnitsPerPack: PerStrip(name));
+
+    /// <summary>"Paracetamol 650 mg (strip of 15)" → 15, so a strip can be sold loose.</summary>
+    private static int? PerStrip(string name) =>
+        System.Text.RegularExpressions.Regex.Match(name, @"strip of (\d+)") is { Success: true } m ? int.Parse(m.Groups[1].Value) : null;
 
     private static ImportRow Service(string name, string category, int minutes, string sac) =>
         new(name, Unit.Piece, 0, null, category, null, null, GstRate: 5, HsnCode: sac, IsService: true, DurationMinutes: minutes);

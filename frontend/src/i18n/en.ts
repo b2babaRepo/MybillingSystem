@@ -898,6 +898,18 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  loose: { perPack: 'Tablets per strip (to sell loose)', button: 'Sell loose', ask: 'How many tablets? (strip of {{count}})' },
+  rxPhoto: { attach: 'Add the prescription photo', alt: 'Prescription' },
+  refills: {
+    link: 'Refills due', hint: 'Regular patients whose medicine runs out about now, from how often they buy it. Send a reminder only to those who are happy to get one.',
+    none: 'No refills due right now.', line: 'Buys about every {{every}} days · last {{last}} ({{qty}})', dueOn: 'due {{date}}', late_one: '{{count}} day late', late_other: '{{count}} days late',
+    noPhone: 'No phone number on this khata.', message: 'Namaste {{name}} ji, your {{medicine}} may be running out. It’s ready at {{shop}} whenever you need it.',
+  },
+  reorder: {
+    link: 'What to order', hint: 'Medicines at their reorder level or with under two weeks of sales left. Each suggestion covers a month of sales. Change any number, then send.',
+    none: 'Nothing to order right now.', noSupplier: 'No distributor yet', line: '{{stock}} left · {{sold}} sold in 30 days', qty: 'Order', send: 'Send order on WhatsApp',
+    noPhone: 'Add the distributor’s phone on their page to send from here.', message: 'Order from {{shop}}:\n{{lines}}\nPlease send with the bill. Thank you.',
+  },
   invoicePhoto: {
     button: 'Read the bill photo', reading: 'Reading the bill…', nothing: 'No medicine lines could be read. Try a flat, well-lit photo.',
     consent: 'The bill photo is sent to an AI service (Anthropic) to read the lines. The photo isn’t kept. You check every line before saving.',
