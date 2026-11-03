@@ -24,7 +24,7 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
   const [date, setDate] = useState(isoDay(new Date()))
   const [form, setForm] = useState<false | 'book' | 'walk-in'>(false)
   const [paying, setPaying] = useState<string | null>(null)
-  const [pay, setPay] = useState({ amount: '', mode: 'upi' })
+  const [pay, setPay] = useState({ amount: '', mode: 'upi', stylistId: '', tip: '' })
   const [message, setMessage] = useState('')
   const day = useQuery({ queryKey: [shopId, 'appointments', date], queryFn: () => api<Day>(`/v1/appointments?date=${date}`) }).data
 
@@ -74,7 +74,7 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
                   {(a.status === 'booked' || a.status === 'arrived') && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {a.status === 'booked' && <Button className="h-10 px-3 text-sm" onClick={() => void run(`${a.id}/status`, { status: 'arrived' })}>{t('appointments.arrived')}</Button>}
-                      <Button className="h-10 px-3 text-sm" tone={a.status === 'arrived' ? 'primary' : 'plain'} onClick={() => { setPaying(a.id); setPay({ amount: String(a.total), mode: 'upi' }) }}>{t('appointments.bill')}</Button>
+                      <Button className="h-10 px-3 text-sm" tone={a.status === 'arrived' ? 'primary' : 'plain'} onClick={() => { setPaying(a.id); setPay({ amount: String(a.total), mode: 'upi', stylistId: '', tip: '' }) }}>{t('appointments.bill')}</Button>
                       {a.status === 'booked' && <button onClick={() => void run(`${a.id}/status`, { status: 'no_show' })} className="h-10 px-2 text-sm font-semibold">{t('appointments.noShow')}</button>}
                       {a.phone && a.status === 'booked' && <a href={whatsAppLink(a.phone, reminder(a))} target="_blank" rel="noreferrer" className="flex h-10 items-center rounded-xl bg-[#15803d] px-3 text-sm font-semibold text-white">{t('tables.remind')}</a>}
                       <button onClick={() => { if (confirm(t('appointments.cancelConfirm'))) void run(`${a.id}/status`, { status: 'cancelled' }) }} className="h-10 px-2 text-sm font-semibold text-due">{t('cancel')}</button>
@@ -82,9 +82,15 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
                   )}
                   {paying === a.id && (
                     <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-2">
+                      {!a.stylistId && (
+                        <select value={pay.stylistId} onChange={(e) => setPay({ ...pay, stylistId: e.target.value })} aria-label={t('appointments.whoDid')} className="col-span-3 h-10 rounded-xl border border-line bg-white px-2">
+                          <option value="">{t('appointments.whoDid')}</option>{(day?.stylists ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      )}
+                      <input value={pay.tip} onChange={(e) => setPay({ ...pay, tip: e.target.value })} inputMode="decimal" placeholder={t('appointments.tip')} aria-label={t('appointments.tip')} className="col-span-3 h-10 rounded-xl border border-line px-2" />
                       <input value={pay.amount} onChange={(e) => setPay({ ...pay, amount: e.target.value })} inputMode="decimal" aria-label={t('jobs.paidNow')} className="h-10 rounded-xl border border-line px-2" />
                       <select value={pay.mode} onChange={(e) => setPay({ ...pay, mode: e.target.value })} aria-label={t('jobs.mode')} className="h-10 rounded-xl border border-line bg-white px-2"><option value="upi">UPI</option><option value="cash">{t('cash')}</option></select>
-                      <Button className="h-10 px-3" onClick={() => void run(`${a.id}/bill`, { billId: crypto.randomUUID(), paidAmount: Number(pay.amount) || 0, mode: pay.mode })}>{t('save')}</Button>
+                      <Button className="h-10 px-3" onClick={() => void run(`${a.id}/bill`, { billId: crypto.randomUUID(), paidAmount: Number(pay.amount) || 0, mode: pay.mode, stylistId: pay.stylistId || null, tip: Number(pay.tip) || 0 })}>{t('save')}</Button>
                       {!a.customerId && Number(pay.amount) < a.total && <p className="col-span-3 text-xs text-due">{t('appointments.payAll')}</p>}
                     </div>
                   )}

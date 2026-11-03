@@ -128,6 +128,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();
 
+    public DbSet<StylistRate> StylistRates => Set<StylistRate>();
+
+    public DbSet<StylistEarning> StylistEarnings => Set<StylistEarning>();
+
     public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
@@ -666,6 +670,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(s => s.Name).HasMaxLength(120);
             b.Property(s => s.Price).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<StylistRate>(b =>
+        {
+            b.ToTable("stylist_rates");
+            b.HasTenantKey();
+            b.Property(r => r.Percent).HasPrecision(5, 2);
+            b.HasIndex(r => new { r.ShopId, r.MembershipId }).IsUnique();
+        });
+
+        modelBuilder.Entity<StylistEarning>(b =>
+        {
+            b.ToTable("stylist_earnings");
+            b.HasTenantKey();
+            b.Property(e => e.Base).HasPrecision(12, 2);
+            b.Property(e => e.Percent).HasPrecision(5, 2);
+            b.Property(e => e.Amount).HasPrecision(12, 2);
+            b.HasIndex(e => new { e.ShopId, e.MembershipId, e.PaidAt });
         });
 
         modelBuilder.Entity<Machine>(b =>

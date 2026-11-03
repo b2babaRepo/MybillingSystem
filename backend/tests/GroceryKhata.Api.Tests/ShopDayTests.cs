@@ -655,6 +655,34 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal(3, (await shop.GetJsonAsync<SalonDayDto>($"/api/v1/appointments?date={date:yyyy-MM-dd}")).Appointments.Count(a => a.Status != AppointmentStatus.Arrived));
     }
 
+    [Fact]
+    public async Task Stylists_earn_commission_and_tips_and_are_paid_out_into_kharcha()
+    {
+        var shop = await SignUpAsync("beauty");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var facial = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Facial");
+        (await shop.PutAsJsonAsync($"/api/v1/products/{facial.Id}", new { name = facial.Name, unit = facial.Unit, sellingPrice = 1000m, gstRate = facial.GstRate, hsnCode = facial.HsnCode }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        var stylist = (await shop.GetJsonAsync<SalonDayDto>("/api/v1/appointments")).Stylists[0].Id;
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/stylists/{stylist}/commission", new { percent = 120m }, ApiFactory.Json)).StatusCode);
+        (await shop.PutAsJsonAsync($"/api/v1/stylists/{stylist}/commission", new { percent = 30m }, ApiFactory.Json)).EnsureSuccessStatusCode();
+
+        // Booked for any stylist; the bill says who did it, with a ₹100 tip.
+        var id = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/appointments", new { id, date = DateOnly.FromDateTime(DateTime.Today.AddDays(1)), start = "10:00", name = "Asha", serviceIds = new[] { facial.Id } })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/appointments/{id}/bill", new { billId = Guid.CreateVersion7(), paidAmount = 1000m, tip = 100m })).StatusCode);
+        (await shop.PostJsonAsync($"/api/v1/appointments/{id}/bill", new { billId = Guid.CreateVersion7(), paidAmount = 1000m, mode = "upi", stylistId = stylist, tip = 100m })).EnsureSuccessStatusCode();
+
+        var month = await shop.GetJsonAsync<EarningsMonthDto>("/api/v1/stylists/earnings");
+        var me = Assert.Single(month.Stylists, s => s.MembershipId == stylist);
+        Assert.Equal((30m, 300m, 100m, 400m), (me.Percent, me.Commission, me.Tips, me.Owed));
+
+        (await shop.PostJsonAsync($"/api/v1/stylists/{stylist}/payout", new { mode = "cash" })).EnsureSuccessStatusCode();
+        Assert.Equal(0m, Assert.Single((await shop.GetJsonAsync<EarningsMonthDto>("/api/v1/stylists/earnings")).Stylists, s => s.MembershipId == stylist).Owed);
+        var kharcha = await shop.GetJsonAsync<ExpensePageDto>("/api/v1/expenses");
+        Assert.Contains(kharcha.Lines, e => e.Amount == 300m && e.Category == ExpenseCategory.Salary); // the tip is not a cost
+        Assert.DoesNotContain(kharcha.Lines, e => e.Amount == 100m);
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {

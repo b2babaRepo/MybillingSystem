@@ -72,7 +72,8 @@ public sealed record AppointmentRequest(
 
 public sealed record AppointmentStatusRequest(AppointmentStatus? Status);
 
-public sealed record AppointmentBillRequest(Guid BillId, decimal PaidAmount, PaymentMode? Mode);
+/// <summary><see cref="StylistId"/>: who did it, when the appointment was for any stylist. <see cref="Tip"/>: left for the stylist, on top of the bill.</summary>
+public sealed record AppointmentBillRequest(Guid BillId, decimal PaidAmount, PaymentMode? Mode, Guid? StylistId = null, decimal Tip = 0);
 
 public sealed record AppointmentServiceDto(Guid ProductId, string Name, decimal Price, int Minutes);
 
@@ -259,6 +260,22 @@ public static class Appointments
             return Invalid("Services", "Set a price for every service before billing.");
         }
 
+        if (request.Tip < 0 || (request.Tip > 0 && !Money.IsValidAmount(request.Tip)))
+        {
+            return Invalid("Tip", "Enter the tip, or leave it empty.");
+        }
+
+        var stylist = appointment.StylistId ?? request.StylistId;
+        if (request.StylistId is { } chosen && appointment.StylistId is null && !await db.Memberships.AnyAsync(m => m.Id == chosen && m.ShopId == tenant.ShopId && m.IsActive, ct))
+        {
+            return Invalid("StylistId", "Choose a stylist from this salon.");
+        }
+
+        if (request.Tip > 0 && stylist is null)
+        {
+            return Invalid("StylistId", "Choose who did it, to give them the tip.");
+        }
+
         var lines = appointment.Services.OrderBy(s => s.CreatedAt).Select(s => new BillLineRequest(s.ProductId, s.Name, 1, Unit.Piece, s.Price)).ToList();
         var result = await ledger.CreateBillAsync(new BillRequest(request.BillId, appointment.CustomerId, lines, request.PaidAmount, request.Mode, null),
             user.UserId()!.Value, ct, isOwner: user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner)));
@@ -267,7 +284,12 @@ public static class Appointments
             return result.ToHttp("");
         }
 
-        (appointment.Status, appointment.BillId) = (AppointmentStatus.Done, bill.Id);
+        (appointment.Status, appointment.BillId, appointment.StylistId) = (AppointmentStatus.Done, bill.Id, stylist);
+        if (stylist is { } who)
+        {
+            await StylistPay.RecordAsync(db, who, appointment.Id, bill.Id, appointment.Services.Sum(s => s.Price), request.Tip, DateTimeOffset.UtcNow, ct);
+        }
+
         await db.SaveChangesAsync(ct);
         return await GetAsync(id, db, tenant, ct);
     }

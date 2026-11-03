@@ -129,6 +129,7 @@ function Stylists({ shopId }: { shopId: string }) {
         <Button disabled={d.name.trim().length < 2 || d.phone.replace(/\D/g, '').length < 10 || d.pin.length < 4} onClick={() => void add()}>{t('salon.addStylist')}</Button>
         {message && <p className="text-sm text-muted">{message}</p>}
       </div>
+      <CommissionRates shopId={shopId} />
       <Button onClick={() => navigate('/')}>{t('salon.done')}</Button>
     </div>
   )
@@ -155,7 +156,79 @@ export function SalonHomeCard({ shopId, isOwner }: { shopId: string; isOwner: bo
         <button onClick={() => navigate('/bill')} className={row}><span>{t('salon.walkIn')}</span><span aria-hidden="true">→</span></button>
         {isOwner && <button onClick={() => navigate('/salon/setup')} className={row}><span>{t('salon.servicesShort', { count: services.length })}</span><span aria-hidden="true">→</span></button>}
       </div>
+      {isOwner && <button onClick={() => navigate('/stylists')} className={row}><span>{t('salon.earningsLink')}</span><span aria-hidden="true">→</span></button>}
       {services.length > 0 && <p className="px-1 text-xs text-muted">{services.slice(0, 4).map((s) => `${s.name} ${s.sellingPrice > 0 ? formatRupees(s.sellingPrice) : ''}`).join(' · ')}</p>}
     </section>
+  )
+}
+
+interface Earnings { month: string; stylists: { membershipId: string; name: string; percent: number; services: number; sales: number; commission: number; tips: number; owed: number }[] }
+
+/** Each stylist's commission percent, set by the owner. */
+export function CommissionRates({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const data = useQuery({ queryKey: [shopId, 'stylist-earnings', ''], queryFn: () => api<Earnings>('/v1/stylists/earnings') }).data
+  const [rates, setRates] = useState<Record<string, string>>({})
+  const [message, setMessage] = useState('')
+  const save = (id: string) => api(`/v1/stylists/${id}/commission`, 'PUT', { percent: Number(rates[id]) || 0 })
+    .then(() => { setMessage(t('saved')); void queryClient.invalidateQueries({ queryKey: [shopId, 'stylist-earnings'] }) })
+    .catch((e: unknown) => setMessage(e instanceof Error ? e.message : t('error')))
+  return (
+    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <h3 className="font-bold">{t('salon.commissionTitle')}</h3>
+      <p className="text-xs text-muted">{t('salon.commissionHint')}</p>
+      {data?.stylists.map((s) => (
+        <div key={s.membershipId} className="grid grid-cols-[1fr_5rem_auto] items-center gap-2">
+          <span className="font-semibold">{s.name}</span>
+          <input value={rates[s.membershipId] ?? String(s.percent)} onChange={(e) => setRates({ ...rates, [s.membershipId]: e.target.value })} inputMode="decimal" aria-label={t('salon.percentFor', { name: s.name })} className="h-11 rounded-xl border border-line px-2" />
+          <button disabled={rates[s.membershipId] === undefined} onClick={() => void save(s.membershipId)} className="min-h-11 px-2 text-sm font-semibold text-teal-700 disabled:opacity-40">{t('save')}</button>
+        </div>
+      ))}
+      {message && <p className="text-sm text-muted">{message}</p>}
+    </div>
+  )
+}
+
+/** A month of each stylist's work: services, sales, commission and tips, what is owed, and paying it out. */
+export function StylistEarningsScreen({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const now = new Date()
+  const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+  const data = useQuery({ queryKey: [shopId, 'stylist-earnings', month], queryFn: () => api<Earnings>(`/v1/stylists/earnings?month=${month}`) }).data
+  const [message, setMessage] = useState('')
+  const shift = (n: number) => { const [y, m] = month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`) }
+  async function pay(id: string, name: string, owed: number) {
+    if (!confirm(t('salon.payConfirm', { name, amount: formatRupees(owed) }))) return
+    try {
+      await api(`/v1/stylists/${id}/payout`, 'POST', { mode: 'cash' })
+      setMessage(t('salon.paid', { name }))
+      void queryClient.invalidateQueries({ queryKey: [shopId] })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+  return (
+    <div className="flex flex-col gap-3 p-4 pb-28">
+      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+        <button onClick={() => shift(-1)} aria-label={t('bookings.prev')} className="h-11 w-11 text-xl">‹</button>
+        <span className="font-bold">{new Date(`${month}-01T00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</span>
+        <button onClick={() => shift(1)} aria-label={t('bookings.next')} className="h-11 w-11 text-xl">›</button>
+      </div>
+      {message && <p className="text-sm text-muted">{message}</p>}
+      {data?.stylists.map((s) => (
+        <section key={s.membershipId} className="flex flex-col gap-1 rounded-[18px] bg-white p-4 text-sm">
+          <h3 className="text-base font-bold">{s.name} <span className="font-normal text-muted">· {s.percent}%</span></h3>
+          <div className="flex justify-between"><span>{t('salon.servicesDone', { count: s.services })}</span><span>{formatRupees(s.sales)}</span></div>
+          <div className="flex justify-between"><span>{t('salon.commission')}</span><span>{formatRupees(s.commission)}</span></div>
+          <div className="flex justify-between"><span>{t('salon.tips')}</span><span>{formatRupees(s.tips)}</span></div>
+          <div className="flex justify-between font-bold"><span>{t('salon.owed')}</span><span>{formatRupees(s.owed)}</span></div>
+          {s.owed > 0 && <Button className="mt-2" onClick={() => void pay(s.membershipId, s.name, s.owed)}>{t('salon.payOut', { amount: formatRupees(s.owed) })}</Button>}
+        </section>
+      ))}
+      <CommissionRates shopId={shopId} />
+      <p className="text-xs text-muted">{t('salon.earningsHint')}</p>
+    </div>
   )
 }
