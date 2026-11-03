@@ -114,6 +114,7 @@ app.MapBookings();
 app.MapTableBookings();
 app.MapStays();
 app.MapAppointments();
+app.MapBridal();
 app.MapStylistPay();
 app.MapPrepaid();
 app.MapCashCounts();

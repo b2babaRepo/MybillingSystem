@@ -897,6 +897,16 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  bridal: {
+    link: 'Bridal and home bookings', hint: 'Book a bride (or any home visit) with several events on their own dates. Trial fees and advances go on her khata; one bill at the end.',
+    none: 'No bridal or home bookings yet.', add: 'New bridal or home booking', title: 'Name', titleHint: "Riya's wedding", atHome: 'At the customer’s home', address: 'Address', travel: 'Travel charge',
+    event: 'Event', eventHint: 'Mehndi', wedding: 'Bridal makeup', price: 'Price', date: 'Date', start: 'Start', minutes: 'Minutes', stylist: 'Stylist',
+    addEvent: '+ Add another event', removeEvent: 'Remove this event', book: 'Book', booked: 'Booked. The stylist’s time is kept.',
+    received: 'Received (trial and advance)', balance: 'Still to pay', takePayment: 'Take trial fee or advance', amount: 'Amount', isTrial: 'This is the trial fee', paid: 'Payment saved on the khata.',
+    complete: 'Done: make the bill', completeConfirm: 'Make the final bill? {{due}} goes on her khata as still to pay.', completed: 'Billed.',
+    cancel: 'Cancel booking', cancelKeep: 'How much of the advance do you keep? (0 to return it all)', cancelled: 'Cancelled. The stylist is free.',
+    reminder: 'Namaste {{name}} ji, {{shop}} is ready for your big day: {{events}}. Balance {{due}}. Thank you!',
+  },
   packages: {
     link: 'Packages and memberships', hint: 'Sell a package (sessions paid ahead) or a membership (a discount for a period) to a khata customer. They apply by themselves when billing.',
     sell: 'Sell to a customer', chooseCustomer: 'Customer (khata)', choosePlan: 'Package or membership', plan: 'Plan', sellButton: 'Sell and take payment', sold: 'Sold.',

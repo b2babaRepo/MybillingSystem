@@ -126,6 +126,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Appointment> Appointments => Set<Appointment>();
 
+    public DbSet<BridalBooking> BridalBookings => Set<BridalBooking>();
+
+    public DbSet<BridalEvent> BridalEvents => Set<BridalEvent>();
+
     public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();
 
     public DbSet<StylistRate> StylistRates => Set<StylistRate>();
@@ -666,6 +670,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasMany(a => a.Services).WithOne().HasForeignKey(s => s.AppointmentId);
             b.HasIndex(a => new { a.ShopId, a.Number }).IsUnique();
             b.HasIndex(a => new { a.ShopId, a.Date, a.StylistId });
+        });
+
+        modelBuilder.Entity<BridalBooking>(b =>
+        {
+            b.ToTable("bridal_bookings");
+            b.HasTenantKey();
+            b.Property(x => x.Title).HasMaxLength(120);
+            b.Property(x => x.Address).HasMaxLength(200);
+            b.Property(x => x.Note).HasMaxLength(300);
+            b.Property(x => x.TravelCharge).HasPrecision(12, 2);
+            b.HasMany(x => x.Events).WithOne().HasForeignKey(e => e.BookingId);
+            b.HasIndex(x => new { x.ShopId, x.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<BridalEvent>(b =>
+        {
+            b.ToTable("bridal_events");
+            b.HasTenantKey();
+            b.Property(e => e.Name).HasMaxLength(40);
+            b.Property(e => e.Price).HasPrecision(12, 2);
+            b.HasIndex(e => new { e.ShopId, e.Date, e.StylistId });
         });
 
         modelBuilder.Entity<AppointmentService>(b =>

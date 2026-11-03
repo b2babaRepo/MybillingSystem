@@ -186,13 +186,10 @@ public static class Appointments
         {
             // Lock the stylist's membership row so two bookings for the same stylist can't both pass the check.
             await db.Database.ExecuteSqlAsync($"SELECT 1 FROM memberships WHERE id = {who} FOR UPDATE", ct);
-            var busy = await db.Appointments.AsNoTracking()
-                .Where(a => a.StylistId == who && a.Date == date && (a.Status == AppointmentStatus.Booked || a.Status == AppointmentStatus.Arrived)
-                    && a.Start < end && start.Value < a.End)
-                .Select(a => new { a.Start, a.End, a.Name }).FirstOrDefaultAsync(ct);
+            var busy = await ClashAsync(db, who, date, start.Value, end, ct) ?? await Bridal.EventClashAsync(db, who, date, start.Value, end, Guid.Empty, ct);
             if (busy is not null)
             {
-                return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: $"This stylist is busy {busy.Start:HH\\:mm}–{busy.End:HH\\:mm} ({busy.Name}).");
+                return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: busy);
             }
         }
 
@@ -208,6 +205,16 @@ public static class Appointments
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return await GetAsync(request.Id, db, tenant, ct);
+    }
+
+    /// <summary>The stylist's booked or arrived appointment overlapping this time, as a message; null when free.</summary>
+    public static async Task<string?> ClashAsync(AppDbContext db, Guid stylistId, DateOnly date, TimeOnly start, TimeOnly end, CancellationToken ct)
+    {
+        var busy = await db.Appointments.AsNoTracking()
+            .Where(a => a.StylistId == stylistId && a.Date == date && (a.Status == AppointmentStatus.Booked || a.Status == AppointmentStatus.Arrived)
+                && a.Start < end && start < a.End)
+            .Select(a => new { a.Start, a.End, a.Name }).FirstOrDefaultAsync(ct);
+        return busy is null ? null : $"This stylist is busy {busy.Start:HH\\:mm}–{busy.End:HH\\:mm} ({busy.Name}).";
     }
 
     /// <summary>The customer arrived, didn't come, or cancelled. Done is set by billing.</summary>
