@@ -114,6 +114,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Booking> Bookings => Set<Booking>();
 
+    public DbSet<TableBooking> TableBookings => Set<TableBooking>();
+
     public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
@@ -571,6 +573,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(x => x.CancelReason).HasMaxLength(200);
             b.HasIndex(x => new { x.ShopId, x.Number }).IsUnique();
             b.HasIndex(x => new { x.ShopId, x.VenueId, x.Date });
+        });
+
+        modelBuilder.Entity<TableBooking>(b =>
+        {
+            b.ToTable("table_bookings");
+            b.HasTenantKey();
+            b.Property(x => x.Name).HasMaxLength(80);
+            b.Property(x => x.Phone).HasMaxLength(20);
+            b.Property(x => x.Cake).HasMaxLength(120);
+            b.Property(x => x.Table).HasMaxLength(30);
+            b.Property(x => x.Note).HasMaxLength(200);
+            b.Property(x => x.Deposit).HasPrecision(12, 2);
+            b.HasIndex(x => new { x.ShopId, x.Number }).IsUnique();
+            b.HasIndex(x => new { x.ShopId, x.Date });
         });
 
         modelBuilder.Entity<Machine>(b =>

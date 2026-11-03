@@ -95,6 +95,11 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         <span aria-hidden="true">→</span>
       </button>
 
+      {types.includes('restaurant') && (
+        <button onClick={() => navigate('/tables')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+          <span>{t('tables.link')}</span><span aria-hidden="true">→</span>
+        </button>
+      )}
       {types.includes('banquet') && (
         <button onClick={() => navigate('/bookings')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
           <span>{t('bookings.link')}</span><span aria-hidden="true">→</span>

@@ -15,7 +15,7 @@ namespace GroceryKhata.Api.Tests;
 [Collection(ApiCollection.Name)]
 public sealed class ShopDayTests(ApiFactory api)
 {
-    public static TheoryData<string> Trades => ["water_supply", "beauty", "sweets", "toys", "clothes", "building_materials", "paint", "hardware", "electrical", "woodwork", "banquet"];
+    public static TheoryData<string> Trades => ["water_supply", "beauty", "sweets", "toys", "clothes", "building_materials", "paint", "hardware", "electrical", "woodwork", "banquet", "restaurant"];
 
     [Theory]
     [MemberData(nameof(Trades))]
@@ -457,6 +457,32 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal("cancelled", cancelled.Status);
         Assert.Equal(-15000m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance); // ₹15,000 to give back
         Assert.Equal(HttpStatusCode.OK, (await shop.PostJsonAsync("/api/v1/bookings", new { id = Guid.CreateVersion7(), venueId = hall, date, slot = "evening", customerId = customer, guests = 50, plateRate = 400m, hallRent = 0m, deposit = 0m })).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_birthday_table_is_booked_with_a_deposit_that_the_bill_takes_off()
+    {
+        var shop = await SignUpAsync("restaurant");
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Riya's family");
+        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(2));
+        var id = Guid.CreateVersion7();
+        var booking = await (await shop.PostJsonAsync("/api/v1/table-bookings", new
+        {
+            id, date, time = "20:00", people = 12, customerId = customer, occasion = "birthday", cake = "1 kg chocolate, Happy Birthday Riya", decoration = true, table = "Rooftop",
+        })).ReadAsync<TableBookingDto>();
+        Assert.Equal(("Riya's family", PartyOccasion.Birthday, TableBookingStatus.Booked), (booking.Name, booking.Occasion, booking.Status));
+        (await shop.PostJsonAsync("/api/v1/table-bookings", new { id = Guid.CreateVersion7(), date, time = "19:30", people = 4, name = "Walk-in Mehta", phone = "98765 43210" })).EnsureSuccessStatusCode();
+
+        // A ₹2,000 deposit is a khata payment; the ₹6,500 table bill leaves ₹4,500 to pay.
+        booking = await (await shop.PostJsonAsync($"/api/v1/table-bookings/{id}/deposit", new { amount = 2000m, mode = "upi" })).ReadAsync<TableBookingDto>();
+        Assert.Equal(2000m, booking.Deposit);
+        (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), customerId = customer, paidAmount = 0m, lines = new[] { new { name = "Party dinner", quantity = 1m, unit = "piece", unitPrice = 6500m } } })).EnsureSuccessStatusCode();
+        Assert.Equal(4500m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance);
+
+        (await shop.PostJsonAsync($"/api/v1/table-bookings/{id}/status", new { status = "seated" })).EnsureSuccessStatusCode();
+        var day = await shop.GetJsonAsync<TableDayDto>($"/api/v1/table-bookings?date={date:yyyy-MM-dd}");
+        Assert.Equal((2, 16), (day.Bookings.Count, day.People));
+        Assert.Equal("Walk-in Mehta", day.Bookings[0].Name); // 7:30 before 8:00
     }
 
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>

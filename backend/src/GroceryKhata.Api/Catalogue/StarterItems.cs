@@ -22,6 +22,7 @@ public static class StarterItems
         ShopType.Electrical => Electrical,
         ShopType.Woodwork => Woodwork,
         ShopType.Banquet => Banquet,
+        ShopType.Restaurant => Restaurant,
         _ => [],
     };
 
@@ -180,6 +181,24 @@ public static class StarterItems
         Item("Balloon decoration", "Decoration", Unit.Piece, null, null),
         Item("Valet parking", "Services", Unit.Piece, null, null),
         Item("Mineral water 1 L", "Food", Unit.Piece, null, null),
+    ];
+
+    // A starting menu. Restaurant GST (usually 5% without input credit) is set by the shop with its CA, so it is left empty here.
+    private static readonly ImportRow[] Restaurant =
+    [
+        Item("Paneer butter masala", "Main course", Unit.Piece, null, null),
+        Item("Dal makhani", "Main course", Unit.Piece, null, null),
+        Item("Veg biryani", "Rice", Unit.Piece, null, null),
+        Item("Jeera rice", "Rice", Unit.Piece, null, null),
+        Item("Tandoori roti", "Breads", Unit.Piece, null, null),
+        Item("Butter naan", "Breads", Unit.Piece, null, null),
+        Item("Masala dosa", "South Indian", Unit.Piece, null, null),
+        Item("Veg thali", "Thali", Unit.Piece, null, null),
+        Item("Masala chai", "Drinks", Unit.Piece, null, null),
+        Item("Cold drink", "Drinks", Unit.Piece, null, null),
+        Item("Gulab jamun (2 pc)", "Sweets", Unit.Piece, null, null),
+        Item("Birthday cake (per kg)", "Party", Unit.Kg, null, null),
+        Item("Party decoration", "Party", Unit.Piece, null, null),
     ];
 
     private static readonly ImportRow[] Electrical =

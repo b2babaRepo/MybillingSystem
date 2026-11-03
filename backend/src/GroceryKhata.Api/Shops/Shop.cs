@@ -110,4 +110,6 @@ public enum ShopType
     Woodwork,
     /// <summary>Banquet hall, marriage garden or party hall: books dates for weddings, birthdays and anniversaries.</summary>
     Banquet,
+    /// <summary>Restaurant, cafe or dhaba: a menu, table bookings, birthday and anniversary parties.</summary>
+    Restaurant,
 }
