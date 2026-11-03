@@ -2426,6 +2426,138 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.Appointment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<TimeOnly>("End")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("end");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<TimeOnly>("Start")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("start");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("StylistId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("stylist_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "Number")
+                        .IsUnique();
+
+                    b.HasIndex("ShopId", "Date", "StylistId");
+
+                    b.ToTable("appointments", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.AppointmentService", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("appointment_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("Minutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("minutes");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("price");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.ToTable("appointment_services", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.BalanceCheck", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5541,6 +5673,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.AppointmentService", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Ledger.Appointment", null)
+                        .WithMany("Services")
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Bill", b =>
                 {
                     b.HasOne("GroceryKhata.Api.Ledger.Customer", null)
@@ -5803,6 +5944,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
             modelBuilder.Entity("GroceryKhata.Api.Agents.ShopRegistration", b =>
                 {
                     b.Navigation("Photos");
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.Appointment", b =>
+                {
+                    b.Navigation("Services");
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Bill", b =>

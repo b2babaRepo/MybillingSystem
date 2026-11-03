@@ -124,6 +124,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<RatePeriod> RatePeriods => Set<RatePeriod>();
 
+    public DbSet<Appointment> Appointments => Set<Appointment>();
+
+    public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();
+
     public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
@@ -642,6 +646,26 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(c => c.Name).HasMaxLength(60);
             b.Property(c => c.Amount).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<Appointment>(b =>
+        {
+            b.ToTable("appointments");
+            b.HasTenantKey();
+            b.Property(a => a.Name).HasMaxLength(80);
+            b.Property(a => a.Phone).HasMaxLength(20);
+            b.Property(a => a.Note).HasMaxLength(200);
+            b.HasMany(a => a.Services).WithOne().HasForeignKey(s => s.AppointmentId);
+            b.HasIndex(a => new { a.ShopId, a.Number }).IsUnique();
+            b.HasIndex(a => new { a.ShopId, a.Date, a.StylistId });
+        });
+
+        modelBuilder.Entity<AppointmentService>(b =>
+        {
+            b.ToTable("appointment_services");
+            b.HasTenantKey();
+            b.Property(s => s.Name).HasMaxLength(120);
+            b.Property(s => s.Price).HasPrecision(12, 2);
         });
 
         modelBuilder.Entity<Machine>(b =>

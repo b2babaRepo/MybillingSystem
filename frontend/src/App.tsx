@@ -41,6 +41,7 @@ const PaintersScreen = lazy(() => import('./screens/PaintersScreen').then((modul
 const GstExportScreen = lazy(() => import('./screens/GstExportScreen').then((module) => ({ default: module.GstExportScreen })))
 const PickItemsScreen = lazy(() => import('./screens/PickItemsScreen').then((module) => ({ default: module.PickItemsScreen })))
 const ProfitLossScreen = lazy(() => import('./screens/ProfitLossScreen').then((module) => ({ default: module.ProfitLossScreen })))
+const AppointmentsScreen = lazy(() => import('./screens/AppointmentsScreen').then((module) => ({ default: module.AppointmentsScreen })))
 const SalonSetupScreen = lazy(() => import('./screens/SalonSetupScreen').then((module) => ({ default: module.SalonSetupScreen })))
 const RoomsScreen = lazy(() => import('./screens/RoomsScreen').then((module) => ({ default: module.RoomsScreen })))
 const TableBookingsScreen = lazy(() => import('./screens/TableBookingsScreen').then((module) => ({ default: module.TableBookingsScreen })))
@@ -282,6 +283,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <GstExportScreen />
         ) : path === '/pnl' && isOwner ? (
           <ProfitLossScreen />
+        ) : path === '/appointments' ? (
+          <AppointmentsScreen shopId={shopId} shopName={shopName} />
         ) : path === '/salon/setup' ? (
           <SalonSetupScreen shopId={shopId} />
         ) : path === '/rooms' ? (

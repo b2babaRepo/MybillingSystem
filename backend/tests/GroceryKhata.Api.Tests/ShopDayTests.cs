@@ -616,6 +616,45 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal((true, 120), ((await Item(shop, id)).IsService, (await Item(shop, id)).DurationMinutes));
     }
 
+    [Fact]
+    public async Task Appointments_keep_a_stylist_in_one_chair_and_bill_the_services_done()
+    {
+        var shop = await SignUpAsync("beauty");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var items = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        var (cut, colour) = (items.Single(p => p.Name == "Haircut (women)"), items.Single(p => p.Name == "Hair colour"));
+        foreach (var (p, price) in new[] { (cut, 400m), (colour, 1200m) })
+        {
+            (await shop.PutAsJsonAsync($"/api/v1/products/{p.Id}", new { name = p.Name, unit = p.Unit, sellingPrice = price, gstRate = p.GstRate, hsnCode = p.HsnCode }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        }
+
+        var day = await shop.GetJsonAsync<SalonDayDto>("/api/v1/appointments");
+        var stylist = day.Stylists[0].Id; // the owner also takes clients
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Pooja");
+        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+
+        // Haircut (45 min) and colour (90 min) at 11:00 run to 13:15.
+        var id = Guid.CreateVersion7();
+        var booked = await (await shop.PostJsonAsync("/api/v1/appointments", new { id, date, start = "11:00", stylistId = stylist, customerId = customer, serviceIds = new[] { cut.Id, colour.Id } })).ReadAsync<AppointmentDto>();
+        Assert.Equal((new TimeOnly(13, 15), 1600m, AppointmentStatus.Booked), (booked.End, booked.Total, booked.Status));
+        Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync("/api/v1/appointments", new { id = Guid.CreateVersion7(), date, start = "13:00", stylistId = stylist, name = "Ritu", serviceIds = new[] { cut.Id } })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/appointments", new { id = Guid.CreateVersion7(), date, start = "13:15", stylistId = stylist, name = "Ritu", serviceIds = new[] { cut.Id } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/appointments", new { id = Guid.CreateVersion7(), date, start = "12:00", name = "Any stylist", serviceIds = new[] { cut.Id } })).EnsureSuccessStatusCode();
+
+        // A walk-in starts now and is already in the chair.
+        var walkIn = await (await shop.PostJsonAsync("/api/v1/appointments", new { id = Guid.CreateVersion7(), date, walkIn = true, serviceIds = new[] { cut.Id } })).ReadAsync<AppointmentDto>();
+        Assert.Equal(("Walk-in", AppointmentStatus.Arrived), (walkIn.Name, walkIn.Status));
+
+        (await shop.PostJsonAsync($"/api/v1/appointments/{id}/status", new { status = "arrived" })).EnsureSuccessStatusCode();
+        var done = await (await shop.PostJsonAsync($"/api/v1/appointments/{id}/bill", new { billId = Guid.CreateVersion7(), paidAmount = 1000m, mode = "upi" })).ReadAsync<AppointmentDto>();
+        Assert.Equal(AppointmentStatus.Done, done.Status);
+        Assert.Equal(600m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance);
+        var bill = await shop.GetJsonAsync<BillView>($"/api/v1/bills/{done.BillId}");
+        Assert.All(bill.Bill.Lines, l => Assert.Equal(5m, l.GstRate));
+        Assert.Equal(0m, (await Item(shop, cut.Id)).Stock); // services move no stock
+        Assert.Equal(3, (await shop.GetJsonAsync<SalonDayDto>($"/api/v1/appointments?date={date:yyyy-MM-dd}")).Appointments.Count(a => a.Status != AppointmentStatus.Arrived));
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {

@@ -135,7 +135,7 @@ function Stylists({ shopId }: { shopId: string }) {
 }
 
 /** On a salon's Home: start a walk-in bill, change services and prices, and how many services are set up. */
-export function SalonHomeCard({ shopId }: { shopId: string }) {
+export function SalonHomeCard({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const { t } = useTranslation()
   const { products } = useProducts(shopId)
   const services = products.filter((p) => p.isService)
@@ -143,14 +143,17 @@ export function SalonHomeCard({ shopId }: { shopId: string }) {
   const row = 'flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold'
   return (
     <section className="mx-4 mt-3 flex flex-col gap-2">
-      {(services.length === 0 || unpriced > 0) && (
+      {isOwner && (services.length === 0 || unpriced > 0) && (
         <button onClick={() => navigate('/salon/setup')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-teal-700 px-4 text-left font-semibold text-white">
           <span>{services.length === 0 ? t('salon.startSetup') : t('salon.pricesMissing', { count: unpriced })}</span><span aria-hidden="true">→</span>
         </button>
       )}
+      <button onClick={() => navigate('/appointments')} className="flex min-h-14 items-center justify-between rounded-[18px] bg-white px-4 text-left text-lg font-bold">
+        <span>{t('appointments.link')}</span><span aria-hidden="true">→</span>
+      </button>
       <div className="grid grid-cols-2 gap-2">
         <button onClick={() => navigate('/bill')} className={row}><span>{t('salon.walkIn')}</span><span aria-hidden="true">→</span></button>
-        <button onClick={() => navigate('/salon/setup')} className={row}><span>{t('salon.servicesShort', { count: services.length })}</span><span aria-hidden="true">→</span></button>
+        {isOwner && <button onClick={() => navigate('/salon/setup')} className={row}><span>{t('salon.servicesShort', { count: services.length })}</span><span aria-hidden="true">→</span></button>}
       </div>
       {services.length > 0 && <p className="px-1 text-xs text-muted">{services.slice(0, 4).map((s) => `${s.name} ${s.sellingPrice > 0 ? formatRupees(s.sellingPrice) : ''}`).join(' · ')}</p>}
     </section>

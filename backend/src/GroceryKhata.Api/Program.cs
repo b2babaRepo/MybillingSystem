@@ -113,6 +113,7 @@ app.MapWorkshop();
 app.MapBookings();
 app.MapTableBookings();
 app.MapStays();
+app.MapAppointments();
 app.MapCashCounts();
 app.MapTrades();
 app.MapBilling();
