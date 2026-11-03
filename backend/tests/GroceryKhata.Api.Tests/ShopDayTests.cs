@@ -28,7 +28,8 @@ public sealed class ShopDayTests(ApiFactory api)
         // Stock list from the trade's starter items, priced at ₹500 and costed at ₹350.
         (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
         var products = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
-        var (a, b) = (products[0], products[1]);
+        var stocked = products.Where(p => !p.IsService).ToList(); // a salon's services carry no stock
+        var (a, b) = (stocked[0], stocked[1]);
         foreach (var p in new[] { a, b })
         {
             (await shop.PutAsJsonAsync($"/api/v1/products/{p.Id}", new { name = p.Name, unit = p.Unit, sellingPrice = 500m, costPrice = 350m, gstRate = 5m, hsnCode = p.HsnCode, replaceTax = true }, ApiFactory.Json))
@@ -133,7 +134,7 @@ public sealed class ShopDayTests(ApiFactory api)
         var result = await (await admin.PostJsonAsync("/api/v1/platform/master-items/import", new
         {
             trade = "beauty",
-            text = "name,hindi,category,unit,gst,hsn\nHair spa,हेयर स्पा,Services,piece,5,999721\nBad line,,,,7,\nFacial,फ़ेशियल,Services,piece,5,999722",
+            text = "name,hindi,category,unit,gst,hsn\nHair spa gold,हेयर स्पा गोल्ड,Services,piece,5,999721\nBad line,,,,7,\nFacial,फ़ेशियल,Services,piece,5,999722",
         })).ReadAsync<MasterImportResult>();
         Assert.Equal((1, 1, 1), (result.Added, result.Updated, result.Problems.Count));
     }
@@ -580,6 +581,39 @@ public sealed class ShopDayTests(ApiFactory api)
 
         var events = Ical.Events("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:abc@airbnb\r\nDTSTART;VALUE=DATE:20261210\r\nDTEND;VALUE=DATE:20261213\r\nSUMMARY:Reserved\r\nEND:VEVENT\r\nEND:VCALENDAR").ToList();
         Assert.Equal(("abc@airbnb", new DateOnly(2026, 12, 10), new DateOnly(2026, 12, 13)), (events[0].Uid, events[0].Start, events[0].End));
+    }
+
+    [Fact]
+    public async Task A_salon_sells_services_without_stock_and_products_with_it()
+    {
+        var shop = await SignUpAsync("beauty");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var items = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        var haircut = items.Single(p => p.Name == "Haircut (women)");
+        var shampoo = items.Single(p => p.Name == "Shampoo");
+        Assert.Equal((true, 45, 5m, "999721"), (haircut.IsService, haircut.DurationMinutes, haircut.GstRate, haircut.HsnCode));
+        Assert.Equal((false, 5m), (shampoo.IsService, shampoo.GstRate));
+        Assert.False(haircut.IsLow); // a service never shows as low stock
+
+        foreach (var p in new[] { haircut, shampoo })
+        {
+            (await shop.PutAsJsonAsync($"/api/v1/products/{p.Id}", new { name = p.Name, unit = p.Unit, sellingPrice = 300m, costPrice = (decimal?)null, gstRate = p.GstRate, hsnCode = p.HsnCode }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        }
+
+        (await shop.PostJsonAsync("/api/v1/bills", new
+        {
+            id = Guid.CreateVersion7(), paidAmount = 600m, paymentMode = "upi",
+            lines = new[] { new { productId = haircut.Id, quantity = 1m, unitPrice = 300m }, new { productId = shampoo.Id, quantity = 1m, unitPrice = 300m } },
+        })).EnsureSuccessStatusCode();
+        Assert.Equal(0m, (await Item(shop, haircut.Id)).Stock);
+        Assert.Equal(-1m, (await Item(shop, shampoo.Id)).Stock);
+        Assert.DoesNotContain(await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products?low=true"), p => p.Id == haircut.Id);
+
+        // A service added by hand keeps its flag, and editing it keeps it too.
+        var id = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id, name = "Keratin", unit = "piece", sellingPrice = 2500m, isService = true, durationMinutes = 120 })).EnsureSuccessStatusCode();
+        (await shop.PutAsJsonAsync($"/api/v1/products/{id}", new { name = "Keratin", unit = "piece", sellingPrice = 2800m }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        Assert.Equal((true, 120), ((await Item(shop, id)).IsService, (await Item(shop, id)).DurationMinutes));
     }
 
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>

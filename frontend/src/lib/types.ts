@@ -55,6 +55,9 @@ export interface Product {
   reorderLevel: number | null
   /** Out of stock, or at/below the reorder level. */
   isLow: boolean
+  /** A service (haircut): sold without stock. */
+  isService?: boolean
+  durationMinutes?: number | null
   /** Held for online orders not yet delivered. */
   reserved?: number
   /** The common-list item this is (for its picture, and so households find it). */

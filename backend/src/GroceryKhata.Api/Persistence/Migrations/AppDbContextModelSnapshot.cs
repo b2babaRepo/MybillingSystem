@@ -1915,6 +1915,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<int?>("DurationMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_minutes");
+
                     b.Property<decimal?>("GstRate")
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)")
@@ -1938,6 +1942,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<bool>("IsDefaultOption")
                         .HasColumnType("boolean")
                         .HasColumnName("is_default_option");
+
+                    b.Property<bool>("IsService")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_service");
 
                     b.Property<string>("Name")
                         .IsRequired()

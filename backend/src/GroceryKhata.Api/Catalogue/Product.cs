@@ -65,6 +65,12 @@ public sealed class Product : Entity, ITenantOwned
 
     /// <summary>Hidden from billing and lists, kept for history.</summary>
     public bool IsActive { get; set; } = true;
+
+    /// <summary>A service (haircut, facial), not goods: selling it moves no stock and it never shows as low.</summary>
+    public bool IsService { get; set; }
+
+    /// <summary>How long the service takes, in minutes: used to book appointments.</summary>
+    public int? DurationMinutes { get; set; }
 }
 
 public enum Unit

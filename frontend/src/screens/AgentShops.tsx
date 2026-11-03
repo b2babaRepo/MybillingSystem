@@ -7,12 +7,12 @@ import { BADGE_ICON, type AgentSummary, type FieldAgent, type Registration, type
 import { priceFor, type PlanInfo, type PlanTerm } from '../lib/billing'
 import { formatDateTime, formatRupees } from '../lib/format'
 import { shrinkPhoto } from '../lib/images'
+import { SHOP_TYPES } from '../lib/reports'
 import { addText } from '../i18n'
 import { agentText } from '../i18n/agent'
 
 addText(agentText)
 
-const SHOP_TYPES = ['kirana', 'building_materials', 'paint', 'hardware', 'other'] as const
 const PHOTO_KINDS = ['front', 'inside', 'owner'] as const
 const TERMS: PlanTerm[] = ['year1', 'year3', 'year5']
 

@@ -30,6 +30,9 @@ public static class StarterItems
     private static ImportRow Item(string name, string category, Unit unit, decimal? gst, string? hsn) =>
         new(name, unit, 0, null, category, null, null, GstRate: gst, HsnCode: hsn);
 
+    private static ImportRow Service(string name, string category, int minutes, string sac) =>
+        new(name, Unit.Piece, 0, null, category, null, null, GstRate: 5, HsnCode: sac, IsService: true, DurationMinutes: minutes);
+
     private static readonly ImportRow[] BuildingMaterials =
     [
         Item("Cement OPC 53 (50 kg)", "Cement", Unit.Bag, 18, "2523"),
@@ -75,15 +78,26 @@ public static class StarterItems
 
     private static readonly ImportRow[] Beauty =
     [
-        Item("Haircut", "Services", Unit.Piece, 5, "999721"),
-        Item("Hair colour", "Services", Unit.Piece, 5, "999721"),
-        Item("Threading", "Services", Unit.Piece, 5, "999722"),
-        Item("Facial", "Services", Unit.Piece, 5, "999722"),
-        Item("Manicure", "Services", Unit.Piece, 5, "999722"),
-        Item("Pedicure", "Services", Unit.Piece, 5, "999722"),
-        Item("Bridal makeup", "Services", Unit.Piece, 5, "999729"),
-        Item("Shampoo", "Products", Unit.Piece, null, "3305"),
-        Item("Face cream", "Products", Unit.Piece, null, "3304"),
+        // Services move no stock; minutes are a usual time to book. Services are 5% (no input credit) from 22 Sep 2025.
+        Service("Haircut (men)", "Hair", 30, "999721"),
+        Service("Haircut (women)", "Hair", 45, "999721"),
+        Service("Shave / beard trim", "Hair", 20, "999721"),
+        Service("Hair colour", "Hair", 90, "999721"),
+        Service("Hair spa", "Hair", 60, "999721"),
+        Service("Threading (eyebrows)", "Face", 15, "999722"),
+        Service("Facial", "Face", 60, "999722"),
+        Service("Clean-up", "Face", 40, "999722"),
+        Service("Waxing (full arms)", "Body", 30, "999729"),
+        Service("Manicure", "Hands & feet", 40, "999722"),
+        Service("Pedicure", "Hands & feet", 45, "999722"),
+        Service("Party makeup", "Makeup", 60, "999722"),
+        Service("Bridal makeup", "Makeup", 180, "999722"),
+        Service("Mehndi (both hands)", "Makeup", 60, "999729"),
+        // Products sold over the counter keep their own goods rate: shampoo and hair oil 5%, creams and make-up 18%.
+        Item("Shampoo", "Products", Unit.Piece, 5, "3305"),
+        Item("Hair oil", "Products", Unit.Piece, 5, "3305"),
+        Item("Face cream", "Products", Unit.Piece, 18, "3304"),
+        Item("Hair serum", "Products", Unit.Piece, 18, "3305"),
     ];
 
     private static readonly ImportRow[] Sweets =

@@ -224,6 +224,8 @@ export interface NewProduct {
   openingStock: number | null
   gstRate?: number | null
   hsnCode?: string | null
+  isService?: boolean
+  durationMinutes?: number | null
 }
 
 export async function addProduct(shopId: string, product: NewProduct) {

@@ -372,7 +372,11 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 }
 
                 // Items from the catalogue leave the shelf: one sale movement per product, in this same transaction.
-                var sold = lines.Where(l => l.ProductId is not null && !stockAlreadyOut)
+                // Services (a haircut, a facial) have no shelf, so they move no stock.
+                var lineProductIds = lines.Where(l => l.ProductId is not null).Select(l => l.ProductId!.Value).Distinct().ToList();
+                var services = lineProductIds.Count == 0 ? [] : await db.Products.AsNoTracking()
+                    .Where(p => lineProductIds.Contains(p.Id) && p.IsService).Select(p => p.Id).ToListAsync(cancellationToken);
+                var sold = lines.Where(l => l.ProductId is not null && !stockAlreadyOut && !services.Contains(l.ProductId.Value))
                     .GroupBy(l => l.ProductId!.Value)
                     .Select(g => (ProductId: g.Key, Quantity: g.Sum(l => l.Quantity)))
                     .ToList();

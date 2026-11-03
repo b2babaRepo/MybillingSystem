@@ -92,6 +92,9 @@ export function ItemsScreen({ shopId }: { shopId: string }) {
 /** Stock with words, not colour alone: "Out" (red), "Low" (orange), or "In stock". */
 export function StockBadge({ product, large = false }: { product: Product; large?: boolean }) {
   const { t } = useTranslation()
+  if (product.isService) {
+    return <span className="shrink-0 text-right text-sm font-semibold text-teal-800">{t('salon.serviceBadge')}{product.durationMinutes ? ` · ${t('salon.minutesShort', { count: product.durationMinutes })}` : ''}</span>
+  }
   const out = product.stock <= 0
   const tone = out ? 'text-due' : product.isLow ? 'text-udhaar' : 'text-ink'
   return (
@@ -125,6 +128,8 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
   const gstBilling = useGstBilling(shopId)
   const [gst, setGst] = useState('')
   const [hsn, setHsn] = useState('')
+  const [service, setService] = useState(false)
+  const [minutes, setMinutes] = useState('')
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -138,6 +143,8 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
       reorderLevel: reorder ? Number(reorder) : null,
       gstRate: gst === '' ? null : Number(gst),
       hsnCode: hsn.trim() || null,
+      isService: service,
+      durationMinutes: service && Number(minutes) > 0 ? Number(minutes) : null,
     })
     setName('')
     setPrice('')
@@ -158,10 +165,12 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
         <Field label={t('stock.buyingCost')} value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" />
         <Field label={t('stock.category')} value={category} onChange={(e) => setCategory(e.target.value)} list="item-categories" />
         <datalist id="item-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
-        <div className="grid grid-cols-2 gap-2">
+        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={service} onChange={(e) => setService(e.target.checked)} className="h-5 w-5" />{t('salon.isService')}</label>
+        {service && <Field label={t('salon.min')} value={minutes} onChange={(e) => setMinutes(e.target.value)} inputMode="numeric" />}
+        {!service && <div className="grid grid-cols-2 gap-2">
           <Field label={t('stock.openingStock')} value={opening} onChange={(e) => setOpening(e.target.value)} inputMode="decimal" />
           <Field label={t('stock.reorderLevel')} value={reorder} onChange={(e) => setReorder(e.target.value)} inputMode="decimal" />
-        </div>
+        </div>}
         {gstBilling && <div className="grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium text-muted">{t('stock.gst')}</span>
