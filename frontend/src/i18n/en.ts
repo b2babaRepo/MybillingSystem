@@ -898,6 +898,13 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  invoicePhoto: {
+    button: 'Read the bill photo', reading: 'Reading the bill…', nothing: 'No medicine lines could be read. Try a flat, well-lit photo.',
+    consent: 'The bill photo is sent to an AI service (Anthropic) to read the lines. The photo isn’t kept. You check every line before saving.',
+    check: 'Read from the photo. Check every line, especially the yellow ones, before saving.', read: 'Read: {{name}}',
+    totalDiffers: 'The bill says {{printed}} but the lines add up to {{lines}}. A line was misread or missed: check against the bill.',
+    problem: { noMatch: 'pick the medicine', noBatch: 'batch missing', noExpiry: 'expiry missing', expired: 'already expired', nearExpiry: 'expires within 3 months', noRate: 'rate missing', noQuantity: 'quantity missing', rateAboveMrp: 'rate above MRP', mrpChanged: 'MRP changed' },
+  },
   pmonth: {
     link: 'Month: GST and profit', month: 'Month', gst: 'GST this month', outputGst: 'GST on sales', inputGst: 'Input credit (GST on distributor bills)', payable: 'GST to pay',
     carried: 'Credit carried to next month', gstHint: 'From your bills and distributor bills entered with GST %. Your CA checks the figures and files GSTR-3B.',

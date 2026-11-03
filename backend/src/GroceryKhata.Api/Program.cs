@@ -51,6 +51,7 @@ builder.Services.AddBilling();
 builder.Services.AddFieldAgents(builder.Configuration);
 builder.Services.AddAgentPerformance(builder.Configuration);
 builder.Services.AddBillPhotoReading(builder.Configuration);
+builder.Services.AddInvoiceReading(builder.Configuration);
 builder.Services.AddOtpSignIn(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
@@ -100,6 +101,7 @@ app.MapStaff();
 app.MapBalanceChecks();
 app.MapExpenses();
 app.MapBillPhotos();
+app.MapInvoicePhotos();
 app.MapMarkets();
 app.MapProfile();
 app.MapAddresses();

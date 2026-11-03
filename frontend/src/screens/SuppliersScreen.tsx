@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
-import { api } from '../lib/api'
+import { api, request } from '../lib/api'
+import { shrinkPhoto } from '../lib/images'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { shopTypes, useShopSettings } from '../lib/reports'
@@ -10,7 +11,13 @@ import { shopTypes, useShopSettings } from '../lib/reports'
 interface Supplier { id: string; name: string; phone: string | null; due: number }
 interface Detail { supplier: Supplier; entries: { id: string; amount: number; purchaseId: string | null; note: string | null; occurredAt: string; cancelled: boolean }[] }
 /** Medicines also carry batch, expiry month (yyyy-mm), MRP, free units (scheme) and trade discount %. */
-interface Row { productId: string; quantity: string; unitCost: string; batchNo: string; expiry: string; mrp: string; free: string; discount: string; gst: string }
+interface Row { productId: string; quantity: string; unitCost: string; batchNo: string; expiry: string; mrp: string; free: string; discount: string; gst: string; read?: string; problems?: string[] }
+
+/** What the AI read off a distributor's bill photo, matched and checked by the server. Nothing is saved from it directly. */
+interface InvoiceDraft {
+  supplierName: string | null; billNo: string | null; grandTotal: number | null; linesTotal: number; totalDiffers: boolean
+  lines: { read: { name: string; batchNo: string | null; expiryMonth: string | null; mrp: number | null; quantity: number | null; freeQuantity: number | null; rate: number | null; discountPercent: number | null; gstRate: number | null }; productId: string | null; problems: string[] }[]
+}
 
 /** Who the shop buys from and what it owes them: add a supplier's bill (stock goes up), or pay them. Needs a connection. */
 export function SuppliersScreen({ shopId }: { shopId: string }) {
@@ -75,6 +82,35 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
   const [pay, setPay] = useState('')
   const [mode, setMode] = useState<'cash' | 'upi'>('cash')
   const [message, setMessage] = useState('')
+  const ai = useQuery({ queryKey: ['ai-status'], queryFn: () => api<{ consentedAt: string | null; canReadPhotos: boolean }>('/v1/me/ai') }).data
+  const [askConsent, setAskConsent] = useState(false)
+  const [photoNote, setPhotoNote] = useState<{ printed: number | null; lines: number; differs: boolean } | null>(null)
+  const [reading, setReading] = useState(false)
+  // The AI only drafts the rows; the owner checks each one (flagged rows first) and saves the bill as usual.
+  const readPhoto = async (file: File) => {
+    setMessage('')
+    setReading(true)
+    try {
+      const draft = await api<InvoiceDraft>('/v1/suppliers/purchases/photo', 'POST', { imageDataUrl: await shrinkPhoto(file, 1600, 1_200_000, false) })
+      if (draft.lines.length === 0) throw new Error(t('invoicePhoto.nothing'))
+      const n = (v: number | null) => (v == null ? '' : String(v))
+      setRows(draft.lines.map((l) => ({
+        productId: l.productId ?? '', quantity: n(l.read.quantity), unitCost: n(l.read.rate), batchNo: l.read.batchNo ?? '', expiry: l.read.expiryMonth ?? '', mrp: n(l.read.mrp),
+        free: l.read.freeQuantity ? String(l.read.freeQuantity) : '', discount: l.read.discountPercent ? String(l.read.discountPercent) : '', gst: n(l.read.gstRate), read: l.read.name, problems: l.problems,
+      })))
+      if (draft.billNo) setBillNo(draft.billNo)
+      setPhotoNote({ printed: draft.grandTotal, lines: draft.linesTotal, differs: draft.totalDiffers })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setReading(false)
+    }
+  }
+  const agree = async () => {
+    await request('/v1/me/ai/consent', 'POST', { agree: true })
+    await queryClient.invalidateQueries({ queryKey: ['ai-status'] })
+    setAskConsent(false)
+  }
   const valid = rows.filter((r) => r.productId && Number(r.quantity) > 0 && r.unitCost !== '' && (!medical || !r.batchNo.trim() || (r.expiry && Number(r.mrp) > 0)))
   // Before GST (after trade discount), then with the GST the distributor charged on top.
   const taxable = (r: Row) => Math.round(Number(r.quantity) * Number(r.unitCost) * (100 - (Number(r.discount) || 0))) / 100
@@ -105,6 +141,7 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
     setRows([empty])
     setBillNo('')
     setPaid('')
+    setPhotoNote(null)
   })
   const cancelBill = (purchaseId: string) => { if (window.confirm(t('suppliers.cancelConfirm'))) void run(() => api(`/v1/suppliers/purchases/${purchaseId}/cancel`, 'POST', {})) }
   const rename = () => {
@@ -141,9 +178,33 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
 
       <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
         <h2 className="font-bold">{t('suppliers.bill')}</h2>
+        {medical && ai?.canReadPhotos && (ai.consentedAt ? (
+          <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-teal-700 font-bold text-teal-800 ${reading ? 'opacity-50' : ''}`}>
+            📷 {reading ? t('invoicePhoto.reading') : t('invoicePhoto.button')}
+            <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={reading}
+              onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void readPhoto(file) }} />
+          </label>
+        ) : (
+          <button onClick={() => setAskConsent(true)} className="min-h-12 rounded-2xl border-2 border-teal-700 font-bold text-teal-800">📷 {t('invoicePhoto.button')}</button>
+        ))}
+        {askConsent && (
+          <div className="flex flex-col gap-2 rounded-2xl bg-amber-50 p-3 text-sm">
+            <p className="font-bold">{t('expense.consentTitle')}</p><p>{t('invoicePhoto.consent')}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => void agree()} className="h-11 rounded-xl bg-teal-700 font-bold text-white">{t('expense.consentYes')}</button>
+              <button onClick={() => setAskConsent(false)} className="h-11 rounded-xl border border-line font-semibold">{t('expense.consentNo')}</button>
+            </div>
+          </div>
+        )}
+        {photoNote && (
+          <p className={`rounded-xl p-2 text-sm ${photoNote.differs ? 'bg-red-50 font-semibold text-due' : 'bg-teal-50 text-teal-900'}`}>
+            {photoNote.differs && photoNote.printed != null ? t('invoicePhoto.totalDiffers', { printed: formatRupees(photoNote.printed), lines: formatRupees(photoNote.lines) }) : t('invoicePhoto.check')}
+          </p>
+        )}
         <Field label={t('suppliers.billNo')} value={billNo} onChange={(e) => setBillNo(e.target.value)} maxLength={40} />
         {rows.map((r, i) => (
-          <div key={i} className="grid grid-cols-2 gap-2">
+          <div key={i} className={`grid grid-cols-2 gap-2 ${r.problems?.length ? 'rounded-xl bg-amber-50 p-2' : ''}`}>
+            {r.read && <p className="col-span-2 text-xs text-muted">{t('invoicePhoto.read', { name: r.read })}{r.problems?.length ? ` · ${r.problems.map((p) => t(`invoicePhoto.problem.${p}`)).join(', ')}` : ''}</p>}
             <select aria-label={t('suppliers.item')} value={r.productId} onChange={(e) => set(i, 'productId', e.target.value)} className={`${input} col-span-2`}>
               <option value="">{t('suppliers.item')}</option>
               {products.filter((p) => !p.isService && (medical || p.id === r.productId || !rows.some((x) => x.productId === p.id))).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
