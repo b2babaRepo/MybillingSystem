@@ -405,11 +405,25 @@ public static class Bookings
         lines.AddRange(extras.Select(e => new BillLineRequest(null, e.Name!.Trim(), 1, Unit.Piece, e.Amount)));
         var fromDeposit = Math.Min(request.Damage, booking.DepositTaken);
         if (request.Damage > 0) lines.Add(new BillLineRequest(null, "Damage", 1, Unit.Piece, request.Damage));
+
+        // Rooms taken for the function's guests (the baraat) go on the same final bill, and those stays close with it.
+        var rooms = await db.Stays.Include(s => s.Charges).Where(s => s.BookingId == id && (s.Status == StayStatus.Booked || s.Status == StayStatus.CheckedIn)).ToListAsync(ct);
+        var roomNames = await db.Rooms.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.Name, ct);
+        var tax = new List<(decimal? GstRate, string? HsnCode)>(lines.Select(_ => ((decimal?)null, (string?)null)));
+        var registered = false;
+        foreach (var stay in rooms.OrderBy(s => roomNames.GetValueOrDefault(s.RoomId)))
+        {
+            var (stayLines, stayTax) = await Stays.BillLinesAsync(db, stay, roomNames.GetValueOrDefault(stay.RoomId) ?? "", ct);
+            lines.AddRange(stayLines);
+            tax.AddRange(stayTax ?? stayLines.Select(_ => ((decimal?)null, (string?)null)).ToList());
+            registered |= stayTax is not null;
+        }
+
         var total = lines.Sum(l => Money.LineAmount(l.Quantity, l.UnitPrice));
 
         var result = await ledger.CreateBillAsync(
             new BillRequest(request.BillId, booking.CustomerId, lines, Math.Min(total, request.PaidAmount + fromDeposit), request.Mode, null),
-            user.UserId()!.Value, ct, isOwner: IsOwner(user));
+            user.UserId()!.Value, ct, isOwner: IsOwner(user), taxSnapshot: registered ? tax : null);
         if (result.Value is not { } bill)
         {
             return result.ToHttp("");
@@ -423,6 +437,11 @@ public static class Bookings
         await db.BillLines.Where(l => l.BillId == bill.Id && l.LineNo == costLineNo).ExecuteUpdateAsync(s => s.SetProperty(l => l.UnitCost, unitCost), ct);
         await db.Jobs.Where(j => j.Id == jobId).ExecuteUpdateAsync(s => s
             .SetProperty(j => j.Status, JobStatus.Delivered).SetProperty(j => j.Price, total).SetProperty(j => j.BillId, bill.Id).SetProperty(j => j.DeliveredAt, clock.GetUtcNow()), ct);
+        foreach (var stay in rooms)
+        {
+            (stay.Status, stay.BillId) = (StayStatus.CheckedOut, bill.Id);
+        }
+
         (booking.Status, booking.ActualGuests, booking.DepositReturned) = (BookingStatus.Settled, request.ActualGuests, booking.DepositTaken - fromDeposit);
         await db.SaveChangesAsync(ct);
         return await GetAsync(id, db, clock, ct);

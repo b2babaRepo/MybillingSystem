@@ -122,6 +122,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<StayCharge> StayCharges => Set<StayCharge>();
 
+    public DbSet<RatePeriod> RatePeriods => Set<RatePeriod>();
+
     public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
@@ -602,6 +604,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(r => r.Name).HasMaxLength(30);
             b.Property(r => r.Kind).HasMaxLength(40);
             b.Property(r => r.Rate).HasPrecision(12, 2);
+            b.Property(r => r.IcalImportUrl).HasMaxLength(500);
+            b.Property(r => r.IcalToken).HasMaxLength(40);
+            b.HasIndex(r => r.IcalToken).IsUnique();
+        });
+
+        modelBuilder.Entity<RatePeriod>(b =>
+        {
+            b.ToTable("rate_periods");
+            b.HasTenantKey();
+            b.Property(p => p.Name).HasMaxLength(60);
+            b.Property(p => p.Rate).HasPrecision(12, 2);
         });
 
         modelBuilder.Entity<Stay>(b =>
@@ -616,6 +629,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(s => s.Note).HasMaxLength(200);
             b.Property(s => s.Rate).HasPrecision(12, 2);
             b.Property(s => s.Commission).HasPrecision(12, 2);
+            b.Property(s => s.RoomCharge).HasPrecision(12, 2);
+            b.HasIndex(s => s.BookingId);
             b.HasMany(s => s.Charges).WithOne().HasForeignKey(c => c.StayId);
             b.HasIndex(s => new { s.ShopId, s.Number }).IsUnique();
             b.HasIndex(s => new { s.ShopId, s.RoomId, s.CheckIn });

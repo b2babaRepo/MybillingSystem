@@ -9,12 +9,13 @@ import { navigate } from '../router'
 
 type Source = 'direct' | 'walk_in' | 'make_my_trip' | 'goibibo' | 'booking_com' | 'oyo' | 'airbnb' | 'other'
 type Status = 'booked' | 'checked_in' | 'checked_out' | 'cancelled'
-interface Room { id: string; name: string; kind: string | null; rate: number }
+interface Room { id: string; name: string; kind: string | null; rate: number; icalImportUrl?: string | null; icalExportPath?: string | null }
+interface RatePeriod { id: string; name: string; from: string; to: string; roomId: string | null; rate: number }
 interface Stay {
   id: string; number: number; roomId: string; roomName: string; checkIn: string; checkOut: string; nights: number; status: Status; customerId: string | null
   guestName: string; phone: string | null; guests: number; idType: string | null; idLast4: string | null; foreigner: boolean; formCFiledAt: string | null; formCDue: boolean
   rate: number; source: Source; sourceRef: string | null; commission: number; roomTotal: number; charges: { id: string; name: string; amount: number }[]; total: number
-  billId: string | null; note: string | null
+  billId: string | null; note: string | null; bookingId?: string | null
 }
 interface BoardRow { room: Room; state: 'free' | 'arriving' | 'occupied' | 'leaving'; stay: Stay | null }
 
@@ -24,6 +25,12 @@ const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN'
 const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
 /** Rooms today (free, arriving, guest in, leaving), the coming stays, and each stay from booking to checkout. */
+export function NewStayInline(props: { shopId: string; bookingId: string; date: string; onDone: () => void }) {
+  const rooms = useQuery({ queryKey: [props.shopId, 'rooms'], queryFn: () => api<Room[]>('/v1/rooms') }).data ?? []
+  if (rooms.length === 0) return null
+  return <NewStay shopId={props.shopId} rooms={rooms} roomId={null} bookingId={props.bookingId} startDate={props.date} onDone={() => props.onDone()} />
+}
+
 export function RoomsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const { t } = useTranslation()
   const [openId, setOpenId] = useState<string | null>(null)
@@ -66,6 +73,8 @@ export function RoomsScreen({ shopId, isOwner }: { shopId: string; isOwner: bool
             ))}
           </ul>
           {isOwner && <AddRoom shopId={shopId} />}
+          {isOwner && <SeasonPrices shopId={shopId} rooms={rooms} />}
+          {isOwner && <Calendars shopId={shopId} />}
         </>
       )}
     </div>
@@ -97,18 +106,22 @@ function AddRoom({ shopId, first = false }: { shopId: string; first?: boolean })
   )
 }
 
-function NewStay({ shopId, rooms, roomId, onDone }: { shopId: string; rooms: Room[]; roomId: string | null; onDone: (id?: string) => void }) {
+function NewStay({ shopId, rooms, roomId, onDone, bookingId, startDate }: { shopId: string; rooms: Room[]; roomId: string | null; onDone: (id?: string) => void; bookingId?: string; startDate?: string }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { customers } = useCustomers(shopId)
   const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })()
   const firstRoom = rooms.find((r) => r.id === roomId) ?? rooms[0]
-  const [d, setD] = useState({ roomId: firstRoom?.id ?? '', checkIn: todayIso(), checkOut: tomorrow, customerId: '', guestName: '', phone: '', guests: '2', rate: String(firstRoom?.rate ?? ''), source: 'direct' as Source, sourceRef: '', commission: '', foreigner: false, note: '' })
+  const next = (iso: string) => { const x = new Date(`${iso}T00:00`); x.setDate(x.getDate() + 1); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` }
+  const [d, setD] = useState({ roomId: firstRoom?.id ?? '', checkIn: startDate ?? todayIso(), checkOut: startDate ? next(startDate) : tomorrow, customerId: '', guestName: '', phone: '', guests: '2', rate: '', source: 'direct' as Source, sourceRef: '', commission: '', foreigner: false, note: '' })
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof d) => (e: { target: { value: string } }) => setD({ ...d, [key]: e.target.value })
   const select = 'h-12 w-full rounded-xl border border-line bg-white px-3'
   const nights = Math.max(0, Math.round((new Date(`${d.checkOut}T00:00`).getTime() - new Date(`${d.checkIn}T00:00`).getTime()) / 86_400_000))
   const site = !['direct', 'walk_in'].includes(d.source)
+  const quote = useQuery({ queryKey: [shopId, 'quote', d.roomId, d.checkIn, d.checkOut], queryFn: () => api<{ nights: number; total: number; nightRates: number[] }>(`/v1/rooms/${d.roomId}/quote?checkIn=${d.checkIn}&checkOut=${d.checkOut}`), enabled: !!d.roomId && nights > 0 }).data
+  const seasonal = quote && new Set(quote.nightRates).size > 1
+  const estimate = d.rate ? nights * Number(d.rate) : quote?.total ?? 0
 
   async function save() {
     setMessage('')
@@ -116,7 +129,7 @@ function NewStay({ shopId, rooms, roomId, onDone }: { shopId: string; rooms: Roo
     try {
       await api('/v1/stays', 'POST', {
         id, roomId: d.roomId, checkIn: d.checkIn, checkOut: d.checkOut, customerId: d.customerId || null, guestName: d.guestName.trim() || null, phone: d.phone.trim() || null,
-        guests: Number(d.guests) || 1, rate: Number(d.rate) || null, source: d.source, sourceRef: site ? d.sourceRef.trim() || null : null,
+        guests: Number(d.guests) || 1, rate: Number(d.rate) || null, source: d.source, bookingId: bookingId ?? null, sourceRef: site ? d.sourceRef.trim() || null : null,
         commission: site ? Number(d.commission) || 0 : 0, foreigner: d.foreigner, note: d.note.trim() || null,
       })
       void queryClient.invalidateQueries({ queryKey: [shopId] })
@@ -130,7 +143,7 @@ function NewStay({ shopId, rooms, roomId, onDone }: { shopId: string; rooms: Roo
   return (
     <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
       <div className="grid grid-cols-3 gap-2">
-        {labelled(t('rooms.room'), <select value={d.roomId} onChange={(e) => { const r = rooms.find((x) => x.id === e.target.value); setD({ ...d, roomId: e.target.value, rate: String(r?.rate ?? d.rate) }) }} className={select}>{rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>)}
+        {labelled(t('rooms.room'), <select value={d.roomId} onChange={(e) => setD({ ...d, roomId: e.target.value })} className={select}>{rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>)}
         <Field label={t('rooms.checkIn')} type="date" value={d.checkIn} onChange={set('checkIn')} />
         <Field label={t('rooms.checkOut')} type="date" value={d.checkOut} onChange={set('checkOut')} />
       </div>
@@ -143,17 +156,18 @@ function NewStay({ shopId, rooms, roomId, onDone }: { shopId: string; rooms: Roo
       {!d.customerId && <div className="grid grid-cols-2 gap-2"><Field label={t('rooms.guestName')} value={d.guestName} onChange={set('guestName')} /><Field label={t('tables.phone')} value={d.phone} onChange={set('phone')} inputMode="tel" /></div>}
       <div className="grid grid-cols-3 gap-2">
         <Field label={t('rooms.guests')} value={d.guests} onChange={set('guests')} inputMode="numeric" />
-        <Field label={t('rooms.rate')} value={d.rate} onChange={set('rate')} inputMode="decimal" />
+        <Field label={t('rooms.ownRate')} value={d.rate} onChange={set('rate')} inputMode="decimal" placeholder={quote ? formatRupees(Math.round(quote.total / Math.max(quote.nights, 1))) : ''} />
         {labelled(t('rooms.sourceLabel'), <select value={d.source} onChange={set('source')} className={select}>{SOURCES.map((s) => <option key={s} value={s}>{t(`rooms.source.${s}`)}</option>)}</select>)}
       </div>
       {site && <div className="grid grid-cols-2 gap-2"><Field label={t('rooms.sourceRef')} value={d.sourceRef} onChange={set('sourceRef')} /><Field label={t('rooms.commission')} value={d.commission} onChange={set('commission')} inputMode="decimal" /></div>}
       <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={d.foreigner} onChange={(e) => setD({ ...d, foreigner: e.target.checked })} className="h-5 w-5" />{t('rooms.foreigner')}</label>
       <Field label={t('bookings.note')} value={d.note} onChange={set('note')} />
-      <p className="font-bold">{t('rooms.estimate', { count: nights, amount: formatRupees(nights * (Number(d.rate) || 0)) })}</p>
+      <p className="font-bold">{t('rooms.estimate', { count: nights, amount: formatRupees(estimate) })}</p>
+      {seasonal && !d.rate && <p className="text-xs text-muted">{t('rooms.seasonal', { rates: quote!.nightRates.map((r) => formatRupees(r)).join(' + ') })}</p>}
       {message && <p className="text-sm text-due">{message}</p>}
       <div className="grid grid-cols-[1fr_2fr] gap-2">
         <Button tone="plain" onClick={() => onDone()}>{t('cancel')}</Button>
-        <Button disabled={!d.roomId || nights < 1 || !(Number(d.rate) > 0) || (!d.customerId && d.guestName.trim().length < 2)} onClick={() => void save()}>{t('rooms.book')}</Button>
+        <Button disabled={!d.roomId || nights < 1 || !(estimate > 0) || (!d.customerId && d.guestName.trim().length < 2)} onClick={() => void save()}>{t('rooms.book')}</Button>
       </div>
     </div>
   )
@@ -257,5 +271,98 @@ function StayPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: 
       {!form && message && <p className="text-sm text-due">{message}</p>}
       {s.status === 'booked' && <button onClick={() => { if (confirm(t('rooms.cancelConfirm'))) void run('cancel', {}) }} className="min-h-11 text-sm font-semibold text-due">{t('rooms.cancel')}</button>}
     </div>
+  )
+}
+
+/** Season and date prices: from a date to a date, one room or all rooms go for a different rate a night. */
+function SeasonPrices({ shopId, rooms }: { shopId: string; rooms: Room[] }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const periods = useQuery({ queryKey: [shopId, 'room-rates'], queryFn: () => api<RatePeriod[]>('/v1/room-rates') }).data ?? []
+  const [d, setD] = useState({ name: '', from: '', to: '', roomId: '', rate: '' })
+  const [message, setMessage] = useState('')
+  const run = (path: string, body: unknown) => api(path, 'POST', body)
+    .then(() => { setD({ name: '', from: '', to: '', roomId: '', rate: '' }); setMessage(''); void queryClient.invalidateQueries({ queryKey: [shopId] }) })
+    .catch((e: unknown) => setMessage(e instanceof Error ? e.message : t('error')))
+  const roomName = (id: string | null) => (id ? rooms.find((r) => r.id === id)?.name ?? '' : t('rooms.allRooms'))
+  return (
+    <details className="rounded-[18px] bg-white p-3">
+      <summary className="min-h-11 cursor-pointer font-bold">{t('rooms.seasonTitle', { count: periods.length })}</summary>
+      <p className="text-xs text-muted">{t('rooms.seasonHint')}</p>
+      <ul className="my-2 flex flex-col gap-1">
+        {periods.map((p) => (
+          <li key={p.id} className="flex min-h-11 items-center gap-2 text-sm">
+            <span className="min-w-0 flex-1"><span className="font-semibold">{p.name}</span> · {day(p.from)} – {day(p.to)} · {roomName(p.roomId)}</span>
+            <span className="font-bold">{formatRupees(p.rate)}</span>
+            <button onClick={() => void run(`/v1/room-rates/${p.id}/remove`, {})} className="min-h-11 px-2 font-semibold text-due">{t('rooms.remove')}</button>
+          </li>
+        ))}
+      </ul>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label={t('rooms.seasonName')} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder={t('rooms.seasonNameHint')} />
+        <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('rooms.room')}</span>
+          <select value={d.roomId} onChange={(e) => setD({ ...d, roomId: e.target.value })} className="h-12 w-full rounded-xl border border-line bg-white px-3">
+            <option value="">{t('rooms.allRooms')}</option>{rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </label>
+        <Field label={t('rooms.firstNight')} type="date" value={d.from} onChange={(e) => setD({ ...d, from: e.target.value })} />
+        <Field label={t('rooms.lastNight')} type="date" value={d.to} onChange={(e) => setD({ ...d, to: e.target.value })} />
+        <Field label={t('rooms.rate')} value={d.rate} onChange={(e) => setD({ ...d, rate: e.target.value })} inputMode="decimal" />
+      </div>
+      {message && <p className="text-sm text-due">{message}</p>}
+      <Button className="mt-2 w-full" disabled={d.name.trim().length < 2 || !d.from || !d.to || !(Number(d.rate) > 0)}
+        onClick={() => void run('/v1/room-rates', { id: crypto.randomUUID(), name: d.name.trim(), from: d.from, to: d.to, roomId: d.roomId || null, rate: Number(d.rate) })}>{t('rooms.addSeason')}</Button>
+    </details>
+  )
+}
+
+/**
+ * Booking-site calendars (iCal): paste the site's link for a room to bring its bookings in, and give the site this
+ * room's own link so nights booked here show as taken there. Real two-way links with the sites need their partner
+ * programmes or a channel manager; calendar links are what every site offers to small properties.
+ */
+function Calendars({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const rooms = useQuery({ queryKey: [shopId, 'room-calendars'], queryFn: () => api<Room[]>('/v1/rooms/calendars') }).data ?? []
+  const [urls, setUrls] = useState<Record<string, string>>({})
+  const [message, setMessage] = useState<Record<string, string>>({})
+  async function save(room: Room, sync: boolean) {
+    try {
+      if (urls[room.id] !== undefined) await api(`/v1/rooms/${room.id}/ical`, 'PUT', { importUrl: urls[room.id].trim() || null })
+      if (sync) {
+        const r = await api<{ added: number; skipped: number; problems: string[] }>(`/v1/rooms/${room.id}/ical/sync`, 'POST', {})
+        setMessage({ ...message, [room.id]: [t('rooms.synced', r), ...r.problems].join('\n') })
+      } else setMessage({ ...message, [room.id]: t('saved') })
+      void queryClient.invalidateQueries({ queryKey: [shopId] })
+    } catch (e) {
+      setMessage({ ...message, [room.id]: e instanceof Error ? e.message : t('error') })
+    }
+  }
+  return (
+    <details className="rounded-[18px] bg-white p-3">
+      <summary className="min-h-11 cursor-pointer font-bold">{t('rooms.calendarsTitle')}</summary>
+      <p className="text-xs text-muted">{t('rooms.calendarsHint')}</p>
+      <ul className="mt-2 flex flex-col gap-3">
+        {rooms.map((r) => (
+          <li key={r.id} className="flex flex-col gap-2 border-t border-line pt-2">
+            <p className="font-semibold">{t('rooms.roomLabel', { room: r.name })}</p>
+            <Field label={t('rooms.siteLink')} value={urls[r.id] ?? r.icalImportUrl ?? ''} onChange={(e) => setUrls({ ...urls, [r.id]: e.target.value })} placeholder="https://www.airbnb.co.in/calendar/ical/…" />
+            <div className="grid grid-cols-2 gap-2">
+              <Button tone="plain" onClick={() => void save(r, false)}>{t('save')}</Button>
+              <Button disabled={!(urls[r.id] ?? r.icalImportUrl)} onClick={() => void save(r, true)}>{t('rooms.bringIn')}</Button>
+            </div>
+            {r.icalExportPath && (
+              <div className="rounded-xl bg-ground p-2 text-xs">
+                <p className="font-semibold">{t('rooms.ourLink')}</p>
+                <p className="break-all font-mono">{`${window.location.origin}${r.icalExportPath}`}</p>
+                <button onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}${r.icalExportPath}`)} className="min-h-11 font-semibold text-teal-700">{t('payPage.copy')}</button>
+              </div>
+            )}
+            {message[r.id] && <p className="whitespace-pre-line text-sm text-muted">{message[r.id]}</p>}
+          </li>
+        ))}
+      </ul>
+    </details>
   )
 }

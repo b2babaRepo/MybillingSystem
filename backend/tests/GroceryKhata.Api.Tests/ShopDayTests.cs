@@ -517,6 +517,71 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Contains(kharcha.Lines, e => e.Amount == 900m && e.Note!.Contains("MMT123"));
     }
 
+    [Fact]
+    public async Task Season_prices_set_each_night_and_a_gst_shop_bills_the_room_at_room_gst()
+    {
+        var shop = await SignUpAsync("lodge");
+        var settings = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        var room = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/rooms", new { id = room, name = "301", rate = 2000m })).EnsureSuccessStatusCode();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        // Festival: the first two nights at ₹3,500 for every room.
+        (await shop.PostJsonAsync("/api/v1/room-rates", new { id = Guid.CreateVersion7(), name = "Diwali", from = today, to = today.AddDays(1), rate = 3500m })).EnsureSuccessStatusCode();
+        var quote = await shop.GetJsonAsync<QuoteDto>($"/api/v1/rooms/{room}/quote?checkIn={today:yyyy-MM-dd}&checkOut={today.AddDays(3):yyyy-MM-dd}");
+        Assert.Equal((3, 9000m), (quote.Nights, quote.Total));
+
+        var id = Guid.CreateVersion7();
+        var stay = await (await shop.PostJsonAsync("/api/v1/stays", new { id, roomId = room, checkIn = today, checkOut = today.AddDays(3), guestName = "Walk-in Bose", guests = 2 })).ReadAsync<StayDto>();
+        Assert.Equal(9000m, stay.RoomTotal);
+        (await shop.PostJsonAsync($"/api/v1/stays/{id}/check-in", new { idType = "Aadhaar", idNumber = "1234 5678 9012" })).EnsureSuccessStatusCode();
+        stay = await (await shop.PostJsonAsync($"/api/v1/stays/{id}/checkout", new { billId = Guid.CreateVersion7(), paidAmount = 9000m, mode = "upi" })).ReadAsync<StayDto>();
+        var bill = await shop.GetJsonAsync<BillView>($"/api/v1/bills/{stay.BillId}");
+        var line = Assert.Single(bill.Bill.Lines);
+        Assert.Equal((5m, "996311", 9000m), (line.GstRate, line.HsnCode, line.Amount)); // ₹3,000 a night on average: 5%
+        Assert.NotNull(line.TaxableValue);
+        Assert.Equal((0m, 5m, 18m), (Stays.RoomGstRate(900m), Stays.RoomGstRate(7500m), Stays.RoomGstRate(7501m)));
+    }
+
+    [Fact]
+    public async Task Rooms_taken_for_a_wedding_go_on_the_functions_final_bill()
+    {
+        var shop = await SignUpAsync("banquet");
+        var hall = Guid.CreateVersion7();
+        await shop.PostJsonAsync("/api/v1/venues", new { id = hall, name = "Main hall" });
+        var room = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/rooms", new { id = room, name = "Baraat 1", rate = 1500m })).EnsureSuccessStatusCode();
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Jain family");
+        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(20));
+        var function = await (await shop.PostJsonAsync("/api/v1/bookings", new { id = Guid.CreateVersion7(), venueId = hall, date, slot = "evening", customerId = customer, guests = 100, plateRate = 500m, hallRent = 20000m, deposit = 0m })).ReadAsync<BookingDto>();
+        var stay = await (await shop.PostJsonAsync("/api/v1/stays", new { id = Guid.CreateVersion7(), roomId = room, checkIn = date, checkOut = date.AddDays(1), customerId = customer, guests = 4, bookingId = function.Id })).ReadAsync<StayDto>();
+        Assert.Equal(function.Id, stay.BookingId);
+        Assert.Single(await shop.GetJsonAsync<List<StayDto>>($"/api/v1/stays?bookingId={function.Id}"));
+
+        await (await shop.PostJsonAsync($"/api/v1/bookings/{function.Id}/settle", new { billId = Guid.CreateVersion7(), actualGuests = 100, damage = 0m, paidAmount = 0m })).ReadAsync<BookingDto>();
+        Assert.Equal(71500m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance); // 20,000 + 50,000 + 1,500
+        Assert.Equal(StayStatus.CheckedOut, (await shop.GetJsonAsync<StayDto>($"/api/v1/stays/{stay.Id}")).Status);
+    }
+
+    [Fact]
+    public async Task A_rooms_calendar_link_is_read_by_booking_sites_and_their_calendars_are_understood()
+    {
+        var shop = await SignUpAsync("lodge");
+        var room = Guid.CreateVersion7();
+        await shop.PostJsonAsync("/api/v1/rooms", new { id = room, name = "5", rate = 1200m });
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        (await shop.PostJsonAsync("/api/v1/stays", new { id = Guid.CreateVersion7(), roomId = room, checkIn = today.AddDays(1), checkOut = today.AddDays(3), guestName = "Phone guest", guests = 1 })).EnsureSuccessStatusCode();
+        var path = (await shop.GetJsonAsync<List<RoomDto>>("/api/v1/rooms/calendars")).Single().IcalExportPath!;
+        var ics = await api.CreateClient().GetStringAsync(path); // read with no sign-in, as a booking site does
+        Assert.Contains($"DTSTART;VALUE=DATE:{today.AddDays(1):yyyyMMdd}", ics);
+        Assert.DoesNotContain("Phone guest", ics); // no guest details leave the app
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/rooms/{room}/ical", new { importUrl = "http://example.com/cal.ics" }, ApiFactory.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await shop.PutAsJsonAsync($"/api/v1/rooms/{room}/ical", new { importUrl = "https://www.airbnb.co.in/calendar/ical/123.ics?s=abc" }, ApiFactory.Json)).StatusCode);
+
+        var events = Ical.Events("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:abc@airbnb\r\nDTSTART;VALUE=DATE:20261210\r\nDTEND;VALUE=DATE:20261213\r\nSUMMARY:Reserved\r\nEND:VEVENT\r\nEND:VCALENDAR").ToList();
+        Assert.Equal(("abc@airbnb", new DateOnly(2026, 12, 10), new DateOnly(2026, 12, 13)), (events[0].Uid, events[0].Start, events[0].End));
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {

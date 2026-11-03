@@ -19,6 +19,33 @@ public sealed class Room : Entity, ITenantOwned
     public decimal Rate { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>The booking site's calendar link (iCal) for this room: its bookings are brought in from it.</summary>
+    public string? IcalImportUrl { get; set; }
+
+    /// <summary>The secret in this room's own calendar link, which booking sites read to block the nights booked here.</summary>
+    public string? IcalToken { get; set; }
+}
+
+/// <summary>
+/// A season or date price: from one date to another (both nights included) a room, or every room, goes for this rate a
+/// night (Diwali, wedding season, a festival weekend). A room's own period wins over one for all rooms.
+/// </summary>
+public sealed class RatePeriod : Entity, ITenantOwned
+{
+    public Guid ShopId { get; set; }
+
+    public required string Name { get; set; }
+
+    public DateOnly From { get; set; }
+
+    public DateOnly To { get; set; }
+
+    public Guid? RoomId { get; set; }
+
+    public decimal Rate { get; set; }
+
+    public bool IsActive { get; set; } = true;
 }
 
 /// <summary>
@@ -60,6 +87,12 @@ public sealed class Stay : Entity, ITenantOwned
     public DateTimeOffset? FormCFiledAt { get; set; }
 
     public decimal Rate { get; set; }
+
+    /// <summary>All the nights together, each at its own rate (season prices), fixed when booked.</summary>
+    public decimal RoomCharge { get; set; }
+
+    /// <summary>The hall function these rooms are for (the baraat's rooms at a wedding): billed with the function.</summary>
+    public Guid? BookingId { get; set; }
 
     public StaySource Source { get; set; }
 
@@ -112,11 +145,21 @@ public enum StaySource
 
 public sealed record RoomRequest(Guid Id, string? Name, string? Kind, decimal Rate);
 
-public sealed record RoomDto(Guid Id, string Name, string? Kind, decimal Rate);
+public sealed record RoomDto(Guid Id, string Name, string? Kind, decimal Rate, string? IcalImportUrl = null, string? IcalExportPath = null);
+
+public sealed record RatePeriodRequest(Guid Id, string? Name, DateOnly From, DateOnly To, Guid? RoomId, decimal Rate);
+
+public sealed record RatePeriodDto(Guid Id, string Name, DateOnly From, DateOnly To, Guid? RoomId, decimal Rate);
+
+public sealed record QuoteDto(int Nights, decimal Total, IReadOnlyList<decimal> NightRates);
+
+public sealed record IcalRequest(string? ImportUrl);
+
+public sealed record IcalSyncResult(int Added, int Skipped, IReadOnlyList<string> Problems);
 
 public sealed record StayRequest(
     Guid Id, Guid RoomId, DateOnly CheckIn, DateOnly CheckOut, Guid? CustomerId, string? GuestName, string? Phone, int Guests, decimal? Rate,
-    StaySource? Source, string? SourceRef, decimal Commission, bool Foreigner, string? Note);
+    StaySource? Source, string? SourceRef, decimal Commission, bool Foreigner, string? Note, Guid? BookingId = null);
 
 public sealed record CheckInRequest(string? IdType, string? IdNumber);
 
@@ -131,7 +174,7 @@ public sealed record StayChargeDto(Guid Id, string Name, decimal Amount);
 public sealed record StayDto(
     Guid Id, int Number, Guid RoomId, string RoomName, DateOnly CheckIn, DateOnly CheckOut, int Nights, StayStatus Status, Guid? CustomerId, string GuestName,
     string? Phone, int Guests, string? IdType, string? IdLast4, bool Foreigner, DateTimeOffset? FormCFiledAt, bool FormCDue, decimal Rate, StaySource Source,
-    string? SourceRef, decimal Commission, decimal RoomTotal, IReadOnlyList<StayChargeDto> Charges, decimal Total, Guid? BillId, string? Note);
+    string? SourceRef, decimal Commission, decimal RoomTotal, IReadOnlyList<StayChargeDto> Charges, decimal Total, Guid? BillId, string? Note, Guid? BookingId = null);
 
 /// <summary>Today at a glance: each room free, booked for today or with a guest in; and who arrives and leaves.</summary>
 public sealed record RoomBoardRow(RoomDto Room, string State, StayDto? Stay);
@@ -144,6 +187,19 @@ public static class Stays
         group.MapGet("/rooms", async (AppDbContext db, CancellationToken ct) =>
             await db.Rooms.AsNoTracking().Where(r => r.IsActive).OrderBy(r => r.Name).Select(r => new RoomDto(r.Id, r.Name, r.Kind, r.Rate)).ToListAsync(ct));
         group.MapPost("/rooms", AddRoomAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapGet("/rooms/{id:guid}/quote", QuoteAsync);
+        group.MapGet("/room-rates", async (AppDbContext db, CancellationToken ct) =>
+            await db.RatePeriods.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.From).Select(p => new RatePeriodDto(p.Id, p.Name, p.From, p.To, p.RoomId, p.Rate)).ToListAsync(ct));
+        group.MapPost("/room-rates", AddRatePeriodAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapPost("/room-rates/{id:guid}/remove", async (Guid id, AppDbContext db, CancellationToken ct) =>
+        {
+            await db.RatePeriods.Where(p => p.Id == id).ExecuteUpdateAsync(s => s.SetProperty(p => p.IsActive, false), ct);
+            return TypedResults.NoContent();
+        }).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapGet("/rooms/calendars", CalendarsAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapPut("/rooms/{id:guid}/ical", SetIcalAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapPost("/rooms/{id:guid}/ical/sync", SyncIcalAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        app.MapGet("/api/v1/store/{slug}/rooms/{token}.ics", ExportIcalAsync).WithTags("Rooms").AllowAnonymous().RequireRateLimiting(Planner.StoreEndpoints.StoreRateLimit);
         group.MapGet("/rooms/board", BoardAsync);
         group.MapGet("/stays", ListAsync);
         group.MapGet("/stays/{id:guid}", GetAsync);
@@ -170,11 +226,11 @@ public static class Stays
 
     private static StayDto ToDto(Stay s, string room)
     {
-        var roomTotal = Nights(s) * s.Rate;
+        var roomTotal = s.RoomCharge > 0 ? s.RoomCharge : Nights(s) * s.Rate;
         var charges = s.Charges.OrderBy(c => c.CreatedAt).Select(c => new StayChargeDto(c.Id, c.Name, c.Amount)).ToList();
         return new StayDto(s.Id, s.Number, s.RoomId, room, s.CheckIn, s.CheckOut, Nights(s), s.Status, s.CustomerId, s.GuestName, s.Phone, s.Guests, s.IdType, s.IdLast4,
             s.Foreigner, s.FormCFiledAt, s.Foreigner && s.Status == StayStatus.CheckedIn && s.FormCFiledAt is null, s.Rate, s.Source, s.SourceRef, s.Commission,
-            roomTotal, charges, roomTotal + charges.Sum(c => c.Amount), s.BillId, s.Note);
+            roomTotal, charges, roomTotal + charges.Sum(c => c.Amount), s.BillId, s.Note, s.BookingId);
     }
 
     private static async Task<IReadOnlyList<StayDto>> ToDtosAsync(AppDbContext db, IQueryable<Stay> query, CancellationToken ct)
@@ -225,8 +281,13 @@ public static class Stays
     }
 
     /// <summary>Stays touching the coming days (default: from today, the next 30 days), and any guest still checked in.</summary>
-    private static async Task<IReadOnlyList<StayDto>> ListAsync(DateOnly? from, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IReadOnlyList<StayDto>> ListAsync(DateOnly? from, Guid? bookingId, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
+        if (bookingId is { } function)
+        {
+            return (await ToDtosAsync(db, db.Stays.Where(s => s.BookingId == function && s.Status != StayStatus.Cancelled), ct)).OrderBy(s => s.RoomName).ToList();
+        }
+
         var start = from ?? Today(clock);
         var end = start.AddDays(30);
         return (await ToDtosAsync(db, db.Stays.Where(s => s.Status == StayStatus.CheckedIn
@@ -262,8 +323,12 @@ public static class Stays
         if (request.CheckOut <= request.CheckIn) errors["CheckOut"] = ["Check-out is after check-in."];
         if (request.CheckOut.DayNumber - request.CheckIn.DayNumber > 365) errors["CheckOut"] = ["A stay is up to a year."];
         if (request.Guests is < 1 or > 20) errors["Guests"] = ["How many guests?"];
-        var rate = request.Rate ?? room?.Rate ?? 0;
-        if (rate <= 0 || !Money.IsValidAmount(rate)) errors["Rate"] = ["Enter the rate per night."];
+        if (request.Rate is { } own && (own <= 0 || !Money.IsValidAmount(own))) errors["Rate"] = ["Enter the rate per night."];
+        if (room is { Rate: <= 0 } && request.Rate is null) errors["Rate"] = ["Enter the rate per night."];
+        if (request.BookingId is { } function && !await db.Bookings.AnyAsync(b => b.Id == function && b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Settled, ct))
+        {
+            errors["BookingId"] = ["The function isn't open."];
+        }
         if (request.Commission < 0 || (request.Commission > 0 && !Money.IsValidAmount(request.Commission))) errors["Commission"] = ["Enter the booking site's commission."];
         string? name = request.GuestName?.Trim();
         if (request.CustomerId is { } customer)
@@ -286,8 +351,12 @@ public static class Stays
         }
 
         static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+        var nightRates = request.Rate is { } fixedRate ? Enumerable.Repeat(fixedRate, request.CheckOut.DayNumber - request.CheckIn.DayNumber).ToList()
+            : await NightRatesAsync(db, room!, request.CheckIn, request.CheckOut, ct);
+        var rate = decimal.Round(nightRates.Average(), 2);
         db.Stays.Add(new Stay
         {
+            RoomCharge = nightRates.Sum(), BookingId = request.BookingId,
             Id = request.Id, Number = (await db.Stays.MaxAsync(s => (int?)s.Number, ct) ?? 0) + 1, RoomId = request.RoomId, CheckIn = request.CheckIn, CheckOut = request.CheckOut,
             CustomerId = request.CustomerId, GuestName = name!, Phone = PhoneNumber.Normalize(request.Phone) ?? Clean(request.Phone), Guests = request.Guests, Rate = rate,
             Source = request.Source ?? StaySource.Direct, SourceRef = Clean(request.SourceRef), Commission = request.Commission, Foreigner = request.Foreigner, Note = Clean(request.Note),
@@ -399,9 +468,9 @@ public static class Stays
         }
 
         var room = await db.Rooms.AsNoTracking().Where(r => r.Id == stay.RoomId).Select(r => r.Name).SingleAsync(ct);
-        var lines = new List<BillLineRequest> { new(null, $"Room {room}: {Nights(stay)} night(s), {stay.CheckIn:dd MMM} to {stay.CheckOut:dd MMM}", Nights(stay), Unit.Piece, stay.Rate) };
-        lines.AddRange(stay.Charges.OrderBy(c => c.CreatedAt).Select(c => new BillLineRequest(null, c.Name, 1, Unit.Piece, c.Amount)));
-        var result = await ledger.CreateBillAsync(new BillRequest(request.BillId, stay.CustomerId, lines, request.PaidAmount, request.Mode, null), user.UserId()!.Value, ct, isOwner: IsOwner(user));
+        var (lines, tax) = await BillLinesAsync(db, stay, room, ct);
+        var result = await ledger.CreateBillAsync(new BillRequest(request.BillId, stay.CustomerId, lines, request.PaidAmount, request.Mode, null), user.UserId()!.Value, ct,
+            isOwner: IsOwner(user), taxSnapshot: tax);
         if (result.Value is not { } bill)
         {
             return result.ToHttp("");
@@ -421,6 +490,211 @@ public static class Stays
         return await GetAsync(id, db, ct);
     }
 
+    /// <summary>
+    /// GST on a room night by what the guest pays for it, as found from 22 Sep 2025: up to ₹1,000 exempt, up to ₹7,500
+    /// 5% (no input credit), above that 18%. SAC 996311. To be confirmed by the shop's CA before relying on it.
+    /// </summary>
+    public static decimal RoomGstRate(decimal nightRate) => nightRate <= 1000 ? 0 : nightRate <= 7500 ? 5 : 18;
+
+    public const string RoomSac = "996311";
+
+    /// <summary>
+    /// A stay's bill lines: the room (one line, nights at an even rate or the season total), then each extra. The room
+    /// line carries room GST when the shop is GST-registered; extras take none (the shop sets GST on its own items).
+    /// </summary>
+    internal static async Task<(List<BillLineRequest> Lines, List<(decimal? GstRate, string? HsnCode)>? Tax)> BillLinesAsync(
+        AppDbContext db, Stay stay, string room, CancellationToken ct)
+    {
+        var nights = Nights(stay);
+        var total = stay.RoomCharge > 0 ? stay.RoomCharge : nights * stay.Rate;
+        var even = total == nights * stay.Rate;
+        var lines = new List<BillLineRequest>
+        {
+            even ? new(null, $"Room {room}: {nights} night(s), {stay.CheckIn:dd MMM} to {stay.CheckOut:dd MMM}", nights, Unit.Piece, stay.Rate)
+                 : new(null, $"Room {room}: {nights} night(s), {stay.CheckIn:dd MMM} to {stay.CheckOut:dd MMM} (season rates)", 1, Unit.Piece, total),
+        };
+        lines.AddRange(stay.Charges.OrderBy(c => c.CreatedAt).Select(c => new BillLineRequest(null, c.Name, 1, Unit.Piece, c.Amount)));
+        var registered = await db.Shops.AsNoTracking().Where(s => s.Id == stay.ShopId).Select(s => s.Gstin != null).SingleAsync(ct);
+        if (!registered)
+        {
+            return (lines, null);
+        }
+
+        var tax = lines.Select((_, i) => i == 0 ? ((decimal?)RoomGstRate(decimal.Round(total / Math.Max(nights, 1), 2)), (string?)RoomSac) : ((decimal?)null, (string?)null)).ToList();
+        return (lines, tax);
+    }
+
+    /// <summary>Each night's rate: a season price for this room, else one for all rooms, else the room's own rate.</summary>
+    public static async Task<List<decimal>> NightRatesAsync(AppDbContext db, Room room, DateOnly checkIn, DateOnly checkOut, CancellationToken ct)
+    {
+        var periods = await db.RatePeriods.AsNoTracking().Where(p => p.IsActive && p.From < checkOut && p.To >= checkIn && (p.RoomId == null || p.RoomId == room.Id))
+            .OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
+        var rates = new List<decimal>();
+        for (var night = checkIn; night < checkOut; night = night.AddDays(1))
+        {
+            var season = periods.Where(p => p.From <= night && p.To >= night).OrderByDescending(p => p.RoomId != null).FirstOrDefault();
+            rates.Add(season?.Rate ?? room.Rate);
+        }
+
+        return rates;
+    }
+
+    private static async Task<IResult> QuoteAsync(Guid id, DateOnly checkIn, DateOnly checkOut, AppDbContext db, CancellationToken ct)
+    {
+        var room = await db.Rooms.AsNoTracking().SingleOrDefaultAsync(r => r.Id == id, ct);
+        if (room is null || checkOut <= checkIn || checkOut.DayNumber - checkIn.DayNumber > 365)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var rates = await NightRatesAsync(db, room, checkIn, checkOut, ct);
+        return TypedResults.Ok(new QuoteDto(rates.Count, rates.Sum(), rates));
+    }
+
+    private static async Task<IResult> AddRatePeriodAsync(RatePeriodRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (request.Name?.Trim() is not { Length: >= 2 and <= 60 }) errors["Name"] = ["Name the season (Diwali, Wedding season)."];
+        if (request.To < request.From || request.To.DayNumber - request.From.DayNumber > 366) errors["To"] = ["The last night is on or after the first, within a year."];
+        if (request.Rate <= 0 || !Money.IsValidAmount(request.Rate)) errors["Rate"] = ["Enter the rate per night."];
+        if (request.RoomId is { } roomId && !await db.Rooms.AnyAsync(r => r.Id == roomId, ct)) errors["RoomId"] = ["Room not found."];
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        if (!await db.RatePeriods.AnyAsync(p => p.Id == request.Id, ct))
+        {
+            db.RatePeriods.Add(new RatePeriod { Id = request.Id, Name = request.Name!.Trim(), From = request.From, To = request.To, RoomId = request.RoomId, Rate = request.Rate });
+            await db.SaveChangesAsync(ct);
+        }
+
+        return TypedResults.Ok(new RatePeriodDto(request.Id, request.Name!.Trim(), request.From, request.To, request.RoomId, request.Rate));
+    }
+
+    /// <summary>Booking sites whose calendar links the app reads. Only these, over https: the server fetches the link.</summary>
+    private static readonly string[] CalendarHosts =
+        ["airbnb.com", "airbnb.co.in", "booking.com", "makemytrip.com", "goibibo.com", "oyorooms.com", "agoda.com", "expedia.com", "vrbo.com", "tripadvisor.com", "google.com"];
+
+    private static StaySource SourceFor(string host) => host switch
+    {
+        _ when host.EndsWith("airbnb.com") || host.EndsWith("airbnb.co.in") => StaySource.Airbnb,
+        _ when host.EndsWith("booking.com") => StaySource.BookingCom,
+        _ when host.EndsWith("makemytrip.com") => StaySource.MakeMyTrip,
+        _ when host.EndsWith("goibibo.com") => StaySource.Goibibo,
+        _ when host.EndsWith("oyorooms.com") => StaySource.Oyo,
+        _ => StaySource.Other,
+    };
+
+    /// <summary>Each room's calendar links: the booking site's (brought in) and this room's own (for the site to read).</summary>
+    private static async Task<IReadOnlyList<RoomDto>> CalendarsAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var slug = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.Slug).SingleAsync(ct);
+        var rooms = await db.Rooms.Where(r => r.IsActive).OrderBy(r => r.Name).ToListAsync(ct);
+        foreach (var r in rooms.Where(r => r.IcalToken is null))
+        {
+            r.IcalToken = Secrets.NewRefreshToken()[..24];
+        }
+
+        await db.SaveChangesAsync(ct);
+        return rooms.Select(r => new RoomDto(r.Id, r.Name, r.Kind, r.Rate, r.IcalImportUrl, $"/api/v1/store/{slug}/rooms/{r.IcalToken}.ics")).ToList();
+    }
+
+    private static async Task<IResult> SetIcalAsync(Guid id, IcalRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var room = await db.Rooms.SingleOrDefaultAsync(r => r.Id == id, ct);
+        if (room is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var url = request.ImportUrl?.Trim();
+        if (!string.IsNullOrEmpty(url) && (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps
+            || !CalendarHosts.Any(h => uri.Host == h || uri.Host.EndsWith("." + h))))
+        {
+            return Invalid("ImportUrl", "Paste the booking site's calendar (iCal) link: an https link from Airbnb, Booking.com, MakeMyTrip, Goibibo, OYO, Agoda or Expedia.");
+        }
+
+        room.IcalImportUrl = string.IsNullOrEmpty(url) ? null : url;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Brings in the booking site's bookings for this room from its calendar link: each new one becomes a booked stay
+    /// (named from the calendar, at the room's rates; fill in the guest at check-in). Ones already brought in, past ones,
+    /// and ones clashing with a stay here are skipped and reported.
+    /// </summary>
+    private static async Task<IResult> SyncIcalAsync(Guid id, AppDbContext db, IHttpClientFactory http, TimeProvider clock, CancellationToken ct)
+    {
+        var room = await db.Rooms.AsNoTracking().SingleOrDefaultAsync(r => r.Id == id, ct);
+        if (room?.IcalImportUrl is not { } url)
+        {
+            return Invalid("ImportUrl", "Add the booking site's calendar link first.");
+        }
+
+        string text;
+        try
+        {
+            var client = http.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(15);
+            text = await client.GetStringAsync(url, ct);
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway, title: "The booking site's calendar couldn't be read. Check the link and try again.");
+        }
+
+        var source = SourceFor(new Uri(url).Host);
+        var today = Today(clock);
+        var (added, skipped, problems) = (0, 0, new List<string>());
+        foreach (var e in Ical.Events(text).Where(e => e.End > today).Take(200))
+        {
+            var reference = e.Uid.Length > 40 ? e.Uid[..40] : e.Uid;
+            if (await db.Stays.AnyAsync(s => s.RoomId == id && s.SourceRef == reference, ct))
+            {
+                skipped++;
+                continue;
+            }
+
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            if (await ClashAsync(db, Guid.Empty, id, e.Start, e.End, ct) is { } clash)
+            {
+                problems.Add($"{e.Start:dd MMM}–{e.End:dd MMM}: {clash}");
+                continue;
+            }
+
+            var rates = await NightRatesAsync(db, room, e.Start, e.End, ct);
+            var name = string.IsNullOrWhiteSpace(e.Summary) || e.Summary.Length < 2 ? $"{source} guest" : e.Summary.Trim()[..Math.Min(80, e.Summary.Trim().Length)];
+            db.Stays.Add(new Stay
+            {
+                Number = (await db.Stays.MaxAsync(s => (int?)s.Number, ct) ?? 0) + 1, RoomId = id, CheckIn = e.Start, CheckOut = e.End, GuestName = name, Guests = 1,
+                Rate = decimal.Round(rates.Average(), 2), RoomCharge = rates.Sum(), Source = source, SourceRef = reference, Note = "Brought in from the booking site's calendar",
+            });
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            added++;
+        }
+
+        return TypedResults.Ok(new IcalSyncResult(added, skipped, problems.Take(20).ToList()));
+    }
+
+    /// <summary>This room's calendar for booking sites to read: every night booked here shows as taken (no guest details).</summary>
+    private static async Task<IResult> ExportIcalAsync(string slug, string token, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct)
+    {
+        if (await Planner.StoreEndpoints.OpenShopAsync(db, tenant, slug, ct) is null
+            || await db.Rooms.AsNoTracking().SingleOrDefaultAsync(r => r.IcalToken == token, ct) is not { } room)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var today = Today(clock);
+        var stays = await db.Stays.AsNoTracking()
+            .Where(s => s.RoomId == room.Id && (s.Status == StayStatus.Booked || s.Status == StayStatus.CheckedIn) && s.CheckOut > today).ToListAsync(ct);
+        var body = Ical.Write($"Room {room.Name}", stays.Select(s => ($"stay-{s.Id}@groceryapp", s.CheckIn, s.CheckOut)), clock.GetUtcNow());
+        return TypedResults.Text(body, "text/calendar; charset=utf-8");
+    }
+
     /// <summary>A booking that won't happen frees its nights. An advance taken stays on the khata, to give back or keep as a charge there.</summary>
     private static async Task<IResult> CancelAsync(Guid id, AppDbContext db, CancellationToken ct)
     {
@@ -437,5 +711,51 @@ public static class Stays
         }
 
         return await GetAsync(id, db, ct);
+    }
+}
+
+/// <summary>The little of iCal that booking sites' calendars need: all-day events read, all-day events written.</summary>
+public static class Ical
+{
+    public sealed record Event(string Uid, DateOnly Start, DateOnly End, string Summary);
+
+    /// <summary>VEVENTs with a start and end date (DTSTART;VALUE=DATE:20261105 or a date-time); folded lines are joined.</summary>
+    public static IEnumerable<Event> Events(string text)
+    {
+        var lines = text.Replace("\r\n ", "").Replace("\n ", "").Replace("\r", "").Split('\n');
+        string? uid = null, summary = null;
+        DateOnly? start = null, end = null;
+        foreach (var line in lines)
+        {
+            var colon = line.IndexOf(':');
+            if (colon < 0) continue;
+            var (key, value) = (line[..colon].Split(';')[0].ToUpperInvariant(), line[(colon + 1)..].Trim());
+            switch (key)
+            {
+                case "BEGIN" when value == "VEVENT": (uid, summary, start, end) = (null, null, null, null); break;
+                case "UID": uid = value; break;
+                case "SUMMARY": summary = value; break;
+                case "DTSTART": start = Date(value); break;
+                case "DTEND": end = Date(value); break;
+                case "END" when value == "VEVENT" && start is { } s && end is { } e && e > s:
+                    yield return new Event(uid ?? $"{s:yyyyMMdd}-{e:yyyyMMdd}", s, e, summary ?? ""); break;
+            }
+        }
+    }
+
+    private static DateOnly? Date(string value) =>
+        value.Length >= 8 && DateOnly.TryParseExact(value[..8], "yyyyMMdd", out var d) ? d : null;
+
+    public static string Write(string name, IEnumerable<(string Uid, DateOnly Start, DateOnly End)> events, DateTimeOffset now)
+    {
+        var b = new System.Text.StringBuilder();
+        b.Append("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Grocery Khata//Rooms//EN\r\nCALSCALE:GREGORIAN\r\n").Append($"X-WR-CALNAME:{name}\r\n");
+        foreach (var (uid, start, end) in events)
+        {
+            b.Append("BEGIN:VEVENT\r\n").Append($"UID:{uid}\r\n").Append($"DTSTAMP:{now.UtcDateTime:yyyyMMdd'T'HHmmss'Z'}\r\n")
+                .Append($"DTSTART;VALUE=DATE:{start:yyyyMMdd}\r\n").Append($"DTEND;VALUE=DATE:{end:yyyyMMdd}\r\n").Append("SUMMARY:Booked\r\n").Append("END:VEVENT\r\n");
+        }
+
+        return b.Append("END:VCALENDAR\r\n").ToString();
     }
 }

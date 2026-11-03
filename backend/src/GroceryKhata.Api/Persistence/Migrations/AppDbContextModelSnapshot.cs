@@ -3855,6 +3855,59 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("purchase_lines", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.RatePeriod", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("From")
+                        .HasColumnType("date")
+                        .HasColumnName("from");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal>("Rate")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("rate");
+
+                    b.Property<Guid?>("RoomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("room_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateOnly>("To")
+                        .HasColumnType("date")
+                        .HasColumnName("to");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.ToTable("rate_periods", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Room", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3865,6 +3918,16 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("IcalImportUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("ical_import_url");
+
+                    b.Property<string>("IcalToken")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("ical_token");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
@@ -3898,6 +3961,9 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
                     b.HasAlternateKey("ShopId", "Id");
 
+                    b.HasIndex("IcalToken")
+                        .IsUnique();
+
                     b.ToTable("rooms", (string)null);
                 });
 
@@ -3911,6 +3977,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<Guid?>("BillId")
                         .HasColumnType("uuid")
                         .HasColumnName("bill_id");
+
+                    b.Property<Guid?>("BookingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("booking_id");
 
                     b.Property<DateOnly>("CheckIn")
                         .HasColumnType("date")
@@ -3984,6 +4054,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("rate");
 
+                    b.Property<decimal>("RoomCharge")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("room_charge");
+
                     b.Property<Guid>("RoomId")
                         .HasColumnType("uuid")
                         .HasColumnName("room_id");
@@ -4016,6 +4091,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("BookingId");
 
                     b.HasIndex("ShopId", "Number")
                         .IsUnique();

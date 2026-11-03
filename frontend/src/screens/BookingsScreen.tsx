@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { JobPage } from './JobsScreen'
+import { NewStayInline } from './RoomsScreen'
 
 type Slot = 'morning' | 'evening' | 'full_day'
 type Occasion = 'wedding' | 'reception' | 'engagement' | 'birthday' | 'anniversary' | 'other'
@@ -244,6 +245,7 @@ function BookingPage({ shopId, id, isOwner, onBack }: { shopId: string; id: stri
         </div>
       )}
 
+      {b.status === 'confirmed' && <FunctionRooms shopId={shopId} bookingId={b.id} date={b.date} />}
       {b.status === 'confirmed' && b.jobId && (
         <section className="flex flex-col gap-2">
           <h3 className="font-bold">{t('bookings.moneyAndCosts')}</h3>
@@ -263,5 +265,24 @@ function BookingPage({ shopId, id, isOwner, onBack }: { shopId: string; id: stri
       ) : <button onClick={() => setForm('cancel')} className="min-h-11 text-sm font-semibold text-due">{t('bookings.cancel')}</button>)}
       {!form && message && <p className="text-sm text-due">{message}</p>}
     </div>
+  )
+}
+
+/** Rooms taken for the function's guests (the baraat): booked here, billed on the function's final bill. Shown when the shop has rooms. */
+function FunctionRooms({ shopId, bookingId, date }: { shopId: string; bookingId: string; date: string }) {
+  const { t } = useTranslation()
+  const [adding, setAdding] = useState(false)
+  const rooms = useQuery({ queryKey: [shopId, 'rooms'], queryFn: () => api<{ id: string }[]>('/v1/rooms') }).data ?? []
+  const stays = useQuery({ queryKey: [shopId, 'stays', 'function', bookingId], queryFn: () => api<{ id: string; roomName: string; checkIn: string; checkOut: string; nights: number; total: number }[]>(`/v1/stays?bookingId=${bookingId}`) }).data ?? []
+  if (rooms.length === 0) return null
+  return (
+    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <h3 className="font-bold">{t('bookings.roomsTitle')}</h3>
+      <p className="text-xs text-muted">{t('bookings.roomsHint')}</p>
+      {stays.map((s) => (
+        <div key={s.id} className="flex justify-between text-sm"><span>{t('rooms.roomLabel', { room: s.roomName })} · {t('rooms.nights', { count: s.nights })}</span><span className="font-semibold">{formatRupees(s.total)}</span></div>
+      ))}
+      {adding ? <NewStayInline shopId={shopId} bookingId={bookingId} date={date} onDone={() => setAdding(false)} /> : <Button tone="plain" onClick={() => setAdding(true)}>{t('bookings.addRoom')}</Button>}
+    </section>
   )
 }
