@@ -708,6 +708,42 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Prescription_medicines_need_the_doctor_and_patient_and_H1_sales_fill_the_register()
+    {
+        var shop = await SignUpAsync("medical");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var items = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        var (cefixime, ors) = (items.Single(p => p.Name.StartsWith("Cefixime")), items.Single(p => p.Name == "ORS sachet"));
+        Assert.Equal((DrugSchedule.H1, (DrugSchedule?)null), (cefixime.Schedule!.Value, ors.Schedule));
+        foreach (var p in new[] { cefixime, ors })
+        {
+            (await shop.PostJsonAsync("/api/v1/stock-movements", new { id = Guid.CreateVersion7(), productId = p.Id, kind = "purchase", quantity = 10m })).EnsureSuccessStatusCode();
+        }
+
+        object Bill(object? prescription, params ProductDto[] what) => new
+        {
+            id = Guid.CreateVersion7(), lines = what.Select(p => new { productId = p.Id, quantity = 1m, unitPrice = 100m }).ToArray(), paidAmount = 100m * what.Length, paymentMode = "cash", prescription,
+        };
+
+        // Over the counter: no prescription needed.
+        (await shop.PostJsonAsync("/api/v1/bills", Bill(null, ors))).EnsureSuccessStatusCode();
+        var refused = await shop.PostJsonAsync("/api/v1/bills", Bill(null, cefixime, ors));
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("Cefixime", await refused.Content.ReadAsStringAsync());
+        // H1 also needs the doctor's address.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/bills", Bill(new { doctorName = "Dr. Mehta", patientName = "Sunita" }, cefixime))).StatusCode);
+
+        var bill = await (await shop.PostJsonAsync("/api/v1/bills",
+            Bill(new { doctorName = "Dr. Mehta", doctorAddress = "City Clinic, MI Road", doctorRegNo = "RMC 1234", patientName = "Sunita", patientAddress = "Raja Park" }, cefixime, ors))).ReadAsync<BillDto>();
+        Assert.Equal("Dr. Mehta", bill.Prescription!.DoctorName);
+        Assert.Equal("Sunita", (await shop.GetJsonAsync<BillView>($"/api/v1/bills/{bill.Id}")).Bill.Prescription!.PatientName);
+
+        var register = await shop.GetJsonAsync<List<H1RegisterRow>>("/api/v1/pharmacy/h1-register");
+        var row = Assert.Single(register); // ORS isn't H1
+        Assert.Equal(("Sunita", "Dr. Mehta", "City Clinic, MI Road", 1m, false), (row.PatientName, row.DoctorName, row.DoctorAddress, row.Quantity, row.Cancelled));
+    }
+
+    [Fact]
     public async Task Services_use_their_products_from_stock_and_client_cards_keep_the_formula()
     {
         var shop = await SignUpAsync("beauty");

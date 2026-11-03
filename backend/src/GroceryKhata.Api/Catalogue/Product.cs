@@ -71,6 +71,21 @@ public sealed class Product : Entity, ITenantOwned
 
     /// <summary>How long the service takes, in minutes: used to book appointments.</summary>
     public int? DurationMinutes { get; set; }
+
+    /// <summary>Medicines: the drug schedule. H, H1 and X sell only on a prescription, with the doctor and patient on the bill. Null: over the counter.</summary>
+    public DrugSchedule? Schedule { get; set; }
+}
+
+public enum DrugSchedule
+{
+    /// <summary>Sold under a pharmacist; label warning only.</summary>
+    G,
+    /// <summary>Prescription only.</summary>
+    H,
+    /// <summary>Prescription only, and every sale goes in the H1 register (kept 3 years): antibiotics like cefixime, some habit-forming drugs.</summary>
+    H1,
+    /// <summary>Prescription in duplicate (one copy kept 2 years), stock under lock.</summary>
+    X,
 }
 
 public enum Unit

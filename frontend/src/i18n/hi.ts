@@ -899,6 +899,13 @@ export const hi: Texts = {
     walkInName: 'वॉक-इन', startNow: 'अभी शुरू करें', whoDid: 'किसने किया?', tip: 'स्टाइलिस्ट की टिप (वैकल्पिक)',
     status: { booked: 'बुक', arrived: 'कुर्सी पर', done: 'हो गया, बिल बना', no_show: 'नहीं आए', cancelled: 'रद्द' },
   },
+  rx: {
+    badge: 'शेड्यूल {{schedule}}', needed: 'पर्चे वाली दवाई: डॉक्टर और मरीज़ का नाम डालें।', neededH1: 'शेड्यूल H1/X: डॉक्टर (पते के साथ) और मरीज़ डालें। यह H1 रजिस्टर में जाएगा।',
+    doctor: 'डॉक्टर का नाम', regNo: 'डॉक्टर का रजि. नं.', doctorAddress: 'डॉक्टर का पता', doctorAddressRequired: 'डॉक्टर का पता (ज़रूरी)', patient: 'मरीज़ का नाम', patientAddress: 'मरीज़ का पता',
+    schedule: 'दवा शेड्यूल', otc: 'बिना पर्चे (कोई शेड्यूल नहीं)', schedule_g: 'शेड्यूल G (फ़ार्मासिस्ट की देखरेख)', schedule_h: 'शेड्यूल H (पर्चे पर)', schedule_h1: 'शेड्यूल H1 (पर्चा + रजिस्टर)', schedule_x: 'शेड्यूल X (दो प्रति पर्चा)',
+    register: 'H1 रजिस्टर', registerHint: 'हर शेड्यूल H1 बिक्री, डॉक्टर और मरीज़ के साथ। 3 साल रखें और ड्रग इंस्पेक्टर को दिखाएँ।', from: 'से', to: 'तक',
+    noneRegister: 'इस समय में कोई H1 बिक्री नहीं।', cancelled: 'बिल रद्द', printRegister: 'प्रिंट', prescribedBy: 'पर्चा: {{doctor}} · मरीज़: {{patient}}',
+  },
   batches: {
     link: 'बैच और एक्सपायरी के साथ स्टॉक', receive: 'नया बैच लें', medicine: 'दवाई', chooseMedicine: 'दवाई चुनें', batchNo: 'बैच नं.', expiry: 'एक्सपायरी (महीना)',
     cost: 'खरीद रेट (PTR, बिना GST)', quantity: 'मात्रा (पैसे वाली)', free: 'फ़्री (स्कीम)', realCost: 'फ़्री मिलाकर हर एक असल में {{cost}} का पड़ा।', save: 'बैच सेव करें', received: 'बैच सेव हो गया। स्टॉक और MRP अपडेट हुए।',

@@ -58,6 +58,8 @@ export interface Product {
   /** A service (haircut): sold without stock. */
   isService?: boolean
   durationMinutes?: number | null
+  /** Medicines: the drug schedule; H, H1 and X need a prescription. Null: over the counter. */
+  schedule?: DrugSchedule | null
   /** Held for online orders not yet delivered. */
   reserved?: number
   /** The common-list item this is (for its picture, and so households find it). */
@@ -196,6 +198,10 @@ export interface BillLineView {
   igst?: number | null
 }
 
+export type DrugSchedule = 'g' | 'h' | 'h1' | 'x'
+
+export interface Prescription { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null; prescribedOn: string | null }
+
 export interface BillView {
   bill: {
     id: string
@@ -217,6 +223,7 @@ export interface BillView {
     cancelReason?: string | null
     buyerGstin?: string | null
     billOfSupply?: boolean
+    prescription?: Prescription | null
   }
   customer: Customer | null
 }

@@ -43,7 +43,11 @@ public sealed record BillRequest(
     DateTimeOffset? OccurredAt,
     string? Site = null,
     string? VehicleNumber = null,
-    Guid? PainterId = null);
+    Guid? PainterId = null,
+    PrescriptionRequest? Prescription = null);
+
+/// <summary>For Schedule H, H1 and X medicines: who prescribed them and for whom, as the drug rules ask.</summary>
+public sealed record PrescriptionRequest(string? DoctorName, string? DoctorAddress, string? DoctorRegNo, string? PatientName, string? PatientAddress, DateOnly? PrescribedOn);
 
 public sealed record LedgerEntryDto(
     Guid Id,
@@ -84,7 +88,8 @@ public sealed record BillDto(
     DateTimeOffset? CancelledAt = null,
     string? CancelReason = null,
     string? BuyerGstin = null,
-    bool BillOfSupply = false);
+    bool BillOfSupply = false,
+    PrescriptionRequest? Prescription = null);
 
 public sealed record CancelBillRequest(string? Reason);
 

@@ -5,6 +5,7 @@ import { Button, Field, Sheet } from '../components/ui'
 import { api, request } from '../lib/api'
 import { addStockMovement, useProducts } from '../lib/data'
 import { useGstBilling } from '../lib/billing'
+import { shopTypes, useShopSettings } from '../lib/reports'
 import { GST_RATES } from '../lib/gst'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { Product, StockMovement, StockReason, Unit } from '../lib/types'
@@ -153,8 +154,10 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     reorder: product.reorderLevel === null ? '' : String(product.reorderLevel),
     gst: product.gstRate == null ? '' : String(product.gstRate),
     hsn: product.hsnCode ?? '',
+    schedule: product.schedule ?? '',
   })
   const gstBilling = useGstBilling(shopId)
+  const medical = shopTypes(useShopSettings(shopId).data).includes('medical')
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
 
@@ -168,6 +171,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     gstRate: form.gst === '' ? null : Number(form.gst),
     hsnCode: form.hsn.trim() || null,
     replaceTax: true,
+    ...(medical ? { schedule: form.schedule || null, replaceSchedule: true } : {}),
     isActive,
   })
 
@@ -207,6 +211,15 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         <Field label={t('stock.reorderLevel')} value={form.reorder} onChange={set('reorder')} inputMode="decimal" />
       </div>
       <Field label={t('stock.category')} value={form.category} onChange={set('category')} />
+      {medical && !product.isService && (
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-muted">{t('rx.schedule')}</span>
+          <select value={form.schedule} onChange={set('schedule')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
+            <option value="">{t('rx.otc')}</option>
+            {(['g', 'h', 'h1', 'x'] as const).map((s) => <option key={s} value={s}>{t(`rx.schedule_${s}`)}</option>)}
+          </select>
+        </label>
+      )}
       {gstBilling && <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-muted">{t('stock.gst')}</span>

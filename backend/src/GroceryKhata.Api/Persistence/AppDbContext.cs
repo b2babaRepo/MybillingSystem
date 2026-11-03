@@ -140,6 +140,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<BatchSale> BatchSales => Set<BatchSale>();
 
+    public DbSet<BillPrescription> BillPrescriptions => Set<BillPrescription>();
+
     public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();
 
     public DbSet<StylistRate> StylistRates => Set<StylistRate>();
@@ -712,6 +714,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(x => x.Quantity).HasPrecision(14, 3);
             b.HasIndex(x => new { x.ShopId, x.ProductId, x.BatchNo, x.Expiry }).IsUnique();
             b.HasIndex(x => new { x.ShopId, x.Expiry });
+        });
+
+        modelBuilder.Entity<BillPrescription>(b =>
+        {
+            b.ToTable("bill_prescriptions");
+            b.HasTenantKey();
+            b.Property(x => x.DoctorName).HasMaxLength(80);
+            b.Property(x => x.DoctorAddress).HasMaxLength(200);
+            b.Property(x => x.DoctorRegNo).HasMaxLength(40);
+            b.Property(x => x.PatientName).HasMaxLength(80);
+            b.Property(x => x.PatientAddress).HasMaxLength(200);
+            b.HasIndex(x => new { x.ShopId, x.BillId }).IsUnique();
         });
 
         modelBuilder.Entity<BatchSale>(b =>

@@ -34,16 +34,17 @@ public static class StarterItems
     [
         Item("Paracetamol 500 mg (strip of 10)", "Fever & pain", Unit.Piece, 5, "3004"),
         Item("Paracetamol 650 mg (strip of 15)", "Fever & pain", Unit.Piece, 5, "3004"),
-        Item("Ibuprofen 400 mg (strip of 10)", "Fever & pain", Unit.Piece, 5, "3004"),
+        Medicine("Ibuprofen 400 mg (strip of 10)", "Fever & pain", DrugSchedule.H),
         Item("Cetirizine 10 mg (strip of 10)", "Cold & allergy", Unit.Piece, 5, "3004"),
         Item("Cough syrup 100 ml", "Cold & allergy", Unit.Piece, 5, "3004"),
         Item("Antacid gel 170 ml", "Stomach", Unit.Piece, 5, "3004"),
-        Item("Pantoprazole 40 mg (strip of 15)", "Stomach", Unit.Piece, 5, "3004"),
+        Medicine("Pantoprazole 40 mg (strip of 15)", "Stomach", DrugSchedule.H),
         Item("ORS sachet", "Stomach", Unit.Packet, 5, "3004"),
-        Item("Amoxicillin 500 mg (strip of 10)", "Antibiotics (Schedule H)", Unit.Piece, 5, "3004"),
-        Item("Azithromycin 500 mg (strip of 3)", "Antibiotics (Schedule H)", Unit.Piece, 5, "3004"),
-        Item("Metformin 500 mg (strip of 10)", "Diabetes & BP", Unit.Piece, 5, "3004"),
-        Item("Amlodipine 5 mg (strip of 10)", "Diabetes & BP", Unit.Piece, 5, "3004"),
+        Medicine("Amoxicillin 500 mg (strip of 10)", "Antibiotics", DrugSchedule.H),
+        Medicine("Azithromycin 500 mg (strip of 3)", "Antibiotics", DrugSchedule.H),
+        Medicine("Metformin 500 mg (strip of 10)", "Diabetes & BP", DrugSchedule.H),
+        Medicine("Amlodipine 5 mg (strip of 10)", "Diabetes & BP", DrugSchedule.H),
+        Medicine("Cefixime 200 mg (strip of 10)", "Antibiotics", DrugSchedule.H1),
         Item("Vitamin D3 60K (strip of 4)", "Vitamins", Unit.Piece, 5, "3004"),
         Item("Multivitamin (strip of 15)", "Vitamins", Unit.Piece, 5, "3004"),
         Item("Glucometer strips (50)", "Devices", Unit.Packet, 5, "3822"),
@@ -56,6 +57,9 @@ public static class StarterItems
 
     private static ImportRow Item(string name, string category, Unit unit, decimal? gst, string? hsn) =>
         new(name, unit, 0, null, category, null, null, GstRate: gst, HsnCode: hsn);
+
+    private static ImportRow Medicine(string name, string category, DrugSchedule? schedule) =>
+        new(name, Unit.Piece, 0, null, category, null, null, GstRate: 5, HsnCode: "3004", Schedule: schedule);
 
     private static ImportRow Service(string name, string category, int minutes, string sac) =>
         new(name, Unit.Piece, 0, null, category, null, null, GstRate: 5, HsnCode: sac, IsService: true, DurationMinutes: minutes);

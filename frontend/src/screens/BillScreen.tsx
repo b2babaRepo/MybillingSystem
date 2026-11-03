@@ -37,6 +37,8 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   const shopType = settings?.type ?? 'kirana'
   const types = shopTypes(settings)
   const [extras, setExtras] = useState({ site: '', vehicleNumber: '', painterId: '' })
+  // Schedule H, H1 and X medicines need the doctor and patient on the bill; H1 and X also the doctor's address (the register).
+  const [rx, setRx] = useState({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
   const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; mode: 'cash' | 'upi'; customer: { name: string; phone: string | null } | null } | null>(null)
 
   // On a phone the bill sits below the item grid: a bar above the tabs shows the total until the bill is in view.
@@ -59,6 +61,9 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   const total = useMemo(() => round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [cart])
   const customer = customers.find((c) => c.id === customerId) ?? null
   const paidAmount = paid === null || !customer ? total : Math.min(Number(paid) || 0, total)
+  const schedules = cart.map((l) => products.find((p) => p.id === l.productId)?.schedule).filter((s) => s === 'h' || s === 'h1' || s === 'x')
+  const needsAddress = schedules.some((s) => s === 'h1' || s === 'x')
+  const rxMissing = schedules.length > 0 && (rx.doctorName.trim().length < 2 || rx.patientName.trim().length < 2 || (needsAddress && rx.doctorAddress.trim().length < 3))
 
   function add(line: CartLine) {
     setSaved(null)
@@ -82,7 +87,9 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   async function save() {
     const result = await saveBill(shopId, cart, customer, paidAmount, mode, {
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
+      prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
     })
+    setRx({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
     setExtras({ ...extras, site: '', vehicleNumber: '' })
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
@@ -152,7 +159,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
         {cart.map((l, i) => (
           <div key={`${l.productId ?? l.name}-${i}`} className="flex items-center gap-2 border-b border-[#edf2f1] py-2 last:border-0">
             <div className="flex-1">
-              <div className="font-semibold">{l.name}</div>
+              <div className="font-semibold">{l.name}{(() => { const s = products.find((p) => p.id === l.productId)?.schedule; return s && s !== 'g' ? <span className="ml-1 rounded bg-red-50 px-1 text-xs text-due">{t('rx.badge', { schedule: s.toUpperCase() })}</span> : null })()}</div>
               <label className="flex items-center gap-1 text-xs text-muted">
                 ₹
                 <input
@@ -210,6 +217,20 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
                 onChallanSaved={() => { setCart([]); setPaid(null); setCustomerId(''); setExtras({ ...extras, site: '', vehicleNumber: '' }) }} />
             </Suspense>
           )}
+          {schedules.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-xl bg-red-50 p-2">
+              <p className="text-sm font-semibold text-due">{t(needsAddress ? 'rx.neededH1' : 'rx.needed')}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label={t('rx.doctor')} value={rx.doctorName} onChange={(e) => setRx({ ...rx, doctorName: e.target.value })} />
+                <Field label={t('rx.regNo')} value={rx.doctorRegNo} onChange={(e) => setRx({ ...rx, doctorRegNo: e.target.value })} />
+              </div>
+              <Field label={t(needsAddress ? 'rx.doctorAddressRequired' : 'rx.doctorAddress')} value={rx.doctorAddress} onChange={(e) => setRx({ ...rx, doctorAddress: e.target.value })} />
+              <div className="grid grid-cols-2 gap-2">
+                <Field label={t('rx.patient')} value={rx.patientName} onChange={(e) => setRx({ ...rx, patientName: e.target.value })} />
+                <Field label={t('rx.patientAddress')} value={rx.patientAddress} onChange={(e) => setRx({ ...rx, patientAddress: e.target.value })} />
+              </div>
+            </div>
+          )}
           <div className="flex gap-2 text-sm">
             {(['cash', 'upi'] as const).map((m) => (
               <button key={m} onClick={() => setMode(m)} className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}>
@@ -219,7 +240,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
           </div>
           {mode === 'upi' && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={paidAmount} />}
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
-          <Button className="w-full" onClick={save} disabled={total <= 0 || unpriced}>
+          <Button className="w-full" onClick={save} disabled={total <= 0 || unpriced || rxMissing}>
             {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(total) }) : `${t('saveBill')} · ${formatRupees(total)}`}
           </Button>
         </div>

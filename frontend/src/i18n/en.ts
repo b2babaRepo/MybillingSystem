@@ -898,6 +898,13 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  rx: {
+    badge: 'Sch {{schedule}}', needed: 'Prescription medicine: enter the doctor and patient.', neededH1: 'Schedule H1/X: enter the doctor (with address) and patient. It goes in the H1 register.',
+    doctor: 'Doctor’s name', regNo: 'Doctor’s reg. no.', doctorAddress: 'Doctor’s address', doctorAddressRequired: 'Doctor’s address (needed)', patient: 'Patient’s name', patientAddress: 'Patient’s address',
+    schedule: 'Drug schedule', otc: 'Over the counter (no schedule)', schedule_g: 'Schedule G (under a pharmacist)', schedule_h: 'Schedule H (prescription)', schedule_h1: 'Schedule H1 (prescription + register)', schedule_x: 'Schedule X (duplicate prescription)',
+    register: 'H1 register', registerHint: 'Every Schedule H1 sale with its doctor and patient. Keep it 3 years and show it to the drug inspector.', from: 'From', to: 'To',
+    noneRegister: 'No H1 sales in this period.', cancelled: 'Bill cancelled', printRegister: 'Print', prescribedBy: 'Rx: {{doctor}} · Patient: {{patient}}',
+  },
   batches: {
     link: 'Stock by batch and expiry', receive: 'Receive a batch', medicine: 'Medicine', chooseMedicine: 'Choose a medicine', batchNo: 'Batch no.', expiry: 'Expiry (month)',
     cost: 'Rate paid (PTR, without GST)', quantity: 'Quantity (paid)', free: 'Free (scheme)', realCost: 'With free units, each one really costs {{cost}}.', save: 'Save batch', received: 'Batch saved. Stock and MRP updated.',

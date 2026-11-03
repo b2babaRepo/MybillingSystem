@@ -86,7 +86,6 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 }
 
                 CheckBackdate(request.OccurredAt, isOwner, errors);
-
                 var upiRef = string.IsNullOrWhiteSpace(request.UpiRef) ? null : request.UpiRef.Trim().ToUpperInvariant();
                 if (upiRef is not null && (request.Type != KhataEntryType.Payment || request.PaymentMode != PaymentMode.Upi))
                 {
@@ -296,6 +295,15 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 }
 
                 CheckBackdate(request.OccurredAt, isOwner, errors);
+                // Schedule H, H1 and X medicines sell only on a prescription: the doctor and patient go with the bill.
+                var (prescription, rxError) = Prescriptions.Check(request.Prescription,
+                    lines.Where(l => l.ProductId is not null).Select(l => (l.Name, products[l.ProductId!.Value].Schedule)),
+                    DateOnly.FromDateTime(clock.GetUtcNow().ToOffset(IndiaTime.Offset).DateTime));
+                if (rxError is not null)
+                {
+                    errors[nameof(request.Prescription)] = [rxError];
+                }
+
                 var site = string.IsNullOrWhiteSpace(request.Site) ? null : request.Site.Trim();
                 var vehicle = string.IsNullOrWhiteSpace(request.VehicleNumber) ? null : request.VehicleNumber.Trim().ToUpperInvariant().Replace(" ", "");
                 if (site?.Length > 80 || vehicle?.Length > 15)
@@ -344,6 +352,12 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
                 (bill.FinancialYear, bill.Number) = await NextBillNumberAsync(cancellationToken);
                 db.Bills.Add(bill);
+                if (prescription is not null)
+                {
+                    prescription.BillId = bill.Id;
+                    db.BillPrescriptions.Add(prescription);
+                }
+
                 if (bill.CustomerId is { } billCustomerId)
                 {
                     db.LedgerEntries.Add(new LedgerEntry
@@ -428,7 +442,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 return LedgerResult<BillDto>.Created(new BillDto(
                     bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
                     lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch)).ToList(),
-                    balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, BuyerGstin: bill.BuyerGstin, BillOfSupply: bill.BillOfSupply));
+                    balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, BuyerGstin: bill.BuyerGstin, BillOfSupply: bill.BillOfSupply,
+                    Prescription: prescription is null ? null : new PrescriptionRequest(prescription.DoctorName, prescription.DoctorAddress, prescription.DoctorRegNo, prescription.PatientName, prescription.PatientAddress, prescription.PrescribedOn)));
             });
 
     /// <summary>
@@ -669,7 +684,9 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
             bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
             bill.Lines.OrderBy(l => l.LineNo)
                 .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch)).ToList(),
-            balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, bill.CancelledAt, bill.CancelReason, bill.BuyerGstin, bill.BillOfSupply);
+            balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, bill.CancelledAt, bill.CancelReason, bill.BuyerGstin, bill.BillOfSupply,
+            await db.BillPrescriptions.AsNoTracking().Where(r => r.BillId == id)
+                .Select(r => new PrescriptionRequest(r.DoctorName, r.DoctorAddress, r.DoctorRegNo, r.PatientName, r.PatientAddress, r.PrescribedOn)).SingleOrDefaultAsync(cancellationToken));
     }
 
     private Task<decimal> BalanceAsync(Guid customerId, CancellationToken cancellationToken) =>
