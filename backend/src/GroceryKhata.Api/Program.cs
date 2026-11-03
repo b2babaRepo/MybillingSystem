@@ -115,6 +115,7 @@ app.MapTableBookings();
 app.MapStays();
 app.MapAppointments();
 app.MapStylistPay();
+app.MapPrepaid();
 app.MapCashCounts();
 app.MapTrades();
 app.MapBilling();

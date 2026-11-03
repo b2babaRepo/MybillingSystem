@@ -98,6 +98,7 @@ public static class Appointments
         group.MapPost("", CreateAsync);
         group.MapPost("/{id:guid}/status", StatusAsync);
         group.MapPost("/{id:guid}/bill", BillAsync);
+        group.MapGet("/{id:guid}/quote", QuoteAsync);
         return app;
     }
 
@@ -237,7 +238,20 @@ public static class Appointments
     /// The services done go on a bill for the customer (each service its own line, at the price booked, carrying its GST),
     /// paid now or put on the khata, and the appointment is done. Products sold alongside go on a separate bill.
     /// </summary>
-    private static async Task<IResult> BillAsync(Guid id, AppointmentBillRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, LedgerService ledger, CancellationToken ct)
+    /// <summary>What the bill will be: each service at its price for this customer (package or membership applied).</summary>
+    private static async Task<IResult> QuoteAsync(Guid id, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var appointment = await db.Appointments.AsNoTracking().Include(a => a.Services).SingleOrDefaultAsync(a => a.Id == id, ct);
+        if (appointment is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var (lines, _) = await Prepaid.PriceAsync(db, appointment.CustomerId, appointment.Services, DateOnly.FromDateTime(IndiaNow(clock).DateTime), track: false, ct);
+        return TypedResults.Ok(new AppointmentQuoteDto(lines, lines.Sum(l => l.Price)));
+    }
+
+    private static async Task<IResult> BillAsync(Guid id, AppointmentBillRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, LedgerService ledger, TimeProvider clock, CancellationToken ct)
     {
         var appointment = await db.Appointments.Include(a => a.Services).SingleOrDefaultAsync(a => a.Id == id, ct);
         if (appointment is null)
@@ -276,7 +290,10 @@ public static class Appointments
             return Invalid("StylistId", "Choose who did it, to give them the tip.");
         }
 
-        var lines = appointment.Services.OrderBy(s => s.CreatedAt).Select(s => new BillLineRequest(s.ProductId, s.Name, 1, Unit.Piece, s.Price)).ToList();
+        // A live package covers its service (billed at the session's share, paid from the advance); a membership takes its discount off.
+        var today = DateOnly.FromDateTime(IndiaNow(clock).DateTime);
+        var (priced, used) = await Prepaid.PriceAsync(db, appointment.CustomerId, appointment.Services, today, track: true, ct);
+        var lines = priced.Select(l => new BillLineRequest(l.ProductId, l.Name, 1, Unit.Piece, l.Price)).ToList();
         var result = await ledger.CreateBillAsync(new BillRequest(request.BillId, appointment.CustomerId, lines, request.PaidAmount, request.Mode, null),
             user.UserId()!.Value, ct, isOwner: user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner)));
         if (result.Value is not { } bill)
@@ -285,9 +302,14 @@ public static class Appointments
         }
 
         (appointment.Status, appointment.BillId, appointment.StylistId) = (AppointmentStatus.Done, bill.Id, stylist);
+        foreach (var (plan, uses) in used)
+        {
+            plan.SessionsLeft -= uses;
+        }
+
         if (stylist is { } who)
         {
-            await StylistPay.RecordAsync(db, who, appointment.Id, bill.Id, appointment.Services.Sum(s => s.Price), request.Tip, DateTimeOffset.UtcNow, ct);
+            await StylistPay.RecordAsync(db, who, appointment.Id, bill.Id, priced.Sum(l => l.Price), request.Tip, DateTimeOffset.UtcNow, ct);
         }
 
         await db.SaveChangesAsync(ct);

@@ -683,6 +683,55 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.DoesNotContain(kharcha.Lines, e => e.Amount == 100m);
     }
 
+    [Fact]
+    public async Task Packages_are_used_session_by_session_and_members_get_their_discount()
+    {
+        var shop = await SignUpAsync("beauty");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var items = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        var (facial, cut) = (items.Single(p => p.Name == "Facial"), items.Single(p => p.Name == "Haircut (women)"));
+        foreach (var (p, price) in new[] { (facial, 1000m), (cut, 400m) })
+        {
+            (await shop.PutAsJsonAsync($"/api/v1/products/{p.Id}", new { name = p.Name, unit = p.Unit, sellingPrice = price, gstRate = p.GstRate, hsnCode = p.HsnCode }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        }
+
+        var (package, gold) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        (await shop.PostJsonAsync("/api/v1/prepaid-plans", new { id = package, name = "3 facials", kind = "package", price = 2400m, serviceId = facial.Id, sessions = 3, validDays = 90 })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/prepaid-plans", new { id = gold, name = "Gold", kind = "membership", price = 999m, discountPercent = 10m, validDays = 365 })).EnsureSuccessStatusCode();
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Rekha");
+        async Task<decimal> Balance() => (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).ClosingBalance;
+
+        // The package is an advance; the membership is sold (billed) and paid now.
+        var bought = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/customer-plans", new { id = bought, customerId = customer, planId = package, mode = "upi" })).EnsureSuccessStatusCode();
+        Assert.Equal(-2400m, await Balance());
+        (await shop.PostJsonAsync("/api/v1/customer-plans", new { id = Guid.CreateVersion7(), customerId = customer, planId = gold, mode = "cash" })).EnsureSuccessStatusCode();
+        Assert.Equal(-2400m, await Balance());
+
+        // A facial and a haircut: the facial comes off the package (₹800, its share), the haircut gets 10% off.
+        var id = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/appointments", new { id, date = DateOnly.FromDateTime(DateTime.Today.AddDays(1)), start = "15:00", customerId = customer, serviceIds = new[] { facial.Id, cut.Id } })).EnsureSuccessStatusCode();
+        var quote = await shop.GetJsonAsync<AppointmentQuoteDto>($"/api/v1/appointments/{id}/quote");
+        Assert.Equal((800m, "package", 360m, "membership", 1160m), (quote.Lines[0].Price, quote.Lines[0].Applied, quote.Lines[1].Price, quote.Lines[1].Applied, quote.Total));
+        (await shop.PostJsonAsync($"/api/v1/appointments/{id}/bill", new { billId = Guid.CreateVersion7(), paidAmount = 360m, mode = "upi" })).EnsureSuccessStatusCode();
+        Assert.Equal(-1600m, await Balance()); // two sessions still paid for
+        var mine = await shop.GetJsonAsync<List<CustomerPlanDto>>($"/api/v1/customer-plans?customerId={customer}");
+        Assert.Equal(2, mine.Single(p => p.Kind == PlanKind.Package).SessionsLeft);
+
+        // It runs out with two sessions unused: closing it turns the rest of the advance into sales.
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var expire = new Npgsql.NpgsqlCommand("UPDATE customer_plans SET expires_on = current_date - 1 WHERE id = @id", db);
+            expire.Parameters.AddWithValue("id", bought);
+            await expire.ExecuteNonQueryAsync();
+        }
+
+        Assert.Contains(await shop.GetJsonAsync<List<CustomerPlanDto>>("/api/v1/customer-plans?expiringDays=30"), p => p.Id == bought && p.State == "expired");
+        (await shop.PostJsonAsync($"/api/v1/customer-plans/{bought}/close", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(0m, await Balance());
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {

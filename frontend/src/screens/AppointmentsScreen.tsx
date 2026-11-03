@@ -27,6 +27,20 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
   const [pay, setPay] = useState({ amount: '', mode: 'upi', stylistId: '', tip: '' })
   const [message, setMessage] = useState('')
   const day = useQuery({ queryKey: [shopId, 'appointments', date], queryFn: () => api<Day>(`/v1/appointments?date=${date}`) }).data
+  const [quote, setQuote] = useState<{ lines: { name: string; listPrice: number; price: number; applied: string | null }[]; total: number } | null>(null)
+  async function openBill(a: Appointment) {
+    setPaying(a.id)
+    setQuote(null)
+    setPay({ amount: String(a.total), mode: 'upi', stylistId: '', tip: '' })
+    try {
+      const q = await api<{ lines: { name: string; listPrice: number; price: number; applied: string | null }[]; total: number }>(`/v1/appointments/${a.id}/quote`)
+      setQuote(q)
+      // A package's session is already paid (the advance); only the rest is to pay now.
+      setPay((p) => ({ ...p, amount: String(q.lines.filter((l) => l.applied !== 'package').reduce((s, l) => s + l.price, 0)) }))
+    } catch {
+      // Billing still works at the booked prices.
+    }
+  }
 
   async function run(path: string, body: unknown) {
     setMessage('')
@@ -74,7 +88,7 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
                   {(a.status === 'booked' || a.status === 'arrived') && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {a.status === 'booked' && <Button className="h-10 px-3 text-sm" onClick={() => void run(`${a.id}/status`, { status: 'arrived' })}>{t('appointments.arrived')}</Button>}
-                      <Button className="h-10 px-3 text-sm" tone={a.status === 'arrived' ? 'primary' : 'plain'} onClick={() => { setPaying(a.id); setPay({ amount: String(a.total), mode: 'upi', stylistId: '', tip: '' }) }}>{t('appointments.bill')}</Button>
+                      <Button className="h-10 px-3 text-sm" tone={a.status === 'arrived' ? 'primary' : 'plain'} onClick={() => void openBill(a)}>{t('appointments.bill')}</Button>
                       {a.status === 'booked' && <button onClick={() => void run(`${a.id}/status`, { status: 'no_show' })} className="h-10 px-2 text-sm font-semibold">{t('appointments.noShow')}</button>}
                       {a.phone && a.status === 'booked' && <a href={whatsAppLink(a.phone, reminder(a))} target="_blank" rel="noreferrer" className="flex h-10 items-center rounded-xl bg-[#15803d] px-3 text-sm font-semibold text-white">{t('tables.remind')}</a>}
                       <button onClick={() => { if (confirm(t('appointments.cancelConfirm'))) void run(`${a.id}/status`, { status: 'cancelled' }) }} className="h-10 px-2 text-sm font-semibold text-due">{t('cancel')}</button>
@@ -82,6 +96,12 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
                   )}
                   {paying === a.id && (
                     <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-2">
+                      {quote && quote.lines.some((l) => l.applied) && (
+                        <div className="col-span-3 rounded-lg bg-teal-50 p-2 text-xs">
+                          {quote.lines.map((l, i) => <div key={i} className="flex justify-between"><span>{l.name}</span><span>{l.price !== l.listPrice ? <><s className="text-muted">{formatRupees(l.listPrice)}</s> </> : null}{formatRupees(l.price)}</span></div>)}
+                          <div className="flex justify-between font-bold"><span>{t('total')}</span><span>{formatRupees(quote.total)}</span></div>
+                        </div>
+                      )}
                       {!a.stylistId && (
                         <select value={pay.stylistId} onChange={(e) => setPay({ ...pay, stylistId: e.target.value })} aria-label={t('appointments.whoDid')} className="col-span-3 h-10 rounded-xl border border-line bg-white px-2">
                           <option value="">{t('appointments.whoDid')}</option>{(day?.stylists ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

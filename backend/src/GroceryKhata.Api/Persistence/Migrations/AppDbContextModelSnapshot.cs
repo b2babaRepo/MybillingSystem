@@ -3286,6 +3286,95 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("customers", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.CustomerPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<decimal?>("DiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("discount_percent");
+
+                    b.Property<DateOnly>("ExpiresOn")
+                        .HasColumnType("date")
+                        .HasColumnName("expires_on");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("price");
+
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("service_id");
+
+                    b.Property<decimal>("SessionValue")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("session_value");
+
+                    b.Property<int>("SessionsLeft")
+                        .HasColumnType("integer")
+                        .HasColumnName("sessions_left");
+
+                    b.Property<int>("SessionsTotal")
+                        .HasColumnType("integer")
+                        .HasColumnName("sessions_total");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateOnly>("StartsOn")
+                        .HasColumnType("date")
+                        .HasColumnName("starts_on");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "CustomerId");
+
+                    b.HasIndex("ShopId", "ExpiresOn");
+
+                    b.ToTable("customer_plans", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Dispute", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3895,6 +3984,70 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasAlternateKey("ShopId", "Id");
 
                     b.ToTable("painters", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.PrepaidPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal?>("DiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("discount_percent");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("price");
+
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("service_id");
+
+                    b.Property<int?>("Sessions")
+                        .HasColumnType("integer")
+                        .HasColumnName("sessions");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("ValidDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("valid_days");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.ToTable("prepaid_plans", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Purchase", b =>

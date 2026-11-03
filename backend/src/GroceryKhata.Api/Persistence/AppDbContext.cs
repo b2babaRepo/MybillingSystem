@@ -132,6 +132,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<StylistEarning> StylistEarnings => Set<StylistEarning>();
 
+    public DbSet<PrepaidPlan> PrepaidPlans => Set<PrepaidPlan>();
+
+    public DbSet<CustomerPlan> CustomerPlans => Set<CustomerPlan>();
+
     public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
@@ -688,6 +692,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(e => e.Percent).HasPrecision(5, 2);
             b.Property(e => e.Amount).HasPrecision(12, 2);
             b.HasIndex(e => new { e.ShopId, e.MembershipId, e.PaidAt });
+        });
+
+        modelBuilder.Entity<PrepaidPlan>(b =>
+        {
+            b.ToTable("prepaid_plans");
+            b.HasTenantKey();
+            b.Property(p => p.Name).HasMaxLength(60);
+            b.Property(p => p.Price).HasPrecision(12, 2);
+            b.Property(p => p.DiscountPercent).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<CustomerPlan>(b =>
+        {
+            b.ToTable("customer_plans");
+            b.HasTenantKey();
+            b.Property(p => p.Name).HasMaxLength(60);
+            b.Property(p => p.Price).HasPrecision(12, 2);
+            b.Property(p => p.SessionValue).HasPrecision(12, 2);
+            b.Property(p => p.DiscountPercent).HasPrecision(5, 2);
+            b.HasIndex(p => new { p.ShopId, p.CustomerId });
+            b.HasIndex(p => new { p.ShopId, p.ExpiresOn });
         });
 
         modelBuilder.Entity<Machine>(b =>
