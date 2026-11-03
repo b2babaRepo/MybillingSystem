@@ -12,6 +12,7 @@ import { UnitSelect } from './BillScreen'
 import { StockBadge } from './ItemsScreen'
 import { ItemCard } from '../components/ItemCard'
 import { imageUrl, shrinkPhoto } from '../lib/images'
+import { navigate } from '../router'
 
 const REASONS: StockReason[] = ['damage', 'wastage', 'return', 'count_correction', 'other']
 
@@ -157,20 +158,36 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
 
+  const body = (isActive?: boolean) => ({
+    name: form.name.trim(),
+    unit: form.unit,
+    sellingPrice: Number(form.price) || 0,
+    costPrice: form.cost ? Number(form.cost) : null,
+    category: form.category.trim() || null,
+    reorderLevel: form.reorder ? Number(form.reorder) : null,
+    gstRate: form.gst === '' ? null : Number(form.gst),
+    hsnCode: form.hsn.trim() || null,
+    replaceTax: true,
+    isActive,
+  })
+
+  /** Takes the item off the list and the bill screen. Never deleted: past bills, stock history and reports keep it. */
+  async function remove() {
+    if (!confirm(t('stock.removeConfirm', { name: product.name }))) return
+    setMessage('')
+    try {
+      await api(`/v1/products/${product.id}`, 'PUT', { ...body(false), name: product.name, unit: product.unit })
+      void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+      navigate('/items')
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : t('error'))
+    }
+  }
+
   async function save() {
     setMessage('')
     try {
-      await api(`/v1/products/${product.id}`, 'PUT', {
-        name: form.name.trim(),
-        unit: form.unit,
-        sellingPrice: Number(form.price) || 0,
-        costPrice: form.cost ? Number(form.cost) : null,
-        category: form.category.trim() || null,
-        reorderLevel: form.reorder ? Number(form.reorder) : null,
-        gstRate: form.gst === '' ? null : Number(form.gst),
-        hsnCode: form.hsn.trim() || null,
-        replaceTax: true,
-      })
+      await api(`/v1/products/${product.id}`, 'PUT', body())
       setMessage(t('saved'))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (err) {
@@ -183,10 +200,10 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
       <Field label={t('itemName')} value={form.name} onChange={set('name')} />
       <div className="grid grid-cols-2 gap-2">
         <UnitSelect value={form.unit} onChange={(unit) => setForm({ ...form, unit })} />
-        <Field label={t('price')} value={form.price} onChange={set('price')} inputMode="decimal" />
+        <Field label={t('stock.sellingPrice')} value={form.price} onChange={set('price')} inputMode="decimal" />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Field label={t('stock.costPrice')} value={form.cost} onChange={set('cost')} inputMode="decimal" />
+        <Field label={t('stock.buyingCostShort')} value={form.cost} onChange={set('cost')} inputMode="decimal" />
         <Field label={t('stock.reorderLevel')} value={form.reorder} onChange={set('reorder')} inputMode="decimal" />
       </div>
       <Field label={t('stock.category')} value={form.category} onChange={set('category')} />
@@ -200,8 +217,9 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         </label>
         <Field label={t('stock.hsn')} value={form.hsn} onChange={set('hsn')} inputMode="numeric" maxLength={8} />
       </div>}
-      <Button tone="plain" onClick={save} disabled={!form.name.trim() || product.pending}>{t('stock.saveDetails')}</Button>
+      <Button onClick={save} disabled={!form.name.trim() || product.pending}>{t('stock.saveDetails')}</Button>
       {message && <p className="text-sm text-muted">{message}</p>}
+      <button type="button" onClick={() => void remove()} disabled={product.pending} className="min-h-11 text-sm font-semibold text-due disabled:opacity-50">{t('stock.remove')}</button>
     </section>
   )
 }

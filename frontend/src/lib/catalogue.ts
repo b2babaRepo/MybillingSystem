@@ -46,6 +46,17 @@ const UNIT_WORDS: Record<string, Unit> = {
   l: 'litre', ltr: 'litre', litre: 'litre', liter: 'litre', लीटर: 'litre',
   ml: 'ml', मिली: 'ml',
   packet: 'packet', pkt: 'packet', pack: 'packet', पैकेट: 'packet',
+  pair: 'pair', pairs: 'pair', जोड़ी: 'pair',
+  dozen: 'dozen', dz: 'dozen', दर्जन: 'dozen',
+  box: 'box', boxes: 'box', डिब्बा: 'box',
+  jar: 'jar', jars: 'jar', can: 'jar', जार: 'jar',
+  bag: 'bag', bags: 'bag', bori: 'bag', बोरी: 'bag',
+  tonne: 'tonne', ton: 'tonne', टन: 'tonne',
+  brass: 'brass', ब्रास: 'brass',
+  cft: 'cft', 'cu ft': 'cft', 'cubic feet': 'cft', 'घन फुट': 'cft',
+  metre: 'metre', meter: 'metre', m: 'metre', mtr: 'metre', मीटर: 'metre',
+  sq_ft: 'sq_ft', sqft: 'sq_ft', 'sq ft': 'sq_ft', 'वर्ग फुट': 'sq_ft',
+  running_ft: 'running_ft', rft: 'running_ft', 'running ft': 'running_ft', 'running feet': 'running_ft', 'रनिंग फुट': 'running_ft',
 }
 
 /** Splits one CSV line, honouring "quoted, values". Tabs (pasted from Excel) count as separators too. */

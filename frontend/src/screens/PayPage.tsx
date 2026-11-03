@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../lib/format'
 import { upiUri } from '../lib/reports'
 
-/** #/p/{shop}/{amount}: one big button that opens the customer's UPI app to pay the shop. Public; shows no khata. */
+/** #/pay/{shop}/{amount}: one big button that opens the customer's UPI app to pay the shop. Public; shows no khata. */
 export function PayPage({ path }: { path: string }) {
   const { t } = useTranslation()
   const [, , slug = '', raw = ''] = path.split('/')

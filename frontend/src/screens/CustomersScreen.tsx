@@ -61,7 +61,7 @@ export function CustomersScreen({ shopId }: { shopId: string }) {
           </li>
         ))}
       </ul>
-      <Button className="fixed right-4 bottom-24 h-14 rounded-full! px-6 shadow-[0_6px_16px_rgba(15,118,110,0.35)]" onClick={() => setAdding(true)}>
+      <Button className="fixed right-[max(1rem,calc(50vw-17rem))] bottom-24 h-14 rounded-full! px-6 shadow-[0_6px_16px_rgba(15,118,110,0.35)]" onClick={() => setAdding(true)}>
         + {t('addCustomer')}
       </Button>
       {adding && <AddCustomerSheet shopId={shopId} onClose={() => setAdding(false)} onAdded={(id) => navigate(`/c/${id}`)} />}

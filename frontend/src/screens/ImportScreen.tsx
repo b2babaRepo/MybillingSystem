@@ -104,9 +104,13 @@ export function ImportScreen({ shopId }: { shopId: string }) {
           <p key={e.row} className="text-sm text-due">{t('stock.badUnit', { row: e.row, unit: e.unit })}</p>
         ))}
         {parsed.rows.length > 0 && <p className="text-sm font-semibold">{t('stock.rowsReady', { count: parsed.rows.length })}</p>}
-        <Button disabled={busy || parsed.rows.length === 0 || parsed.errors.length > 0} onClick={() => upload(parsed.rows)}>
-          {t('stock.importNow', { count: parsed.rows.length })}
-        </Button>
+        <div className="grid grid-cols-[1fr_2fr] gap-2">
+          {/* Leave without importing: back to the items list, nothing saved. */}
+          <Button tone="plain" disabled={busy} onClick={() => navigate('/items')}>{t('cancel')}</Button>
+          <Button disabled={busy || parsed.rows.length === 0 || parsed.errors.length > 0} onClick={() => upload(parsed.rows)}>
+            {t('stock.importNow', { count: parsed.rows.length })}
+          </Button>
+        </div>
       </section>
     </div>
   )

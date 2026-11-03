@@ -81,7 +81,7 @@ export function ItemsScreen({ shopId }: { shopId: string }) {
           </li>
         ))}
       </ul>
-      <Button className="fixed right-4 bottom-24 h-14 rounded-full! px-6 shadow-[0_6px_16px_rgba(15,118,110,0.35)]" onClick={() => setAdding(true)}>
+      <Button className="fixed right-[max(1rem,calc(50vw-17rem))] bottom-24 h-14 rounded-full! px-6 shadow-[0_6px_16px_rgba(15,118,110,0.35)]" onClick={() => setAdding(true)}>
         + {t('addItem')}
       </Button>
       {adding && <AddProductSheet shopId={shopId} categories={categories} onClose={() => setAdding(false)} />}
@@ -118,6 +118,7 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
   const [name, setName] = useState('')
   const [unit, setUnit] = useState<Unit>('piece')
   const [price, setPrice] = useState('')
+  const [cost, setCost] = useState('')
   const [category, setCategory] = useState('')
   const [opening, setOpening] = useState('')
   const [reorder, setReorder] = useState('')
@@ -131,7 +132,7 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
       name: name.trim(),
       unit,
       sellingPrice: Number(price),
-      costPrice: null,
+      costPrice: cost ? Number(cost) : null,
       category: category.trim() || null,
       openingStock: opening ? Number(opening) : null,
       reorderLevel: reorder ? Number(reorder) : null,
@@ -140,6 +141,7 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
     })
     setName('')
     setPrice('')
+    setCost('')
     setOpening('')
     setHsn('')
   }
@@ -151,8 +153,9 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
         <Field label={t('itemName')} value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         <div className="grid grid-cols-2 gap-2">
           <UnitSelect value={unit} onChange={setUnit} />
-          <Field label={t('price')} value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" required />
+          <Field label={t('stock.sellingPrice')} value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" required />
         </div>
+        <Field label={t('stock.buyingCost')} value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" />
         <Field label={t('stock.category')} value={category} onChange={(e) => setCategory(e.target.value)} list="item-categories" />
         <datalist id="item-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
         <div className="grid grid-cols-2 gap-2">
@@ -169,9 +172,10 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
           </label>
           <Field label={t('stock.hsn')} value={hsn} onChange={(e) => setHsn(e.target.value)} inputMode="numeric" maxLength={8} />
         </div>}
-        <Button type="submit" className="w-full" disabled={!name.trim() || !(Number(price) > 0)}>
-          {t('save')}
-        </Button>
+        <div className="grid grid-cols-[1fr_2fr] gap-2">
+          <Button type="button" tone="plain" onClick={onClose}>{t('cancel')}</Button>
+          <Button type="submit" disabled={!name.trim() || !(Number(price) > 0)}>{t('save')}</Button>
+        </div>
       </form>
     </Sheet>
   )

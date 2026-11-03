@@ -91,7 +91,7 @@ export const DEFAULT_REMINDER =
  * shop has a UPI ID but the template doesn't mention it, a "Pay by UPI" line is added, so customers can pay at once.
  */
 /** The pay page a reminder links to: opens the customer's UPI app with the shop's ID and the amount filled in. */
-export const payLink = (slug: string, amount: number) => `${window.location.origin}/#/p/${encodeURIComponent(slug)}/${amount.toFixed(2)}`
+export const payLink = (slug: string, amount: number) => `${window.location.origin}/#/pay/${encodeURIComponent(slug)}/${amount.toFixed(2)}`
 
 /** A upi:// address any UPI app opens (GPay, PhonePe, Paytm, BHIM), with the payee, amount and a note set. */
 export const upiUri = (upiId: string, name: string, amount: number, note: string) =>

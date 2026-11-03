@@ -71,8 +71,9 @@ export default function App() {
       </Suspense>
     )
   }
-  // The pay page from a dues reminder: the shop's UPI ID and the amount, no account needed.
-  if (path.startsWith('/p/')) {
+  // The pay page from a dues reminder: the shop's UPI ID and the amount, no account needed. Early reminders linked
+  // #/p/{shop}/{amount}; an item's own page is #/p/{id} (one part), so only the two-part form is the pay page.
+  if (path.startsWith('/pay/') || /^\/p\/[^/]+\/[^/]+$/.test(path)) {
     return (
       <Suspense fallback={<Loading />}>
         <PayPage path={path} />

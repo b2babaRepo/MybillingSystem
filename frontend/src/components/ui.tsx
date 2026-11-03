@@ -42,11 +42,16 @@ export function Balance({ amount, large = false }: { amount: number; large?: boo
   )
 }
 
+/** A panel that slides up from the bottom: as wide as the app, never taller than the screen, with a close button. */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const { t } = useTranslation()
   return (
-    <div className="fixed inset-0 z-20 flex items-end bg-black/40" onClick={onClose}>
-      <div className="w-full rounded-t-3xl bg-ground p-4 pb-8" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-3 text-xl font-bold">{title}</h2>
+    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={title} className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-3xl bg-ground p-4 pb-[calc(2rem+env(safe-area-inset-bottom))]" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-xl font-bold">{title}</h2>
+          <button type="button" onClick={onClose} aria-label={t('a11y.close')} className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-2xl text-muted">×</button>
+        </div>
         {children}
       </div>
     </div>

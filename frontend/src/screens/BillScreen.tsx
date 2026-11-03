@@ -7,7 +7,8 @@ import { saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } f
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { PaymentMode, Unit } from '../lib/types'
-import { useShopSettings, shopTypes, isTrade } from '../lib/reports'
+import { useShopSettings, shopTypes, isTrade, upiUri } from '../lib/reports'
+import QRCode from 'qrcode'
 import { navigate } from '../router'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
@@ -36,7 +37,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   const shopType = settings?.type ?? 'kirana'
   const types = shopTypes(settings)
   const [extras, setExtras] = useState({ site: '', vehicleNumber: '', painterId: '' })
-  const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; customer: { name: string; phone: string | null } | null } | null>(null)
+  const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; mode: 'cash' | 'upi'; customer: { name: string; phone: string | null } | null } | null>(null)
 
   // On a phone the bill sits below the item grid: a bar above the tabs shows the total until the bill is in view.
   const billRef = useRef<HTMLDivElement>(null)
@@ -78,7 +79,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
     })
     setExtras({ ...extras, site: '', vehicleNumber: '' })
-    setSaved({ ...result, lines: cart, paid: paidAmount, customer: customer && { name: customer.name, phone: customer.phone } })
+    setSaved({ ...result, lines: cart, paid: paidAmount, mode, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
     setPaid(null)
     setCustomerId('')
@@ -123,6 +124,11 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
         {cart.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-4 text-center text-muted">
             <p>{saved ? `${t('saved')} ${formatRupees(saved.total)}` : t('emptyCart')}</p>
+            {saved && saved.paid > 0 && (
+              <p className={`rounded-full px-3 py-1 text-sm font-semibold ${saved.mode === 'upi' ? 'bg-teal-50 text-teal-800' : 'bg-amber-50 text-amber-900'}`}>
+                {t(saved.mode === 'upi' ? 'upiPay.paidUpi' : 'upiPay.paidCash', { amount: formatRupees(saved.paid) })}
+              </p>
+            )}
             {saved && (
               <a
                 className="flex h-12 items-center justify-center rounded-2xl bg-[#15803d] px-5 font-bold text-white"
@@ -206,9 +212,10 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
               </button>
             ))}
           </div>
+          {mode === 'upi' && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={paidAmount} />}
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
           <Button className="w-full" onClick={save} disabled={total <= 0 || unpriced}>
-            {t('saveBill')} · {formatRupees(total)}
+            {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(total) }) : `${t('saveBill')} · ${formatRupees(total)}`}
           </Button>
         </div>
       )}
@@ -283,10 +290,42 @@ export function UnitSelect({ value, onChange }: { value: Unit; onChange: (unit: 
  * The bill as a WhatsApp message, every item listed, so the customer checks it at home the same day: anything
  * left on the counter comes up while the shop still remembers.
  */
+/**
+ * Choosing UPI at the counter: a QR for exactly what is paid now, which any UPI app scans (GPay, PhonePe, Paytm,
+ * BHIM), with the shop's UPI ID and the amount filled in. The shopkeeper saves the bill once the money shows on
+ * their phone; the app can't see the payment itself. Without a UPI ID in settings it says where to add one.
+ */
+function UpiCollect({ upiId, shop, amount }: { upiId: string | null; shop: string; amount: number }) {
+  const { t } = useTranslation()
+  const [qr, setQr] = useState('')
+  const uri = upiId ? upiUri(upiId, shop, amount, t('upiPay.note', { shop })) : ''
+  useEffect(() => {
+    if (!uri) return
+    let live = true
+    void QRCode.toDataURL(uri, { width: 360, margin: 1, color: { dark: '#10201d', light: '#ffffff' } }).then((url) => { if (live) setQr(url) })
+    return () => { live = false }
+  }, [uri])
+  if (!upiId) {
+    return (
+      <button onClick={() => navigate('/settings')} className="rounded-xl bg-amber-50 p-3 text-left text-sm font-semibold text-amber-900">
+        {t('upiPay.noId')} →
+      </button>
+    )
+  }
+  return (
+    <div className="flex flex-col items-center gap-1 rounded-xl border border-line p-3 text-center">
+      <p className="font-bold">{t('upiPay.scan', { amount: formatRupees(amount) })}</p>
+      {qr && <img src={qr} alt={t('upiPay.qrAlt', { amount: formatRupees(amount) })} className="h-48 w-48" />}
+      <p className="text-sm text-muted">{upiId}</p>
+      <p className="text-xs text-muted">{t('upiPay.check')}</p>
+    </div>
+  )
+}
+
 function billReceipt(
   t: (key: string, options?: Record<string, unknown>) => string,
   shopName: string,
-  bill: { total: number; lines: CartLine[]; paid: number; customer: { name: string } | null },
+  bill: { total: number; lines: CartLine[]; paid: number; mode?: 'cash' | 'upi'; customer: { name: string } | null },
 ) {
   const items = bill.lines.map((l) => `• ${l.name} ${l.quantity} ${t(`units.${l.unit}`)} × ${formatRupees(l.unitPrice)} = ${formatRupees(Math.round(l.quantity * l.unitPrice * 100) / 100)}`)
   const due = Math.round((bill.total - bill.paid) * 100) / 100
@@ -294,7 +333,7 @@ function billReceipt(
     t('billReceipt.header', { shop: shopName, date: formatDateTime(new Date().toISOString()) }),
     ...items,
     t('billReceipt.total', { total: formatRupees(bill.total) }),
-    bill.paid > 0 ? t('billReceipt.paid', { paid: formatRupees(bill.paid) }) : '',
+    bill.paid > 0 ? t(bill.mode === 'upi' ? 'billReceipt.paidUpi' : 'billReceipt.paid', { paid: formatRupees(bill.paid) }) : '',
     bill.customer && due > 0 ? t('billReceipt.onKhata', { due: formatRupees(due) }) : '',
     t('billReceipt.check'),
   ].filter(Boolean).join('\n')
