@@ -8,11 +8,12 @@ import type { AuthResponse } from '../lib/types'
 
 export function AuthScreen() {
   const { t, i18n } = useTranslation()
-  // The salon sign-up link (#/start/salon) opens straight on a beauty parlour's registration.
-  const salon = usePath() === '/start/salon'
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>(salon ? 'sign-up' : 'sign-in')
-  const [role, setRole] = useState<'home' | 'shop'>(salon ? 'shop' : 'home')
-  const [form, setForm] = useState({ shopName: '', area: '', fullName: '', phone: '', password: '', type: salon ? 'beauty' : 'kirana' })
+  // A trade's own sign-up link opens straight on that shop's registration: #/start/salon (beauty parlour), #/start/medical (chemist).
+  const path = usePath()
+  const preset = path === '/start/salon' ? 'beauty' : path === '/start/medical' ? 'medical' : null
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>(preset ? 'sign-up' : 'sign-in')
+  const [role, setRole] = useState<'home' | 'shop'>(preset ? 'shop' : 'home')
+  const [form, setForm] = useState({ shopName: '', area: '', fullName: '', phone: '', password: '', type: preset ?? 'kirana' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   // Signing in: a code by SMS (default; no password to remember) or a password / counter PIN.
@@ -72,10 +73,10 @@ export function AuthScreen() {
   return (
     <form onSubmit={submit} className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-4">
       <h1 className="text-center text-3xl font-bold text-teal-800">{t('appName')}</h1>
-      {salon && mode === 'sign-up' && <p className="text-center text-lg font-semibold">{t('salon.signUpTitle')}</p>}
+      {preset && mode === 'sign-up' && <p className="text-center text-lg font-semibold">{t(preset === 'beauty' ? 'salon.signUpTitle' : 'medical.signUpTitle')}</p>}
       {mode === 'sign-up' && (
         <>
-          {!salon && <div role="radiogroup" className="grid grid-cols-2 gap-2">
+          {!preset && <div role="radiogroup" className="grid grid-cols-2 gap-2">
             {(['home', 'shop'] as const).map((r) => (
               <button
                 key={r}
@@ -91,7 +92,7 @@ export function AuthScreen() {
           </div>}
           {role === 'shop' && <Field label={t('shopName')} value={form.shopName} onChange={set('shopName')} required autoComplete="organization" />}
           {role === 'shop' && <Field label={t('plan.searchShop')} value={form.area} onChange={set('area')} placeholder="Raja Park bazaar" />}
-          {role === 'shop' && !salon && (
+          {role === 'shop' && !preset && (
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-muted">{t('shopType.label')}</span>
               <select value={form.type} onChange={set('type')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">

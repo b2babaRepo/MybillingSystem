@@ -114,4 +114,6 @@ public enum ShopType
     Restaurant,
     /// <summary>Hotel, lodge, guest house or dharamshala: rooms booked by the night.</summary>
     Lodge,
+    /// <summary>Medical shop or chemist: medicines by batch and expiry, a pharmacist, a drug licence and the Schedule H1 register.</summary>
+    Medical,
 }

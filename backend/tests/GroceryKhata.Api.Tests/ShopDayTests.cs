@@ -656,6 +656,25 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_medical_shop_signs_up_with_its_licence_pharmacist_and_common_medicines()
+    {
+        var shop = await SignUpAsync("medical");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var items = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        Assert.True(items.Count >= 20);
+        Assert.All(items.Where(p => p.HsnCode == "3004"), p => Assert.Equal(5m, p.GstRate));
+
+        Assert.False((await shop.GetJsonAsync<PharmacyProfileDto>("/api/v1/pharmacy/profile")).Complete);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/pharmacy/profile", new { gstin = "12345" }, ApiFactory.Json)).StatusCode);
+
+        // Issued almost five years ago: the retention fee is due within 60 days.
+        var issued = DateOnly.FromDateTime(DateTime.Today).AddYears(-5).AddDays(30);
+        var profile = await (await shop.PutAsJsonAsync("/api/v1/pharmacy/profile",
+            new { licenceForm20 = "raj/20/123", licenceForm21 = "RAJ/21/123", licenceIssuedOn = issued, pharmacistName = "Anil Gupta", pharmacistRegNo = "RPC-4567" }, ApiFactory.Json)).ReadAsync<PharmacyProfileDto>();
+        Assert.Equal(("RAJ/20/123", true, true, issued.AddYears(5)), (profile.LicenceForm20, profile.Complete, profile.RetentionSoon, profile.RetentionDueOn));
+    }
+
+    [Fact]
     public async Task Services_use_their_products_from_stock_and_client_cards_keep_the_formula()
     {
         var shop = await SignUpAsync("beauty");

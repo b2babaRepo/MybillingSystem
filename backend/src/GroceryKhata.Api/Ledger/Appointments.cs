@@ -56,6 +56,9 @@ public sealed class AppointmentService : Entity, ITenantOwned
     public decimal Price { get; set; }
 
     public int Minutes { get; set; }
+
+    /// <summary>Its place in the booking (1, 2…), so quotes and bills list the services in the order booked.</summary>
+    public int LineNo { get; set; }
 }
 
 public enum AppointmentStatus
@@ -115,7 +118,7 @@ public static class Appointments
 
     private static AppointmentDto ToDto(Appointment a, IReadOnlyDictionary<Guid, string> names) => new(
         a.Id, a.Number, a.Date, a.Start, a.End, a.StylistId, a.StylistId is { } s ? names.GetValueOrDefault(s) : null, a.CustomerId, a.Name, a.Phone, a.Status, a.Note,
-        a.BillId, a.Services.OrderBy(x => x.CreatedAt).Select(x => new AppointmentServiceDto(x.ProductId, x.Name, x.Price, x.Minutes)).ToList(), a.Services.Sum(x => x.Price));
+        a.BillId, a.Services.OrderBy(x => x.LineNo).Select(x => new AppointmentServiceDto(x.ProductId, x.Name, x.Price, x.Minutes)).ToList(), a.Services.Sum(x => x.Price));
 
     private static async Task<SalonDayDto> DayAsync(DateOnly? date, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
@@ -199,7 +202,7 @@ public static class Appointments
             StylistId = request.StylistId, CustomerId = request.CustomerId, Name = name!, Phone = PhoneNumber.Normalize(request.Phone) ?? (string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim()),
             Status = request.WalkIn ? AppointmentStatus.Arrived : AppointmentStatus.Booked, Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
             Services = ids.Select(i => services.Single(p => p.Id == i))
-                .Select(p => new AppointmentService { ProductId = p.Id, Name = p.Name, Price = p.SellingPrice, Minutes = p.DurationMinutes ?? DefaultMinutes }).ToList(),
+                .Select((p, i) => new AppointmentService { ProductId = p.Id, Name = p.Name, Price = p.SellingPrice, Minutes = p.DurationMinutes ?? DefaultMinutes, LineNo = i + 1 }).ToList(),
         };
         db.Appointments.Add(appointment);
         await db.SaveChangesAsync(ct);
@@ -248,7 +251,7 @@ public static class Appointments
     /// <summary>What the bill will be: each service at its price for this customer (package or membership applied).</summary>
     private static async Task<IResult> QuoteAsync(Guid id, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var appointment = await db.Appointments.AsNoTracking().Include(a => a.Services).SingleOrDefaultAsync(a => a.Id == id, ct);
+        var appointment = await db.Appointments.AsNoTracking().Include(a => a.Services.OrderBy(s => s.LineNo)).SingleOrDefaultAsync(a => a.Id == id, ct);
         if (appointment is null)
         {
             return TypedResults.NotFound();
@@ -260,7 +263,7 @@ public static class Appointments
 
     private static async Task<IResult> BillAsync(Guid id, AppointmentBillRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, LedgerService ledger, TimeProvider clock, CancellationToken ct)
     {
-        var appointment = await db.Appointments.Include(a => a.Services).SingleOrDefaultAsync(a => a.Id == id, ct);
+        var appointment = await db.Appointments.Include(a => a.Services.OrderBy(s => s.LineNo)).SingleOrDefaultAsync(a => a.Id == id, ct);
         if (appointment is null)
         {
             return TypedResults.NotFound();

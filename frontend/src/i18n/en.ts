@@ -526,6 +526,7 @@ export const en = {
     banquet: 'Banquet / marriage hall / party hall',
     restaurant: 'Restaurant / cafe / dhaba',
     lodge: 'Hotel / lodge / guest house',
+    medical: 'Medical shop / chemist',
     water_supply: 'Water supply (jars)',
     beauty: 'Beauty parlour / salon',
     sweets: 'Sweets & namkeen',
@@ -896,6 +897,15 @@ export const en = {
     stylist: 'Stylist', services: 'Services', noServices: 'Add your services first (Set up your salon).', summary: '{{minutes}} min · {{amount}}',
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
+  },
+  medical: {
+    signUpTitle: 'Register your medical shop / chemist', homeTitle: 'Medical shop', finishSetup: 'Add your drug licence and pharmacist to finish setup.',
+    retentionDue: 'Drug licence retention fee due by {{date}}. Pay it at the drug control office.', setupLink: 'Licence, pharmacist and medicines',
+    setupTitle: 'Set up your medical shop', licences: 'Licences and pharmacist', licencesHint: 'Printed on bills and kept for drug inspectors. Retail licences don’t expire, but a retention fee is due every 5 years.',
+    form20: 'Licence no. (Form 20)', form21: 'Licence no. (Form 21)', issuedOn: 'Licence issued on', retentionNext: 'Next retention fee: {{date}}',
+    pharmacist: 'Registered pharmacist', regNo: 'Pharmacy Council reg. no.', fssai: 'FSSAI no. (for supplements)',
+    medicines: 'Medicines', medicinesHint: 'Add common medicines to start, then set each MRP. GST is 5% on most medicines; check nil-rated ones with your CA.',
+    addCommon: 'Add common medicines', added: 'Common medicines added.', openItems: 'Open items',
   },
   cards: {
     link: 'Client cards and products used', title: 'Client card', patchDue: 'Patch test due: do one 48 hours before any colour.', reaction: 'She reacted to the patch test. No colour with this product.',

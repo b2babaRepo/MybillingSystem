@@ -24,8 +24,35 @@ public static class StarterItems
         ShopType.Banquet => Banquet,
         ShopType.Restaurant => Restaurant,
         ShopType.Lodge => Lodge,
+        ShopType.Medical => Medical,
         _ => [],
     };
+
+    // Most medicines (3003/3004) and devices are 5% from 22 Sep 2025; a few life-saving drugs are nil and some toiletries
+    // differ, so the shop checks each rate with its CA. Sold by the strip or bottle; prices are the MRP, filled in later.
+    private static readonly ImportRow[] Medical =
+    [
+        Item("Paracetamol 500 mg (strip of 10)", "Fever & pain", Unit.Piece, 5, "3004"),
+        Item("Paracetamol 650 mg (strip of 15)", "Fever & pain", Unit.Piece, 5, "3004"),
+        Item("Ibuprofen 400 mg (strip of 10)", "Fever & pain", Unit.Piece, 5, "3004"),
+        Item("Cetirizine 10 mg (strip of 10)", "Cold & allergy", Unit.Piece, 5, "3004"),
+        Item("Cough syrup 100 ml", "Cold & allergy", Unit.Piece, 5, "3004"),
+        Item("Antacid gel 170 ml", "Stomach", Unit.Piece, 5, "3004"),
+        Item("Pantoprazole 40 mg (strip of 15)", "Stomach", Unit.Piece, 5, "3004"),
+        Item("ORS sachet", "Stomach", Unit.Packet, 5, "3004"),
+        Item("Amoxicillin 500 mg (strip of 10)", "Antibiotics (Schedule H)", Unit.Piece, 5, "3004"),
+        Item("Azithromycin 500 mg (strip of 3)", "Antibiotics (Schedule H)", Unit.Piece, 5, "3004"),
+        Item("Metformin 500 mg (strip of 10)", "Diabetes & BP", Unit.Piece, 5, "3004"),
+        Item("Amlodipine 5 mg (strip of 10)", "Diabetes & BP", Unit.Piece, 5, "3004"),
+        Item("Vitamin D3 60K (strip of 4)", "Vitamins", Unit.Piece, 5, "3004"),
+        Item("Multivitamin (strip of 15)", "Vitamins", Unit.Piece, 5, "3004"),
+        Item("Glucometer strips (50)", "Devices", Unit.Packet, 5, "3822"),
+        Item("Digital thermometer", "Devices", Unit.Piece, 5, "9025"),
+        Item("Bandage roll", "First aid", Unit.Piece, 5, "3005"),
+        Item("Antiseptic liquid 100 ml", "First aid", Unit.Piece, 5, "3004"),
+        Item("Surgical gloves (pair)", "First aid", Unit.Piece, 5, "4015"),
+        Item("Baby diapers (pack)", "Baby care", Unit.Packet, 5, "9619"),
+    ];
 
     private static ImportRow Item(string name, string category, Unit unit, decimal? gst, string? hsn) =>
         new(name, unit, 0, null, category, null, null, GstRate: gst, HsnCode: hsn);

@@ -2522,6 +2522,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<int>("LineNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_no");
+
                     b.Property<int>("Minutes")
                         .HasColumnType("integer")
                         .HasColumnName("minutes");
@@ -5521,6 +5525,69 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("Name");
 
                     b.ToTable("markets", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Shops.PharmacyProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("FssaiNo")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("fssai_no");
+
+                    b.Property<string>("Gstin")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)")
+                        .HasColumnName("gstin");
+
+                    b.Property<string>("LicenceForm20")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("licence_form20");
+
+                    b.Property<string>("LicenceForm21")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("licence_form21");
+
+                    b.Property<DateOnly?>("LicenceIssuedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("licence_issued_on");
+
+                    b.Property<string>("PharmacistName")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("pharmacist_name");
+
+                    b.Property<string>("PharmacistRegNo")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("pharmacist_reg_no");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique();
+
+                    b.ToTable("pharmacy_profiles", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Shops.PlatformActivity", b =>

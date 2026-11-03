@@ -134,6 +134,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<ClientCard> ClientCards => Set<ClientCard>();
 
+    public DbSet<PharmacyProfile> PharmacyProfiles => Set<PharmacyProfile>();
+
     public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();
 
     public DbSet<StylistRate> StylistRates => Set<StylistRate>();
@@ -694,6 +696,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(s => s.Quantity).HasPrecision(12, 3);
             b.HasIndex(s => new { s.ShopId, s.ServiceId, s.ProductId }).IsUnique();
+        });
+
+        modelBuilder.Entity<PharmacyProfile>(b =>
+        {
+            b.ToTable("pharmacy_profiles");
+            b.HasTenantKey();
+            b.Property(p => p.LicenceForm20).HasMaxLength(40);
+            b.Property(p => p.LicenceForm21).HasMaxLength(40);
+            b.Property(p => p.PharmacistName).HasMaxLength(80);
+            b.Property(p => p.PharmacistRegNo).HasMaxLength(40);
+            b.Property(p => p.Gstin).HasMaxLength(15);
+            b.Property(p => p.FssaiNo).HasMaxLength(40);
+            b.HasIndex(p => p.ShopId).IsUnique();
         });
 
         modelBuilder.Entity<ClientCard>(b =>
