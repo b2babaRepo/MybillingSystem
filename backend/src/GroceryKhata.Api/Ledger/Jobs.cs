@@ -176,7 +176,8 @@ public static class Jobs
 
     /// <summary>
     /// The workshop's running costs a job should carry, spread by karigar wages: in the last 30 days, every rupee of
-    /// wages came with this much rent, electricity and repairs, so a job with ₹8,000 of wages carries 8,000 × that.
+    /// wages came with this much rent, electricity, repairs and machine wear (a month's depreciation), so a job with
+    /// ₹8,000 of wages carries 8,000 × that.
     /// An estimate for pricing; the month's profit already counts these costs in the kharcha book.
     /// </summary>
     public static async Task<decimal> OverheadShareAsync(AppDbContext db, decimal jobLabour, CancellationToken ct)
@@ -190,7 +191,9 @@ public static class Jobs
         var lines = await db.Expenses.AsNoTracking().Where(e => e.OccurredAt >= since && e.StruckAt == null)
             .GroupBy(e => e.Category).Select(g => new { Category = g.Key, Total = g.Sum(e => e.Amount) }).ToListAsync(ct);
         var wages = lines.Where(l => l.Category == ExpenseCategory.Salary).Sum(l => l.Total);
-        var running = lines.Where(l => l.Category is ExpenseCategory.Rent or ExpenseCategory.Electricity or ExpenseCategory.Repair).Sum(l => l.Total);
+        var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToOffset(IndiaTime.Offset).DateTime);
+        var wearPerMonth = await Workshop.WearForYearAsync(db, today.Month >= 4 ? today.Year : today.Year - 1, ct) / 12;
+        var running = lines.Where(l => l.Category is ExpenseCategory.Rent or ExpenseCategory.Electricity or ExpenseCategory.Repair).Sum(l => l.Total) + wearPerMonth;
         return wages <= 0 ? 0 : decimal.Round(jobLabour * running / wages, 2, MidpointRounding.AwayFromZero);
     }
 

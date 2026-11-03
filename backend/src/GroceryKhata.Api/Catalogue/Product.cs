@@ -139,6 +139,12 @@ public enum StockMovementKind
 
     /// <summary>Taken off the shelf to make something to order (a job): its cost counts on the job's bill.</summary>
     UsedOnJob,
+
+    /// <summary>Sent to an outside karigar to work on (a karigar challan).</summary>
+    SentToKarigar,
+
+    /// <summary>Back from the karigar.</summary>
+    BackFromKarigar,
 }
 
 public enum StockReason

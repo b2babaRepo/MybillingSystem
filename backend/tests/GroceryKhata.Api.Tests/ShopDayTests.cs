@@ -329,6 +329,66 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal(0m, (await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl")).WorkInProgress);
     }
 
+    [Fact]
+    public void A_machine_wears_15_percent_a_year_on_what_is_left_and_half_in_a_short_first_year()
+    {
+        var saw = new Machine { Name = "Panel saw", BoughtOn = new DateOnly(2024, 5, 10), Cost = 200000m };
+        Assert.Equal((30000m, 170000m), Workshop.WearIn(saw, 2024));
+        Assert.Equal((25500m, 144500m), Workshop.WearIn(saw, 2025));
+        var late = new Machine { Name = "Edge bander", BoughtOn = new DateOnly(2025, 12, 1), Cost = 100000m };
+        Assert.Equal((7500m, 92500m), Workshop.WearIn(late, 2025)); // under 180 days in its first year
+        Assert.Equal((0m, 100000m), Workshop.WearIn(late, 2024));
+        var sold = new Machine { Name = "Old planer", BoughtOn = saw.BoughtOn, Cost = saw.Cost, DisposedOn = new DateOnly(2025, 6, 1) };
+        Assert.Equal((0m, 170000m), Workshop.WearIn(sold, 2025)); // sold that year: no wear
+    }
+
+    [Fact]
+    public async Task Goods_sent_to_a_karigar_leave_stock_come_back_and_show_on_the_itc04_sheet()
+    {
+        var shop = await SignUpAsync("woodwork");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var ply = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Plywood 12 mm 8x4");
+        (await shop.PutAsJsonAsync($"/api/v1/products/{ply.Id}", new { name = ply.Name, unit = ply.Unit, sellingPrice = 1800m, costPrice = 1500m, gstRate = 18m, hsnCode = ply.HsnCode, replaceTax = true }, ApiFactory.Json))
+            .EnsureSuccessStatusCode();
+
+        var id = Guid.CreateVersion7();
+        var sent = await (await shop.PostJsonAsync("/api/v1/workshop/karigar", new { id, karigar = "Anwar polish works", productId = ply.Id, quantity = 4m })).ReadAsync<KarigarChallanDto>();
+        Assert.Equal((1, 1500m), (sent.Number, sent.UnitCost));
+        Assert.Equal(-4m, (await Item(shop, ply.Id)).Stock);
+        var back = await (await shop.PostJsonAsync($"/api/v1/workshop/karigar/{id}/receive", new { quantity = 3m })).ReadAsync<KarigarChallanDto>();
+        Assert.Equal(3m, back.ReceivedQuantity);
+        Assert.Equal(-1m, (await Item(shop, ply.Id)).Stock);
+
+        var csv = await shop.GetStringAsync("/api/v1/workshop/itc04.csv");
+        Assert.Contains("\"Anwar polish works\"", csv);
+        Assert.Contains(",4,6000,", csv);
+
+        // A machine's wear is a cost in the year's profit.
+        (await shop.PostJsonAsync("/api/v1/workshop/machines", new { id = Guid.CreateVersion7(), name = "Panel saw", boughtOn = DateOnly.FromDateTime(DateTime.Today.AddYears(-1)), cost = 120000m })).EnsureSuccessStatusCode();
+        var pnl = await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl");
+        Assert.True(pnl.MachineWear > 0);
+        Assert.Equal(pnl.GoodsProfit - pnl.Returns - pnl.StockLoss - pnl.Expenses - pnl.MachineWear, pnl.NetProfit);
+    }
+
+    [Fact]
+    public async Task Wages_to_one_karigar_past_the_tds_limits_are_flagged()
+    {
+        var shop = await SignUpAsync("woodwork");
+        var id = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/jobs", new { id, title = "Wardrobe", price = 200000m })).EnsureSuccessStatusCode();
+        async Task Pay(string who, decimal amount) =>
+            (await shop.PostJsonAsync($"/api/v1/jobs/{id}/labour", new { id = Guid.CreateVersion7(), description = who, amount })).EnsureSuccessStatusCode();
+        await Pay("Ramesh, 10 days", 25000m);
+        await Pay("ramesh , polish", 25000m);
+        await Pay("Ramesh, fitting", 35000m);
+        await Pay("Salim, 2 days", 2000m);
+
+        var tds = await shop.GetJsonAsync<TdsDto>("/api/v1/workshop/tds");
+        var ramesh = Assert.Single(tds.Karigars, k => k.Karigar == "Ramesh");
+        Assert.Equal((85000m, 35000m, 3, "single"), (ramesh.Total, ramesh.Largest, ramesh.Payments, ramesh.Alert));
+        Assert.Null(Assert.Single(tds.Karigars, k => k.Karigar == "Salim").Alert);
+    }
+
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>
         await (await shop.PostJsonAsync("/api/v1/bills", new
         {

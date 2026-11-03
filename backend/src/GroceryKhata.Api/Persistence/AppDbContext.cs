@@ -108,6 +108,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<JobEntry> JobEntries => Set<JobEntry>();
 
+    public DbSet<Machine> Machines => Set<Machine>();
+
+    public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
+
     public DbSet<CashCount> CashCounts => Set<CashCount>();
 
     public DbSet<Challan> Challans => Set<Challan>();
@@ -541,6 +545,28 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(j => j.Price).HasPrecision(12, 2);
             b.Property(j => j.EstimatedCost).HasPrecision(12, 2);
             b.HasIndex(j => new { j.ShopId, j.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<Machine>(b =>
+        {
+            b.ToTable("machines");
+            b.HasTenantKey();
+            b.Property(m => m.Name).HasMaxLength(80);
+            b.Property(m => m.Cost).HasPrecision(12, 2);
+            b.Property(m => m.RatePercent).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<KarigarChallan>(b =>
+        {
+            b.ToTable("karigar_challans");
+            b.HasTenantKey();
+            b.Property(c => c.Karigar).HasMaxLength(80);
+            b.Property(c => c.KarigarGstin).HasMaxLength(15);
+            b.Property(c => c.Note).HasMaxLength(200);
+            b.Property(c => c.Quantity).HasPrecision(12, 3);
+            b.Property(c => c.ReceivedQuantity).HasPrecision(12, 3);
+            b.Property(c => c.UnitCost).HasPrecision(12, 2);
+            b.HasIndex(c => new { c.ShopId, c.Number }).IsUnique();
         });
 
         modelBuilder.Entity<JobEntry>(b =>

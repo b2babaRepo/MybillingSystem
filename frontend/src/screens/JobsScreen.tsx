@@ -5,6 +5,8 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
+import { ExportImportPanel } from './ExportImportPanel'
+import { KarigarPanel, MachinesPanel } from './WorkshopPanels'
 
 type Status = 'quote' | 'order' | 'making' | 'ready' | 'delivered' | 'cancelled'
 interface Job {
@@ -20,8 +22,9 @@ const NEXT: Partial<Record<Status, Status>> = { quote: 'order', order: 'making',
  * Work made to order (furniture, fittings): each job from quote to delivery, with what went into it and what it
  * earned. Built on the shop's khata (advances), stock (materials) and kharcha book (wages, other spending).
  */
-export function JobsScreen({ shopId }: { shopId: string }) {
+export function JobsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const { t } = useTranslation()
+  const [tab, setTab] = useState<'jobs' | 'machines' | 'karigar' | 'trade'>('jobs')
   const [done, setDone] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -29,8 +32,17 @@ export function JobsScreen({ shopId }: { shopId: string }) {
 
   if (openId) return <JobPage shopId={shopId} id={openId} onBack={() => setOpenId(null)} />
   const chip = (on: boolean) => `min-h-11 flex-1 rounded-full text-sm font-semibold ${on ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`
+  const tabs = isOwner && (
+    <div className="flex gap-2 rounded-full bg-white p-1">
+      {(['jobs', 'machines', 'karigar', 'trade'] as const).map((x) => <button key={x} onClick={() => setTab(x)} className={chip(tab === x)}>{t(`workshop.tab.${x}`)}</button>)}
+    </div>
+  )
+  if (tab !== 'jobs') {
+    return <div className="flex flex-col gap-3 p-4 pb-28">{tabs}{tab === 'machines' ? <MachinesPanel shopId={shopId} /> : tab === 'karigar' ? <KarigarPanel shopId={shopId} /> : <ExportImportPanel />}</div>
+  }
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
+      {tabs}
       <p className="text-sm text-muted">{t('jobs.hint')}</p>
       <div className="flex gap-2">
         <button onClick={() => setDone(false)} className={chip(!done)}>{t('jobs.open')}</button>

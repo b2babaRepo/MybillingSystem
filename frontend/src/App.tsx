@@ -278,7 +278,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/pnl' && isOwner ? (
           <ProfitLossScreen />
         ) : path === '/jobs' ? (
-          <JobsScreen shopId={shopId} />
+          <JobsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/suppliers' ? (
           <SuppliersScreen shopId={shopId} />
         ) : path === '/profile' ? (

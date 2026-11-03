@@ -7,7 +7,7 @@ import { formatRupees } from '../lib/format'
 
 interface ProfitLoss {
   financialYear: string; sales: number; turnover: number; gst: number; goodsProfit: number; returns: number; stockLoss: number; expenses: number; netProfit: number
-  takenHome: number; purchases: number; openingStock: number; closingStock: number; closingDate: string; supplierDue: number; customerDue: number; itemsWithoutCost: number; profitCoverage: number; workInProgress?: number
+  takenHome: number; purchases: number; openingStock: number; closingStock: number; closingDate: string; supplierDue: number; customerDue: number; itemsWithoutCost: number; profitCoverage: number; workInProgress?: number; machineWear?: number
 }
 
 /** A financial year's statement for the owner and their CA, with 31 March stock read back from the movements. */
@@ -55,6 +55,7 @@ export function ProfitLossScreen() {
           {row(t('pnl.returns'), -r.returns)}
           {row(t('pnl.loss'), -r.stockLoss)}
           {row(t('pnl.expenses'), -r.expenses)}
+          {(r.machineWear ?? 0) > 0 && row(t('pnl.wear'), -(r.machineWear ?? 0))}
           {row(t('pnl.net'), r.netProfit, true)}
           {r.profitCoverage < 1 && r.sales > 0 && <p className="text-sm font-semibold text-due">{t('pnl.coverage', { percent: Math.round(r.profitCoverage * 100) })}</p>}
         </section>
