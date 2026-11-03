@@ -318,6 +318,11 @@ public sealed class ShopDayTests(ApiFactory api)
         (await shop.PostJsonAsync("/api/v1/expenses", new { id = Guid.CreateVersion7(), amount = 4000m, category = "rent", mode = "cash", note = "Workshop rent" })).EnsureSuccessStatusCode();
         Assert.Equal(4000m, (await shop.GetJsonAsync<JobDetail>($"/api/v1/jobs/{id}")).Overhead);
         Assert.Equal(18500m, (await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl")).WorkInProgress);
+        (await shop.PutAsJsonAsync($"/api/v1/jobs/{id}/status", new { status = "ready" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        var ready = await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl");
+        Assert.Equal((0m, 18500m), (ready.WorkInProgress, ready.FinishedGoods)); // made, waiting to go: finished furniture
+        Assert.Equal(20000m, ready.DigitalReceipts); // the UPI advance
+        Assert.Equal(1200m, ready.PresumedProfit);
 
         // Delivery makes the bill; the customer owes the price less the advance.
         var detail = await (await shop.PostJsonAsync($"/api/v1/jobs/{id}/deliver", new { billId = Guid.CreateVersion7(), paidAmount = 0m })).ReadAsync<JobDetail>();
@@ -387,6 +392,19 @@ public sealed class ShopDayTests(ApiFactory api)
         var ramesh = Assert.Single(tds.Karigars, k => k.Karigar == "Ramesh");
         Assert.Equal((85000m, 35000m, 3, "single"), (ramesh.Total, ramesh.Largest, ramesh.Payments, ramesh.Alert));
         Assert.Null(Assert.Single(tds.Karigars, k => k.Karigar == "Salim").Alert);
+    }
+
+    [Fact]
+    public void Turnover_limits_warn_near_and_past_and_44ad_presumes_8_and_6_percent()
+    {
+        Assert.Empty(ReportEndpoints.TurnoverAlerts(10_000_000m, 0m));
+        var near = Assert.Single(ReportEndpoints.TurnoverAlerts(12_500_000m, 0m));
+        Assert.Equal(("composition", false), (near.Key, near.Crossed));
+        var big = ReportEndpoints.TurnoverAlerts(17_000_000m, 0m);
+        Assert.Equal(["composition", "annual_return"], big.Select(a => a.Key));
+        Assert.True(big[0].Crossed);
+        Assert.Contains(ReportEndpoints.TurnoverAlerts(3_000_000m, 60_000_000m), a => a.Key == "einvoice" && a.Crossed); // last year counts for e-invoices
+        Assert.Equal(14_000m, ReportEndpoints.PresumedProfit(100_000m, 100_000m));
     }
 
     private static async Task<BillDto> Bill(HttpClient shop, Guid? customer, Guid product, decimal quantity, decimal paid) =>

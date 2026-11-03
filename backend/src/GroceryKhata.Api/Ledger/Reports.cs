@@ -25,7 +25,11 @@ public sealed record YearReport(string FinancialYear, IReadOnlyList<YearMonthRow
 public sealed record ProfitLossReport(
     string FinancialYear, decimal Sales, decimal Turnover, decimal Gst, decimal GoodsProfit, decimal Returns, decimal StockLoss, decimal Expenses, decimal NetProfit,
     decimal TakenHome, decimal Purchases, decimal OpeningStock, decimal ClosingStock, DateOnly ClosingDate, decimal SupplierDue, decimal CustomerDue, int ItemsWithoutCost, decimal ProfitCoverage,
-    decimal WorkInProgress = 0, decimal MachineWear = 0);
+    decimal WorkInProgress = 0, decimal MachineWear = 0, decimal FinishedGoods = 0,
+    decimal CashReceipts = 0, decimal DigitalReceipts = 0, decimal PresumedProfit = 0, decimal LastYearTurnover = 0, IReadOnlyList<TurnoverAlert>? TurnoverAlerts = null);
+
+/// <summary>A turnover limit the shop has crossed or is near: <see cref="ReportEndpoints.TurnoverLimits"/>.</summary>
+public sealed record TurnoverAlert(string Key, decimal Limit, decimal Turnover, bool Crossed);
 
 /// <summary>What the owner should look at today: old dues to chase and what suppliers are owed.</summary>
 public sealed record DigestDto(int OldDueCustomers, decimal OldDueAmount, decimal SupplierDue);
@@ -308,7 +312,8 @@ public static class ReportEndpoints
             ("Sales with GST", r.Sales), ("GST in sales", r.Gst), ("Turnover without GST", r.Turnover), ("Profit on goods", r.GoodsProfit), ("Returns", -r.Returns), ("Stock lost", -r.StockLoss),
             ("Running expenses", -r.Expenses), ("Machine wear (depreciation)", -r.MachineWear), ("Net profit", r.NetProfit), ("Taken home", r.TakenHome), ("Supplier bills", r.Purchases), ("Opening stock at cost", r.OpeningStock),
             ($"Closing stock at cost {r.ClosingDate:yyyy-MM-dd}", r.ClosingStock), ("Owed to suppliers today", r.SupplierDue), ("Owed by customers today", r.CustomerDue),
-            ("Jobs being made, at cost (today)", r.WorkInProgress),
+            ("Jobs being made, at cost (today)", r.WorkInProgress), ("Furniture ready, at cost (today)", r.FinishedGoods),
+            ("Received in cash", r.CashReceipts), ("Received by UPI or bank", r.DigitalReceipts), ("Presumed profit under 44AD (8% cash, 6% digital)", r.PresumedProfit),
         })
         {
             csv.AppendJoin(',', label, Num(amount)).Append('\n');
@@ -317,6 +322,28 @@ public static class ReportEndpoints
         csv.AppendJoin(',', "Items without a cost", r.ItemsWithoutCost.ToString(CultureInfo.InvariantCulture)).Append('\n');
         return Csv(csv, $"profit-loss-{r.FinancialYear}.csv");
     }
+
+    /// <summary>
+    /// Turnover limits a small business should watch (aggregate turnover without GST, for the financial year): the
+    /// composition scheme stops at ₹1.5 crore, the annual GST return (GSTR-9) is optional up to ₹2 crore, and e-invoices
+    /// are needed once any year since 2017-18 passed ₹5 crore. Some states have lower composition limits; a CA confirms.
+    /// </summary>
+    public static readonly (string Key, decimal Limit)[] TurnoverLimits = [("composition", 15_000_000m), ("annual_return", 20_000_000m), ("einvoice", 50_000_000m)];
+
+    /// <summary>Each limit crossed this year or last, or within 80% of it this year.</summary>
+    public static IReadOnlyList<TurnoverAlert> TurnoverAlerts(decimal thisYear, decimal lastYear) =>
+        TurnoverLimits
+            .Select(l => (l, Turnover: Math.Max(thisYear, l.Key == "einvoice" ? lastYear : thisYear)))
+            .Where(x => x.Turnover >= x.l.Limit * 0.8m)
+            .Select(x => new TurnoverAlert(x.l.Key, x.l.Limit, x.Turnover, x.Turnover > x.l.Limit))
+            .ToList();
+
+    /// <summary>
+    /// Presumed profit under section 44AD (small businesses that don't keep full books): 6% of money received by
+    /// UPI, bank or card, 8% of money received in cash. Up to ₹2 crore turnover (₹3 crore when cash is 5% or less).
+    /// </summary>
+    public static decimal PresumedProfit(decimal cash, decimal digital) =>
+        decimal.Round(cash * 0.08m + digital * 0.06m, 2, MidpointRounding.AwayFromZero);
 
     public static async Task<ProfitLossReport> BuildProfitLossAsync(AppDbContext db, TimeProvider clock, int startYear, CancellationToken ct)
     {
@@ -329,6 +356,7 @@ public static class ReportEndpoints
         }
 
         var year = await BuildYearAsync(db, startYear, ct);
+        var lastYear = await BuildYearAsync(db, startYear - 1, ct);
         var now = clock.GetUtcNow();
         var closeAt = end < now ? end : now;
         var returns = months.Sum(m => m.Returns);
@@ -347,7 +375,9 @@ public static class ReportEndpoints
             await db.SupplierEntries.AsNoTracking().SumAsync(e => (decimal?)e.Amount, ct) ?? 0m,
             await db.Customers.AsNoTracking().Where(c => c.Balance > 0).SumAsync(c => (decimal?)c.Balance, ct) ?? 0m,
             missing, year.Total.Sales == 0 ? 0 : decimal.Round(coveredSales / year.Total.Sales, 2),
-            await Jobs.WorkInProgressAsync(db, ct), wear);
+            await Jobs.WorkInProgressAsync(db, ct), wear, await Jobs.FinishedGoodsAsync(db, ct),
+            year.Total.Cash, year.Total.Digital, PresumedProfit(year.Total.Cash, year.Total.Digital), lastYear.Total.Turnover,
+            TurnoverAlerts(year.Total.Turnover, lastYear.Total.Turnover));
     }
 
     /// <summary>

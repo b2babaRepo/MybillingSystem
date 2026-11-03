@@ -197,11 +197,17 @@ public static class Jobs
         return wages <= 0 ? 0 : decimal.Round(jobLabour * running / wages, 2, MidpointRounding.AwayFromZero);
     }
 
-    /// <summary>What sits in jobs not yet delivered (material, wages, other spending at cost): stock that left the shelf but isn't sold yet.</summary>
-    public static async Task<decimal> WorkInProgressAsync(AppDbContext db, CancellationToken ct) =>
+    /// <summary>What sits in jobs still being made (material, wages, other spending at cost): stock that left the shelf but isn't sold yet.</summary>
+    public static Task<decimal> WorkInProgressAsync(AppDbContext db, CancellationToken ct) =>
+        CostInJobsAsync(db, [JobStatus.Quote, JobStatus.Order, JobStatus.Making], ct);
+
+    /// <summary>Furniture made and ready, not yet delivered, at what it cost: finished goods in stock.</summary>
+    public static Task<decimal> FinishedGoodsAsync(AppDbContext db, CancellationToken ct) => CostInJobsAsync(db, [JobStatus.Ready], ct);
+
+    private static async Task<decimal> CostInJobsAsync(AppDbContext db, JobStatus[] statuses, CancellationToken ct) =>
         await (from e in db.JobEntries.AsNoTracking()
                join j in db.Jobs.AsNoTracking() on e.JobId equals j.Id
-               where e.Kind != JobEntryKind.Advance && j.Status != JobStatus.Delivered && j.Status != JobStatus.Cancelled
+               where e.Kind != JobEntryKind.Advance && statuses.Contains(j.Status)
                select (decimal?)e.Amount).SumAsync(ct) ?? 0m;
 
     private static async Task<IResult> CreateAsync(JobRequest request, AppDbContext db, CancellationToken ct)
