@@ -146,6 +146,9 @@ public enum StockMovementKind
     /// <summary>Taken off the shelf to make something to order (a job): its cost counts on the job's bill.</summary>
     UsedOnJob,
 
+    /// <summary>Used up doing a salon service (colour, developer, wax), by the service's list of products.</summary>
+    UsedInService,
+
     /// <summary>Sent to an outside karigar to work on (a karigar challan).</summary>
     SentToKarigar,
 

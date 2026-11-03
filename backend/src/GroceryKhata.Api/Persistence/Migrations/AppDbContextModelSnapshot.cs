@@ -3204,6 +3204,72 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("challans", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.ClientCard", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Allergies")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("allergies");
+
+                    b.Property<string>("ColourFormula")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("colour_formula");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("HairType")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("hair_type");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<DateOnly?>("PatchTestOn")
+                        .HasColumnType("date")
+                        .HasColumnName("patch_test_on");
+
+                    b.Property<bool>("PatchTestReaction")
+                        .HasColumnType("boolean")
+                        .HasColumnName("patch_test_reaction");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<string>("SkinType")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("skin_type");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "CustomerId")
+                        .IsUnique();
+
+                    b.ToTable("client_cards", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.CreditNote", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4399,6 +4465,48 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("rooms", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.ServiceProduct", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("quantity");
+
+                    b.Property<Guid>("ServiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("service_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "ServiceId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("service_products", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Stay", b =>

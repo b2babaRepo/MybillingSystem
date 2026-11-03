@@ -320,6 +320,7 @@ public static class Appointments
         }
 
         await db.SaveChangesAsync(ct);
+        await SalonCards.UseProductsAsync(db, bill.Id, $"Appointment #{appointment.Number}", user.UserId()!.Value, clock.GetUtcNow(), ct);
         return await GetAsync(id, db, tenant, ct);
     }
 }

@@ -130,6 +130,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<BridalEvent> BridalEvents => Set<BridalEvent>();
 
+    public DbSet<ServiceProduct> ServiceProducts => Set<ServiceProduct>();
+
+    public DbSet<ClientCard> ClientCards => Set<ClientCard>();
+
     public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();
 
     public DbSet<StylistRate> StylistRates => Set<StylistRate>();
@@ -682,6 +686,26 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(x => x.TravelCharge).HasPrecision(12, 2);
             b.HasMany(x => x.Events).WithOne().HasForeignKey(e => e.BookingId);
             b.HasIndex(x => new { x.ShopId, x.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<ServiceProduct>(b =>
+        {
+            b.ToTable("service_products");
+            b.HasTenantKey();
+            b.Property(s => s.Quantity).HasPrecision(12, 3);
+            b.HasIndex(s => new { s.ShopId, s.ServiceId, s.ProductId }).IsUnique();
+        });
+
+        modelBuilder.Entity<ClientCard>(b =>
+        {
+            b.ToTable("client_cards");
+            b.HasTenantKey();
+            b.Property(c => c.HairType).HasMaxLength(60);
+            b.Property(c => c.SkinType).HasMaxLength(60);
+            b.Property(c => c.Allergies).HasMaxLength(500);
+            b.Property(c => c.ColourFormula).HasMaxLength(500);
+            b.Property(c => c.Notes).HasMaxLength(500);
+            b.HasIndex(c => new { c.ShopId, c.CustomerId }).IsUnique();
         });
 
         modelBuilder.Entity<BridalEvent>(b =>

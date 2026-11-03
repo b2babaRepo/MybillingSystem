@@ -156,6 +156,7 @@ export function SalonHomeCard({ shopId, isOwner }: { shopId: string; isOwner: bo
         <button onClick={() => navigate('/bill')} className={row}><span>{t('salon.walkIn')}</span><span aria-hidden="true">→</span></button>
         {isOwner && <button onClick={() => navigate('/salon/setup')} className={row}><span>{t('salon.servicesShort', { count: services.length })}</span><span aria-hidden="true">→</span></button>}
       </div>
+      <button onClick={() => navigate('/client-cards')} className={row}><span>{t('cards.link')}</span><span aria-hidden="true">→</span></button>
       <button onClick={() => navigate('/bridal')} className={row}><span>{t('bridal.link')}</span><span aria-hidden="true">→</span></button>
       <button onClick={() => navigate('/packages')} className={row}><span>{t('packages.link')}</span><span aria-hidden="true">→</span></button>
       {isOwner && <button onClick={() => navigate('/stylists')} className={row}><span>{t('salon.earningsLink')}</span><span aria-hidden="true">→</span></button>}

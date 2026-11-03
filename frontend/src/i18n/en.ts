@@ -897,6 +897,13 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  cards: {
+    link: 'Client cards and products used', title: 'Client card', patchDue: 'Patch test due: do one 48 hours before any colour.', reaction: 'She reacted to the patch test. No colour with this product.',
+    hair: 'Hair', hairHint: 'Thick, wavy', skin: 'Skin', skinHint: 'Oily, sensitive', allergies: 'Allergies', formula: 'Colour formula', formulaHint: '5.0 + 20 vol, 1:1.5, 35 min',
+    patchOn: 'Last patch test', hadReaction: 'Had a reaction', notes: 'Notes', visits: 'Past visits', noVisits: 'No billed visits yet.',
+    usesTitle: 'Products each service uses', usesHint: 'Billing the service takes these from stock and counts their cost, so profit is right.',
+    chooseService: 'Choose a service', product: 'Product', quantity: 'How much', remove: 'Remove', addProduct: '+ Add a product', costLine: 'Products cost {{cost}} of the {{price}} price.', noCost: 'Set a cost price for {{names}} on the Items page, or it counts as free.',
+  },
   bridal: {
     link: 'Bridal and home bookings', hint: 'Book a bride (or any home visit) with several events on their own dates. Trial fees and advances go on her khata; one bill at the end.',
     none: 'No bridal or home bookings yet.', add: 'New bridal or home booking', title: 'Name', titleHint: "Riya's wedding", atHome: 'At the customer’s home', address: 'Address', travel: 'Travel charge',

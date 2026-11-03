@@ -656,6 +656,34 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Services_use_their_products_from_stock_and_client_cards_keep_the_formula()
+    {
+        var shop = await SignUpAsync("beauty");
+        var (service, tube) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        (await shop.PostJsonAsync("/api/v1/products", new { id = service, name = "Root touch-up", unit = "piece", sellingPrice = 1000m, isService = true, durationMinutes = 60 })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = tube, name = "Colour tube", unit = "piece", sellingPrice = 450m, costPrice = 300m, openingStock = 10m })).EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/services/{service}/products", new { products = new[] { new { productId = service, quantity = 1m } } }, ApiFactory.Json)).StatusCode);
+        var recipe = await (await shop.PutAsJsonAsync($"/api/v1/services/{service}/products", new { products = new[] { new { productId = tube, quantity = 0.5m } } }, ApiFactory.Json)).ReadAsync<ServiceProductsDto>();
+        Assert.Equal(150m, recipe.Cost);
+
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Meena");
+        var card = await shop.GetJsonAsync<ClientCardDto>($"/api/v1/customers/{customer}/card");
+        Assert.True(card.PatchTestDue);
+        card = await (await shop.PutAsJsonAsync($"/api/v1/customers/{customer}/card",
+            new { colourFormula = "5.0 + 20 vol, 1:1.5", allergies = "PPD", patchTestOn = DateOnly.FromDateTime(DateTime.Today), patchTestReaction = false }, ApiFactory.Json)).ReadAsync<ClientCardDto>();
+        Assert.Equal(("5.0 + 20 vol, 1:1.5", false), (card.ColourFormula, card.PatchTestDue));
+
+        var id = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/appointments", new { id, date = DateOnly.FromDateTime(DateTime.Today.AddDays(1)), start = "10:00", customerId = customer, serviceIds = new[] { service } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/appointments/{id}/bill", new { billId = Guid.CreateVersion7(), paidAmount = 1000m, mode = "upi" })).EnsureSuccessStatusCode();
+        Assert.Equal(9.5m, (await Item(shop, tube)).Stock);
+        Assert.Equal(0m, (await Item(shop, service)).Stock);
+        var visit = Assert.Single((await shop.GetJsonAsync<ClientCardDto>($"/api/v1/customers/{customer}/card")).Visits);
+        Assert.Equal(("Root touch-up", 1000m), (visit.Services, visit.Total));
+    }
+
+    [Fact]
     public async Task Bridal_bookings_keep_the_stylist_free_take_advances_and_bill_the_rest()
     {
         var shop = await SignUpAsync("beauty");
