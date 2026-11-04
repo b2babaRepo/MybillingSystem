@@ -147,6 +147,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<BillPrescription> BillPrescriptions => Set<BillPrescription>();
 
     public DbSet<PrescriptionPhoto> PrescriptionPhotos => Set<PrescriptionPhoto>();
+    public DbSet<DairyFarmer> DairyFarmers => Set<DairyFarmer>();
+
+    public DbSet<DairyRatePlan> DairyRatePlans => Set<DairyRatePlan>();
+
+    public DbSet<DairyRate> DairyRates => Set<DairyRate>();
+
+    public DbSet<MilkCollection> MilkCollections => Set<MilkCollection>();
+
+    public DbSet<DairyFarmerEntry> DairyFarmerEntries => Set<DairyFarmerEntry>();
+
+    public DbSet<MilkDispatch> MilkDispatches => Set<MilkDispatch>();
 
     public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();
 
@@ -744,6 +755,68 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(x => x.Quantity).HasPrecision(14, 3);
             b.HasIndex(x => new { x.ShopId, x.ProductId, x.BatchNo, x.Expiry }).IsUnique();
             b.HasIndex(x => new { x.ShopId, x.Expiry });
+        });
+
+        modelBuilder.Entity<DairyFarmer>(b =>
+        {
+            b.ToTable("dairy_farmers");
+            b.HasTenantKey();
+            b.Property(f => f.Name).HasMaxLength(80);
+            b.Property(f => f.Phone).HasMaxLength(20);
+            b.Property(f => f.Village).HasMaxLength(60);
+            b.HasIndex(f => new { f.ShopId, f.Code }).IsUnique();
+        });
+
+        modelBuilder.Entity<DairyRatePlan>(b =>
+        {
+            b.ToTable("dairy_rate_plans");
+            b.HasTenantKey();
+            b.HasMany(p => p.Rates).WithOne().HasForeignKey(r => r.PlanId);
+            b.HasIndex(p => new { p.ShopId, p.For, p.From });
+        });
+
+        modelBuilder.Entity<DairyRate>(b =>
+        {
+            b.ToTable("dairy_rates");
+            b.HasTenantKey();
+            foreach (var p in new[] { nameof(DairyRate.FatRate), nameof(DairyRate.SnfRate), nameof(DairyRate.FlatRate) }) b.Property(p).HasPrecision(10, 2);
+            b.Property(r => r.MinFat).HasPrecision(5, 2);
+            b.Property(r => r.MinSnf).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<MilkCollection>(b =>
+        {
+            b.ToTable("milk_collections");
+            b.HasTenantKey();
+            b.Property(c => c.Litres).HasPrecision(8, 2);
+            b.Property(c => c.Fat).HasPrecision(5, 2);
+            b.Property(c => c.Snf).HasPrecision(5, 2);
+            b.Property(c => c.Clr).HasPrecision(5, 1);
+            b.Property(c => c.Rate).HasPrecision(10, 2);
+            b.Property(c => c.Amount).HasPrecision(12, 2);
+            b.Property(c => c.EditLog).HasMaxLength(2000);
+            b.HasIndex(c => new { c.ShopId, c.Date, c.Shift });
+            b.HasIndex(c => new { c.ShopId, c.FarmerId, c.Date });
+        });
+
+        modelBuilder.Entity<DairyFarmerEntry>(b =>
+        {
+            b.ToTable("dairy_farmer_entries");
+            b.HasTenantKey();
+            b.Property(e => e.Amount).HasPrecision(12, 2);
+            b.Property(e => e.Note).HasMaxLength(120);
+            b.HasIndex(e => new { e.ShopId, e.FarmerId, e.Date });
+        });
+
+        modelBuilder.Entity<MilkDispatch>(b =>
+        {
+            b.ToTable("milk_dispatches");
+            b.HasTenantKey();
+            b.Property(d => d.Agency).HasMaxLength(60);
+            foreach (var p in new[] { nameof(MilkDispatch.Litres), nameof(MilkDispatch.AcceptedLitres) }) b.Property(p).HasPrecision(10, 2);
+            foreach (var p in new[] { nameof(MilkDispatch.Fat), nameof(MilkDispatch.Snf), nameof(MilkDispatch.AcceptedFat), nameof(MilkDispatch.AcceptedSnf) }) b.Property(p).HasPrecision(5, 2);
+            b.Property(d => d.Amount).HasPrecision(12, 2);
+            b.HasIndex(d => new { d.ShopId, d.Date });
         });
 
         modelBuilder.Entity<PrescriptionPhoto>(b =>

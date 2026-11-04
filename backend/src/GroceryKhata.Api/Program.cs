@@ -124,6 +124,7 @@ app.MapPrescriptions();
 app.MapSupplierReturns();
 app.MapPharmacyMonth();
 app.MapPharmacyAssist();
+app.MapDairy();
 app.MapStylistPay();
 app.MapPrepaid();
 app.MapCashCounts();

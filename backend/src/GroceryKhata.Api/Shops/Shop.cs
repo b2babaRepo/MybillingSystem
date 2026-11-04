@@ -116,4 +116,6 @@ public enum ShopType
     Lodge,
     /// <summary>Medical shop or chemist: medicines by batch and expiry, a pharmacist, a drug licence and the Schedule H1 register.</summary>
     Medical,
+    /// <summary>Village milk collection centre: buys milk from farmers by fat and SNF, sells it on to Sudha or another dairy.</summary>
+    Dairy,
 }

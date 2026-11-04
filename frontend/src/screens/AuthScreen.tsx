@@ -10,7 +10,7 @@ export function AuthScreen() {
   const { t, i18n } = useTranslation()
   // A trade's own sign-up link opens straight on that shop's registration: #/start/salon (beauty parlour), #/start/medical (chemist).
   const path = usePath()
-  const preset = path === '/start/salon' ? 'beauty' : path === '/start/medical' ? 'medical' : null
+  const preset = path === '/start/salon' ? 'beauty' : path === '/start/medical' ? 'medical' : path === '/start/dairy' ? 'dairy' : null
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>(preset ? 'sign-up' : 'sign-in')
   const [role, setRole] = useState<'home' | 'shop'>(preset ? 'shop' : 'home')
   const [form, setForm] = useState({ shopName: '', area: '', fullName: '', phone: '', password: '', type: preset ?? 'kirana' })
@@ -73,7 +73,7 @@ export function AuthScreen() {
   return (
     <form onSubmit={submit} className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-4">
       <h1 className="text-center text-3xl font-bold text-teal-800">{t('appName')}</h1>
-      {preset && mode === 'sign-up' && <p className="text-center text-lg font-semibold">{t(preset === 'beauty' ? 'salon.signUpTitle' : 'medical.signUpTitle')}</p>}
+      {preset && mode === 'sign-up' && <p className="text-center text-lg font-semibold">{t(preset === 'beauty' ? 'salon.signUpTitle' : preset === 'dairy' ? 'dairy.signUpTitle' : 'medical.signUpTitle')}</p>}
       {mode === 'sign-up' && (
         <>
           {!preset && <div role="radiogroup" className="grid grid-cols-2 gap-2">
