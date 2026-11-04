@@ -181,7 +181,9 @@ public static class MasterItems
             }
 
             using var reader = new StreamReader(assembly.GetManifestResourceStream(name)!);
-            var have = (await db.MasterItems.Where(i => i.Trade == trade).Select(i => i.Name.ToLower()).ToListAsync(ct)).ToHashSet();
+            var existing = (await db.MasterItems.Where(i => i.Trade == trade).ToListAsync(ct)).GroupBy(i => i.Name.ToLower()).ToDictionary(g => g.Key, g => g.First());
+            var have = existing.Keys.ToHashSet();
+            var listed = new Dictionary<string, string>();
             var now = DateTimeOffset.UtcNow;
             var first = true;
             while (await reader.ReadLineAsync(ct) is { } line)
@@ -193,7 +195,13 @@ public static class MasterItems
                 }
 
                 var f = SplitCsv(line);
-                if (f.Length < 6 || f[0].Trim() is not { Length: >= 2 and <= 120 } item || !have.Add(item.ToLower()))
+                if (f.Length < 6 || f[0].Trim() is not { Length: >= 2 and <= 120 } item)
+                {
+                    continue;
+                }
+
+                listed[item.ToLower()] = f[2];
+                if (!have.Add(item.ToLower()))
                 {
                     continue;
                 }
@@ -206,10 +214,30 @@ public static class MasterItems
                     HsnCode = f[5].Length > 0 ? f[5] : null, UpdatedAt = now,
                 });
             }
+
+            // The list's categories were once finer (143 for medical, now about 24 groups). A row still in an old
+            // category moves to its group; one an admin has put in a current group is left as it is.
+            var groups = listed.Values.ToHashSet();
+            foreach (var (key, row) in existing.Where(e => !groups.Contains(e.Value.Category)))
+            {
+                var group = listed.GetValueOrDefault(key) ?? StarterGroups.GetValueOrDefault(row.Category);
+                if (group is not null)
+                {
+                    (row.Category, row.UpdatedAt) = (group, now);
+                }
+            }
         }
 
         await db.SaveChangesAsync(ct);
     }
+
+    /// <summary>The medical starter items' old categories, and the groups they now belong to.</summary>
+    private static readonly Dictionary<string, string> StarterGroups = new()
+    {
+        ["Antibiotics"] = "Antibiotics & infections", ["Antibiotics (Schedule H)"] = "Antibiotics & infections", ["Baby care"] = "Baby & mother care",
+        ["Cold & allergy"] = "Cold, cough & allergy", ["Devices"] = "Diagnostic devices", ["First aid"] = "First aid & wound care",
+        ["Stomach"] = "Stomach & digestion", ["Vitamins"] = "Vitamins & supplements", ["Diabetes & BP"] = "Heart & BP",
+    };
 
     private static MasterItemDto ToDto(MasterItem i) => new(i.Id, i.Trade, i.Category, i.Name, i.NameHi, i.Unit, i.GstRate, i.HsnCode, i.IsActive, i.PackSizes);
 

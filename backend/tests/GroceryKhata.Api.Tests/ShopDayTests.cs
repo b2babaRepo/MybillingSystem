@@ -673,6 +673,12 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Contains(list, i => i.Name.Contains("Durex", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(list, i => i.Name.Contains("Hot water", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(list.Count, list.Select(i => i.Name.ToLowerInvariant()).Distinct().Count());
+        // About two dozen groups to filter by, not a hundred-odd.
+        var groups = list.Select(i => i.Category).Distinct().ToList();
+        Assert.InRange(groups.Count, 15, 30);
+        Assert.Contains("Sexual wellness & condoms", groups);
+        Assert.Contains("Hot, cold & water therapy", groups);
+        Assert.Equal("Stomach & digestion", list.Single(i => i.Name.StartsWith("Pantoprazole 40 mg")).Category);
 
         // Picking adds them to the shop, without a price yet.
         var picked = list.Where(i => i.Name is "Dolo 650 Tablet").Select(i => i.Id).ToArray();
