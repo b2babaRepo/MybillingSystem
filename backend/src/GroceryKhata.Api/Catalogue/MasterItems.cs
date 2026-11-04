@@ -172,7 +172,8 @@ public static class MasterItems
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var assembly = typeof(MasterItems).Assembly;
-        foreach (var (resource, trade) in new[] { ("medical-master.csv", ShopTypes.Name(ShopType.Medical)), ("kirana-master.csv", ShopTypes.Name(ShopType.Kirana)) })
+        foreach (var (resource, trade) in new[] { ("medical-master.csv", ShopTypes.Name(ShopType.Medical)), ("kirana-master.csv", ShopTypes.Name(ShopType.Kirana)),
+            ("paint-master.csv", ShopTypes.Name(ShopType.Paint)), ("hardware-master.csv", ShopTypes.Name(ShopType.Hardware)) })
         {
             var name = assembly.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(resource, StringComparison.OrdinalIgnoreCase));
             if (name is null)
@@ -233,9 +234,13 @@ public static class MasterItems
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>The medical starter items' old categories, and the groups they now belong to.</summary>
+    /// <summary>Starter items' old categories (medical, hardware, paint), and the groups they now belong to.</summary>
     private static readonly Dictionary<string, string> StarterGroups = new()
     {
+        // Hardware and paint starter items, folded into the long lists' groups.
+        ["Hinges"] = "Door and furniture fittings", ["Fittings"] = "Door and furniture fittings", ["Tools"] = "Hand tools", ["Plumbing"] = "Pipes and fittings",
+        ["Screws & nails"] = "Fasteners", ["Bolts"] = "Fasteners", ["Adhesives"] = "Adhesives and tapes",
+        ["Interior"] = "Interior emulsion", ["Exterior"] = "Exterior emulsion", ["Enamel"] = "Enamel and metal paint", ["Primer & putty"] = "Primer",
         ["Antibiotics"] = "Antibiotics & infections", ["Antibiotics (Schedule H)"] = "Antibiotics & infections", ["Baby care"] = "Baby & mother care",
         ["Cold & allergy"] = "Cold, cough & allergy", ["Devices"] = "Diagnostic devices", ["First aid"] = "First aid & wound care",
         ["Stomach"] = "Stomach & digestion", ["Vitamins"] = "Vitamins & supplements", ["Diabetes & BP"] = "Heart & BP",

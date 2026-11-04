@@ -345,6 +345,33 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Paint_and_hardware_shops_pick_from_long_brand_lists_with_pack_sizes()
+    {
+        var paint = await SignUpAsync("paint");
+        var paints = await paint.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items?trade=paint");
+        Assert.True(paints.Count >= 300, $"only {paints.Count} paint master items");
+        foreach (var name in new[] { "Royale", "Apcolite", "Tractor", "Birla Opus", "Birla White", "Berger", "Nerolac", "Dulux", "Fevicol", "Dr. Fixit" })
+        {
+            Assert.Contains(paints, i => i.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var royale = paints.First(i => i.Name.StartsWith("Asian Paints Royale Luxury"));
+        Assert.Equal(["1 L", "4 L", "10 L", "20 L"], royale.PackSizes);
+        Assert.Equal((18m, "3209"), (royale.GstRate!.Value, royale.HsnCode));
+
+        var hardware = await SignUpAsync("hardware");
+        var items = await hardware.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items?trade=hardware");
+        Assert.True(items.Count >= 300, $"only {items.Count} hardware master items");
+        foreach (var name in new[] { "Tiscon", "Wiron", "Agrico", "Pravesh", "Shaktee", "screw", "hinge", "lock", "PVC" })
+        {
+            Assert.Contains(items, i => i.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        Assert.Equal(items.Count, items.Select(i => i.Name.ToLowerInvariant()).Distinct().Count());
+        Assert.InRange(items.Select(i => i.Category).Distinct().Count(), 10, 20);
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");
