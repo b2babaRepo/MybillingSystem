@@ -69,10 +69,10 @@ public static class Amcs
 
     private static DateOnly Today(TimeProvider clock) => DateOnly.FromDateTime(clock.GetUtcNow().ToOffset(IndiaTime.Offset).DateTime);
 
-    private static DateOnly EndsOn(Amc a) => a.StartOn.AddMonths(a.Months).AddDays(-1);
+    internal static DateOnly EndsOn(Amc a) => a.StartOn.AddMonths(a.Months).AddDays(-1);
 
     /// <summary>Visit k (1-based) falls at k/visits of the way through, the last one a little before the end.</summary>
-    private static DateOnly DueOn(Amc a, int k) => a.StartOn.AddDays((EndsOn(a).DayNumber - a.StartOn.DayNumber) * k / (a.Visits + 1));
+    internal static DateOnly DueOn(Amc a, int k) => a.StartOn.AddDays((EndsOn(a).DayNumber - a.StartOn.DayNumber) * k / (a.Visits + 1));
 
     /// <summary>Contracts not yet renewed, the next visit due first.</summary>
     private static async Task<IReadOnlyList<AmcDto>> ListAsync(AppDbContext db, CancellationToken ct) =>

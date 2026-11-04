@@ -9,6 +9,7 @@ import { shopTypes, useShopSettings } from '../lib/reports'
 import { ExportImportPanel } from './ExportImportPanel'
 import { KarigarPanel, MachinesPanel } from './WorkshopPanels'
 
+interface SpeechRec { lang: string; start: () => void; onresult: (e: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => void; onend: () => void }
 type Status = 'quote' | 'order' | 'making' | 'ready' | 'delivered' | 'cancelled'
 interface Job {
   id: string; number: number; customerId: string | null; customerName: string | null; title: string; status: Status; price: number
@@ -80,6 +81,35 @@ function NewJob({ shopId, onDone }: { shopId: string; onDone: (id?: string) => v
   const service = shopTypes(useShopSettings(shopId).data).includes('sales_service')
   const [d, setD] = useState({ title: '', customerId: '', price: '', cost: '', dueOn: '', quote: false, serialNo: '', complaint: '' })
   const [message, setMessage] = useState('')
+  const [note, setNote] = useState('')
+  const [parts, setParts] = useState<{ name: string; quantity: number; productId: string | null; productName: string | null; use: boolean }[]>([])
+  const [listening, setListening] = useState(false)
+
+  // Speech to text in the phone's browser (Hindi first); the text then goes to the server to fill the card.
+  function listen() {
+    const Speech = (window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec }).SpeechRecognition
+      ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRec }).webkitSpeechRecognition
+    if (!Speech) { setMessage(t('jobs.noMic')); return }
+    const rec = new Speech()
+    rec.lang = 'hi-IN'
+    rec.onresult = (e) => setNote((n) => `${n} ${e.results[0][0].transcript}`.trim())
+    rec.onend = () => setListening(false)
+    setListening(true)
+    rec.start()
+  }
+
+  async function fill() {
+    setMessage('')
+    try {
+      const r = await api<{ title: string | null; complaint: string | null; serialNo: string | null; customerId: string | null; customerName: string | null
+        parts: { name: string; quantity: number; productId: string | null; productName: string | null }[] }>('/v1/service/job-note', 'POST', { note })
+      setD((x) => ({ ...x, title: r.title ?? x.title, complaint: r.complaint ?? x.complaint, serialNo: r.serialNo ?? x.serialNo, customerId: r.customerId ?? x.customerId }))
+      setParts(r.parts.map((p) => ({ ...p, use: p.productId != null })))
+      if (r.customerName && !r.customerId) setMessage(t('jobs.customerNotFound', { name: r.customerName }))
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
 
   async function save() {
     setMessage('')
@@ -89,6 +119,10 @@ function NewJob({ shopId, onDone }: { shopId: string; onDone: (id?: string) => v
         id, title: d.title.trim(), customerId: d.customerId || null, price: Number(d.price) || 0, estimatedCost: d.cost ? Number(d.cost) : null,
         dueOn: d.dueOn || null, status: d.quote ? 'quote' : 'order', serialNo: d.serialNo.trim() || null, complaint: d.complaint.trim() || null,
       })
+      // Parts the technician confirmed come off stock now (an item without a cost price is refused and shown).
+      for (const p of parts.filter((x) => x.use && x.productId)) {
+        await api(`/v1/jobs/${id}/material`, 'POST', { id: crypto.randomUUID(), productId: p.productId, quantity: p.quantity })
+      }
       void queryClient.invalidateQueries({ queryKey: [shopId, 'jobs'] })
       onDone(id)
     } catch (e) {
@@ -99,6 +133,21 @@ function NewJob({ shopId, onDone }: { shopId: string; onDone: (id?: string) => v
   return (
     <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
       <Field label={t('jobs.name')} value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} placeholder={t(service ? 'jobs.serviceTitleHint' : 'jobs.titleHint')} />
+      {service && (
+        <div className="flex flex-col gap-2 rounded-xl bg-teal-50 p-2">
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder={t('jobs.notePlaceholder')} aria-label={t('jobs.note')} className="rounded-xl border border-line p-2 text-sm" />
+          <div className="flex gap-2">
+            <Button tone="plain" className="flex-1" disabled={listening} onClick={listen}>🎤 {t(listening ? 'jobs.listening' : 'jobs.speak')}</Button>
+            <Button tone="plain" className="flex-1" disabled={note.trim().length < 3} onClick={() => void fill()}>✨ {t('jobs.fillFromNote')}</Button>
+          </div>
+          {parts.map((p, i) => (
+            <label key={i} className="flex min-h-10 items-center gap-2 text-sm">
+              <input type="checkbox" checked={p.use} disabled={!p.productId} onChange={(e) => setParts(parts.map((x, j) => (j === i ? { ...x, use: e.target.checked } : x)))} className="h-5 w-5" />
+              {p.productName ?? p.name} × {p.quantity}{!p.productId && ` (${t('jobs.partNotInStock')})`}
+            </label>
+          ))}
+        </div>
+      )}
       {service && (
         <>
           <Field label={t('jobs.serial')} value={d.serialNo} onChange={(e) => setD({ ...d, serialNo: e.target.value })} placeholder={t('jobs.serialHint')} />

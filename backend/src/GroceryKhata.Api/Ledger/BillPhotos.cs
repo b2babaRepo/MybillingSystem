@@ -62,40 +62,7 @@ public sealed class ClaudeBillPhotoReader(AnthropicClient client, string model, 
 
     public async Task<IReadOnlyList<ExpenseGuess>> ReadAsync(string mediaType, string base64, CancellationToken ct)
     {
-        GroceryKhata.Api.Common.AiBudget.Take();
-        var response = await client.Messages.Create(new MessageCreateParams
-        {
-            Model = model,
-            MaxTokens = 2000,
-            OutputConfig = new OutputConfig { Effort = Effort.Low, Format = new JsonOutputFormat { Schema = Schema } },
-            System = new List<TextBlockParam> { new() { Text = Instructions, CacheControl = new CacheControlEphemeral() } },
-            Messages =
-            [
-                new UserMessageParam
-                {
-                    Content = new List<ContentBlockParam>
-                    {
-                        new ImageBlockParam
-                        {
-                            Source = new Base64ImageSource
-                            {
-                                Data = base64,
-                                MediaType = mediaType switch { "image/png" => MediaType.ImagePng, "image/webp" => MediaType.ImageWebP, _ => MediaType.ImageJpeg },
-                            },
-                        },
-                        new TextBlockParam { Text = "Read this photo for the expense book." },
-                    },
-                },
-            ],
-        }, ct);
-        GroceryKhata.Api.Common.AiBudget.Record(logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, "bill photo", model, response.Usage.InputTokens, response.Usage.OutputTokens, response.Usage.CacheReadInputTokens ?? 0);
-
-        if (response.StopReason != "end_turn")
-        {
-            throw new InvalidOperationException($"The photo could not be read ({response.StopReason}).");
-        }
-
-        return Parse(string.Concat(response.Content.Select(b => b.Value).OfType<TextBlock>().Select(t => t.Text)));
+return Parse(await GroceryKhata.Api.Common.ClaudeJson.AskAsync(client, model, logger, "bill photo", Instructions, Schema, "Read this photo for the expense book.", (mediaType, base64), ct: ct));
     }
 
     /// <summary>The model's JSON to checked lines: sane amounts only, short notes, known headings.</summary>

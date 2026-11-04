@@ -58,22 +58,7 @@ public sealed class ClaudeDairyHelper(AnthropicClient client, string model, ILog
 
     public async Task<(string Answer, IReadOnlyList<(string Type, int FarmerCode, decimal Amount, string Why)> Drafts)> AskAsync(string question, string records, CancellationToken ct)
     {
-        AiBudget.Take();
-        var response = await client.Messages.Create(new MessageCreateParams
-        {
-            Model = model,
-            MaxTokens = 1500,
-            OutputConfig = new OutputConfig { Effort = Effort.Low, Format = new JsonOutputFormat { Schema = Schema } },
-            System = new List<TextBlockParam> { new() { Text = Instructions, CacheControl = new CacheControlEphemeral() } },
-            Messages = [new UserMessageParam { Content = $"<records>\n{records}\n</records>\n\nOwner's question: {question}" }],
-        }, ct);
-        AiBudget.Record(logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, "dairy helper", model, response.Usage.InputTokens, response.Usage.OutputTokens, response.Usage.CacheReadInputTokens ?? 0);
-        if (response.StopReason != "end_turn")
-        {
-            throw new InvalidOperationException($"No answer ({response.StopReason}).");
-        }
-
-        using var doc = JsonDocument.Parse(string.Concat(response.Content.Select(b => b.Value).OfType<TextBlock>().Select(t => t.Text)));
+using var doc = JsonDocument.Parse(await ClaudeJson.AskAsync(client, model, logger, "dairy helper", Instructions, Schema, $"<records>\n{records}\n</records>\n\nOwner's question: {question}", maxTokens: 1500, ct: ct));
         var answer = doc.RootElement.GetProperty("answer").GetString() ?? "";
         var drafts = doc.RootElement.GetProperty("actions").EnumerateArray().Take(5)
             .Select(a => (a.GetProperty("type").GetString() ?? "", a.GetProperty("farmerCode").GetInt32(), a.GetProperty("amount").GetDecimal(), a.GetProperty("why").GetString() ?? "")).ToList();

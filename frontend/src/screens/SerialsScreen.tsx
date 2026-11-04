@@ -29,7 +29,7 @@ export function ServiceHomeCard({ isOwner }: { isOwner: boolean }) {
       <span>{label}</span><span aria-hidden="true">→</span>
     </button>
   )
-  return <>{link('/serials', `🔌 ${t('serials.link')}`)}{link('/trips', `🚐 ${t('trips.link')}`)}{link('/amc', `📅 ${t('amc.link')}`)}{isOwner && link('/claims', `🧾 ${t('claims.link')}`)}</>
+  return <>{link('/serials', `🔌 ${t('serials.link')}`)}{link('/trips', `🚐 ${t('trips.link')}`)}{link('/amc', `📅 ${t('amc.link')}`)}{isOwner && link('/claims', `🧾 ${t('claims.link')}`)}{isOwner && link('/service-desk', `🔎 ${t('desk.link')}`)}</>
 }
 
 /** Serial numbers: note them when units come in, and look any unit up (who bought it, warranty till when). */

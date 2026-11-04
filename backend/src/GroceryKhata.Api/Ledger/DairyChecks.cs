@@ -71,39 +71,8 @@ public sealed class ClaudeDairyPhotoReader(AnthropicClient client, string model,
           "required": ["lines"], "additionalProperties": false }
         """);
 
-    private async Task<string> AskAsync(string instructions, Dictionary<string, JsonElement> schema, string mediaType, string base64, string what, CancellationToken ct)
-    {
-        AiBudget.Take();
-        var response = await client.Messages.Create(new MessageCreateParams
-        {
-            Model = model,
-            MaxTokens = 4000,
-            OutputConfig = new OutputConfig { Effort = Effort.Low, Format = new JsonOutputFormat { Schema = schema } },
-            System = new List<TextBlockParam> { new() { Text = instructions, CacheControl = new CacheControlEphemeral() } },
-            Messages =
-            [
-                new UserMessageParam
-                {
-                    Content = new List<ContentBlockParam>
-                    {
-                        new ImageBlockParam
-                        {
-                            Source = new Base64ImageSource
-                            {
-                                Data = base64,
-                                MediaType = mediaType switch { "image/png" => MediaType.ImagePng, "image/webp" => MediaType.ImageWebP, _ => MediaType.ImageJpeg },
-                            },
-                        },
-                        new TextBlockParam { Text = $"Read this {what}." },
-                    },
-                },
-            ],
-        }, ct);
-        AiBudget.Record(logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, what, model, response.Usage.InputTokens, response.Usage.OutputTokens, response.Usage.CacheReadInputTokens ?? 0);
-        return response.StopReason == "end_turn"
-            ? string.Concat(response.Content.Select(b => b.Value).OfType<TextBlock>().Select(t => t.Text))
-            : throw new InvalidOperationException($"The photo could not be read ({response.StopReason}).");
-    }
+    private Task<string> AskAsync(string instructions, Dictionary<string, JsonElement> schema, string mediaType, string base64, string what, CancellationToken ct) =>
+        ClaudeJson.AskAsync(client, model, logger, what, instructions, schema, $"Read this {what}.", (mediaType, base64), maxTokens: 4000, ct: ct);
 
     public async Task<AnalyserSlip> ReadSlipAsync(string mediaType, string base64, CancellationToken ct) =>
         ParseSlip(await AskAsync(SlipInstructions, SlipSchema, mediaType, base64, "milk testing slip", ct));

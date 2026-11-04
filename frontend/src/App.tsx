@@ -46,6 +46,7 @@ const BridalScreen = lazy(() => import('./screens/BridalScreen').then((module) =
 const PackagesScreen = lazy(() => import('./screens/PackagesScreen').then((module) => ({ default: module.PackagesScreen })))
 const StylistEarningsScreen = lazy(() => import('./screens/SalonSetupScreen').then((module) => ({ default: module.StylistEarningsScreen })))
 const AppointmentsScreen = lazy(() => import('./screens/AppointmentsScreen').then((module) => ({ default: module.AppointmentsScreen })))
+const ServiceDeskScreen = lazy(() => import('./screens/ServiceDeskScreen').then((module) => ({ default: module.ServiceDeskScreen })))
 const AmcScreen = lazy(() => import('./screens/AmcScreen').then((module) => ({ default: module.AmcScreen })))
 const TripsScreen = lazy(() => import('./screens/TripsScreen').then((module) => ({ default: module.TripsScreen })))
 const ClaimsScreen = lazy(() => import('./screens/ClaimsScreen').then((module) => ({ default: module.ClaimsScreen })))
@@ -317,6 +318,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <TripsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/amc' ? (
           <AmcScreen shopId={shopId} />
+        ) : path === '/service-desk' && isOwner ? (
+          <ServiceDeskScreen shopId={shopId} />
         ) : path === '/dairy' ? (
           <DairyScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
         ) : path === '/medical/refills' ? (

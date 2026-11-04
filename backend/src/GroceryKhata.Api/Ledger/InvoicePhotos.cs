@@ -79,39 +79,7 @@ public sealed class ClaudeInvoiceReader(AnthropicClient client, string model, IL
 
     public async Task<InvoiceGuess> ReadAsync(string mediaType, string base64, CancellationToken ct)
     {
-        AiBudget.Take();
-        var response = await client.Messages.Create(new MessageCreateParams
-        {
-            Model = model,
-            MaxTokens = 6000,
-            OutputConfig = new OutputConfig { Effort = Effort.Medium, Format = new JsonOutputFormat { Schema = Schema } },
-            System = new List<TextBlockParam> { new() { Text = Instructions, CacheControl = new CacheControlEphemeral() } },
-            Messages =
-            [
-                new UserMessageParam
-                {
-                    Content = new List<ContentBlockParam>
-                    {
-                        new ImageBlockParam
-                        {
-                            Source = new Base64ImageSource
-                            {
-                                Data = base64,
-                                MediaType = mediaType switch { "image/png" => MediaType.ImagePng, "image/webp" => MediaType.ImageWebP, _ => MediaType.ImageJpeg },
-                            },
-                        },
-                        new TextBlockParam { Text = "Read this distributor's bill." },
-                    },
-                },
-            ],
-        }, ct);
-        AiBudget.Record(logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, "invoice photo", model, response.Usage.InputTokens, response.Usage.OutputTokens, response.Usage.CacheReadInputTokens ?? 0);
-        if (response.StopReason != "end_turn")
-        {
-            throw new InvalidOperationException($"The photo could not be read ({response.StopReason}).");
-        }
-
-        return Parse(string.Concat(response.Content.Select(b => b.Value).OfType<TextBlock>().Select(t => t.Text)));
+return Parse(await ClaudeJson.AskAsync(client, model, logger, "invoice photo", Instructions, Schema, "Read this distributor's bill.", (mediaType, base64), Effort.Medium, 6000, ct));
     }
 
     /// <summary>The model's JSON to bounded values: sane numbers only (anything else becomes null), short text, at most 60 lines.</summary>
