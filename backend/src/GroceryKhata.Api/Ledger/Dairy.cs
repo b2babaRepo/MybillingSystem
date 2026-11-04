@@ -349,7 +349,7 @@ public static class Dairy
         return milk.Keys.Union(entries.Keys).ToDictionary(k => k, k => milk.GetValueOrDefault(k) + entries.GetValueOrDefault(k));
     }
 
-    private static async Task<IResult> SaveFarmerAsync(FarmerRequest request, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> SaveFarmerAsync(FarmerRequest request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
     {
         var name = request.Name?.Trim();
         if (request.Id == Guid.Empty || name is not { Length: >= 2 and <= 80 })
@@ -367,6 +367,8 @@ public static class Dairy
         }
 
         (farmer.Name, farmer.Phone, farmer.Village, farmer.DefaultKind, farmer.IsActive) = (name, phone, village, request.DefaultKind, request.IsActive);
+        // The WhatsApp bot finds a farmer by phone before it knows the centre; a farmer taken off stops answering too.
+        await DairyBot.LinkPhoneAsync(db, tenant.ShopId, farmer.Id, request.IsActive ? phone : null, ct);
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(new FarmerDto(farmer.Id, farmer.Code, farmer.Name, farmer.Phone, farmer.Village, farmer.DefaultKind, farmer.IsActive, 0));
     }

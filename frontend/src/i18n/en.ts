@@ -922,6 +922,7 @@ export const en = {
     statementAmount: 'Amount on statement', statementAmountHint: 'blank: our dairy rate', markPaid: 'Dairy paid this', paidOn: 'Paid {{date}}',
     newPlan: 'New rate plan', planHint: 'Rates change from a date: old milk keeps the rate it was bought at. Set one for farmers, and one for what the dairy pays you.',
     planFor: 'For', for_farmers: 'Paying farmers', for_dairy: 'Dairy pays us', from: 'From', method: 'Method', method_fat_snf: 'Fat + SNF (per kg)', method_fat_only: 'Fat only (per kg)', method_flat: 'Per litre',
+    botHint: 'Farmers with a phone saved here can WhatsApp the Grocery Khata number from that phone: 1 for their balance, 2 for today’s milk, 3 for the rate, 4 for this cycle’s bill. They only ever see their own figures.',
     tab_helper: 'Helper', heard: 'Heard: “{{text}}”. Check the fields before saving.',
     helperOff: 'The helper needs the AI switched on for this shop.', helperConsent: 'Your question and a summary of the centre’s records (farmers’ names, milk and dues) go to an AI service (Anthropic) to answer. Nothing is kept there, and it can’t change anything.',
     helperHint: 'Ask about your centre in Hindi or English. It answers from your own records only, and anything it suggests waits for your tap.',

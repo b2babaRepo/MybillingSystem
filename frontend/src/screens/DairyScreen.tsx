@@ -265,6 +265,7 @@ function Farmers({ shopId }: { shopId: string }) {
     <>
       <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
         <h3 className="font-bold">{t('dairy.addFarmer')}</h3>
+        <p className="rounded-xl bg-teal-50 p-2 text-xs text-teal-900">{t('dairy.botHint')}</p>
         <div className="grid grid-cols-2 gap-2">
           <Field label={t('dairy.name')} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
           <Field label={t('phone')} value={d.phone} onChange={(e) => setD({ ...d, phone: e.target.value })} inputMode="tel" />

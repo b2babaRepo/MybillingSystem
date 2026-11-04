@@ -120,7 +120,9 @@ public static class WhatsAppOrders
                     continue;
                 }
 
-                var reply = await HandleAsync(message, db, reader, whatsapp, speech, clock, ct);
+                // A farmer of a milk centre asking for their figures is answered first; anyone else goes to the list reader.
+                var reply = await Ledger.DairyBot.TryReplyAsync(message, db, services.GetRequiredService<IServiceScopeFactory>(), clock, ct)
+                    ?? await HandleAsync(message, db, reader, whatsapp, speech, clock, ct);
                 if (reply is not null && whatsapp is not null)
                 {
                     await whatsapp.SendTextAsync(phoneNumberId, message.GetProperty("from").GetString()!, reply, ct);

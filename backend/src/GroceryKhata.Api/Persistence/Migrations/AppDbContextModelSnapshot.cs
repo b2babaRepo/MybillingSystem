@@ -3893,6 +3893,28 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("dairy_farmer_entries", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.DairyFarmerPhone", b =>
+                {
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<Guid>("FarmerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("farmer_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.HasKey("Phone", "FarmerId");
+
+                    b.HasIndex("FarmerId");
+
+                    b.ToTable("dairy_farmer_phones", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.DairyGridCell", b =>
                 {
                     b.Property<Guid>("Id")

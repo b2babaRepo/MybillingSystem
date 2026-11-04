@@ -46,6 +46,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Common.SeenMessage> SeenMessages => Set<Common.SeenMessage>();
 
+    public DbSet<DairyFarmerPhone> DairyFarmerPhones => Set<DairyFarmerPhone>();
+
     public DbSet<Supplier> Suppliers => Set<Supplier>();
 
     public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
@@ -237,6 +239,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("seen_messages");
             b.HasKey(m => m.MessageId);
             b.Property(m => m.MessageId).HasMaxLength(200);
+        });
+
+        // No shop filter: the WhatsApp bot looks a sender up here before it knows the centre. Only phone → farmer links.
+        modelBuilder.Entity<DairyFarmerPhone>(b =>
+        {
+            b.ToTable("dairy_farmer_phones");
+            b.HasKey(p => new { p.Phone, p.FarmerId });
+            b.Property(p => p.Phone).HasMaxLength(20);
+            b.HasIndex(p => p.FarmerId);
         });
 
         modelBuilder.Entity<SavedAddress>(b =>

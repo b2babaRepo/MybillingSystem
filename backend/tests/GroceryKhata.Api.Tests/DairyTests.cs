@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using GroceryKhata.Api.Ledger;
 
@@ -89,6 +90,51 @@ public sealed class DairyTests(ApiFactory api) : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.ServiceUnavailable, (await shop.PostJsonAsync("/api/v1/dairy/ask", new { question = "kisko paisa dena hai?" })).StatusCode);
         var parsed = await (await shop.PostJsonAsync("/api/v1/dairy/parse-entry", new { question = "do number teen litre gaay fat chaar" })).ReadAsync<SpokenEntry>();
         Assert.Equal((2, MilkKind.Cow, 3m, 4m), (parsed.FarmerCode!.Value, parsed.Kind!.Value, parsed.Litres!.Value, parsed.Fat!.Value));
+    }
+
+    [Theory]
+    [InlineData("1", "balance")]
+    [InlineData("mera hisab batao", "balance")]
+    [InlineData("आज का दूध", "today")]
+    [InlineData("rate kya hai", "rate")]
+    [InlineData("4", "bill")]
+    [InlineData("hello", null)]
+    public void The_bot_understands_what_a_farmer_asks(string text, string? intent) => Assert.Equal(intent, DairyBot.Intent(text));
+
+    [Fact]
+    public async Task A_farmer_messaging_on_whatsapp_gets_only_their_own_figures()
+    {
+        var (shop, _) = await api.SignUpAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5));
+        var farmer = Guid.CreateVersion7();
+        var phone = ApiFactory.NewPhone();
+        (await shop.PostJsonAsync("/api/v1/dairy/farmers", new { id = farmer, name = "Ramesh Yadav", phone, defaultKind = "buffalo" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/dairy/rate-plans", new
+        {
+            id = Guid.CreateVersion7(), @for = "farmers", from = today.AddDays(-3), method = "fat_snf",
+            rates = new[] { new { kind = "buffalo", fatRate = 600m, snfRate = 400m, flatRate = 0m, minFat = 5m, minSnf = 9m } },
+        })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/dairy/collections", new { id = Guid.CreateVersion7(), date = today, shift = "morning", farmerId = farmer, kind = "buffalo", litres = 10m, fat = 6.5m, snf = 9.0m })).EnsureSuccessStatusCode();
+
+        async Task<string?> Say(string from, string text)
+        {
+            using var scope = api.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<GroceryKhata.Api.Persistence.AppDbContext>();
+            using var message = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(new { from = from.TrimStart('+'), type = "text", text = new { body = text } }));
+            return await DairyBot.TryReplyAsync(message.RootElement, db, api.Services.GetRequiredService<IServiceScopeFactory>(), TimeProvider.System, CancellationToken.None);
+        }
+
+        var digits = "91" + phone;
+        Assert.Contains("₹772.5 baaki", await Say(digits, "hisab"));
+        Assert.Contains("10 L, fat 6.5, SNF 9.0, ₹772.5", await Say(digits, "aaj"));
+        Assert.Contains("fat ₹600/kg + SNF ₹400/kg", await Say(digits, "rate"));
+        Assert.Contains("1 – Hisab", await Say(digits, "namaste"));
+        // Someone else's number: not a farmer here, so it goes on to the shopping-list reader instead.
+        Assert.Null(await Say("91" + ApiFactory.NewPhone(), "hisab"));
+
+        // Taken off the list: the bot stops answering for that number.
+        (await shop.PostJsonAsync("/api/v1/dairy/farmers", new { id = farmer, name = "Ramesh Yadav", phone, defaultKind = "buffalo", isActive = false })).EnsureSuccessStatusCode();
+        Assert.Null(await Say(digits, "hisab"));
     }
 
     [Fact]
