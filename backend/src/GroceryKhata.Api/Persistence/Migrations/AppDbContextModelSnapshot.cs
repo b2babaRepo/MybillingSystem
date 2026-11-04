@@ -4375,6 +4375,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("bill_id");
 
+                    b.Property<string>("Complaint")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("complaint");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -4396,6 +4401,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("estimated_cost");
 
+                    b.Property<bool>("InWarranty")
+                        .HasColumnType("boolean")
+                        .HasColumnName("in_warranty");
+
                     b.Property<string>("Note")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)")
@@ -4409,6 +4418,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("price");
+
+                    b.Property<Guid?>("ProductSerialId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_serial_id");
+
+                    b.Property<string>("SerialNo")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("serial_no");
 
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
@@ -4436,6 +4454,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
                     b.HasIndex("ShopId", "Number")
                         .IsUnique();
+
+                    b.HasIndex("ShopId", "SerialNo");
 
                     b.ToTable("jobs", (string)null);
                 });

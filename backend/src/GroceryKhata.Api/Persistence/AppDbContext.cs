@@ -637,6 +637,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         modelBuilder.Entity<Job>(b =>
         {
             b.ToTable("jobs");
+            b.Property(x => x.SerialNo).HasMaxLength(40);
+            b.Property(x => x.Complaint).HasMaxLength(300);
+            b.HasIndex(x => new { x.ShopId, x.SerialNo });
             b.HasTenantKey();
             b.Property(j => j.Title).HasMaxLength(120);
             b.Property(j => j.Note).HasMaxLength(300);

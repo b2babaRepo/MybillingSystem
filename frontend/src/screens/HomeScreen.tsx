@@ -118,7 +118,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
           <span>{t('bookings.link')}</span><span aria-hidden="true">→</span>
         </button>
       )}
-      {types.includes('woodwork') && (
+      {(types.includes('woodwork') || types.includes('sales_service')) && (
         <button onClick={() => navigate('/jobs')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
           <span>{t('jobs.link')}</span><span aria-hidden="true">→</span>
         </button>

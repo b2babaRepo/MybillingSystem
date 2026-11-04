@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
-import { formatRupees } from '../lib/format'
+import { formatRupees, whatsAppLink } from '../lib/format'
+import { shopTypes, useShopSettings } from '../lib/reports'
 import { ExportImportPanel } from './ExportImportPanel'
 import { KarigarPanel, MachinesPanel } from './WorkshopPanels'
 
@@ -13,6 +14,7 @@ interface Job {
   id: string; number: number; customerId: string | null; customerName: string | null; title: string; status: Status; price: number
   estimatedCost: number | null; dueOn: string | null; note: string | null; billId: string | null
   material: number; labour: number; other: number; cost: number; advance: number; profit: number
+  customerPhone: string | null; serialNo: string | null; complaint: string | null; inWarranty: boolean
 }
 interface Entry { id: string; kind: 'material' | 'labour' | 'other' | 'advance'; description: string; quantity: number | null; amount: number; occurredAt: string }
 
@@ -56,8 +58,8 @@ export function JobsScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
           <li key={j.id}>
             <button onClick={() => setOpenId(j.id)} className="flex w-full items-center gap-3 rounded-[18px] bg-white p-3 text-left">
               <span className="min-w-0 flex-1">
-                <span className="block font-semibold">#{j.number} {j.title}</span>
-                <span className="block text-xs text-muted">{t(`jobs.status.${j.status}`)}{j.customerName ? ` · ${j.customerName}` : ''}{j.dueOn ? ` · ${t('jobs.due', { date: j.dueOn })}` : ''}</span>
+                <span className="block font-semibold">#{j.number} {j.title}{j.serialNo ? ` · S/N ${j.serialNo}` : ''}</span>
+                <span className="block text-xs text-muted">{t(`jobs.status.${j.status}`)}{j.customerName ? ` · ${j.customerName}` : ''}{j.dueOn ? ` · ${t('jobs.due', { date: j.dueOn })}` : ''}{j.inWarranty ? ` · ${t('jobs.inWarranty')}` : ''}</span>
               </span>
               <span className="text-right">
                 <span className="block font-bold">{formatRupees(j.price)}</span>
@@ -75,7 +77,8 @@ function NewJob({ shopId, onDone }: { shopId: string; onDone: (id?: string) => v
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { customers } = useCustomers(shopId)
-  const [d, setD] = useState({ title: '', customerId: '', price: '', cost: '', dueOn: '', quote: false })
+  const service = shopTypes(useShopSettings(shopId).data).includes('sales_service')
+  const [d, setD] = useState({ title: '', customerId: '', price: '', cost: '', dueOn: '', quote: false, serialNo: '', complaint: '' })
   const [message, setMessage] = useState('')
 
   async function save() {
@@ -84,7 +87,7 @@ function NewJob({ shopId, onDone }: { shopId: string; onDone: (id?: string) => v
     try {
       await api('/v1/jobs', 'POST', {
         id, title: d.title.trim(), customerId: d.customerId || null, price: Number(d.price) || 0, estimatedCost: d.cost ? Number(d.cost) : null,
-        dueOn: d.dueOn || null, status: d.quote ? 'quote' : 'order',
+        dueOn: d.dueOn || null, status: d.quote ? 'quote' : 'order', serialNo: d.serialNo.trim() || null, complaint: d.complaint.trim() || null,
       })
       void queryClient.invalidateQueries({ queryKey: [shopId, 'jobs'] })
       onDone(id)
@@ -95,7 +98,13 @@ function NewJob({ shopId, onDone }: { shopId: string; onDone: (id?: string) => v
 
   return (
     <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
-      <Field label={t('jobs.name')} value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} placeholder={t('jobs.titleHint')} />
+      <Field label={t('jobs.name')} value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} placeholder={t(service ? 'jobs.serviceTitleHint' : 'jobs.titleHint')} />
+      {service && (
+        <>
+          <Field label={t('jobs.serial')} value={d.serialNo} onChange={(e) => setD({ ...d, serialNo: e.target.value })} placeholder={t('jobs.serialHint')} />
+          <Field label={t('jobs.complaint')} value={d.complaint} onChange={(e) => setD({ ...d, complaint: e.target.value })} placeholder={t('jobs.complaintHint')} />
+        </>
+      )}
       <label className="block">
         <span className="mb-1 block text-sm font-semibold text-muted">{t('jobs.customer')}</span>
         <select value={d.customerId} onChange={(e) => setD({ ...d, customerId: e.target.value })} className="h-12 w-full rounded-xl border border-line bg-white px-3">
@@ -165,6 +174,14 @@ export function JobPage({ shopId, id, onBack, embedded = false }: { shopId: stri
       <div className="rounded-[18px] bg-white p-4">
         <h2 className="text-lg font-bold">#{job.number} {job.title}</h2>
         <p className="text-sm text-muted">{t(`jobs.status.${job.status}`)}{job.customerName ? ` · ${job.customerName}` : ''}{job.dueOn ? ` · ${t('jobs.due', { date: job.dueOn })}` : ''}</p>
+        {job.serialNo && (
+          <p className="mt-1 text-sm">S/N <b>{job.serialNo}</b> · <span className={job.inWarranty ? 'font-semibold text-teal-700' : 'text-due'}>{t(job.inWarranty ? 'jobs.inWarranty' : 'jobs.outWarranty')}</span></p>
+        )}
+        {job.complaint && <p className="mt-1 text-sm">{t('jobs.complaint')}: {job.complaint}</p>}
+        {job.customerPhone && (
+          <a href={whatsAppLink(job.customerPhone, t('jobs.statusMessage', { name: job.customerName ?? '', number: job.number, title: job.title, status: t(`jobs.status.${job.status}`), due: formatRupees(Math.max(0, job.price - job.advance)) }))}
+            target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center font-semibold text-teal-700">💬 {t('jobs.sendStatus')}</a>
+        )}
         <div className="mt-3 flex flex-col gap-1 text-sm">
           {line(t('jobs.price'), job.price, true)}
           {line(t('jobs.materialCost'), job.material)}

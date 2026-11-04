@@ -174,6 +174,41 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_service_job_finds_the_customer_and_warranty_from_the_serial_and_closes_free_under_warranty()
+    {
+        var shop = await SignUpAsync("sales_service");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var items = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        var pump = items.First(p => p.TracksSerials && p.Name.Contains("pump", StringComparison.OrdinalIgnoreCase));
+        var capacitor = items.Single(p => p.Name == "Capacitor 36 mfd");
+        (await shop.PutAsJsonAsync($"/api/v1/products/{capacitor.Id}", new { name = capacitor.Name, unit = "piece", sellingPrice = 180m, costPrice = 120m }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        var farmer = await (await shop.PostJsonAsync("/api/v1/customers", new { id = Guid.CreateVersion7(), name = "Ramdeen" })).ReadAsync<CustomerDto>();
+
+        (await shop.PostJsonAsync("/api/v1/serials/receive", new { productId = pump.Id, serials = new[] { "PMP77" } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/bills", new
+        {
+            id = Guid.CreateVersion7(), customerId = farmer.Id, lines = new[] { new { productId = pump.Id, quantity = 1m, unitPrice = 14500m } }, paidAmount = 14500m, paymentMode = "cash",
+            serials = new[] { new { productId = pump.Id, serialNo = "PMP77" } },
+        })).EnsureSuccessStatusCode();
+
+        // The pump comes back: the serial brings the farmer and the warranty.
+        var id = Guid.CreateVersion7();
+        var job = (await (await shop.PostJsonAsync("/api/v1/jobs", new { id, title = "Pump repair", price = 0m, serialNo = "pmp 77", complaint = "Hums, no water" })).ReadAsync<JobDetail>()).Job;
+        Assert.Equal(("PMP77", farmer.Id, true, "Hums, no water"), (job.SerialNo, job.CustomerId!.Value, job.InWarranty, job.Complaint));
+        (await shop.PostJsonAsync($"/api/v1/jobs/{id}/material", new { id = Guid.CreateVersion7(), productId = capacitor.Id, quantity = 1m })).EnsureSuccessStatusCode();
+
+        // Free under warranty: delivered with no bill; the part stays as the job's cost.
+        job = (await (await shop.PostJsonAsync($"/api/v1/jobs/{id}/deliver", new { billId = Guid.CreateVersion7(), paidAmount = 0m })).ReadAsync<JobDetail>()).Job;
+        Assert.Equal((JobStatus.Delivered, (Guid?)null, 120m), (job.Status, job.BillId, job.Material));
+
+        // A unit sold by someone else is just noted, out of warranty, and must be charged.
+        var other = Guid.CreateVersion7();
+        var outside = (await (await shop.PostJsonAsync("/api/v1/jobs", new { id = other, title = "Motor rewinding", price = 0m, serialNo = "XYZ1" })).ReadAsync<JobDetail>()).Job;
+        Assert.Equal(("XYZ1", false, (Guid?)null), (outside.SerialNo, outside.InWarranty, outside.CustomerId));
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/jobs/{other}/deliver", new { billId = Guid.CreateVersion7(), paidAmount = 0m })).StatusCode);
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");

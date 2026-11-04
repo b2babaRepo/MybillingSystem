@@ -42,6 +42,18 @@ public sealed class Job : Entity, ITenantOwned
     public Guid? BillId { get; set; }
 
     public DateTimeOffset? DeliveredAt { get; set; }
+
+    /// <summary>Service work (sales & service shop): the unit's serial, as written on it.</summary>
+    public string? SerialNo { get; set; }
+
+    /// <summary>The shop's own record of that unit, when the shop sold it.</summary>
+    public Guid? ProductSerialId { get; set; }
+
+    /// <summary>What the customer says is wrong ("motor hums, no water").</summary>
+    public string? Complaint { get; set; }
+
+    /// <summary>Under the shop's warranty on the day the job was opened: looked up from the sale.</summary>
+    public bool InWarranty { get; set; }
 }
 
 public enum JobStatus
@@ -90,7 +102,8 @@ public enum JobEntryKind
     Advance,
 }
 
-public sealed record JobRequest(Guid Id, Guid? CustomerId, string? Title, decimal Price, decimal? EstimatedCost, DateOnly? DueOn, string? Note, JobStatus? Status);
+public sealed record JobRequest(Guid Id, Guid? CustomerId, string? Title, decimal Price, decimal? EstimatedCost, DateOnly? DueOn, string? Note, JobStatus? Status,
+    string? SerialNo = null, string? Complaint = null);
 
 public sealed record JobStatusRequest(JobStatus? Status);
 
@@ -109,7 +122,7 @@ public sealed record JobEntryDto(Guid Id, JobEntryKind Kind, string Description,
 public sealed record JobDto(
     Guid Id, int Number, Guid? CustomerId, string? CustomerName, string Title, JobStatus Status, decimal Price, decimal? EstimatedCost,
     DateOnly? DueOn, string? Note, Guid? BillId, decimal Material, decimal Labour, decimal Other, decimal Cost, decimal Advance, decimal Profit,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt, string? CustomerPhone = null, string? SerialNo = null, string? Complaint = null, bool InWarranty = false);
 
 /// <summary>A job's lines, and its estimated share of rent, electricity and repairs (<see cref="Jobs.OverheadShareAsync"/>).</summary>
 public sealed record JobDetail(JobDto Job, IReadOnlyList<JobEntryDto> Entries, decimal Overhead = 0);
@@ -140,14 +153,15 @@ public static class Jobs
         var sums = await db.JobEntries.AsNoTracking().Where(e => ids.Contains(e.JobId))
             .GroupBy(e => new { e.JobId, e.Kind }).Select(g => new { g.Key.JobId, g.Key.Kind, Total = g.Sum(e => e.Amount) }).ToListAsync(ct);
         var customerIds = list.Where(j => j.CustomerId != null).Select(j => j.CustomerId!.Value).Distinct().ToList();
-        var names = await db.Customers.AsNoTracking().Where(c => customerIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name, ct);
+        var people = await db.Customers.AsNoTracking().Where(c => customerIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => new { c.Name, c.Phone }, ct);
         return list.Select(j =>
         {
             decimal Sum(JobEntryKind k) => sums.Where(s => s.JobId == j.Id && s.Kind == k).Sum(s => s.Total);
             var (material, labour, other) = (Sum(JobEntryKind.Material), Sum(JobEntryKind.Labour), Sum(JobEntryKind.Other));
             var cost = material + labour + other;
-            return new JobDto(j.Id, j.Number, j.CustomerId, j.CustomerId is { } c ? names.GetValueOrDefault(c) : null, j.Title, j.Status, j.Price, j.EstimatedCost,
-                j.DueOn, j.Note, j.BillId, material, labour, other, cost, Sum(JobEntryKind.Advance), j.Price - cost, j.CreatedAt);
+            return new JobDto(j.Id, j.Number, j.CustomerId, j.CustomerId is { } c ? people.GetValueOrDefault(c)?.Name : null, j.Title, j.Status, j.Price, j.EstimatedCost,
+                j.DueOn, j.Note, j.BillId, material, labour, other, cost, Sum(JobEntryKind.Advance), j.Price - cost, j.CreatedAt,
+                j.CustomerId is { } p ? people.GetValueOrDefault(p)?.Phone : null, j.SerialNo, j.Complaint, j.InWarranty);
         }).ToList();
     }
 
@@ -219,20 +233,29 @@ public static class Jobs
         var errors = new Dictionary<string, string[]>();
         if (request.Id == Guid.Empty) errors["Id"] = ["The app must send an ID for every new record."];
         if (request.Title?.Trim() is not { Length: >= 2 and <= 120 }) errors["Title"] = ["Say what is being made (2 to 120 letters)."];
-        if (request.Price < 0 || !Money.IsValidAmount(request.Price)) errors["Price"] = ["Enter the agreed price."];
+        if (request.Price < 0 || (request.Price > 0 && !Money.IsValidAmount(request.Price))) errors["Price"] = ["Enter the agreed price."];
         if (request.EstimatedCost is { } e && (e < 0 || !Money.IsValidAmount(e))) errors["EstimatedCost"] = ["Enter a valid cost, or leave it empty."];
         if (request.Note?.Length > 300) errors["Note"] = ["Keep the note under 300 letters."];
         if (request.Status is not (null or JobStatus.Quote or JobStatus.Order)) errors["Status"] = ["A new job is a quote or an order."];
         if (request.CustomerId is { } customer && !await db.Customers.AnyAsync(c => c.Id == customer, ct)) errors["CustomerId"] = ["Customer not found."];
+        if (request.Complaint?.Length > 300) errors["Complaint"] = ["Keep the complaint under 300 letters."];
+        var serialNo = string.IsNullOrWhiteSpace(request.SerialNo) ? null : Serials.Clean(request.SerialNo);
+        if (serialNo?.Length > 40) errors["SerialNo"] = ["A serial number is at most 40 letters."];
         if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(errors);
         }
 
+        // A unit the shop sold: the customer and the warranty come from that sale. A unit bought elsewhere is just noted.
+        var unit = serialNo is null ? null
+            : await db.ProductSerials.AsNoTracking().Where(s => s.SerialNo == serialNo).OrderByDescending(s => s.SoldOn).FirstOrDefaultAsync(ct);
+        var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToOffset(IndiaTime.Offset).DateTime);
         var number = (await db.Jobs.MaxAsync(j => (int?)j.Number, ct) ?? 0) + 1;
         db.Jobs.Add(new Job
         {
-            Id = request.Id, Number = number, CustomerId = request.CustomerId, Title = request.Title!.Trim(), Status = request.Status ?? JobStatus.Order,
+            SerialNo = serialNo, ProductSerialId = unit?.Id, InWarranty = unit?.WarrantyUntil is { } until && until >= today,
+            Complaint = string.IsNullOrWhiteSpace(request.Complaint) ? null : request.Complaint.Trim(),
+            Id = request.Id, Number = number, CustomerId = request.CustomerId ?? unit?.CustomerId, Title = request.Title!.Trim(), Status = request.Status ?? JobStatus.Order,
             Price = request.Price, EstimatedCost = request.EstimatedCost, DueOn = request.DueOn, Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
         });
         await db.SaveChangesAsync(ct);
@@ -420,6 +443,14 @@ public static class Jobs
         if (await OpenJobAsync(db, id, ct) is not { } job)
         {
             return await db.Jobs.AnyAsync(j => j.Id == id && j.BillId == request.BillId, ct) ? await GetAsync(id, db, ct) : TypedResults.NotFound();
+        }
+
+        if (job.Price <= 0 && job.InWarranty)
+        {
+            // Repaired free under warranty: nothing to bill. Parts and wages stay on the job as its cost.
+            (job.Status, job.DeliveredAt) = (JobStatus.Delivered, clock.GetUtcNow());
+            await db.SaveChangesAsync(ct);
+            return await GetAsync(id, db, ct);
         }
 
         if (job.Price <= 0)
