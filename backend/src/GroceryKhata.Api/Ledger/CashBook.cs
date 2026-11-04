@@ -22,6 +22,9 @@ public enum CashBookSource
 
     /// <summary>Money spent from the kharcha page (negative). Who holds the heading ("Tea", "Rent").</summary>
     Expense,
+
+    /// <summary>Cash given to a technician for a field trip (negative), or handed back when it is settled.</summary>
+    Technician,
 }
 
 /// <summary>
@@ -70,7 +73,7 @@ public static class CashBookEndpoints
                            select new { b.Id, b.OccurredAt, b.Total, b.PaidAmount, b.PaymentMode, Name = c == null ? null : c.Name })
             .ToListAsync(ct);
         var entries = await (from e in db.LedgerEntries.AsNoTracking()
-                             where e.OccurredAt >= start && e.OccurredAt < end
+                             where e.OccurredAt >= start && e.OccurredAt < end && e.TripId == null
                              join c in db.Customers.AsNoTracking() on e.CustomerId equals c.Id
                              select new { e.OccurredAt, e.Kind, e.Amount, e.PaymentMode, e.BillId, c.Name })
             .ToListAsync(ct);
@@ -84,9 +87,16 @@ public static class CashBookEndpoints
                 e.Name, e.PaymentMode!.Value, -e.Amount, null)));
         // Money out: the day's kharcha (struck lines don't count).
         lines.AddRange(await db.Expenses.AsNoTracking()
-            .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null)
+            .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && e.TripId == null)
             .Select(e => new CashBookLine(e.OccurredAt, CashBookSource.Expense, e.Note ?? e.Category.ToString(), e.Mode, -e.Amount, null))
             .ToListAsync(ct));
+        // Technicians' trip cash: the advance leaves the drawer the day it is given; what they hand back comes in at settlement.
+        lines.AddRange(await (from e in db.TripEntries.AsNoTracking()
+                              where e.Kind == TripEntryKind.Advance && e.OccurredAt >= start && e.OccurredAt < end
+                              join t in db.Trips.AsNoTracking() on e.TripId equals t.Id
+                              select new CashBookLine(e.OccurredAt, CashBookSource.Technician, t.Technician, PaymentMode.Cash, -e.Amount, null)).ToListAsync(ct));
+        lines.AddRange(await db.Trips.AsNoTracking().Where(t => t.SettledAt >= start && t.SettledAt < end && t.Returned != null && t.Returned != 0)
+            .Select(t => new CashBookLine(t.SettledAt!.Value, CashBookSource.Technician, t.Technician, PaymentMode.Cash, t.Returned!.Value, null)).ToListAsync(ct));
         lines.Sort((a, b) => a.OccurredAt.CompareTo(b.OccurredAt));
 
         var money = lines.Where(l => l.Source != CashBookSource.Expense).ToList();

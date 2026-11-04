@@ -707,7 +707,7 @@ export const en = {
     sales: 'Sales',
     udhaarGiven: 'Udhaar given',
     walkIn: 'Walk-in sale',
-    sources: { bill: 'Bill', khata_payment: 'Khata payment', reversal: 'Payment reversed', expense: 'Kharcha' },
+    sources: { bill: 'Bill', khata_payment: 'Khata payment', reversal: 'Payment reversed', expense: 'Kharcha', technician: 'Technician trip cash' },
     spent: 'Spent {{cash}} cash, {{upi}} UPI',
     netCash: 'Cash left',
     empty: 'Nothing received this day.',
@@ -929,6 +929,9 @@ export const en = {
     advance: 'Advance given', collected: 'Cash collected on site', spent: 'Spent (bills)', returned: 'Handed back', holding: 'Should be holding', carried: 'Carried to next trip',
     jobs: 'Jobs', what: 'What', amount: 'Amount', note: 'Note', noteHint: 'Bus to Rampur, dhaba', add: 'Add', addJob: 'Add a job to this trip', attach: 'Add',
     handBack: 'Cash handed back (holding {{amount}})', settle: 'Settle trip',
+    viewBill: 'bill', fromCustomer: 'From customer', noCustomer: 'Not a khata customer', addPhoto: 'Add bill photo', photoAdded: 'Photo added',
+    split: 'Share cost across jobs', splitBy: { equal: 'Equally', value: 'By job price', distance: 'By km driven' }, kmFor: 'Km for {{job}}',
+    cashHint: 'The advance left the cash box when given; the cash handed back comes into it now. Bills go in the kharcha book without touching the cash box.',
     kind: { advance: 'Advance', travel: 'Travel', food: 'Food', stay: 'Stay', other: 'Other', collected: 'Collected' },
   },
   claims: {

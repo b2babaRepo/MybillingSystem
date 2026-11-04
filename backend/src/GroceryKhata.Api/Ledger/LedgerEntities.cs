@@ -72,6 +72,9 @@ public sealed class LedgerEntry : Entity, ITenantOwned
     public DateTimeOffset OccurredAt { get; set; }
 
     public Guid CreatedByUserId { get; set; }
+
+    /// <summary>A payment collected by a technician on a field trip: the cash reaches the drawer when they hand it in.</summary>
+    public Guid? TripId { get; set; }
 }
 
 public enum LedgerEntryKind

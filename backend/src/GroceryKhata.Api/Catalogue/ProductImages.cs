@@ -31,7 +31,6 @@ public static class ProductImageEndpoints
     /// <summary>Largest photo accepted after the phone has shrunk it: generous for a 512 px WebP.</summary>
     private const int MaxBytes = 150_000;
 
-    private static readonly string[] Allowed = ["image/webp", "image/jpeg", "image/png"];
 
     public static IEndpointRouteBuilder MapProductImages(this IEndpointRouteBuilder app)
     {
@@ -47,25 +46,12 @@ public static class ProductImageEndpoints
 
     private static async Task<IResult> PutAsync(Guid id, ProductImageRequest request, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        // "data:image/webp;base64,AAAA…", as a canvas gives it.
-        var parts = request.DataUrl?.Split(',', 2);
-        var type = parts is [var head, _] && head.StartsWith("data:", StringComparison.Ordinal) && head.EndsWith(";base64", StringComparison.Ordinal)
-            ? head[5..^7]
-            : null;
-        byte[]? data = null;
-        try
-        {
-            data = type is not null && Allowed.Contains(type) ? Convert.FromBase64String(parts![1]) : null;
-        }
-        catch (FormatException)
-        {
-        }
-
-        if (data is not { Length: > 0 and <= MaxBytes })
+        if (Common.Photos.Decode(request.DataUrl, MaxBytes) is not { } photo)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["DataUrl"] = ["Send a WebP, JPEG or PNG photo under 150 KB."] });
         }
 
+        var (type, data) = photo;
         var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id, ct);
         if (product is null)
         {
@@ -76,11 +62,11 @@ public static class ProductImageEndpoints
         var image = await db.ProductImages.SingleOrDefaultAsync(i => i.ProductId == id, ct);
         if (image is null)
         {
-            db.ProductImages.Add(new ProductImage { ProductId = id, ContentType = type!, Data = data, UpdatedAt = now });
+            db.ProductImages.Add(new ProductImage { ProductId = id, ContentType = type, Data = data, UpdatedAt = now });
         }
         else
         {
-            image.ContentType = type!;
+            image.ContentType = type;
             image.Data = data;
             image.UpdatedAt = now;
         }

@@ -49,6 +49,9 @@ public sealed class Expense : Entity, ITenantOwned
     public DateTimeOffset? StruckAt { get; set; }
 
     public Guid? StruckByUserId { get; set; }
+
+    /// <summary>Spent by a technician on a field trip, from their advance: in the books, but not out of the drawer.</summary>
+    public Guid? TripId { get; set; }
 }
 
 public sealed record ExpenseRequest(Guid Id, decimal Amount, ExpenseCategory? Category, string? Note, PaymentMode? Mode, DateTimeOffset? OccurredAt);

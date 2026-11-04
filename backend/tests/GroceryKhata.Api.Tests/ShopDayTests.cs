@@ -306,6 +306,45 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Trip_cash_moves_the_drawer_only_when_given_and_handed_back_and_collections_go_on_the_khata()
+    {
+        var shop = await SignUpAsync("sales_service");
+        var farmer = await (await shop.PostJsonAsync("/api/v1/customers", new { id = Guid.CreateVersion7(), name = "Ramdeen" })).ReadAsync<CustomerDto>();
+        (await shop.PostJsonAsync("/api/v1/khata-entries", new { id = Guid.CreateVersion7(), customerId = farmer.Id, type = "credit", amount = 3000m })).EnsureSuccessStatusCode();
+        var (big, small) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        (await shop.PostJsonAsync("/api/v1/jobs", new { id = big, title = "Solar pump install", price = 3000m })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/jobs", new { id = small, title = "Fan repair", price = 1000m })).EnsureSuccessStatusCode();
+
+        var id = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/trips", new { id, technician = "Suresh", place = "Rampur" })).EnsureSuccessStatusCode();
+        async Task<TripDto> Add(object body) => await (await shop.PostJsonAsync($"/api/v1/trips/{id}/entries", body)).ReadAsync<TripDto>();
+        await Add(new { id = Guid.CreateVersion7(), kind = "advance", amount = 2000m });
+        var photo = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 1, 2, 3 });
+        var trip = await Add(new { id = Guid.CreateVersion7(), kind = "travel", amount = 800m, photoDataUrl = photo });
+        Assert.True(trip.Entries.Single(e => e.Kind == TripEntryKind.Travel).HasPhoto);
+        var bill = await shop.GetAsync($"/api/v1/trips/photos/{trip.Entries.Single(e => e.Kind == TripEntryKind.Travel).Id}");
+        Assert.Equal("image/png", bill.Content.Headers.ContentType!.MediaType);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/trips/{id}/entries", new { id = Guid.CreateVersion7(), kind = "food", amount = 50m, photoDataUrl = "data:text/plain;base64,AAAA" })).StatusCode);
+
+        // Ramdeen pays 1,500 to the technician: off his khata now, but not in the drawer.
+        trip = await Add(new { id = Guid.CreateVersion7(), kind = "collected", amount = 1500m, customerId = farmer.Id });
+        Assert.Equal(("Ramdeen", 2700m), (trip.Entries.Last().CustomerName, trip.Holding));
+        Assert.Equal(1500m, (await shop.GetJsonAsync<List<CustomerDto>>("/api/v1/customers")).Single(c => c.Id == farmer.Id).Balance);
+        var book = await shop.GetJsonAsync<CashBookDto>("/api/v1/cash-book");
+        Assert.Equal(-2000m, book.NetCash);
+
+        // Settled by job value: the 3,000 job carries 600 of the 800, the 1,000 job 200. The bills don't touch the drawer; the hand-back does.
+        (await shop.PostJsonAsync($"/api/v1/trips/{id}/jobs", new { jobId = big })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/trips/{id}/jobs", new { jobId = small })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/trips/{id}/settle", new { returned = 2700m, split = "value" })).EnsureSuccessStatusCode();
+        Assert.Equal((600m, 200m), ((await shop.GetJsonAsync<JobDetail>($"/api/v1/jobs/{big}")).Job.Other, (await shop.GetJsonAsync<JobDetail>($"/api/v1/jobs/{small}")).Job.Other));
+        book = await shop.GetJsonAsync<CashBookDto>("/api/v1/cash-book");
+        Assert.Equal((700m, 0m), (book.NetCash, book.SpentCash));
+        Assert.Equal(new[] { 6m, 4m }, Trips.Shares(10m, [30m, 20m]));
+        Assert.Equal(new[] { 3.34m, 3.33m, 3.33m }, Trips.Shares(10m, [0m, 0m, 0m]));
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");

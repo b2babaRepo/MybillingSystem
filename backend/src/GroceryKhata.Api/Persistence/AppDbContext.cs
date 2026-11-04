@@ -70,6 +70,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<TripEntry> TripEntries => Set<TripEntry>();
 
+    public DbSet<TripPhoto> TripPhotos => Set<TripPhoto>();
+
     public DbSet<SupplierEntry> SupplierEntries => Set<SupplierEntry>();
 
     public DbSet<Billing.GatewayOrder> GatewayOrders => Set<Billing.GatewayOrder>();
@@ -643,6 +645,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(x => x.Place).HasMaxLength(80);
             b.Property(x => x.Returned).HasPrecision(12, 2);
             b.HasIndex(x => new { x.ShopId, x.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<TripPhoto>(b =>
+        {
+            b.ToTable("trip_photos");
+            b.HasKey(x => x.EntryId);
+            b.HasIndex(x => x.ShopId);
+            b.Property(x => x.ContentType).HasMaxLength(20);
         });
 
         modelBuilder.Entity<TripEntry>(b =>

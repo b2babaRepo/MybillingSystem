@@ -708,7 +708,7 @@ export const hi: Texts = {
     sales: 'बिक्री',
     udhaarGiven: 'उधार दिया',
     walkIn: 'नकद बिक्री',
-    sources: { bill: 'बिल', khata_payment: 'खाते में जमा', reversal: 'जमा वापस', expense: 'खर्चा' },
+    sources: { bill: 'बिल', khata_payment: 'खाते में जमा', reversal: 'जमा वापस', expense: 'खर्चा', technician: 'मिस्त्री दौरे का कैश' },
     spent: 'खर्च {{cash}} नकद, {{upi}} UPI',
     netCash: 'बचा नकद',
     empty: 'इस दिन कुछ नहीं आया।',
@@ -930,6 +930,9 @@ export const hi: Texts = {
     advance: 'एडवांस दिया', collected: 'साइट पर ग्राहक से लिया', spent: 'खर्च (बिल)', returned: 'वापस दिया', holding: 'पास में होना चाहिए', carried: 'अगले दौरे में आगे',
     jobs: 'जॉब', what: 'क्या', amount: 'रकम', note: 'नोट', noteHint: 'रामपुर बस, ढाबा', add: 'जोड़ें', addJob: 'इस दौरे में जॉब जोड़ें', attach: 'जोड़ें',
     handBack: 'वापस दिया कैश (पास में {{amount}})', settle: 'दौरे का हिसाब करें',
+    viewBill: 'बिल', fromCustomer: 'किस ग्राहक से', noCustomer: 'खाते वाला ग्राहक नहीं', addPhoto: 'बिल की फ़ोटो जोड़ें', photoAdded: 'फ़ोटो जुड़ी',
+    split: 'लागत जॉब में कैसे बाँटें', splitBy: { equal: 'बराबर', value: 'जॉब की कीमत से', distance: 'किलोमीटर से' }, kmFor: '{{job}} के किलोमीटर',
+    cashHint: 'एडवांस देते ही गल्ले से निकला; वापस दिया कैश अभी गल्ले में आता है। बिल खर्च की किताब में जाते हैं, गल्ले को नहीं छूते।',
     kind: { advance: 'एडवांस', travel: 'किराया', food: 'खाना', stay: 'रुकना', other: 'दूसरा', collected: 'ग्राहक से लिया' },
   },
   claims: {

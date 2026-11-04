@@ -166,7 +166,7 @@ export interface Statement {
 
 export interface CashBookLine {
   occurredAt: string
-  source: 'bill' | 'khata_payment' | 'reversal' | 'expense'
+  source: 'bill' | 'khata_payment' | 'reversal' | 'expense' | 'technician'
   who: string
   mode: PaymentMode
   amount: number
