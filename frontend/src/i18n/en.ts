@@ -460,7 +460,7 @@ export const en = {
     rowsReady: '{{count}} rows ready',
     importNow: 'Import {{count}} items',
     imported: '{{created}} added, {{skipped}} already there',
-    tradeStarter: { building_materials: 'Add common building material items', paint: 'Add common paint items', water_supply: 'Add common water supply items', beauty: 'Add common salon services and products', sweets: 'Add common sweets and namkeen', toys: 'Add common toys', clothes: 'Add common clothes', hardware: 'Add common hardware items', electrical: 'Add common electrical items', woodwork: 'Add common plywood, timber and fittings', banquet: 'Add common function extras (decor, DJ, generator)', restaurant: 'Add a starting menu', lodge: 'Add common room extras (extra bed, food, laundry)' },
+    tradeStarter: { building_materials: 'Add common building material items', paint: 'Add common paint items', water_supply: 'Add common water supply items', beauty: 'Add common salon services and products', sweets: 'Add common sweets and namkeen', toys: 'Add common toys', clothes: 'Add common clothes', hardware: 'Add common hardware items', electrical: 'Add common electrical items', woodwork: 'Add common plywood, timber and fittings', banquet: 'Add common function extras (decor, DJ, generator)', restaurant: 'Add a starting menu', lodge: 'Add common room extras (extra bed, food, laundry)', medical: 'Add common medicines' },
     tradeStarterHint: 'Common items with units, GST and HSN. You add the prices.',
     starter: 'Add common kirana items',
     starterHint: '{{count}} everyday items with units and categories. You add the prices.',
