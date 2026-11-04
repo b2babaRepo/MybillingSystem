@@ -22,4 +22,9 @@
     <Content Update="demo-seed.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Trade master lists too long to keep in code: read once at start-up by MasterItems. -->
+    <EmbeddedResource Include="Catalogue\Data\*.csv" />
+  </ItemGroup>
+
 </Project>

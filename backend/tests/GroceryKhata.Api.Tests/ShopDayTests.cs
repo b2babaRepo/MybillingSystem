@@ -663,6 +663,24 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_medical_shop_picks_from_a_long_master_list_of_medicines_wellness_and_devices()
+    {
+        var shop = await SignUpAsync("medical");
+        var list = await shop.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items");
+        Assert.True(list.Count >= 800, $"only {list.Count} medical master items");
+        Assert.Contains(list, i => i.Name == "Dolo 650 Tablet" && i.GstRate == 5m && i.HsnCode == "3004");
+        Assert.Contains(list, i => i.Name.Contains("Chyawanprash", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(list, i => i.Name.Contains("Durex", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(list, i => i.Name.Contains("Hot water", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(list.Count, list.Select(i => i.Name.ToLowerInvariant()).Distinct().Count());
+
+        // Picking adds them to the shop, without a price yet.
+        var picked = list.Where(i => i.Name is "Dolo 650 Tablet").Select(i => i.Id).ToArray();
+        (await shop.PostJsonAsync("/api/v1/products/from-master", new { ids = picked })).EnsureSuccessStatusCode();
+        Assert.Contains(await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products"), p => p.Name == "Dolo 650 Tablet");
+    }
+
+    [Fact]
     public async Task A_medical_shop_signs_up_with_its_licence_pharmacist_and_common_medicines()
     {
         var shop = await SignUpAsync("medical");

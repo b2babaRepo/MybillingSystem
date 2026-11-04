@@ -70,6 +70,7 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 
 // The master item lists start from the lists the app was built with (once; admins own them after).
 await MasterItems.SeedAsync(app.Services);
+await MasterItems.SeedListsAsync(app.Services);
 
 if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Database:SeedDemo"))
 {

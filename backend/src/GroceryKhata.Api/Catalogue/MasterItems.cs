@@ -162,6 +162,55 @@ public static class MasterItems
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Adds a trade's long list (a CSV built into the app: name, Hindi name, category, unit, GST, HSN) to the master list.
+    /// Only names not already there are added, so it is safe at every start-up and never undoes an admin's edits or
+    /// removals. GST is left empty where the research couldn't confirm it: the shop or a CA sets it.
+    /// </summary>
+    public static async Task SeedListsAsync(IServiceProvider services, CancellationToken ct = default)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var assembly = typeof(MasterItems).Assembly;
+        foreach (var (resource, trade) in new[] { ("medical-master.csv", ShopTypes.Name(ShopType.Medical)) })
+        {
+            var name = assembly.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(resource, StringComparison.OrdinalIgnoreCase));
+            if (name is null)
+            {
+                continue;
+            }
+
+            using var reader = new StreamReader(assembly.GetManifestResourceStream(name)!);
+            var have = (await db.MasterItems.Where(i => i.Trade == trade).Select(i => i.Name.ToLower()).ToListAsync(ct)).ToHashSet();
+            var now = DateTimeOffset.UtcNow;
+            var first = true;
+            while (await reader.ReadLineAsync(ct) is { } line)
+            {
+                if (first)
+                {
+                    first = false; // header
+                    continue;
+                }
+
+                var f = SplitCsv(line);
+                if (f.Length < 6 || f[0].Trim() is not { Length: >= 2 and <= 120 } item || !have.Add(item.ToLower()))
+                {
+                    continue;
+                }
+
+                db.MasterItems.Add(new MasterItem
+                {
+                    Trade = trade, Name = item, NameHi = f[1].Length > 0 ? f[1] : null, Category = f[2].Length > 0 ? f[2][..Math.Min(60, f[2].Length)] : "Other",
+                    Unit = Enum.TryParse<Unit>(f[3], ignoreCase: true, out var unit) ? unit : Unit.Piece,
+                    GstRate = decimal.TryParse(f[4], System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var gst) ? gst : null,
+                    HsnCode = f[5].Length > 0 ? f[5] : null, UpdatedAt = now,
+                });
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
     private static MasterItemDto ToDto(MasterItem i) => new(i.Id, i.Trade, i.Category, i.Name, i.NameHi, i.Unit, i.GstRate, i.HsnCode, i.IsActive, i.PackSizes);
 
     /// <summary>A trade's active items, or every trade the shop works in.</summary>
