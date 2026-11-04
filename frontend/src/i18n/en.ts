@@ -903,6 +903,14 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  claims: {
+    link: 'Warranty claims on companies', hint: 'Claims for parts and labour given free under warranty. The company owes this until it credits or rejects the claim.',
+    ageing: 'Owed by companies: {{amount}}', open: 'Open', all: 'All', new: 'Raise a warranty claim', company: 'Company', noCompany: 'Add the company in Suppliers first.',
+    job: 'Job', noJob: 'No job', what: 'Parts replaced / work done', fromJob: 'From the job', parts: 'Parts (₹)', labour: 'Labour / visit (₹)', raise: 'Raise claim',
+    empty: 'No claims.', jobNo: 'job #{{number}}', split: 'Parts {{parts}} · labour {{labour}}', daysOpen: '{{days}} days open', sent: 'part sent ({{no}})',
+    notSent: 'faulty part not sent yet', markSent: 'Faulty part sent', settle: 'Credited / rejected', creditAmount: 'Amount credited (0 if rejected)',
+    docket: 'Courier / docket number', creditNote: 'Credit note number', reason: 'Why rejected', credited: 'Credited {{amount}} · short by {{loss}}', rejected: 'Rejected: {{reason}}',
+  },
   serials: {
     signUpTitle: 'Register your sales & service shop', link: 'Serial numbers and warranty', lookupTitle: 'Find a unit by serial number', serial: 'Serial number', find: 'Find',
     notFound: 'No unit with this serial number.', receiveTitle: 'Note serial numbers of units received',

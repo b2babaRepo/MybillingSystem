@@ -126,6 +126,7 @@ app.MapBatches();
 app.MapSerials();
 app.MapPrescriptions();
 app.MapSupplierReturns();
+app.MapWarrantyClaims();
 app.MapPharmacyMonth();
 app.MapPharmacyAssist();
 app.MapDairy();

@@ -62,6 +62,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<SupplierReturnLine> SupplierReturnLines => Set<SupplierReturnLine>();
 
+    public DbSet<WarrantyClaim> WarrantyClaims => Set<WarrantyClaim>();
+
     public DbSet<SupplierEntry> SupplierEntries => Set<SupplierEntry>();
 
     public DbSet<Billing.GatewayOrder> GatewayOrders => Set<Billing.GatewayOrder>();
@@ -615,6 +617,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(r => r.CreditNoteNo).HasMaxLength(40);
             b.HasMany(r => r.Lines).WithOne().HasForeignKey(l => l.ReturnId);
             b.HasIndex(r => new { r.ShopId, r.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<WarrantyClaim>(b =>
+        {
+            b.ToTable("warranty_claims");
+            b.HasTenantKey();
+            b.Property(c => c.Parts).HasPrecision(12, 2);
+            b.Property(c => c.Labour).HasPrecision(12, 2);
+            b.Property(c => c.CreditAmount).HasPrecision(12, 2);
+            b.Property(c => c.Description).HasMaxLength(200);
+            b.Property(c => c.RejectReason).HasMaxLength(200);
+            b.Property(c => c.SerialNo).HasMaxLength(40);
+            b.Property(c => c.DispatchNo).HasMaxLength(40);
+            b.Property(c => c.CreditNoteNo).HasMaxLength(40);
+            b.HasIndex(c => new { c.ShopId, c.Number }).IsUnique();
         });
 
         modelBuilder.Entity<SupplierReturnLine>(b =>

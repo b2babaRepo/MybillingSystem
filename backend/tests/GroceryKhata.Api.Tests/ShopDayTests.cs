@@ -209,6 +209,39 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_warranty_claim_is_raised_from_the_job_owed_until_the_company_credits_or_rejects_it()
+    {
+        var shop = await SignUpAsync("sales_service");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var capacitor = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Capacitor 36 mfd");
+        (await shop.PutAsJsonAsync($"/api/v1/products/{capacitor.Id}", new { name = capacitor.Name, unit = "piece", sellingPrice = 180m, costPrice = 120m }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        var company = await (await shop.PostJsonAsync("/api/v1/suppliers", new { id = Guid.CreateVersion7(), name = "Crompton (company)" })).ReadAsync<SupplierDto>();
+
+        var jobId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/jobs", new { id = jobId, title = "Pump repair", price = 0m, serialNo = "CRP9" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/jobs/{jobId}/material", new { id = Guid.CreateVersion7(), productId = capacitor.Id, quantity = 1m })).EnsureSuccessStatusCode();
+
+        // From the job: serial, part and its cost come in; the company also pays a visit charge.
+        var claim = await (await shop.PostJsonAsync("/api/v1/claims", new { id = Guid.CreateVersion7(), supplierId = company.Id, jobId, labour = 250m })).ReadAsync<WarrantyClaimDto>();
+        Assert.Equal(("CRP9", "Capacitor 36 mfd", 120m, 370m, 1), (claim.SerialNo, claim.Description, claim.Parts, claim.Amount, claim.JobNumber!.Value));
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/claims", new { id = Guid.CreateVersion7(), supplierId = company.Id, description = "x", labour = 0m })).StatusCode);
+
+        (await shop.PostJsonAsync($"/api/v1/claims/{claim.Id}/dispatch", new { dispatchNo = "DTDC 4471" })).EnsureSuccessStatusCode();
+        Assert.Equal("DTDC 4471", Assert.Single(await shop.GetJsonAsync<List<WarrantyClaimDto>>("/api/v1/claims")).DispatchNo);
+
+        // The company credits part of it: off the shop's account with them; the rest is the loss.
+        (await shop.PostJsonAsync($"/api/v1/claims/{claim.Id}/settle", new { amount = 300m, creditNoteNo = "CN-88" })).EnsureSuccessStatusCode();
+        Assert.Empty(await shop.GetJsonAsync<List<WarrantyClaimDto>>("/api/v1/claims"));
+        var done = Assert.Single(await shop.GetJsonAsync<List<WarrantyClaimDto>>("/api/v1/claims?all=true"));
+        Assert.Equal((300m, 70m), (done.CreditAmount!.Value, done.Loss));
+
+        // A rejection needs a reason.
+        var other = await (await shop.PostJsonAsync("/api/v1/claims", new { id = Guid.CreateVersion7(), supplierId = company.Id, description = "PCB", parts = 900m, labour = 0m })).ReadAsync<WarrantyClaimDto>();
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/claims/{other.Id}/settle", new { amount = 0m })).StatusCode);
+        (await shop.PostJsonAsync($"/api/v1/claims/{other.Id}/settle", new { amount = 0m, rejectReason = "Serial mismatch" })).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");

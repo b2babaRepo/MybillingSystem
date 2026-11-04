@@ -22,13 +22,14 @@ export function useSerialsInStock(shopId: string, productId: string | null) {
 }
 
 /** On a sales & service shop's home. */
-export function ServiceHomeCard() {
+export function ServiceHomeCard({ isOwner }: { isOwner: boolean }) {
   const { t } = useTranslation()
-  return (
-    <button onClick={() => navigate('/serials')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
-      <span>🔌 {t('serials.link')}</span><span aria-hidden="true">→</span>
+  const link = (path: string, label: string) => (
+    <button onClick={() => navigate(path)} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+      <span>{label}</span><span aria-hidden="true">→</span>
     </button>
   )
+  return <>{link('/serials', `🔌 ${t('serials.link')}`)}{isOwner && link('/claims', `🧾 ${t('claims.link')}`)}</>
 }
 
 /** Serial numbers: note them when units come in, and look any unit up (who bought it, warranty till when). */
