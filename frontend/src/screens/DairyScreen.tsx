@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api, request } from '../lib/api'
 import { shrinkPhoto } from '../lib/images'
+import { VoiceButton } from '../components/VoiceButton'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 
@@ -27,9 +28,9 @@ interface Match { line: { date: string | null; shift: Shift | null; litres: numb
 /** Photo reading (testing slip, dairy statement) is an AI service: shown only when switched on, and after the person agrees. */
 function useAiPhotos() {
   const queryClient = useQueryClient()
-  const ai = useQuery({ queryKey: ['ai-status'], queryFn: () => api<{ consentedAt: string | null; canReadPhotos: boolean }>('/v1/me/ai') }).data
+  const ai = useQuery({ queryKey: ['ai-status'], queryFn: () => api<{ consentedAt: string | null; canReadPhotos: boolean; canHearVoice: boolean }>('/v1/me/ai') }).data
   const agree = async () => { await request('/v1/me/ai/consent', 'POST', { agree: true }); await queryClient.invalidateQueries({ queryKey: ['ai-status'] }) }
-  return { canRead: !!ai?.canReadPhotos, consented: !!ai?.consentedAt, agree }
+  return { canRead: !!ai?.canReadPhotos, canHear: !!ai?.canHearVoice, consented: !!ai?.consentedAt, agree }
 }
 
 function PhotoButton({ label, busy, onFile }: { label: string; busy: boolean; onFile: (file: File) => void }) {
@@ -80,7 +81,7 @@ export function DairyHomeCard({ shopId }: { shopId: string }) {
 /** The milk collection centre: today's shift at the counter, farmers, rates, bills and milk sent to the dairy. */
 export function DairyScreen({ shopId, shopName, isOwner }: { shopId: string; shopName: string; isOwner: boolean }) {
   const { t } = useTranslation()
-  const tabs = (['collect', 'farmers', 'bills', 'dispatch', 'rates'] as const).filter((x) => isOwner || x === 'collect' || x === 'farmers' || x === 'dispatch')
+  const tabs = (['collect', 'farmers', 'bills', 'dispatch', 'rates', 'helper'] as const).filter((x) => isOwner || x === 'collect' || x === 'farmers' || x === 'dispatch')
   const [tab, setTab] = useState<(typeof tabs)[number]>('collect')
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
@@ -92,6 +93,7 @@ export function DairyScreen({ shopId, shopName, isOwner }: { shopId: string; sho
       {tab === 'bills' && <Bills shopId={shopId} shopName={shopName} />}
       {tab === 'dispatch' && <Dispatches shopId={shopId} isOwner={isOwner} />}
       {tab === 'rates' && <Rates shopId={shopId} />}
+      {tab === 'helper' && <Helper shopId={shopId} shopName={shopName} />}
     </div>
   )
 }
@@ -140,6 +142,21 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
     return () => clearTimeout(timer)
   }, [date, kind, d.litres, d.fat, d.snf, d.clr])
 
+  const ai = useAiPhotos()
+  const [heard, setHeard] = useState('')
+  // Said at the counter ("ek number das litre bhains fat saadhe chhe"): the fields fill, and what was heard stays on screen to check.
+  const fromVoice = async (said: string) => {
+    setHeard(said)
+    try {
+      const e = await api<{ farmerCode: number | null; kind: Kind | null; litres: number | null; fat: number | null; snf: number | null; clr: number | null }>('/v1/dairy/parse-entry', 'POST', { question: said })
+      setD((cur) => ({
+        ...cur, code: e.farmerCode ? String(e.farmerCode) : cur.code, kind: e.kind ?? cur.kind, litres: e.litres ? String(e.litres) : cur.litres,
+        fat: e.fat ? String(e.fat) : cur.fat, snf: e.snf ? String(e.snf) : cur.snf, clr: e.clr ? String(e.clr) : cur.clr,
+      }))
+    } catch (err) {
+      setQuoteError(err instanceof Error ? err.message : t('error'))
+    }
+  }
   const [reading, setReading] = useState(false)
   const readSlip = async (file: File) => {
     setReading(true)
@@ -160,6 +177,7 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
     })
     setLast(saved)
     setD(blank)
+    setHeard('')
   }, t('saved'))
 
   const slip = (c: Collection) => t(c.rejected ? 'dairy.slipRejected' : 'dairy.slip', {
@@ -189,6 +207,8 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
           <Field label={t('dairy.clr')} value={d.clr} onChange={(e) => setD({ ...d, clr: e.target.value })} inputMode="decimal" placeholder={t('dairy.clrHint')} />
         </div>
         <PhotoButton label={t('dairy.readSlip')} busy={reading} onFile={(f) => void readSlip(f)} />
+        {ai.canHear && ai.consented && <VoiceButton onText={(said) => void fromVoice(said)} onError={(m) => setQuoteError(m ?? '')} />}
+        {heard && <p className="rounded-xl bg-ground p-2 text-sm">{t('dairy.heard', { text: heard })}</p>}
         <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={d.rejected} onChange={(e) => setD({ ...d, rejected: e.target.checked })} />{t('dairy.rejected')}</label>
         {quote && <p className={`rounded-xl p-2 text-lg font-bold ${quote.belowStandard ? 'bg-amber-50' : 'bg-teal-50 text-teal-900'}`}>{d.rejected ? t('dairy.notPaid') : `${formatRupees(quote.amount)} · ₹${quote.perLitre}/L`}{!d.snf && d.clr ? ` · SNF ${quote.snf}` : ''}{quote.belowStandard ? ` · ${t('dairy.below')}` : ''}</p>}
         {quoteError && <p className="text-sm text-due">{quoteError}</p>}
@@ -474,6 +494,67 @@ function Rates({ shopId }: { shopId: string }) {
           {p.method !== 'grid' && p.rates.map((r) => <p key={r.kind}>{t(`dairy.kind_${r.kind}`)}: {p.method === 'flat' ? `₹${r.flatRate}/L` : `₹${r.fatRate}/kg fat${p.method === 'fat_snf' ? ` + ₹${r.snfRate}/kg SNF` : ''}`} · min {r.minFat}/{r.minSnf}</p>)}
         </section>
       ))}
+    </>
+  )
+}
+
+interface Draft { type: 'payout' | 'remind'; farmerId: string; farmerCode: number; farmerName: string; amount: number; why: string }
+
+/**
+ * Ask the helper about the centre ("aaj kitna doodh aaya?", "kisko paisa dena hai?"). It answers from the centre's own
+ * records only, and any action it suggests is a draft: nothing happens until the owner taps it.
+ */
+function Helper({ shopId, shopName }: { shopId: string; shopName: string }) {
+  const { t } = useTranslation()
+  const ai = useAiPhotos()
+  const farmers = useQuery({ queryKey: [shopId, 'dairy', 'farmers'], queryFn: () => api<Farmer[]>('/v1/dairy/farmers') }).data ?? []
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState<{ answer: string; drafts: Draft[] } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const { message, run } = useRun(shopId)
+  const ask = async (q: string) => {
+    setBusy(true)
+    setAnswer(null)
+    await run(async () => setAnswer(await api<{ answer: string; drafts: Draft[] }>('/v1/dairy/ask', 'POST', { question: q })), '')
+    setBusy(false)
+  }
+  const quick = ['dairy.q_today', 'dairy.q_pay', 'dairy.q_flags', 'dairy.q_dairy'] as const
+  if (!ai.canRead) return <p className="rounded-[18px] bg-white p-3 text-sm text-muted">{t('dairy.helperOff')}</p>
+  if (!ai.consented) return (
+    <section className="flex flex-col gap-2 rounded-[18px] bg-amber-50 p-3 text-sm">
+      <p>{t('dairy.helperConsent')}</p>
+      <Button onClick={() => void ai.agree()}>{t('expense.consentYes')}</Button>
+    </section>
+  )
+  return (
+    <>
+      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+        <p className="text-xs text-muted">{t('dairy.helperHint')}</p>
+        <div className="flex flex-wrap gap-2">{quick.map((k) => <button key={k} disabled={busy} onClick={() => { setQuestion(t(k)); void ask(t(k)) }} className="min-h-10 rounded-full border border-line px-3 text-sm">{t(k)}</button>)}</div>
+        <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={2} placeholder={t('dairy.askPlaceholder')} className="rounded-xl border border-line p-2" />
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <Button disabled={busy || question.trim().length < 2} onClick={() => void ask(question.trim())}>{busy ? t('dairy.thinking') : t('dairy.ask')}</Button>
+          {ai.canHear && <VoiceButton onText={(said) => { setQuestion(said); void ask(said) }} onError={() => undefined} />}
+        </div>
+        {message && <p className="text-sm text-due">{message}</p>}
+      </section>
+      {answer && (
+        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+          <p className="whitespace-pre-line">{answer.answer}</p>
+          {answer.drafts.length > 0 && <p className="text-xs text-muted">{t('dairy.draftsHint')}</p>}
+          {answer.drafts.map((d) => {
+            const phone = farmers.find((f) => f.id === d.farmerId)?.phone ?? null
+            return (
+              <div key={d.type + d.farmerId} className="flex flex-col gap-1 rounded-xl bg-ground p-2 text-sm">
+                <p><b>#{d.farmerCode} {d.farmerName}</b> · {d.why}</p>
+                {d.type === 'payout'
+                  ? <Button className="h-10 text-sm" onClick={() => { if (confirm(t('dairy.payConfirm', { amount: formatRupees(d.amount), name: d.farmerName }))) void run(() => api(`/v1/dairy/farmers/${d.farmerId}/entries`, 'POST', { id: crypto.randomUUID(), kind: 'payout', amount: d.amount, mode: 'upi' }), t('dairy.paid')) }}>{t('dairy.pay', { amount: formatRupees(d.amount) })}</Button>
+                  : phone && <a href={whatsAppLink(phone, t('dairy.remindText', { shop: shopName, name: d.farmerName, due: formatRupees(d.amount) }))} target="_blank" rel="noreferrer" className="flex h-10 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('dairy.sendReminder')}</a>}
+              </div>
+            )
+          })}
+        </section>
+      )}
     </>
   )
 }

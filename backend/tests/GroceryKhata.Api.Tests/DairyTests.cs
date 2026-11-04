@@ -45,6 +45,52 @@ public sealed class DairyTests(ApiFactory api) : IClassFixture<ApiFactory>
         Assert.DoesNotContain(flags, f => f.Kind == "fatJump" && f.FarmerId == sita);
     }
 
+    [Theory]
+    [InlineData("ek number das litre bhains fat saadhe chhe snf aath point aath", 1, MilkKind.Buffalo, 10, 6.5, 8.8)]
+    [InlineData("number 12, gaay 5.5 litre, fat 4.2, snf 8.4", 12, MilkKind.Cow, 5.5, 4.2, 8.4)]
+    [InlineData("सात नंबर भैंस आठ लीटर फैट साढ़े सात", 7, MilkKind.Buffalo, 8, 7.5, null)]
+    [InlineData("3 number dedh litre fat paune paanch", 3, null, 1.5, 4.75, null)]
+    public void Spoken_entries_become_fields(string said, int code, MilkKind? kind, double litres, double fat, double? snf)
+    {
+        var e = DairyAssistant.Parse(said);
+        Assert.Equal((code, kind, (decimal)litres, (decimal)fat, snf is null ? null : (decimal?)snf), (e.FarmerCode!.Value, e.Kind, e.Litres!.Value, e.Fat!.Value, e.Snf));
+    }
+
+    [Fact]
+    public void Spoken_values_milk_cannot_have_are_left_out()
+    {
+        var e = DairyAssistant.Parse("number paanch fat pachchis litre do");
+        Assert.Equal((5, (decimal?)null, 2m), (e.FarmerCode!.Value, e.Fat, e.Litres!.Value));
+    }
+
+    [Fact]
+    public void Helper_drafts_are_kept_only_when_they_fit_the_records()
+    {
+        var (a, b) = (Guid.NewGuid(), Guid.NewGuid());
+        var farmers = new Dictionary<int, (Guid Id, string Name, decimal Due, string? Phone)> { [1] = (a, "Ramesh", 2500m, "9876543210"), [2] = (b, "Sita", 800m, null) };
+        var drafts = DairyAssistant.CheckDrafts(
+        [
+            ("payout", 1, 2500m, "10-day bill"),
+            ("payout", 2, 5000m, "more than due"),
+            ("remind", 2, 0m, "no phone"),
+            ("payout", 9, 100m, "no such farmer"),
+            ("delete", 1, 0m, "not an action"),
+        ], farmers);
+        var only = Assert.Single(drafts);
+        Assert.Equal(("payout", a, 2500m), (only.Type, only.FarmerId, only.Amount));
+    }
+
+    [Fact]
+    public async Task The_helper_needs_consent_and_the_ai_and_its_records_cover_dues_and_flags()
+    {
+        var (shop, _) = await api.SignUpAsync();
+        Assert.Equal(HttpStatusCode.Forbidden, (await shop.PostJsonAsync("/api/v1/dairy/ask", new { question = "kisko paisa dena hai?" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await shop.PostJsonAsync("/api/v1/me/ai/consent", new { agree = true })).StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await shop.PostJsonAsync("/api/v1/dairy/ask", new { question = "kisko paisa dena hai?" })).StatusCode);
+        var parsed = await (await shop.PostJsonAsync("/api/v1/dairy/parse-entry", new { question = "do number teen litre gaay fat chaar" })).ReadAsync<SpokenEntry>();
+        Assert.Equal((2, MilkKind.Cow, 3m, 4m), (parsed.FarmerCode!.Value, parsed.Kind!.Value, parsed.Litres!.Value, parsed.Fat!.Value));
+    }
+
     [Fact]
     public void Read_slips_and_statements_keep_only_values_milk_can_have()
     {
