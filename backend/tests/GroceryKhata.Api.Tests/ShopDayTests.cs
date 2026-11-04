@@ -242,6 +242,38 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_technician_trip_settles_into_the_kharcha_book_shares_its_cost_across_jobs_and_carries_the_cash_forward()
+    {
+        var shop = await SignUpAsync("sales_service");
+        var (jobA, jobB) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        (await shop.PostJsonAsync("/api/v1/jobs", new { id = jobA, title = "Solar pump, Rampur", price = 2000m })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/jobs", new { id = jobB, title = "Motor repair, Rampur", price = 1500m })).EnsureSuccessStatusCode();
+
+        var id = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/trips", new { id, technician = "Suresh", place = "Rampur" })).EnsureSuccessStatusCode();
+        async Task<TripDto> Add(string kind, decimal amount) =>
+            await (await shop.PostJsonAsync($"/api/v1/trips/{id}/entries", new { id = Guid.CreateVersion7(), kind, amount })).ReadAsync<TripDto>();
+        await Add("advance", 2000m);
+        await Add("travel", 600m);
+        await Add("food", 250m);
+        await Add("stay", 400m);
+        var trip = await Add("collected", 1500m);
+        Assert.Equal((2000m, 1250m, 1500m, 2250m), (trip.Advance, trip.Spent, trip.Collected, trip.Holding));
+        (await shop.PostJsonAsync($"/api/v1/trips/{id}/jobs", new { jobId = jobA })).EnsureSuccessStatusCode();
+        Assert.Equal(2, (await (await shop.PostJsonAsync($"/api/v1/trips/{id}/jobs", new { jobId = jobB })).ReadAsync<TripDto>()).Jobs.Count);
+
+        // He hands back 2,000 of the 2,250 he holds; 250 carries to his next trip.
+        trip = await (await shop.PostJsonAsync($"/api/v1/trips/{id}/settle", new { returned = 2000m })).ReadAsync<TripDto>();
+        Assert.Equal(250m, trip.Holding);
+        Assert.Equal((625m, 625m), ((await shop.GetJsonAsync<JobDetail>($"/api/v1/jobs/{jobA}")).Job.Other, (await shop.GetJsonAsync<JobDetail>($"/api/v1/jobs/{jobB}")).Job.Other));
+        Assert.Equal(HttpStatusCode.NotFound, (await shop.PostJsonAsync($"/api/v1/trips/{id}/entries", new { id = Guid.CreateVersion7(), kind = "food", amount = 50m })).StatusCode);
+
+        var next = Guid.CreateVersion7();
+        var second = await (await shop.PostJsonAsync("/api/v1/trips", new { id = next, technician = "Suresh", place = "Bilaspur" })).ReadAsync<TripDto>();
+        Assert.Equal((250m, 250m), (second.BroughtForward, second.Holding));
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");

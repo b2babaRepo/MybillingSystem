@@ -903,6 +903,14 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  trips: {
+    link: 'Technician trips', hint: 'Advance, travel, food and stay on a field trip. Settling puts the bills in the kharcha book and shares their cost across the trip\'s jobs.',
+    technician: 'Technician', place: 'Going to', open: 'Start trip', empty: 'No trips yet.', settled: 'settled', broughtForward: 'Held from earlier trips',
+    advance: 'Advance given', collected: 'Cash collected on site', spent: 'Spent (bills)', returned: 'Handed back', holding: 'Should be holding', carried: 'Carried to next trip',
+    jobs: 'Jobs', what: 'What', amount: 'Amount', note: 'Note', noteHint: 'Bus to Rampur, dhaba', add: 'Add', addJob: 'Add a job to this trip', attach: 'Add',
+    handBack: 'Cash handed back (holding {{amount}})', settle: 'Settle trip',
+    kind: { advance: 'Advance', travel: 'Travel', food: 'Food', stay: 'Stay', other: 'Other', collected: 'Collected' },
+  },
   claims: {
     link: 'Warranty claims on companies', hint: 'Claims for parts and labour given free under warranty. The company owes this until it credits or rejects the claim.',
     ageing: 'Owed by companies: {{amount}}', open: 'Open', all: 'All', new: 'Raise a warranty claim', company: 'Company', noCompany: 'Add the company in Suppliers first.',

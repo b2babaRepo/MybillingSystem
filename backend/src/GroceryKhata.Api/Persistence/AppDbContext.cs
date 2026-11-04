@@ -64,6 +64,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<WarrantyClaim> WarrantyClaims => Set<WarrantyClaim>();
 
+    public DbSet<Trip> Trips => Set<Trip>();
+
+    public DbSet<TripEntry> TripEntries => Set<TripEntry>();
+
     public DbSet<SupplierEntry> SupplierEntries => Set<SupplierEntry>();
 
     public DbSet<Billing.GatewayOrder> GatewayOrders => Set<Billing.GatewayOrder>();
@@ -617,6 +621,25 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(r => r.CreditNoteNo).HasMaxLength(40);
             b.HasMany(r => r.Lines).WithOne().HasForeignKey(l => l.ReturnId);
             b.HasIndex(r => new { r.ShopId, r.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<Trip>(b =>
+        {
+            b.ToTable("trips");
+            b.HasTenantKey();
+            b.Property(x => x.Technician).HasMaxLength(60);
+            b.Property(x => x.Place).HasMaxLength(80);
+            b.Property(x => x.Returned).HasPrecision(12, 2);
+            b.HasIndex(x => new { x.ShopId, x.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<TripEntry>(b =>
+        {
+            b.ToTable("trip_entries");
+            b.HasTenantKey();
+            b.Property(x => x.Description).HasMaxLength(80);
+            b.Property(x => x.Amount).HasPrecision(12, 2);
+            b.HasIndex(x => new { x.ShopId, x.TripId });
         });
 
         modelBuilder.Entity<WarrantyClaim>(b =>

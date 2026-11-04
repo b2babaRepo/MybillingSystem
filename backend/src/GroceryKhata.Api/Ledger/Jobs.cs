@@ -54,6 +54,9 @@ public sealed class Job : Entity, ITenantOwned
 
     /// <summary>Under the shop's warranty on the day the job was opened: looked up from the sale.</summary>
     public bool InWarranty { get; set; }
+
+    /// <summary>The field trip it was done on; the trip's travel, food and stay are shared across its jobs.</summary>
+    public Guid? TripId { get; set; }
 }
 
 public enum JobStatus
