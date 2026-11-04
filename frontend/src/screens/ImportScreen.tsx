@@ -17,6 +17,16 @@ const PLACEHOLDER: Partial<Record<ShopType, string>> = {
   hardware: 'Door hinge 4 inch, pair, 45, 35, Hinges, 50, 10\nपेंच 1 इंच, piece, 2',
   woodwork: 'Plywood 18 mm 8x4, piece, 2400, 2000, Plywood, 20, 5\nबीडिंग पट्टी, running_ft, 12',
   electrical: 'LED bulb 9 W, piece, 120, 90, Lights, 50, 10\nतार 1.5 sq mm, metre, 18',
+  medical: 'Paracetamol 650 mg (strip of 15), piece, 32, 24, Fever & pain, 40, 10\nखांसी की सिरप 100 ml, piece, 95',
+  beauty: 'Shampoo 180 ml, piece, 199, 150, Products, 12, 3\nहेयर ऑयल 100 ml, piece, 120',
+  sweets: 'Kaju katli, kg, 900, 650, Mithai, 5, 1\nनमकीन भुजिया, kg, 280',
+  toys: 'Remote car, piece, 650, 480, Cars, 6, 2\nगुड़िया, piece, 250',
+  clothes: 'Cotton shirt (M), piece, 699, 450, Shirts, 10, 3\nसूती साड़ी, piece, 1200',
+  water_supply: 'Water jar 20 L (refill), jar, 30, 18, Water, 50, 10\nपानी की बोतल 1 L, piece, 20',
+  banquet: 'Stage decoration, piece, 15000, 9000, Decor\nजनरेटर (प्रति घंटा), piece, 1200',
+  restaurant: 'Paneer butter masala, piece, 260, 120, Main course\nतंदूरी रोटी, piece, 20',
+  lodge: 'Extra bed, piece, 500, 0, Room extras\nनाश्ता, piece, 150',
+  dairy: 'Cattle feed 50 kg, bag, 1450, 1300, Feed, 20, 5\nमिनरल मिक्सचर 1 kg, packet, 180',
   other: 'Item name, piece, 100, 80, Category, 10, 2',
 }
 
