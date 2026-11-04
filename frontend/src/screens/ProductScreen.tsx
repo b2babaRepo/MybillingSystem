@@ -262,6 +262,7 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [barcode, setBarcode] = useState(product.barcode ?? '')
   const url = imageUrl(shopId, product.id, product.imageAt)
 
   async function run(action: () => Promise<unknown>) {
@@ -296,6 +297,20 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
             {t('photo.remove')}
           </button>
         )}
+        {product.imageCredit && <p className="text-xs text-muted">{t('photo.credit', { source: product.imageCredit })}</p>}
+        {(product.photoReports ?? 0) > 0 && (
+          <div className="rounded-xl bg-amber-50 p-2 text-sm text-amber-900">
+            ⚑ {t('photo.reported', { count: product.photoReports })}{product.photoReportNote ? `: "${product.photoReportNote}"` : ''}
+            <button disabled={busy} onClick={() => void run(() => request(`/v1/products/${product.id}/image/reports`, 'DELETE'))} className="ml-2 font-semibold underline">{t('photo.keep')}</button>
+          </div>
+        )}
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <input value={barcode} onChange={(e) => setBarcode(e.target.value.replace(/\D/g, ''))} inputMode="numeric" maxLength={14} placeholder={t('photo.barcode')}
+            aria-label={t('photo.barcode')} className="h-11 min-w-0 rounded-xl border border-line px-3" />
+          <button disabled={busy || barcode.length < 8} onClick={() => void run(() => api(`/v1/products/${product.id}/image/barcode`, 'POST', { barcode }))}
+            className="h-11 rounded-xl border-2 border-teal-700 px-3 text-sm font-semibold text-teal-800 disabled:opacity-40">{t('photo.findByBarcode')}</button>
+        </div>
+        <p className="text-xs text-muted">{t('photo.barcodeHint')}</p>
         {error && <p className="text-sm text-due">{error}</p>}
       </div>
     </section>

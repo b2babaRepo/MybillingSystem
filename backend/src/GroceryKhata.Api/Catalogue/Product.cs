@@ -86,6 +86,17 @@ public sealed class Product : Entity, ITenantOwned
 
     /// <summary>The printed MRP, when the shop sells below it: the store shows it struck through with the % off.</summary>
     public decimal? Mrp { get; set; }
+
+    /// <summary>The pack's barcode (EAN-13 on Indian packs), when the shop has given it.</summary>
+    public string? Barcode { get; set; }
+
+    /// <summary>Who the photo is from when it isn't the shop's own ("Open Food Facts (CC BY-SA)"): shown beside it.</summary>
+    public string? ImageCredit { get; set; }
+
+    /// <summary>How many times customers said the photo is wrong since the shop last looked, and the last thing they said.</summary>
+    public int PhotoReports { get; set; }
+
+    public string? PhotoReportNote { get; set; }
 }
 
 public enum DrugSchedule

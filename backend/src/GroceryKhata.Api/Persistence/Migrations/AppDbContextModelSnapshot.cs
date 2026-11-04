@@ -1942,6 +1942,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Barcode")
+                        .HasColumnType("text")
+                        .HasColumnName("barcode");
+
                     b.Property<int?>("CatalogueItemId")
                         .HasColumnType("integer")
                         .HasColumnName("catalogue_item_id");
@@ -1978,6 +1982,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("image_at");
 
+                    b.Property<string>("ImageCredit")
+                        .HasColumnType("text")
+                        .HasColumnName("image_credit");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -2012,6 +2020,14 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("pack_unit");
+
+                    b.Property<string>("PhotoReportNote")
+                        .HasColumnType("text")
+                        .HasColumnName("photo_report_note");
+
+                    b.Property<int>("PhotoReports")
+                        .HasColumnType("integer")
+                        .HasColumnName("photo_reports");
 
                     b.Property<decimal?>("ReorderLevel")
                         .HasPrecision(12, 3)
@@ -2167,7 +2183,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnName("thumb_data");
 
                     b.Property<string>("ThumbType")
-                        .HasColumnType("text")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
                         .HasColumnName("thumb_type");
 
                     b.Property<DateTimeOffset>("UpdatedAt")

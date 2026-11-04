@@ -28,6 +28,7 @@ interface StoreItem {
   mrp?: number | null
   packSize?: number | null
   packUnit?: Unit | null
+  imageCredit?: string | null
 }
 
 interface Store {
@@ -187,6 +188,7 @@ function Catalogue({ slug }: { slug: string }) {
                   </>
                 )}
               </div>
+              {item.imageAt && <PhotoNote shopId={data.shopId} item={item} />}
               <div className="mt-2">
               {out ? (
                 <span className="text-sm font-semibold text-due">{t('store.out')}</span>
@@ -373,6 +375,24 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
         )}
         <button onClick={() => navigate(`/s/${slug}`)} className="min-h-11 font-semibold text-teal-700 underline">← {order.shopName}</button>
       </div>
+    </div>
+  )
+}
+
+/** Under a card's photo: where it is from (Open Food Facts needs the credit), and a way to say it's the wrong photo. */
+function PhotoNote({ shopId, item }: { shopId: string; item: StoreItem }) {
+  const { t } = useTranslation()
+  const [sent, setSent] = useState(false)
+  async function report() {
+    const reason = prompt(t('store.reportWhy'))
+    if (reason === null) return
+    await fetch(`/api/v1/images/${shopId}/${item.id}/report`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
+    setSent(true)
+  }
+  return (
+    <div className="mt-0.5 flex items-center justify-between gap-1 text-[10px] text-muted">
+      <span className="truncate">{item.imageCredit ? t('store.photoFrom', { source: item.imageCredit }) : ''}</span>
+      {sent ? <span>✓ {t('store.reported')}</span> : <button onClick={(e) => { e.stopPropagation(); void report() }} className="shrink-0 underline">{t('store.reportPhoto')}</button>}
     </div>
   )
 }

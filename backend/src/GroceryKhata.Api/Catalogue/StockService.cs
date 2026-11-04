@@ -483,7 +483,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     private static readonly System.Linq.Expressions.Expression<Func<Product, ProductDto>> AsDto = p => new ProductDto(
         p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.CostPrice, p.Stock, p.ReorderLevel,
         !p.IsService && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption, p.ImageAt,
-        p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp);
+        p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp, p.Barcode, p.ImageCredit, p.PhotoReports, p.PhotoReportNote);
 
     /// <summary>An MRP only counts when it is above the selling price (otherwise there is nothing "off" to show).</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>

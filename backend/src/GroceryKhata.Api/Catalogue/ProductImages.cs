@@ -69,28 +69,30 @@ public static class ProductImageEndpoints
         }
 
         var now = clock.GetUtcNow();
-        var image = await db.ProductImages.SingleOrDefaultAsync(i => i.ProductId == id, ct);
-        if (image is null)
-        {
-            db.ProductImages.Add(new ProductImage { ProductId = id, ContentType = type, Data = data, UpdatedAt = now, ThumbType = thumb?.ContentType, ThumbData = thumb?.Data });
-        }
-        else
-        {
-            image.ContentType = type;
-            image.Data = data;
-            image.UpdatedAt = now;
-            (image.ThumbType, image.ThumbData) = (thumb?.ContentType, thumb?.Data);
-        }
-
-        product.ImageAt = now;
+        await SaveAsync(db, product, (type, data), thumb, now, ct);
+        product.ImageCredit = null; // the shop's own photo
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(new { imageAt = now });
+    }
+
+    /// <summary>Puts a new photo (and its small copy, if made) on the item. A new photo clears customers' reports of the old one.</summary>
+    internal static async Task SaveAsync(AppDbContext db, Product product, (string ContentType, byte[] Data) full, (string ContentType, byte[] Data)? thumb, DateTimeOffset now, CancellationToken ct)
+    {
+        var image = await db.ProductImages.SingleOrDefaultAsync(i => i.ProductId == product.Id, ct);
+        if (image is null)
+        {
+            db.ProductImages.Add(image = new ProductImage { ProductId = product.Id, ContentType = full.ContentType, Data = full.Data });
+        }
+
+        (image.ContentType, image.Data, image.UpdatedAt, image.ThumbType, image.ThumbData) = (full.ContentType, full.Data, now, thumb?.ContentType, thumb?.Data);
+        (product.ImageAt, product.PhotoReports, product.PhotoReportNote) = (now, 0, null);
     }
 
     private static async Task<IResult> DeleteAsync(Guid id, AppDbContext db, CancellationToken ct)
     {
         await db.ProductImages.Where(i => i.ProductId == id).ExecuteDeleteAsync(ct);
-        await db.Products.Where(p => p.Id == id).ExecuteUpdateAsync(s => s.SetProperty(p => p.ImageAt, (DateTimeOffset?)null), ct);
+        await db.Products.Where(p => p.Id == id).ExecuteUpdateAsync(s => s.SetProperty(p => p.ImageAt, (DateTimeOffset?)null).SetProperty(p => p.ImageCredit, (string?)null)
+            .SetProperty(p => p.PhotoReports, 0).SetProperty(p => p.PhotoReportNote, (string?)null), ct);
         return TypedResults.NoContent();
     }
 
@@ -107,6 +109,21 @@ public static class ProductImageEndpoints
         if (image is null)
         {
             return TypedResults.NotFound();
+        }
+
+        // A photo from before small copies were made gets one now, once, kept for next time.
+        if (size == "thumb" && image.ThumbData is null)
+        {
+            try
+            {
+                var (thumbType, thumbData) = PhotoResize.Square(image.Data, PhotoResize.Thumb, 70);
+                await db.ProductImages.Where(i => i.ProductId == productId).ExecuteUpdateAsync(s => s.SetProperty(i => i.ThumbType, thumbType).SetProperty(i => i.ThumbData, thumbData), ct);
+                (image.ThumbType, image.ThumbData) = (thumbType, thumbData);
+            }
+            catch (Exception exception) when (exception is SixLabors.ImageSharp.UnknownImageFormatException or SixLabors.ImageSharp.InvalidImageContentException)
+            {
+                // Not readable as a picture: the full photo is served as it is.
+            }
         }
 
         // Overrides the API-wide no-store: a product photo is not private, and its URL changes with it.

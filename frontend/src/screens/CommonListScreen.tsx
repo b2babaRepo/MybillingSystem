@@ -81,7 +81,7 @@ export function CommonListScreen({ shopId }: { shopId: string }) {
               subtitle={sold ? t('commonList.yourPrice', { price: formatRupees(sold.sellingPrice), unit: t(`units.${item.unit}`) }) : `${item.nameEn} · ~${formatRupees(item.typicalPrice)}/${t(`units.${item.unit}`)}`}
               badge={sold ? `✓ ${t('commonList.selling')}` : pick && Number(pick.price) > 0 ? formatRupees(Number(pick.price)) : undefined}
               selected={!!pick}
-              imageUrl={sold ? imageUrl(shopId, sold.id, sold.imageAt) : undefined}
+              imageUrl={sold ? imageUrl(shopId, sold.id, sold.imageAt, 'thumb') : undefined}
               onClick={sold ? () => setManaging(item) : () => setEditing(item)}
             />
           )

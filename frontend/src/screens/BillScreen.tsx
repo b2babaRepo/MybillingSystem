@@ -129,9 +129,9 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
         {tiles.map((p) => (
           <ItemCard
             key={p.id}
-            compact
+            square
             item={p}
-            imageUrl={imageUrl(shopId, p.id, p.imageAt)}
+            imageUrl={imageUrl(shopId, p.id, p.imageAt, 'thumb')}
             title={p.name}
             subtitle={p.sellingPrice > 0 ? `${formatRupees(p.sellingPrice)}/${t(`units.${p.unit}`)}` : t('stock.noPrice')}
             badge={cart.filter((l) => l.productId === p.id).reduce((n, l) => n + l.quantity, 0) || undefined}

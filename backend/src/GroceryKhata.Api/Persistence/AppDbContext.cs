@@ -1092,6 +1092,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
         modelBuilder.Entity<ProductImage>(b =>
         {
+            b.Property(i => i.ThumbType).HasMaxLength(20);
             b.ToTable("product_images");
             b.HasKey(i => i.ProductId);
             b.HasIndex(i => i.ShopId);

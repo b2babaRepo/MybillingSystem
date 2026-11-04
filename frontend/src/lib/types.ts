@@ -66,6 +66,10 @@ export interface Product {
   tracksSerials?: boolean
   warrantyMonths?: number | null
   mrp?: number | null
+  barcode?: string | null
+  imageCredit?: string | null
+  photoReports?: number
+  photoReportNote?: string | null
   /** Held for online orders not yet delivered. */
   reserved?: number
   /** The common-list item this is (for its picture, and so households find it). */

@@ -56,7 +56,11 @@ public sealed record ProductDto(
     int? UnitsPerPack = null,
     bool TracksSerials = false,
     int? WarrantyMonths = null,
-    decimal? Mrp = null);
+    decimal? Mrp = null,
+    string? Barcode = null,
+    string? ImageCredit = null,
+    int PhotoReports = 0,
+    string? PhotoReportNote = null);
 
 /// <summary>A purchase (positive) or an adjustment (signed, with a reason).</summary>
 public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note);

@@ -267,6 +267,8 @@ export const en = {
     withdrawConfirm: 'Stop AI reading? What it read so far will be deleted.',
   },
   photo: {
+    credit: 'Photo: {{source}}', reported: 'Customers said this photo is wrong ({{count}})', keep: 'Photo is right',
+    barcode: 'Barcode number', findByBarcode: 'Find photo', barcodeHint: 'Type the digits under the barcode to get the pack photo from Open Food Facts (free, credited on your store).',
     has: 'Your photo shows on bills, the lists households send and your online store.',
     none: 'No photo yet: a picture is drawn. Add a photo of the pack so customers know it at a glance.',
     add: 'Add photo',
@@ -1133,6 +1135,7 @@ export const en = {
     ownerOnly: 'Only the shop owner can change these.',
   },
   store: {
+    photoFrom: 'Photo: {{source}}', reportPhoto: 'Wrong photo?', reported: 'Thanks', reportWhy: 'What is wrong with this photo? (optional)',
     off: '{{percent}}% off',
     allAisles: 'All aisles',
     otherItems: 'Other items',
