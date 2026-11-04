@@ -51,7 +51,7 @@ public sealed class OpenFoodFactsPhotos(IHttpClientFactory http, ILogger<OpenFoo
     public async Task<BarcodePhoto?> FindAsync(string barcode, CancellationToken ct)
     {
         var client = http.CreateClient();
-        client.Timeout = TimeSpan.FromSeconds(15);
+        client.Timeout = TimeSpan.FromSeconds(25); // its API is slow at times
         client.DefaultRequestHeaders.UserAgent.ParseAdd("GroceryKhata/1.0");
         using var response = await client.GetAsync($"https://world.openfoodfacts.org/api/v2/product/{barcode}.json?fields=product_name,image_front_url", ct);
         if (!response.IsSuccessStatusCode) return null;
@@ -105,7 +105,8 @@ public static class PhotoSources
         {
             found = await photos.FindAsync(barcode, ct);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        // A timeout talking to Open Food Facts is a cancellation too, but not the shop's: only theirs passes through.
+        catch (Exception exception) when (!ct.IsCancellationRequested)
         {
             logger.LogWarning(exception, "Barcode photo lookup failed");
             return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway, title: "Open Food Facts couldn't be reached just now.", detail: "Try again, or take the photo yourself.");

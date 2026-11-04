@@ -22,3 +22,6 @@ Thumbs.db
 .env
 *.local
 out/
+
+# Six Labors (ImageSharp) licence key: kept out of git (or set the SixLaborsLicenseKey environment variable)
+sixlabors.lic
