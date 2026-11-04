@@ -4,6 +4,7 @@ using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static GroceryKhata.Api.Common.Problems;
 
 namespace GroceryKhata.Api.Catalogue;
 
@@ -63,8 +64,6 @@ public static class Batches
         group.MapGet("/batches/expiring", ExpiringAsync);
         return app;
     }
-
-    private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
     private static DateOnly Today(TimeProvider clock) => DateOnly.FromDateTime(clock.GetUtcNow().ToOffset(IndiaTime.Offset).DateTime);
 

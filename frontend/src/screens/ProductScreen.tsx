@@ -156,9 +156,13 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     hsn: product.hsnCode ?? '',
     schedule: product.schedule ?? '',
     perPack: product.unitsPerPack ? String(product.unitsPerPack) : '',
+    serials: !!product.tracksSerials,
+    warranty: product.warrantyMonths ? String(product.warrantyMonths) : '',
   })
   const gstBilling = useGstBilling(shopId)
-  const medical = shopTypes(useShopSettings(shopId).data).includes('medical')
+  const types = shopTypes(useShopSettings(shopId).data)
+  const medical = types.includes('medical')
+  const service = types.includes('sales_service')
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
 
@@ -173,6 +177,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     hsnCode: form.hsn.trim() || null,
     replaceTax: true,
     ...(medical ? { schedule: form.schedule || null, replaceSchedule: true, unitsPerPack: Number(form.perPack) || 0 } : {}),
+    ...(service ? { tracksSerials: form.serials, warrantyMonths: Number(form.warranty) || 0 } : {}),
     isActive,
   })
 
@@ -220,6 +225,12 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
             {(['g', 'h', 'h1', 'x'] as const).map((s) => <option key={s} value={s}>{t(`rx.schedule_${s}`)}</option>)}
           </select>
         </label>
+      )}
+      {service && !product.isService && (
+        <div className="grid grid-cols-2 items-end gap-2">
+          <label className="flex min-h-12 items-center gap-2 text-sm"><input type="checkbox" checked={form.serials} onChange={(e) => setForm({ ...form, serials: e.target.checked })} className="h-5 w-5" />{t('serials.tracks')}</label>
+          <Field label={t('serials.warrantyMonths')} value={form.warranty} onChange={set('warranty')} inputMode="numeric" placeholder="12" />
+        </div>
       )}
       {medical && !product.isService && <Field label={t('loose.perPack')} value={form.perPack} onChange={set('perPack')} inputMode="numeric" placeholder="10" />}
       {gstBilling && <div className="grid grid-cols-2 gap-2">

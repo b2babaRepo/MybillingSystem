@@ -4,6 +4,7 @@ using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static GroceryKhata.Api.Common.Problems;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -104,8 +105,6 @@ public static class Appointments
         group.MapGet("/{id:guid}/quote", QuoteAsync);
         return app;
     }
-
-    private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
     private static DateTimeOffset IndiaNow(TimeProvider clock) => clock.GetUtcNow().ToOffset(IndiaTime.Offset);
 

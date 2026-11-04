@@ -4,6 +4,7 @@ using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static GroceryKhata.Api.Common.Problems;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -215,8 +216,6 @@ public static class Stays
 
     /// <summary>Form C is due within 24 hours of a foreign guest's arrival.</summary>
     public static readonly TimeSpan FormCWithin = TimeSpan.FromHours(24);
-
-    private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
     private static bool IsOwner(ClaimsPrincipal user) => user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner));
 

@@ -11,6 +11,7 @@ import { navigate } from '../router'
 import { SalonHomeCard } from './SalonSetupScreen'
 import { MedicalHomeCard } from './MedicalScreen'
 import { DairyHomeCard } from './DairyScreen'
+import { ServiceHomeCard } from './SerialsScreen'
 
 /**
  * Dashboard A, "Clean Teal": today's sales with the cash / UPI / udhaar split, four big actions,
@@ -100,6 +101,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
 
       {types.includes('medical') && <MedicalHomeCard shopId={shopId} />}
       {types.includes('dairy') && <DairyHomeCard shopId={shopId} />}
+      {types.includes('sales_service') && <ServiceHomeCard />}
       {types.includes('beauty') && <SalonHomeCard shopId={shopId} isOwner={isOwner} />}
       {types.includes('lodge') && (
         <button onClick={() => navigate('/rooms')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">

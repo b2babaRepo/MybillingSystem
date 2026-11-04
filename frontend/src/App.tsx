@@ -46,6 +46,7 @@ const BridalScreen = lazy(() => import('./screens/BridalScreen').then((module) =
 const PackagesScreen = lazy(() => import('./screens/PackagesScreen').then((module) => ({ default: module.PackagesScreen })))
 const StylistEarningsScreen = lazy(() => import('./screens/SalonSetupScreen').then((module) => ({ default: module.StylistEarningsScreen })))
 const AppointmentsScreen = lazy(() => import('./screens/AppointmentsScreen').then((module) => ({ default: module.AppointmentsScreen })))
+const SerialsScreen = lazy(() => import('./screens/SerialsScreen').then((module) => ({ default: module.SerialsScreen })))
 const DairyScreen = lazy(() => import('./screens/DairyScreen').then((module) => ({ default: module.DairyScreen })))
 const RefillsScreen = lazy(() => import('./screens/PharmacyAssistScreens').then((module) => ({ default: module.RefillsScreen })))
 const ReorderScreen = lazy(() => import('./screens/PharmacyAssistScreens').then((module) => ({ default: module.ReorderScreen })))
@@ -305,6 +306,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <StylistEarningsScreen shopId={shopId} />
         ) : path === '/appointments' ? (
           <AppointmentsScreen shopId={shopId} shopName={shopName} />
+        ) : path === '/serials' ? (
+          <SerialsScreen shopId={shopId} />
         ) : path === '/dairy' ? (
           <DairyScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
         ) : path === '/medical/refills' ? (

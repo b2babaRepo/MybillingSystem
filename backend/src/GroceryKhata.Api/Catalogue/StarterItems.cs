@@ -25,8 +25,46 @@ public static class StarterItems
         ShopType.Restaurant => Restaurant,
         ShopType.Lodge => Lodge,
         ShopType.Medical => Medical,
+        ShopType.SalesService => SalesService,
         _ => [],
     };
+
+    /// <summary>A unit sold by serial number, with the warranty most companies give on it (the shop changes it per brand).</summary>
+    private static ImportRow Unit1(string name, string category, decimal? gst, string hsn, int warrantyMonths = 12) =>
+        new(name, Unit.Piece, 0, null, category, null, null, GstRate: gst, HsnCode: hsn, TracksSerials: true, WarrantyMonths: warrantyMonths);
+
+    private static ImportRow Part(string name, decimal? gst, string hsn) =>
+        new(name, Unit.Piece, 0, null, "Spare parts", null, null, GstRate: gst, HsnCode: hsn);
+
+    private static ImportRow Labour(string name, string category) =>
+        new(name, Unit.Piece, 0, null, category, null, null, GstRate: 18, HsnCode: "998719", IsService: true);
+
+    // Units (sold by serial number), common spare parts, and labour. Rates from the Sept 2025 change where sources agreed;
+    // ordinary pumps, fans and solar inverters are left empty: sources disagree and a CA should set them.
+    private static readonly ImportRow[] SalesService =
+    [
+        Unit1("Submersible pump 1 HP", "Pumps", null, "8413"),
+        Unit1("Monoblock pump 1 HP", "Pumps", null, "8413"),
+        Unit1("Openwell submersible 1 HP", "Pumps", null, "8413"),
+        Unit1("Induction motor 3 HP", "Motors", 18, "8501"),
+        Unit1("Inverter 900 VA", "Inverters & batteries", 18, "8504"),
+        Unit1("Inverter battery 150 Ah (tubular)", "Inverters & batteries", 18, "8507", 36),
+        Unit1("Voltage stabiliser 4 kVA", "Inverters & batteries", 18, "8504"),
+        Unit1("Ceiling fan 1200 mm", "Fans", null, "8414"),
+        Unit1("Split AC 1.5 ton", "ACs", 18, "8415"),
+        Unit1("Solar panel 540 W", "Solar", 5, "8541", 120),
+        Unit1("Solar inverter 3 kW", "Solar", null, "8504"),
+        Part("Capacitor 36 mfd", 18, "8532"),
+        Part("Ball bearing 6203", 18, "8482"),
+        Part("Mechanical seal", 18, "8484"),
+        Part("Winding copper wire (per kg)", 18, "7408"),
+        Part("Starter / DOL", 18, "8536"),
+        Part("Distilled water 5 L", 18, "2851"),
+        Labour("Installation charge", "Service"),
+        Labour("Repair labour", "Service"),
+        Labour("Motor rewinding", "Service"),
+        Labour("Service visit charge", "Service"),
+    ];
 
     // Most medicines (3003/3004) and devices are 5% from 22 Sep 2025; a few life-saving drugs are nil and some toiletries
     // differ, so the shop checks each rate with its CA. Sold by the strip or bottle; prices are the MRP, filled in later.

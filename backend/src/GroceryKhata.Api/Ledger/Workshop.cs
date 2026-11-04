@@ -6,6 +6,7 @@ using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static GroceryKhata.Api.Common.Problems;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -113,8 +114,6 @@ public static class Workshop
         group.MapGet("/tds", TdsAsync);
         return app;
     }
-
-    private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
     /// <summary>The financial year (April to March) a date falls in, by its starting year.</summary>
     private static int FinancialYearOf(DateOnly date) => date.Month >= 4 ? date.Year : date.Year - 1;

@@ -144,6 +144,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
 
+    public DbSet<ProductSerial> ProductSerials => Set<ProductSerial>();
+
     public DbSet<BatchSale> BatchSales => Set<BatchSale>();
 
     public DbSet<BillPrescription> BillPrescriptions => Set<BillPrescription>();
@@ -756,6 +758,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(s => s.Quantity).HasPrecision(12, 3);
             b.HasIndex(s => new { s.ShopId, s.ServiceId, s.ProductId }).IsUnique();
+        });
+
+        modelBuilder.Entity<ProductSerial>(b =>
+        {
+            b.ToTable("product_serials");
+            b.HasTenantKey();
+            b.Property(s => s.SerialNo).HasMaxLength(40);
+            b.HasIndex(s => new { s.ShopId, s.ProductId, s.SerialNo }).IsUnique();
+            b.HasIndex(s => new { s.ShopId, s.SerialNo });
+            b.HasIndex(s => new { s.ShopId, s.BillId });
         });
 
         modelBuilder.Entity<ProductBatch>(b =>

@@ -3,6 +3,7 @@ using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static GroceryKhata.Api.Common.Problems;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -284,8 +285,6 @@ public static class Dairy
         return app;
     }
 
-    private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
-
     private static DateOnly Today(TimeProvider clock) => IndiaTime.Today(clock);
 
     /// <summary>SNF from the lactometer reading (the common field formula): CLR/4 + 0.21 × fat + 0.36. Dairies vary it slightly.</summary>
@@ -433,8 +432,7 @@ public static class Dairy
     /// <summary>What milk would be paid, before saving: the counter shows it as the numbers are typed.</summary>
     private static async Task<IResult> QuoteAsync(DateOnly? date, string? kind, decimal litres, decimal fat, decimal? snf, decimal? clr, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        // Query values come as "buffalo"; enums bind case-sensitively, so read them by hand.
-        if (!Enum.TryParse<MilkKind>(kind, ignoreCase: true, out var milk)) return Invalid("Kind", "Choose cow, buffalo or mixed milk.");
+        if (FromQuery<MilkKind>(kind) is not { } milk) return Invalid("Kind", "Choose cow, buffalo or mixed milk.");
         var day = date ?? Today(clock);
         var s = snf ?? (clr is { } c ? SnfFromClr(c, fat) : 0);
         if (await RateOnAsync(db, RatePlanFor.Farmers, day, milk, ct) is not { } r)
@@ -465,7 +463,7 @@ public static class Dairy
     {
         var now = clock.GetUtcNow().ToOffset(IndiaTime.Offset);
         var day = date ?? DateOnly.FromDateTime(now.DateTime);
-        var which = Enum.TryParse<Shift>(shift, ignoreCase: true, out var asked) ? asked : now.Hour < 14 ? Shift.Morning : Shift.Evening;
+        var which = FromQuery<Shift>(shift) ?? (now.Hour < 14 ? Shift.Morning : Shift.Evening);
         var list = await ToDtosAsync(db, db.MilkCollections.Where(c => c.Date == day && c.Shift == which), ct);
         var kept = list.Where(c => !c.Rejected).ToList();
         var litres = kept.Sum(c => c.Litres);

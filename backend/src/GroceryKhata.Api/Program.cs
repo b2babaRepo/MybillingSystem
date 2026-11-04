@@ -123,6 +123,7 @@ app.MapBridal();
 app.MapSalonCards();
 app.MapPharmacyProfile();
 app.MapBatches();
+app.MapSerials();
 app.MapPrescriptions();
 app.MapSupplierReturns();
 app.MapPharmacyMonth();

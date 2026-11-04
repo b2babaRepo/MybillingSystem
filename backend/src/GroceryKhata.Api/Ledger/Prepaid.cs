@@ -4,6 +4,7 @@ using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static GroceryKhata.Api.Common.Problems;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -104,8 +105,6 @@ public static class Prepaid
         group.MapPost("/customer-plans/{id:guid}/close", CloseAsync).RequireAuthorization(AppPolicies.ShopOwner);
         return app;
     }
-
-    private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
     private static bool IsOwner(ClaimsPrincipal user) => user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner));
 

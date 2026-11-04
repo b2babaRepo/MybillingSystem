@@ -118,4 +118,6 @@ public enum ShopType
     Medical,
     /// <summary>Village milk collection centre: buys milk from farmers by fat and SNF, sells it on to Sudha or another dairy.</summary>
     Dairy,
+    /// <summary>Sales and service: sells pumps, motors, inverters, batteries, fans, ACs or solar by serial number, and installs and repairs them.</summary>
+    SalesService,
 }

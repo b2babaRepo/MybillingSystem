@@ -4,6 +4,7 @@ using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static GroceryKhata.Api.Common.Problems;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -73,8 +74,6 @@ public static class SupplierReturns
         group.MapPost("/{id:guid}/credit-note", CreditNoteAsync);
         return app;
     }
-
-    private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
     /// <summary>Returns still waiting for a credit note, oldest first; with <paramref name="all"/>, settled ones too (newest first).</summary>
     private static async Task<IReadOnlyList<SupplierReturnDto>> ListAsync(bool? all, AppDbContext db, TimeProvider clock, CancellationToken ct)

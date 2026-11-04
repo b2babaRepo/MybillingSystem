@@ -2037,6 +2037,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(12,3)")
                         .HasColumnName("stock");
 
+                    b.Property<bool>("TracksSerials")
+                        .HasColumnType("boolean")
+                        .HasColumnName("tracks_serials");
+
                     b.Property<string>("Unit")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -2050,6 +2054,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
+
+                    b.Property<int?>("WarrantyMonths")
+                        .HasColumnType("integer")
+                        .HasColumnName("warranty_months");
 
                     b.HasKey("Id");
 
@@ -2158,6 +2166,79 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ShopId");
 
                     b.ToTable("product_images", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Catalogue.ProductSerial", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<DateOnly>("ReceivedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("received_on");
+
+                    b.Property<string>("SerialNo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("serial_no");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateOnly?>("SoldOn")
+                        .HasColumnType("date")
+                        .HasColumnName("sold_on");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<bool>("WarrantyRegistered")
+                        .HasColumnType("boolean")
+                        .HasColumnName("warranty_registered");
+
+                    b.Property<DateOnly?>("WarrantyUntil")
+                        .HasColumnType("date")
+                        .HasColumnName("warranty_until");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "BillId");
+
+                    b.HasIndex("ShopId", "SerialNo");
+
+                    b.HasIndex("ShopId", "ProductId", "SerialNo")
+                        .IsUnique();
+
+                    b.ToTable("product_serials", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Catalogue.StockMovement", b =>

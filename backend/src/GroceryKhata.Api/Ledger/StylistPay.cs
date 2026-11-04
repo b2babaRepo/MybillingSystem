@@ -3,6 +3,7 @@ using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static GroceryKhata.Api.Common.Problems;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -71,8 +72,6 @@ public static class StylistPay
         group.MapPost("/{membershipId:guid}/payout", PayoutAsync);
         return app;
     }
-
-    private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
     /// <summary>The stylist's commission percent, 0 when none is set.</summary>
     public static async Task<decimal> PercentAsync(AppDbContext db, Guid membershipId, CancellationToken ct) =>

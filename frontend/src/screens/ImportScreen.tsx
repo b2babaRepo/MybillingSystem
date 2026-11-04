@@ -26,6 +26,7 @@ const PLACEHOLDER: Partial<Record<ShopType, string>> = {
   banquet: 'Stage decoration, piece, 15000, 9000, Decor\nजनरेटर (प्रति घंटा), piece, 1200',
   restaurant: 'Paneer butter masala, piece, 260, 120, Main course\nतंदूरी रोटी, piece, 20',
   lodge: 'Extra bed, piece, 500, 0, Room extras\nनाश्ता, piece, 150',
+  sales_service: 'Submersible pump 1 HP, piece, 14500, 12000, Pumps, 4, 1\nकैपेसिटर 36 mfd, piece, 180',
   dairy: 'Cattle feed 50 kg, bag, 1450, 1300, Feed, 20, 5\nमिनरल मिक्सचर 1 kg, packet, 180',
   other: 'Item name, piece, 100, 80, Category, 10, 2',
 }

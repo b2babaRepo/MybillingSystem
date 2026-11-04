@@ -136,6 +136,44 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_sales_and_service_shop_sells_units_by_serial_with_the_warranty_on_the_bill()
+    {
+        var shop = await SignUpAsync("sales_service");
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var items = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        var battery = items.Single(p => p.Name.StartsWith("Inverter battery"));
+        Assert.Equal((true, 36), (battery.TracksSerials, battery.WarrantyMonths!.Value));
+        Assert.False(items.Single(p => p.Name == "Capacitor 36 mfd").TracksSerials);
+        Assert.True(items.Single(p => p.Name == "Repair labour").IsService);
+
+        // Two batteries come in; their serials are noted (a repeat is skipped).
+        (await shop.PostJsonAsync("/api/v1/stock-movements", new { id = Guid.CreateVersion7(), productId = battery.Id, kind = "purchase", quantity = 2m })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/serials/receive", new { productId = battery.Id, serials = new[] { "lum 001", "LUM002" } })).EnsureSuccessStatusCode();
+        Assert.Equal(2, (await shop.GetJsonAsync<List<SerialDto>>($"/api/v1/serials?productId={battery.Id}&status=in_stock")).Count);
+
+        object Bill(params string[] serials) => new
+        {
+            id = Guid.CreateVersion7(), lines = new[] { new { productId = battery.Id, quantity = 1m, unitPrice = 14500m } }, paidAmount = 14500m, paymentMode = "upi",
+            serials = serials.Select(s => new { productId = battery.Id, serialNo = s }).ToArray(),
+        };
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/bills", Bill())).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/bills", Bill("NOPE999"))).StatusCode);
+        var bill = await (await shop.PostJsonAsync("/api/v1/bills", Bill("LUM001"))).ReadAsync<BillDto>();
+        Assert.StartsWith("S/N LUM001 · warranty till", bill.Lines[0].Batch);
+
+        var sold = Assert.Single(await shop.GetJsonAsync<List<SerialDto>>("/api/v1/serials/lookup?serial=lum001"));
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5));
+        Assert.Equal((SerialStatus.Sold, today.AddMonths(36).AddDays(-1), true, false), (sold.Status, sold.WarrantyUntil!.Value, sold.InWarranty, sold.WarrantyRegistered));
+        Assert.True((await (await shop.PostJsonAsync($"/api/v1/serials/{sold.Id}/registered", new { })).ReadAsync<SerialDto>()).WarrantyRegistered);
+        // Already sold: it can't go out again.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/bills", Bill("LUM001"))).StatusCode);
+
+        // Cancelling the bill puts the unit back in stock.
+        (await shop.PostJsonAsync($"/api/v1/bills/{bill.Id}/cancel", new { reason = "Wrong model" })).EnsureSuccessStatusCode();
+        Assert.Equal(SerialStatus.InStock, Assert.Single(await shop.GetJsonAsync<List<SerialDto>>("/api/v1/serials/lookup?serial=LUM001")).Status);
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");

@@ -98,6 +98,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         (product.IsService, product.DurationMinutes) = (request.IsService, request.DurationMinutes is > 0 and <= 1440 ? request.DurationMinutes : null);
         product.Schedule = request.IsService ? null : request.Schedule;
         product.UnitsPerPack = request.IsService ? null : request.UnitsPerPack is > 1 and <= 1000 ? request.UnitsPerPack : null;
+        (product.TracksSerials, product.WarrantyMonths) = request.IsService ? (false, null) : (request.TracksSerials, request.WarrantyMonths is > 0 and <= 240 ? request.WarrantyMonths : null);
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)
@@ -146,6 +147,9 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.Schedule = product.IsService ? null : request.Schedule ?? (request.ReplaceSchedule ? null : product.Schedule);
         // 0 or 1 clears it (sold whole only); null keeps it.
         product.UnitsPerPack = request.UnitsPerPack is { } perPack ? (perPack is > 1 and <= 1000 && !product.IsService ? perPack : null) : product.UnitsPerPack;
+        // Null keeps them (older apps don't send them); 0 months clears the warranty.
+        product.TracksSerials = !product.IsService && (request.TracksSerials ?? product.TracksSerials);
+        product.WarrantyMonths = request.WarrantyMonths is { } months ? (months is > 0 and <= 240 && !product.IsService ? months : null) : product.WarrantyMonths;
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
@@ -333,6 +337,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             (product.IsService, product.DurationMinutes) = (row.IsService || (row.HsnCode?.Trim().StartsWith("99") ?? false), row.DurationMinutes);
             product.Schedule = product.IsService ? null : row.Schedule;
             product.UnitsPerPack = product.IsService ? null : row.UnitsPerPack;
+            (product.TracksSerials, product.WarrantyMonths) = product.IsService ? (false, null) : (row.TracksSerials, row.WarrantyMonths);
             db.Products.Add(product);
             if (row.OpeningStock is > 0)
             {
@@ -475,7 +480,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     private static readonly System.Linq.Expressions.Expression<Func<Product, ProductDto>> AsDto = p => new ProductDto(
         p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.CostPrice, p.Stock, p.ReorderLevel,
         !p.IsService && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption, p.ImageAt,
-        p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack);
+        p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths);
 
     private static StockMovementDto ToDto(StockMovement m) =>
         new(m.Id, m.ProductId, m.Kind, m.Quantity, m.Reason, m.BillId, m.CostPrice, m.Note, m.OccurredAt);

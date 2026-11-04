@@ -10,6 +10,7 @@ import type { PaymentMode, Unit } from '../lib/types'
 import { useShopSettings, shopTypes, isTrade, upiUri } from '../lib/reports'
 import QRCode from 'qrcode'
 import { navigate } from '../router'
+import { useSerialsInStock } from './SerialsScreen'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
 const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))
@@ -63,6 +64,10 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   const paidAmount = paid === null || !customer ? total : Math.min(Number(paid) || 0, total)
   const schedules = cart.map((l) => products.find((p) => p.id === l.productId)?.schedule).filter((s) => s === 'h' || s === 'h1' || s === 'x')
   const needsAddress = schedules.some((s) => s === 'h1' || s === 'x')
+  // Serialised units go out by serial number, one per unit (the warranty runs from this bill).
+  const [picked, setPicked] = useState<Record<string, string[]>>({})
+  const serialLines = cart.filter((l) => l.productId && products.find((p) => p.id === l.productId)?.tracksSerials)
+  const serialsMissing = serialLines.some((l) => (picked[l.productId!] ?? []).length !== l.quantity)
   const rxMissing = schedules.length > 0 && (rx.doctorName.trim().length < 2 || rx.patientName.trim().length < 2 || (needsAddress && rx.doctorAddress.trim().length < 3))
 
   function add(line: CartLine) {
@@ -98,9 +103,11 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   async function save() {
     const result = await saveBill(shopId, cart, customer, paidAmount, mode, {
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
+      serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
       prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
     })
     setRx({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
+    setPicked({})
     setExtras({ ...extras, site: '', vehicleNumber: '' })
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
@@ -239,6 +246,10 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
                 onChallanSaved={() => { setCart([]); setPaid(null); setCustomerId(''); setExtras({ ...extras, site: '', vehicleNumber: '' }) }} />
             </Suspense>
           )}
+          {serialLines.map((l) => (
+            <SerialPicker key={l.productId} shopId={shopId} productId={l.productId!} name={l.name} quantity={l.quantity}
+              chosen={picked[l.productId!] ?? []} onChange={(list) => setPicked({ ...picked, [l.productId!]: list })} />
+          ))}
           {schedules.length > 0 && (
             <div className="flex flex-col gap-2 rounded-xl bg-red-50 p-2">
               <p className="text-sm font-semibold text-due">{t(needsAddress ? 'rx.neededH1' : 'rx.needed')}</p>
@@ -262,7 +273,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
           </div>
           {mode === 'upi' && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={paidAmount} />}
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
-          <Button className="w-full" onClick={save} disabled={total <= 0 || unpriced || rxMissing}>
+          <Button className="w-full" onClick={save} disabled={total <= 0 || unpriced || rxMissing || serialsMissing}>
             {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(total) }) : `${t('saveBill')} · ${formatRupees(total)}`}
           </Button>
         </div>
@@ -409,4 +420,22 @@ function QuantityInput({ value, onChange, label }: { value: number; onChange: (q
 function tmtKgPerBar(name: string) {
   const mm = /TMT.*?(\d+)\s*mm/i.exec(name)?.[1]
   return mm ? Math.round((Number(mm) ** 2 / 162) * 12 * 100) / 100 : null
+}
+
+/** Picks which units of a serialised item are going out: one serial per unit, from those in stock. */
+function SerialPicker({ shopId, productId, name, quantity, chosen, onChange }: { shopId: string; productId: string; name: string; quantity: number; chosen: string[]; onChange: (list: string[]) => void }) {
+  const { t } = useTranslation()
+  const inStock = useSerialsInStock(shopId, productId)
+  const toggle = (serial: string) => onChange(chosen.includes(serial) ? chosen.filter((s) => s !== serial) : chosen.length < quantity ? [...chosen, serial] : chosen)
+  return (
+    <div className={`flex flex-col gap-1 rounded-xl p-2 ${chosen.length === quantity ? 'bg-teal-50' : 'bg-amber-50'}`}>
+      <p className="text-sm font-semibold">{t('serials.pick', { name, count: quantity, picked: chosen.length })}</p>
+      {inStock.length === 0 && <p className="text-xs text-due">{t('serials.noneInStock')}</p>}
+      <div className="flex flex-wrap gap-1">
+        {inStock.map((s) => (
+          <button key={s.id} onClick={() => toggle(s.serialNo)} className={`min-h-10 rounded-lg px-2 font-mono text-sm ${chosen.includes(s.serialNo) ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`}>{s.serialNo}</button>
+        ))}
+      </div>
+    </div>
+  )
 }

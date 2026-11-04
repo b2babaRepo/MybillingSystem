@@ -304,6 +304,12 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     errors[nameof(request.Prescription)] = [rxError];
                 }
 
+                // Serialised units (a pump, an inverter) go out by serial number, one per unit, for the warranty.
+                if (errors.Count == 0 && await Catalogue.Serials.CheckAsync(db, lines, products, request.Serials, cancellationToken) is { } serialError)
+                {
+                    errors[nameof(request.Serials)] = [serialError];
+                }
+
                 var site = string.IsNullOrWhiteSpace(request.Site) ? null : request.Site.Trim();
                 var vehicle = string.IsNullOrWhiteSpace(request.VehicleNumber) ? null : request.VehicleNumber.Trim().ToUpperInvariant().Replace(" ", "");
                 if (site?.Length > 80 || vehicle?.Length > 15)
@@ -429,6 +435,9 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     return LedgerResult<BillDto>.Invalid(nameof(request.Lines), shortage);
                 }
 
+                await Catalogue.Serials.SellAsync(db, bill.Id, bill.CustomerId, lines, products, request.Serials,
+                    DateOnly.FromDateTime(clock.GetUtcNow().ToOffset(IndiaTime.Offset).DateTime), cancellationToken);
+
                 decimal? balance = null;
                 if (bill.CustomerId is { } owingCustomerId)
                 {
@@ -514,6 +523,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
             await db.Database.ExecuteSqlAsync(
                 $"UPDATE products AS p SET stock = p.stock + v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", cancellationToken);
             await Catalogue.Batches.RestoreAsync(db, id, cancellationToken);
+            await Catalogue.Serials.RestoreAsync(db, id, cancellationToken);
         }
 
         var delta = reversals.Sum(r => r.Amount);

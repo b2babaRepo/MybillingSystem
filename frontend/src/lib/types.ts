@@ -62,6 +62,9 @@ export interface Product {
   schedule?: DrugSchedule | null
   /** Medicines: tablets in a strip; a loose sale is that fraction of a strip. */
   unitsPerPack?: number | null
+  /** Sales & service: each unit has a serial number, picked on the bill. */
+  tracksSerials?: boolean
+  warrantyMonths?: number | null
   /** Held for online orders not yet delivered. */
   reserved?: number
   /** The common-list item this is (for its picture, and so households find it). */

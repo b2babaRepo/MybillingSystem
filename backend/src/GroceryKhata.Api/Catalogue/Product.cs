@@ -77,6 +77,12 @@ public sealed class Product : Entity, ITenantOwned
 
     /// <summary>Medicines: tablets in a strip (10, 15). Stock stays in strips; a loose sale takes that fraction of one. Null: sold whole only.</summary>
     public int? UnitsPerPack { get; set; }
+
+    /// <summary>Sales &amp; service: each unit has its own serial number (a pump, an inverter), kept from stock-in to sale for warranty claims.</summary>
+    public bool TracksSerials { get; set; }
+
+    /// <summary>The company's warranty on one unit, in months; printed on the bill from the day of sale.</summary>
+    public int? WarrantyMonths { get; set; }
 }
 
 public enum DrugSchedule

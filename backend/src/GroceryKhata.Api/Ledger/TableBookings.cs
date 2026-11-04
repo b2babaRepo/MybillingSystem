@@ -3,6 +3,7 @@ using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static GroceryKhata.Api.Common.Problems;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -88,8 +89,6 @@ public static class TableBookings
         group.MapPost("/{id:guid}/deposit", DepositAsync);
         return app;
     }
-
-    private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
     private static TableBookingDto ToDto(TableBooking b) => new(b.Id, b.Number, b.Date, b.Time, b.People, b.CustomerId, b.Name, b.Phone, b.Occasion, b.Cake,
         b.Decoration, b.Table, b.Note, b.Status, b.Deposit);
