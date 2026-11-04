@@ -57,6 +57,9 @@ public sealed class Job : Entity, ITenantOwned
 
     /// <summary>The field trip it was done on; the trip's travel, food and stay are shared across its jobs.</summary>
     public Guid? TripId { get; set; }
+
+    /// <summary>A visit under an AMC: covered by the contract fee, so it closes without a bill.</summary>
+    public Guid? AmcId { get; set; }
 }
 
 public enum JobStatus
@@ -448,9 +451,9 @@ public static class Jobs
             return await db.Jobs.AnyAsync(j => j.Id == id && j.BillId == request.BillId, ct) ? await GetAsync(id, db, ct) : TypedResults.NotFound();
         }
 
-        if (job.Price <= 0 && job.InWarranty)
+        if (job.Price <= 0 && (job.InWarranty || job.AmcId != null))
         {
-            // Repaired free under warranty: nothing to bill. Parts and wages stay on the job as its cost.
+            // Repaired free under warranty or an AMC: nothing to bill. Parts and wages stay on the job as its cost.
             (job.Status, job.DeliveredAt) = (JobStatus.Delivered, clock.GetUtcNow());
             await db.SaveChangesAsync(ct);
             return await GetAsync(id, db, ct);

@@ -903,6 +903,14 @@ export const en = {
     walkInName: 'Walk-in', startNow: 'Start now', whoDid: 'Who did it?', tip: 'Tip for the stylist (optional)',
     status: { booked: 'Booked', arrived: 'In the chair', done: 'Done and billed', no_show: 'No-show', cancelled: 'Cancelled' },
   },
+  amc: {
+    link: 'AMC contracts', hint: 'Yearly maintenance contracts: the fee is billed once, each visit opens a free service job, and you are reminded when visits fall due and contracts end.',
+    renewSoon: '{{count}} contracts end within 30 days: send a renewal reminder.', new: 'New AMC contract', customer: 'Customer', covers: 'What it covers',
+    coversHint: 'Inverter + battery, yearly', serial: 'Serial number (optional)', months: 'Months', visits: 'Visits', fee: 'Fee (₹)', paid: 'Paid now (₹)', mode: 'Paid by',
+    sign: 'Sign and bill', empty: 'No AMC contracts yet.', period: '{{from}} to {{to}}', used: '{{done}} of {{total}} visits done', nextDue: 'Next visit due {{date}}',
+    overdue: 'Visit overdue since {{date}}', endsIn: 'Ends in {{days}} days', ended: 'Contract has ended', visit: 'Start visit (job)', remind: 'Renewal reminder', renew: 'Renew',
+    reminder: 'Namaste {{name}}, your AMC for {{title}} ends on {{date}}. Renew for {{fee}} to keep free service visits and a well-kept battery. Reply to book.',
+  },
   trips: {
     link: 'Technician trips', hint: 'Advance, travel, food and stay on a field trip. Settling puts the bills in the kharcha book and shares their cost across the trip\'s jobs.',
     technician: 'Technician', place: 'Going to', open: 'Start trip', empty: 'No trips yet.', settled: 'settled', broughtForward: 'Held from earlier trips',

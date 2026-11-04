@@ -66,6 +66,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Trip> Trips => Set<Trip>();
 
+    public DbSet<Amc> Amcs => Set<Amc>();
+
     public DbSet<TripEntry> TripEntries => Set<TripEntry>();
 
     public DbSet<SupplierEntry> SupplierEntries => Set<SupplierEntry>();
@@ -621,6 +623,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(r => r.CreditNoteNo).HasMaxLength(40);
             b.HasMany(r => r.Lines).WithOne().HasForeignKey(l => l.ReturnId);
             b.HasIndex(r => new { r.ShopId, r.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<Amc>(b =>
+        {
+            b.ToTable("amcs");
+            b.HasTenantKey();
+            b.Property(x => x.Title).HasMaxLength(120);
+            b.Property(x => x.SerialNo).HasMaxLength(40);
+            b.Property(x => x.Fee).HasPrecision(12, 2);
+            b.HasIndex(x => new { x.ShopId, x.Number }).IsUnique();
         });
 
         modelBuilder.Entity<Trip>(b =>

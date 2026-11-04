@@ -274,6 +274,38 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task An_amc_bills_its_fee_schedules_visits_that_close_free_and_renews_from_its_end()
+    {
+        var shop = await SignUpAsync("sales_service");
+        var customer = await (await shop.PostJsonAsync("/api/v1/customers", new { id = Guid.CreateVersion7(), name = "Gupta ji", phone = ApiFactory.NewPhone() })).ReadAsync<CustomerDto>();
+        var start = new DateOnly(2026, 1, 1);
+
+        var amc = await (await shop.PostJsonAsync("/api/v1/amc", new
+        {
+            id = Guid.CreateVersion7(), customerId = customer.Id, title = "Inverter + battery", serialNo = "exd 9", startOn = start, months = 12, visits = 2, fee = 1200m, paidAmount = 0m,
+        })).ReadAsync<AmcDto>();
+        Assert.Equal((new DateOnly(2026, 12, 31), "EXD9", 0, new DateOnly(2026, 5, 2)), (amc.EndsOn, amc.SerialNo, amc.VisitsDone, amc.NextDue!.Value));
+        Assert.Equal(1200m, (await shop.GetJsonAsync<List<CustomerDto>>("/api/v1/customers")).Single(c => c.Id == customer.Id).Balance);
+
+        // Visits open jobs that close without a bill; the third is refused.
+        foreach (var _ in Enumerable.Range(0, 2))
+        {
+            var jobId = Guid.CreateVersion7();
+            amc = await (await shop.PostJsonAsync($"/api/v1/amc/{amc.Id}/visit", new { jobId })).ReadAsync<AmcDto>();
+            var job = (await (await shop.PostJsonAsync($"/api/v1/jobs/{jobId}/deliver", new { billId = Guid.CreateVersion7(), paidAmount = 0m })).ReadAsync<JobDetail>()).Job;
+            Assert.Equal((JobStatus.Delivered, (Guid?)null, "EXD9"), (job.Status, job.BillId, job.SerialNo));
+        }
+        Assert.Equal((2, (DateOnly?)null), (amc.VisitsDone, amc.NextDue));
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/amc/{amc.Id}/visit", new { jobId = Guid.CreateVersion7() })).StatusCode);
+
+        // Renewing starts the day after it ends, bills again and takes the old one off the list.
+        var renewed = await (await shop.PostJsonAsync($"/api/v1/amc/{amc.Id}/renew", new { id = Guid.CreateVersion7(), fee = 1500m, paidAmount = 1500m, mode = "cash" })).ReadAsync<AmcDto>();
+        Assert.Equal((1500m, 0, 2), (renewed.Fee, renewed.VisitsDone, renewed.Visits));
+        Assert.Equal(renewed.Id, Assert.Single(await shop.GetJsonAsync<List<AmcDto>>("/api/v1/amc")).Id);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/amc/{amc.Id}/renew", new { id = Guid.CreateVersion7(), paidAmount = 0m })).StatusCode);
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");
