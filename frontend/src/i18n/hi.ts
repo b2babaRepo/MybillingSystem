@@ -422,6 +422,7 @@ export const hi: Texts = {
     pickShopFirst: 'पहले दुकान चुनें',
   },
   stock: {
+    mrp: 'MRP (पैक पर छपा)', mrpHint: 'ऑनलाइन दुकान में कटा हुआ दिखेगा',
     gst: 'GST दर',
     gstNotSet: 'नहीं डाली',
     hsn: 'HSN कोड',
@@ -1133,6 +1134,7 @@ export const hi: Texts = {
     ownerOnly: 'सिर्फ़ दुकान मालिक इन्हें बदल सकते हैं।',
   },
   store: {
+    off: '{{percent}}% छूट',
     allAisles: 'सब विभाग',
     otherItems: 'बाकी सामान',
     title: 'ऑनलाइन ऑर्डर करें',

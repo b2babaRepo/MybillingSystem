@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Net;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Identity;
@@ -140,6 +141,33 @@ public sealed class OnlineStoreTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.BadRequest, crossShop.StatusCode);
         Assert.Equal(0m, (await shopB.GetJsonAsync<ProductDto>($"/api/v1/products/{riceB.Id}")).Reserved);
         Assert.Empty(await shopB.GetJsonAsync<List<OrderDto>>("/api/v1/orders"));
+    }
+
+    [Fact]
+    public async Task Store_cards_get_the_mrp_and_a_small_photo_for_the_grid()
+    {
+        var (shop, auth) = await api.SignUpAsync("Card Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var anjeer = await (await shop.PostJsonAsync("/api/v1/products", new { id = Guid.CreateVersion7(), name = "Afghani anjeer 500 g", unit = "packet", sellingPrice = 227m, openingStock = 5m, mrp = 850m }))
+            .ReadAsync<ProductDto>();
+        var dates = await (await shop.PostJsonAsync("/api/v1/products", new { id = Guid.CreateVersion7(), name = "Dates", unit = "packet", sellingPrice = 205m, openingStock = 5m, mrp = 150m }))
+            .ReadAsync<ProductDto>();
+        // An MRP at or below the price has nothing "off", so it isn't kept.
+        Assert.Equal((850m, (decimal?)null), (anjeer.Mrp!.Value, dates.Mrp));
+
+        var full = "data:image/webp;base64," + Convert.ToBase64String(new byte[] { 0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 5, 6 });
+        var small = "data:image/webp;base64," + Convert.ToBase64String(new byte[] { 0x52, 0x49, 0x46, 0x46 });
+        (await shop.PutAsJsonAsync($"/api/v1/products/{anjeer.Id}/image", new { dataUrl = full, thumbDataUrl = small }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        (await shop.PutAsJsonAsync($"/api/v1/products/{dates.Id}/image", new { dataUrl = full }, ApiFactory.Json)).EnsureSuccessStatusCode();
+
+        var guest = api.CreateClient();
+        async Task<int> Bytes(Guid id, string size) => (await (await guest.GetAsync($"/api/v1/images/{auth.ShopId}/{id}?v=1&size={size}")).Content.ReadAsByteArrayAsync()).Length;
+        Assert.Equal((4, 10), (await Bytes(anjeer.Id, "thumb"), await Bytes(anjeer.Id, "full")));
+        // No small copy yet: the grid gets the full photo instead of nothing.
+        Assert.Equal(10, await Bytes(dates.Id, "thumb"));
+
+        var store = await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}");
+        Assert.Equal(850m, store.Items.Single(i => i.Id == anjeer.Id).Mrp!.Value);
     }
 
     private static async Task<ProductDto> CreateProductAsync(HttpClient client, string name, string unit, decimal price, decimal stock, bool import = false)

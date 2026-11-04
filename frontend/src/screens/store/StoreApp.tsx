@@ -25,6 +25,9 @@ interface StoreItem {
   available: number
   catalogueItemId?: number | null
   imageAt?: string | null
+  mrp?: number | null
+  packSize?: number | null
+  packUnit?: Unit | null
 }
 
 interface Store {
@@ -167,18 +170,28 @@ function Catalogue({ slug }: { slug: string }) {
       )}
 
       {data.items.length === 0 && <p className="p-8 text-center text-muted">{t('store.empty')}</p>}
-      <ul className="mx-4 mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <ul className="mx-3 mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {shown.map((item) => {
           const inCart = cart[item.id] ?? 0
           const out = item.available <= 0
           return (
             <li key={item.id} className="item-card">
-              <ItemCard item={item} imageUrl={imageUrl(data.shopId, item.id, item.imageAt)} title={item.name} subtitle={`${formatRupees(item.price)}/${t(`units.${item.unit}`)}`} badge={inCart > 0 ? inCart : undefined} selected={inCart > 0}>
+              <ItemCard item={item} square imageUrl={imageUrl(data.shopId, item.id, item.imageAt, 'thumb')} title={item.name} badge={inCart > 0 ? inCart : undefined} selected={inCart > 0}>
+              <div className="mt-0.5 text-[11px] text-muted">{item.packSize && item.packUnit ? `${item.packSize} ${t(`units.${item.packUnit}`)}` : `/${t(`units.${item.unit}`)}`}</div>
+              <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
+                <span className="text-[15px] font-bold">{formatRupees(item.price)}</span>
+                {item.mrp != null && item.mrp > item.price && (
+                  <>
+                    <span className="text-[11px] text-muted line-through">{formatRupees(item.mrp)}</span>
+                    <span className="text-[11px] font-semibold text-green-700">{t('store.off', { percent: Math.round((1 - item.price / item.mrp) * 100) })}</span>
+                  </>
+                )}
+              </div>
               <div className="mt-2">
               {out ? (
                 <span className="text-sm font-semibold text-due">{t('store.out')}</span>
               ) : inCart === 0 ? (
-                <button onClick={() => change(item, 1)} className="h-11 rounded-xl bg-teal-700 px-4 font-bold text-white">{t('store.add')}</button>
+                <button onClick={() => change(item, 1)} aria-label={`${t('store.add')} ${item.name}`} className="h-10 w-full rounded-xl border-2 border-teal-700 font-bold text-teal-800">{t('store.add')}</button>
               ) : (
                 <span className="flex items-center gap-1">
                   <button aria-label={t('a11y.less')} onClick={() => change(item, -1)} className="h-11 w-11 rounded-xl bg-[#edf2f1] text-xl">−</button>

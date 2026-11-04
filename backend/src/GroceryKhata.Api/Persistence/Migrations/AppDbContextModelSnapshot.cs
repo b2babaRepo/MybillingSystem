@@ -1992,6 +1992,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_service");
 
+                    b.Property<decimal?>("Mrp")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("mrp");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -2156,6 +2161,14 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
+
+                    b.Property<byte[]>("ThumbData")
+                        .HasColumnType("bytea")
+                        .HasColumnName("thumb_data");
+
+                    b.Property<string>("ThumbType")
+                        .HasColumnType("text")
+                        .HasColumnName("thumb_type");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

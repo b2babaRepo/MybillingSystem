@@ -7,7 +7,7 @@ import { itemArt } from '../lib/itemArt'
  * price. Used wherever people pick items: billing tiles, the shop's common list, the household planner and the
  * online store. Motion stops for people who turned off animations.
  */
-export function ItemCard({ item, title, subtitle, badge, onClick, selected, compact, imageUrl, children }: {
+export function ItemCard({ item, title, subtitle, badge, onClick, selected, compact, square, imageUrl, children }: {
   item: { catalogueItemId?: number | null; aisle?: string | null; category?: string | null; name?: string }
   title: string
   subtitle?: ReactNode
@@ -16,6 +16,8 @@ export function ItemCard({ item, title, subtitle, badge, onClick, selected, comp
   onClick?: () => void
   selected?: boolean
   compact?: boolean
+  /** Shopping-app card for a grid: a square photo box and a smaller two-line name. */
+  square?: boolean
   /** The shop's photo (lib/images.ts); the drawn picture shows until it loads, and if it fails. */
   imageUrl?: string
   children?: ReactNode
@@ -33,7 +35,7 @@ export function ItemCard({ item, title, subtitle, badge, onClick, selected, comp
       }`}
     >
       <div
-        className={`relative flex items-center justify-center overflow-hidden ${compact ? 'h-16' : 'h-24'}`}
+        className={`relative flex items-center justify-center overflow-hidden ${square ? 'aspect-square' : compact ? 'h-16' : 'h-24'}`}
         style={{ background: photo && photoLoaded ? art.tint : `linear-gradient(135deg, ${art.from}, ${art.to})` }}
       >
         {!(photo && photoLoaded) && (
@@ -50,8 +52,8 @@ export function ItemCard({ item, title, subtitle, badge, onClick, selected, comp
             alt=""
             loading="lazy"
             decoding="async"
-            width={compact ? 64 : 96}
-            height={compact ? 64 : 96}
+            width={square ? 160 : compact ? 64 : 96}
+            height={square ? 160 : compact ? 64 : 96}
             onLoad={() => setPhotoLoaded(true)}
             onError={() => setPhotoFailed(true)}
             className={`absolute inset-0 m-auto h-[88%] w-auto rounded-xl object-contain mix-blend-multiply ${photoLoaded ? '' : 'opacity-0'}`}
@@ -60,7 +62,7 @@ export function ItemCard({ item, title, subtitle, badge, onClick, selected, comp
         {badge && <span className="absolute right-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-ink shadow">{badge}</span>}
       </div>
       <div className="flex flex-1 flex-col p-2">
-        <div className="line-clamp-2 text-[15px] leading-tight font-bold">{title}</div>
+        <div className={square ? 'line-clamp-2 min-h-[2.6em] text-[13px] leading-[1.3] font-semibold' : 'line-clamp-2 text-[15px] leading-tight font-bold'}>{title}</div>
         {subtitle && <div className="mt-0.5 text-sm text-muted">{subtitle}</div>}
         {children}
       </div>

@@ -83,6 +83,9 @@ public sealed class Product : Entity, ITenantOwned
 
     /// <summary>The company's warranty on one unit, in months; printed on the bill from the day of sale.</summary>
     public int? WarrantyMonths { get; set; }
+
+    /// <summary>The printed MRP, when the shop sells below it: the store shows it struck through with the % off.</summary>
+    public decimal? Mrp { get; set; }
 }
 
 public enum DrugSchedule

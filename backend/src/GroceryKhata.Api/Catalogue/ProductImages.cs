@@ -22,14 +22,23 @@ public sealed class ProductImage : ITenantOwned
     public required byte[] Data { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>A small copy (about 320 px) for card grids: a quarter of the memory on the phone. Null for older photos.</summary>
+    public byte[]? ThumbData { get; set; }
+
+    public string? ThumbType { get; set; }
 }
 
-public sealed record ProductImageRequest(string? DataUrl);
+/// <summary><see cref="ThumbDataUrl"/>: the small copy the phone made alongside, optional.</summary>
+public sealed record ProductImageRequest(string? DataUrl, string? ThumbDataUrl = null);
 
 public static class ProductImageEndpoints
 {
     /// <summary>Largest photo accepted after the phone has shrunk it: generous for a 512 px WebP.</summary>
     private const int MaxBytes = 150_000;
+
+    /// <summary>The card-grid copy: a 320 px WebP of a pack shot is about 15–20 KB.</summary>
+    private const int MaxThumbBytes = 40_000;
 
 
     public static IEndpointRouteBuilder MapProductImages(this IEndpointRouteBuilder app)
@@ -52,6 +61,7 @@ public static class ProductImageEndpoints
         }
 
         var (type, data) = photo;
+        var thumb = Common.Photos.Decode(request.ThumbDataUrl, MaxThumbBytes);
         var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id, ct);
         if (product is null)
         {
@@ -62,13 +72,14 @@ public static class ProductImageEndpoints
         var image = await db.ProductImages.SingleOrDefaultAsync(i => i.ProductId == id, ct);
         if (image is null)
         {
-            db.ProductImages.Add(new ProductImage { ProductId = id, ContentType = type, Data = data, UpdatedAt = now });
+            db.ProductImages.Add(new ProductImage { ProductId = id, ContentType = type, Data = data, UpdatedAt = now, ThumbType = thumb?.ContentType, ThumbData = thumb?.Data });
         }
         else
         {
             image.ContentType = type;
             image.Data = data;
             image.UpdatedAt = now;
+            (image.ThumbType, image.ThumbData) = (thumb?.ContentType, thumb?.Data);
         }
 
         product.ImageAt = now;
@@ -83,7 +94,8 @@ public static class ProductImageEndpoints
         return TypedResults.NoContent();
     }
 
-    private static async Task<IResult> GetAsync(Guid shopId, Guid productId, HttpContext http, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    /// <summary><paramref name="size"/> "thumb": the small copy for card grids, or the full photo when there is none yet.</summary>
+    private static async Task<IResult> GetAsync(Guid shopId, Guid productId, string? size, HttpContext http, AppDbContext db, TenantContext tenant, CancellationToken ct)
     {
         if (!await db.Shops.AsNoTracking().AnyAsync(s => s.Id == shopId && s.IsActive, ct))
         {
@@ -99,6 +111,8 @@ public static class ProductImageEndpoints
 
         // Overrides the API-wide no-store: a product photo is not private, and its URL changes with it.
         http.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
-        return TypedResults.File(image.Data, image.ContentType, lastModified: image.UpdatedAt);
+        return size == "thumb" && image.ThumbData is { } small
+            ? TypedResults.File(small, image.ThumbType ?? image.ContentType, lastModified: image.UpdatedAt)
+            : TypedResults.File(image.Data, image.ContentType, lastModified: image.UpdatedAt);
     }
 }

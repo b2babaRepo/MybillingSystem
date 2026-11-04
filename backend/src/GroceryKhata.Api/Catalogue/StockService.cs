@@ -99,6 +99,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.Schedule = request.IsService ? null : request.Schedule;
         product.UnitsPerPack = request.IsService ? null : request.UnitsPerPack is > 1 and <= 1000 ? request.UnitsPerPack : null;
         (product.TracksSerials, product.WarrantyMonths) = request.IsService ? (false, null) : (request.TracksSerials, request.WarrantyMonths is > 0 and <= 240 ? request.WarrantyMonths : null);
+        product.Mrp = CleanMrp(request.Mrp, request.SellingPrice);
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)
@@ -150,6 +151,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         // Null keeps them (older apps don't send them); 0 months clears the warranty.
         product.TracksSerials = !product.IsService && (request.TracksSerials ?? product.TracksSerials);
         product.WarrantyMonths = request.WarrantyMonths is { } months ? (months is > 0 and <= 240 && !product.IsService ? months : null) : product.WarrantyMonths;
+        // Null keeps the MRP; 0 clears it.
+        product.Mrp = request.Mrp is { } mrp ? CleanMrp(mrp, product.SellingPrice) : product.Mrp;
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
@@ -480,7 +483,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     private static readonly System.Linq.Expressions.Expression<Func<Product, ProductDto>> AsDto = p => new ProductDto(
         p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.CostPrice, p.Stock, p.ReorderLevel,
         !p.IsService && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption, p.ImageAt,
-        p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths);
+        p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp);
+
+    /// <summary>An MRP only counts when it is above the selling price (otherwise there is nothing "off" to show).</summary>
+    private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>
+        mrp is { } m && m > sellingPrice && Money.IsValidAmount(m) ? m : null;
 
     private static StockMovementDto ToDto(StockMovement m) =>
         new(m.Id, m.ProductId, m.Kind, m.Quantity, m.Reason, m.BillId, m.CostPrice, m.Note, m.OccurredAt);

@@ -12,7 +12,7 @@ import type { Product, StockMovement, StockReason, Unit } from '../lib/types'
 import { UnitSelect } from './BillScreen'
 import { StockBadge } from './ItemsScreen'
 import { ItemCard } from '../components/ItemCard'
-import { imageUrl, shrinkPhoto } from '../lib/images'
+import { imageUrl, itemPhotos } from '../lib/images'
 import { navigate } from '../router'
 
 const REASONS: StockReason[] = ['damage', 'wastage', 'return', 'count_correction', 'other']
@@ -158,6 +158,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     perPack: product.unitsPerPack ? String(product.unitsPerPack) : '',
     serials: !!product.tracksSerials,
     warranty: product.warrantyMonths ? String(product.warrantyMonths) : '',
+    mrp: product.mrp ? String(product.mrp) : '',
   })
   const gstBilling = useGstBilling(shopId)
   const types = shopTypes(useShopSettings(shopId).data)
@@ -176,6 +177,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     gstRate: form.gst === '' ? null : Number(form.gst),
     hsnCode: form.hsn.trim() || null,
     replaceTax: true,
+    mrp: Number(form.mrp) || 0,
     ...(medical ? { schedule: form.schedule || null, replaceSchedule: true, unitsPerPack: Number(form.perPack) || 0 } : {}),
     ...(service ? { tracksSerials: form.serials, warrantyMonths: Number(form.warranty) || 0 } : {}),
     isActive,
@@ -212,6 +214,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         <UnitSelect value={form.unit} onChange={(unit) => setForm({ ...form, unit })} />
         <Field label={t('stock.sellingPrice')} value={form.price} onChange={set('price')} inputMode="decimal" />
       </div>
+      {!product.isService && <Field label={t('stock.mrp')} value={form.mrp} onChange={set('mrp')} inputMode="decimal" placeholder={t('stock.mrpHint')} />}
       <div className="grid grid-cols-2 gap-2">
         <Field label={t('stock.buyingCostShort')} value={form.cost} onChange={set('cost')} inputMode="decimal" />
         <Field label={t('stock.reorderLevel')} value={form.reorder} onChange={set('reorder')} inputMode="decimal" />
@@ -274,7 +277,7 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
     }
   }
 
-  const upload = (file: File) => run(async () => api(`/v1/products/${product.id}/image`, 'PUT', { dataUrl: await shrinkPhoto(file) }))
+  const upload = (file: File) => run(async () => api(`/v1/products/${product.id}/image`, 'PUT', await itemPhotos(file)))
 
   return (
     <section className="flex items-center gap-3 rounded-[18px] bg-white p-3">

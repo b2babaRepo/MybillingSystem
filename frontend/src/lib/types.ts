@@ -65,6 +65,7 @@ export interface Product {
   /** Sales & service: each unit has a serial number, picked on the bill. */
   tracksSerials?: boolean
   warrantyMonths?: number | null
+  mrp?: number | null
   /** Held for online orders not yet delivered. */
   reserved?: number
   /** The common-list item this is (for its picture, and so households find it). */

@@ -420,6 +420,7 @@ export const en = {
     pickShopFirst: 'Choose a shop first',
   },
   stock: {
+    mrp: 'MRP (printed on the pack)', mrpHint: 'Shown struck through in your online store',
     gst: 'GST rate',
     gstNotSet: 'Not set',
     hsn: 'HSN code',
@@ -1132,6 +1133,7 @@ export const en = {
     ownerOnly: 'Only the shop owner can change these.',
   },
   store: {
+    off: '{{percent}}% off',
     allAisles: 'All aisles',
     otherItems: 'Other items',
     title: 'Order online',
