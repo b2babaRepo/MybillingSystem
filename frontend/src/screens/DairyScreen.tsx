@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
-import { api } from '../lib/api'
+import { api, request } from '../lib/api'
+import { shrinkPhoto } from '../lib/images'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 
@@ -11,7 +12,7 @@ type Shift = 'morning' | 'evening'
 interface Farmer { id: string; code: number; name: string; phone: string | null; village: string | null; defaultKind: Kind; isActive: boolean; due: number }
 interface Collection { id: string; farmerCode: number; farmerName: string; phone: string | null; kind: Kind; litres: number; fat: number; snf: number | null; rate: number; amount: number; belowStandard: boolean; rejected: boolean; edited: boolean }
 interface ShiftDay { date: string; shift: Shift; collections: Collection[]; litres: number; amount: number; avgFat: number }
-interface Plan { id: string; for: 'farmers' | 'dairy'; from: string; method: 'fat_snf' | 'fat_only' | 'flat'; rates: { kind: Kind; fatRate: number; snfRate: number; flatRate: number; minFat: number; minSnf: number }[] }
+interface Plan { id: string; for: 'farmers' | 'dairy'; from: string; method: 'fat_snf' | 'fat_only' | 'flat' | 'grid'; gridCells?: number; gridMinFat?: number | null; gridMaxFat?: number | null; gridMinSnf?: number | null; gridMaxSnf?: number | null; rates: { kind: Kind; fatRate: number; snfRate: number; flatRate: number; minFat: number; minSnf: number }[] }
 interface Bill { farmerId: string; code: number; name: string; phone: string | null; litres: number; avgFat: number; milkAmount: number; feed: number; advance: number; bonus: number; paidInPeriod: number; opening: number; due: number; collections: number }
 interface Dispatch { id: string; date: string; shift: Shift; agency: string; kind: Kind; litres: number; fat: number; snf: number; acceptedLitres: number | null; acceptedFat: number | null; acceptedSnf: number | null; amount: number | null; paidOn: string | null }
 interface Summary { collectedLitres: number; collectedFatKg: number; paidToFarmers: number; dispatchedLitres: number; dispatchedFatKg: number; acceptedLitres: number; acceptedFatKg: number; fromDairy: number; dairyUnpaid: number; margin: number; rejected: number; belowStandard: number; dispatchesAwaitingDairy: number }
@@ -19,6 +20,50 @@ interface Summary { collectedLitres: number; collectedFatKg: number; paidToFarme
 const select = 'h-12 w-full rounded-xl border border-line bg-white px-3'
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const nowShift = (): Shift => (new Date().getHours() < 14 ? 'morning' : 'evening')
+
+interface Flag { kind: string; date: string; farmerName: string | null; detail: string }
+interface Match { line: { date: string | null; shift: Shift | null; litres: number | null; fat: number | null; snf: number | null; amount: number | null }; dispatchId: string | null; sentLitres: number | null; sentFat: number | null; litresShort: number | null; fatKgShort: number | null }
+
+/** Photo reading (testing slip, dairy statement) is an AI service: shown only when switched on, and after the person agrees. */
+function useAiPhotos() {
+  const queryClient = useQueryClient()
+  const ai = useQuery({ queryKey: ['ai-status'], queryFn: () => api<{ consentedAt: string | null; canReadPhotos: boolean }>('/v1/me/ai') }).data
+  const agree = async () => { await request('/v1/me/ai/consent', 'POST', { agree: true }); await queryClient.invalidateQueries({ queryKey: ['ai-status'] }) }
+  return { canRead: !!ai?.canReadPhotos, consented: !!ai?.consentedAt, agree }
+}
+
+function PhotoButton({ label, busy, onFile }: { label: string; busy: boolean; onFile: (file: File) => void }) {
+  const { t } = useTranslation()
+  const ai = useAiPhotos()
+  const [ask, setAsk] = useState(false)
+  if (!ai.canRead) return null
+  if (!ai.consented) return (
+    <>
+      <button onClick={() => setAsk(true)} className="min-h-11 rounded-xl border-2 border-teal-700 font-semibold text-teal-800">📷 {label}</button>
+      {ask && <div className="flex flex-col gap-2 rounded-xl bg-amber-50 p-2 text-sm"><p>{t('dairy.photoConsent')}</p><button onClick={() => void ai.agree()} className="h-10 rounded-lg bg-teal-700 font-semibold text-white">{t('expense.consentYes')}</button></div>}
+    </>
+  )
+  return (
+    <label className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl border-2 border-teal-700 font-semibold text-teal-800 ${busy ? 'opacity-50' : ''}`}>
+      📷 {busy ? t('invoicePhoto.reading') : label}
+      <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f) }} />
+    </label>
+  )
+}
+
+/** Turns a rate chart copied from Excel (fat down the first column, SNF across the first row) into cells. */
+export function parseGrid(text: string): { fat: number; snf: number; ratePerLitre: number }[] {
+  const rows = text.trim().split(/\r?\n/).map((r) => r.split(/\t|,|;/).map((c) => c.trim()))
+  if (rows.length < 2) return []
+  const snfs = rows[0].slice(1).map(Number)
+  const cells: { fat: number; snf: number; ratePerLitre: number }[] = []
+  for (const row of rows.slice(1)) {
+    const fat = Number(row[0])
+    if (!(fat > 0)) continue
+    row.slice(1).forEach((v, i) => { const rate = Number(v); if (rate > 0 && snfs[i] > 0) cells.push({ fat: Math.round(fat * 10) / 10, snf: Math.round(snfs[i] * 10) / 10, ratePerLitre: Math.round(rate * 100) / 100 }) })
+  }
+  return cells
+}
 
 /** On a dairy centre's home: the shift so far, and the way in. */
 export function DairyHomeCard({ shopId }: { shopId: string }) {
@@ -95,6 +140,19 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
     return () => clearTimeout(timer)
   }, [date, kind, d.litres, d.fat, d.snf, d.clr])
 
+  const [reading, setReading] = useState(false)
+  const readSlip = async (file: File) => {
+    setReading(true)
+    try {
+      const s = await api<{ litres: number | null; fat: number | null; snf: number | null; clr: number | null; farmerCode: number | null }>('/v1/dairy/slip-photo', 'POST', { imageDataUrl: await shrinkPhoto(file, 1400, 1_000_000, false) })
+      setD((cur) => ({ ...cur, code: s.farmerCode ? String(s.farmerCode) : cur.code, litres: s.litres ? String(s.litres) : cur.litres, fat: s.fat ? String(s.fat) : cur.fat, snf: s.snf ? String(s.snf) : cur.snf, clr: s.clr ? String(s.clr) : cur.clr }))
+    } catch (e) {
+      setQuoteError(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setReading(false)
+    }
+  }
+
   const save = () => run(async () => {
     const saved = await api<Collection>('/v1/dairy/collections', 'POST', {
       id: crypto.randomUUID(), date, shift, farmerId: farmer!.id, kind, litres: Number(d.litres), fat: Number(d.fat),
@@ -130,6 +188,7 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
           <Field label={t('dairy.snf')} value={d.snf} onChange={(e) => setD({ ...d, snf: e.target.value })} inputMode="decimal" />
           <Field label={t('dairy.clr')} value={d.clr} onChange={(e) => setD({ ...d, clr: e.target.value })} inputMode="decimal" placeholder={t('dairy.clrHint')} />
         </div>
+        <PhotoButton label={t('dairy.readSlip')} busy={reading} onFile={(f) => void readSlip(f)} />
         <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={d.rejected} onChange={(e) => setD({ ...d, rejected: e.target.checked })} />{t('dairy.rejected')}</label>
         {quote && <p className={`rounded-xl p-2 text-lg font-bold ${quote.belowStandard ? 'bg-amber-50' : 'bg-teal-50 text-teal-900'}`}>{d.rejected ? t('dairy.notPaid') : `${formatRupees(quote.amount)} · ₹${quote.perLitre}/L`}{!d.snf && d.clr ? ` · SNF ${quote.snf}` : ''}{quote.belowStandard ? ` · ${t('dairy.below')}` : ''}</p>}
         {quoteError && <p className="text-sm text-due">{quoteError}</p>}
@@ -262,8 +321,42 @@ function Dispatches({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const [d, setD] = useState({ agency: list[0]?.agency ?? 'Sudha (COMFED)', kind: 'mixed' as Kind, shift: nowShift(), litres: '', fat: '', snf: '' })
   const [acc, setAcc] = useState<{ id: string; litres: string; fat: string; snf: string; amount: string } | null>(null)
   const { message, run } = useRun(shopId)
+  const flags = useQuery({ queryKey: [shopId, 'dairy', 'flags'], enabled: isOwner, queryFn: () => api<Flag[]>('/v1/dairy/flags') }).data ?? []
+  const [matches, setMatches] = useState<Match[] | null>(null)
+  const [reading, setReading] = useState(false)
+  const readStatement = async (file: File) => {
+    setReading(true)
+    await run(async () => setMatches(await api<Match[]>('/v1/dairy/statement-photo', 'POST', { imageDataUrl: await shrinkPhoto(file, 1600, 1_200_000, false) })), t('dairy.statementRead'))
+    setReading(false)
+  }
   return (
     <>
+      {isOwner && flags.length > 0 && (
+        <section className="flex flex-col gap-1 rounded-[18px] bg-amber-50 p-3 text-sm">
+          <h3 className="font-bold">{t('dairy.flagsTitle', { count: flags.length })}</h3>
+          <p className="text-xs text-muted">{t('dairy.flagsHint')}</p>
+          {flags.map((f, i) => <p key={i}>⚠ {f.date} · {f.farmerName ? `${f.farmerName} · ` : ''}<b>{t(`dairy.flag_${f.kind}`)}</b>: {f.detail}</p>)}
+        </section>
+      )}
+      {isOwner && (
+        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+          <h3 className="font-bold">{t('dairy.statementTitle')}</h3>
+          <p className="text-xs text-muted">{t('dairy.statementHint')}</p>
+          <PhotoButton label={t('dairy.readStatement')} busy={reading} onFile={(f) => void readStatement(f)} />
+          {matches?.map((m, i) => (
+            <div key={i} className={`flex flex-col gap-1 rounded-xl p-2 text-sm ${m.dispatchId ? 'bg-ground' : 'bg-red-50'}`}>
+              <p>{m.line.date ?? '?'} · {m.line.shift ? t(`dairy.shift_${m.line.shift}`) : '?'} · {m.line.litres ?? '?'} L · {m.line.fat ?? '?'}/{m.line.snf ?? '?'} · {m.line.amount != null ? formatRupees(m.line.amount) : '?'}</p>
+              {m.dispatchId ? <p className={(m.litresShort ?? 0) > 0 ? 'text-due' : 'text-teal-800'}>{t('dairy.matchLine', { sent: m.sentLitres, short: m.litresShort ?? '?', fat: m.fatKgShort ?? '?' })}</p> : <p className="text-due">{t('dairy.noMatch')}</p>}
+              {m.dispatchId && m.line.litres != null && m.line.fat != null && m.line.snf != null && (
+                <Button tone="plain" className="h-10 text-sm" onClick={() => void run(async () => {
+                  await api(`/v1/dairy/dispatches/${m.dispatchId}/accepted`, 'PUT', { acceptedLitres: m.line.litres, acceptedFat: m.line.fat, acceptedSnf: m.line.snf, amount: m.line.amount })
+                  setMatches((cur) => cur?.filter((_, j) => j !== i) ?? null)
+                }, t('saved'))}>{t('dairy.useFigures')}</Button>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
       {summary && (
         <section className="flex flex-col gap-1 rounded-[18px] bg-white p-3 text-sm">
           <h3 className="font-bold">{t('dairy.monthTitle')}</h3>
@@ -327,7 +420,12 @@ function Rates({ shopId }: { shopId: string }) {
   const [d, setD] = useState({ for: 'farmers' as Plan['for'], from: iso(new Date()), method: 'fat_snf' as Plan['method'], rates: { buffalo: { ...empty, minFat: '5', minSnf: '9' }, cow: { ...empty, minFat: '3.2', minSnf: '8.3' }, mixed: { ...empty, minFat: '4.5', minSnf: '8.5' } } })
   const { message, run } = useRun(shopId)
   const setRate = (k: Kind, key: keyof typeof empty, v: string) => setD({ ...d, rates: { ...d.rates, [k]: { ...d.rates[k], [key]: v } } })
-  const filled = (Object.entries(d.rates) as [Kind, typeof empty][]).filter(([, r]) => (d.method === 'flat' ? Number(r.flatRate) : Number(r.fatRate)) > 0)
+  const [gridKind, setGridKind] = useState<Kind>('buffalo')
+  const [gridText, setGridText] = useState('')
+  const cells = d.method === 'grid' ? parseGrid(gridText) : []
+  const filled = d.method === 'grid'
+    ? (cells.length > 0 ? [[gridKind, d.rates[gridKind]] as [Kind, typeof empty]] : [])
+    : (Object.entries(d.rates) as [Kind, typeof empty][]).filter(([, r]) => (d.method === 'flat' ? Number(r.flatRate) : Number(r.fatRate)) > 0)
   return (
     <>
       <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
@@ -339,10 +437,21 @@ function Rates({ shopId }: { shopId: string }) {
           </label>
           <Field label={t('dairy.from')} type="date" value={d.from} onChange={(e) => setD({ ...d, from: e.target.value })} />
           <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('dairy.method')}</span>
-            <select value={d.method} onChange={(e) => setD({ ...d, method: e.target.value as Plan['method'] })} className={select}>{(['fat_snf', 'fat_only', 'flat'] as const).map((m) => <option key={m} value={m}>{t(`dairy.method_${m}`)}</option>)}</select>
+            <select value={d.method} onChange={(e) => setD({ ...d, method: e.target.value as Plan['method'] })} className={select}>{(['fat_snf', 'fat_only', 'flat', 'grid'] as const).map((m) => <option key={m} value={m}>{t(`dairy.method_${m}`)}</option>)}</select>
           </label>
         </div>
-        {(['buffalo', 'cow', 'mixed'] as const).map((k) => (
+        {d.method === 'grid' && (
+          <div className="flex flex-col gap-2 rounded-xl bg-ground p-2">
+            <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('dairy.kind')}</span>
+              <select value={gridKind} onChange={(e) => setGridKind(e.target.value as Kind)} className={select}>{(['buffalo', 'cow', 'mixed'] as const).map((k) => <option key={k} value={k}>{t(`dairy.kind_${k}`)}</option>)}</select>
+            </label>
+            <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('dairy.gridPaste')}</span>
+              <textarea value={gridText} onChange={(e) => setGridText(e.target.value)} rows={6} placeholder={'FAT\t8.9\t9.0\n6.0\t48.10\t48.60\n6.1\t48.70\t49.20'} className="w-full rounded-xl border border-line p-2 font-mono text-sm" />
+            </label>
+            <p className="text-xs text-muted">{cells.length > 0 ? t('dairy.gridRead', { count: cells.length }) : t('dairy.gridHint')}</p>
+          </div>
+        )}
+        {d.method !== 'grid' && (['buffalo', 'cow', 'mixed'] as const).map((k) => (
           <div key={k} className="grid grid-cols-4 items-end gap-2 rounded-xl bg-ground p-2">
             <p className="col-span-4 text-sm font-bold">{t(`dairy.kind_${k}`)}</p>
             {d.method === 'flat' ? <Field label={t('dairy.flatRate')} value={d.rates[k].flatRate} onChange={(e) => setRate(k, 'flatRate', e.target.value)} inputMode="decimal" /> : <Field label={t('dairy.fatRate')} value={d.rates[k].fatRate} onChange={(e) => setRate(k, 'fatRate', e.target.value)} inputMode="decimal" />}
@@ -354,13 +463,15 @@ function Rates({ shopId }: { shopId: string }) {
         <Button disabled={filled.length === 0} onClick={() => void run(() => api('/v1/dairy/rate-plans', 'POST', {
           id: crypto.randomUUID(), for: d.for, from: d.from, method: d.method,
           rates: filled.map(([kind, r]) => ({ kind, fatRate: Number(r.fatRate) || 0, snfRate: Number(r.snfRate) || 0, flatRate: Number(r.flatRate) || 0, minFat: Number(r.minFat) || 0, minSnf: Number(r.minSnf) || 0 })),
+          grid: d.method === 'grid' ? cells.map((c) => ({ kind: gridKind, ...c })) : null,
         }), t('saved'))}>{t('dairy.savePlan')}</Button>
         {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
       </section>
       {plans.map((p) => (
         <section key={p.id} className="rounded-[18px] bg-white p-3 text-sm">
           <p className="font-bold">{t(`dairy.for_${p.for}`)} · {t('dairy.fromDate', { date: p.from })} · {t(`dairy.method_${p.method}`)}</p>
-          {p.rates.map((r) => <p key={r.kind}>{t(`dairy.kind_${r.kind}`)}: {p.method === 'flat' ? `₹${r.flatRate}/L` : `₹${r.fatRate}/kg fat${p.method === 'fat_snf' ? ` + ₹${r.snfRate}/kg SNF` : ''}`} · min {r.minFat}/{r.minSnf}</p>)}
+          {p.method === 'grid' && <p>{t('dairy.gridSummary', { count: p.gridCells ?? 0, fat: `${p.gridMinFat}–${p.gridMaxFat}`, snf: `${p.gridMinSnf}–${p.gridMaxSnf}` })}</p>}
+          {p.method !== 'grid' && p.rates.map((r) => <p key={r.kind}>{t(`dairy.kind_${r.kind}`)}: {p.method === 'flat' ? `₹${r.flatRate}/L` : `₹${r.fatRate}/kg fat${p.method === 'fat_snf' ? ` + ₹${r.snfRate}/kg SNF` : ''}`} · min {r.minFat}/{r.minSnf}</p>)}
         </section>
       ))}
     </>

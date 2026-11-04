@@ -153,6 +153,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<DairyRate> DairyRates => Set<DairyRate>();
 
+    public DbSet<DairyGridCell> DairyGridCells => Set<DairyGridCell>();
+
     public DbSet<MilkCollection> MilkCollections => Set<MilkCollection>();
 
     public DbSet<DairyFarmerEntry> DairyFarmerEntries => Set<DairyFarmerEntry>();
@@ -772,6 +774,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("dairy_rate_plans");
             b.HasTenantKey();
             b.HasMany(p => p.Rates).WithOne().HasForeignKey(r => r.PlanId);
+            b.HasMany(p => p.Grid).WithOne().HasForeignKey(c => c.PlanId);
             b.HasIndex(p => new { p.ShopId, p.For, p.From });
         });
 
@@ -782,6 +785,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             foreach (var p in new[] { nameof(DairyRate.FatRate), nameof(DairyRate.SnfRate), nameof(DairyRate.FlatRate) }) b.Property(p).HasPrecision(10, 2);
             b.Property(r => r.MinFat).HasPrecision(5, 2);
             b.Property(r => r.MinSnf).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<DairyGridCell>(b =>
+        {
+            b.ToTable("dairy_grid_cells");
+            b.HasTenantKey();
+            b.Property(c => c.Fat).HasPrecision(4, 1);
+            b.Property(c => c.Snf).HasPrecision(4, 1);
+            b.Property(c => c.RatePerLitre).HasPrecision(8, 2);
+            b.HasIndex(c => new { c.ShopId, c.PlanId, c.Kind, c.Fat, c.Snf }).IsUnique();
         });
 
         modelBuilder.Entity<MilkCollection>(b =>

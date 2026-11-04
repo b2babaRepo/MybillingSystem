@@ -3893,6 +3893,62 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("dairy_farmer_entries", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.DairyGridCell", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal>("Fat")
+                        .HasPrecision(4, 1)
+                        .HasColumnType("numeric(4,1)")
+                        .HasColumnName("fat");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<decimal>("RatePerLitre")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("rate_per_litre");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<decimal>("Snf")
+                        .HasPrecision(4, 1)
+                        .HasColumnType("numeric(4,1)")
+                        .HasColumnName("snf");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("ShopId", "PlanId", "Kind", "Fat", "Snf")
+                        .IsUnique();
+
+                    b.ToTable("dairy_grid_cells", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.DairyRate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7100,6 +7156,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.DairyGridCell", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Ledger.DairyRatePlan", null)
+                        .WithMany("Grid")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.DairyRate", b =>
                 {
                     b.HasOne("GroceryKhata.Api.Ledger.DairyRatePlan", null)
@@ -7351,6 +7416,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.DairyRatePlan", b =>
                 {
+                    b.Navigation("Grid");
+
                     b.Navigation("Rates");
                 });
 

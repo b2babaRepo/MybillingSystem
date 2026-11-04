@@ -21,6 +21,68 @@ public sealed class DairyTests(ApiFactory api) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public void Flags_point_at_fat_jumps_water_signs_typed_readings_and_dairy_shortfalls()
+    {
+        var (ramesh, sita) = (Guid.NewGuid(), Guid.NewGuid());
+        var today = new DateOnly(2026, 11, 4);
+        var farmers = new List<DairyFarmer> { new() { Id = ramesh, Name = "Ramesh" }, new() { Id = sita, Name = "Sita" } };
+        MilkCollection Milk(Guid who, int daysAgo, decimal fat, decimal snf) =>
+            new() { Id = Guid.NewGuid(), FarmerId = who, Date = today.AddDays(-daysAgo), Shift = Shift.Morning, Kind = MilkKind.Buffalo, Litres = 8, Fat = fat, Snf = snf };
+        var milk = new List<MilkCollection>
+        {
+            // Ramesh usually brings 6.0–6.3 fat; today 7.8.
+            Milk(ramesh, 6, 6.1m, 9.0m), Milk(ramesh, 5, 6.2m, 9.1m), Milk(ramesh, 4, 6.0m, 9.0m), Milk(ramesh, 3, 6.3m, 9.0m), Milk(ramesh, 0, 7.8m, 9.1m),
+            // Sita: the same reading five times, the last with low SNF and normal fat.
+            Milk(sita, 4, 6.5m, 8.2m), Milk(sita, 3, 6.5m, 8.2m), Milk(sita, 2, 6.5m, 8.2m), Milk(sita, 1, 6.5m, 8.2m), Milk(sita, 0, 6.5m, 8.2m),
+        };
+        var standards = new List<DairyRate> { new() { Kind = MilkKind.Buffalo, MinFat = 5, MinSnf = 9 } };
+        var dispatch = new MilkDispatch { Id = Guid.NewGuid(), Agency = "Sudha", Date = today, Litres = 100, Fat = 6.4m, Snf = 8.9m, AcceptedLitres = 98, AcceptedFat = 6.1m, AcceptedSnf = 8.9m };
+        var flags = DairyChecks.Flags(milk, farmers, standards, [dispatch], today.AddDays(-10), today);
+        Assert.Contains(flags, f => f.Kind == "fatJump" && f.FarmerId == ramesh);
+        Assert.Contains(flags, f => f.Kind == "waterSign" && f.FarmerId == sita);
+        Assert.Contains(flags, f => f.Kind == "sameReading" && f.FarmerId == sita);
+        Assert.Contains(flags, f => f.Kind == "dairyShort" && f.DispatchId == dispatch.Id);
+        Assert.DoesNotContain(flags, f => f.Kind == "fatJump" && f.FarmerId == sita);
+    }
+
+    [Fact]
+    public void Read_slips_and_statements_keep_only_values_milk_can_have()
+    {
+        var slip = ClaudeDairyPhotoReader.ParseSlip("""{"litres":8.5,"fat":6.4,"snf":42,"clr":28.5,"farmerCode":17}""");
+        Assert.Equal((8.5m, 6.4m, (decimal?)null, 28.5m, 17), (slip.Litres!.Value, slip.Fat!.Value, slip.Snf, slip.Clr!.Value, slip.FarmerCode!.Value));
+        var lines = ClaudeDairyPhotoReader.ParseStatement("""{"lines":[{"date":"2026-11-03","shift":"evening","litres":96.5,"fat":6.1,"snf":8.9,"amount":5120.4},{"date":"03/11","shift":null,"litres":null,"fat":99,"snf":null,"amount":null}]}""");
+        Assert.Equal((new DateOnly(2026, 11, 3), Shift.Evening, 96.5m), (lines[0].Date!.Value, lines[0].Shift!.Value, lines[0].Litres!.Value));
+        Assert.Equal(((DateOnly?)null, (decimal?)null), (lines[1].Date, lines[1].Fat));
+    }
+
+    [Fact]
+    public async Task A_rate_chart_prices_milk_by_its_cell_and_the_statement_matches_our_dispatch()
+    {
+        var (shop, _) = await api.SignUpAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5));
+        var farmer = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/dairy/farmers", new { id = farmer, name = "Sita Devi", defaultKind = "buffalo" })).EnsureSuccessStatusCode();
+        // A small chart: fat 6.0–6.1 × SNF 8.9–9.0.
+        var grid = new[] { (6.0m, 8.9m, 48.10m), (6.0m, 9.0m, 48.60m), (6.1m, 8.9m, 48.70m), (6.1m, 9.0m, 49.20m) }
+            .Select(c => new { kind = "buffalo", fat = c.Item1, snf = c.Item2, ratePerLitre = c.Item3 }).ToArray();
+        var rates = new[] { new { kind = "buffalo", fatRate = 0m, snfRate = 0m, flatRate = 0m, minFat = 5m, minSnf = 9m } };
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/dairy/rate-plans", new { id = Guid.CreateVersion7(), @for = "farmers", from = today.AddDays(-5), method = "grid", rates })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/dairy/rate-plans", new { id = Guid.CreateVersion7(), @for = "farmers", from = today.AddDays(-5), method = "grid", rates, grid })).EnsureSuccessStatusCode();
+        Assert.Equal(4, (await shop.GetJsonAsync<List<RatePlanDto>>("/api/v1/dairy/rate-plans"))[0].GridCells);
+
+        // 10 L at 6.08 fat, 8.96 SNF: read as 6.1 / 9.0 → ₹49.20 a litre.
+        var milk = await (await shop.PostJsonAsync("/api/v1/dairy/collections", new { id = Guid.CreateVersion7(), date = today, shift = "morning", farmerId = farmer, kind = "buffalo", litres = 10m, fat = 6.08m, snf = 8.96m })).ReadAsync<CollectionDto>();
+        Assert.Equal((492m, 49.20m), (milk.Amount, milk.Rate));
+        // Off the chart: refused, never guessed.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/dairy/collections", new { id = Guid.CreateVersion7(), date = today, shift = "morning", farmerId = farmer, kind = "buffalo", litres = 5m, fat = 7.5m, snf = 9.0m })).StatusCode);
+
+        var sent = await (await shop.PostJsonAsync("/api/v1/dairy/dispatches", new { id = Guid.CreateVersion7(), date = today, shift = "morning", agency = "Sudha", kind = "buffalo", litres = 100m, fat = 6.1m, snf = 9.0m })).ReadAsync<DispatchDto>();
+        var matched = Assert.Single(await (await shop.PostJsonAsync("/api/v1/dairy/statement/match", new[] { new { date = today, shift = "morning", litres = 98.5m, fat = 6.0m, snf = 9.0m, amount = 4790m } })).ReadAsync<List<DairyStatementMatch>>());
+        Assert.Equal((sent.Id, 1.5m), (matched.DispatchId!.Value, matched.LitresShort!.Value));
+        Assert.Empty(await shop.GetJsonAsync<List<DairyFlagDto>>("/api/v1/dairy/flags"));
+    }
+
+    [Fact]
     public async Task A_dairy_centre_collects_bills_farmers_and_checks_the_dairys_figures()
     {
         var (shop, _) = await api.SignUpAsync();

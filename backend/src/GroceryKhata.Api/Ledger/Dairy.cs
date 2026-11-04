@@ -37,12 +37,16 @@ public enum Shift
     Evening,
 }
 
-/// <summary>How milk is priced. FatSnf: rate per kg of fat plus rate per kg of SNF. FatOnly: rate per kg of fat. Flat: rate per litre.</summary>
+/// <summary>
+/// How milk is priced. FatSnf: rate per kg of fat plus rate per kg of SNF. FatOnly: rate per kg of fat. Flat: rate per
+/// litre. Grid: the dairy's rate chart, ₹ per litre for each fat and SNF in steps of 0.1.
+/// </summary>
 public enum RateMethod
 {
     FatSnf,
     FatOnly,
     Flat,
+    Grid,
 }
 
 /// <summary>Who a rate plan is for: what the centre pays farmers, or what the dairy (Sudha or another) pays the centre.</summary>
@@ -67,6 +71,24 @@ public sealed class DairyRatePlan : Entity, ITenantOwned
     public RateMethod Method { get; set; }
 
     public List<DairyRate> Rates { get; set; } = [];
+
+    public List<DairyGridCell> Grid { get; set; } = [];
+}
+
+/// <summary>One cell of a rate chart: milk of this kind at this fat and SNF pays this much a litre.</summary>
+public sealed class DairyGridCell : Entity, ITenantOwned
+{
+    public Guid ShopId { get; set; }
+
+    public Guid PlanId { get; set; }
+
+    public MilkKind Kind { get; set; }
+
+    public decimal Fat { get; set; }
+
+    public decimal Snf { get; set; }
+
+    public decimal RatePerLitre { get; set; }
 }
 
 public sealed class DairyRate : Entity, ITenantOwned
@@ -197,9 +219,11 @@ public sealed record FarmerDto(Guid Id, int Code, string Name, string? Phone, st
 
 public sealed record RateRequest(MilkKind Kind, decimal FatRate, decimal SnfRate, decimal FlatRate, decimal MinFat, decimal MinSnf);
 
-public sealed record RatePlanRequest(Guid Id, RatePlanFor For, DateOnly From, RateMethod Method, IReadOnlyList<RateRequest>? Rates);
+public sealed record GridCellRequest(MilkKind Kind, decimal Fat, decimal Snf, decimal RatePerLitre);
 
-public sealed record RatePlanDto(Guid Id, RatePlanFor For, DateOnly From, RateMethod Method, IReadOnlyList<RateRequest> Rates);
+public sealed record RatePlanRequest(Guid Id, RatePlanFor For, DateOnly From, RateMethod Method, IReadOnlyList<RateRequest>? Rates, IReadOnlyList<GridCellRequest>? Grid = null);
+
+public sealed record RatePlanDto(Guid Id, RatePlanFor For, DateOnly From, RateMethod Method, IReadOnlyList<RateRequest> Rates, int GridCells = 0, decimal? GridMinFat = null, decimal? GridMaxFat = null, decimal? GridMinSnf = null, decimal? GridMaxSnf = null);
 
 /// <summary>Either <see cref="Snf"/>, or <see cref="Clr"/> (SNF is then worked out from it). Litres, not kg: kg is litres × 1.03.</summary>
 public sealed record CollectionRequest(Guid Id, DateOnly Date, Shift Shift, Guid FarmerId, MilkKind Kind, decimal Litres, decimal Fat, decimal? Snf, decimal? Clr, bool Rejected = false);
@@ -271,13 +295,14 @@ public static class Dairy
     /// The price of this milk under a rate: FatSnf = kg × (fat% × fat rate + SNF% × SNF rate); FatOnly = kg × fat% × fat
     /// rate; Flat = litres × rate. Returns the amount and the rate per litre it works out to.
     /// </summary>
-    public static (decimal Amount, decimal PerLitre, bool BelowStandard) Price(RateMethod method, DairyRate rate, decimal litres, decimal fat, decimal snf)
+    public static (decimal Amount, decimal PerLitre, bool BelowStandard) Price(RateMethod method, DairyRate rate, decimal litres, decimal fat, decimal snf, decimal? gridRate = null)
     {
         var kg = litres * KgPerLitre;
         var amount = method switch
         {
             RateMethod.FatSnf => kg * ((fat / 100 * rate.FatRate) + (snf / 100 * rate.SnfRate)),
             RateMethod.FatOnly => kg * fat / 100 * rate.FatRate,
+            RateMethod.Grid => litres * (gridRate ?? 0),
             _ => litres * rate.FlatRate,
         };
         amount = decimal.Round(amount, 2, MidpointRounding.AwayFromZero);
@@ -288,6 +313,23 @@ public static class Dairy
     {
         var plan = await db.DairyRatePlans.AsNoTracking().Include(p => p.Rates).Where(p => p.For == who && p.From <= date).OrderByDescending(p => p.From).FirstOrDefaultAsync(ct);
         return plan?.Rates.FirstOrDefault(r => r.Kind == kind) is { } rate ? (plan, rate) : null;
+    }
+
+    /// <summary>
+    /// Prices milk under the plan in force. A rate chart is looked up at the fat and SNF rounded to 0.1 (as charts are
+    /// printed); a reading outside the chart is an error to fix, never a guess.
+    /// </summary>
+    private static async Task<(decimal Amount, decimal PerLitre, bool BelowStandard)?> PriceOnAsync(
+        AppDbContext db, (DairyRatePlan Plan, DairyRate Rate) r, MilkKind kind, decimal litres, decimal fat, decimal snf, CancellationToken ct)
+    {
+        if (r.Plan.Method != RateMethod.Grid)
+        {
+            return Price(r.Plan.Method, r.Rate, litres, fat, snf);
+        }
+
+        var (f, s) = (decimal.Round(fat, 1, MidpointRounding.AwayFromZero), decimal.Round(snf, 1, MidpointRounding.AwayFromZero));
+        var cell = await db.DairyGridCells.AsNoTracking().Where(c => c.PlanId == r.Plan.Id && c.Kind == kind && c.Fat == f && c.Snf == s).Select(c => (decimal?)c.RatePerLitre).FirstOrDefaultAsync(ct);
+        return cell is { } rate ? Price(RateMethod.Grid, r.Rate, litres, fat, snf, rate) : null;
     }
 
     private static async Task<IReadOnlyList<FarmerDto>> FarmersAsync(AppDbContext db, CancellationToken ct)
@@ -329,9 +371,17 @@ public static class Dairy
         return TypedResults.Ok(new FarmerDto(farmer.Id, farmer.Code, farmer.Name, farmer.Phone, farmer.Village, farmer.DefaultKind, farmer.IsActive, 0));
     }
 
-    private static async Task<IReadOnlyList<RatePlanDto>> PlansAsync(AppDbContext db, CancellationToken ct) =>
-        (await db.DairyRatePlans.AsNoTracking().Include(p => p.Rates).OrderByDescending(p => p.From).Take(50).ToListAsync(ct))
-            .Select(p => new RatePlanDto(p.Id, p.For, p.From, p.Method, p.Rates.Select(r => new RateRequest(r.Kind, r.FatRate, r.SnfRate, r.FlatRate, r.MinFat, r.MinSnf)).ToList())).ToList();
+    private static async Task<IReadOnlyList<RatePlanDto>> PlansAsync(AppDbContext db, CancellationToken ct)
+    {
+        var plans = await db.DairyRatePlans.AsNoTracking().Include(p => p.Rates).OrderByDescending(p => p.From).Take(50).ToListAsync(ct);
+        var ids = plans.Where(p => p.Method == RateMethod.Grid).Select(p => p.Id).ToList();
+        var grids = await db.DairyGridCells.AsNoTracking().Where(c => ids.Contains(c.PlanId)).GroupBy(c => c.PlanId)
+            .Select(g => new { g.Key, Count = g.Count(), MinFat = g.Min(c => c.Fat), MaxFat = g.Max(c => c.Fat), MinSnf = g.Min(c => c.Snf), MaxSnf = g.Max(c => c.Snf) }).ToDictionaryAsync(x => x.Key, ct);
+        return plans.Select(p => grids.GetValueOrDefault(p.Id) is { } g
+            ? new RatePlanDto(p.Id, p.For, p.From, p.Method, Rates(p), g.Count, g.MinFat, g.MaxFat, g.MinSnf, g.MaxSnf)
+            : new RatePlanDto(p.Id, p.For, p.From, p.Method, Rates(p))).ToList();
+        static List<RateRequest> Rates(DairyRatePlan p) => p.Rates.Select(r => new RateRequest(r.Kind, r.FatRate, r.SnfRate, r.FlatRate, r.MinFat, r.MinSnf)).ToList();
+    }
 
     private static async Task<IResult> AddPlanAsync(RatePlanRequest request, AppDbContext db, CancellationToken ct)
     {
@@ -343,9 +393,24 @@ public static class Dairy
 
         bool Bad(decimal v, decimal max) => v < 0 || v > max || decimal.Round(v, 2) != v;
         if (rates.Any(r => Bad(r.FatRate, 5000) || Bad(r.SnfRate, 5000) || Bad(r.FlatRate, 500) || Bad(r.MinFat, 15) || Bad(r.MinSnf, 15))
-            || rates.Any(r => request.Method switch { RateMethod.Flat => r.FlatRate <= 0, RateMethod.FatOnly => r.FatRate <= 0, _ => r.FatRate <= 0 || r.SnfRate <= 0 }))
+            || rates.Any(r => request.Method switch { RateMethod.Flat => r.FlatRate <= 0, RateMethod.FatOnly => r.FatRate <= 0, RateMethod.Grid => false, _ => r.FatRate <= 0 || r.SnfRate <= 0 }))
         {
             return Invalid("Rates", "Enter the rates for the chosen method (₹ per kg fat and SNF, or ₹ per litre).");
+        }
+
+        var grid = request.Method == RateMethod.Grid ? request.Grid ?? [] : [];
+        if (request.Method == RateMethod.Grid)
+        {
+            if (grid.Count is 0 or > 20_000 || grid.Any(c => !rates.Any(r => r.Kind == c.Kind)))
+            {
+                return Invalid("Grid", "Paste the rate chart: fat down the side, SNF across the top, ₹ per litre in the cells.");
+            }
+
+            if (grid.Any(c => c.Fat is < 0.5m or > 15 || c.Snf is < 3 or > 15 || c.RatePerLitre is <= 0 or > 500 || decimal.Round(c.Fat, 1) != c.Fat || decimal.Round(c.Snf, 1) != c.Snf || decimal.Round(c.RatePerLitre, 2) != c.RatePerLitre)
+                || grid.Select(c => (c.Kind, c.Fat, c.Snf)).Distinct().Count() != grid.Count)
+            {
+                return Invalid("Grid", "Each cell needs a fat and SNF with one decimal, and a rate per litre, once each.");
+            }
         }
 
         if (await db.DairyRatePlans.AnyAsync(p => p.Id == request.Id, ct))
@@ -357,6 +422,7 @@ public static class Dairy
         {
             Id = request.Id, For = request.For, From = request.From, Method = request.Method,
             Rates = rates.Select(r => new DairyRate { Kind = r.Kind, FatRate = r.FatRate, SnfRate = r.SnfRate, FlatRate = r.FlatRate, MinFat = r.MinFat, MinSnf = r.MinSnf }).ToList(),
+            Grid = grid.Select(c => new DairyGridCell { Kind = c.Kind, Fat = c.Fat, Snf = c.Snf, RatePerLitre = c.RatePerLitre }).ToList(),
         });
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(new { request.Id });
@@ -374,7 +440,12 @@ public static class Dairy
             return Invalid("Rate", $"Set the farmers' rate for {milk.ToString().ToLowerInvariant()} milk first.");
         }
 
-        var (amount, perLitre, below) = Price(r.Plan.Method, r.Rate, litres, fat, s);
+        if (await PriceOnAsync(db, r, milk, litres, fat, s, ct) is not { } priced)
+        {
+            return Invalid("Rate", $"The rate chart has no rate for fat {fat:0.0} and SNF {s:0.0}.");
+        }
+
+        var (amount, perLitre, below) = priced;
         return TypedResults.Ok(new { amount, perLitre, snf = s, belowStandard = below });
     }
 
@@ -426,8 +497,13 @@ public static class Dairy
             return Invalid("Rate", $"Set the farmers' rate for {request.Kind.ToString().ToLowerInvariant()} milk first.");
         }
 
-        if (r.Plan.Method == RateMethod.FatSnf && snf is null) return Invalid("Snf", "This rate needs the SNF (or the lactometer reading).");
-        var (amount, perLitre, below) = Price(r.Plan.Method, r.Rate, request.Litres, request.Fat, snf ?? 0);
+        if (r.Plan.Method is RateMethod.FatSnf or RateMethod.Grid && snf is null) return Invalid("Snf", "This rate needs the SNF (or the lactometer reading).");
+        if (await PriceOnAsync(db, r, request.Kind, request.Litres, request.Fat, snf ?? 0, ct) is not { } priced)
+        {
+            return Invalid("Rate", $"The rate chart has no rate for fat {request.Fat:0.0} and SNF {snf:0.0}.");
+        }
+
+        var (amount, perLitre, below) = priced;
         db.MilkCollections.Add(new MilkCollection
         {
             Id = request.Id, Date = request.Date, Shift = request.Shift, FarmerId = request.FarmerId, Kind = request.Kind, Litres = request.Litres, Fat = request.Fat, Snf = snf,
@@ -446,7 +522,8 @@ public static class Dairy
         if (CheckReading(request.Litres, request.Fat, request.Snf, request.Clr) is { } problem) return Invalid("Litres", problem);
         var snf = request.Snf ?? (request.Clr is { } clr ? SnfFromClr(clr, request.Fat) : (decimal?)null);
         if (await RateOnAsync(db, RatePlanFor.Farmers, c.Date, request.Kind, ct) is not { } r) return Invalid("Rate", "No farmers' rate for this milk.");
-        var (amount, perLitre, below) = Price(r.Plan.Method, r.Rate, request.Litres, request.Fat, snf ?? 0);
+        if (await PriceOnAsync(db, r, request.Kind, request.Litres, request.Fat, snf ?? 0, ct) is not { } priced) return Invalid("Rate", "The rate chart has no rate for this fat and SNF.");
+        var (amount, perLitre, below) = priced;
         var when = clock.GetUtcNow().ToOffset(IndiaTime.Offset);
         string Show(MilkCollection x) => $"{x.Kind} {x.Litres:0.##} L {x.Fat:0.##} fat {x.Snf:0.##} snf{(x.Rejected ? " rejected" : "")} ₹{x.Amount:0.##}";
         var before = Show(c);
@@ -549,7 +626,7 @@ public static class Dairy
         var amount = request.Amount;
         if (amount is null && await RateOnAsync(db, RatePlanFor.Dairy, d.Date, d.Kind, ct) is { } r)
         {
-            amount = Price(r.Plan.Method, r.Rate, request.AcceptedLitres, request.AcceptedFat, request.AcceptedSnf).Amount;
+            amount = (await PriceOnAsync(db, r, d.Kind, request.AcceptedLitres, request.AcceptedFat, request.AcceptedSnf, ct))?.Amount;
         }
 
         if (amount is < 0 || (amount is > 0 && !Money.IsValidAmount(amount.Value))) return Invalid("Amount", "Enter the amount on the dairy's statement.");

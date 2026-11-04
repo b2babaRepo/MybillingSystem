@@ -52,6 +52,7 @@ builder.Services.AddFieldAgents(builder.Configuration);
 builder.Services.AddAgentPerformance(builder.Configuration);
 builder.Services.AddBillPhotoReading(builder.Configuration);
 builder.Services.AddInvoiceReading(builder.Configuration);
+builder.Services.AddDairyPhotoReading(builder.Configuration);
 builder.Services.AddOtpSignIn(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
@@ -125,6 +126,7 @@ app.MapSupplierReturns();
 app.MapPharmacyMonth();
 app.MapPharmacyAssist();
 app.MapDairy();
+app.MapDairyChecks();
 app.MapStylistPay();
 app.MapPrepaid();
 app.MapCashCounts();
