@@ -163,7 +163,7 @@ public static class MasterItems
     }
 
     /// <summary>
-    /// Adds a trade's long list (a CSV built into the app: name, Hindi name, category, unit, GST, HSN) to the master list.
+    /// Adds a trade's long list (a CSV built into the app: name, Hindi name, category, unit, GST, HSN, pack sizes) to the master list.
     /// Only names not already there are added, so it is safe at every start-up and never undoes an admin's edits or
     /// removals. GST is left empty where the research couldn't confirm it: the shop or a CA sets it.
     /// </summary>
@@ -172,7 +172,7 @@ public static class MasterItems
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var assembly = typeof(MasterItems).Assembly;
-        foreach (var (resource, trade) in new[] { ("medical-master.csv", ShopTypes.Name(ShopType.Medical)) })
+        foreach (var (resource, trade) in new[] { ("medical-master.csv", ShopTypes.Name(ShopType.Medical)), ("kirana-master.csv", ShopTypes.Name(ShopType.Kirana)) })
         {
             var name = assembly.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(resource, StringComparison.OrdinalIgnoreCase));
             if (name is null)
@@ -212,6 +212,8 @@ public static class MasterItems
                     Unit = Enum.TryParse<Unit>(f[3], ignoreCase: true, out var unit) ? unit : Unit.Piece,
                     GstRate = decimal.TryParse(f[4], System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var gst) ? gst : null,
                     HsnCode = f[5].Length > 0 ? f[5] : null, UpdatedAt = now,
+                    // An optional seventh column: the sizes it comes in ("100 g|500 g"), one shop item per size when picked.
+                    PackSizes = f.Length > 6 ? Sizes(f[6].Split('|')) : [],
                 });
             }
 

@@ -112,6 +112,30 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_grocery_shop_picks_from_a_long_list_of_staples_masala_dry_fruits_and_home_care_by_size()
+    {
+        var (shop, _) = await api.SignUpAsync();
+        var list = await shop.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items");
+        Assert.True(list.Count >= 900, $"only {list.Count} grocery master items");
+        foreach (var name in new[] { "Kabuli chana", "Nutrela", "Kaju", "Colgate", "Lifebuoy", "MDH", "Surf Excel", "Parle-G" })
+        {
+            Assert.Contains(list, i => i.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        Assert.Equal(list.Count, list.Select(i => i.Name.ToLowerInvariant()).Distinct().Count());
+        Assert.InRange(list.Select(i => i.Category).Distinct().Count(), 12, 25);
+
+        // A branded atta comes in sizes: picking it gives one shop item per size, sold by the packet.
+        var atta = list.Single(i => i.Name == "Aashirvaad Whole Wheat Atta");
+        Assert.Equal(["1 kg", "5 kg", "10 kg"], atta.PackSizes);
+        var picked = await (await shop.PostJsonAsync("/api/v1/products/from-master", new { ids = new[] { atta.Id } })).ReadAsync<ImportResult>();
+        Assert.Equal(3, picked.Created);
+        var mine = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        // Named in Hindi where the list has a Hindi name, as the rest of the grocery list is.
+        Assert.Contains(mine, p => p.Name == "आशीर्वाद आटा 5 kg" && p.Unit == Unit.Packet && p.HsnCode == "1101");
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");
