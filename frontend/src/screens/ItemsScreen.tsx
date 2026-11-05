@@ -13,7 +13,7 @@ import { itemArt } from '../lib/itemArt'
 import { UnitSelect } from './BillScreen'
 
 /** The catalogue with what's on the shelf: search, category chips, low-stock filter. */
-export function ItemsScreen({ shopId }: { shopId: string }) {
+export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwner?: boolean }) {
   const isKirana = (useShopSettings(shopId).data?.type ?? 'kirana') === 'kirana'
   const { t } = useTranslation()
   const { products, isLoading } = useProducts(shopId)
@@ -72,6 +72,11 @@ export function ItemsScreen({ shopId }: { shopId: string }) {
         ))}
       </div>
 
+      {isOwner && lowCount + outCount > 0 && (
+        <button onClick={() => navigate('/reorder')} className="flex min-h-12 items-center justify-between rounded-2xl border border-amber-300 bg-amber-50 px-4 text-left font-bold text-amber-900">
+          <span>📦 {t('reorder.linkAll', { count: lowCount + outCount })}</span><span aria-hidden>›</span>
+        </button>
+      )}
       {!isLoading && products.length === 0 && <p className="py-8 text-center text-muted">{t('noItems')}</p>}
       {!isLoading && products.length > 0 && shown.length === 0 && <p className="py-8 text-center text-muted">{t('items2.none')}</p>}
       <ul className="divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white">

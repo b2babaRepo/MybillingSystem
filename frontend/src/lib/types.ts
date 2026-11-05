@@ -254,4 +254,6 @@ export interface Today {
   outstanding: number
   customersOwing: number
   topDues: Customer[]
+  /** Khata money received today. */
+  collected?: number
 }

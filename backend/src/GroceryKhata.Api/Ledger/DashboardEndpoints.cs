@@ -17,7 +17,8 @@ public sealed record TodayDto(
     decimal Udhaar,
     decimal Outstanding,
     int CustomersOwing,
-    IReadOnlyList<CustomerDto> TopDues);
+    IReadOnlyList<CustomerDto> TopDues,
+    decimal Collected = 0m);
 
 public static class DashboardEndpoints
 {
@@ -68,6 +69,8 @@ public static class DashboardEndpoints
             udhaar,
             await owing.SumAsync(c => (decimal?)c.Balance, ct) ?? 0m,
             await owing.CountAsync(ct),
-            topDues);
+            topDues,
+            // Khata money received today (payments not on a bill are negative ledger entries).
+            -entries.Where(e => e.PaymentMode != null && e.BillId == null).Sum(e => e.Amount));
     }
 }

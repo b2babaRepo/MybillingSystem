@@ -95,7 +95,7 @@ public static class PharmacyAssist
         var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService).Select(p => new { p.Id, p.Name, p.Stock, p.ReorderLevel }).ToListAsync(ct);
         var needed = products
             .Select(p => (p.Id, p.Name, p.Stock, p.ReorderLevel, Sold: sold.GetValueOrDefault(p.Id)))
-            .Where(p => (p.ReorderLevel is { } level && p.Stock <= level) || (p.Sold > 0 && p.Stock < p.Sold / 2))
+            .Where(p => p.Stock <= 0 || (p.ReorderLevel is { } level && p.Stock <= level) || (p.Sold > 0 && p.Stock < p.Sold / 2))
             .Select(p => (p.Id, p.Name, p.Stock, p.Sold, Suggested: Math.Max(1, Math.Ceiling(Math.Max(p.Sold, p.ReorderLevel ?? 0) - Math.Max(0, p.Stock)))))
             .ToList();
         var ids = needed.Select(n => n.Id).ToList();

@@ -326,6 +326,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <DairyScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
         ) : path === '/medical/refills' ? (
           <RefillsScreen shopId={shopId} shopName={shopName} />
+        ) : path === '/reorder' && isOwner ? (
+          <ReorderScreen shopId={shopId} shopName={shopName} general />
         ) : path === '/medical/reorder' && isOwner ? (
           <ReorderScreen shopId={shopId} shopName={shopName} />
         ) : path === '/medical/month' && isOwner ? (
@@ -377,7 +379,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/bill' ? (
           <BillScreen shopId={shopId} shopName={shopName} />
         ) : path === '/items' ? (
-          <ItemsScreen shopId={shopId} />
+          <ItemsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/sync' ? (
           <SyncScreen shopId={shopId} persistent={persistent} />
         ) : (

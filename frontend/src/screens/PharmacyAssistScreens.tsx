@@ -33,20 +33,21 @@ export function RefillsScreen({ shopId, shopName }: { shopId: string; shopName: 
 }
 
 /** What to order, grouped by distributor: the owner edits the quantities, then sends the order on WhatsApp. */
-export function ReorderScreen({ shopId, shopName }: { shopId: string; shopName: string }) {
+export function ReorderScreen({ shopId, shopName, general = false }: { shopId: string; shopName: string; general?: boolean }) {
+  // general: any trade's shop (items and suppliers); otherwise a medical shop's wording (medicines and distributors).
   const { t } = useTranslation()
   const groups = useQuery({ queryKey: [shopId, 'reorder'], queryFn: () => api<ReorderGroup[]>('/v1/pharmacy/reorder') }).data
   const [qty, setQty] = useState<Record<string, string>>({})
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <p className="text-sm text-muted">{t('reorder.hint')}</p>
+      <p className="text-sm text-muted">{t(general ? 'reorder.hintAll' : 'reorder.hint')}</p>
       {groups?.length === 0 && <p className="rounded-[18px] bg-white p-3 text-sm text-muted">{t('reorder.none')}</p>}
       {groups?.map((g) => {
         const lines = g.lines.map((l) => ({ ...l, order: Number(qty[l.productId] ?? l.suggested) || 0 })).filter((l) => l.order > 0)
         const message = t('reorder.message', { shop: shopName, lines: lines.map((l) => `${l.medicine} × ${l.order}`).join('\n') })
         return (
           <section key={g.supplierId ?? 'none'} className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
-            <h3 className="font-bold">{g.supplierName ?? t('reorder.noSupplier')}</h3>
+            <h3 className="font-bold">{g.supplierName ?? t(general ? 'reorder.noSupplierAll' : 'reorder.noSupplier')}</h3>
             {g.lines.map((l) => (
               <div key={l.productId} className="grid grid-cols-[1fr_5rem] items-center gap-2 text-sm">
                 <span><b>{l.medicine}</b><span className="block text-xs text-muted">{t('reorder.line', { stock: l.stock, sold: l.soldLast30Days })}{l.lastRate != null ? ` · ${formatRupees(l.lastRate)}` : ''}</span></span>
@@ -54,9 +55,9 @@ export function ReorderScreen({ shopId, shopName }: { shopId: string; shopName: 
                   onChange={(e) => setQty({ ...qty, [l.productId]: e.target.value })} className="h-11 rounded-lg border border-line px-2" />
               </div>
             ))}
-            {g.phone && lines.length > 0
-              ? <a href={whatsAppLink(g.phone, message)} target="_blank" rel="noreferrer" className="flex h-11 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('reorder.send')}</a>
-              : <p className="text-xs text-muted">{t('reorder.noPhone')}</p>}
+            {(g.phone || !g.supplierId) && lines.length > 0
+              ? <a href={whatsAppLink(g.phone ?? null, message)} target="_blank" rel="noreferrer" className="flex h-11 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('reorder.send')}</a>
+              : <p className="text-xs text-muted">{t(general ? 'reorder.noPhoneAll' : 'reorder.noPhone')}</p>}
           </section>
         )
       })}

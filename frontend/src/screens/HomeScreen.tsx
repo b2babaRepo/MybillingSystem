@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { TodaySummary } from '../components/TodaySummary'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BillIcon, CustomersIcon, PaymentIcon, PlusIcon } from '../components/Icons'
@@ -73,6 +74,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
 
       {isOwner && <PlanBanner shopId={shopId} />}
       {isOwner && <BalanceAlert />}
+      {isOwner && <TodaySummary today={today} shopName={settings?.name ?? ''} lowCount={lowCount} />}
       {isOwner && <Digest />}
 
       <div className="mx-4 mt-4 grid grid-cols-2 gap-3">
