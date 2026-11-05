@@ -384,9 +384,8 @@ function PhotoNote({ shopId, item }: { shopId: string; item: StoreItem }) {
   const { t } = useTranslation()
   const [sent, setSent] = useState(false)
   async function report() {
-    const reason = prompt(t('store.reportWhy'))
-    if (reason === null) return
-    await fetch(`/api/v1/images/${shopId}/${item.id}/report`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
+    // No pop-up asking why (some phone browsers block them): one tap reports it, and the shop takes a look.
+    await fetch(`/api/v1/images/${shopId}/${item.id}/report`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
     setSent(true)
   }
   return (

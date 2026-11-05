@@ -445,6 +445,8 @@ function MasterItemsPanel() {
   const [draft, setDraft] = useState(empty)
   const [editing, setEditing] = useState<number | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  // Credit line for photos uploaded next (empty for the platform's own photos); browsers like some in-app ones block pop-up prompts.
+  const [photoCredit, setPhotoCredit] = useState('')
   const rows = useQuery({ queryKey: ['platform', 'master', trade, q], queryFn: () => api<MasterRow[]>(`/v1/platform/master-items?trade=${trade}&q=${encodeURIComponent(q.trim())}`) }).data ?? []
   const body = (d: typeof empty, isActive?: boolean) => ({ trade, name: d.name.trim(), nameHi: d.nameHi.trim() || null, category: d.category.trim(), unit: d.unit, gstRate: d.gst === '' ? null : Number(d.gst), hsnCode: d.hsn.trim() || null, isActive, packSizes: d.packs.split(',').map((s) => s.trim()).filter(Boolean) })
 
@@ -504,10 +506,13 @@ function MasterItemsPanel() {
         <Button disabled={!csv.trim()} onClick={() => void importCsv()}>{t('masterItems.importButton')}</Button>
       </details>
       {message && <p className="whitespace-pre-line text-sm text-due">{message}</p>}
+      <label className="flex flex-col gap-1 text-xs text-muted">{t('masterItems.creditLabel')}
+        <input value={photoCredit} onChange={(e) => setPhotoCredit(e.target.value)} maxLength={120} placeholder="Unsplash: name" className="h-10 rounded-xl border border-line bg-white px-3 text-sm text-ink" />
+      </label>
       <ul className="flex max-h-[32rem] flex-col overflow-y-auto">
         {rows.map((r) => (
           <li key={r.id} className={`flex items-center gap-2 border-t border-line py-1 text-sm ${r.isActive ? '' : 'opacity-50'}`}>
-            <MasterPhoto row={r} run={run} />
+            <MasterPhoto row={r} run={run} credit={photoCredit} />
             <span className="min-w-0 flex-1 truncate">{r.name}{r.nameHi ? ` · ${r.nameHi}` : ''}<span className="block text-xs text-muted">{r.category} · {t(`units.${r.unit}`)}{r.gstRate != null ? ` · ${r.gstRate}%` : ''}{r.hsnCode ? ` · ${r.hsnCode}` : ''}{r.packSizes.length ? ` · ${r.packSizes.join(' / ')}` : ''}</span></span>
             <button onClick={() => edit(r)} className="min-h-11 px-2 font-semibold text-teal-700">{t('masterItems.edit')}</button>
             <button onClick={() => void run(() => api(`/v1/platform/master-items/${r.id}`, 'PUT', { ...body({ name: r.name, nameHi: r.nameHi ?? '', category: r.category, unit: r.unit, gst: r.gstRate == null ? '' : String(r.gstRate), hsn: r.hsnCode ?? '', packs: r.packSizes.join(', ') }), isActive: !r.isActive }))}
@@ -814,21 +819,34 @@ function AddPerson({ shopId }: { shopId: string }) {
  * A master item's photo: every shop item picked from it shows this until the shop adds its own. Only photos the
  * platform owns or is licensed for go here (own shoot, free stock, credited CC); the credit shows under it in shops.
  */
-function MasterPhoto({ row, run }: { row: MasterRow; run: (action: () => Promise<unknown>) => Promise<void> }) {
+function MasterPhoto({ row, run, credit }: { row: MasterRow; run: (action: () => Promise<unknown>) => Promise<void>; credit: string }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const url = row.imageAt ? `/api/v1/master-images/${row.id}?v=${Date.parse(row.imageAt)}&size=thumb` : null
-  const upload = (file: File) => run(async () => {
-    const credit = prompt(t('masterItems.creditPrompt')) ?? ''
-    await api(`/v1/platform/master-items/${row.id}/image`, 'PUT', { dataUrl: await shrinkPhoto(file, 1600, 3_500_000, false), credit: credit.trim() || null })
-  })
+  // Kept under the server's 1 MB request limit once sent (photos grow by a third as text): a 1200 px WebP of a pack is a few hundred KB.
+  async function upload(file: File) {
+    setBusy(true)
+    setError(null)
+    try {
+      await api(`/v1/platform/master-items/${row.id}/image`, 'PUT', { dataUrl: await shrinkPhoto(file, 1200, 600_000, false), credit: credit.trim() || null })
+      await queryClient.invalidateQueries({ queryKey: ['platform', 'master'] })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
-    <span className="flex shrink-0 flex-col items-center">
-      <label className="flex h-12 w-12 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-line bg-white text-lg" title={row.imageCredit ?? t('masterItems.photo')}>
-        {url ? <img src={url} alt="" className="h-full w-full object-contain" /> : '📷'}
-        <input type="file" accept="image/*" className="sr-only" aria-label={t('masterItems.photo')}
+    <span className="flex w-14 shrink-0 flex-col items-center">
+      <label className={`flex h-12 w-12 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-line bg-white text-lg ${busy ? 'opacity-50' : ''}`} title={row.imageCredit ?? t('masterItems.photo')}>
+        {busy ? '…' : url ? <img src={url} alt="" className="h-full w-full object-contain" /> : '📷'}
+        <input type="file" accept="image/*" className="sr-only" aria-label={t('masterItems.photo')} disabled={busy}
           onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = '' }} />
       </label>
-      {url && <button onClick={() => void run(() => request(`/v1/platform/master-items/${row.id}/image`, 'DELETE'))} className="text-[10px] text-muted underline">{t('masterItems.removePhoto')}</button>}
+      {url && !busy && <button onClick={() => void run(() => request(`/v1/platform/master-items/${row.id}/image`, 'DELETE'))} className="text-[10px] text-muted underline">{t('masterItems.removePhoto')}</button>}
+      {error && <span role="alert" className="mt-0.5 text-center text-[10px] leading-tight text-due">{error}</span>}
     </span>
   )
 }
