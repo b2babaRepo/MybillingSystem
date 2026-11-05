@@ -8,19 +8,24 @@ import { addProduct, useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Product, Unit } from '../lib/types'
 import { navigate } from '../router'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { api } from '../lib/api'
 import { imageUrl } from '../lib/images'
 import { itemArt } from '../lib/itemArt'
 import { UnitSelect } from './BillScreen'
 
+interface SuggestedItem { id: number; trade: string; category: string; name: string; nameHi: string | null; packSizes: string[]; imageAt?: string | null; popular?: boolean }
+
 /** The catalogue with what's on the shelf: search, category chips, low-stock filter. */
 export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwner?: boolean }) {
-  const isKirana = (useShopSettings(shopId).data?.type ?? 'kirana') === 'kirana'
+  const shopType = useShopSettings(shopId).data?.type ?? 'kirana'
+  const isKirana = shopType === 'kirana'
   const { t } = useTranslation()
   const { products, isLoading } = useProducts(shopId)
   const [adding, setAdding] = useState(false)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all')
+  const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'suggested'>('all')
   const [zoom, setZoom] = useState<{ src: string; name: string } | null>(null)
 
   const categories = [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))].sort()
@@ -30,6 +35,19 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
     (!query || p.name.toLowerCase().includes(query)) && (!category || p.category === category)
     && (filter === 'all' || (filter === 'out' ? isOut(p) : p.isLow && !isOut(p))))
   const lowCount = products.filter((p) => p.isLow && !isOut(p)).length
+  // Suggested: the trade's popular master items this shop doesn't have yet (matched by name, as the picker does).
+  const queryClient = useQueryClient()
+  const master = useQuery({ queryKey: ['master-items'], queryFn: () => api<SuggestedItem[]>('/v1/master-items'), enabled: isOwner, staleTime: 600_000 }).data ?? []
+  const owned = new Set(products.map((p) => p.name.trim().toLowerCase()))
+  const has = (m: SuggestedItem) => [m.nameHi ?? m.name, m.name].some((n) => owned.has(n.toLowerCase()) || (m.packSizes.length > 0 && owned.has(`${n} ${m.packSizes[0]}`.toLowerCase())))
+  const trade = shopType
+  const suggested = master.filter((m) => m.popular && m.trade === trade && !has(m)).slice(0, 30)
+  const [added, setAdded] = useState<Set<number>>(new Set())
+  async function addSuggested(m: SuggestedItem) {
+    setAdded((s) => new Set(s).add(m.id))
+    await api('/v1/products/from-master', 'POST', { ids: [m.id], sizes: {} }).catch(() => setAdded((s) => { const n = new Set(s); n.delete(m.id); return n }))
+    void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+  }
   const outCount = products.filter(isOut).length
 
   // The ways to fill the list, as equal picture tiles instead of a banner and three plain buttons.
@@ -66,6 +84,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
       <div className="flex gap-2 overflow-x-auto pb-1">
         <Chip selected={filter === 'all' && category === null} onClick={() => { setFilter('all'); setCategory(null) }}>{t('stock.all')} · {products.length}</Chip>
         {lowCount > 0 && <Chip selected={filter === 'low'} onClick={() => setFilter(filter === 'low' ? 'all' : 'low')} tone="warn">⚠ {t('stock.low')} · {lowCount}</Chip>}
+        {isOwner && suggested.length > 0 && <Chip selected={filter === 'suggested'} onClick={() => setFilter(filter === 'suggested' ? 'all' : 'suggested')} tone="warn">✨ {t('items2.suggested')} · {suggested.length}</Chip>}
         {outCount > 0 && <Chip selected={filter === 'out'} onClick={() => setFilter(filter === 'out' ? 'all' : 'out')} tone="due">✕ {t('stock.out')} · {outCount}</Chip>}
         {categories.map((c) => (
           <Chip key={c} selected={category === c} onClick={() => setCategory(category === c ? null : c)}>{c}</Chip>
@@ -78,8 +97,34 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
         </button>
       )}
       {!isLoading && products.length === 0 && <p className="py-8 text-center text-muted">{t('noItems')}</p>}
-      {!isLoading && products.length > 0 && shown.length === 0 && <p className="py-8 text-center text-muted">{t('items2.none')}</p>}
-      <ul className="divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white">
+      {filter === 'suggested' && (
+        <section className="flex flex-col gap-2">
+          <p className="px-1 text-sm text-muted">{t('items2.suggestedHint')}</p>
+          <ul className="divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white">
+            {suggested.map((m) => {
+              const art = itemArt({ name: m.name })
+              const photo = m.imageAt ? `/api/v1/master-images/${m.id}?v=${Date.parse(m.imageAt)}&size=thumb` : null
+              return (
+                <li key={m.id} className="flex items-center gap-3 px-3 py-2.5">
+                  {photo
+                    ? <img src={photo} alt="" loading="lazy" width={52} height={52} className="h-[52px] w-[52px] shrink-0 rounded-xl border border-line bg-white object-contain" />
+                    : <span aria-hidden className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl text-[26px]" style={{ background: art.tint }}>{art.emoji}</span>}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[16px] font-semibold">{m.name}</span>
+                    <span className="truncate text-[13px] text-muted">{m.nameHi ?? m.category}</span>
+                  </span>
+                  <button onClick={() => void addSuggested(m)} disabled={added.has(m.id)}
+                    className={`h-10 shrink-0 rounded-xl px-4 font-bold ${added.has(m.id) ? 'bg-teal-700 text-white' : 'border-2 border-teal-700 text-teal-800'}`}>
+                    {added.has(m.id) ? `✓ ${t('pick.picked')}` : `+ ${t('pick.addOne')}`}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+      {filter !== 'suggested' && !isLoading && products.length > 0 && shown.length === 0 && <p className="py-8 text-center text-muted">{t('items2.none')}</p>}
+      <ul className={`divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white ${filter === 'suggested' ? 'hidden' : ''}`}>
         {shown.map((p) => {
           const thumb = imageUrl(shopId, p.id, p.imageAt, 'thumb')
           const art = itemArt({ name: p.name })
