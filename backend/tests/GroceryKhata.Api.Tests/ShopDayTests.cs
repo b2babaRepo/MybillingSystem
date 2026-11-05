@@ -372,6 +372,24 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_beauty_shop_picks_from_a_long_list_of_products_with_gst_set_only_where_confirmed()
+    {
+        var shop = await SignUpAsync("beauty");
+        var list = await shop.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items?trade=beauty");
+        Assert.True(list.Count >= 800, $"only {list.Count} beauty master items");
+        foreach (var name in new[] { "Lakme", "Maybelline", "Himalaya", "Parachute", "L'Oréal Professionnel", "Fogg", "Gillette", "VLCC", "Rica", "Veet" })
+        {
+            Assert.Contains(list, i => i.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        Assert.Equal(list.Count, list.Select(i => i.Name.ToLowerInvariant()).Distinct().Count());
+        // Hair oil moved to 5% in Sept 2025; a lipstick stays at 18%; the salon's own services are still on the list.
+        Assert.Contains(list, i => i.Name.StartsWith("Parachute") && i.GstRate == 5m);
+        Assert.Contains(list, i => i.Category == "Makeup" && i.Name.Contains("Lipstick") && i.GstRate == 18m);
+        Assert.Contains(list, i => i.Name == "Haircut (men)");
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");

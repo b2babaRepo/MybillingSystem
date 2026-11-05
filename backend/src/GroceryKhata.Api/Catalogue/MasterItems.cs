@@ -173,7 +173,8 @@ public static class MasterItems
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var assembly = typeof(MasterItems).Assembly;
         foreach (var (resource, trade) in new[] { ("medical-master.csv", ShopTypes.Name(ShopType.Medical)), ("kirana-master.csv", ShopTypes.Name(ShopType.Kirana)),
-            ("paint-master.csv", ShopTypes.Name(ShopType.Paint)), ("hardware-master.csv", ShopTypes.Name(ShopType.Hardware)) })
+            ("paint-master.csv", ShopTypes.Name(ShopType.Paint)), ("hardware-master.csv", ShopTypes.Name(ShopType.Hardware)),
+            ("beauty-master.csv", ShopTypes.Name(ShopType.Beauty)) })
         {
             var name = assembly.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(resource, StringComparison.OrdinalIgnoreCase));
             if (name is null)
