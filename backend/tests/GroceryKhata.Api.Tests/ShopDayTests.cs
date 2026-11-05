@@ -427,6 +427,28 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task An_older_item_with_a_master_items_name_gets_linked_and_shows_its_photo()
+    {
+        var admin = await AdminAsync();
+        var name = $"Binding wire {Guid.NewGuid():N}"[..22];
+        var item = await (await admin.PostJsonAsync("/api/v1/platform/master-items", new { trade = "hardware", category = "Wire and mesh", name, unit = "kg" })).ReadAsync<MasterItemDto>();
+        using var png = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(600, 600);
+        using var stream = new MemoryStream();
+        SixLabors.ImageSharp.ImageExtensions.SaveAsPng(png, stream);
+        (await admin.PutAsJsonAsync($"/api/v1/platform/master-items/{item.Id}/image", new { dataUrl = "data:image/png;base64," + Convert.ToBase64String(stream.ToArray()) }, ApiFactory.Json)).EnsureSuccessStatusCode();
+
+        // Typed in by hand with the same name, before any link existed.
+        var shop = await SignUpAsync("hardware");
+        var typed = await (await shop.PostJsonAsync("/api/v1/products", new { id = Guid.CreateVersion7(), name, unit = "kg", sellingPrice = 90m })).ReadAsync<ProductDto>();
+        Assert.Null(typed.ImageAt);
+
+        // The owner's update check links it; from then on it shows the master photo.
+        (await shop.GetAsync("/api/v1/master-items/updates")).EnsureSuccessStatusCode();
+        var linked = await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{typed.Id}");
+        Assert.Equal((true, MasterPhotos.Representative), (linked.ImageAt != null, linked.ImageCredit));
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");

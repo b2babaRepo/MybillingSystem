@@ -386,15 +386,7 @@ public static class MasterItems
         var masters = await db.MasterItems.AsNoTracking().Where(i => i.IsActive && trades.Contains(i.Trade)).ToListAsync(ct);
         var products = await (track ? db.Products : db.Products.AsNoTracking()).Where(p => p.IsActive).ToListAsync(ct);
 
-        var byName = new Dictionary<string, MasterItem>(StringComparer.OrdinalIgnoreCase);
-        foreach (var m in masters)
-        {
-            var name = m.NameHi ?? m.Name;
-            foreach (var n in m.PackSizes.Count == 0 ? [name, m.Name] : m.PackSizes.SelectMany(size => new[] { $"{name} {size}", $"{m.Name} {size}" }))
-            {
-                byName.TryAdd(n, m);
-            }
-        }
+        var byName = NamesFor(masters);
 
         var changed = products
             .Where(p => byName.ContainsKey(p.Name.Trim()))
@@ -409,8 +401,50 @@ public static class MasterItems
         return (changed, fresh);
     }
 
+    /// <summary>Every name picking gives a master item's shop items ("तूर दाल", "Bhujia 1 kg"), to find them again by name.</summary>
+    private static Dictionary<string, MasterItem> NamesFor(IEnumerable<MasterItem> masters)
+    {
+        var byName = new Dictionary<string, MasterItem>(StringComparer.OrdinalIgnoreCase);
+        foreach (var m in masters)
+        {
+            var name = m.NameHi ?? m.Name;
+            foreach (var n in m.PackSizes.Count == 0 ? [name, m.Name] : m.PackSizes.SelectMany(size => new[] { $"{name} {size}", $"{m.Name} {size}" }))
+            {
+                byName.TryAdd(n, m);
+            }
+        }
+
+        return byName;
+    }
+
+    /// <summary>
+    /// Items picked before shop items remembered their master item (or typed with the same name) are linked to it by
+    /// name, so they show its photo too. Runs with the owner's update check; items already linked are left alone.
+    /// </summary>
+    public static async Task<int> LinkByNameAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.Type, s.ExtraTypes }).SingleAsync(ct);
+        var trades = shop.ExtraTypes.Append(ShopTypes.Name(shop.Type)).ToList();
+        var unlinked = await db.Products.AsNoTracking().Where(p => p.IsActive && p.MasterItemId == null).Select(p => new { p.Id, p.Name }).ToListAsync(ct);
+        if (unlinked.Count == 0)
+        {
+            return 0;
+        }
+
+        var byName = NamesFor(await db.MasterItems.AsNoTracking().Where(i => i.IsActive && trades.Contains(i.Trade)).ToListAsync(ct));
+        var linked = 0;
+        foreach (var group in unlinked.Where(p => byName.ContainsKey(p.Name.Trim())).GroupBy(p => byName[p.Name.Trim()].Id))
+        {
+            var ids = group.Select(p => p.Id).ToList();
+            linked += await db.Products.Where(p => ids.Contains(p.Id) && p.MasterItemId == null).ExecuteUpdateAsync(s => s.SetProperty(p => p.MasterItemId, group.Key), ct);
+        }
+
+        return linked;
+    }
+
     private static async Task<MasterUpdatesDto> UpdatesAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct)
     {
+        await LinkByNameAsync(db, tenant, ct);
         var (changed, fresh) = await CompareAsync(db, tenant, track: false, ct);
         return new MasterUpdatesDto(
             changed.Select(x => new MasterChangeDto(x.Product.Id, x.Product.Name, x.Product.GstRate, x.Master.GstRate ?? x.Product.GstRate, x.Product.HsnCode, x.Master.HsnCode ?? x.Product.HsnCode)).ToList(),
