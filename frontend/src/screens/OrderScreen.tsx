@@ -92,6 +92,18 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
   }))
   const defaultPaid = order.payment === 'khata' ? 0 : (order.finalAmount ?? 0)
   const deliver = () => run(() => api<Order>(`/v1/orders/${orderId}/deliver`, 'POST', { paidAmount: paid === null ? defaultPaid : Number(paid) || 0 }))
+  // Pickup with nothing for the customer to approve (no item taken out or swapped): pack and hand over in one tap.
+  const noApprovals = order.lines.every((l) => !drafts[l.id]?.removed && (drafts[l.id]?.productId ?? l.productId) === l.productId)
+  const canHandOver = order.status === 'placed' && order.fulfilment === 'pickup' && allPriced && noApprovals
+  const handOver = () => run(async () => {
+    await api<Order>(`/v1/orders/${orderId}/pack`, 'POST', {
+      lines: order.lines.map((l) => ({
+        id: l.id, removed: false, packedQuantity: Number(drafts[l.id].packedQuantity), unitPrice: Number(drafts[l.id].unitPrice),
+        shopNote: drafts[l.id].shopNote || null, productId: null,
+      })),
+    })
+    return api<Order>(`/v1/orders/${orderId}/deliver`, 'POST', { paidAmount: order.payment === 'khata' ? 0 : total })
+  })
   const cancel = async () => (await confirmAsk(t('inbox.cancelConfirm'))) && void run(() => api<Order>(`/v1/orders/${orderId}/cancel`, 'POST', {}))
 
   return (
@@ -201,7 +213,12 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
 
       {editable && (
         <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto flex max-w-xl flex-col gap-2 border-t border-line bg-white px-4 py-3">
-          <button onClick={pack} disabled={busy || !allPriced} className={`h-12 rounded-2xl font-bold ${order.status === 'packed' ? 'border border-line bg-white' : 'bg-teal-700 text-white'} disabled:opacity-40`}>
+          {canHandOver && (
+            <button onClick={handOver} disabled={busy} className="h-14 rounded-2xl bg-teal-700 text-lg font-bold text-white disabled:opacity-40">
+              {order.payment === 'khata' ? t('inbox.handOverKhata', { amount: formatRupees(total) }) : t('inbox.handOver', { amount: formatRupees(total) })}
+            </button>
+          )}
+          <button onClick={pack} disabled={busy || !allPriced} className={`h-12 rounded-2xl font-bold ${order.status === 'packed' || canHandOver ? 'border border-line bg-white' : 'bg-teal-700 text-white'} disabled:opacity-40`}>
             {t('inbox.markPacked', { amount: formatRupees(total) })}
           </button>
           {waiting && <p className="text-center text-sm font-semibold text-amber-800">⏳ {t('options.waitingDeliver')}</p>}
