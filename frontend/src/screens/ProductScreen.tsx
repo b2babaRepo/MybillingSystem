@@ -300,7 +300,7 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
           <input type="file" accept="image/*" capture="environment" disabled={busy} className="sr-only"
             onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = '' }} />
         </label>
-        {url && (
+        {url && product.imageCredit !== 'Representative image' && (
           <button disabled={busy} onClick={() => void run(() => request(`/v1/products/${product.id}/image`, 'DELETE'))} className="text-sm text-muted underline">
             {t('photo.remove')}
           </button>

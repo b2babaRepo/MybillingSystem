@@ -142,7 +142,7 @@ public static class PhotoSources
         if (!await db.Shops.AsNoTracking().AnyAsync(s => s.Id == shopId && s.IsActive, ct)) return TypedResults.NotFound();
         tenant.SetShop(shopId);
         var note = request.Reason?.Trim() is { Length: > 0 } r ? r[..Math.Min(120, r.Length)] : null;
-        var changed = await db.Products.Where(p => p.Id == productId && p.ImageAt != null && p.PhotoReports < 1000)
+        var changed = await db.Products.Where(p => p.Id == productId && (p.ImageAt != null || (p.MasterItem != null && p.MasterItem.ImageAt != null)) && p.PhotoReports < 1000)
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.PhotoReports, p => p.PhotoReports + 1).SetProperty(p => p.PhotoReportNote, p => note ?? p.PhotoReportNote), ct);
         return changed == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
     }

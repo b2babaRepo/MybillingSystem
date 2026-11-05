@@ -41,6 +41,12 @@ public sealed class MasterItem
     /// <summary>The sizes it comes in ("500 g", "1 kg"): a shop that picks it gets one item per size, sold by the packet. Empty: one loose item.</summary>
     public List<string> PackSizes { get; set; } = [];
 
+    /// <summary>When the platform team last set its photo (<see cref="MasterItemImage"/>); null: none yet.</summary>
+    public DateTimeOffset? ImageAt { get; set; }
+
+    /// <summary>The photo's credit line, when its source needs one; shops otherwise show "Representative image".</summary>
+    public string? ImageCredit { get; set; }
+
     public DateTimeOffset UpdatedAt { get; set; }
 
     /// <summary>When an admin added it; null for the list the app started with. Shops see it as new for a while after.</summary>
@@ -98,7 +104,8 @@ public sealed record MasterUpdatesDto(IReadOnlyList<MasterChangeDto> Changes, IR
 
 public sealed record ApplyChangesRequest(IReadOnlyList<Guid>? ProductIds);
 
-public sealed record MasterItemDto(int Id, string Trade, string Category, string Name, string? NameHi, Unit Unit, decimal? GstRate, string? HsnCode, bool IsActive, IReadOnlyList<string> PackSizes);
+public sealed record MasterItemDto(int Id, string Trade, string Category, string Name, string? NameHi, Unit Unit, decimal? GstRate, string? HsnCode, bool IsActive, IReadOnlyList<string> PackSizes,
+    DateTimeOffset? ImageAt = null, string? ImageCredit = null);
 
 public sealed record MasterItemRequest(string? Trade, string? Category, string? Name, string? NameHi, Unit? Unit, decimal? GstRate, string? HsnCode, bool? IsActive = null, IReadOnlyList<string>? PackSizes = null);
 
@@ -247,7 +254,7 @@ public static class MasterItems
         ["Stomach"] = "Stomach & digestion", ["Vitamins"] = "Vitamins & supplements", ["Diabetes & BP"] = "Heart & BP",
     };
 
-    private static MasterItemDto ToDto(MasterItem i) => new(i.Id, i.Trade, i.Category, i.Name, i.NameHi, i.Unit, i.GstRate, i.HsnCode, i.IsActive, i.PackSizes);
+    private static MasterItemDto ToDto(MasterItem i) => new(i.Id, i.Trade, i.Category, i.Name, i.NameHi, i.Unit, i.GstRate, i.HsnCode, i.IsActive, i.PackSizes, i.ImageAt, i.ImageCredit);
 
     /// <summary>A trade's active items, or every trade the shop works in.</summary>
     private static async Task<IReadOnlyList<MasterItemDto>> ShopListAsync(string? trade, AppDbContext db, ITenantContext tenant, CancellationToken ct)
@@ -301,8 +308,8 @@ public static class MasterItems
         }
 
         var rows = items.SelectMany(i => i.PackSizes.Count == 0
-            ? [new ImportRow(i.NameHi ?? i.Name, i.Unit, 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode)]
-            : i.PackSizes.Select(size => new ImportRow($"{i.NameHi ?? i.Name} {size}", PackUnit(i.Unit), 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode)))
+            ? [new ImportRow(i.NameHi ?? i.Name, i.Unit, 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id)]
+            : i.PackSizes.Select(size => new ImportRow($"{i.NameHi ?? i.Name} {size}", PackUnit(i.Unit), 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id)))
             .ToList();
         var (result, errors) = await stock.ImportAsync(new ImportRequest(rows), userId, ct);
         return errors is null ? TypedResults.Ok(result) : TypedResults.ValidationProblem(errors);

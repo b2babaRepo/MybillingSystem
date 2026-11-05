@@ -332,6 +332,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
             var product = NewProduct(Guid.CreateVersion7(), row.Name, row.Category, row.Unit!.Value, row.SellingPrice ?? 0, row.CostPrice, row.ReorderLevel);
             product.CatalogueItemId = row.CatalogueItemId ?? product.CatalogueItemId;
+            product.MasterItemId = row.MasterItemId;
             product.PackSize = row.PackSize is > 0 ? row.PackSize : null;
             product.PackUnit = product.PackSize is null ? null : row.PackUnit;
             product.GstRate = row.GstRate;
@@ -482,8 +483,12 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
     private static readonly System.Linq.Expressions.Expression<Func<Product, ProductDto>> AsDto = p => new ProductDto(
         p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.CostPrice, p.Stock, p.ReorderLevel,
-        !p.IsService && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption, p.ImageAt,
-        p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp, p.Barcode, p.ImageCredit, p.PhotoReports, p.PhotoReportNote);
+        !p.IsService && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption,
+        // The shop's own photo, else its master item's (the server serves whichever it is at the same address).
+        p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null),
+        p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp, p.Barcode,
+        p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? MasterPhotos.Representative : null,
+        p.PhotoReports, p.PhotoReportNote);
 
     /// <summary>An MRP only counts when it is above the selling price (otherwise there is nothing "off" to show).</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>

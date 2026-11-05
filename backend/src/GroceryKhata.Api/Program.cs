@@ -133,6 +133,7 @@ app.MapTrips();
 app.MapAmcs();
 app.MapServiceAssistant();
 app.MapPhotoSources();
+app.MapMasterPhotos();
 app.MapPharmacyMonth();
 app.MapPharmacyAssist();
 app.MapDairy();

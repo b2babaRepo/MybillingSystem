@@ -108,7 +108,11 @@ public static class ProductImageEndpoints
         var image = await db.ProductImages.AsNoTracking().SingleOrDefaultAsync(i => i.ProductId == productId, ct);
         if (image is null)
         {
-            return TypedResults.NotFound();
+            // No photo of its own: the master item's, if the platform has one.
+            var master = await db.Products.AsNoTracking().Where(p => p.Id == productId).Select(p => p.MasterItemId).SingleOrDefaultAsync(ct);
+            return master is { } masterId && await db.MasterItemImages.AsNoTracking().SingleOrDefaultAsync(i => i.MasterItemId == masterId, ct) is { } shared
+                ? MasterPhotos.Serve(http, shared, size)
+                : TypedResults.NotFound();
         }
 
         // A photo from before small copies were made gets one now, once, kept for next time.

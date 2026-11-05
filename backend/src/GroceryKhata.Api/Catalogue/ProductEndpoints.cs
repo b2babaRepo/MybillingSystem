@@ -85,7 +85,8 @@ public sealed record StocktakeResult(int Adjusted, int Unchanged);
 public sealed record ImportRow(
     string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel,
     int? CatalogueItemId = null, decimal? PackSize = null, Unit? PackUnit = null, decimal? GstRate = null, string? HsnCode = null,
-    bool IsService = false, int? DurationMinutes = null, DrugSchedule? Schedule = null, int? UnitsPerPack = null, bool TracksSerials = false, int? WarrantyMonths = null);
+    bool IsService = false, int? DurationMinutes = null, DrugSchedule? Schedule = null, int? UnitsPerPack = null, bool TracksSerials = false, int? WarrantyMonths = null,
+    int? MasterItemId = null);
 
 /// <summary>One item's new rate on the "today's rates" screen.</summary>
 public sealed record RateChange(Guid ProductId, decimal SellingPrice);

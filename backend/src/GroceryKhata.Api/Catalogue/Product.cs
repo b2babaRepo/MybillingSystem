@@ -97,6 +97,11 @@ public sealed class Product : Entity, ITenantOwned
     public int PhotoReports { get; set; }
 
     public string? PhotoReportNote { get; set; }
+
+    /// <summary>The master-list item it was picked from: its photo shows here until the shop adds its own.</summary>
+    public int? MasterItemId { get; set; }
+
+    public MasterItem? MasterItem { get; set; }
 }
 
 public enum DrugSchedule

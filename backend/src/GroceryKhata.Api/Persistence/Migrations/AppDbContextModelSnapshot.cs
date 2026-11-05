@@ -1815,6 +1815,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(8)")
                         .HasColumnName("hsn_code");
 
+                    b.Property<DateTimeOffset?>("ImageAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("image_at");
+
+                    b.Property<string>("ImageCredit")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("image_credit");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
@@ -1858,6 +1867,43 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("Trade", "Category");
 
                     b.ToTable("master_items", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Catalogue.MasterItemImage", b =>
+                {
+                    b.Property<int>("MasterItemId")
+                        .HasColumnType("integer")
+                        .HasColumnName("master_item_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("data");
+
+                    b.Property<byte[]>("ThumbData")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("thumb_data");
+
+                    b.Property<string>("ThumbType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("thumb_type");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("MasterItemId");
+
+                    b.ToTable("master_item_images", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Catalogue.MasterSuggestion", b =>
@@ -2000,6 +2046,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_service");
 
+                    b.Property<int?>("MasterItemId")
+                        .HasColumnType("integer")
+                        .HasColumnName("master_item_id");
+
                     b.Property<decimal?>("Mrp")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")
@@ -2083,6 +2133,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CatalogueItemId");
+
+                    b.HasIndex("MasterItemId");
 
                     b.HasIndex("ShopId", "CatalogueItemId");
 
@@ -7505,6 +7557,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Catalogue.MasterItemImage", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Catalogue.MasterItem", null)
+                        .WithOne()
+                        .HasForeignKey("GroceryKhata.Api.Catalogue.MasterItemImage", "MasterItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Catalogue.Product", b =>
                 {
                     b.HasOne("GroceryKhata.Api.Catalogue.CatalogueItem", null)
@@ -7512,11 +7573,18 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasForeignKey("CatalogueItemId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("GroceryKhata.Api.Catalogue.MasterItem", "MasterItem")
+                        .WithMany()
+                        .HasForeignKey("MasterItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("GroceryKhata.Api.Shops.Shop", null)
                         .WithMany()
                         .HasForeignKey("ShopId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("MasterItem");
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Catalogue.ProductImage", b =>

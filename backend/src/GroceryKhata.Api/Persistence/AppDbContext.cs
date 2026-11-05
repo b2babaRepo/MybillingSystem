@@ -38,6 +38,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<MasterItem> MasterItems => Set<MasterItem>();
 
+    public DbSet<MasterItemImage> MasterItemImages => Set<MasterItemImage>();
+
     public DbSet<MasterSuggestion> MasterSuggestions => Set<MasterSuggestion>();
 
     public DbSet<SavedAddress> SavedAddresses => Set<SavedAddress>();
@@ -274,9 +276,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         });
 
         // The platform's master item lists: shared by every shop, owned by none.
+        modelBuilder.Entity<MasterItemImage>(b =>
+        {
+            b.ToTable("master_item_images");
+            b.HasKey(i => i.MasterItemId);
+            b.Property(i => i.ContentType).HasMaxLength(20);
+            b.Property(i => i.ThumbType).HasMaxLength(20);
+            b.HasOne<MasterItem>().WithOne().HasForeignKey<MasterItemImage>(i => i.MasterItemId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<MasterItem>(b =>
         {
             b.ToTable("master_items");
+            b.Property(i => i.ImageCredit).HasMaxLength(120);
             b.Property(i => i.Trade).HasMaxLength(30);
             b.Property(i => i.Category).HasMaxLength(60);
             b.Property(i => i.Name).HasMaxLength(120);
@@ -457,6 +469,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         {
             b.ToTable("products");
             b.HasTenantKey();
+            b.HasOne(p => p.MasterItem).WithMany().HasForeignKey(p => p.MasterItemId).OnDelete(DeleteBehavior.SetNull);
             b.Property(p => p.Name).HasMaxLength(120);
             b.Property(p => p.PackSize).HasPrecision(12, 3);
             b.Property(p => p.GstRate).HasPrecision(5, 2);

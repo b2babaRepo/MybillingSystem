@@ -390,6 +390,43 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_master_photo_shows_on_every_shop_item_picked_from_it_until_the_shop_adds_its_own()
+    {
+        var admin = await AdminAsync();
+        var name = $"Aggregate 20 mm {Guid.NewGuid():N}"[..24];
+        var item = await (await admin.PostJsonAsync("/api/v1/platform/master-items", new { trade = "hardware", category = "Sand & aggregate", name, unit = "brass" })).ReadAsync<MasterItemDto>();
+        byte[] Png(byte red)
+        {
+            using var image = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(900, 700, new SixLabors.ImageSharp.PixelFormats.Rgba32(red, 120, 120));
+            using var stream = new MemoryStream();
+            SixLabors.ImageSharp.ImageExtensions.SaveAsPng(image, stream);
+            return stream.ToArray();
+        }
+
+        (await admin.PutAsJsonAsync($"/api/v1/platform/master-items/{item.Id}/image", new { dataUrl = "data:image/png;base64," + Convert.ToBase64String(Png(150)) }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        var shop = await SignUpAsync("hardware");
+        Assert.NotNull((await shop.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items?trade=hardware")).Single(i => i.Id == item.Id).ImageAt);
+        (await shop.PostJsonAsync("/api/v1/products/from-master", new { ids = new[] { item.Id } })).EnsureSuccessStatusCode();
+
+        // Picked: the master photo shows, captioned as representative, and the card grid gets the small copy.
+        var mine = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == name);
+        Assert.Equal((true, MasterPhotos.Representative), (mine.ImageAt != null, mine.ImageCredit));
+        var slug = (await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop")).Slug;
+        var shopId = (await api.CreateClient().GetJsonAsync<GroceryKhata.Api.Planner.StoreDto>($"/api/v1/store/{slug}")).ShopId;
+        var guest = api.CreateClient();
+        using (var thumb = SixLabors.ImageSharp.Image.Load(await guest.GetByteArrayAsync($"/api/v1/images/{shopId}/{mine.Id}?v=1&size=thumb")))
+        {
+            Assert.Equal(320, thumb.Width);
+        }
+
+        // The shop's own photo wins, without a caption.
+        (await shop.PutAsJsonAsync($"/api/v1/products/{mine.Id}/image", new { dataUrl = "data:image/png;base64," + Convert.ToBase64String(Png(10)) }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        mine = await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{mine.Id}");
+        Assert.Null(mine.ImageCredit);
+        Assert.Equal(HttpStatusCode.Forbidden, (await shop.PutAsJsonAsync($"/api/v1/platform/master-items/{item.Id}/image", new { dataUrl = "data:image/png;base64,AAAA" }, ApiFactory.Json)).StatusCode);
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");
