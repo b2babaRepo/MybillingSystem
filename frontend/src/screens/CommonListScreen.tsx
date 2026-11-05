@@ -90,6 +90,7 @@ export function CommonListScreen({ shopId }: { shopId: string }) {
 
       {managing && (
         <OptionsSheet
+          shopId={shopId}
           item={managing}
           options={products.filter((p) => p.catalogueItemId === managing.id)}
           onClose={() => setManaging(null)}
@@ -131,7 +132,14 @@ const UNITS: Unit[] = ['packet', 'piece', 'kg', 'g', 'litre', 'ml']
  * An item the shop already sells: its options (brands, pack sizes, loose), which one is the usual (given when a
  * household leaves the choice to the shop), and a form to add another option at the shop's own price.
  */
-function OptionsSheet({ item, options, onClose, onChanged }: { item: CatalogueItem; options: Product[]; onClose: () => void; onChanged: () => void }) {
+/** Price per kg or litre of a pack, so packs compare with each other and with loose ("₹49.9/kg"). */
+function perBase(o: Product): { price: number; unit: Unit } | null {
+  if (!o.packSize || !o.packUnit || o.sellingPrice <= 0) return null
+  const [base, factor]: [Unit, number] | [null, 0] = o.packUnit === 'kg' ? ['kg', 1] : o.packUnit === 'g' ? ['kg', 0.001] : o.packUnit === 'litre' ? ['litre', 1] : o.packUnit === 'ml' ? ['litre', 0.001] : [null, 0]
+  return base ? { price: Math.round((o.sellingPrice / (o.packSize * factor)) * 10) / 10, unit: base } : null
+}
+
+function OptionsSheet({ shopId, item, options, onClose, onChanged }: { shopId: string; item: CatalogueItem; options: Product[]; onClose: () => void; onChanged: () => void }) {
   const { t } = useTranslation()
   const [name, setName] = useState(`${item.nameEn} `)
   const [unit, setUnit] = useState<Unit>('packet')
@@ -139,7 +147,15 @@ function OptionsSheet({ item, options, onClose, onChanged }: { item: CatalogueIt
   const [packUnit, setPackUnit] = useState<Unit>(item.unit)
   const [price, setPrice] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [adding, setAdding] = useState(options.length === 0)
   const usual = options.find((o) => o.isDefaultOption)?.id ?? [...options].sort((a, b) => b.stock - a.stock)[0]?.id
+  const usualOption = options.find((o) => o.id === usual)
+  const others = options.filter((o) => o.id !== usual)
+  const isPacked = (o: Product) => !!o.packSize || o.unit === 'packet' || o.unit === 'piece'
+  const groups = [
+    { key: 'packed', label: t('options.groupPacked'), items: others.filter(isPacked) },
+    { key: 'loose', label: t('options.groupLoose'), items: others.filter((o) => !isPacked(o)) },
+  ].filter((g) => g.items.length > 0)
   const packed = unit === 'packet' || unit === 'piece'
   const valid = name.trim().length >= 2 && Number(price) > 0 && (!packed || !packSize || Number(packSize) > 0)
 
@@ -160,37 +176,74 @@ function OptionsSheet({ item, options, onClose, onChanged }: { item: CatalogueIt
     setName(`${item.nameEn} `)
     setPackSize('')
     setPrice('')
+    setAdding(false)
   })
 
-  return (
-    <div className="fixed inset-0 z-20 flex items-end bg-black/40" onClick={onClose}>
-      <div className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl bg-ground p-4 pb-8" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-xl font-bold">{t('options.sheetTitle', { item: item.name })}</h2>
-        <p className="mb-3 text-sm text-muted">{t('options.sheetHint')}</p>
-        <ul className="flex flex-col gap-2">
-          {options.map((o) => (
-            <li key={o.id} className="flex items-center gap-2 rounded-[14px] bg-white p-3">
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate font-semibold">{o.name}</span>
-                <span className="text-sm text-muted">
-                  {formatRupees(o.sellingPrice)}/{t(`units.${o.unit}`)}
-                  {o.packSize && o.packUnit ? ` · ${t('options.packOf', { size: o.packSize, unit: t(`units.${o.packUnit}`) })}` : ''}
-                </span>
-              </span>
-              {o.id === usual ? (
-                <span className="rounded-full bg-teal-50 px-2 py-1 text-xs font-bold text-teal-800">★ {t('options.usual')}</span>
-              ) : (
-                <button className="min-h-11 rounded-xl border border-line px-2 text-xs font-semibold" onClick={() => void run(() => request(`/v1/products/${o.id}/default`, 'POST'))}>
-                  {t('options.makeUsual')}
-                </button>
-              )}
-              <button className="min-h-11 px-1 text-sm text-teal-700 underline" onClick={() => navigate(`/items/${o.id}`)}>{t('options.edit')}</button>
-            </li>
-          ))}
-        </ul>
+  const thumb = (o: Product, size: string) => {
+    const url = imageUrl(shopId, o.id, o.imageAt, 'thumb')
+    return url
+      ? <img src={url} alt="" loading="lazy" className={`${size} shrink-0 rounded-[10px] bg-white object-contain`} />
+      : <span aria-hidden className={`${size} shrink-0 rounded-[10px] bg-[#f3efe4]`} />
+  }
+  const details = (o: Product) => {
+    const per = perBase(o)
+    return (
+      <span className="text-[13px] text-muted">
+        <b className="text-ink">{formatRupees(o.sellingPrice)}</b>{o.packSize ? '' : `/${t(`units.${o.unit}`)}`}
+        {per ? ` · ${formatRupees(per.price)}/${t(`units.${per.unit}`)}` : ''}
+        {' · '}<span className={o.stock <= 0 ? 'font-semibold text-due' : ''}>{t('options.stockLeft', { qty: o.stock, unit: t(`units.${o.unit}`) })}</span>
+      </span>
+    )
+  }
 
-        <h3 className="mt-4 mb-2 font-bold">{t('options.addTitle')}</h3>
-        <div className="flex flex-col gap-2 rounded-[14px] bg-white p-3">
+  return (
+    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-ground p-4 pb-8" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-xl font-bold">{item.name}</h2>
+        <p className="mb-3 text-sm text-muted">{t('options.count', { count: options.length })}</p>
+
+        {usualOption && (
+          <button onClick={() => navigate(`/items/${usualOption.id}`)} className="mb-3 flex w-full flex-col gap-1.5 rounded-[18px] border-2 border-teal-700 bg-white p-3 text-left">
+            <span className="text-xs font-bold text-teal-800">★ {t('options.usualHeading')}</span>
+            <span className="flex items-center gap-3">
+              {thumb(usualOption, 'h-12 w-12')}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[17px] font-bold">{usualOption.name}</span>
+                {details(usualOption)}
+              </span>
+            </span>
+            <span className="text-xs text-muted">{t('options.usualHint')}</span>
+          </button>
+        )}
+
+        {groups.map((g) => (
+          <section key={g.key} className="mb-3">
+            <h3 className="mb-1.5 text-sm font-bold text-muted">{g.label}</h3>
+            <ul className="overflow-hidden rounded-[18px] bg-white">
+              {g.items.map((o) => (
+                <li key={o.id} className="flex items-center border-b border-line last:border-b-0">
+                  <button aria-label={`${t('options.makeUsual')}: ${o.name}`} onClick={() => void run(() => request(`/v1/products/${o.id}/default`, 'POST'))}
+                    className="flex h-16 w-12 shrink-0 items-center justify-center">
+                    <span aria-hidden className="h-5 w-5 rounded-full border-2 border-[#9aa8a5]" />
+                  </button>
+                  <button onClick={() => navigate(`/items/${o.id}`)} className="flex min-h-16 min-w-0 flex-1 items-center gap-3 py-2 pr-3 text-left">
+                    {thumb(o, 'h-11 w-11')}
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate font-semibold">{o.name}</span>
+                      {details(o)}
+                    </span>
+                    <span aria-hidden className="text-lg text-muted">›</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+        {others.length > 0 && <p className="mb-3 text-center text-xs text-muted">{t('options.legend')}</p>}
+
+        {!adding && <Button onClick={() => setAdding(true)} className="h-12 w-full">+ {t('options.addTitle')}</Button>}
+        {adding && <h3 className="mt-2 mb-2 font-bold">{t('options.addTitle')}</h3>}
+        {adding && <div className="flex flex-col gap-2 rounded-[14px] bg-white p-3">
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder={t('options.namePlaceholder')}
             className="h-12 rounded-xl border border-line px-3 outline-none focus:border-teal-600" />
           <div className="flex flex-wrap gap-1.5">
@@ -216,7 +269,7 @@ function OptionsSheet({ item, options, onClose, onChanged }: { item: CatalogueIt
           </label>
           {error && <p className="text-sm text-due">{error}</p>}
           <Button disabled={!valid} onClick={() => void add()} className="h-12">{t('options.add')}</Button>
-        </div>
+        </div>}
       </div>
     </div>
   )
@@ -228,8 +281,8 @@ function PriceSheet({ item, value, onClose, onSave }: { item: CatalogueItem; val
   const [stock, setStock] = useState(value?.stock ?? '')
   const unit = t(`units.${item.unit}`)
   return (
-    <div className="fixed inset-0 z-20 flex items-end bg-black/40" onClick={onClose}>
-      <div className="w-full rounded-t-3xl bg-ground p-4 pb-8" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-xl rounded-t-3xl bg-ground p-4 pb-8" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center gap-3">
           <div className="w-24 shrink-0">
             <ItemCard item={{ catalogueItemId: item.id, aisle: item.aisle }} title={item.name} compact />

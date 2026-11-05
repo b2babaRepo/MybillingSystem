@@ -264,6 +264,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           unsynced={unsynced}
           onSignOut={signOut}
           actions={[
+            ...(isOwner ? [{ label: t('settings.link'), onClick: () => navigate('/settings') }] : []),
             ...(isOwner ? [{ label: t('suppliers.title'), onClick: () => navigate('/suppliers') }] : []),
             { label: t('profile.title'), onClick: () => navigate('/profile') },
             ...(isOwner ? [{ label: t('plan2.myPlan'), onClick: () => navigate('/plan') }] : []),
