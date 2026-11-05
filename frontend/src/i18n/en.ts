@@ -267,6 +267,7 @@ export const en = {
     withdrawConfirm: 'Stop AI reading? What it read so far will be deleted.',
   },
   photo: {
+    tapToView: 'Tap to view',
     credit: 'Photo: {{source}}', reported: 'Customers said this photo is wrong ({{count}})', keep: 'Photo is right',
     barcode: 'Barcode number', findByBarcode: 'Find photo', barcodeHint: 'Type the digits under the barcode to get the pack photo from Open Food Facts (free, credited on your store).',
     has: 'Your photo shows on bills, the lists households send and your online store.',

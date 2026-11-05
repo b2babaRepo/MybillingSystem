@@ -263,6 +263,7 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [barcode, setBarcode] = useState(product.barcode ?? '')
+  const [viewing, setViewing] = useState(false)
   const url = imageUrl(shopId, product.id, product.imageAt)
 
   async function run(action: () => Promise<unknown>) {
@@ -283,8 +284,15 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
   return (
     <section className="flex items-center gap-3 rounded-[18px] bg-white p-3">
       <div className="w-24 shrink-0">
-        <ItemCard item={product} title="" compact imageUrl={url} />
+        <ItemCard item={product} title="" compact imageUrl={url} onClick={url ? () => setViewing(true) : undefined} />
+        {url && <p className="mt-1 text-center text-[11px] text-muted">{t('photo.tapToView')}</p>}
       </div>
+      {viewing && url && (
+        <Sheet title={product.name} onClose={() => setViewing(false)}>
+          <img src={url} alt={product.name} className="mx-auto aspect-square w-full max-w-md rounded-2xl bg-white object-contain" />
+          {product.imageCredit && <p className="mt-2 text-center text-xs text-muted">{t('photo.credit', { source: product.imageCredit })}</p>}
+        </Sheet>
+      )}
       <div className="flex flex-1 flex-col gap-2">
         <span className="text-sm text-muted">{url ? t('photo.has') : t('photo.none')}</span>
         <label className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-teal-700 px-3 font-semibold text-white ${busy ? 'opacity-50' : ''}`}>

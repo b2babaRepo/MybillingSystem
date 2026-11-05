@@ -30,15 +30,16 @@ export function ItemCard({ item, title, subtitle, badge, onClick, selected, comp
   return (
     <Wrapper
       onClick={onClick}
-      className={`item-card group relative flex flex-col overflow-hidden rounded-[18px] bg-white text-left shadow-[0_2px_10px_rgba(16,32,29,0.08)] transition active:scale-[0.97] ${
+      className={`item-card group relative flex w-full flex-col overflow-hidden rounded-[18px] bg-white text-left shadow-[0_2px_10px_rgba(16,32,29,0.08)] transition active:scale-[0.97] ${
         selected ? 'ring-[3px] ring-teal-600' : ''
       }`}
     >
       <div
         className={`relative flex items-center justify-center overflow-hidden ${square ? 'aspect-square' : compact ? 'h-16' : 'h-24'}`}
-        style={{ background: photo && photoLoaded ? art.tint : `linear-gradient(135deg, ${art.from}, ${art.to})` }}
+        style={{ background: photo && photoLoaded ? (square ? '#ffffff' : art.tint) : square ? art.tint : `linear-gradient(135deg, ${art.from}, ${art.to})` }}
       >
-        {!(photo && photoLoaded) && (
+        {!(photo && photoLoaded) && square && <span aria-hidden className="text-[40px] opacity-80">{art.emoji}</span>}
+        {!(photo && photoLoaded) && !square && (
           <>
             <span aria-hidden className="item-card-bubble left-2 top-2 h-6 w-6" />
             <span aria-hidden className="item-card-bubble bottom-1 right-4 h-9 w-9 [animation-delay:1.2s]" />
