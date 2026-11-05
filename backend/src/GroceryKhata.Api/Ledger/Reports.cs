@@ -53,6 +53,11 @@ public sealed record DailyTotals(DateOnly Date, decimal Sales, decimal Received)
 
 public sealed record TopItem(string Name, decimal Quantity, Catalogue.Unit Unit, decimal Amount);
 
+/// <summary>One item's month: sales without GST, what it cost, the profit and margin. Cost and profit are null when no cost price is known.</summary>
+public sealed record ItemMargin(Guid? ProductId, string Name, decimal Quantity, Catalogue.Unit Unit, decimal Sales, decimal? Cost, decimal? Profit, decimal? MarginPercent);
+
+public sealed record ItemMarginReport(string Month, decimal Sales, decimal Profit, decimal ProfitCoverage, IReadOnlyList<ItemMargin> Items);
+
 /// <summary>
 /// One month at a glance. <see cref="EstimatedProfit"/> counts only bill lines whose item has a cost price;
 /// <see cref="ProfitCoverage"/> says what share of sales that is, so a low number reads as "add cost prices".
@@ -155,6 +160,7 @@ public static class ReportEndpoints
         group.MapGet("/reports/year", YearAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/year.csv", YearCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/month.csv", MonthCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
+        group.MapGet("/reports/items", ItemMarginsAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         return app;
     }
 
@@ -285,6 +291,49 @@ public static class ReportEndpoints
             $"{period.Year:D4}-{period.Month:D2}", sales, bills.Count, Received(PaymentMode.Cash), Received(PaymentMode.Upi), udhaar, khataCollected,
             outstanding, profit, sales == 0 ? 0 : decimal.Round(costed.Sum(l => l.Amount) / sales, 2), top, days,
             spent.Values.Sum() - Spent(ExpenseCategory.Purchase) - Spent(ExpenseCategory.Home), Spent(ExpenseCategory.Purchase), Spent(ExpenseCategory.Home), returns, stockLoss, stockValue, supplierDue);
+    }
+
+    /// <summary>
+    /// Each item's sales, cost, profit and margin for a month, on the same rules as the month's profit: the cost when
+    /// sold (today's for older bills), GST taken out of taxed bills. Items with no cost price are listed without a profit.
+    /// </summary>
+    private static async Task<IResult> ItemMarginsAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (ParseOrThisMonth(month, clock) is not { } period)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
+        }
+
+        var (start, end) = IndiaTime.Month(period.Year, period.Month);
+        var bills = await db.Bills.AsNoTracking().Include(b => b.Lines)
+            .Where(b => b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null)
+            .ToListAsync(ct);
+        var lines = bills.SelectMany(b => b.Lines).ToList();
+        var productIds = lines.Where(l => l.ProductId != null).Select(l => l.ProductId!.Value).Distinct().ToList();
+        var costs = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id) && p.CostPrice != null)
+            .ToDictionaryAsync(p => p.Id, p => p.CostPrice!.Value, ct);
+        decimal? Cost(BillLine l) => l.UnitCost ?? (l.ProductId is { } id && costs.TryGetValue(id, out var cost) ? cost : null);
+        var taxed = bills.Where(b => b.Gstin != null).Select(b => b.Id).ToHashSet();
+        decimal WithoutGst(BillLine l) => taxed.Contains(l.BillId) && l.GstRate is > 0 ? decimal.Round(l.Amount / (1 + (l.GstRate.Value / 100)), 2) : l.Amount;
+
+        var items = lines.GroupBy(l => (Key: l.ProductId?.ToString() ?? l.Name.Trim().ToLowerInvariant(), l.Unit))
+            .Select(g =>
+            {
+                var sales = g.Sum(WithoutGst);
+                var costedLines = g.Where(l => Cost(l) is not null).ToList();
+                // Only lines with a cost count towards the profit; an item partly costed shows the profit on that part.
+                decimal? cost = costedLines.Count == 0 ? null : costedLines.Sum(l => Money.LineAmount(l.Quantity, Cost(l)!.Value));
+                decimal? profit = cost is null ? null : costedLines.Sum(WithoutGst) - cost;
+                var costedSales = costedLines.Sum(WithoutGst);
+                decimal? margin = profit is null || costedSales == 0 ? null : decimal.Round(profit.Value / costedSales * 100, 1);
+                return new ItemMargin(g.First().ProductId, g.First().Name, g.Sum(l => l.Quantity), g.Key.Unit, sales, cost, profit, margin);
+            })
+            .OrderByDescending(i => i.Profit ?? decimal.MinValue).ThenByDescending(i => i.Sales)
+            .ToList();
+        var totalSales = items.Sum(i => i.Sales);
+        var covered = items.Where(i => i.Profit != null).Sum(i => i.Sales);
+        return TypedResults.Ok(new ItemMarginReport($"{period.Year:D4}-{period.Month:D2}", totalSales, items.Sum(i => i.Profit ?? 0),
+            totalSales == 0 ? 0 : decimal.Round(covered / totalSales, 2), items));
     }
 
     private static async Task<IResult> DuesCsvAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
