@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { AskHost } from './components/Ask'
 import { i18nReady } from './i18n'
 import './index.css'
 import { installSyncHandler } from './lib/data'
@@ -20,6 +21,8 @@ void i18nReady.then(() => createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
+      {/* The app's own question box (in place of browser pop-ups, which some browsers block). */}
+      <AskHost />
     </QueryClientProvider>
   </StrictMode>,
 ))

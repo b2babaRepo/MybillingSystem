@@ -12,6 +12,7 @@ import { navigate } from '../router'
 import type { ExpenseCategory } from './ExpensesScreen'
 import { shiftMonth, thisMonth } from './KharchaMonth'
 import { teamViewLink } from './TeamViewPage'
+import { ask, confirmAsk } from '../components/Ask'
 
 addText(teamText)
 
@@ -306,7 +307,7 @@ function TeamDay({ team }: { team: Team }) {
                   {l.hasPhoto && <button onClick={() => void openPhoto(team.id, l.id)} aria-label={t('team.seePhoto')} className="h-9 w-9 rounded-lg border border-line">📷</button>}
                   {l.canApprove && <button disabled={busy} onClick={() => void run(async () => { await api(`/v1/teams/${team.id}/expenses/${l.id}/approve`, 'POST', {}); await queryClient.invalidateQueries({ queryKey: ['team', team.id] }) })}
                     className="h-9 rounded-lg bg-teal-700 px-2 text-xs font-bold text-white">{t('team.ok')}</button>}
-                  {l.canStrike && <button onClick={() => { const reason = prompt(t('team.strikeAsk')); if (reason !== null) void run(async () => { await api(`/v1/teams/${team.id}/expenses/${l.id}/strike`, 'POST', { reason }); await queryClient.invalidateQueries({ queryKey: ['team', team.id] }) }) }}
+                  {l.canStrike && <button onClick={async () => { const reason = (await ask(t('team.strikeAsk'))); if (reason !== null) void run(async () => { await api(`/v1/teams/${team.id}/expenses/${l.id}/strike`, 'POST', { reason }); await queryClient.invalidateQueries({ queryKey: ['team', team.id] }) }) }}
                     aria-label={t('team.strike')} className="h-9 w-9 rounded-lg border border-line text-due">✕</button>}</span>
               </li>
             ))}
@@ -381,7 +382,7 @@ function TeamPeople({ team }: { team: Team }) {
               </select>
             )}
             {manages && !m.isMe && m.role !== 'owner' && (
-              <button disabled={busy} onClick={() => confirm(t('team.removeAsk', { name: m.name })) && void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/members/${m.id}/remove`, 'POST', {})))}
+              <button disabled={busy} onClick={async () => (await confirmAsk(t('team.removeAsk', { name: m.name }))) && void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/members/${m.id}/remove`, 'POST', {})))}
                 className="min-h-11 rounded-xl border border-line px-3 text-sm font-semibold text-due">{t('team.remove')}</button>
             )}
           </li>
@@ -457,7 +458,7 @@ function TeamPeople({ team }: { team: Team }) {
           <div className="grid grid-cols-2 gap-2">
             {[false, true].map((del) => (
               <button key={String(del)} disabled={busy} className="min-h-11 rounded-xl border border-line text-sm font-semibold text-due"
-                onClick={() => confirm(t(del ? 'team.leaveDeleteAsk' : 'team.leaveKeepAsk')) && void run(async () => {
+                onClick={async () => (await confirmAsk(t(del ? 'team.leaveDeleteAsk' : 'team.leaveKeepAsk'))) && void run(async () => {
                   await api(`/v1/teams/${team.id}/leave`, 'POST', { deleteMyLines: del })
                   await queryClient.invalidateQueries({ queryKey: ['teams'] })
                   navigate('/team')
@@ -541,7 +542,7 @@ function TeamAdvances({ team }: { team: Team }) {
                 <span className="block text-xs text-muted">{new Date(e.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{e.by ? ` · ${e.by}` : ''}</span></span>
               <span className="flex items-center gap-2"><b>{formatRupees(e.amount)}</b>
                 {manages && !e.struck && <button disabled={busy} aria-label={t('team.strike')} className="h-9 w-9 rounded-lg border border-line text-due"
-                  onClick={() => confirm(t('team.advanceStrikeAsk')) && void run(async () => save(await api<Advances>(`/v1/teams/${team.id}/advances/${e.id}/strike`, 'POST', {})))}>✕</button>}</span>
+                  onClick={async () => (await confirmAsk(t('team.advanceStrikeAsk'))) && void run(async () => save(await api<Advances>(`/v1/teams/${team.id}/advances/${e.id}/strike`, 'POST', {})))}>✕</button>}</span>
             </li>
           ))}
         </ul>

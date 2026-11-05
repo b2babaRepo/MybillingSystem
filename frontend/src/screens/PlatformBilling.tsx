@@ -6,6 +6,7 @@ import { FEATURES, priceFor, usePlans, type Claim, type Payment, type PlanInfo, 
 import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/format'
 import type { AdminRole } from '../lib/types'
 import { planBillLink } from './PlanBillPage'
+import { ask, confirmAsk } from '../components/Ask'
 
 interface Overview { byStatus: Record<SubscriptionStatus, number>; trialsEndingThisWeek: number; revenueThisMonth: number; revenueThisYear: number; pendingClaims: Claim[] }
 interface Offer { code: string; title: string; planCode: string; term: PlanTerm; price: number; newShopsOnly: boolean; validUntil: string | null; maxUses: number | null; uses: number; isActive: boolean }
@@ -122,7 +123,7 @@ export function BillingPanel() {
               <div className="grid grid-cols-2 gap-2">
                 <button disabled={busy} onClick={() => void run(() => api(`/v1/platform/claims/${c.id}/confirm`, 'POST', {}), t('billing.confirmed'))}
                   className="min-h-11 rounded-xl bg-teal-700 font-bold text-white">{t('billing.confirm')}</button>
-                <button disabled={busy} onClick={() => { const note = prompt(t('billing.rejectAsk')); if (note !== null) void run(() => api(`/v1/platform/claims/${c.id}/reject`, 'POST', { note })) }}
+                <button disabled={busy} onClick={async () => { const note = (await ask(t('billing.rejectAsk'))); if (note !== null) void run(() => api(`/v1/platform/claims/${c.id}/reject`, 'POST', { note })) }}
                   className="min-h-11 rounded-xl border border-line font-semibold text-red-700">{t('billing.reject')}</button>
               </div>
             </div>
@@ -226,7 +227,7 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
                 {p.billToken && <a href={planBillLink(p.id, p.billToken)} target="_blank" rel="noreferrer" className="flex min-h-11 items-center rounded-xl border border-line bg-white px-3 text-xs font-semibold">{t('billing.bill')}</a>}
                 {!p.refundedAt && <a href={whatsAppLink(ownerPhone, billText(p))} target="_blank" rel="noreferrer" className="flex min-h-11 items-center rounded-xl bg-[#15803d] px-3 text-xs font-semibold text-white">WhatsApp</a>}
                 {money && !p.refundedAt && p.term !== 'monthly' && (
-                  <button disabled={busy} onClick={() => confirm(t('billing.refundAsk')) && void run(() => api(`/v1/platform/payments/${p.id}/refund`, 'POST', {}), t('billing.refunded'))}
+                  <button disabled={busy} onClick={async () => (await confirmAsk(t('billing.refundAsk'))) && void run(() => api(`/v1/platform/payments/${p.id}/refund`, 'POST', {}), t('billing.refunded'))}
                     className="min-h-11 rounded-xl border border-line px-2 text-xs font-semibold">{t('billing.refund')}</button>
                 )}
               </span>
@@ -331,21 +332,21 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
               {plans.filter((p) => p.code !== view.planCode).map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
             </select>
             <button disabled={busy || !moveTo} className="min-h-11 rounded-xl border border-line bg-white font-semibold disabled:opacity-40"
-              onClick={() => { const reason = window.prompt(t('plans.moveReason'))?.trim(); if (reason) void run(async () => { await api(`/v1/platform/shops/${shopId}/plan`, 'POST', { planCode: moveTo, reason }); setMoveTo('') }, t('plans.moved')) }}>{t('plans.move')}</button>
+              onClick={async () => { const reason = (await ask(t('plans.moveReason')))?.trim(); if (reason) void run(async () => { await api(`/v1/platform/shops/${shopId}/plan`, 'POST', { planCode: moveTo, reason }); setMoveTo('') }, t('plans.moved')) }}>{t('plans.move')}</button>
           </>}
           {approve && <>
             <select aria-label={t('plans.freePlan')} value={compPlan} onChange={(e) => setCompPlan(e.target.value)} className="col-span-2 h-11 rounded-xl border border-line bg-white px-2">
               {plans.map((p) => <option key={p.code} value={p.code}>{t('plans.freeOn', { plan: p.name })}</option>)}
             </select>
-            <button disabled={busy} className="min-h-11 rounded-xl border border-line bg-white font-semibold" onClick={() => {
-              const months = prompt(t('billing.compAsk', { max: role === 'super' ? t('billing.anyLength') : 3 }))
+            <button disabled={busy} className="min-h-11 rounded-xl border border-line bg-white font-semibold" onClick={async () => {
+              const months = (await ask(t('billing.compAsk', { max: role === 'super' ? t('billing.anyLength') : 3 })))
               if (months === null) return
-              const reason = prompt(t('billing.compReasonAsk'))
+              const reason = (await ask(t('billing.compReasonAsk')))
               if (reason) void run(() => api(`/v1/platform/shops/${shopId}/complimentary`, 'POST', { planCode: compPlan, months: months.trim() ? Number(months) : null, reason }), t('billing.compGiven'))
             }}>{t('billing.giveFree')}</button>
             {view.holdSince
               ? <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white" onClick={() => void run(() => api(`/v1/platform/shops/${shopId}/release`, 'POST', {}))}>{t('billing.release')}</button>
-              : <button disabled={busy} className="min-h-11 rounded-xl border border-line bg-white font-semibold text-red-700" onClick={() => { const reason = prompt(t('billing.holdAsk')); if (reason) void run(() => api(`/v1/platform/shops/${shopId}/hold`, 'POST', { reason })) }}>{t('billing.hold')}</button>}
+              : <button disabled={busy} className="min-h-11 rounded-xl border border-line bg-white font-semibold text-red-700" onClick={async () => { const reason = (await ask(t('billing.holdAsk'))); if (reason) void run(() => api(`/v1/platform/shops/${shopId}/hold`, 'POST', { reason })) }}>{t('billing.hold')}</button>}
             {view.compPlanCode && <button disabled={busy} className="col-span-2 min-h-11 rounded-xl border border-line bg-white text-xs font-semibold" onClick={() => void run(() => api(`/v1/platform/shops/${shopId}/complimentary`, 'DELETE'))}>{t('billing.endFree')}</button>}
           </>}
         </div>

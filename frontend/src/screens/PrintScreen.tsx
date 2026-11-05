@@ -7,6 +7,7 @@ import { api, ApiError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { gstSummary, gstUnsetAmount, storedSummary } from '../lib/gst'
 import type { BillView, Statement } from '../lib/types'
+import { ask } from '../components/Ask'
 
 
 /**
@@ -148,7 +149,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
   const gstin = bill.gstin
 
   async function cancel() {
-    const reason = window.prompt(t('print.cancelReason'))?.trim()
+    const reason = (await ask(t('print.cancelReason')))?.trim()
     if (!reason) return
     try {
       await api(`/v1/bills/${billId}/cancel`, 'POST', { reason })

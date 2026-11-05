@@ -6,6 +6,7 @@ import { api, request } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Unit } from '../lib/types'
+import { confirmAsk } from '../components/Ask'
 
 interface Machine { id: string; name: string; boughtOn: string; cost: number; ratePercent: number; disposedOn: string | null; thisYear: number; bookValue: number }
 interface Machines { financialYear: string; thisYear: number; perMonth: number; machines: Machine[] }
@@ -46,7 +47,7 @@ export function MachinesPanel({ shopId }: { shopId: string }) {
               <span className="block text-xs text-muted">{t('workshop.machineLine', { cost: formatRupees(m.cost), date: m.boughtOn, value: formatRupees(m.bookValue), rate: m.ratePercent })}{m.disposedOn ? ` · ${t('workshop.disposed')}` : ''}</span>
             </span>
             <span className="text-sm font-semibold">{formatRupees(m.thisYear)}</span>
-            {!m.disposedOn && <button onClick={() => { if (confirm(t('workshop.disposeConfirm'))) void run(`/v1/workshop/machines/${m.id}/dispose`, {}) }} className="min-h-11 px-2 text-sm font-semibold text-due">{t('workshop.dispose')}</button>}
+            {!m.disposedOn && <button onClick={async () => { if ((await confirmAsk(t('workshop.disposeConfirm')))) void run(`/v1/workshop/machines/${m.id}/dispose`, {}) }} className="min-h-11 px-2 text-sm font-semibold text-due">{t('workshop.dispose')}</button>}
           </li>
         ))}
         {list.data?.machines.length === 0 && <li className="p-3 text-center text-muted">{t('workshop.noMachines')}</li>}

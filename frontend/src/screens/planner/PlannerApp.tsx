@@ -17,6 +17,7 @@ import { PlanHomeScreen } from './PlanHomeScreen'
 import { SendScreen } from './SendScreen'
 import { AiOrderScreen } from './AiOrderScreen'
 import { MyKhataDetail, MyKhataScreen } from '../khata/KhataViews'
+import { confirmAsk } from '../../components/Ask'
 
 /** The household app: plan monthly and weekly lists, send one to a shop, follow the order. */
 export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: string; userName: string; onSwitchToShop?: () => void }) {
@@ -38,8 +39,8 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
     }
   }, [key])
 
-  function signOut() {
-    if (pending + failed > 0 && !confirm(t('unsyncedSignOut', { count: pending + failed }))) return
+  async function signOut() {
+    if (pending + failed > 0 && !(await confirmAsk(t('unsyncedSignOut', { count: pending + failed })))) return
     void request('/v1/auth/sign-out', 'POST', { refreshToken: getSession()?.refreshToken }).catch(() => {})
     setSession(null)
   }

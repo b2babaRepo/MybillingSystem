@@ -7,6 +7,7 @@ import { formatDateTime, formatPhone, formatRupees } from '../lib/format'
 import type { AdminRole } from '../lib/types'
 import { addText } from '../i18n'
 import { agentText } from '../i18n/agent'
+import { ask, confirmAsk } from '../components/Ask'
 
 addText(agentText)
 
@@ -81,19 +82,19 @@ export function AgentsPanel() {
               <div className="mt-1 grid grid-cols-2 gap-2">
                 {a.status === 'applied' && <>
                   <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white"
-                    onClick={() => confirm(t('agentsAdmin.kycAsk', { name: a.fullName, last4: a.aadhaarLast4 }))
+                    onClick={async () => (await confirmAsk(t('agentsAdmin.kycAsk', { name: a.fullName, last4: a.aadhaarLast4 })))
                       && void run(() => api(`/v1/platform/agents/${a.id}/approve`, 'POST', { kycChecked: true }), t('agentsAdmin.approved', { name: a.fullName }))}>
                     {t('agentsAdmin.approve')}</button>
                   <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold text-red-700"
-                    onClick={() => { const reason = prompt(t('agentsAdmin.rejectAsk')); if (reason) void run(() => api(`/v1/platform/agents/${a.id}/reject`, 'POST', { reason })) }}>
+                    onClick={async () => { const reason = (await ask(t('agentsAdmin.rejectAsk'))); if (reason) void run(() => api(`/v1/platform/agents/${a.id}/reject`, 'POST', { reason })) }}>
                     {t('agentsAdmin.reject')}</button>
                 </>}
                 {a.status === 'approved' && <>
                   <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold"
-                    onClick={() => { const market = prompt(t('agentsAdmin.marketAsk'), a.market); if (market) void run(() => api(`/v1/platform/agents/${a.id}/market`, 'PUT', { market })) }}>
+                    onClick={async () => { const market = (await ask(t('agentsAdmin.marketAsk'), a.market)); if (market) void run(() => api(`/v1/platform/agents/${a.id}/market`, 'PUT', { market })) }}>
                     {t('agentsAdmin.changeMarket')}</button>
                   <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold text-red-700"
-                    onClick={() => { const reason = prompt(t('agentsAdmin.blockAsk')); if (reason) void run(() => api(`/v1/platform/agents/${a.id}/block`, 'POST', { reason })) }}>
+                    onClick={async () => { const reason = (await ask(t('agentsAdmin.blockAsk'))); if (reason) void run(() => api(`/v1/platform/agents/${a.id}/block`, 'POST', { reason })) }}>
                     {t('agentsAdmin.block')}</button>
                 </>}
                 {a.status === 'blocked' && (
@@ -215,11 +216,11 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
                   <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white"
                     onClick={() => void run(() => api(`/v1/platform/registrations/${r.id}/approve`, 'POST', {}), t('registrations.approved', { name: r.shopName }))}>{t('registrations.approve')}</button>
                   <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold text-red-700"
-                    onClick={() => { const reason = prompt(t('registrations.rejectAsk')); if (reason) void run(() => api(`/v1/platform/registrations/${r.id}/reject`, 'POST', { reason })) }}>{t('agentsAdmin.reject')}</button>
+                    onClick={async () => { const reason = (await ask(t('registrations.rejectAsk'))); if (reason) void run(() => api(`/v1/platform/registrations/${r.id}/reject`, 'POST', { reason })) }}>{t('agentsAdmin.reject')}</button>
                 </>}
                 {money && r.status === 'approved' && r.paymentStatus === 'received' && (
                   <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-teal-700 font-bold text-white"
-                    onClick={() => confirm(t('registrations.confirmAsk', { amount: formatRupees(r.amount), how: t(`agentShops.pay.${r.paymentMode}`) }))
+                    onClick={async () => (await confirmAsk(t('registrations.confirmAsk', { amount: formatRupees(r.amount), how: t(`agentShops.pay.${r.paymentMode}`) })))
                       && void run(() => api(`/v1/platform/registrations/${r.id}/confirm-payment`, 'POST', {}), t('registrations.paid'))}>{t('registrations.confirmPay', { amount: formatRupees(r.amount) })}</button>
                 )}
               </div>
@@ -245,9 +246,9 @@ export function PerformancePanel({ role }: { role: AdminRole }) {
   const [message, setMessage] = useState<string | null>(null)
 
   async function pay(r: AgentPerformanceRow) {
-    const amount = prompt(t('performance.payAsk', { name: r.name, due: formatRupees(r.commissionDue) }), String(r.commissionDue))
+    const amount = (await ask(t('performance.payAsk', { name: r.name, due: formatRupees(r.commissionDue) }), String(r.commissionDue)))
     if (!amount) return
-    const reference = prompt(t('performance.refAsk', { upi: r.upiId ?? '–' })) ?? ''
+    const reference = (await ask(t('performance.refAsk', { upi: r.upiId ?? '–' }))) ?? ''
     setMessage(null)
     try {
       await api(`/v1/platform/agent-performance/${r.agentId}/payouts`, 'POST', { amount: Number(amount), reference })

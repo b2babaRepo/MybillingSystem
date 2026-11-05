@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../../lib/format'
 import { estimateAtShop, optionFor, quantityIn, sendList, useLists, useShopOptions, useShopSearch, type Fulfilment, type LineChoice, type ListKind, type OrderPayment, type ReplacePreference, type ShopEntry } from '../../lib/planner'
 import { navigate } from '../../router'
+import { confirmAsk } from '../../components/Ask'
 
 /** Mockups 4 and 5 on one screen: pick the shop, then how and when, then send. */
 export function SendScreen({ userId, userName, kind }: { userId: string; userName: string; kind: ListKind }) {
@@ -161,7 +162,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
               </select>
             )}
             {chosenAddress && (
-              <button onClick={() => { if (window.confirm(t('plan.removeAddress'))) void api(`/v1/addresses/${chosenAddress.id}`, 'DELETE').then(() => { setAddressId(''); void addresses.refetch() }) }}
+              <button onClick={async () => { if ((await confirmAsk(t('plan.removeAddress')))) void api(`/v1/addresses/${chosenAddress.id}`, 'DELETE').then(() => { setAddressId(''); void addresses.refetch() }) }}
                 className="min-h-11 self-start text-sm font-semibold text-due">{t('plan.removeAddress')}</button>
             )}
             <details className="rounded-[14px] border border-line p-2">

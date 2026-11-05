@@ -7,6 +7,7 @@ import { shrinkPhoto } from '../lib/images'
 import { VoiceButton } from '../components/VoiceButton'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
+import { ask, confirmAsk } from '../components/Ask'
 
 type Kind = 'cow' | 'buffalo' | 'mixed'
 type Shift = 'morning' | 'evening'
@@ -241,9 +242,9 @@ function EditButton({ shopId, c, date, shift }: { shopId: string; c: Collection;
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const edit = async () => {
-    const litres = window.prompt(t('dairy.litres'), String(c.litres)); if (litres === null) return
-    const fat = window.prompt(t('dairy.fat'), String(c.fat)); if (fat === null) return
-    const snf = window.prompt(t('dairy.snf'), c.snf == null ? '' : String(c.snf)); if (snf === null) return
+    const litres = (await ask(t('dairy.litres'), String(c.litres))); if (litres === null) return
+    const fat = (await ask(t('dairy.fat'), String(c.fat))); if (fat === null) return
+    const snf = (await ask(t('dairy.snf'), c.snf == null ? '' : String(c.snf))); if (snf === null) return
     try {
       await api(`/v1/dairy/collections/${c.id}`, 'PUT', { id: c.id, date, shift, farmerId: '00000000-0000-0000-0000-000000000000', kind: c.kind, litres: Number(litres), fat: Number(fat), snf: snf ? Number(snf) : null, clr: null, rejected: c.rejected })
       void queryClient.invalidateQueries({ queryKey: [shopId, 'dairy'] })
@@ -326,7 +327,7 @@ function Bills({ shopId, shopName }: { shopId: string; shopName: string }) {
           {(b.feed > 0 || b.advance > 0 || b.bonus > 0 || b.opening !== 0 || b.paidInPeriod > 0) && <p className="text-xs text-muted">{t('dairy.billDeductions', { feed: formatRupees(b.feed), advance: formatRupees(b.advance), bonus: formatRupees(b.bonus), opening: formatRupees(b.opening), paid: formatRupees(b.paidInPeriod) })}</p>}
           <div className="mt-1 flex gap-2">
             {b.phone && <a href={whatsAppLink(b.phone, statement(b))} target="_blank" rel="noreferrer" className="flex h-10 flex-1 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('dairy.sendStatement')}</a>}
-            {b.due > 0 && <Button className="h-10 flex-1 text-sm" onClick={() => { if (confirm(t('dairy.payConfirm', { amount: formatRupees(b.due), name: b.name }))) void run(() => api(`/v1/dairy/farmers/${b.farmerId}/entries`, 'POST', { id: crypto.randomUUID(), kind: 'payout', amount: b.due, mode }), t('dairy.paid')) }}>{t('dairy.pay', { amount: formatRupees(b.due) })}</Button>}
+            {b.due > 0 && <Button className="h-10 flex-1 text-sm" onClick={async () => { if ((await confirmAsk(t('dairy.payConfirm', { amount: formatRupees(b.due), name: b.name })))) void run(() => api(`/v1/dairy/farmers/${b.farmerId}/entries`, 'POST', { id: crypto.randomUUID(), kind: 'payout', amount: b.due, mode }), t('dairy.paid')) }}>{t('dairy.pay', { amount: formatRupees(b.due) })}</Button>}
           </div>
         </section>
       ))}
@@ -549,7 +550,7 @@ function Helper({ shopId, shopName }: { shopId: string; shopName: string }) {
               <div key={d.type + d.farmerId} className="flex flex-col gap-1 rounded-xl bg-ground p-2 text-sm">
                 <p><b>#{d.farmerCode} {d.farmerName}</b> · {d.why}</p>
                 {d.type === 'payout'
-                  ? <Button className="h-10 text-sm" onClick={() => { if (confirm(t('dairy.payConfirm', { amount: formatRupees(d.amount), name: d.farmerName }))) void run(() => api(`/v1/dairy/farmers/${d.farmerId}/entries`, 'POST', { id: crypto.randomUUID(), kind: 'payout', amount: d.amount, mode: 'upi' }), t('dairy.paid')) }}>{t('dairy.pay', { amount: formatRupees(d.amount) })}</Button>
+                  ? <Button className="h-10 text-sm" onClick={async () => { if ((await confirmAsk(t('dairy.payConfirm', { amount: formatRupees(d.amount), name: d.farmerName })))) void run(() => api(`/v1/dairy/farmers/${d.farmerId}/entries`, 'POST', { id: crypto.randomUUID(), kind: 'payout', amount: d.amount, mode: 'upi' }), t('dairy.paid')) }}>{t('dairy.pay', { amount: formatRupees(d.amount) })}</Button>
                   : phone && <a href={whatsAppLink(phone, t('dairy.remindText', { shop: shopName, name: d.farmerName, due: formatRupees(d.amount) }))} target="_blank" rel="noreferrer" className="flex h-10 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('dairy.sendReminder')}</a>}
               </div>
             )

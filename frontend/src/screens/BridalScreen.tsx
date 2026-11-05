@@ -5,6 +5,7 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
+import { ask, confirmAsk } from '../components/Ask'
 
 interface BridalEvent { id: string; name: string; date: string; start: string; end: string; price: number; stylistName: string | null }
 interface Booking {
@@ -73,9 +74,9 @@ export function BridalScreen({ shopId, shopName, isOwner }: { shopId: string; sh
             <div className="mt-1 flex flex-wrap gap-2">
               <Button tone="plain" className="h-10 px-3 text-sm" onClick={() => setPay({ id: b.id, amount: String(Math.round(b.total * 0.4)), mode: 'upi', trial: false })}>{t('bridal.takePayment')}</Button>
               {b.customerPhone && <a href={whatsAppLink(b.customerPhone, reminder(b))} target="_blank" rel="noreferrer" className="flex h-10 items-center rounded-xl bg-[#15803d] px-3 text-sm font-semibold text-white">{t('tables.remind')}</a>}
-              {isOwner && <Button className="h-10 px-3 text-sm" onClick={() => { if (confirm(t('bridal.completeConfirm', { due: formatRupees(Math.max(0, b.total - b.advance)) }))) void run(`/v1/bridal/${b.id}/complete`, { billId: crypto.randomUUID(), paidAmount: 0 }, t('bridal.completed')) }}>{t('bridal.complete')}</Button>}
-              {isOwner && <Button tone="plain" className="h-10 px-3 text-sm" onClick={() => {
-                const keep = prompt(t('bridal.cancelKeep'), '0')
+              {isOwner && <Button className="h-10 px-3 text-sm" onClick={async () => { if ((await confirmAsk(t('bridal.completeConfirm', { due: formatRupees(Math.max(0, b.total - b.advance)) })))) void run(`/v1/bridal/${b.id}/complete`, { billId: crypto.randomUUID(), paidAmount: 0 }, t('bridal.completed')) }}>{t('bridal.complete')}</Button>}
+              {isOwner && <Button tone="plain" className="h-10 px-3 text-sm" onClick={async () => {
+                const keep = (await ask(t('bridal.cancelKeep'), '0'))
                 if (keep !== null) void run(`/v1/bridal/${b.id}/cancel`, { reason: '', keep: Number(keep) || 0 }, t('bridal.cancelled'))
               }}>{t('bridal.cancel')}</Button>}
             </div>

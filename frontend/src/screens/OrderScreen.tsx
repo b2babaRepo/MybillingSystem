@@ -6,6 +6,7 @@ import { formatRupees } from '../lib/format'
 import { useProducts } from '../lib/data'
 import { round2 } from '../lib/local'
 import type { Order } from '../lib/planner'
+import { confirmAsk } from '../components/Ask'
 
 /** AI-read lines: Ready (sure), Check (one part unsure), Not understood (read the customer's words below it). */
 const AI_CHIP = { high: 'bg-[#e0efec] text-teal-800', medium: 'bg-amber-100 text-amber-900', low: 'bg-red-100 text-due' } as const
@@ -91,7 +92,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
   }))
   const defaultPaid = order.payment === 'khata' ? 0 : (order.finalAmount ?? 0)
   const deliver = () => run(() => api<Order>(`/v1/orders/${orderId}/deliver`, 'POST', { paidAmount: paid === null ? defaultPaid : Number(paid) || 0 }))
-  const cancel = () => confirm(t('inbox.cancelConfirm')) && void run(() => api<Order>(`/v1/orders/${orderId}/cancel`, 'POST', {}))
+  const cancel = async () => (await confirmAsk(t('inbox.cancelConfirm'))) && void run(() => api<Order>(`/v1/orders/${orderId}/cancel`, 'POST', {}))
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-32">

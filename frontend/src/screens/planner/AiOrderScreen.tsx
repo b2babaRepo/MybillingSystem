@@ -11,6 +11,7 @@ import type { Unit } from '../../lib/types'
 import { navigate } from '../../router'
 import { VoiceButton } from '../../components/VoiceButton'
 import { UnitSelect } from '../BillScreen'
+import { confirmAsk } from '../../components/Ask'
 
 type Confidence = 'high' | 'medium' | 'low'
 
@@ -259,7 +260,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
           {busy ? t('ai.reading') : t('ai.read')}
         </button>
       </section>
-      <button className="min-h-11 self-center text-sm text-muted underline" onClick={() => confirm(t('ai.withdrawConfirm')) && void consent(false)}>
+      <button className="min-h-11 self-center text-sm text-muted underline" onClick={async () => (await confirmAsk(t('ai.withdrawConfirm'))) && void consent(false)}>
         {t('ai.withdraw')}
       </button>
     </div>

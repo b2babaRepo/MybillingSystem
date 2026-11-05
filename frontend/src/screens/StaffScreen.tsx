@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatPhone } from '../lib/format'
+import { ask, confirmAsk } from '../components/Ask'
 
 interface Staff {
   membershipId: string
@@ -52,16 +53,16 @@ export function StaffScreen() {
     setPin('')
   }, role === 'owner' ? t('staff.ownerAdded') : t('staff.added'))
 
-  function changePin(s: Staff) {
-    const next = prompt(t('staff.newPinAsk', { name: s.name }))?.trim()
+  async function changePin(s: Staff) {
+    const next = (await ask(t('staff.newPinAsk', { name: s.name })))?.trim()
     if (next) void run(async () => {
       const response = await request(`/v1/shop/staff/${s.membershipId}/pin`, 'POST', { pin: next })
       if (!response.ok) throw new Error(((await response.json()) as { errors?: Record<string, string[]> }).errors?.Pin?.[0] ?? t('error'))
     }, t('staff.pinChanged', { name: s.name }))
   }
 
-  const setActive = (s: Staff, active: boolean) =>
-    (active || confirm(t('staff.offConfirm', { name: s.name }))) &&
+  const setActive = async (s: Staff, active: boolean) =>
+    (active || (await confirmAsk(t('staff.offConfirm', { name: s.name })))) &&
     void run(() => request(`/v1/shop/staff/${s.membershipId}/active?active=${active}`, 'POST', {}))
 
   return (

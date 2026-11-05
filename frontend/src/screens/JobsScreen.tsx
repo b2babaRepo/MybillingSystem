@@ -8,6 +8,7 @@ import { formatRupees, whatsAppLink } from '../lib/format'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { ExportImportPanel } from './ExportImportPanel'
 import { KarigarPanel, MachinesPanel } from './WorkshopPanels'
+import { confirmAsk } from '../components/Ask'
 
 interface SpeechRec { lang: string; start: () => void; onresult: (e: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => void; onend: () => void }
 type Status = 'quote' | 'order' | 'making' | 'ready' | 'delivered' | 'cancelled'
@@ -300,7 +301,7 @@ export function JobPage({ shopId, id, onBack, embedded = false }: { shopId: stri
           </li>
         ))}
       </ul>
-      {open && !embedded && <button onClick={() => { if (confirm(t('jobs.cancelConfirm'))) void run('/status', { status: 'cancelled' }) }} className="min-h-11 text-sm font-semibold text-due">{t('jobs.cancelJob')}</button>}
+      {open && !embedded && <button onClick={async () => { if ((await confirmAsk(t('jobs.cancelConfirm')))) void run('/status', { status: 'cancelled' }) }} className="min-h-11 text-sm font-semibold text-due">{t('jobs.cancelJob')}</button>}
     </div>
   )
 }

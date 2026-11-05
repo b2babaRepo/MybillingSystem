@@ -11,6 +11,7 @@ import { useShopSettings, shopTypes, isTrade, upiUri } from '../lib/reports'
 import QRCode from 'qrcode'
 import { navigate } from '../router'
 import { useSerialsInStock } from './SerialsScreen'
+import { ask } from '../components/Ask'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
 const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))
@@ -85,8 +86,8 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   }
 
   /** A medicine sold loose: so many tablets of a strip, as that fraction of the strip at the strip's price. */
-  function sellLoose(index: number, perPack: number) {
-    const tablets = Math.round(Number(window.prompt(t('loose.ask', { count: perPack })) || 0))
+  async function sellLoose(index: number, perPack: number) {
+    const tablets = Math.round(Number((await ask(t('loose.ask', { count: perPack }))) || 0))
     if (!(tablets > 0)) return
     setCart((current) => current.map((l, i) => {
       if (i !== index) return l
@@ -204,7 +205,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
                 <button onClick={() => sellLoose(i, per)} className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('loose.button')}</button>
               ) : null })()}
               {tmtKgPerBar(l.name) && l.unit === 'kg' && (
-                <button onClick={() => { const bars = Number(window.prompt(t('bars.ask', { name: l.name })) || 0); if (bars > 0) setQuantity(i, Math.round(bars * tmtKgPerBar(l.name)! * 1000) / 1000) }}
+                <button onClick={async () => { const bars = Number((await ask(t('bars.ask', { name: l.name }))) || 0); if (bars > 0) setQuantity(i, Math.round(bars * tmtKgPerBar(l.name)! * 1000) / 1000) }}
                   className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('bars.button', { kg: tmtKgPerBar(l.name) })}</button>
               )}
             </div>

@@ -7,6 +7,7 @@ import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Product } from '../lib/types'
 import { navigate } from '../router'
+import { confirmAsk } from '../components/Ask'
 
 interface StaffRow { membershipId: string; name: string; phone: string; role: string; isActive: boolean; hasPin: boolean }
 
@@ -203,7 +204,7 @@ export function StylistEarningsScreen({ shopId }: { shopId: string }) {
   const [message, setMessage] = useState('')
   const shift = (n: number) => { const [y, m] = month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`) }
   async function pay(id: string, name: string, owed: number) {
-    if (!confirm(t('salon.payConfirm', { name, amount: formatRupees(owed) }))) return
+    if (!(await confirmAsk(t('salon.payConfirm', { name, amount: formatRupees(owed) })))) return
     try {
       await api(`/v1/stylists/${id}/payout`, 'POST', { mode: 'cash' })
       setMessage(t('salon.paid', { name }))

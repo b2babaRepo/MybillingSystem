@@ -14,6 +14,7 @@ import { StockBadge } from './ItemsScreen'
 import { ItemCard } from '../components/ItemCard'
 import { imageUrl, itemPhotos } from '../lib/images'
 import { navigate } from '../router'
+import { confirmAsk } from '../components/Ask'
 
 const REASONS: StockReason[] = ['damage', 'wastage', 'return', 'count_correction', 'other']
 
@@ -185,7 +186,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
 
   /** Takes the item off the list and the bill screen. Never deleted: past bills, stock history and reports keep it. */
   async function remove() {
-    if (!confirm(t('stock.removeConfirm', { name: product.name }))) return
+    if (!(await confirmAsk(t('stock.removeConfirm', { name: product.name })))) return
     setMessage('')
     try {
       await api(`/v1/products/${product.id}`, 'PUT', { ...body(false), name: product.name, unit: product.unit })

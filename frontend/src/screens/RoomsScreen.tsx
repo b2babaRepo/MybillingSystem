@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatPhone, formatRupees } from '../lib/format'
 import { navigate } from '../router'
+import { confirmAsk } from '../components/Ask'
 
 type Source = 'direct' | 'walk_in' | 'make_my_trip' | 'goibibo' | 'booking_com' | 'oyo' | 'airbnb' | 'other'
 type Status = 'booked' | 'checked_in' | 'checked_out' | 'cancelled'
@@ -269,7 +270,7 @@ function StayPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: 
         </div>
       )}
       {!form && message && <p className="text-sm text-due">{message}</p>}
-      {s.status === 'booked' && <button onClick={() => { if (confirm(t('rooms.cancelConfirm'))) void run('cancel', {}) }} className="min-h-11 text-sm font-semibold text-due">{t('rooms.cancel')}</button>}
+      {s.status === 'booked' && <button onClick={async () => { if ((await confirmAsk(t('rooms.cancelConfirm')))) void run('cancel', {}) }} className="min-h-11 text-sm font-semibold text-due">{t('rooms.cancel')}</button>}
     </div>
   )
 }

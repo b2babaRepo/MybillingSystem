@@ -12,6 +12,7 @@ import { usePlans } from '../lib/billing'
 import { AgentsPanel, PerformancePanel, RegistrationsPanel } from './PlatformAgents'
 import { addText } from '../i18n'
 import { adminText } from '../i18n/admin'
+import { ask, confirmAsk } from '../components/Ask'
 
 addText(adminText)
 import type { AdminRole } from '../lib/types'
@@ -249,8 +250,8 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
     }
   }
 
-  function block() {
-    const reason = prompt(t('platform.blockAsk', { name: d!.shop.name }))?.trim()
+  async function block() {
+    const reason = (await ask(t('platform.blockAsk', { name: d!.shop.name })))?.trim()
     if (reason) void run(`/v1/platform/shops/${id}/block`, { reason })
   }
 
@@ -281,7 +282,7 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
             <a href={`https://wa.me/${p.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex min-h-11 items-center rounded-xl border border-line px-3 font-semibold no-underline">WhatsApp</a>
             {p.lockedOut && canSupport && <button disabled={busy} onClick={() => void run(`/v1/platform/users/${p.userId}/unlock`, {}, 'POST', t('platform.unlocked', { name: p.name }))} className="min-h-11 rounded-xl bg-amber-100 px-3 font-semibold text-amber-900">{t('platform.unlock')}</button>}
             {canPeople && (
-              <button disabled={busy} onClick={() => (!p.isActive || confirm(t('staff.offConfirm', { name: p.name }))) && void run(`/v1/platform/shops/${id}/people/${p.membershipId}/active?active=${!p.isActive}`, {}, 'POST')}
+              <button disabled={busy} onClick={async () => (!p.isActive || (await confirmAsk(t('staff.offConfirm', { name: p.name })))) && void run(`/v1/platform/shops/${id}/people/${p.membershipId}/active?active=${!p.isActive}`, {}, 'POST')}
                 className={`min-h-11 rounded-xl px-3 font-semibold ${p.isActive ? 'border border-line text-due' : 'bg-teal-700 text-white'}`}>{p.isActive ? t('staff.turnOff') : t('staff.turnOn')}</button>
             )}
           </li>
@@ -733,7 +734,7 @@ function ManageAdmins() {
               {ROLES.map((r) => <option key={r} value={r}>{t(`admins.roles.${r}`)}</option>)}
             </select>
             <button disabled={busy} aria-label={t('admins.remove', { name: a.name })}
-              onClick={() => confirm(t('admins.removeAsk', { name: a.name })) && void run(`/v1/platform/admins/${a.userId}`, 'DELETE', undefined, t('admins.removed', { name: a.name }))}
+              onClick={async () => (await confirmAsk(t('admins.removeAsk', { name: a.name }))) && void run(`/v1/platform/admins/${a.userId}`, 'DELETE', undefined, t('admins.removed', { name: a.name }))}
               className="h-11 rounded-xl border border-line px-3 text-sm font-semibold text-red-700">{t('admins.removeShort')}</button>
           </li>
         ))}
@@ -824,16 +825,21 @@ function MasterPhoto({ row, run, credit }: { row: MasterRow; run: (action: () =>
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
   const url = row.imageAt ? `/api/v1/master-images/${row.id}?v=${Date.parse(row.imageAt)}&size=thumb` : null
   // Kept under the server's 1 MB request limit once sent (photos grow by a third as text): a 1200 px WebP of a pack is a few hundred KB.
   async function upload(file: File) {
     setBusy(true)
     setError(null)
+    setSaved(false)
     try {
       await api(`/v1/platform/master-items/${row.id}/image`, 'PUT', { dataUrl: await shrinkPhoto(file, 1200, 600_000, false), credit: credit.trim() || null })
-      await queryClient.invalidateQueries({ queryKey: ['platform', 'master'] })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 4000)
+      // Refresh the list in the background so the new photo shows; a failed refresh is not a failed upload.
+      void queryClient.invalidateQueries({ queryKey: ['platform', 'master'] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(t('masterItems.photoFailed', { reason: e instanceof Error ? e.message : String(e) }))
     } finally {
       setBusy(false)
     }
@@ -846,7 +852,8 @@ function MasterPhoto({ row, run, credit }: { row: MasterRow; run: (action: () =>
           onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = '' }} />
       </label>
       {url && !busy && <button onClick={() => void run(() => request(`/v1/platform/master-items/${row.id}/image`, 'DELETE'))} className="text-[10px] text-muted underline">{t('masterItems.removePhoto')}</button>}
-      {error && <span role="alert" className="mt-0.5 text-center text-[10px] leading-tight text-due">{error}</span>}
+      {saved && <span role="status" className="mt-0.5 text-center text-[11px] font-semibold leading-tight text-teal-700">✓ {t('masterItems.photoSaved')}</span>}
+      {error && <span role="alert" className="mt-0.5 text-center text-[11px] font-semibold leading-tight text-due">{error}</span>}
     </span>
   )
 }

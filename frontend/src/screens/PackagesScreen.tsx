@@ -5,6 +5,7 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
+import { confirmAsk } from '../components/Ask'
 
 interface Plan { id: string; name: string; kind: 'package' | 'membership'; price: number; serviceName: string | null; sessions: number | null; discountPercent: number | null; validDays: number }
 interface CustomerPlan {
@@ -65,7 +66,7 @@ export function PackagesScreen({ shopId, shopName, isOwner }: { shopId: string; 
             <p className="text-xs">{p.kind === 'package' ? t('packages.sessionsLeft', { count: p.sessionsLeft }) + ' · ' : ''}{t(p.state === 'expired' ? 'packages.expiredOn' : 'packages.endsOn', { date: day(p.expiresOn) })}</p>
             <div className="mt-1 flex gap-2">
               {p.customerPhone && p.state !== 'expired' && <a href={whatsAppLink(p.customerPhone, reminder(p))} target="_blank" rel="noreferrer" className="flex h-10 items-center rounded-xl bg-[#15803d] px-3 text-sm font-semibold text-white">{t('tables.remind')}</a>}
-              {isOwner && p.state === 'expired' && p.kind === 'package' && <Button tone="plain" className="h-10 px-3 text-sm" onClick={() => { if (confirm(t('packages.closeConfirm', { count: p.sessionsLeft }))) void run(`/v1/customer-plans/${p.id}/close`, {}, t('packages.closed')) }}>{t('packages.close')}</Button>}
+              {isOwner && p.state === 'expired' && p.kind === 'package' && <Button tone="plain" className="h-10 px-3 text-sm" onClick={async () => { if ((await confirmAsk(t('packages.closeConfirm', { count: p.sessionsLeft })))) void run(`/v1/customer-plans/${p.id}/close`, {}, t('packages.closed')) }}>{t('packages.close')}</Button>}
             </div>
           </div>
         ))}

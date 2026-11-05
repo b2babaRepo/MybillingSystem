@@ -11,6 +11,7 @@ import { requestPersistentStorage } from './lib/db'
 import { flush } from './lib/outbox'
 import { getSession, setSession } from './lib/session'
 import { navigate, usePath } from './router'
+import { confirmAsk } from './components/Ask'
 // Signed-in people (most opens) never need the sign-in screen, so it loads on demand.
 const AuthScreen = lazy(() => import('./screens/AuthScreen').then((module) => ({ default: module.AuthScreen })))
 const ShopPicker = lazy(() => import('./screens/AuthScreen').then((module) => ({ default: module.ShopPicker })))
@@ -201,7 +202,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   }, [pending])
 
   async function signOut() {
-    if (pending + failed > 0 && !confirm(t('unsyncedSignOut', { count: pending + failed }))) return
+    if (pending + failed > 0 && !(await confirmAsk(t('unsyncedSignOut', { count: pending + failed })))) return
     void request('/v1/auth/sign-out', 'POST', { refreshToken: getSession()?.refreshToken }).catch(() => {})
     setSession(null)
   }

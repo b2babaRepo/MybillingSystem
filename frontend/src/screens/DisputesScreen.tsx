@@ -7,6 +7,7 @@ import { formatDateTime, formatRupees } from '../lib/format'
 import type { DisputeItemView, ItemOutcome, LedgerEntryKind } from '../lib/types'
 import { navigate } from '../router'
 import { useOpenDisputes } from '../components/OpenDisputesBanner'
+import { ask, confirmAsk } from '../components/Ask'
 
 export interface Dispute {
   id: string
@@ -45,20 +46,20 @@ export function DisputesScreen({ isOwner }: { isOwner: boolean }) {
     }
   }
 
-  function resolveItem(d: Dispute, item: DisputeItemView, outcome: ItemOutcome) {
+  async function resolveItem(d: Dispute, item: DisputeItemView, outcome: ItemOutcome) {
     let note: string | undefined
     if (outcome === 'disagreed') {
-      note = prompt(t('dispute.disagreeAsk', { name: d.customerName, item: item.name }))?.trim()
+      note = (await ask(t('dispute.disagreeAsk', { name: d.customerName, item: item.name })))?.trim()
       if (!note || note.length < 3) return
-    } else if (!confirm(t(`dispute.confirm.${outcome}`, { item: item.name, amount: formatRupees(item.disputedAmount) }))) {
+    } else if (!(await confirmAsk(t(`dispute.confirm.${outcome}`, { item: item.name, amount: formatRupees(item.disputedAmount) })))) {
       return
     }
 
     void act(() => api(`/v1/disputes/${d.id}/items/${item.id}/resolve`, 'POST', { outcome, note }))
   }
 
-  function answer(d: Dispute) {
-    const resolution = prompt(t('dispute.answerAsk', { name: d.customerName }))?.trim()
+  async function answer(d: Dispute) {
+    const resolution = (await ask(t('dispute.answerAsk', { name: d.customerName })))?.trim()
     if (!resolution || resolution.length < 3) return
     void act(() => api(`/v1/disputes/${d.id}/resolve`, 'POST', { resolution }))
   }

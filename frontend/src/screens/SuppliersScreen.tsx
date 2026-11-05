@@ -7,6 +7,7 @@ import { shrinkPhoto } from '../lib/images'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { shopTypes, useShopSettings } from '../lib/reports'
+import { ask, confirmAsk } from '../components/Ask'
 
 interface Supplier { id: string; name: string; phone: string | null; due: number }
 interface Detail { supplier: Supplier; entries: { id: string; amount: number; purchaseId: string | null; note: string | null; occurredAt: string; cancelled: boolean }[] }
@@ -143,9 +144,9 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
     setPaid('')
     setPhotoNote(null)
   })
-  const cancelBill = (purchaseId: string) => { if (window.confirm(t('suppliers.cancelConfirm'))) void run(() => api(`/v1/suppliers/purchases/${purchaseId}/cancel`, 'POST', {})) }
-  const rename = () => {
-    const name = window.prompt(t('suppliers.name'), s?.name)?.trim()
+  const cancelBill = async (purchaseId: string) => { if ((await confirmAsk(t('suppliers.cancelConfirm')))) void run(() => api(`/v1/suppliers/purchases/${purchaseId}/cancel`, 'POST', {})) }
+  const rename = async () => {
+    const name = (await ask(t('suppliers.name'), s?.name))?.trim()
     if (name) void run(() => api(`/v1/suppliers/${id}`, 'PUT', { id, name, phone: s?.phone ?? null }))
   }
   const savePayment = () => run(async () => {

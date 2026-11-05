@@ -11,6 +11,7 @@ import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/
 import { buildReminder, useShopSettings } from '../lib/reports'
 import type { KhataEntryType, PaymentMode, StatementLine } from '../lib/types'
 import { navigate } from '../router'
+import { ask, confirmAsk } from '../components/Ask'
 
 const CustomerTradePanel = lazy(() => import('./CustomerTrade').then((module) => ({ default: module.CustomerTradePanel })))
 
@@ -74,7 +75,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
   async function settleAll() {
     if (!customer || customer.balance <= 0) return
     const due = customer.balance
-    if (!confirm(t('ledgerView.settleConfirm', { amount: formatRupees(due), mode: t(mode) }))) return
+    if (!(await confirmAsk(t('ledgerView.settleConfirm', { amount: formatRupees(due), mode: t(mode) })))) return
     const id = await addKhataEntry(shopId, customer, 'payment', due, mode, '', upiRef)
     saved(id, -due)
   }
@@ -92,9 +93,9 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
     const late = Date.now() - new Date(e.occurredAt).getTime() > REMOVAL_WINDOW_MS
     let reason = ''
     if (late) {
-      reason = prompt(t('ledgerView.removeReason'))?.trim() ?? ''
+      reason = (await ask(t('ledgerView.removeReason')))?.trim() ?? ''
       if (reason.length < 3) return
-    } else if (!confirm(t('removeConfirm'))) {
+    } else if (!(await confirmAsk(t('removeConfirm')))) {
       return
     }
 
@@ -350,7 +351,7 @@ function KhataLinkCard({ customer, shopName, isOwner }: { customer: { id: string
   const link = useQuery({ queryKey: key, queryFn: () => api<KhataLink>(`/v1/customers/${customer.id}/khata-link`, 'POST'), staleTime: Infinity, retry: false })
 
   async function reset() {
-    if (!confirm(t('ledgerView.resetConfirm'))) return
+    if (!(await confirmAsk(t('ledgerView.resetConfirm')))) return
     queryClient.setQueryData(key, await api<KhataLink>(`/v1/customers/${customer.id}/khata-link/reset`, 'POST'))
   }
 

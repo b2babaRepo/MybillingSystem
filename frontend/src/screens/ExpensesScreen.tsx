@@ -10,6 +10,7 @@ import { listOps, subscribeOutbox } from '../lib/outbox'
 import type { PaymentMode } from '../lib/types'
 import { KharchaMonth } from './KharchaMonth'
 import { navigate } from '../router'
+import { confirmAsk } from '../components/Ask'
 
 export type ExpenseCategory = 'tea' | 'transport' | 'rent' | 'electricity' | 'salary' | 'purchase' | 'packaging' | 'repair' | 'home' | 'other'
 
@@ -194,9 +195,9 @@ export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: st
     await refresh()
   })
 
-  const strike = (line: ExpenseLine) => {
+  const strike = async (line: ExpenseLine) => {
     const what = line.note ?? t(`expense.cat.${line.category}`)
-    if (confirm(t('expense.strikeAsk', { what, amount: formatRupees(line.amount) }))) void run(() => strikeExpense(shopId, line.id, what))
+    if ((await confirmAsk(t('expense.strikeAsk', { what, amount: formatRupees(line.amount) })))) void run(() => strikeExpense(shopId, line.id, what))
   }
 
   /** Voice and photos are read by AI services: only after the person agrees (recorded on the server, as for orders). */
