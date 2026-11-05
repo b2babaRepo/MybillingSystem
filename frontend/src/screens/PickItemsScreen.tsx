@@ -53,6 +53,8 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
   const [trade, setTrade] = useState('')
   const [category, setCategory] = useState('')
   const [q, setQ] = useState('')
+  // The photo opened large: tapping a row's photo shows it big, so the owner can tell packs apart before adding.
+  const [zoom, setZoom] = useState<{ src: string; name: string } | null>(null)
   const [chosen, setChosen] = useState<Set<number>>(new Set())
   // Pack sizes ticked per item; an item chosen with none ticked adds every size it comes in.
   const [sizes, setSizes] = useState<Record<number, string[]>>({})
@@ -106,7 +108,15 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
     setChosen((c) => new Set([...c, ...fresh.map((i) => i.id)]))
   }
   const thumb = (i: MasterItem) => photoFor(i)
-    ? <img src={photoFor(i)} alt="" loading="lazy" width={44} height={44} className="h-11 w-11 shrink-0 rounded-[10px] bg-white object-contain" />
+    ? (
+      // Inside the row's button, so not a button itself: it stops the tap from also picking the item.
+      <span role="button" tabIndex={0} aria-label={t('pick.zoom', { name: label(i) })} title={t('pick.zoom', { name: label(i) })}
+        onClick={(e) => { e.stopPropagation(); setZoom({ src: photoFor(i)!.replace(/([?&])size=thumb&?/, '$1').replace(/[?&]$/, ''), name: label(i) }) }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setZoom({ src: photoFor(i)!.replace(/([?&])size=thumb&?/, '$1').replace(/[?&]$/, ''), name: label(i) }) } }}
+        className="shrink-0 cursor-zoom-in rounded-[10px] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-teal-700">
+        <img src={photoFor(i)} alt="" loading="lazy" width={44} height={44} className="h-11 w-11 rounded-[10px] bg-white object-contain" />
+      </span>
+    )
     : <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] text-[22px]" style={{ background: itemArt({ name: i.name }).tint }}>{itemArt({ name: i.name }).emoji}</span>
 
   async function add() {
@@ -278,6 +288,14 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
             </div>
           )}
       </div>
+      {zoom && (
+        <div role="dialog" aria-modal="true" aria-label={zoom.name} onClick={() => setZoom(null)} onKeyDown={(e) => e.key === 'Escape' && setZoom(null)} tabIndex={-1} ref={(el) => el?.focus()}
+          className="fixed inset-0 z-50 flex cursor-zoom-out flex-col items-center justify-center gap-3 bg-black/80 p-4">
+          <img src={zoom.src} alt={zoom.name} className="max-h-[75dvh] max-w-full rounded-2xl bg-white object-contain p-2" />
+          <p className="text-center text-lg font-semibold text-white">{zoom.name}</p>
+          <button type="button" onClick={() => setZoom(null)} className="h-11 rounded-xl bg-white px-6 font-bold text-ink">{t('pick.close')}</button>
+        </div>
+      )}
     </div>
   )
 }

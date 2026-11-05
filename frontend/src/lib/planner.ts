@@ -37,6 +37,9 @@ export interface CatalogueItem {
   unit: Unit
   category: string
   typicalPrice: number
+  /** A master-list photo that fits this item, shown on customers' lists. */
+  photoMasterId?: number | null
+  photoAt?: string | null
   /** Its aisle in the category tree (components/AisleTiles.tsx). */
   aisle: string
 }

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Catalogue;
 
-public sealed record CatalogueItemDto(int Id, string Name, string NameEn, Unit Unit, string Category, decimal TypicalPrice, string Aisle = "household");
+public sealed record CatalogueItemDto(int Id, string Name, string NameEn, Unit Unit, string Category, decimal TypicalPrice, string Aisle = "household", int? PhotoMasterId = null, DateTimeOffset? PhotoAt = null);
 
 /// <summary>One shop's price for a catalogue item: what a household sees before sending its list there.</summary>
 public sealed record ShopPriceDto(int CatalogueItemId, Guid ProductId, string Name, Unit Unit, decimal Price, bool InStock);
@@ -28,10 +28,23 @@ public static class CatalogueEndpoints
         return app;
     }
 
-    private static async Task<IReadOnlyList<CatalogueItemDto>> GetCatalogueAsync(AppDbContext db, CancellationToken ct) =>
-        await db.CatalogueItems.AsNoTracking().OrderBy(i => i.Id)
-            .Select(i => new CatalogueItemDto(i.Id, i.Name, i.NameEn, i.Unit, i.Category, i.TypicalPrice, i.Aisle))
-            .ToListAsync(ct);
+    /// <summary>
+    /// The catalogue, each item with a master-list photo when one fits: a master item linked to it, else one with the
+    /// same Hindi name or holding its English name ("Aashirvaad atta 10 kg" for "Atta"). Customers' lists show it.
+    /// </summary>
+    private static async Task<IReadOnlyList<CatalogueItemDto>> GetCatalogueAsync(AppDbContext db, CancellationToken ct)
+    {
+        var items = await db.CatalogueItems.AsNoTracking().OrderBy(i => i.Id).ToListAsync(ct);
+        var photos = await db.MasterItems.AsNoTracking().Where(m => m.IsActive && m.ImageAt != null)
+            .Select(m => new { m.Id, m.Name, m.NameHi, m.CatalogueItemId, m.ImageAt }).ToListAsync(ct);
+        return items.Select(i =>
+        {
+            var photo = photos.FirstOrDefault(m => m.CatalogueItemId == i.Id)
+                ?? photos.FirstOrDefault(m => m.NameHi != null && m.NameHi.Trim() == i.Name.Trim())
+                ?? photos.FirstOrDefault(m => i.NameEn.Length >= 3 && m.Name.Contains(i.NameEn, StringComparison.OrdinalIgnoreCase));
+            return new CatalogueItemDto(i.Id, i.Name, i.NameEn, i.Unit, i.Category, i.TypicalPrice, i.Aisle, photo?.Id, photo?.ImageAt);
+        }).ToList();
+    }
 
     private static async Task<IResult> GetShopPricesAsync(Guid shopId, AppDbContext db, TenantContext tenant, CancellationToken ct)
     {

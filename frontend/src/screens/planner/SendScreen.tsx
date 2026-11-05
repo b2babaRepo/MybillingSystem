@@ -7,6 +7,7 @@ import { formatRupees } from '../../lib/format'
 import { estimateAtShop, optionFor, quantityIn, sendList, useLists, useShopOptions, useShopSearch, type Fulfilment, type LineChoice, type ListKind, type OrderPayment, type ReplacePreference, type ShopEntry } from '../../lib/planner'
 import { navigate } from '../../router'
 import { confirmAsk } from '../../components/Ask'
+import { getChosenShop, takeRememberedShop } from './PlanHomeScreen'
 
 /** Mockups 4 and 5 on one screen: pick the shop, then how and when, then send. */
 export function SendScreen({ userId, userName, kind }: { userId: string; userName: string; kind: ListKind }) {
@@ -18,7 +19,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
   const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
   const shops = useShopSearch(search, type, near)
   const findNear = () => navigator.geolocation.getCurrentPosition((p) => setNear({ lat: p.coords.latitude, lng: p.coords.longitude }), () => setNear(null), { timeout: 15_000 })
-  const [shop, setShop] = useState<ShopEntry | null>(null)
+  const [shop, setShop] = useState<ShopEntry | null>(() => takeRememberedShop() ?? getChosenShop(userId))
   const [fulfilment, setFulfilment] = useState<Fulfilment>('delivery')
   const addresses = useQuery({ queryKey: ['addresses'], queryFn: () => api<{ id: string; label: string; text: string; landmark: string | null; pincode: string | null }[]>('/v1/addresses'), retry: false })
   const [addressId, setAddressId] = useState('')
@@ -39,6 +40,8 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
   const options = useShopOptions(shop?.id)
   const [choices, setChoices] = useState<Record<string, LineChoice>>({})
   const estimate = options.data ? estimateAtShop(items, options.data, choices) : null
+  // How many list items this shop has in stock (matched by the common catalogue), so the customer can compare shops.
+  const available = options.data ? items.filter((i) => options.data.some((o) => o.catalogueItemId === i.catalogueItemId && o.inStock)).length : 0
   const choose = (itemId: string, change: Partial<LineChoice>) =>
     setChoices((current) => ({ ...current, [itemId]: { ...{ productId: null, preference: 'shop_chooses' as const }, ...current[itemId], ...change } }))
 
@@ -93,6 +96,10 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
         </ul>
         {shop && estimate && (
           <div className="rounded-[14px] bg-teal-50 p-3">
+            <div className="mb-2 grid grid-cols-2 gap-2 text-center">
+              <span className="rounded-xl bg-white p-2"><b className="block text-lg text-teal-800">{available} / {items.length}</b><span className="text-xs text-muted">{t('home2.itemsThere')}</span></span>
+              <span className="rounded-xl bg-white p-2"><b className="block text-lg">~{formatRupees(estimate.total)}</b><span className="text-xs text-muted">{t('home2.estimateShort')}</span></span>
+            </div>
             <p className="text-lg font-bold text-teal-800">{t('plan.estimate', { amount: formatRupees(estimate.total) })}</p>
             {estimate.unpriced > 0 && <p className="text-sm text-muted">{t('plan.estimateUnpriced', { count: estimate.unpriced })}</p>}
           </div>
