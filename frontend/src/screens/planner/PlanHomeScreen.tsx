@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { itemArt } from '../../lib/itemArt'
 import { formatRupees } from '../../lib/format'
-import { useCatalogue, useLists, useShopSearch, type CatalogueItem, type ListItem, type ShopEntry, type ShoppingList } from '../../lib/planner'
+import { confirmAsk } from '../../components/Ask'
+import { sendList, useCatalogue, useLists, useMyOrders, useShopSearch, type CatalogueItem, type ListItem, type ShopEntry, type ShoppingList } from '../../lib/planner'
 import { navigate } from '../../router'
 
 /** Rough cost of a list from the catalogue's typical prices; items typed by hand or in another unit don't count. */
@@ -49,12 +50,32 @@ export function takeRememberedShop(): ShopEntry | null {
 }
 
 /** The customer's home: both lists with a picture and rough cost, a quick way to add, and the shops nearby. */
-export function PlanHomeScreen({ userId }: { userId: string }) {
+export function PlanHomeScreen({ userId, userName = '' }: { userId: string; userName?: string }) {
   const { t } = useTranslation()
   const { lists } = useLists(userId)
   const catalogue = useCatalogue(userId).data ?? []
   const monthly = lists.find((l) => l.kind === 'monthly')!
   const weekly = lists.find((l) => l.kind === 'weekly')!
+  // The last list sent to a shop (not cancelled): repeated in one tap with the same shop and options.
+  const orders = useMyOrders(userId).data ?? []
+  const last = [...orders].filter((o) => o.source !== 'store' && o.status !== 'cancelled' && !o.pending)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+  const lastList = last ? lists.find((l) => l.kind === last.listKind) : undefined
+  const [sending, setSending] = useState(false)
+  async function orderAgain() {
+    if (!last || !lastList || lastList.items.length === 0) return
+    const ok = await confirmAsk(t('again.confirm', {
+      list: t(last.listKind === 'monthly' ? 'plan.monthlyList' : 'plan.weeklyList'), count: lastList.items.length, shop: last.shopName,
+      how: last.fulfilment === 'delivery' ? t('plan.delivery') : t('plan.pickup'),
+    }))
+    if (!ok) return
+    setSending(true)
+    await sendList(userId, userName, lastList.items, {
+      shop: { id: last.shopId, name: last.shopName, area: null, address: null }, kind: last.listKind, fulfilment: last.fulfilment,
+      slot: '', payment: last.payment, note: '', address: last.address ?? null,
+    })
+    navigate('/orders')
+  }
   const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
   const [locating, setLocating] = useState(false)
   const shops = useShopSearch('', '', near)
@@ -77,6 +98,16 @@ export function PlanHomeScreen({ userId }: { userId: string }) {
       </div>
 
       <section className="-mt-4 flex flex-col gap-3 px-4">
+        {last && lastList && lastList.items.length > 0 && (
+          <button onClick={() => void orderAgain()} disabled={sending} className="flex items-center gap-3 rounded-[18px] bg-white p-3 text-left shadow-[0_1px_4px_rgba(16,32,29,0.06)] disabled:opacity-50">
+            <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-amber-100 text-2xl">🔁</span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="font-extrabold">{t('again.title')}</span>
+              <span className="truncate text-[13px] text-muted">{t('again.line', { list: t(last.listKind === 'monthly' ? 'plan.monthlyList' : 'plan.weeklyList'), count: lastList.items.length, shop: last.shopName })}</span>
+            </span>
+            <span className="shrink-0 rounded-xl bg-teal-700 px-3 py-2 text-sm font-bold text-white">{t('again.send')}</span>
+          </button>
+        )}
         <h2 className="text-[17px] font-extrabold">{t('home2.myLists')}</h2>
         <div className="grid grid-cols-2 gap-2.5">
           <ListCard list={monthly} title={t('plan.monthlyList')} catalogue={catalogue} />

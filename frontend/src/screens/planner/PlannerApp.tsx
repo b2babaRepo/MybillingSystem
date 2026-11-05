@@ -95,7 +95,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
         ) : path === '/khata' ? (
           <MyKhataScreen />
         ) : (
-          <PlanHomeScreen userId={userId} />
+          <PlanHomeScreen userId={userId} userName={userName} />
         )}
       </main>
 
