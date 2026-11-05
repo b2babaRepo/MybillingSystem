@@ -9,7 +9,7 @@ import { formatRupees } from '../lib/format'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { ask, confirmAsk } from '../components/Ask'
 
-interface Supplier { id: string; name: string; phone: string | null; due: number }
+interface Supplier { id: string; name: string; phone: string | null; due: number; days0To15?: number; days16To30?: number; over30?: number; oldestDays?: number }
 interface Detail { supplier: Supplier; entries: { id: string; amount: number; purchaseId: string | null; note: string | null; occurredAt: string; cancelled: boolean }[] }
 /** Medicines also carry batch, expiry month (yyyy-mm), MRP, free units (scheme) and trade discount %. */
 interface Row { productId: string; quantity: string; unitCost: string; batchNo: string; expiry: string; mrp: string; free: string; discount: string; gst: string; read?: string; problems?: string[] }
@@ -43,18 +43,34 @@ export function SuppliersScreen({ shopId }: { shopId: string }) {
   }
 
   const due = (suppliers.data ?? []).reduce((sum, s) => sum + s.due, 0)
+  const sum = (key: 'days0To15' | 'days16To30' | 'over30') => (suppliers.data ?? []).reduce((total, s) => total + (s[key] ?? 0), 0)
+  // Who to pay first: the oldest unpaid bills at the top, then the biggest dues.
+  const ordered = [...(suppliers.data ?? [])].sort((a, b) => (b.due > 0 ? 1 : 0) - (a.due > 0 ? 1 : 0) || (b.oldestDays ?? 0) - (a.oldestDays ?? 0) || b.due - a.due)
   if (openId) return <SupplierPage shopId={shopId} id={openId} onBack={() => setOpenId(null)} />
   return (
     <div className="flex flex-col gap-3 p-4">
       <section className="rounded-[18px] bg-white p-4">
         <span className="text-sm font-semibold text-muted">{t('suppliers.totalDue')}</span>
         <p className="text-2xl font-extrabold text-due">{formatRupees(due)}</p>
+        {due > 0 && (
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <span className="rounded-xl bg-blue-50 p-2 text-blue-800"><span className="block text-xs">{t('suppliers.age0')}</span><b>{formatRupees(sum('days0To15'))}</b></span>
+            <span className="rounded-xl bg-orange-50 p-2 text-orange-800"><span className="block text-xs">{t('suppliers.age16')}</span><b>{formatRupees(sum('days16To30'))}</b></span>
+            <span className="rounded-xl bg-red-50 p-2 text-red-800"><span className="block text-xs">{t('suppliers.age30')}</span><b>{formatRupees(sum('over30'))}</b></span>
+          </div>
+        )}
       </section>
       <ul className="flex flex-col gap-2">
-        {suppliers.data?.map((s) => (
+        {ordered.map((s) => (
           <li key={s.id}>
-            <button onClick={() => setOpenId(s.id)} className="flex min-h-14 w-full items-center justify-between rounded-[18px] bg-white px-4 text-left">
-              <span className="font-bold">{s.name}</span><span className="font-bold text-due">{formatRupees(s.due)}</span>
+            <button onClick={() => setOpenId(s.id)} className="flex min-h-14 w-full items-center justify-between gap-3 rounded-[18px] bg-white px-4 py-2 text-left">
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate font-bold">{s.name}</span>
+                {s.due > 0 && (s.oldestDays ?? 0) > 0 && (
+                  <span className={`text-[13px] font-semibold ${(s.oldestDays ?? 0) > 30 ? 'text-due' : (s.oldestDays ?? 0) > 15 ? 'text-udhaar' : 'text-muted'}`}>{t('suppliers.oldest', { days: s.oldestDays })}</span>
+                )}
+              </span>
+              <span className={`shrink-0 font-bold ${s.due > 0 ? 'text-due' : 'text-muted'}`}>{formatRupees(s.due)}</span>
             </button>
           </li>
         ))}

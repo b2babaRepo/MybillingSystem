@@ -150,6 +150,7 @@ public static class ReportEndpoints
         group.MapPost("/customers/{id:guid}/reminded", RemindedAsync).RequireAuthorization(AppPolicies.ShopMember);
         // Downloads hold every customer's dues or the month's figures: the owner's data to take away.
         group.MapGet("/reports/dues.csv", DuesCsvAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapGet("/reports/supplier-dues.csv", SupplierDuesCsvAsync).RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("/digest", async (AppDbContext db, TimeProvider clock, CancellationToken ct) =>
         {
             var dues = await DuesAsync(db, clock, ct);
@@ -334,6 +335,17 @@ public static class ReportEndpoints
         var covered = items.Where(i => i.Profit != null).Sum(i => i.Sales);
         return TypedResults.Ok(new ItemMarginReport($"{period.Year:D4}-{period.Month:D2}", totalSales, items.Sum(i => i.Profit ?? 0),
             totalSales == 0 ? 0 : decimal.Round(covered / totalSales, 2), items));
+    }
+
+    private static async Task<IResult> SupplierDuesCsvAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var csv = new StringBuilder("Supplier,Phone,Due,0-15 days,16-30 days,30+ days,Oldest unpaid bill (days)\n");
+        foreach (var x in await SupplierEndpoints.SupplierDuesAsync(db, clock, ct))
+        {
+            csv.AppendJoin(',', Cell(x.Name), Cell(x.Phone), Num(x.Due), Num(x.Days0To15), Num(x.Days16To30), Num(x.Over30), x.OldestDays).Append('\n');
+        }
+
+        return Csv(csv, $"supplier-dues-{IndiaTime.Today(clock):yyyy-MM-dd}.csv");
     }
 
     private static async Task<IResult> DuesCsvAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)

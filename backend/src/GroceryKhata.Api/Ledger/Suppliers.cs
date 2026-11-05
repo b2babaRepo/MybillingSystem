@@ -90,7 +90,12 @@ public sealed class SupplierEntry : Entity, ITenantOwned
 
 public sealed record SupplierRequest(Guid Id, string? Name, string? Phone);
 
-public sealed record SupplierDto(Guid Id, string Name, string? Phone, decimal Due);
+/// <summary>
+/// A supplier and what the shop owes them, split by how old the unpaid bills are: payments clear the oldest bills
+/// first, so what is still owed sits on the newest ones. <see cref="OldestDays"/>: the oldest unpaid bill's age.
+/// </summary>
+public sealed record SupplierDto(Guid Id, string Name, string? Phone, decimal Due,
+    decimal Days0To15 = 0, decimal Days16To30 = 0, decimal Over30 = 0, int OldestDays = 0);
 
 public sealed record SupplierEntryDto(Guid Id, decimal Amount, Guid? PurchaseId, string? Note, DateTimeOffset OccurredAt, bool Cancelled = false);
 
@@ -128,10 +133,36 @@ public static class SupplierEndpoints
         return app;
     }
 
-    private static async Task<IReadOnlyList<SupplierDto>> ListAsync(AppDbContext db, CancellationToken ct) =>
-        await db.Suppliers.AsNoTracking().OrderBy(s => s.Name)
-            .Select(s => new SupplierDto(s.Id, s.Name, s.Phone, db.SupplierEntries.Where(e => e.SupplierId == s.Id).Sum(e => (decimal?)e.Amount) ?? 0m))
-            .ToListAsync(ct);
+    private static async Task<IReadOnlyList<SupplierDto>> ListAsync(AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        await SupplierDuesAsync(db, clock, ct);
+
+    public static async Task<IReadOnlyList<SupplierDto>> SupplierDuesAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var suppliers = await db.Suppliers.AsNoTracking().OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.Phone }).ToListAsync(ct);
+        var entries = await db.SupplierEntries.AsNoTracking().Select(e => new { e.SupplierId, e.Amount, e.OccurredAt }).ToListAsync(ct);
+        var byId = entries.ToLookup(e => e.SupplierId);
+        var now = clock.GetUtcNow();
+        return suppliers.Select(x =>
+        {
+            var mine = byId[x.Id].ToList();
+            var due = mine.Sum(e => e.Amount);
+            decimal d0 = 0, d16 = 0, d30 = 0;
+            var oldest = 0;
+            // Walk the bills from newest back until what is owed is covered: those are the unpaid ones.
+            var left = due;
+            foreach (var bill in mine.Where(e => e.Amount > 0).OrderByDescending(e => e.OccurredAt))
+            {
+                if (left <= 0) break;
+                var part = Math.Min(bill.Amount, left);
+                left -= part;
+                var days = (int)(now - bill.OccurredAt).TotalDays;
+                oldest = Math.Max(oldest, days);
+                if (days <= 15) d0 += part; else if (days <= 30) d16 += part; else d30 += part;
+            }
+
+            return new SupplierDto(x.Id, x.Name, x.Phone, due, d0, d16, d30, oldest);
+        }).ToList();
+    }
 
     private static async Task<IResult> AddAsync(SupplierRequest request, AppDbContext db, CancellationToken ct)
     {

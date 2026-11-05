@@ -141,6 +141,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
               <div className="grid grid-cols-2 gap-2">
                 <Button tone="plain" onClick={() => download('/v1/reports/dues.csv', `dues-${current}.csv`)}>{t('reports.duesCsv')}</Button>
                 <Button tone="plain" onClick={() => download(`/v1/reports/month.csv?month=${month}`, `month-${month}.csv`)}>{t('reports.monthCsv')}</Button>
+                <Button tone="plain" onClick={() => download('/v1/reports/supplier-dues.csv', `supplier-dues-${current}.csv`)}>{t('reports.supplierDuesCsv')}</Button>
               </div>
             ) : (
               <p className="text-sm text-muted">{t('reports.ownerOnly')}</p>
