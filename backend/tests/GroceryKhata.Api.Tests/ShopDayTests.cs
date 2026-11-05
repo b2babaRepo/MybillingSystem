@@ -449,6 +449,20 @@ public sealed class ShopDayTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Picking_adds_only_the_chosen_pack_sizes_and_the_list_marks_popular_items()
+    {
+        var (shop, _) = await api.SignUpAsync();
+        var list = await shop.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items");
+        Assert.InRange(list.Count(i => i.Popular), 10, 400);
+
+        var atta = list.Single(i => i.Name == "Aashirvaad Whole Wheat Atta");
+        var picked = await (await shop.PostJsonAsync("/api/v1/products/from-master", new { ids = new[] { atta.Id }, sizes = new Dictionary<string, string[]> { [atta.Id.ToString()] = ["5 kg", "2 kg"] } })).ReadAsync<ImportResult>();
+        // Only 5 kg: the item has no 2 kg pack, so that one is ignored rather than invented.
+        Assert.Equal(1, picked.Created);
+        Assert.Contains(await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products"), p => p.Name == "आशीर्वाद आटा 5 kg");
+    }
+
+    [Fact]
     public async Task A_shop_picks_items_from_its_trades_master_list_only()
     {
         var shop = await SignUpAsync("hardware");

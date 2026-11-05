@@ -105,11 +105,12 @@ public sealed record MasterUpdatesDto(IReadOnlyList<MasterChangeDto> Changes, IR
 public sealed record ApplyChangesRequest(IReadOnlyList<Guid>? ProductIds);
 
 public sealed record MasterItemDto(int Id, string Trade, string Category, string Name, string? NameHi, Unit Unit, decimal? GstRate, string? HsnCode, bool IsActive, IReadOnlyList<string> PackSizes,
-    DateTimeOffset? ImageAt = null, string? ImageCredit = null);
+    DateTimeOffset? ImageAt = null, string? ImageCredit = null, bool Popular = false);
 
 public sealed record MasterItemRequest(string? Trade, string? Category, string? Name, string? NameHi, Unit? Unit, decimal? GstRate, string? HsnCode, bool? IsActive = null, IReadOnlyList<string>? PackSizes = null);
 
-public sealed record PickRequest(IReadOnlyList<int>? Ids);
+/// <summary><see cref="Sizes"/>: for an item with pack sizes, the sizes the shop sells (by master id); none listed = every size.</summary>
+public sealed record PickRequest(IReadOnlyList<int>? Ids, IReadOnlyDictionary<int, IReadOnlyList<string>>? Sizes = null);
 
 /// <summary>One line per item: name, Hindi name, category, unit, GST %, HSN, pack sizes split by "|". Existing names in the trade are updated.</summary>
 public sealed record MasterImportRequest(string? Trade, string? Text);
@@ -266,9 +267,28 @@ public static class MasterItems
             trades = trades.Where(t => t == trade).ToList();
         }
 
-        return await db.MasterItems.AsNoTracking().Where(i => i.IsActive && trades.Contains(i.Trade))
-            .OrderBy(i => i.Trade).ThenBy(i => i.Category).ThenBy(i => i.Name).Select(i => ToDto(i)).ToListAsync(ct);
+        var items = await db.MasterItems.AsNoTracking().Where(i => i.IsActive && trades.Contains(i.Trade))
+            .OrderBy(i => i.Trade).ThenBy(i => i.Category).ThenBy(i => i.Name).ToListAsync(ct);
+        return items.Select(i => ToDto(i) with { Popular = IsPopular(i) }).ToList();
     }
+
+    /// <summary>The sizes to add for a picked item: the ones the shop chose (when it chose any that the item has), else all.</summary>
+    private static IReadOnlyList<string> SizesFor(MasterItem item, IReadOnlyDictionary<int, IReadOnlyList<string>>? sizes)
+    {
+        var chosen = sizes?.GetValueOrDefault(item.Id)?.Where(s => item.PackSizes.Contains(s, StringComparer.OrdinalIgnoreCase)).ToList();
+        return chosen is { Count: > 0 } ? chosen : item.PackSizes;
+    }
+
+    /// <summary>Each trade's starter items, by name: the everyday items a new shop of that trade nearly always sells.</summary>
+    private static readonly Dictionary<string, HashSet<string>> StarterNames = Enum.GetValues<ShopType>()
+        .ToDictionary(ShopTypes.Name, t => StarterItems.For(t).Select(r => r.Name!.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// "Popular": what a new shop of the trade starts with. For kirana, the common-list items (atta, dal, sugar...);
+    /// for other trades, their starter items. The picker offers them as one starter bundle.
+    /// </summary>
+    private static bool IsPopular(MasterItem i) =>
+        i.CatalogueItemId != null || (StarterNames.TryGetValue(i.Trade, out var names) && names.Contains(i.Name.Trim()));
 
     /// <summary>Adds the picked items to the shop, with no price yet (set on the rates screen or the first bill). Items it has are skipped.</summary>
     private static async Task<IResult> PickAsync(PickRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, StockService stock, CancellationToken ct)
@@ -279,7 +299,7 @@ public static class MasterItems
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Ids"] = ["Choose up to 500 items."] });
         }
 
-        return await AddToShopAsync(ids, user.UserId()!.Value, db, tenant, stock, ct);
+        return await AddToShopAsync(ids, user.UserId()!.Value, db, tenant, stock, ct, request.Sizes);
     }
 
     /// <summary>Gives a shop just opened by an admin every item on its trade's list, as a working start (the owner removes what it doesn't sell).</summary>
@@ -297,7 +317,8 @@ public static class MasterItems
         }
     }
 
-    private static async Task<IResult> AddToShopAsync(List<int> ids, Guid userId, AppDbContext db, ITenantContext tenant, StockService stock, CancellationToken ct)
+    private static async Task<IResult> AddToShopAsync(List<int> ids, Guid userId, AppDbContext db, ITenantContext tenant, StockService stock, CancellationToken ct,
+        IReadOnlyDictionary<int, IReadOnlyList<string>>? sizes = null)
     {
         var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.Type, s.ExtraTypes }).SingleAsync(ct);
         var trades = shop.ExtraTypes.Append(ShopTypes.Name(shop.Type)).ToList();
@@ -309,7 +330,7 @@ public static class MasterItems
 
         var rows = items.SelectMany(i => i.PackSizes.Count == 0
             ? [new ImportRow(i.NameHi ?? i.Name, i.Unit, 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id)]
-            : i.PackSizes.Select(size => new ImportRow($"{i.NameHi ?? i.Name} {size}", PackUnit(i.Unit), 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id)))
+            : SizesFor(i, sizes).Select(size => new ImportRow($"{i.NameHi ?? i.Name} {size}", PackUnit(i.Unit), 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id)))
             .ToList();
         var (result, errors) = await stock.ImportAsync(new ImportRequest(rows), userId, ct);
         return errors is null ? TypedResults.Ok(result) : TypedResults.ValidationProblem(errors);

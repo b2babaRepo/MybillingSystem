@@ -1,15 +1,46 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/ui'
+import { Button, Sheet } from '../components/ui'
 import { api } from '../lib/api'
+import { useProducts } from '../lib/data'
+import { itemArt } from '../lib/itemArt'
+import { imageUrl } from '../lib/images'
 import type { Unit } from '../lib/types'
 
 interface MasterChange { productId: string; productName: string; gstFrom: number | null; gstTo: number | null; hsnFrom: string | null; hsnTo: string | null }
 
-interface MasterItem { id: number; trade: string; category: string; name: string; nameHi: string | null; unit: Unit; gstRate: number | null; packSizes: string[] }
+interface MasterItem { id: number; trade: string; category: string; name: string; nameHi: string | null; unit: Unit; gstRate: number | null; packSizes: string[]; imageAt?: string | null; popular?: boolean }
 
-/** Pick items for the shop from its trades' master lists: search, a category at a time, or all of them. */
+/** Bulk "select all" only once a search or filter has narrowed the list this far: never a thousand items by mistake. */
+const SELECT_ALL_LIMIT = 50
+
+/** The popular starter bundle's chip, kept apart from real category names. */
+const POPULAR = '\u0000popular'
+
+/**
+ * Spelling that doesn't matter when searching: "aata" finds "Atta", "chaval" finds "Chawal", "daal" finds "Dal".
+ * Hindi typed in Hindi letters is matched against the Hindi name as it is.
+ */
+function loose(text: string) {
+  return text.toLowerCase().normalize('NFC')
+    .replace(/aa/g, 'a').replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/w/g, 'v').replace(/z/g, 'j')
+    .replace(/ph/g, 'f').replace(/sh/g, 's').replace(/([bcdgjkpt])h/g, '$1').replace(/y\b/g, 'i').replace(/([a-z])\1+/g, '$1').replace(/[^a-z0-9\u0900-\u097f]+/g, '')
+}
+
+/** Each typed word must start one of the item's words (Hindi or English): "aata" finds Atta, not "matar". */
+function matches(item: { name: string; nameHi: string | null }, query: string) {
+  const words = `${item.name} ${item.nameHi ?? ''}`.split(/[\s()/,.-]+/).map(loose).filter(Boolean)
+  return query.split(/\s+/).map(loose).filter(Boolean).every((q) => words.some((w) => w.startsWith(q)))
+}
+
+/** Soft backgrounds for picture tiles, picked by the category's name so a category always gets the same one. */
+const TINTS = ['#faeeda', '#faece7', '#e1f5ee', '#eeedfe', '#fbeaf0', '#eaf3de', '#e6f1fb']
+
+/**
+ * Pick items for the shop from its trades' master lists, like walking a shop aisle: grouped by category, a tap on a
+ * row adds it, a whole group can be added at once (with undo), and a tray at the bottom counts what is chosen.
+ */
 export function PickItemsScreen({ shopId }: { shopId: string }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -23,24 +54,70 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
   const [category, setCategory] = useState('')
   const [q, setQ] = useState('')
   const [chosen, setChosen] = useState<Set<number>>(new Set())
+  // Pack sizes ticked per item; an item chosen with none ticked adds every size it comes in.
+  const [sizes, setSizes] = useState<Record<number, string[]>>({})
   const [message, setMessage] = useState('')
   const [idea, setIdea] = useState({ name: '', category: '', unit: 'piece' as Unit })
+  const [showChanges, setShowChanges] = useState(false)
+  const [undo, setUndo] = useState<{ before: Set<number>; count: number } | null>(null)
+  const { products } = useProducts(shopId)
+  // Items picked before, by the names picking gives them ("आटा", "Bhujia 1 kg"), so the list can say "already in shop".
+  const owned = useMemo(() => new Set(products.map((p) => p.name.trim().toLowerCase())), [products])
+  // The shop's own photos, by item name, so an item it already photographed shows that photo here too.
+  const shopPhotos = useMemo(() => new Map(products.filter((p) => p.imageAt).map((p) => [p.name.trim().toLowerCase(), imageUrl(shopId, p.id, p.imageAt, 'thumb')!])), [products, shopId])
+  const shopPhoto = (i: MasterItem) => [i.nameHi ?? i.name, i.name].flatMap((n) => [n, ...i.packSizes.map((s) => `${n} ${s}`)])
+    .map((n) => shopPhotos.get(n.toLowerCase())).find(Boolean)
+  // Your own photo of the item first, else the master list's, else its drawn picture (🛒 when there's none).
+  const photoFor = (i: MasterItem) => shopPhoto(i) ?? (i.imageAt ? `/api/v1/master-images/${i.id}?v=${Date.parse(i.imageAt)}&size=thumb` : undefined)
   const activeTrade = trade || trades[0] || ''
   const categories = [...new Set(items.filter((i) => i.trade === activeTrade).map((i) => i.category))]
   const label = (i: MasterItem) => (i18n.language === 'hi' && i.nameHi ? i.nameHi : i.name)
-  const shown = items.filter((i) => i.trade === activeTrade && (!category || i.category === category)
-    && (!q.trim() || `${i.name} ${i.nameHi ?? ''}`.toLowerCase().includes(q.trim().toLowerCase())))
+  const needle = loose(q.trim())
+  const tradeItems = items.filter((i) => i.trade === activeTrade)
+  const popularCount = tradeItems.filter((i) => i.popular).length
+  const shown = tradeItems.filter((i) => (!category || (category === POPULAR ? i.popular : i.category === category))
+    && (!needle || matches(i, q)))
+  // A picture for each category: the first item in it with a photo, else its first letter on a soft tile.
+  const tiles = categories.map((c, n) => ({ name: c, count: tradeItems.filter((i) => i.category === c).length, photo: tradeItems.find((i) => i.category === c && photoFor(i)), first: tradeItems.find((i) => i.category === c), tint: TINTS[n % TINTS.length] }))
+  const inShop = (i: MasterItem) => [i.nameHi ?? i.name, i.name].some((n) => owned.has(n.toLowerCase()) || (i.packSizes.length > 0 && owned.has(`${n} ${i.packSizes[0]}`.toLowerCase())))
   const allShown = shown.length > 0 && shown.every((i) => chosen.has(i.id))
+  const narrowed = shown.length <= SELECT_ALL_LIMIT
+  const groups = useMemo(() => {
+    const map = new Map<string, MasterItem[]>()
+    if (category === POPULAR) return [[t('pick.popularGroup', { count: shown.length }), shown] as [string, MasterItem[]]]
+    for (const i of shown) map.set(i.category, [...(map.get(i.category) ?? []), i])
+    return [...map.entries()]
+  }, [shown, category, t])
 
-  const toggle = (id: number) => setChosen((c) => { const next = new Set(c); if (next.has(id)) next.delete(id); else next.add(id); return next })
+  const toggle = (id: number) => setChosen((c) => { const next = new Set(c); if (next.has(id)) { next.delete(id); setSizes((s) => { const { [id]: _, ...rest } = s; return rest }) } else next.add(id); return next })
+  // Tapping a size chooses the item with that size; taking off its last size takes the item off too.
+  const toggleSize = (id: number, size: string) => {
+    const now = sizes[id] ?? []
+    const next = now.includes(size) ? now.filter((s) => s !== size) : [...now, size]
+    setSizes((s) => ({ ...s, [id]: next }))
+    setChosen((c) => { const set = new Set(c); if (next.length) set.add(id); else set.delete(id); return set })
+  }
   const toggleAll = () => setChosen((c) => { const next = new Set(c); shown.forEach((i) => (allShown ? next.delete(i.id) : next.add(i.id))); return next })
+  // A whole group at once, skipping what the shop already has; undo puts the choice back as it was.
+  const addGroup = (rows: MasterItem[]) => {
+    const fresh = rows.filter((i) => !inShop(i) && !chosen.has(i.id))
+    if (fresh.length === 0) return
+    setUndo({ before: new Set(chosen), count: fresh.length })
+    setChosen((c) => new Set([...c, ...fresh.map((i) => i.id)]))
+  }
+  const thumb = (i: MasterItem) => photoFor(i)
+    ? <img src={photoFor(i)} alt="" loading="lazy" width={44} height={44} className="h-11 w-11 shrink-0 rounded-[10px] bg-white object-contain" />
+    : <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] text-[22px]" style={{ background: itemArt({ name: i.name }).tint }}>{itemArt({ name: i.name }).emoji}</span>
 
   async function add() {
     setMessage('')
     try {
-      const result = await api<{ created: number; skipped: number }>('/v1/products/from-master', 'POST', { ids: [...chosen] })
+      const picked = Object.fromEntries([...chosen].filter((id) => sizes[id]?.length).map((id) => [id, sizes[id]]))
+      const result = await api<{ created: number; skipped: number }>('/v1/products/from-master', 'POST', { ids: [...chosen], sizes: picked })
       setMessage(t('pick.added', result))
       setChosen(new Set())
+      setSizes({})
+      setUndo(null)
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
@@ -52,6 +129,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
     try {
       const r = await api<{ applied: number }>('/v1/master-items/updates/apply', 'POST', { productIds: changes.map((c) => c.productId) })
       setMessage(t('pick.applied', r))
+      setShowChanges(false)
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
@@ -72,46 +150,105 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
   const chip = (on: boolean) => `min-h-11 shrink-0 rounded-full px-3 text-sm font-semibold ${on ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      {changes.length > 0 && (
-        <div className="rounded-[18px] bg-amber-50 p-3">
-          <h2 className="font-bold">{t('pick.changes', { count: changes.length })}</h2>
-          <p className="text-xs text-muted">{t('pick.changesHint')}</p>
-          <ul className="my-2 flex flex-col gap-1 text-sm">
+      <div className="-mx-4 -mt-4 flex items-center justify-between gap-2 rounded-b-[22px] bg-teal-700 px-4 pb-4 pt-1 text-white">
+        <span className="flex flex-col">
+          <h1 className="text-xl font-extrabold leading-tight">{t('pick.titleShort')}</h1>
+          <span className="text-sm opacity-90">{t('pick.listCount', { trade: t(`shopType.${activeTrade}`), count: tradeItems.length })}</span>
+        </span>
+        {changes.length > 0 && (
+          <button onClick={() => setShowChanges(true)} className="flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-white/20 px-3 text-sm font-semibold text-white">
+            <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10 21a2 2 0 0 0 4 0" /></svg>
+            {t('pick.changesPill', { count: changes.length })}
+          </button>
+        )}
+      </div>
+      {showChanges && (
+        <Sheet title={t('pick.changes', { count: changes.length })} onClose={() => setShowChanges(false)}>
+          <p className="text-sm text-muted">{t('pick.changesHint')}</p>
+          <ul className="my-3 flex flex-col gap-2 text-sm">
             {changes.map((c) => (
-              <li key={c.productId}>{c.productName}: {c.gstFrom !== c.gstTo ? `GST ${c.gstFrom ?? '–'}% → ${c.gstTo}%` : ''}{c.gstFrom !== c.gstTo && c.hsnFrom !== c.hsnTo ? ' · ' : ''}{c.hsnFrom !== c.hsnTo ? `HSN ${c.hsnFrom ?? '–'} → ${c.hsnTo}` : ''}</li>
+              <li key={c.productId} className="rounded-xl bg-white p-2"><b>{c.productName}</b><br /> {c.gstFrom !== c.gstTo ? `GST ${c.gstFrom ?? '–'}% → ${c.gstTo}%` : ''}{c.gstFrom !== c.gstTo && c.hsnFrom !== c.hsnTo ? ' · ' : ''}{c.hsnFrom !== c.hsnTo ? `HSN ${c.hsnFrom ?? '–'} → ${c.hsnTo}` : ''}</li>
             ))}
           </ul>
-          <Button onClick={() => void applyChanges()}>{t('pick.apply', { count: changes.length })}</Button>
-        </div>
+          <Button className="w-full" onClick={() => void applyChanges()}>{t('pick.apply', { count: changes.length })}</Button>
+        </Sheet>
       )}
       {newIds.size > 0 && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{t('pick.newCount', { count: newIds.size })}</p>}
-      <p className="text-sm text-muted">{t('pick.hint')}</p>
+      <p className="text-sm text-muted">{t('pick.hint2')}</p>
       {trades.length > 1 && (
         <div className="flex gap-2 overflow-x-auto">
           {trades.map((x) => <button key={x} onClick={() => { setTrade(x); setCategory('') }} className={chip(x === activeTrade)}>{t(`shopType.${x}`)}</button>)}
         </div>
       )}
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('pick.search')} aria-label={t('pick.search')} className="h-12 rounded-xl border border-line bg-white px-3" />
+      <input value={q} onChange={(e) => setQ(e.target.value)} type="search" placeholder={t('pick.searchAny')} aria-label={t('pick.search')} className="h-12 rounded-xl border border-line bg-white px-4 text-[16px]" />
       <div className="flex gap-2 overflow-x-auto">
+        {popularCount > 0 && <button onClick={() => setCategory(POPULAR)} className={chip(category === POPULAR)}>★ {t('pick.popular', { count: popularCount })}</button>}
         <button onClick={() => setCategory('')} className={chip(!category)}>{t('pick.all')}</button>
         {categories.map((c) => <button key={c} onClick={() => setCategory(c)} className={chip(c === category)}>{c}</button>)}
       </div>
+      {!category && !needle && tiles.length > 1 && (
+        <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+          {tiles.map((c) => (
+            <button key={c.name} onClick={() => setCategory(c.name)} className="flex w-[76px] shrink-0 flex-col items-center gap-1 text-center">
+              <span className="flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-2xl shadow-[0_1px_3px_rgba(16,32,29,0.1)]" style={{ background: c.tint }}>
+                {c.photo
+                  ? <img src={photoFor(c.photo)} alt="" loading="lazy" width={68} height={68} className="h-full w-full object-cover" />
+                  : <span aria-hidden className="text-[30px]">{c.first ? itemArt({ name: c.first.name }).emoji : '🛒'}</span>}
+              </span>
+              <span className="line-clamp-2 text-[12px] font-semibold leading-tight">{c.name}</span>
+              <span className="text-[11px] text-muted">{c.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {list.isLoading && <p className="text-muted">…</p>}
-      {shown.length > 0 && (
+      {shown.length > 0 && narrowed && (q.trim() || category) && (
         <label className="flex min-h-11 items-center gap-2 font-semibold">
           <input type="checkbox" checked={allShown} onChange={toggleAll} className="h-5 w-5" />{t('pick.chooseAll', { count: shown.length })}
         </label>
       )}
-      <ul className="flex flex-col gap-1 rounded-[18px] bg-white p-2">
-        {shown.map((i) => (
-          <li key={i.id}>
-            <label className="flex min-h-12 items-center gap-3 px-2">
-              <input type="checkbox" checked={chosen.has(i.id)} onChange={() => toggle(i.id)} className="h-5 w-5" />
-              <span className="min-w-0 flex-1">{label(i)}{newIds.has(i.id) && <span className="ml-2 rounded-full bg-teal-700 px-2 text-xs font-bold text-white">{t('pick.new')}</span>}<span className="block text-xs text-muted">{i.category} · {t(`units.${i.unit}`)}{i.gstRate != null ? ` · GST ${i.gstRate}%` : ''}{i.packSizes.length ? ` · ${i.packSizes.join(' / ')}` : ''}</span></span>
-            </label>
-          </li>
-        ))}
-      </ul>
+      {groups.map(([group, rows]) => (
+        <section key={group} className="[content-visibility:auto] [contain-intrinsic-size:auto_600px]">
+          <div className="sticky top-0 z-[5] -mx-4 flex items-center justify-between bg-ground/95 px-4 py-2 backdrop-blur-sm">
+            <h2 className="text-base font-bold">{group}{category === POPULAR ? '' : <span className="text-sm font-semibold text-muted"> · {rows.length}</span>}</h2>
+            <button onClick={() => addGroup(rows)} className="min-h-9 rounded-xl border-2 border-teal-700 bg-white px-3 text-sm font-semibold text-teal-800">{category === POPULAR ? t('pick.addAllCount', { count: rows.length }) : t('pick.addGroup')}</button>
+          </div>
+          <ul className="overflow-hidden rounded-[18px] bg-white shadow-[0_1px_3px_rgba(16,32,29,0.08)]">
+            {rows.map((i) => {
+              const on = chosen.has(i.id)
+              const have = inShop(i)
+              const other = i18n.language === 'hi' ? (i.nameHi ? i.name : null) : i.nameHi
+              return (
+                <li key={i.id} className="border-b border-line last:border-b-0">
+                  <button onClick={() => !have && toggle(i.id)} aria-pressed={on} disabled={have}
+                    className={`flex min-h-16 w-full items-center gap-3 py-2 pr-3 pl-3 text-left transition-colors ${on ? 'bg-teal-50 shadow-[inset_4px_0_0_#0f6b5c]' : ''}`}>
+                    {thumb(i)}
+                    <span className="flex min-w-0 flex-1 flex-col leading-[1.45]">
+                      <span className="truncate text-[16px] font-semibold">{label(i)}{newIds.has(i.id) && <span className="ml-2 rounded-full bg-teal-700 px-2 align-middle text-[11px] font-bold text-white">{t('pick.new')}</span>}</span>
+                      <span className="truncate text-[13px] text-muted">{other ?? t(`units.${i.unit}`)}</span>
+                    </span>
+                    {have
+                      ? <span className="shrink-0 rounded-full bg-[#edf2f1] px-2 py-1 text-xs font-semibold text-muted">{t('pick.inShop')}</span>
+                      : <span className={`flex h-9 min-w-[76px] shrink-0 items-center justify-center rounded-xl border-2 border-teal-700 text-sm font-bold transition-colors ${on ? 'bg-teal-700 text-white' : 'text-teal-800'}`}>{on ? (i.packSizes.length > 0 ? `✓ ${(sizes[i.id]?.length || i.packSizes.length)}` : `✓ ${t('pick.picked')}`) : `+ ${t('pick.addOne')}`}</span>}
+                  </button>
+                  {!have && (i.packSizes.length > 0 || i.gstRate != null) && (
+                    <div className={`-mt-1 flex flex-wrap items-center gap-1.5 pb-2.5 pl-[68px] pr-3 ${on ? 'bg-teal-50' : ''}`}>
+                      {i.packSizes.map((s) => {
+                        const ticked = (sizes[i.id] ?? []).includes(s) || (on && !(sizes[i.id]?.length))
+                        return (
+                          <button key={s} onClick={() => toggleSize(i.id, s)} aria-pressed={ticked}
+                            className={`min-h-8 rounded-full border px-3 text-[13px] font-semibold ${ticked ? 'border-teal-700 bg-teal-700 text-white' : 'border-line bg-white text-ink'}`}>{s}</button>
+                        )
+                      })}
+                      {i.gstRate != null && <span className="text-[12px] text-muted">GST {i.gstRate}%</span>}
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ))}
       <details className="rounded-[18px] bg-white p-3">
         <summary className="min-h-11 cursor-pointer font-semibold">{t('pick.suggest')}</summary>
         <p className="text-xs text-muted">{t('pick.suggestHint')}</p>
@@ -125,8 +262,21 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
         </div>
       </details>
       {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
-      <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3">
-        <Button className="w-full" disabled={chosen.size === 0} onClick={() => void add()}>{t('pick.add', { count: chosen.size })}</Button>
+      <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto flex max-w-xl flex-col gap-2 px-3 pb-3">
+        {undo && (
+          <div role="status" className="flex items-center justify-between rounded-xl bg-ink px-4 py-2 text-sm text-white">
+            <span>{t('pick.groupAdded', { count: undo.count })}</span>
+            <button onClick={() => { setChosen(undo.before); setUndo(null) }} className="min-h-9 px-2 font-bold text-amber-300">{t('pick.undo')}</button>
+          </div>
+        )}
+        {chosen.size === 0
+          ? <p className="rounded-xl bg-white/95 px-4 py-3 text-center text-sm text-muted shadow-[0_-1px_6px_rgba(16,32,29,0.08)]">{t('pick.tapHint')}</p>
+          : (
+            <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#085041] px-4 py-3 text-white shadow-lg">
+              <span className="text-base"><b className="text-xl">{chosen.size}</b> {t('pick.chosen')}</span>
+              <button onClick={() => void add()} className="min-h-11 rounded-xl bg-white px-4 font-bold text-[#085041]">{t('pick.addToShop')} →</button>
+            </div>
+          )}
       </div>
     </div>
   )
