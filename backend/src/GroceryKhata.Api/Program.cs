@@ -85,7 +85,8 @@ app.Use(async (http, next) =>
     var started = System.Diagnostics.Stopwatch.GetTimestamp();
     await next(http);
     var took = System.Diagnostics.Stopwatch.GetElapsedTime(started);
-    if (took.TotalSeconds >= 2)
+    // Waiting for new orders holds the request on purpose.
+    if (took.TotalSeconds >= 2 && !http.Request.Path.StartsWithSegments("/api/v1/orders/wait"))
     {
         http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SlowRequest")
             .LogWarning("SLOW {Method} {Path} took {Seconds:0.0}s (status {Status})", http.Request.Method, http.Request.Path, took.TotalSeconds, http.Response.StatusCode);

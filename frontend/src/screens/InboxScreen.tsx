@@ -13,7 +13,7 @@ export function InboxScreen({ shopId }: { shopId: string }) {
   const orders = useQuery({
     queryKey: [shopId, 'orders', status],
     queryFn: () => api<Order[]>(`/v1/orders?status=${status}`),
-    refetchInterval: 30_000,
+    refetchInterval: 120_000, // new orders arrive via the wait request in lib/orderAlerts.ts
   })
 
   const tabs: { status: OrderStatus; label: string }[] = [

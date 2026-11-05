@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { api } from './api'
 import type { Order } from './planner'
@@ -28,15 +28,43 @@ export async function enableAlerts(): Promise<boolean> {
   return permission === 'granted'
 }
 
-/** Orders waiting to be packed, checked every 30 seconds. Notifies once for each order it hasn't seen. */
+/**
+ * Orders waiting to be packed. While the app is on screen it keeps one "wait" request open: the server answers the
+ * moment an order arrives (else after 25 s), and the orders are fetched again at once, so a new order shows within a
+ * second. A slow check every 2 minutes stays as a backstop. Notifies once for each order it hasn't seen.
+ */
 export function useNewOrders(shopId: string, notify: (order: Order) => string) {
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: [shopId, 'orders', 'placed'],
     queryFn: () => api<Order[]>('/v1/orders?status=placed'),
-    refetchInterval: 30_000,
+    refetchInterval: 120_000,
     retry: false,
   })
   const seen = useRef<Set<string> | null>(null)
+
+  useEffect(() => {
+    let stopped = false
+    async function listen() {
+      while (!stopped) {
+        if (document.visibilityState !== 'visible') {
+          await new Promise((resolve) => document.addEventListener('visibilitychange', resolve, { once: true }))
+          // Back on screen: catch up on anything that came in while away.
+          if (!stopped) void queryClient.invalidateQueries({ queryKey: [shopId, 'orders'] })
+          continue
+        }
+        try {
+          const { changed } = await api<{ changed: boolean }>('/v1/orders/wait')
+          if (changed && !stopped) void queryClient.invalidateQueries({ queryKey: [shopId, 'orders'] })
+        } catch {
+          // Offline or the server restarting: try again shortly.
+          await new Promise((resolve) => setTimeout(resolve, 10_000))
+        }
+      }
+    }
+    void listen()
+    return () => { stopped = true }
+  }, [shopId, queryClient])
 
   useEffect(() => {
     const orders = query.data

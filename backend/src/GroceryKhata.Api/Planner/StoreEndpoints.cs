@@ -191,6 +191,7 @@ public static class StoreEndpoints
         }
 
         await transaction.CommitAsync(ct);
+        OrderSignals.Notify(order.ShopId);
         return TypedResults.Created($"/api/v1/store/{slug}/orders/{order.Id}", new StoreOrderPlaced(OrderDto.From(order, shop.Name), token));
     }
 

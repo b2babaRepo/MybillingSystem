@@ -17,11 +17,23 @@ public static class OrderEndpoints
     {
         var group = app.MapGroup("/api/v1/orders").WithTags("List inbox").RequireAuthorization(AppPolicies.ShopMember);
         group.MapGet("", ListAsync);
+        group.MapGet("/wait", WaitAsync);
         group.MapGet("/{id:guid}", GetAsync);
         group.MapPost("/{id:guid}/pack", PackAsync);
         group.MapPost("/{id:guid}/deliver", DeliverAsync);
         group.MapPost("/{id:guid}/cancel", CancelAsync);
         return app;
+    }
+
+    /// <summary>
+    /// Holds the request until a new order reaches the shop, or 25 seconds pass: the shop app asks again straight
+    /// away, so a new order shows within a second while a quiet shop costs about two requests a minute.
+    /// </summary>
+    private static async Task<IResult> WaitAsync(ITenantContext tenant, CancellationToken ct)
+    {
+        var signal = OrderSignals.Next(tenant.ShopId);
+        var finished = await Task.WhenAny(signal, Task.Delay(TimeSpan.FromSeconds(25), ct));
+        return TypedResults.Ok(new { changed = finished == signal });
     }
 
     private static async Task<IReadOnlyList<OrderDto>> ListAsync(string? status, AppDbContext db, ITenantContext tenant, CancellationToken ct)

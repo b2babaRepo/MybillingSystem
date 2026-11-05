@@ -248,6 +248,7 @@ public static class PlannerEndpoints
         try
         {
             await db.SaveChangesAsync(ct);
+            OrderSignals.Notify(order.ShopId);
         }
         catch (DbUpdateException exception) when (exception.IsUniqueViolation())
         {
