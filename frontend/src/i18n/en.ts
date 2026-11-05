@@ -1196,7 +1196,7 @@ export const en = {
     iosHint: 'To install: tap Share, then “Add to Home Screen”.',
     offline: 'offline',
   },
-  inbox: { handOver: 'Pack and hand over · paid {{amount}}', handOverKhata: 'Pack and hand over · {{amount}} on khata', 
+  inbox: { packedShort: 'Packed', deliveredShort: 'Delivered', cancelledShort: 'Cancelled', handOver: 'Pack and hand over · paid {{amount}}', handOverKhata: 'Pack and hand over · {{amount}} on khata', 
     title: 'Customer lists',
     new: 'New',
     packed: 'Packed',

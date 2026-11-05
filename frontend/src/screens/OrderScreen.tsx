@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from '../lib/api'
+import { api, NetworkError } from '../lib/api'
+import { enqueue } from '../lib/outbox'
 import { formatRupees } from '../lib/format'
 import { useProducts } from '../lib/data'
 import { round2 } from '../lib/local'
@@ -66,13 +67,32 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
   const allPriced = order.lines.every((l) => drafts[l.id]?.removed || Number(drafts[l.id]?.unitPrice) > 0)
   const set = (id: string, change: Partial<Draft>) => setDrafts((all) => ({ ...all, [id]: { ...all[id], ...change } }))
 
+  /**
+   * An order action that keeps working with no network: online it goes straight to the server; offline it waits in
+   * the outbox (sent in order once back online; the server treats a repeat as already done) and the screen moves on
+   * at once with the expected result.
+   */
+  async function act(path: string, body: unknown, expected: Partial<Order>, label: string, queueOnly = false): Promise<Order & { queued?: boolean }> {
+    try {
+      if (queueOnly) throw new NetworkError()
+      return await api<Order>(path, 'POST', body)
+    } catch (err) {
+      if (!(err instanceof NetworkError)) throw err
+      await enqueue({ id: crypto.randomUUID(), shopId, kind: 'orderAction', path, body, label })
+      const current = queryClient.getQueryData<Order>([shopId, 'order', orderId]) ?? order
+      return { ...current, ...expected, queued: true }
+    }
+  }
+
   async function run(action: () => Promise<Order>) {
     setBusy(true)
     setError('')
     try {
-      const updated = await action()
+      const updated = await action() as Order & { queued?: boolean }
       queryClient.setQueryData([shopId, 'order', orderId], updated)
-      void queryClient.invalidateQueries({ queryKey: [shopId] })
+      // Waiting in the outbox: the server doesn't know yet, so re-reading it would undo what the screen shows.
+      // The outbox refreshes everything once it syncs.
+      if (!updated.queued) void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (err) {
       setError(err instanceof Error ? err.message : t('error'))
     } finally {
@@ -80,7 +100,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
     }
   }
 
-  const pack = () => run(() => api<Order>(`/v1/orders/${orderId}/pack`, 'POST', {
+  const packBody = () => ({
     lines: order.lines.map((l) => ({
       id: l.id,
       removed: drafts[l.id].removed,
@@ -89,22 +109,20 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
       shopNote: drafts[l.id].shopNote || null,
       productId: drafts[l.id].productId !== l.productId ? drafts[l.id].productId : null,
     })),
-  }))
+  })
+  const label = `${order.customerName ?? ''} · ${formatRupees(total)}`
+  const pack = () => run(() => act(`/v1/orders/${orderId}/pack`, packBody(), { status: 'packed', finalAmount: total }, `${t('inbox.packedShort')} ${label}`))
   const defaultPaid = order.payment === 'khata' ? 0 : (order.finalAmount ?? 0)
-  const deliver = () => run(() => api<Order>(`/v1/orders/${orderId}/deliver`, 'POST', { paidAmount: paid === null ? defaultPaid : Number(paid) || 0 }))
+  const deliver = () => run(() => act(`/v1/orders/${orderId}/deliver`, { paidAmount: paid === null ? defaultPaid : Number(paid) || 0 }, { status: 'delivered' }, `${t('inbox.deliveredShort')} ${label}`))
   // Pickup with nothing for the customer to approve (no item taken out or swapped): pack and hand over in one tap.
   const noApprovals = order.lines.every((l) => !drafts[l.id]?.removed && (drafts[l.id]?.productId ?? l.productId) === l.productId)
   const canHandOver = order.status === 'placed' && order.fulfilment === 'pickup' && allPriced && noApprovals
   const handOver = () => run(async () => {
-    await api<Order>(`/v1/orders/${orderId}/pack`, 'POST', {
-      lines: order.lines.map((l) => ({
-        id: l.id, removed: false, packedQuantity: Number(drafts[l.id].packedQuantity), unitPrice: Number(drafts[l.id].unitPrice),
-        shopNote: drafts[l.id].shopNote || null, productId: null,
-      })),
-    })
-    return api<Order>(`/v1/orders/${orderId}/deliver`, 'POST', { paidAmount: order.payment === 'khata' ? 0 : total })
+    const packed = await act(`/v1/orders/${orderId}/pack`, packBody(), { status: 'packed', finalAmount: total }, `${t('inbox.packedShort')} ${label}`)
+    // A pack waiting in the outbox must reach the server first, so the hand-over waits behind it.
+    return act(`/v1/orders/${orderId}/deliver`, { paidAmount: order.payment === 'khata' ? 0 : total }, { status: 'delivered' }, `${t('inbox.deliveredShort')} ${label}`, packed.queued)
   })
-  const cancel = async () => (await confirmAsk(t('inbox.cancelConfirm'))) && void run(() => api<Order>(`/v1/orders/${orderId}/cancel`, 'POST', {}))
+  const cancel = async () => (await confirmAsk(t('inbox.cancelConfirm'))) && void run(() => act(`/v1/orders/${orderId}/cancel`, {}, { status: 'cancelled' }, `${t('inbox.cancelledShort')} ${label}`))
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-32">

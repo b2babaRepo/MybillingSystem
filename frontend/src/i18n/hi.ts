@@ -1197,7 +1197,7 @@ export const hi: Texts = {
     iosHint: 'इंस्टॉल करने के लिए: Share दबाएँ, फिर “Add to Home Screen”।',
     offline: 'ऑफ़लाइन',
   },
-  inbox: { handOver: 'पैक करके सौंपें · {{amount}} मिले', handOverKhata: 'पैक करके सौंपें · {{amount}} खाते में', 
+  inbox: { packedShort: 'पैक', deliveredShort: 'सौंपा', cancelledShort: 'रद्द', handOver: 'पैक करके सौंपें · {{amount}} मिले', handOverKhata: 'पैक करके सौंपें · {{amount}} खाते में', 
     title: 'ग्राहकों की लिस्ट',
     new: 'नई',
     packed: 'पैक',
