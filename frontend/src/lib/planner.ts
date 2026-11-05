@@ -193,7 +193,13 @@ export function useLists(userId: string) {
 
 export function useMyOrders(userId: string) {
   const key = homeKey(userId)
-  const query = useQuery({ queryKey: [key, 'orders'], queryFn: () => cachedGet<Order[]>(key, 'orders', '/v1/me/orders') })
+  const query = useQuery({
+    queryKey: [key, 'orders'],
+    queryFn: () => cachedGet<Order[]>(key, 'orders', '/v1/me/orders'),
+    // While an order is still with the shop, check every 15 s so "Packed" and "Delivered" show without a reload.
+    refetchInterval: (q) => ((q.state.data ?? []).some((o) => o.status === 'placed' || o.status === 'packed') ? 15_000 : false),
+    refetchIntervalInBackground: false,
+  })
   const { ops } = useOutbox(key)
   const orders = useMemo(() => {
     const server = query.data ?? []
