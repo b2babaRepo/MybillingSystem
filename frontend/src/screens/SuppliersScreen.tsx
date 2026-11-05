@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { enqueue } from '../lib/outbox'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
-import { api, request } from '../lib/api'
+import { NetworkError, api, request } from '../lib/api'
 import { shrinkPhoto } from '../lib/images'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
@@ -137,24 +138,45 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
   async function run(action: () => Promise<unknown>) {
     setMessage('')
     try {
+      queuedNote = null
       await action()
-      await queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
+      await queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] }).catch(() => undefined)
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
-      setMessage(t('saved'))
+      setMessage(queuedNote ?? t('saved'))
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
     }
   }
 
+  /**
+   * A supplier bill or payment with no network waits in the outbox and goes when back online (the server keeps the
+   * first copy of each ID, so a resend never doubles it). False when it was queued instead of saved.
+   */
+  // Set by an action that was queued offline, so the message says so instead of "Saved".
+  let queuedNote: string | null = null
+
+  async function send(path: string, body: unknown, label: string): Promise<boolean> {
+    try {
+      await api(path, 'POST', body)
+      return true
+    } catch (e) {
+      if (!(e instanceof NetworkError)) throw e
+      await enqueue({ id: crypto.randomUUID(), shopId, kind: 'supplier', path, body, label })
+      return false
+    }
+  }
+
   const saveBill = () => run(async () => {
-    await api('/v1/suppliers/purchases', 'POST', {
+    const billTotal = valid.reduce((sum, r) => sum + (Number(r.quantity) || 0) * (Number(r.unitCost) || 0), 0)
+    const saved = await send('/v1/suppliers/purchases', {
       id: crypto.randomUUID(), supplierId: id, billNo: billNo.trim() || null, paidAmount: Number(paid) || 0, paymentMode: mode,
       lines: valid.map((r) => ({
         productId: r.productId, quantity: Number(r.quantity), unitCost: Number(r.unitCost), freeQuantity: Number(r.free) || 0, discountPercent: Number(r.discount) || 0,
         gstRate: r.gst === '' ? null : Number(r.gst),
         ...(r.batchNo.trim() ? { batchNo: r.batchNo.trim(), expiryMonth: r.expiry, mrp: Number(r.mrp) } : {}),
       })),
-    })
+    }, `${s?.name ?? ''} · ${formatRupees(billTotal)}`)
+    if (!saved) queuedNote = t('suppliers.queued')
     setRows([empty])
     setBillNo('')
     setPaid('')
@@ -166,7 +188,8 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
     if (name) void run(() => api(`/v1/suppliers/${id}`, 'PUT', { id, name, phone: s?.phone ?? null }))
   }
   const savePayment = () => run(async () => {
-    await api(`/v1/suppliers/${id}/pay`, 'POST', { id: crypto.randomUUID(), amount: Number(pay), paymentMode: mode })
+    const saved = await send(`/v1/suppliers/${id}/pay`, { id: crypto.randomUUID(), amount: Number(pay), paymentMode: mode }, `${s?.name ?? ''} · ${t('suppliers.paidShort')} ${formatRupees(Number(pay))}`)
+    if (!saved) queuedNote = t('suppliers.queued')
     setPay('')
   })
   const set = (i: number, key: keyof Row, value: string) => setRows(rows.map((r, x) => (x === i ? { ...r, [key]: value } : r)))
