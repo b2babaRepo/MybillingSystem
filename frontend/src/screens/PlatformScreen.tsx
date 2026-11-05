@@ -826,14 +826,22 @@ function MasterPhoto({ row, run, credit }: { row: MasterRow; run: (action: () =>
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
-  const url = row.imageAt ? `/api/v1/master-images/${row.id}?v=${Date.parse(row.imageAt)}&size=thumb` : null
+  // The photo just sent, shown at once: the browser can hold back the first load of the server's new copy for a long time.
+  const [preview, setPreview] = useState<string | null>(null)
+  const url = preview ?? (row.imageAt ? `/api/v1/master-images/${row.id}?v=${Date.parse(row.imageAt)}&size=thumb` : null)
   // Kept under the server's 1 MB request limit once sent (photos grow by a third as text): a 1200 px WebP of a pack is a few hundred KB.
   async function upload(file: File) {
     setBusy(true)
     setError(null)
     setSaved(false)
     try {
-      await api(`/v1/platform/master-items/${row.id}/image`, 'PUT', { dataUrl: await shrinkPhoto(file, 1200, 600_000, false), credit: credit.trim() || null })
+      // Step times go to the console, so a slow upload shows which step waited (reading the file, or the server).
+      const started = performance.now()
+      const dataUrl = await shrinkPhoto(file, 1200, 600_000, false)
+      const shrunk = performance.now()
+      await api(`/v1/platform/master-items/${row.id}/image`, 'PUT', { dataUrl, credit: credit.trim() || null })
+      console.info(`[master photo] read+shrink ${Math.round(shrunk - started)} ms, upload ${Math.round(performance.now() - shrunk)} ms, ${file.size} bytes in, ${Math.round(dataUrl.length * 0.75)} bytes sent`)
+      setPreview(dataUrl)
       setSaved(true)
       setTimeout(() => setSaved(false), 4000)
       // Refresh the list in the background so the new photo shows; a failed refresh is not a failed upload.
@@ -851,7 +859,7 @@ function MasterPhoto({ row, run, credit }: { row: MasterRow; run: (action: () =>
         <input type="file" accept="image/*" className="sr-only" aria-label={t('masterItems.photo')} disabled={busy}
           onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = '' }} />
       </label>
-      {url && !busy && <button onClick={() => void run(() => request(`/v1/platform/master-items/${row.id}/image`, 'DELETE'))} className="text-[10px] text-muted underline">{t('masterItems.removePhoto')}</button>}
+      {url && !busy && <button onClick={() => { setPreview(null); void run(() => request(`/v1/platform/master-items/${row.id}/image`, 'DELETE')) }} className="text-[10px] text-muted underline">{t('masterItems.removePhoto')}</button>}
       {saved && <span role="status" className="mt-0.5 text-center text-[11px] font-semibold leading-tight text-teal-700">✓ {t('masterItems.photoSaved')}</span>}
       {error && <span role="alert" className="mt-0.5 text-center text-[11px] font-semibold leading-tight text-due">{error}</span>}
     </span>
