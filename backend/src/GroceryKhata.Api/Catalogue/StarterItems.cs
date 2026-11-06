@@ -198,16 +198,27 @@ public static class StarterItems
     ];
 
     // Garments: 5% when sold at up to ₹2,500 a piece, 18% above (set per item by its price).
+    // Names match the clothes master list (Data/clothes-master.csv), so these show as its popular starter bundle.
     private static readonly ImportRow[] Clothes =
     [
-        Item("Men's shirt", "Men", Unit.Piece, 5, "6205"),
-        Item("Men's trousers", "Men", Unit.Piece, 5, "6203"),
-        Item("T-shirt", "Men", Unit.Piece, 5, "6109"),
-        Item("Kurti", "Women", Unit.Piece, 5, "6204"),
-        Item("Saree", "Women", Unit.Piece, 5, "5407"),
-        Item("Kids' frock", "Kids", Unit.Piece, 5, "6209"),
-        Item("Socks", "Accessories", Unit.Pair, 5, "6115"),
-        Item("Handkerchief", "Accessories", Unit.Dozen, 5, "6213"),
+        Item("Kurti", "Women · Ethnic wear", Unit.Piece, 5, "6204"),
+        Item("Cotton saree", "Women · Sarees", Unit.Piece, 5, "5407"),
+        Item("Leggings", "Women · Bottoms", Unit.Piece, 5, "6204"),
+        Item("Women top", "Women · Western wear", Unit.Piece, 5, "6206"),
+        Item("Bra (regular)", "Women · Innerwear", Unit.Piece, 5, "6212"),
+        Item("Panty (hipster)", "Women · Innerwear", Unit.Piece, 5, "6108"),
+        Item("Nighty", "Women · Nightwear", Unit.Piece, 5, "6108"),
+        Item("Formal shirt", "Men · Shirts and T-shirts", Unit.Piece, 5, "6205"),
+        Item("Round neck T-shirt", "Men · Shirts and T-shirts", Unit.Piece, 5, "6109"),
+        Item("Men jeans", "Men · Bottoms", Unit.Piece, 5, "6203"),
+        Item("Men brief", "Men · Innerwear", Unit.Piece, 5, "6107"),
+        Item("Men vest (banian)", "Men · Innerwear", Unit.Piece, 5, "6109"),
+        Item("Baby romper", "Kids · Baby (0–2 years)", Unit.Piece, 5, "6111"),
+        Item("Girls frock", "Kids · Girls", Unit.Piece, 5, "6204"),
+        Item("Boys T-shirt", "Kids · Boys", Unit.Piece, 5, "6203"),
+        Item("Sweater (men)", "Winter wear", Unit.Piece, 5, "6110"),
+        Item("Socks (men)", "Accessories", Unit.Piece, 5, "6115"),
+        Item("Handkerchief", "Accessories", Unit.Piece, 5, "6213"),
     ];
 
     // Most hardware and electrical goods are 18%; HSN codes are the usual ones. A CA should check both.

@@ -182,7 +182,7 @@ public static class MasterItems
         var assembly = typeof(MasterItems).Assembly;
         foreach (var (resource, trade) in new[] { ("medical-master.csv", ShopTypes.Name(ShopType.Medical)), ("kirana-master.csv", ShopTypes.Name(ShopType.Kirana)),
             ("paint-master.csv", ShopTypes.Name(ShopType.Paint)), ("hardware-master.csv", ShopTypes.Name(ShopType.Hardware)),
-            ("beauty-master.csv", ShopTypes.Name(ShopType.Beauty)) })
+            ("beauty-master.csv", ShopTypes.Name(ShopType.Beauty)), ("clothes-master.csv", ShopTypes.Name(ShopType.Clothes)) })
         {
             var name = assembly.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(resource, StringComparison.OrdinalIgnoreCase));
             if (name is null)
@@ -246,6 +246,8 @@ public static class MasterItems
     /// <summary>Starter items' old categories (medical, hardware, paint), and the groups they now belong to.</summary>
     private static readonly Dictionary<string, string> StarterGroups = new()
     {
+        // Clothes starter items from before the clothes list (only clothes uses these names).
+        ["Men"] = "Men · Shirts and T-shirts", ["Women"] = "Women · Ethnic wear", ["Kids"] = "Kids · Girls",
         // Hardware and paint starter items, folded into the long lists' groups.
         ["Hinges"] = "Door and furniture fittings", ["Fittings"] = "Door and furniture fittings", ["Tools"] = "Hand tools", ["Plumbing"] = "Pipes and fittings",
         ["Screws & nails"] = "Fasteners", ["Bolts"] = "Fasteners", ["Adhesives"] = "Adhesives and tapes",
