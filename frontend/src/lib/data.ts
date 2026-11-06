@@ -188,6 +188,8 @@ export interface CartLine {
   quantity: number
   unit: Unit
   unitPrice: number
+  /** Who sold this line (staff sales and commission); none: whoever makes the bill. */
+  salespersonId?: string | null
 }
 
 export async function saveBill(

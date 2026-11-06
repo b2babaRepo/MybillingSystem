@@ -57,6 +57,9 @@ public sealed class Membership : Entity
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Commission on what this person sells, as a percent of their sales (the staff sales report works it out).</summary>
+    public decimal? CommissionPercent { get; set; }
+
     /// <summary>
     /// A short PIN (4 to 6 digits) for signing in at this shop's counter, set by the owner for staff. Hashed like a
     /// password; wrong tries count towards the same lockout. Null: this membership signs in with a password only.

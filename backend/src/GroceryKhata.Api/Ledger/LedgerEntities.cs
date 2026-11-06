@@ -193,6 +193,9 @@ public sealed class BillLine : Entity, ITenantOwned
     /// <summary>What the customer's bill shows instead of <see cref="Name"/> ("Innerwear"); null shows the name.</summary>
     public string? PrintName { get; set; }
 
+    /// <summary>Who sold this line (a person with access to the shop), for staff sales and commission.</summary>
+    public Guid? SalespersonId { get; set; }
+
     public decimal Amount { get; set; }
 
     /// <summary>The item's GST % and HSN code when sold (kept, so a later change doesn't rewrite old bills).</summary>

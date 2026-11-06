@@ -225,6 +225,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
             {
                 var errors = new Dictionary<string, string[]>();
                 RequireId(request.Id, errors);
+                // Salespeople must have access to this shop; a line without one (or with a stranger) is the biller's.
+                var sellers = (await db.Memberships.AsNoTracking().Where(m => m.ShopId == tenant.ShopId).Select(m => m.UserId).ToListAsync(cancellationToken)).ToHashSet();
                 var staffMaxDiscount = isOwner ? 100m : await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.StaffMaxDiscountPercent).SingleAsync(cancellationToken);
                 if (request.Lines is not { Count: > 0 and <= 200 })
                 {
@@ -285,6 +287,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                             // Sold below the item's regular price: keep that price, so every discount is on record.
                             ListPrice = product is { SellingPrice: > 0 } p && line.UnitPrice < p.SellingPrice ? p.SellingPrice : null,
                             PrintName = Catalogue.BillNames.For(product),
+                            SalespersonId = line.SalespersonId is { } seller && sellers.Contains(seller) ? seller : userId,
                             UnitCost = product?.CostPrice,
                             Amount = Money.LineAmount(line.Quantity, line.UnitPrice),
                             // Clothes: 5% or 18% by the piece price (GarmentGst); a bill re-made from a snapshot keeps its rates.

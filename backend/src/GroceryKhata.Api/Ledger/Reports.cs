@@ -56,6 +56,9 @@ public sealed record TopItem(string Name, decimal Quantity, Catalogue.Unit Unit,
 /// <summary>One item's month: sales without GST, what it cost, the profit and margin. Cost and profit are null when no cost price is known.</summary>
 public sealed record ItemMargin(Guid? ProductId, string Name, decimal Quantity, Catalogue.Unit Unit, decimal Sales, decimal? Cost, decimal? Profit, decimal? MarginPercent);
 
+/// <summary>One person's month: lines and bills they sold, the sales (with GST, as billed), and their commission on it.</summary>
+public sealed record StaffSales(Guid UserId, string Name, int Bills, int Lines, decimal Sales, decimal? CommissionPercent, decimal Commission);
+
 public sealed record ItemMarginReport(string Month, decimal Sales, decimal Profit, decimal ProfitCoverage, IReadOnlyList<ItemMargin> Items);
 
 /// <summary>
@@ -161,6 +164,7 @@ public static class ReportEndpoints
         group.MapGet("/reports/year", YearAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/year.csv", YearCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/month.csv", MonthCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
+        group.MapGet("/reports/staff", StaffSalesAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/items", ItemMarginsAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         return app;
     }
@@ -298,6 +302,37 @@ public static class ReportEndpoints
     /// Each item's sales, cost, profit and margin for a month, on the same rules as the month's profit: the cost when
     /// sold (today's for older bills), GST taken out of taxed bills. Items with no cost price are listed without a profit.
     /// </summary>
+    /// <summary>
+    /// Sales by salesperson for a month (cancelled bills left out): each line counts for whoever sold it, or for whoever
+    /// made the bill when no one was named. Commission is their percent of those sales.
+    /// </summary>
+    private static async Task<IResult> StaffSalesAsync(string? month, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
+    {
+        if (ParseOrThisMonth(month, clock) is not { } period)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
+        }
+
+        var (start, end) = IndiaTime.Month(period.Year, period.Month);
+        var lines = await (from l in db.BillLines.AsNoTracking()
+                           join b in db.Bills.AsNoTracking() on l.BillId equals b.Id
+                           where b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null
+                           select new { Seller = l.SalespersonId ?? b.CreatedByUserId, l.BillId, l.Amount }).ToListAsync(ct);
+        var people = await (from m in db.Memberships.AsNoTracking()
+                            join u in db.Users.AsNoTracking() on m.UserId equals u.Id
+                            where m.ShopId == tenant.ShopId
+                            select new { u.Id, u.FullName, m.CommissionPercent }).ToListAsync(ct);
+        var rows = lines.GroupBy(l => l.Seller).Select(g =>
+        {
+            var who = people.FirstOrDefault(p => p.Id == g.Key);
+            var sales = g.Sum(l => l.Amount);
+            var percent = who?.CommissionPercent;
+            return new StaffSales(g.Key, who?.FullName ?? "—", g.Select(l => l.BillId).Distinct().Count(), g.Count(), sales, percent,
+                percent is { } p ? decimal.Round(sales * p / 100, 2) : 0);
+        }).OrderByDescending(r => r.Sales).ToList();
+        return TypedResults.Ok(rows);
+    }
+
     private static async Task<IResult> ItemMarginsAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         if (ParseOrThisMonth(month, clock) is not { } period)

@@ -8,7 +8,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Shops;
 
-public sealed record StaffDto(Guid MembershipId, Guid UserId, string Name, string Phone, ShopRole Role, bool IsActive, bool HasPin);
+public sealed record StaffDto(Guid MembershipId, Guid UserId, string Name, string Phone, ShopRole Role, bool IsActive, bool HasPin, decimal? CommissionPercent = null);
+
+public sealed record CommissionRequest(decimal? Percent);
+
+public sealed record SellerDto(Guid UserId, string Name);
 
 public sealed record PinRequest(string? Pin);
 
@@ -27,6 +31,15 @@ public static class StaffEndpoints
         group.MapPost("", AddAsync);
         group.MapPost("/{membershipId:guid}/pin", SetPinAsync);
         group.MapPost("/{membershipId:guid}/active", SetActiveAsync);
+        group.MapPost("/{membershipId:guid}/commission", SetCommissionAsync);
+        // Who can be named as the salesperson on a bill line: everyone with access, for the owner and helpers alike.
+        app.MapGet("/api/v1/shop/sellers", async (AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
+            await (from m in db.Memberships.AsNoTracking()
+                   join u in db.Users.AsNoTracking() on m.UserId equals u.Id
+                   where m.ShopId == tenant.ShopId && m.IsActive
+                   orderby m.Role, u.FullName
+                   select new SellerDto(u.Id, u.FullName)).ToListAsync(ct))
+            .WithTags("Staff").RequireAuthorization(AppPolicies.ShopMember);
         return app;
     }
 
@@ -35,7 +48,7 @@ public static class StaffEndpoints
                join u in db.Users.AsNoTracking() on m.UserId equals u.Id
                where m.ShopId == tenant.ShopId
                orderby m.Role, u.FullName
-               select new StaffDto(m.Id, u.Id, u.FullName, u.Phone, m.Role, m.IsActive, m.PinHash != null))
+               select new StaffDto(m.Id, u.Id, u.FullName, u.Phone, m.Role, m.IsActive, m.PinHash != null, m.CommissionPercent))
             .ToListAsync(ct);
 
     /// <summary>
@@ -55,6 +68,25 @@ public static class StaffEndpoints
         var result = await ShopPeople.AddAsync(request, tenant.ShopId, db, hasher, ct);
         logger.LogInformation("Shop {ShopId} added a {Role}", tenant.ShopId, request.Role);
         return result;
+    }
+
+    /// <summary>A person's commission on their sales, 0–50%; null or 0 clears it.</summary>
+    private static async Task<IResult> SetCommissionAsync(Guid membershipId, CommissionRequest request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        if (request.Percent is < 0 or > 50)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Percent"] = ["Set a commission between 0 and 50%."] });
+        }
+
+        var membership = await db.Memberships.SingleOrDefaultAsync(m => m.Id == membershipId && m.ShopId == tenant.ShopId, ct);
+        if (membership is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        membership.CommissionPercent = request.Percent is > 0 ? request.Percent : null;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
     }
 
     /// <summary>A new PIN for a helper (forgotten, or told to someone else). The old one stops working.</summary>

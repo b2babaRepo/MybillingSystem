@@ -2452,6 +2452,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<decimal?>("CommissionPercent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("commission_percent");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -3169,6 +3174,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasPrecision(12, 3)
                         .HasColumnType("numeric(12,3)")
                         .HasColumnName("quantity");
+
+                    b.Property<Guid?>("SalespersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("salesperson_id");
 
                     b.Property<decimal?>("Sgst")
                         .HasPrecision(12, 2)

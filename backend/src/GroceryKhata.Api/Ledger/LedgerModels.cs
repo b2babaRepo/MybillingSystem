@@ -32,7 +32,7 @@ public enum KhataEntryType
 
 public sealed record ReverseRequest(Guid Id, string? Note);
 
-public sealed record BillLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice);
+public sealed record BillLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice, Guid? SalespersonId = null);
 
 public sealed record BillRequest(
     Guid Id,

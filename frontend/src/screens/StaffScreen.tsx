@@ -82,6 +82,7 @@ export function StaffScreen() {
                 {s.role === 'owner' ? t('staff.owner') : s.isActive ? t('staff.helper') : t('staff.off')}
               </span>
             </div>
+            <Commission staff={s} onSaved={() => void staff.refetch()} />
             {(s.role === 'staff' || staff.data!.filter((x) => x.role === 'owner' && x.isActive).length > 1 || !s.isActive) && (
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {s.role === 'staff' ? <button disabled={busy} onClick={() => changePin(s)} className="min-h-11 rounded-xl border border-line font-semibold">🔑 {t('staff.changePin')}</button> : <span />}
@@ -115,5 +116,25 @@ export function StaffScreen() {
         </Button>
       </section>
     </div>
+  )
+}
+
+/** The person's commission on their sales, in percent (0 or empty: none). The staff sales report works it out. */
+function Commission({ staff, onSaved }: { staff: { membershipId: string; commissionPercent?: number | null }; onSaved: () => void }) {
+  const { t } = useTranslation()
+  const [value, setValue] = useState(staff.commissionPercent ? String(staff.commissionPercent) : '')
+  const [saved, setSaved] = useState(false)
+  async function save() {
+    await api(`/v1/shop/staff/${staff.membershipId}/commission`, 'POST', { percent: Number(value) || null })
+    setSaved(true)
+    onSaved()
+  }
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <span className="flex-1 text-muted">{t('sales.commission')}</span>
+      <input value={value} onChange={(e) => { setValue(e.target.value); setSaved(false) }} inputMode="decimal" placeholder="0" aria-label={t('sales.commission')} className="h-10 w-20 rounded-lg border border-line px-2 text-center" />
+      <span>%</span>
+      <button type="button" onClick={() => void save()} className="min-h-10 rounded-lg border border-line px-3 font-semibold">{saved ? '✓' : t('save')}</button>
+    </label>
   )
 }

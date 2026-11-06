@@ -1,4 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { getSession } from '../lib/session'
+import { api } from '../lib/api'
+import { useQuery } from '@tanstack/react-query'
 import { currentExchange, endExchange, type Exchange } from '../lib/exchange'
 import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
@@ -34,6 +37,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     .slice(0, query ? 30 : 12)
   const { customers } = useCustomers(shopId)
   const [cart, setCart] = useState<CartLine[]>([])
+  // Who is selling: everyone with access to the shop. The bill's choice goes on every line; a line can name another.
+  const sellers = useQuery({ queryKey: [shopId, 'sellers'], queryFn: () => api<{ userId: string; name: string }[]>('/v1/shop/sellers'), staleTime: 300_000, retry: false }).data ?? []
+  const [soldBy, setSoldBy] = useState<string>(() => getSession()?.user.id ?? '')
   // Barcodes: a scanner types the code and Enter; a typed code works the same. A camera scan where the phone can.
   const [scanning, setScanning] = useState(false)
   const [scanMiss, setScanMiss] = useState<string | null>(null)
@@ -137,7 +143,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }
 
   async function save() {
-    const result = await saveBill(shopId, cart, customer, paidAmount, mode, {
+    const result = await saveBill(shopId, cart.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
       exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
@@ -276,6 +282,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 />
                 /{t(`units.${l.unit}`)}
               </label>
+              {sellers.length > 1 && (
+                <select value={l.salespersonId || soldBy} onChange={(e) => setCart((c) => c.map((x, j) => (j === i ? { ...x, salespersonId: e.target.value === soldBy ? null : e.target.value } : x)))}
+                  aria-label={`${t('sales.soldBy')}: ${l.name}`} className="mt-1 h-8 max-w-40 rounded-md border border-line bg-white px-1 text-xs text-muted">
+                  {sellers.map((s) => <option key={s.userId} value={s.userId}>{t('sales.by', { name: s.name })}</option>)}
+                </select>
+              )}
               {regularOf(l) > 0 && (
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   {/* One tap for the usual shop discounts, from the item's regular price; tap the price box for any other. */}
@@ -323,6 +335,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           </div>
         ))}
         {cart.length > 0 && (<>
+          {sellers.length > 1 && (
+            <label className="mt-2 flex items-center justify-between gap-2 text-sm">
+              <span className="font-semibold text-muted">{t('sales.soldBy')}</span>
+              <select value={soldBy} onChange={(e) => setSoldBy(e.target.value)} className="h-11 rounded-xl border border-line bg-white px-2">
+                {sellers.map((s) => <option key={s.userId} value={s.userId}>{s.name}</option>)}
+              </select>
+            </label>
+          )}
           {exchangeCredit > 0 && (
             <div className="mt-2 flex justify-between text-sm font-semibold text-amber-900">
               <span>{t('exchange.credit', { note: exchange!.noteNo })}</span><span>− {formatRupees(exchangeCredit)}</span>

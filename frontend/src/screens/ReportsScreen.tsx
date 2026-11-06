@@ -121,6 +121,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
 
           {isOwner && <Button tone="plain" onClick={() => navigate('/reports/items')}>{t('margin.title')}</Button>}
           {isOwner && <Button tone="plain" onClick={() => navigate('/reports/sizes')}>{t('sizeReport.title')}</Button>}
+          {isOwner && <Button tone="plain" onClick={() => navigate('/reports/staff')}>{t('sales.title')}</Button>}
           {isOwner && <Button tone="plain" onClick={() => navigate('/pnl')}>{t('pnl.title')}</Button>}
           {isOwner && <Button tone="plain" onClick={() => navigate('/gst')}>{t('gstExport.title')}</Button>}
           {year && (

@@ -34,6 +34,7 @@ const OrderScreen = lazy(() => import('./screens/OrderScreen').then((module) => 
 const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module) => ({ default: module.ProductScreen })))
 const StocktakeScreen = lazy(() => import('./screens/StocktakeScreen').then((module) => ({ default: module.StocktakeScreen })))
 const DuesScreen = lazy(() => import('./screens/DuesScreen').then((module) => ({ default: module.DuesScreen })))
+const StaffSalesScreen = lazy(() => import('./screens/StaffSalesScreen').then((module) => ({ default: module.StaffSalesScreen })))
 const TagsScreen = lazy(() => import('./screens/TagsScreen').then((module) => ({ default: module.TagsScreen })))
 const SizeReportScreen = lazy(() => import('./screens/SizeReportScreen').then((module) => ({ default: module.SizeReportScreen })))
 const ItemMarginScreen = lazy(() => import('./screens/ItemMarginScreen').then((module) => ({ default: module.ItemMarginScreen })))
@@ -304,6 +305,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <PickItemsScreen shopId={shopId} />
         ) : path === '/gst' && isOwner ? (
           <GstExportScreen />
+        ) : path === '/reports/staff' && isOwner ? (
+          <StaffSalesScreen shopId={shopId} />
         ) : path === '/reports/sizes' && isOwner ? (
           <SizeReportScreen shopId={shopId} />
         ) : path === '/reports/items' && isOwner ? (
