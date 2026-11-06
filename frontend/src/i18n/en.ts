@@ -723,7 +723,7 @@ export const en = {
     next: 'Next day',
     drawerHint: 'Cash in the drawer should be this plus what you started the day with.',
   },
-  print: {
+  print: { printNow: 'Print bill', 
     billNo: 'No. {{no}}',
     taxInvoice: 'Tax invoice',
     gstTitle: 'GST in these prices',
@@ -1104,7 +1104,7 @@ export const en = {
   exchange: { start: 'Exchange items', reason: 'Exchange', next: 'Take back and choose new items', banner: 'Exchange: {{note}} gives {{amount}} credit for this bill.', cancel: 'Cancel', credit: 'Exchange credit ({{note}})', change: 'Give back {{amount}} change' },
   sales: { soldBy: 'Sold by', by: 'by {{name}}', commission: 'Commission on their sales', title: 'Staff sales and commission', none: 'No sales this month.', line: '{{bills}} bills · {{lines}} items', earned: '{{amount}} at {{percent}}%', noCommission: 'No commission set', total: 'Commission this month: {{amount}}', setRates: 'Set commission rates', colName: 'Name', colBills: 'Bills', colItems: 'Items', colSales: 'Sales', colRate: 'Rate', colCommission: 'Commission', colTotal: 'Total' },
   side: { money: 'Money', shop: 'Shop', dues: 'Dues', cashbook: 'Cash book', expenses: 'Expenses', reports: 'Reports', pnl: 'Profit & loss', stocktake: 'Stock check', suppliers: 'Suppliers', settings: 'Settings' },
-  keys: { title: 'Keyboard keys', search: 'Search or scan', add: 'Add the item', paid: 'Amount paid', save: 'Save the bill', clear: 'Clear search', toggle: 'Show / hide keys' },
+  keys: { title: 'Keyboard keys', search: 'Search or scan', add: 'Add the item', paid: 'Amount paid', save: 'Save the bill', clear: 'Clear search', toggle: 'Show / hide keys', print: 'Print the saved bill', qty: 'Then the item: add 2' },
   khataPick: 'Choose a customer on the left to see their khata.',
   inboxPick: 'Choose an order on the left to see and pack it.',
   hold: { button: 'Hold', held: 'On hold ({{count}}):', walkIn: 'Walk-in' },

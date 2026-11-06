@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { nameMatches, splitQuantity } from '../lib/nameMatch'
 import { getSession } from '../lib/session'
 import { api } from '../lib/api'
 import { useQuery } from '@tanstack/react-query'
@@ -29,10 +30,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const { products } = useProducts(shopId)
   const rank = usePopularOrder(shopId)
   const [search, setSearch] = useState('')
-  const query = search.trim().toLowerCase()
+  // "2*aata" or "2*" then a scan: add two. The rest is matched in either script ("aata" finds "आटा").
+  const { quantity: pendingQty, rest: searchText } = splitQuantity(search)
+  const query = searchText.trim().toLowerCase()
   // Most-sold items first (the tiles the thumb needs), then the rest by name; typing filters.
   const tiles = products
-    .filter((p) => !query || p.name.toLowerCase().includes(query) || (p.styleName ?? '').toLowerCase().includes(query))
+    .filter((p) => !query || p.name.toLowerCase().includes(query) || (p.styleName ?? '').toLowerCase().includes(query) || nameMatches(p.name, query) || (!!p.styleName && nameMatches(p.styleName, query)))
     .sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9) || a.name.localeCompare(b.name))
     .slice(0, query ? 30 : 12)
   const { customers } = useCustomers(shopId)
@@ -138,11 +141,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
   function add(line: CartLine) {
     setSaved(null)
+    const qty = pendingQty ?? 1
+    if (pendingQty) { line = { ...line, quantity: pendingQty }; setSearch('') }
     setCart((current) => {
       // A tinted tin shares its base's product but is its own line (its own shade and rate).
       const index = line.productId ? current.findIndex((l) => l.productId === line.productId && l.name === line.name) : -1
       if (index < 0) return [...current, line]
-      return current.map((l, i) => (i === index ? { ...l, quantity: round2(l.quantity + 1) } : l))
+      return current.map((l, i) => (i === index ? { ...l, quantity: round2(l.quantity + qty) } : l))
     })
     if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
   }
@@ -186,16 +191,23 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
   }
 
+  function printSaved() {
+    if (!saved) return
+    try { sessionStorage.setItem('gk-autoprint', '1') } catch { /* the print page still has its Print button */ }
+    navigate(`/print/bill/${saved.id}`)
+  }
+
   const canSave = total > 0 && !unpriced && !rxMissing && !serialsMissing && !overLimit
   // Desktop keys: F2 search, F4 amount paid, Ctrl+Enter save, Esc clear search, ? the key list.
-  const keys = useRef({ save, canSave })
-  keys.current = { save, canSave }
+  const keys = useRef({ save, canSave, printSaved, canPrint: false })
+  keys.current = { save, canSave, printSaved, canPrint: !!saved && cart.length === 0 }
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)
       if (e.key === 'F2') { e.preventDefault(); searchRef.current?.focus(); searchRef.current?.select() }
       else if (e.key === 'F4') { e.preventDefault(); const el = document.getElementById('bill-paid') as HTMLInputElement | null; if (el) { el.focus(); el.select() } else document.getElementById('bill-save')?.focus() }
       else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (keys.current.canSave) void keys.current.save() }
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p' && keys.current.canPrint) { e.preventDefault(); keys.current.printSaved() }
       else if (e.key === '?' && !typing) { e.preventDefault(); setKeysHelp((v) => !v) }
     }
     window.addEventListener('keydown', onKey)
@@ -223,7 +235,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             if (e.key !== 'Enter' || e.ctrlKey || e.metaKey) return
             e.preventDefault()
             // A scanner's code (digits) that matches no item says so, instead of leaving the code sitting in the box.
-            if (!addByBarcode(search) && /^\d{8,14}$/.test(search.trim())) setScanMiss(search.trim())
+            const code = searchText.trim()
+            if (addByBarcode(code)) return
+            if (/^\d{8,14}$/.test(code)) { setScanMiss(code); return }
+            // A name typed: Enter adds the best match (a style opens its sizes).
+            const top = query ? groupStyles(tiles)[0] : undefined
+            if (top?.kind === 'style') setStylePick(top.name)
+            else if (top) add({ productId: top.product.id, name: top.product.name, quantity: 1, unit: top.product.unit, unitPrice: top.product.sellingPrice })
           }}
           placeholder={t('barcodeBill.search')}
           aria-label={t('search')}
@@ -236,7 +254,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         <div className="hidden rounded-[14px] bg-white p-3 text-sm lg:block">
           <p className="mb-1 font-bold">{t('keys.title')}</p>
           <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted">
-            {[['F2', t('keys.search')], ['Enter', t('keys.add')], ['F4', t('keys.paid')], ['Ctrl + Enter', t('keys.save')], ['Esc', t('keys.clear')], ['?', t('keys.toggle')]].map(([k, label]) => (
+            {[['F2', t('keys.search')], ['Enter', t('keys.add')], ['F4', t('keys.paid')], ['Ctrl + Enter', t('keys.save')], ['Ctrl + P', t('keys.print')], ['2*', t('keys.qty')], ['Esc', t('keys.clear')], ['?', t('keys.toggle')]].map(([k, label]) => (
               <li key={k}><kbd className="mr-2 rounded border border-line bg-[#f1f5f4] px-1.5 font-mono text-xs text-ink">{k}</kbd>{label}</li>
             ))}
           </ul>
@@ -332,7 +350,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               </a>
             )}
             {saved && (
-              <button onClick={() => navigate(`/print/bill/${saved.id}`)} className="min-h-11 font-semibold text-teal-700 underline">{t('print.viewBill')}</button>
+              <span className="flex flex-wrap items-center justify-center gap-3">
+                <button onClick={() => printSaved()} className="min-h-11 rounded-xl border-2 border-teal-700 px-4 font-bold text-teal-800">{t('print.printNow')}</button>
+                <button onClick={() => navigate(`/print/bill/${saved.id}`)} className="min-h-11 font-semibold text-teal-700 underline">{t('print.viewBill')}</button>
+              </span>
             )}
           </div>
         )}

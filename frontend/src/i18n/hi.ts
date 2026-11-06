@@ -724,7 +724,7 @@ export const hi: Texts = {
     next: 'अगला दिन',
     drawerHint: 'गल्ले में इतना नकद, और सुबह जितना रखा था, होना चाहिए।',
   },
-  print: {
+  print: { printNow: 'बिल छापें', 
     billNo: 'नं. {{no}}',
     taxInvoice: 'टैक्स इनवॉइस',
     gstTitle: 'इन दामों में GST',
@@ -1105,7 +1105,7 @@ export const hi: Texts = {
   exchange: { start: 'सामान बदलें (एक्सचेंज)', reason: 'एक्सचेंज', next: 'वापस लें और नया सामान चुनें', banner: 'एक्सचेंज: {{note}} से इस बिल के लिए {{amount}} का क्रेडिट।', cancel: 'हटाएँ', credit: 'एक्सचेंज क्रेडिट ({{note}})', change: '{{amount}} वापस दें' },
   sales: { soldBy: 'किसने बेचा', by: '{{name}} ने', commission: 'बिक्री पर कमीशन', title: 'साथियों की बिक्री और कमीशन', none: 'इस महीने कोई बिक्री नहीं।', line: '{{bills}} बिल · {{lines}} सामान', earned: '{{percent}}% पर {{amount}}', noCommission: 'कमीशन तय नहीं', total: 'इस महीने का कमीशन: {{amount}}', setRates: 'कमीशन तय करें', colName: 'नाम', colBills: 'बिल', colItems: 'सामान', colSales: 'बिक्री', colRate: 'दर', colCommission: 'कमीशन', colTotal: 'कुल' },
   side: { money: 'पैसा', shop: 'दुकान', dues: 'उधारी वसूली', cashbook: 'रोकड़ बही', expenses: 'खर्चा', reports: 'रिपोर्ट', pnl: 'नफ़ा-नुकसान', stocktake: 'स्टॉक गिनती', suppliers: 'सप्लायर', settings: 'सेटिंग्स' },
-  keys: { title: 'कीबोर्ड बटन', search: 'खोजें या स्कैन करें', add: 'सामान जोड़ें', paid: 'कितना दिया', save: 'बिल सेव करें', clear: 'खोज साफ़ करें', toggle: 'बटन दिखाएँ / छिपाएँ' },
+  keys: { title: 'कीबोर्ड बटन', search: 'खोजें या स्कैन करें', add: 'सामान जोड़ें', paid: 'कितना दिया', save: 'बिल सेव करें', clear: 'खोज साफ़ करें', toggle: 'बटन दिखाएँ / छिपाएँ', print: 'सेव हुआ बिल छापें', qty: 'फिर सामान: 2 जोड़ें' },
   khataPick: 'बाईं ओर से ग्राहक चुनें, उसका खाता यहाँ दिखेगा।',
   inboxPick: 'बाईं ओर से ऑर्डर चुनें, उसे यहाँ देखें और पैक करें।',
   hold: { button: 'रोकें', held: 'रुके बिल ({{count}}):', walkIn: 'नकद ग्राहक' },

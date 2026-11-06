@@ -25,9 +25,10 @@ export function addText(text: Record<Language, Record<string, unknown>>) {
 
 function initialLanguage(): Language {
   try {
-    return localStorage.getItem('grocery-khata.lang') === 'en' ? 'en' : 'hi'
+    // English by default; Hindi when the person has chosen it.
+    return localStorage.getItem('grocery-khata.lang') === 'hi' ? 'hi' : 'en'
   } catch {
-    return 'hi'
+    return 'en'
   }
 }
 

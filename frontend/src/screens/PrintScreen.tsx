@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { navigate } from '../router'
 import { startExchange } from '../lib/exchange'
 import { useQuery } from '@tanstack/react-query'
@@ -23,6 +23,12 @@ export function PrintScreen({ shopName, kind, id, month }: { shopName: string; k
 
 function Page({ title, subtitle, shareText, phone, children }: { title: string; subtitle: string; shareText: string; phone: string | null; children: ReactNode }) {
   const { t } = useTranslation()
+  // Opened with "Print" from the bill screen: show the print dialog straight away, once.
+  useEffect(() => {
+    let auto = false
+    try { auto = sessionStorage.getItem('gk-autoprint') === '1'; sessionStorage.removeItem('gk-autoprint') } catch { /* no storage */ }
+    if (auto) setTimeout(() => window.print(), 300)
+  }, [])
   return (
     <div className="mx-auto min-h-dvh max-w-2xl bg-white p-6 text-black print:p-0">
       <div className="mb-4 flex flex-wrap gap-2 print:hidden">
