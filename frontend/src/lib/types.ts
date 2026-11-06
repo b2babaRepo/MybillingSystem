@@ -66,6 +66,8 @@ export interface Product {
   tracksSerials?: boolean
   warrantyMonths?: number | null
   mrp?: number | null
+  /** Printed on the customer's bill instead of the name ("Innerwear"); see lib/billNames.ts. */
+  billName?: string | null
   barcode?: string | null
   imageCredit?: string | null
   photoReports?: number
@@ -208,6 +210,8 @@ export interface BillLineView {
   igst?: number | null
   /** The item's regular price when the line was sold below it (a discount). */
   listPrice?: number | null
+  /** What the customer's bill shows instead of the name ("Innerwear"). */
+  printName?: string | null
 }
 
 export type DrugSchedule = 'g' | 'h' | 'h1' | 'x'

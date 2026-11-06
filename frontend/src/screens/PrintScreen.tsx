@@ -186,7 +186,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
         <tbody>
           {bill.lines.map((l, i) => (
             <tr key={i} className="border-b border-gray-300">
-              <td className="py-1.5 pr-2">{l.name}{l.batch && <span className="block text-xs text-gray-600">{l.batch.startsWith('S/N') ? l.batch : `Batch ${l.batch}`}</span>}{l.hsnCode && <span className="block text-xs text-gray-600">HSN {l.hsnCode}{gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}</span>}</td>
+              <td className="py-1.5 pr-2">{l.printName ?? l.name}{l.batch && <span className="block text-xs text-gray-600">{l.batch.startsWith('S/N') ? l.batch : `Batch ${l.batch}`}</span>}{l.hsnCode && <span className="block text-xs text-gray-600">HSN {l.hsnCode}{gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}</span>}</td>
               <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`)}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.unitPrice)}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.amount)}</td>

@@ -185,6 +185,9 @@ public sealed class BillLine : Entity, ITenantOwned
     /// <summary>The item's regular price when this line was sold below it (a discount); null at the regular price or above.</summary>
     public decimal? ListPrice { get; set; }
 
+    /// <summary>What the customer's bill shows instead of <see cref="Name"/> ("Innerwear"); null shows the name.</summary>
+    public string? PrintName { get; set; }
+
     public decimal Amount { get; set; }
 
     /// <summary>The item's GST % and HSN code when sold (kept, so a later change doesn't rewrite old bills).</summary>

@@ -100,6 +100,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.UnitsPerPack = request.IsService ? null : request.UnitsPerPack is > 1 and <= 1000 ? request.UnitsPerPack : null;
         (product.TracksSerials, product.WarrantyMonths) = request.IsService ? (false, null) : (request.TracksSerials, request.WarrantyMonths is > 0 and <= 240 ? request.WarrantyMonths : null);
         product.Mrp = CleanMrp(request.Mrp, request.SellingPrice);
+        product.BillName = BillNames.Clean(request.BillName);
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)
@@ -153,6 +154,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.WarrantyMonths = request.WarrantyMonths is { } months ? (months is > 0 and <= 240 && !product.IsService ? months : null) : product.WarrantyMonths;
         // Null keeps the MRP; 0 clears it.
         product.Mrp = request.Mrp is { } mrp ? CleanMrp(mrp, product.SellingPrice) : product.Mrp;
+        // Null keeps it (older apps); an empty string clears it.
+        product.BillName = request.BillName is null ? product.BillName : BillNames.Clean(request.BillName);
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
@@ -488,7 +491,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null),
         p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp, p.Barcode,
         p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? MasterPhotos.Representative : null,
-        p.PhotoReports, p.PhotoReportNote);
+        p.PhotoReports, p.PhotoReportNote, p.BillName);
 
     /// <summary>An MRP only counts when it is above the selling price (otherwise there is nothing "off" to show).</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>

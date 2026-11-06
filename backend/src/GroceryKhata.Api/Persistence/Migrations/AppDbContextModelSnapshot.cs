@@ -1992,6 +1992,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("barcode");
 
+                    b.Property<string>("BillName")
+                        .HasColumnType("text")
+                        .HasColumnName("bill_name");
+
                     b.Property<int?>("CatalogueItemId")
                         .HasColumnType("integer")
                         .HasColumnName("catalogue_item_id");
@@ -3131,6 +3135,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
                         .HasColumnName("name");
+
+                    b.Property<string>("PrintName")
+                        .HasColumnType("text")
+                        .HasColumnName("print_name");
 
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uuid")

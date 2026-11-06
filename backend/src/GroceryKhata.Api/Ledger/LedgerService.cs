@@ -284,6 +284,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                             UnitPrice = line.UnitPrice,
                             // Sold below the item's regular price: keep that price, so every discount is on record.
                             ListPrice = product is { SellingPrice: > 0 } p && line.UnitPrice < p.SellingPrice ? p.SellingPrice : null,
+                            PrintName = Catalogue.BillNames.For(product),
                             UnitCost = product?.CostPrice,
                             Amount = Money.LineAmount(line.Quantity, line.UnitPrice),
                             // Clothes: 5% or 18% by the piece price (GarmentGst); a bill re-made from a snapshot keeps its rates.
@@ -464,7 +465,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 await transaction.CommitAsync(cancellationToken);
                 return LedgerResult<BillDto>.Created(new BillDto(
                     bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
-                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice)).ToList(),
+                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName)).ToList(),
                     balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, BuyerGstin: bill.BuyerGstin, BillOfSupply: bill.BillOfSupply,
                     Prescription: prescription is null ? null : new PrescriptionRequest(prescription.DoctorName, prescription.DoctorAddress, prescription.DoctorRegNo, prescription.PatientName, prescription.PatientAddress, prescription.PrescribedOn)));
             });
@@ -707,7 +708,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         return new BillDto(
             bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
             bill.Lines.OrderBy(l => l.LineNo)
-                .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice)).ToList(),
+                .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName)).ToList(),
             balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, bill.CancelledAt, bill.CancelReason, bill.BuyerGstin, bill.BillOfSupply,
             await db.BillPrescriptions.AsNoTracking().Where(r => r.BillId == id)
                 .Select(r => new PrescriptionRequest(r.DoctorName, r.DoctorAddress, r.DoctorRegNo, r.PatientName, r.PatientAddress, r.PrescribedOn)).SingleOrDefaultAsync(cancellationToken));

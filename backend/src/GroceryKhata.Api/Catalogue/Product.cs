@@ -87,6 +87,13 @@ public sealed class Product : Entity, ITenantOwned
     /// <summary>The printed MRP, when the shop sells below it: the store shows it struck through with the % off.</summary>
     public decimal? Mrp { get; set; }
 
+    /// <summary>
+    /// The name printed on the customer's bill and receipt instead of <see cref="Name"/> ("Innerwear" for a bra or
+    /// bridal nightwear), so a private purchase isn't spelled out. Null: the real name, or the discreet default for
+    /// innerwear and nightwear (<see cref="BillNames"/>).
+    /// </summary>
+    public string? BillName { get; set; }
+
     /// <summary>The pack's barcode (EAN-13 on Indian packs), when the shop has given it.</summary>
     public string? Barcode { get; set; }
 

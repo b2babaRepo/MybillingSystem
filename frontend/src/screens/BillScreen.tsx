@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { billNameFor } from '../lib/billNames'
 import { garmentRate } from '../lib/gst'
 import { useTranslation } from 'react-i18next'
 import { ItemCard } from '../components/ItemCard'
@@ -172,7 +173,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             {saved && (
               <a
                 className="flex h-12 items-center justify-center rounded-2xl bg-[#15803d] px-5 font-bold text-white"
-                href={whatsAppLink(saved.customer?.phone ?? null, billReceipt(t, shopName, saved))}
+                href={whatsAppLink(saved.customer?.phone ?? null, billReceipt(t, shopName, saved, (l) => billNameFor(products.find((p) => p.id === l.productId)) ?? l.name))}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -424,8 +425,9 @@ function billReceipt(
   t: (key: string, options?: Record<string, unknown>) => string,
   shopName: string,
   bill: { total: number; lines: CartLine[]; paid: number; mode?: 'cash' | 'upi'; customer: { name: string } | null },
+  nameOf: (line: CartLine) => string = (l) => l.name,
 ) {
-  const items = bill.lines.map((l) => `• ${l.name} ${l.quantity} ${t(`units.${l.unit}`)} × ${formatRupees(l.unitPrice)} = ${formatRupees(Math.round(l.quantity * l.unitPrice * 100) / 100)}`)
+  const items = bill.lines.map((l) => `• ${nameOf(l)} ${l.quantity} ${t(`units.${l.unit}`)} × ${formatRupees(l.unitPrice)} = ${formatRupees(Math.round(l.quantity * l.unitPrice * 100) / 100)}`)
   const due = Math.round((bill.total - bill.paid) * 100) / 100
   return [
     t('billReceipt.header', { shop: shopName, date: formatDateTime(new Date().toISOString()) }),

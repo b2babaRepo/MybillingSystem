@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { billNameFor } from '../lib/billNames'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, Sheet } from '../components/ui'
@@ -160,6 +161,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     serials: !!product.tracksSerials,
     warranty: product.warrantyMonths ? String(product.warrantyMonths) : '',
     mrp: product.mrp ? String(product.mrp) : '',
+    billName: product.billName ?? '',
   })
   const gstBilling = useGstBilling(shopId)
   const types = shopTypes(useShopSettings(shopId).data)
@@ -179,6 +181,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     hsnCode: form.hsn.trim() || null,
     replaceTax: true,
     mrp: Number(form.mrp) || 0,
+    billName: form.billName.trim(),
     ...(medical ? { schedule: form.schedule || null, replaceSchedule: true, unitsPerPack: Number(form.perPack) || 0 } : {}),
     ...(service ? { tracksSerials: form.serials, warrantyMonths: Number(form.warranty) || 0 } : {}),
     isActive,
@@ -216,6 +219,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         <Field label={t('stock.sellingPrice')} value={form.price} onChange={set('price')} inputMode="decimal" />
       </div>
       {!product.isService && <Field label={t('stock.mrp')} value={form.mrp} onChange={set('mrp')} inputMode="decimal" placeholder={t('stock.mrpHint')} />}
+      <Field label={t('billName.label')} value={form.billName} onChange={set('billName')} maxLength={60} placeholder={billNameFor({ billName: null, category: product.category }) ?? t('billName.hint')} />
       <div className="grid grid-cols-2 gap-2">
         <Field label={t('stock.buyingCostShort')} value={form.cost} onChange={set('cost')} inputMode="decimal" />
         <Field label={t('stock.reorderLevel')} value={form.reorder} onChange={set('reorder')} inputMode="decimal" />
