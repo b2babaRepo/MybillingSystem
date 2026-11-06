@@ -62,6 +62,26 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // The style whose sizes/colours are being picked (a tile for a style opens this instead of adding straight away).
   const [stylePick, setStylePick] = useState<string | null>(null)
   const [customerId, setCustomerId] = useState('')
+  // Held bills: park this customer's bill, serve the next one, pick it up again. Kept on this device only.
+  const heldKey = `held-bills:${shopId}`
+  const [held, setHeld] = useState<{ cart: CartLine[]; customerId: string; at: number }[]>(() => {
+    try { return JSON.parse(localStorage.getItem(heldKey) ?? '[]') } catch { return [] }
+  })
+  function keepHeld(next: typeof held) {
+    setHeld(next)
+    try { localStorage.setItem(heldKey, JSON.stringify(next)) } catch { /* private window: held bills last until reload */ }
+  }
+  function holdBill() {
+    if (cart.length === 0) return
+    keepHeld([...held, { cart, customerId, at: Date.now() }])
+    setCart([]); setCustomerId(''); setPaid(null); setSaved(null)
+  }
+  function resumeBill(index: number) {
+    const pick = held[index]
+    const rest = held.filter((_, i) => i !== index)
+    keepHeld(cart.length > 0 ? [...rest, { cart, customerId, at: Date.now() }] : rest)
+    setCart(pick.cart); setCustomerId(pick.customerId); setPaid(null); setSaved(null)
+  }
   const [paid, setPaid] = useState<string | null>(null)
   const [mode, setMode] = useState<PaymentMode>('cash')
   // A loose item, or a charge line ("Transport") with its name filled in.
@@ -282,6 +302,16 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
       </div>
       <div className="flex flex-col gap-3 lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto">
+      {held.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-[14px] bg-amber-50 p-2 text-sm">
+          <span className="font-semibold text-amber-900">{t('hold.held', { count: held.length })}</span>
+          {held.map((h, i) => (
+            <button key={h.at} onClick={() => resumeBill(i)} className="min-h-9 rounded-full border border-amber-300 bg-white px-3 font-semibold">
+              {(customers.find((c) => c.id === h.customerId)?.name ?? t('hold.walkIn'))} · {formatRupees(round2(h.cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}
+            </button>
+          ))}
+        </div>
+      )}
       <div ref={billRef} className="rounded-[18px] bg-white p-3">
         {cart.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-4 text-center text-muted">
@@ -307,8 +337,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           </div>
         )}
         {cart.map((l, i) => (
-          <div key={`${l.productId ?? l.name}-${i}`} className="flex items-center gap-2 border-b border-[#edf2f1] py-2 last:border-0">
-            <div className="flex-1">
+          <div key={`${l.productId ?? l.name}-${i}`} className="flex items-center gap-2 border-b border-[#edf2f1] py-2 last:border-0 lg:py-1.5 lg:[&>button]:h-8 lg:[&>button]:w-8">
+            <div className="min-w-0 flex-1 lg:flex lg:flex-wrap lg:items-center lg:gap-x-2 lg:[&>div:not(:first-child)]:basis-full lg:[&>p]:basis-full">
               <div className="font-semibold">{l.name}{(() => { const s = products.find((p) => p.id === l.productId)?.schedule; return s && s !== 'g' ? <span className="ml-1 whitespace-nowrap rounded bg-red-50 px-1 text-xs text-due">{t('rx.badge', { schedule: s.toUpperCase() })}</span> : null })()}</div>
               <label className="flex items-center gap-1 text-xs text-muted">
                 ₹
@@ -318,7 +348,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                   inputMode="decimal"
                   aria-label={`${t('price')}: ${l.name}`}
                   placeholder={t('price')}
-                  className={`h-11 w-16 rounded-md border px-1 ${l.unitPrice > 0 ? 'border-line' : 'border-udhaar'}`}
+                  className={`h-11 w-16 rounded-md border px-1 lg:h-8 ${l.unitPrice > 0 ? 'border-line' : 'border-udhaar'}`}
                 />
                 /{t(`units.${l.unit}`)}
               </label>
@@ -454,9 +484,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           </div>
           {mode === 'upi' && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={paidAmount} />}
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
-          <Button className="w-full" id="bill-save" onClick={save} disabled={!canSave}>
-            {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(total) }) : `${t('saveBill')} · ${formatRupees(total)}`}
-          </Button>
+          <div className="flex gap-2">
+            <button type="button" onClick={holdBill} className="min-h-12 shrink-0 rounded-2xl border-2 border-teal-700 px-4 font-bold text-teal-800">{t('hold.button')}</button>
+            <Button className="flex-1" id="bill-save" onClick={save} disabled={!canSave}>
+              {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(total) }) : `${t('saveBill')} · ${formatRupees(total)}`}
+            </Button>
+          </div>
         </div>
       )}
 

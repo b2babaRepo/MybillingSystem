@@ -45,7 +45,7 @@ export function GstExportScreen() {
 
   const row = (label: string, value: string) => <p key={label} className="flex justify-between"><span>{label}</span><span className="font-semibold">{value}</span></p>
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3 p-4 lg:mx-auto lg:max-w-3xl">
       <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('gstExport.month')}</span>
         <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3 text-lg" /></label>
       {data && <>
@@ -73,8 +73,8 @@ export function GstExportScreen() {
           {!!data.creditNotes && row(t('gstExport.creditNotes', { count: data.creditNotes }), `−${formatRupees(data.creditNoteValue ?? 0)} (${t('gstExport.tax')} ${formatRupees(data.creditNoteTax ?? 0)})`)}
         </section>
         {data.canDownload
-          ? <Button disabled={data.bills + data.cancelled === 0} onClick={() => void send()}>{t('gstExport.send')}</Button>
-          : <Button tone="plain" onClick={() => navigate('/plan')}>{t('gstExport.upgrade')}</Button>}
+          ? <Button className="lg:self-end lg:px-10" disabled={data.bills + data.cancelled === 0} onClick={() => void send()}>{t('gstExport.send')}</Button>
+          : <Button tone="plain" className="lg:self-end lg:px-10" onClick={() => navigate('/plan')}>{t('gstExport.upgrade')}</Button>}
         <p className="text-xs text-muted">{t('gstExport.hint')}</p>
       </>}
       {error && <p className="text-sm text-due">{error}</p>}

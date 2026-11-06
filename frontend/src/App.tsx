@@ -300,7 +300,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
 
       {/* Desktop width: billing and the item list use the room; the other pages stay a readable width. */}
       <main className={`lg:mx-auto ${path === '/bill' || path === '/items' || path === '/items/pick' || path === '/khata' || path === '/dues' || path === '/inbox' || path === '/suppliers' || path === '/settings' || path === '/settings/staff' || customerMatch || orderMatch ? 'lg:max-w-6xl' : 'lg:max-w-4xl'}`}>
-        <Suspense fallback={<Loading />}>
+        {/* Keyed by screen: a page change shows the loading state at once, never the previous screen lingering. */}
+        <Suspense key={customerMatch ? '/khata' : orderMatch ? '/inbox' : path} fallback={<Loading />}>
         {customerMatch ? (
           <ListDetail hasDetail list={<CustomersScreen shopId={shopId} selectedId={customerMatch[1]} />} detail={<CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} focusEntryId={customerMatch[2]} isOwner={isOwner} userName={userName} />} />
         ) : path === '/dues' ? (

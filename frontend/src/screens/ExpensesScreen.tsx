@@ -233,7 +233,7 @@ export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: st
   }
 
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3 p-4 lg:mx-auto lg:max-w-3xl">
       {viewSwitch}
       <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
