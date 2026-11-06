@@ -197,7 +197,7 @@ export async function saveBill(
   paidAmount: number,
   paymentMode: PaymentMode,
   /** Other trades: the site, the vehicle, the painter. */
-  extras: { site?: string | null; vehicleNumber?: string | null; painterId?: string | null; prescription?: { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null } | null; serials?: { productId: string; serialNo: string }[] } = {},
+  extras: { site?: string | null; vehicleNumber?: string | null; painterId?: string | null; prescription?: { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null } | null; serials?: { productId: string; serialNo: string }[]; exchangeNoteId?: string | null; exchangeCredit?: number } = {},
 ) {
   const id = uuidv7()
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
@@ -206,9 +206,9 @@ export async function saveBill(
     shopId,
     kind: 'bill',
     path: '/v1/bills',
-    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), ...extras },
+    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), ...extras, exchangeCredit: undefined },
     customerId: customer?.id,
-    delta: customer ? round2(total - paidAmount) : undefined,
+    delta: customer ? round2(total - paidAmount - Math.min(extras.exchangeCredit ?? 0, total)) : undefined,
     label: `Bill ₹${total}${customer ? ` · ${customer.name}` : ''}`,
   })
   return { id, total }

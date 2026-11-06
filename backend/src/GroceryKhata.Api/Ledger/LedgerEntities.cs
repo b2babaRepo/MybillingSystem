@@ -125,6 +125,11 @@ public sealed class Bill : Entity, ITenantOwned
 
     public decimal PaidAmount { get; set; }
 
+    /// <summary>An exchange: the credit note whose returned goods pay part of this bill, and how much of it this bill used.</summary>
+    public Guid? ExchangeNoteId { get; set; }
+
+    public decimal ExchangeCredit { get; set; }
+
     public PaymentMode? PaymentMode { get; set; }
 
     public DateTimeOffset OccurredAt { get; set; }

@@ -32,6 +32,11 @@ public sealed class CreditNote : Entity, ITenantOwned
     /// <summary>The goods went back on the shelf (not damaged or missing).</summary>
     public bool Restocked { get; set; }
 
+    /// <summary>Kept as credit for an exchange: no money goes back; the new bill (<see cref="ExchangeBillId"/>) uses it.</summary>
+    public bool ForExchange { get; set; }
+
+    public Guid? ExchangeBillId { get; set; }
+
     public DateTimeOffset OccurredAt { get; set; }
 
     public Guid CreatedByUserId { get; set; }
@@ -70,7 +75,7 @@ public sealed class CreditNoteLine : Entity, ITenantOwned
 public sealed record CreditNoteLineRequest(int LineNo, decimal Quantity);
 
 /// <summary><see cref="Restock"/>: the goods go back on the shelf (not damaged).</summary>
-public sealed record CreditNoteRequest(Guid Id, string? Reason, IReadOnlyList<CreditNoteLineRequest>? Lines, bool Restock = true);
+public sealed record CreditNoteRequest(Guid Id, string? Reason, IReadOnlyList<CreditNoteLineRequest>? Lines, bool Restock = true, bool Exchange = false);
 
 public sealed record CreditNoteLineDto(int BillLineNo, string Name, decimal Quantity, decimal Amount, decimal TaxableValue, decimal Cgst, decimal Sgst, decimal Igst);
 
@@ -148,10 +153,14 @@ public static class CreditNotes
         var note = new CreditNote
         {
             Id = request.Id, BillId = billId, CustomerId = bill.CustomerId, FinancialYear = year, Number = number, Reason = reason!,
-            Total = total, Restocked = request.Restock, OccurredAt = now, CreatedByUserId = userId, Lines = lines,
+            Total = total, Restocked = request.Restock, OccurredAt = now, CreatedByUserId = userId, Lines = lines, ForExchange = request.Exchange,
         };
         db.CreditNotes.Add(note);
-        if (bill.CustomerId is { } customerId)
+        if (request.Exchange)
+        {
+            // An exchange: the value stays as credit for the new bill, so neither the khata nor the drawer moves now.
+        }
+        else if (bill.CustomerId is { } customerId)
         {
             db.LedgerEntries.Add(new LedgerEntry
             {

@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { navigate } from '../router'
+import { startExchange } from '../lib/exchange'
 import { useQuery } from '@tanstack/react-query'
 import { PrescriptionPhoto } from './PharmacyAssistScreens'
 import type { ReactNode } from 'react'
@@ -95,6 +97,8 @@ function CreditNotesPanel({ billId, lines }: { billId: string; lines: BillView['
   const [qty, setQty] = useState<Record<number, string>>({})
   const [reason, setReason] = useState('')
   const [restock, setRestock] = useState(true)
+  // Exchange: the goods' value stays as credit for a new bill instead of going back as money.
+  const [exchange, setExchange] = useState(false)
   const [message, setMessage] = useState('')
   if (notes.isError) return null
   const back = (lineNo: number) => (notes.data ?? []).flatMap((n) => n.lines).filter((l) => l.billLineNo === lineNo).reduce((s, l) => s + l.quantity, 0)
@@ -102,11 +106,12 @@ function CreditNotesPanel({ billId, lines }: { billId: string; lines: BillView['
   async function save() {
     setMessage('')
     try {
-      await api(`/v1/bills/${billId}/credit-notes`, 'POST', {
-        id: crypto.randomUUID(), reason: reason.trim(), restock,
+      const note = await api<{ id: string; noteNo: string; total: number }>(`/v1/bills/${billId}/credit-notes`, 'POST', {
+        id: crypto.randomUUID(), reason: reason.trim(), restock, exchange,
         lines: Object.entries(qty).filter(([, q]) => Number(q) > 0).map(([lineNo, q]) => ({ lineNo: Number(lineNo), quantity: Number(q) })),
       })
       setQty({}); setReason(''); setOpen(false)
+      if (exchange) { startExchange({ noteId: note.id, noteNo: note.noteNo, total: note.total }); navigate('/bill'); return }
       await notes.refetch()
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
@@ -119,7 +124,10 @@ function CreditNotesPanel({ billId, lines }: { billId: string; lines: BillView['
         <p key={n.id} className="flex justify-between text-sm"><span>{n.noteNo} · {new Date(n.occurredAt).toLocaleDateString('en-IN')} · {n.reason}</span><span>−{formatRupees(n.total)}</span></p>
       ))}
       {!open ? (
-        <button onClick={() => setOpen(true)} className="h-11 rounded-xl border border-line font-semibold">{t('creditNote.start')}</button>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => { setExchange(true); setReason(t('exchange.reason')); setOpen(true) }} className="h-11 rounded-xl bg-teal-700 font-semibold text-white">{t('exchange.start')}</button>
+          <button onClick={() => { setExchange(false); setOpen(true) }} className="h-11 rounded-xl border border-line font-semibold">{t('creditNote.start')}</button>
+        </div>
       ) : (
         <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
           {lines.map((l, i) => {
@@ -131,7 +139,7 @@ function CreditNotesPanel({ billId, lines }: { billId: string; lines: BillView['
           })}
           <input aria-label={t('creditNote.reason')} placeholder={t('creditNote.reason')} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} className="h-11 rounded-lg border border-line px-3" />
           <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} className="h-5 w-5" />{t('creditNote.restock')}</label>
-          <button disabled={reason.trim().length < 3 || !Object.values(qty).some((q) => Number(q) > 0)} onClick={() => void save()} className="h-11 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-40">{t('creditNote.save')}</button>
+          <button disabled={reason.trim().length < 3 || !Object.values(qty).some((q) => Number(q) > 0)} onClick={() => void save()} className="h-11 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-40">{exchange ? t('exchange.next') : t('creditNote.save')}</button>
           {message && <p className="text-sm text-due">{message}</p>}
         </div>
       )}
@@ -201,6 +209,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
           return saved > 0 ? <p className="flex justify-between text-sm font-semibold"><span>{t('discount.saved')}</span><span>{formatRupees(saved)}</span></p> : null
         })()}
         <p className="flex justify-between text-xl font-extrabold"><span>{t('print.total')}</span><span>{formatRupees(bill.total)}</span></p>
+        {(bill.exchangeCredit ?? 0) > 0 && <p className="flex justify-between text-sm font-semibold"><span>{t('exchange.credit', { note: bill.exchangeNoteNo ?? '' })}</span><span>− {formatRupees(bill.exchangeCredit!)}</span></p>}
         <p className="flex justify-between"><span>{t('print.paid')}{bill.paymentMode && ` (${t(bill.paymentMode)})`}</span><span>{formatRupees(bill.paidAmount)}</span></p>
         {bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.onKhata')}</span><span>{formatRupees(bill.onKhata)}</span></p>}
       </div>

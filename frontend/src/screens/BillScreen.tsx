@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { currentExchange, endExchange, type Exchange } from '../lib/exchange'
 import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
 import { garmentRate } from '../lib/gst'
@@ -33,6 +34,25 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     .slice(0, query ? 30 : 12)
   const { customers } = useCustomers(shopId)
   const [cart, setCart] = useState<CartLine[]>([])
+  // Barcodes: a scanner types the code and Enter; a typed code works the same. A camera scan where the phone can.
+  const [scanning, setScanning] = useState(false)
+  const [scanMiss, setScanMiss] = useState<string | null>(null)
+  const canScan = typeof window !== 'undefined' && 'BarcodeDetector' in window
+  function addByBarcode(code: string) {
+    const clean = code.replace(/\s/g, '')
+    const p = clean.length >= 4 ? products.find((x) => x.barcode && x.barcode === clean) : undefined
+    if (!p) return false
+    add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })
+    setSearch('')
+    setScanMiss(null)
+    return true
+  }
+  // A scanner types fast and ends with Enter; a full code typed in also adds straight away.
+  function onSearch(value: string) {
+    setScanMiss(null)
+    if (/^\d{8,14}$/.test(value.trim()) && addByBarcode(value.trim())) return
+    setSearch(value)
+  }
   // The style whose sizes/colours are being picked (a tile for a style opens this instead of adding straight away).
   const [stylePick, setStylePick] = useState<string | null>(null)
   const [customerId, setCustomerId] = useState('')
@@ -73,7 +93,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const overLimit = !isOwner && cart.some((l) => (offOf(l)?.percent ?? 0) > staffLimit)
   const total = useMemo(() => round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [cart])
   const customer = customers.find((c) => c.id === customerId) ?? null
-  const paidAmount = paid === null || !customer ? total : Math.min(Number(paid) || 0, total)
+  // An exchange started from an old bill: its credit note pays this much of the new bill (the rest, or change back).
+  const [exchange, setExchangeState] = useState<Exchange | null>(() => currentExchange())
+  const exchangeCredit = exchange ? Math.min(exchange.total, total) : 0
+  const due = round2(total - exchangeCredit)
+  const paidAmount = paid === null || !customer ? due : Math.min(Number(paid) || 0, due)
   const schedules = cart.map((l) => products.find((p) => p.id === l.productId)?.schedule).filter((s) => s === 'h' || s === 'h1' || s === 'x')
   const needsAddress = schedules.some((s) => s === 'h1' || s === 'x')
   // Serialised units go out by serial number, one per unit (the warranty runs from this bill).
@@ -116,6 +140,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     const result = await saveBill(shopId, cart, customer, paidAmount, mode, {
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
+      exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
       prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
     })
     setRx({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
@@ -123,6 +148,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     setExtras({ ...extras, site: '', vehicleNumber: '' })
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
+    if (exchange) { endExchange(); setExchangeState(null) }
     setPaid(null)
     setCustomerId('')
     setSearch('')
@@ -130,13 +156,30 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t('search')}
-        aria-label={t('search')}
-        className="h-12 w-full rounded-[14px] border border-line bg-white px-4 text-[17px] outline-none focus:border-teal-600"
-      />
+      {exchange && (
+        <div className="flex items-center gap-2 rounded-[14px] bg-amber-50 p-3 text-sm text-amber-950">
+          <span className="flex-1">{t('exchange.banner', { note: exchange.noteNo, amount: formatRupees(exchange.total) })}</span>
+          <button onClick={() => { endExchange(); setExchangeState(null) }} className="min-h-9 px-2 text-xs font-semibold underline">{t('exchange.cancel')}</button>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return
+            e.preventDefault()
+            // A scanner's code (digits) that matches no item says so, instead of leaving the code sitting in the box.
+            if (!addByBarcode(search) && /^\d{8,14}$/.test(search.trim())) setScanMiss(search.trim())
+          }}
+          placeholder={t('barcodeBill.search')}
+          aria-label={t('search')}
+          className="h-12 min-w-0 flex-1 rounded-[14px] border border-line bg-white px-4 text-[17px] outline-none focus:border-teal-600"
+        />
+        {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className="h-12 shrink-0 rounded-[14px] border-2 border-teal-700 px-3 font-bold text-teal-800">{t('barcodeBill.scan')}</button>}
+      </div>
+      {scanning && <ScanSheet onCode={(code) => { setScanning(false); if (!addByBarcode(code)) setScanMiss(code) }} onClose={() => setScanning(false)} />}
+      {scanMiss && <p className="rounded-xl bg-red-50 p-2 text-sm font-semibold text-due">{t('barcodeBill.notFound', { code: scanMiss })}</p>}
       <div className="grid grid-cols-3 gap-2">
         {groupStyles(tiles).map((entry) => entry.kind === 'style' ? (
           <ItemCard
@@ -280,6 +323,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           </div>
         ))}
         {cart.length > 0 && (<>
+          {exchangeCredit > 0 && (
+            <div className="mt-2 flex justify-between text-sm font-semibold text-amber-900">
+              <span>{t('exchange.credit', { note: exchange!.noteNo })}</span><span>− {formatRupees(exchangeCredit)}</span>
+            </div>
+          )}
+          {exchange && exchange.total > total && total > 0 && <p className="mt-1 text-sm font-semibold text-amber-900">{t('exchange.change', { amount: formatRupees(round2(exchange.total - total)) })}</p>}
           {discountTotal > 0 && (
             <div className="mt-2 flex justify-between text-sm font-semibold text-teal-800">
               <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>
@@ -510,5 +559,40 @@ function SerialPicker({ shopId, productId, name, quantity, chosen, onChange }: {
         ))}
       </div>
     </div>
+  )
+}
+
+/** The phone camera reading a barcode (BarcodeDetector, in Chrome on Android and some others). */
+function ScanSheet({ onCode, onClose }: { onCode: (code: string) => void; onClose: () => void }) {
+  const { t } = useTranslation()
+  const video = useRef<HTMLVideoElement>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let stream: MediaStream | null = null
+    let timer = 0
+    let done = false
+    ;(async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        if (!video.current) return
+        video.current.srcObject = stream
+        await video.current.play()
+        const Detector = (window as unknown as { BarcodeDetector: new (o: { formats: string[] }) => { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> } }).BarcodeDetector
+        const detector = new Detector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] })
+        timer = window.setInterval(async () => {
+          if (done || !video.current) return
+          const found = await detector.detect(video.current).catch(() => [])
+          if (found[0]?.rawValue) { done = true; onCode(found[0].rawValue) }
+        }, 300)
+      } catch {
+        setError(t('barcodeBill.noCamera'))
+      }
+    })()
+    return () => { done = true; window.clearInterval(timer); stream?.getTracks().forEach((track) => track.stop()) }
+  }, [onCode, t])
+  return (
+    <Sheet title={t('barcodeBill.scan')} onClose={onClose}>
+      {error ? <p className="text-sm text-due">{error}</p> : <video ref={video} muted playsInline className="w-full rounded-xl bg-black" />}
+    </Sheet>
   )
 }

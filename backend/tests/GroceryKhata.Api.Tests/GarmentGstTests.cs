@@ -23,3 +23,13 @@ public class GarmentGstTests
     [Fact]
     public void An_item_with_no_rate_stays_without_one() => Assert.Null(GarmentGst.RateFor("6204", null, 3000));
 }
+
+public class Ean13Tests
+{
+    [Theory]
+    [InlineData("400638133393", 1)] // a known real EAN-13: 4006381333931
+    [InlineData("890123456789", 0)] // 8901234567890
+    [InlineData("200000000001", 5)] // the first shop code: 2000000000015
+    public void Check_digit_matches_the_standard(string twelve, int expected) =>
+        Assert.Equal(expected, GroceryKhata.Api.Catalogue.ProductEndpoints.Ean13Check(twelve));
+}

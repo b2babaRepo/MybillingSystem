@@ -300,11 +300,25 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     errors[nameof(request.Lines)] = ["The bill total must be above ₹0."];
                 }
 
-                if (request.PaidAmount < 0 || decimal.Round(request.PaidAmount, 2) != request.PaidAmount || request.PaidAmount > total)
+                // An exchange: the returned goods' credit note pays part of this bill (all of it, with change, if worth more).
+                CreditNote? exchange = null;
+                if (request.ExchangeNoteId is { } noteId)
                 {
-                    errors[nameof(request.PaidAmount)] = ["Paid amount must be between ₹0 and the bill total."];
+                    exchange = await db.CreditNotes.SingleOrDefaultAsync(n => n.Id == noteId, cancellationToken);
+                    if (exchange is not { ForExchange: true, ExchangeBillId: null })
+                    {
+                        errors[nameof(request.ExchangeNoteId)] = ["That exchange credit was already used, or isn't for an exchange."];
+                        exchange = null;
+                    }
                 }
-                else if (request.CustomerId is null && request.PaidAmount != total)
+
+                var exchangeCredit = exchange is null ? 0m : Math.Min(exchange.Total, total);
+                var due = total - exchangeCredit;
+                if (request.PaidAmount < 0 || decimal.Round(request.PaidAmount, 2) != request.PaidAmount || request.PaidAmount > due)
+                {
+                    errors[nameof(request.PaidAmount)] = [exchange is null ? "Paid amount must be between ₹0 and the bill total." : $"With the exchange credit, at most ₹{due:0.##} is left to pay."];
+                }
+                else if (request.CustomerId is null && request.PaidAmount != due)
                 {
                     errors[nameof(request.PaidAmount)] = ["Choose a customer to put the rest on khata."];
                 }
@@ -356,6 +370,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     Total = total,
                     PaidAmount = request.PaidAmount,
                     PaymentMode = paymentMode,
+                    ExchangeNoteId = exchange?.Id,
+                    ExchangeCredit = exchangeCredit,
                     OccurredAt = occurredAt,
                     CreatedByUserId = userId,
                     Lines = lines,
@@ -373,6 +389,15 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
                 (bill.FinancialYear, bill.Number) = await NextBillNumberAsync(cancellationToken);
                 db.Bills.Add(bill);
+                if (exchange is not null)
+                {
+                    exchange.ExchangeBillId = bill.Id;
+                    // Returned goods worth more than the new ones: the change goes back out of the drawer.
+                    if (exchange.Total > total)
+                    {
+                        db.Expenses.Add(new Expense { Amount = exchange.Total - total, Category = ExpenseCategory.Other, Mode = PaymentMode.Cash, Note = $"Refund {exchange.NoteNo} (exchange)", OccurredAt = occurredAt, CreatedByUserId = userId });
+                    }
+                }
                 if (prescription is not null)
                 {
                     prescription.BillId = bill.Id;
@@ -390,6 +415,16 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                         OccurredAt = occurredAt,
                         CreatedByUserId = userId,
                     });
+                    if (exchangeCredit > 0)
+                    {
+                        // The returned goods pay this part, on the statement as a return against the new bill.
+                        db.LedgerEntries.Add(new LedgerEntry
+                        {
+                            CustomerId = billCustomerId, Kind = LedgerEntryKind.Return, Amount = -exchangeCredit, BillId = bill.Id,
+                            Note = exchange!.NoteNo, OccurredAt = occurredAt.AddMicroseconds(1), CreatedByUserId = userId,
+                        });
+                    }
+
                     if (bill.PaidAmount > 0)
                     {
                         db.LedgerEntries.Add(new LedgerEntry
@@ -464,10 +499,11 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
 
                 await transaction.CommitAsync(cancellationToken);
                 return LedgerResult<BillDto>.Created(new BillDto(
-                    bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
+                    bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount - bill.ExchangeCredit, bill.PaymentMode, bill.OccurredAt,
                     lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName)).ToList(),
                     balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, BuyerGstin: bill.BuyerGstin, BillOfSupply: bill.BillOfSupply,
-                    Prescription: prescription is null ? null : new PrescriptionRequest(prescription.DoctorName, prescription.DoctorAddress, prescription.DoctorRegNo, prescription.PatientName, prescription.PatientAddress, prescription.PrescribedOn)));
+                    Prescription: prescription is null ? null : new PrescriptionRequest(prescription.DoctorName, prescription.DoctorAddress, prescription.DoctorRegNo, prescription.PatientName, prescription.PatientAddress, prescription.PrescribedOn),
+                    ExchangeCredit: bill.ExchangeCredit, ExchangeNoteNo: exchange?.NoteNo));
             });
 
     /// <summary>
@@ -706,12 +742,14 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
 
         decimal? balance = bill.CustomerId is { } customerId ? await BalanceAsync(customerId, cancellationToken) : null;
         return new BillDto(
-            bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount, bill.PaymentMode, bill.OccurredAt,
+            bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount - bill.ExchangeCredit, bill.PaymentMode, bill.OccurredAt,
             bill.Lines.OrderBy(l => l.LineNo)
                 .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName)).ToList(),
             balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, bill.CancelledAt, bill.CancelReason, bill.BuyerGstin, bill.BillOfSupply,
             await db.BillPrescriptions.AsNoTracking().Where(r => r.BillId == id)
-                .Select(r => new PrescriptionRequest(r.DoctorName, r.DoctorAddress, r.DoctorRegNo, r.PatientName, r.PatientAddress, r.PrescribedOn)).SingleOrDefaultAsync(cancellationToken));
+                .Select(r => new PrescriptionRequest(r.DoctorName, r.DoctorAddress, r.DoctorRegNo, r.PatientName, r.PatientAddress, r.PrescribedOn)).SingleOrDefaultAsync(cancellationToken),
+            bill.ExchangeCredit,
+            bill.ExchangeNoteId is { } exchangeId ? (await db.CreditNotes.AsNoTracking().Where(n => n.Id == exchangeId).Select(n => new { n.FinancialYear, n.Number }).SingleOrDefaultAsync(cancellationToken)) is { } x ? $"CN/{x.FinancialYear}/{x.Number:D4}" : null : null);
     }
 
     private Task<decimal> BalanceAsync(Guid customerId, CancellationToken cancellationToken) =>

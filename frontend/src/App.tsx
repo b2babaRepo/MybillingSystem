@@ -34,6 +34,7 @@ const OrderScreen = lazy(() => import('./screens/OrderScreen').then((module) => 
 const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module) => ({ default: module.ProductScreen })))
 const StocktakeScreen = lazy(() => import('./screens/StocktakeScreen').then((module) => ({ default: module.StocktakeScreen })))
 const DuesScreen = lazy(() => import('./screens/DuesScreen').then((module) => ({ default: module.DuesScreen })))
+const TagsScreen = lazy(() => import('./screens/TagsScreen').then((module) => ({ default: module.TagsScreen })))
 const SizeReportScreen = lazy(() => import('./screens/SizeReportScreen').then((module) => ({ default: module.SizeReportScreen })))
 const ItemMarginScreen = lazy(() => import('./screens/ItemMarginScreen').then((module) => ({ default: module.ItemMarginScreen })))
 const ReportsScreen = lazy(() => import('./screens/ReportsScreen').then((module) => ({ default: module.ReportsScreen })))
@@ -212,6 +213,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const customerMatch = path.match(/^\/c\/([0-9a-f-]+)(?:\?e=([0-9a-f-]+))?$/)
   const orderMatch = path.match(/^\/o\/([0-9a-f-]+)$/)
   const productMatch = path.match(/^\/p\/([0-9a-f-]+)$/)
+  const tagsMatch = path.match(/^\/tags\/([0-9a-f,-]+)$/)
   const printMatch = path.match(/^\/print\/(statement|bill)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
   const isItemsPage = !!productMatch || path === '/items/pick' || path === '/stocktake' || path === '/import' || path === '/items/common'
   const tabs: { path: string; label: string; icon: ReactNode; badge?: number }[] = [
@@ -366,6 +368,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <RatesScreen shopId={shopId} />
         ) : path === '/painters' ? (
           <PaintersScreen shopId={shopId} shopName={shopName} />
+        ) : tagsMatch && isOwner ? (
+          <TagsScreen shopId={shopId} shopName={shopName} ids={tagsMatch[1].split(',')} />
         ) : productMatch ? (
           <ProductScreen shopId={shopId} productId={productMatch[1]} />
         ) : path === '/stocktake' ? (

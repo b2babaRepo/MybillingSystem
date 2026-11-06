@@ -90,6 +90,8 @@ public sealed record StocktakeRequest(Guid Id, IReadOnlyList<StocktakeCount>? Co
 
 public sealed record StocktakeResult(int Adjusted, int Unchanged);
 
+public sealed record BarcodeRequest(string? Barcode);
+
 public sealed record ImportRow(
     string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel,
     int? CatalogueItemId = null, decimal? PackSize = null, Unit? PackUnit = null, decimal? GstRate = null, string? HsnCode = null,
@@ -116,6 +118,9 @@ public sealed record FromCatalogueRequest(IReadOnlyList<FromCatalogueRow>? Items
 
 public static class ProductEndpoints
 {
+    /// <summary>The EAN-13 check digit for the first 12 digits.</summary>
+    public static int Ean13Check(string twelve) => (10 - twelve.Select((c, i) => (c - '0') * (i % 2 == 0 ? 1 : 3)).Sum() % 10) % 10;
+
     public static IEndpointRouteBuilder MapCatalogue(this IEndpointRouteBuilder app)
     {
         var products = app.MapGroup("/api/v1/products").WithTags("Catalogue").RequireAuthorization(AppPolicies.ShopMember);
@@ -235,6 +240,54 @@ public static class ProductEndpoints
 
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
+        });
+
+        // The item's barcode: a code from its pack ("8901234567890"), set or cleared by the shop. Unique in the shop,
+        // since scanning it at the counter adds this item to the bill.
+        products.MapPut("/{id:guid}/barcode", async (Guid id, BarcodeRequest request, AppDbContext db, CancellationToken ct) =>
+        {
+            var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id, ct);
+            if (product is null)
+            {
+                return Results.NotFound();
+            }
+
+            var code = new string((request.Barcode ?? "").Where(char.IsAsciiLetterOrDigit).ToArray());
+            if (code.Length is > 0 and (< 4 or > 30))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["A barcode is 4 to 30 letters and digits."] });
+            }
+
+            if (code.Length > 0 && await db.Products.AnyAsync(p => p.Id != id && p.Barcode == code && p.IsActive, ct))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["Another item already has this barcode."] });
+            }
+
+            product.Barcode = code.Length > 0 ? code : null;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { product.Barcode });
+        });
+
+        // A shop code for an item with no barcode of its own (loose clothes): EAN-13 in the in-store range (starts with 2),
+        // with its check digit, so any scanner reads the printed tag. Numbered after the shop's highest such code.
+        products.MapPost("/{id:guid}/barcode/new", async (Guid id, AppDbContext db, CancellationToken ct) =>
+        {
+            var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id, ct);
+            if (product is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (product.Barcode is null)
+            {
+                var used = await db.Products.Where(p => p.Barcode != null && p.Barcode.Length == 13 && p.Barcode.StartsWith("2")).Select(p => p.Barcode!).ToListAsync(ct);
+                var next = used.Select(c => long.TryParse(c[1..12], out var n) ? n : 0).DefaultIfEmpty(0).Max() + 1;
+                var body = "2" + next.ToString("D11");
+                product.Barcode = body + Ean13Check(body);
+                await db.SaveChangesAsync(ct);
+            }
+
+            return Results.Ok(new { product.Barcode });
         });
 
         var stockGroup = app.MapGroup("/api/v1").WithTags("Stock").RequireAuthorization(AppPolicies.ShopMember);

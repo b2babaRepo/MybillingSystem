@@ -252,6 +252,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
           <Field label={t('styles.colour')} value={form.colour} onChange={set('colour')} maxLength={30} />
         </div>
       )}
+      {!product.isService && <BarcodeRow product={product} />}
       {!product.isService && (
         <button type="button" onClick={() => void addVariant()} className="min-h-11 self-start rounded-xl border-2 border-dashed border-teal-700 px-3 font-semibold text-teal-800">{t('styles.addVariant')}</button>
       )}
@@ -362,5 +363,38 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
         {error && <p className="text-sm text-due">{error}</p>}
       </div>
     </section>
+  )
+}
+
+/** The item's barcode for billing by scan: typed from the pack, or a shop code made for loose clothes; then tags. */
+function BarcodeRow({ product }: { product: Product }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [code, setCode] = useState(product.barcode ?? '')
+  const [message, setMessage] = useState('')
+  async function save(path: string, method: 'PUT' | 'POST', body: unknown) {
+    setMessage('')
+    try {
+      const r = await api<{ barcode: string | null }>(path, method, body)
+      setCode(r.barcode ?? '')
+      setMessage(t('saved'))
+      void queryClient.invalidateQueries()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
+      <span className="text-sm font-semibold text-muted">{t('barcodeBill.label')}</span>
+      <div className="grid grid-cols-[1fr_auto] gap-2">
+        <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={30} aria-label={t('barcodeBill.label')} className="h-11 min-w-0 rounded-xl border border-line px-3" />
+        <button type="button" onClick={() => void save(`/v1/products/${product.id}/barcode`, 'PUT', { barcode: code })} className="h-11 rounded-xl border border-line px-3 font-semibold">{t('save')}</button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {!product.barcode && <button type="button" onClick={() => void save(`/v1/products/${product.id}/barcode/new`, 'POST', {})} className="min-h-11 rounded-xl border-2 border-teal-700 px-2 text-sm font-semibold text-teal-800">{t('barcodeBill.make')}</button>}
+        <button type="button" onClick={() => navigate(`/tags/${product.id}`)} className="min-h-11 rounded-xl border border-line px-2 text-sm font-semibold">{t('tags.open')}</button>
+      </div>
+      {message && <p className="text-xs text-muted">{message}</p>}
+    </div>
   )
 }

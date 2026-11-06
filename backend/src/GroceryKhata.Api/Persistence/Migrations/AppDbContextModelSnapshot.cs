@@ -3018,6 +3018,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
 
+                    b.Property<decimal>("ExchangeCredit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("exchange_credit");
+
+                    b.Property<Guid?>("ExchangeNoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("exchange_note_id");
+
                     b.Property<string>("FinancialYear")
                         .IsRequired()
                         .HasMaxLength(7)
@@ -3745,11 +3754,19 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
 
+                    b.Property<Guid?>("ExchangeBillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("exchange_bill_id");
+
                     b.Property<string>("FinancialYear")
                         .IsRequired()
                         .HasMaxLength(7)
                         .HasColumnType("character varying(7)")
                         .HasColumnName("financial_year");
+
+                    b.Property<bool>("ForExchange")
+                        .HasColumnType("boolean")
+                        .HasColumnName("for_exchange");
 
                     b.Property<int>("Number")
                         .HasColumnType("integer")

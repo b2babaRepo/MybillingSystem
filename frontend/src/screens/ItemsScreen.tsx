@@ -137,6 +137,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
               <span className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-[16px] font-semibold">{entry.name}</span>
                 <span className="shrink-0 text-[13px] text-muted">{t('styles.total', { count: entry.items.reduce((n, x) => n + Math.max(0, x.stock), 0) })}</span>
+                {isOwner && <button onClick={() => navigate(`/tags/${entry.items.map((x) => x.id).join(',')}`)} className="min-h-9 shrink-0 rounded-lg border border-line px-2 text-[13px] font-semibold">{t('tags.short')}</button>}
                 {isOwner && <button onClick={() => setReceiving(entry.name)} className="min-h-9 shrink-0 rounded-lg bg-teal-700 px-2.5 text-[13px] font-bold text-white">{t('styles.receive')}</button>}
               </span>
               <span className="flex flex-wrap gap-1.5">
