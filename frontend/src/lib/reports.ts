@@ -59,6 +59,8 @@ export interface ShopSettings {
   /** Printed on tax bills. */
   gstin?: string | null
   gstComposition?: boolean
+  /** The most a helper may take off an item's regular price, in percent. */
+  staffMaxDiscountPercent?: number
   extraTypes?: ShopType[] | null
 }
 

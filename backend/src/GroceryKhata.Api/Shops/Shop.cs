@@ -43,6 +43,9 @@ public sealed class Shop : Entity
     /// </summary>
     public string? ReminderTemplate { get; set; }
 
+    /// <summary>The most a helper (not the owner) may take off an item's regular price on a bill, in percent.</summary>
+    public decimal StaffMaxDiscountPercent { get; set; } = 10m;
+
     /// <summary>False when the shop is closed; its members can no longer sign in to it.</summary>
     public bool IsActive { get; set; } = true;
 

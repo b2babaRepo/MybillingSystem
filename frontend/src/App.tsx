@@ -380,7 +380,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/disputes' ? (
           <DisputesScreen isOwner={isOwner} />
         ) : path === '/bill' ? (
-          <BillScreen shopId={shopId} shopName={shopName} />
+          <BillScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
         ) : path === '/items' ? (
           <ItemsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/sync' ? (

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { garmentRate } from '../lib/gst'
 import { useTranslation } from 'react-i18next'
 import { ItemCard } from '../components/ItemCard'
 import { imageUrl } from '../lib/images'
@@ -17,7 +18,7 @@ import { ask } from '../components/Ask'
 const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))
 
 /** Item billing: tap tiles, adjust quantities, choose who pays and how much now. The rest goes on khata. */
-export function BillScreen({ shopId, shopName }: { shopId: string; shopName: string }) {
+export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: string; shopName: string; isOwner?: boolean }) {
   const { t } = useTranslation()
   const { products } = useProducts(shopId)
   const rank = usePopularOrder(shopId)
@@ -60,6 +61,12 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
   }, [])
   // A line with no price would go out free: the bill waits until every line has one.
   const unpriced = cart.some((l) => !(l.unitPrice > 0))
+  // Discounts: a line sold below its item's regular price. Helpers have a limit the owner sets (the server checks it too).
+  const staffLimit = useShopSettings(shopId).data?.staffMaxDiscountPercent ?? 10
+  const regularOf = (l: CartLine) => products.find((p) => p.id === l.productId)?.sellingPrice ?? 0
+  const offOf = (l: CartLine) => { const r = regularOf(l); return r > 0 && l.unitPrice > 0 && l.unitPrice < r ? { amount: round2((r - l.unitPrice) * l.quantity), percent: Math.round(((r - l.unitPrice) / r) * 1000) / 10 } : null }
+  const discountTotal = round2(cart.reduce((sum, l) => sum + (offOf(l)?.amount ?? 0), 0))
+  const overLimit = !isOwner && cart.some((l) => (offOf(l)?.percent ?? 0) > staffLimit)
   const total = useMemo(() => round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [cart])
   const customer = customers.find((c) => c.id === customerId) ?? null
   const paidAmount = paid === null || !customer ? total : Math.min(Number(paid) || 0, total)
@@ -193,13 +200,37 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
                 />
                 /{t(`units.${l.unit}`)}
               </label>
+              {regularOf(l) > 0 && (
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {/* One tap for the usual shop discounts, from the item's regular price; tap the price box for any other. */}
+                  {[5, 10].map((pct) => (
+                    <button key={pct} type="button" onClick={() => setPrice(i, round2(regularOf(l) * (1 - pct / 100)))}
+                      className="h-8 rounded-full border border-line px-2.5 text-xs font-semibold">{t('discount.chip', { percent: pct })}</button>
+                  ))}
+                  {offOf(l) && (
+                    <>
+                      <span className={`text-xs font-semibold ${!isOwner && offOf(l)!.percent > staffLimit ? 'text-due' : 'text-teal-800'}`}>
+                        {t('discount.off', { amount: formatRupees(offOf(l)!.amount), percent: offOf(l)!.percent })}
+                      </span>
+                      <button type="button" onClick={() => setPrice(i, regularOf(l))} className="h-8 px-1 text-xs text-muted underline">{t('discount.undo')}</button>
+                    </>
+                  )}
+                </div>
+              )}
+              {!isOwner && (offOf(l)?.percent ?? 0) > staffLimit && <p className="text-xs font-semibold text-due">{t('discount.overLimit', { percent: staffLimit })}</p>}
               {(() => {
                 // Medicines run on thin margins: warn when this price, before GST, is at or under what the item cost.
                 const p = products.find((x) => x.id === l.productId)
                 if (!p || p.costPrice == null || !(l.unitPrice > 0)) return null
-                const net = l.unitPrice / (1 + (p.gstRate ?? 0) / 100)
+                const net = l.unitPrice / (1 + (garmentRate(p.hsnCode, p.gstRate, l.unitPrice) ?? 0) / 100)
                 const margin = ((net - p.costPrice) / net) * 100
                 return margin < 5 ? <p className={`text-xs font-semibold ${margin <= 0 ? 'text-due' : 'text-amber-800'}`}>{t(margin <= 0 ? 'pmonth.belowCost' : 'pmonth.thinMargin', { percent: Math.round(margin * 10) / 10 })}</p> : null
+              })()}
+              {(() => {
+                // A clothes line priced above ₹2,500 a piece is billed at 18%: say so, so the higher total isn't a surprise.
+                const p = products.find((x) => x.id === l.productId)
+                return p && l.unitPrice > 0 && garmentRate(p.hsnCode, p.gstRate, l.unitPrice) === 18 && p.gstRate !== 18
+                  ? <p className="text-xs font-semibold text-amber-800">{t('garmentGst.high')}</p> : null
               })()}
               {(() => { const per = products.find((p) => p.id === l.productId)?.unitsPerPack; return per ? (
                 <button onClick={() => sellLoose(i, per)} className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('loose.button')}</button>
@@ -215,12 +246,17 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
             <div className="w-20 text-right font-semibold">{formatRupees(round2(l.quantity * l.unitPrice))}</div>
           </div>
         ))}
-        {cart.length > 0 && (
+        {cart.length > 0 && (<>
+          {discountTotal > 0 && (
+            <div className="mt-2 flex justify-between text-sm font-semibold text-teal-800">
+              <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>
+            </div>
+          )}
           <div className="mt-2 flex justify-between text-xl font-bold">
             <span>{t('total')}</span>
             <span>{formatRupees(total)}</span>
           </div>
-        )}
+        </>)}
       </div>
 
       {cart.length > 0 && (
@@ -276,7 +312,7 @@ export function BillScreen({ shopId, shopName }: { shopId: string; shopName: str
           </div>
           {mode === 'upi' && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={paidAmount} />}
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
-          <Button className="w-full" onClick={save} disabled={total <= 0 || unpriced || rxMissing || serialsMissing}>
+          <Button className="w-full" onClick={save} disabled={total <= 0 || unpriced || rxMissing || serialsMissing || overLimit}>
             {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(total) }) : `${t('saveBill')} · ${formatRupees(total)}`}
           </Button>
         </div>

@@ -195,6 +195,11 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
         </tbody>
       </table>
       <div className="mt-4 flex flex-col gap-1 border-t-2 border-black pt-2 text-lg">
+        {(() => {
+          // What the customer saved against the items' regular prices, from the prices the server kept on each line.
+          const saved = Math.round(bill.lines.reduce((sum, l) => sum + (l.listPrice != null && l.listPrice > l.unitPrice ? (l.listPrice - l.unitPrice) * l.quantity : 0), 0) * 100) / 100
+          return saved > 0 ? <p className="flex justify-between text-sm font-semibold"><span>{t('discount.saved')}</span><span>{formatRupees(saved)}</span></p> : null
+        })()}
         <p className="flex justify-between text-xl font-extrabold"><span>{t('print.total')}</span><span>{formatRupees(bill.total)}</span></p>
         <p className="flex justify-between"><span>{t('print.paid')}{bill.paymentMode && ` (${t(bill.paymentMode)})`}</span><span>{formatRupees(bill.paidAmount)}</span></p>
         {bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.onKhata')}</span><span>{formatRupees(bill.onKhata)}</span></p>}

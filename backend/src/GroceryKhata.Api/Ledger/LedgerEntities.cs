@@ -182,6 +182,9 @@ public sealed class BillLine : Entity, ITenantOwned
 
     public decimal UnitPrice { get; set; }
 
+    /// <summary>The item's regular price when this line was sold below it (a discount); null at the regular price or above.</summary>
+    public decimal? ListPrice { get; set; }
+
     public decimal Amount { get; set; }
 
     /// <summary>The item's GST % and HSN code when sold (kept, so a later change doesn't rewrite old bills).</summary>

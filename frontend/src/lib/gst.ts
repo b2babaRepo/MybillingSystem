@@ -4,6 +4,16 @@ import type { BillLineView } from './types'
 export const GST_RATES = ['0', '5', '18', '40']
 
 /**
+ * Clothes and footwear (HSN 61, 62, 64): 5% when a piece sells at up to ₹2,500 before GST, 18% above (from Sep 2025).
+ * The same rule as the server's GarmentGst, so the bill screen shows what the saved bill will charge.
+ */
+export function garmentRate(hsnCode: string | null | undefined, itemRate: number | null | undefined, unitPrice: number) {
+  const garment = !!hsnCode && /^(61|62|64)/.test(hsnCode)
+  if (!garment || !(itemRate === 5 || itemRate === 12 || itemRate === 18)) return itemRate ?? null
+  return unitPrice / 1.05 <= 2500 ? 5 : 18
+}
+
+/**
  * GST inside GST-inclusive prices, by rate: taxable value = amount ÷ (1 + rate), tax = the rest, split equally into
  * CGST and SGST (a sale within the state, which a counter sale is). 0% lines are a row of their own; lines with no
  * rate set aren't in the table (see {@link gstUnsetAmount}).

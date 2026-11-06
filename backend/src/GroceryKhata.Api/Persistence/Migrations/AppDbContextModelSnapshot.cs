@@ -3121,6 +3121,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("line_no");
 
+                    b.Property<decimal?>("ListPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("list_price");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -7153,6 +7158,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
                         .HasColumnName("slug");
+
+                    b.Property<decimal>("StaffMaxDiscountPercent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("staff_max_discount_percent");
 
                     b.Property<string>("State")
                         .HasMaxLength(80)

@@ -206,6 +206,8 @@ export interface BillLineView {
   cgst?: number | null
   sgst?: number | null
   igst?: number | null
+  /** The item's regular price when the line was sold below it (a discount). */
+  listPrice?: number | null
 }
 
 export type DrugSchedule = 'g' | 'h' | 'h1' | 'x'
