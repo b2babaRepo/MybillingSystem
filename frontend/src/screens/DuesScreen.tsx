@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { DataTable } from '../components/DataTable'
 import { Sheet } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
@@ -42,12 +43,12 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px]">
+      <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px] lg:flex-row lg:items-center lg:gap-6">
         <button onClick={() => setBucket('all')} className="flex min-h-11 items-center justify-between text-left" aria-pressed={bucket === 'all'}>
           <span className="text-[15px] font-semibold text-muted">{t('dues.total')}</span>
           <span className="text-[34px] leading-none font-extrabold text-due">{formatRupees(data.total)}</span>
         </button>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2 lg:flex-1">
           {buckets.map((b) => (
             <button key={b.key} onClick={() => setBucket(bucket === b.key ? 'all' : b.key)} aria-pressed={bucket === b.key}
               className={`flex min-h-14 flex-col rounded-xl p-2.5 text-left ${b.tone} ${bucket === b.key ? 'ring-2 ring-ink' : ''}`}>
@@ -59,9 +60,30 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
       </section>
 
       {data.customers.length === 0 && <p className="py-8 text-center text-muted">{t('dues.empty')}</p>}
-      <ul className="flex flex-col gap-2">
-        {shown.map((d) => (
-          <li key={d.customerId} className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      {shown.length > 0 && (
+        <DataTable
+          label={t('dues.title')}
+          rows={shown}
+          rowKey={(d) => d.customerId}
+          onRowClick={(d) => navigate(`/c/${d.customerId}`)}
+          columns={[
+            { key: 'name', header: t('dues.colName'), sortValue: (d) => d.name, render: (d) => (
+              <span className="flex flex-col"><span className="font-bold">{d.name}</span>
+                {d.lastRemindedAt && <span className="text-xs text-muted">{t('dues.remindedAgo', { when: ago(d.lastRemindedAt, t) })}</span>}</span>) },
+            { key: 'days', header: t('dues.colDays'), align: 'right', sortValue: (d) => d.oldestDays, render: (d) => d.oldestDays },
+            { key: 'd0', header: t('dues.bucket0'), align: 'right', sortValue: (d) => d.days0To7, render: (d) => (d.days0To7 ? formatRupees(d.days0To7) : '—') },
+            { key: 'd8', header: t('dues.bucket8'), align: 'right', sortValue: (d) => d.days8To30, render: (d) => (d.days8To30 ? formatRupees(d.days8To30) : '—') },
+            { key: 'd30', header: t('dues.bucket30'), align: 'right', sortValue: (d) => d.over30, render: (d) => (d.over30 ? <span className="font-semibold text-red-800">{formatRupees(d.over30)}</span> : '—') },
+            { key: 'bal', header: t('dues.colTotal'), align: 'right', sortValue: (d) => d.balance, render: (d) => <span className="font-bold text-due">{formatRupees(d.balance)}</span> },
+            { key: 'act', header: '', align: 'right', render: (d) => (
+              <span className="inline-flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                {d.phone && <a href={whatsAppLink(d.phone, reminderFor(d))} target="_blank" rel="noreferrer" onClick={() => markReminded(d)} className="rounded-lg bg-[#15803d] px-2.5 py-1.5 text-sm font-semibold text-white">{t('dues.remind')}</a>}
+                <button onClick={() => setScript(d)} className="rounded-lg border border-line px-2.5 py-1.5 text-sm font-semibold">{t('dues.script')}</button>
+              </span>) },
+          ]}
+          footer={[t('dues.colTotal'), '', formatRupees(shown.reduce((n, d) => n + d.days0To7, 0)), formatRupees(shown.reduce((n, d) => n + d.days8To30, 0)), formatRupees(shown.reduce((n, d) => n + d.over30, 0)), formatRupees(shown.reduce((n, d) => n + d.balance, 0)), '']}
+          renderCard={(d) => (
+          <div className="mb-2 flex flex-col gap-2 rounded-[18px] bg-white p-4">
             <button onClick={() => navigate(`/c/${d.customerId}`)} className="flex items-start justify-between gap-2 text-left">
               <span className="flex flex-col">
                 <span className="text-[17px] font-bold">{d.name}</span>
@@ -87,9 +109,10 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
               )}
               <button onClick={() => setScript(d)} className="min-h-11 rounded-xl border border-line font-semibold">{t('dues.script')}</button>
             </div>
-          </li>
-        ))}
-      </ul>
+          </div>
+          )}
+        />
+      )}
 
       {script && (
         <Sheet title={t('dues.scriptTitle')} onClose={() => setScript(null)}>

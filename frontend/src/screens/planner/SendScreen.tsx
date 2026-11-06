@@ -204,7 +204,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
         </label>
       </section>
 
-      <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3">
+      <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:left-60 lg:max-w-4xl max-w-xl border-t border-line bg-white px-4 py-3">
         <button onClick={send} disabled={!shop || busy || items.length === 0} className="h-14 w-full rounded-2xl bg-teal-700 text-lg font-bold text-white disabled:opacity-40">
           {shop ? `${t('plan.send')} · ${shop.name}` : t('plan.pickShopFirst')}
         </button>

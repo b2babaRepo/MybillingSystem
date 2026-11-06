@@ -51,7 +51,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
 
       {report.isError && <p className="text-due">{report.error.message}</p>}
       {data && (
-        <>
+        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start">
           <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px]">
             <div className="flex items-baseline justify-between">
               <span className="text-[15px] font-semibold text-muted">{t('reports.sales')}</span>
@@ -150,7 +150,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             )}
             {error && <p className="text-sm text-due">{error}</p>}
           </section>
-        </>
+        </div>
       )}
     </div>
   )

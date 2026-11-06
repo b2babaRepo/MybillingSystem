@@ -7,7 +7,7 @@ import type { Order, OrderStatus } from '../lib/planner'
 import { navigate } from '../router'
 
 /** Mockup 7: lists households sent to this shop, newest first, by stage. Needs the network. */
-export function InboxScreen({ shopId }: { shopId: string }) {
+export function InboxScreen({ shopId, selectedId }: { shopId: string; selectedId?: string }) {
   const { t } = useTranslation()
   const [status, setStatus] = useState<OrderStatus>('placed')
   const orders = useQuery({
@@ -41,7 +41,7 @@ export function InboxScreen({ shopId }: { shopId: string }) {
       {orders.isError && <p className="text-due">{orders.error.message}</p>}
       {orders.data?.length === 0 && <p className="py-8 text-center text-muted">{t('inbox.empty')}</p>}
       {orders.data?.map((order) => (
-        <section key={order.id} className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <section key={order.id} onClick={() => navigate(`/o/${order.id}`)} aria-current={selectedId === order.id ? 'true' : undefined} className={`flex flex-col gap-2 rounded-[18px] bg-white p-4 lg:cursor-pointer lg:hover:shadow-md ${selectedId === order.id ? 'lg:ring-2 lg:ring-teal-700' : ''}`}>
           <div className="flex items-start justify-between gap-2">
             <span className="flex flex-col">
               <span className="text-[17px] font-bold">{order.customerName}</span>
@@ -68,7 +68,7 @@ export function InboxScreen({ shopId }: { shopId: string }) {
             <span>{order.slot ?? formatDateTime(order.createdAt)}</span>
             {order.note && <span className="truncate pl-2">“{order.note}”</span>}
           </div>
-          <button onClick={() => navigate(`/o/${order.id}`)} className="h-12 rounded-2xl bg-teal-700 font-bold text-white">
+          <button onClick={() => navigate(`/o/${order.id}`)} className="h-12 rounded-2xl bg-teal-700 font-bold text-white lg:h-10">
             {order.status === 'placed' ? t('inbox.startPacking') : t('inbox.open')}
           </button>
         </section>

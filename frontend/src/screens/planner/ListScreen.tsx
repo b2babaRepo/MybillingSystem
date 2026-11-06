@@ -220,7 +220,7 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
       )}
 
       {list.items.length > 0 && (
-        <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto flex max-w-xl items-center gap-3 border-t border-line bg-white px-4 py-3">
+        <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:left-60 lg:max-w-4xl flex max-w-xl items-center gap-3 border-t border-line bg-white px-4 py-3">
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="text-[13px] text-muted">{atShop ? t('shopFirst.totalAt', { here: hereItems.length, name: shop!.name }) : <>{t('plan.itemsCount', { count: list.items.length })}{estimate > 0 ? ` · ${t('home2.about')}` : ''}</>}</span>
             {estimate > 0 && <span className="text-[22px] leading-tight font-extrabold">{formatRupees(estimate)}</span>}

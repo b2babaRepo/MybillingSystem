@@ -127,7 +127,22 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
         </section>
       )}
       {filter !== 'suggested' && !isLoading && products.length > 0 && shown.length === 0 && <p className="py-8 text-center text-muted">{t('items2.none')}</p>}
+      {filter !== 'suggested' && (
+        <div className="hidden items-center justify-between lg:flex">
+          <span className="text-sm text-muted">{t('items2.count', { count: shown.length })}</span>
+          <Button className="px-5" onClick={() => setAdding(true)}>+ {t('addItem')}</Button>
+        </div>
+      )}
       <ul className={`divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white ${filter === 'suggested' ? 'hidden' : ''}`}>
+        {shown.length > 0 && (
+          <li aria-hidden className="hidden items-center gap-3 bg-[#f6faf9] px-3 py-2 text-[13px] font-semibold text-muted lg:flex">
+            <span className="w-[52px] shrink-0" />
+            <span className="flex-1">{t('items2.colName')}</span>
+            <span className="w-28 text-right">{t('items2.colPrice')}</span>
+            <span className="w-44">{t('items2.colCategory')}</span>
+            <span className="w-28 text-right">{t('items2.colStock')}</span>
+          </li>
+        )}
         {groupStyles(shown).map((entry) => entry.kind === 'style' ? (
           <li key={`style-${entry.name}`} className="flex items-start gap-3 px-3 py-2.5">
             {(() => { const first = entry.items.find((x) => x.imageAt) ?? entry.items[0]; const th = imageUrl(shopId, first.id, first.imageAt, 'thumb'); const art = itemArt({ name: entry.name })
@@ -154,7 +169,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
           const thumb = imageUrl(shopId, p.id, p.imageAt, 'thumb')
           const art = itemArt({ name: p.name })
           return (
-            <li key={p.id} className="flex items-center gap-3 px-3 py-2.5">
+            <li key={p.id} className="flex items-center gap-3 px-3 py-2.5 lg:py-1.5 lg:hover:bg-[#f6faf9]">
               {thumb ? (
                 <button onClick={() => setZoom({ src: imageUrl(shopId, p.id, p.imageAt)!, name: p.name })} aria-label={t('pick.zoom', { name: p.name })} title={t('pick.zoom', { name: p.name })}
                   className="shrink-0 cursor-zoom-in rounded-xl transition-transform hover:scale-110">
@@ -169,19 +184,23 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
                     <span className="truncate">{p.name}</span>
                     {p.pending && <PendingDot />}
                   </span>
-                  <span className="truncate text-[13px] text-muted">
+                  <span className="truncate text-[13px] text-muted lg:hidden">
                     {p.sellingPrice > 0 ? <b className="font-bold text-ink">{formatRupees(p.sellingPrice)}</b> : <span className="font-semibold text-udhaar">{t('stock.noPrice')}</span>}
                     {p.sellingPrice > 0 && `/${t(`units.${p.unit}`)}`}
                     {p.category && ` · ${p.category}`}
                   </span>
                 </span>
-                <StockPill product={p} />
+                <span className="hidden w-28 shrink-0 text-right lg:block">
+                  {p.sellingPrice > 0 ? <><b>{formatRupees(p.sellingPrice)}</b><span className="text-[13px] text-muted">/{t(`units.${p.unit}`)}</span></> : <span className="text-[13px] font-semibold text-udhaar">{t('stock.noPrice')}</span>}
+                </span>
+                <span className="hidden w-44 shrink-0 truncate text-[14px] text-muted lg:block">{p.category ?? '—'}</span>
+                <span className="flex shrink-0 justify-end lg:w-28"><StockPill product={p} /></span>
               </button>
             </li>
           )
         })(entry.product))}
       </ul>
-      <Button className="fixed right-[max(1rem,calc(50vw-17rem))] bottom-24 h-14 rounded-full! px-6 shadow-[0_6px_16px_rgba(15,118,110,0.35)]" onClick={() => setAdding(true)}>
+      <Button className="fixed right-[max(1rem,calc(50vw-17rem))] bottom-24 h-14 lg:hidden rounded-full! px-6 shadow-[0_6px_16px_rgba(15,118,110,0.35)]" onClick={() => setAdding(true)}>
         + {t('addItem')}
       </Button>
       {adding && <AddProductSheet shopId={shopId} categories={categories} onClose={() => setAdding(false)} />}

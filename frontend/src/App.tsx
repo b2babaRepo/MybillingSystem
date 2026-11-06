@@ -1,3 +1,4 @@
+import { ListDetail } from './components/ListDetail'
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AccountMenu } from './components/AccountMenu'
@@ -225,6 +226,22 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     { path: '/items', label: t('items'), icon: <ItemsIcon size={22} /> },
   ]
   const isTab = tabs.some((tab) => tab.path === path)
+  // Desktop only: the pages a phone reaches from Home get their own place in the side menu, in two groups.
+  const sideGroups: { title: string; links: { path: string; label: string }[] }[] = [
+    { title: t('side.money'), links: [
+      { path: '/dues', label: t('side.dues') },
+      { path: '/cashbook', label: t('side.cashbook') },
+      { path: '/expenses', label: t('side.expenses') },
+      { path: '/reports', label: t('side.reports') },
+      ...(isOwner ? [{ path: '/pnl', label: t('side.pnl') }, { path: '/gst', label: 'GST' }] : []),
+    ] },
+    { title: t('side.shop'), links: [
+      { path: '/stocktake', label: t('side.stocktake') },
+      ...(isOwner ? [{ path: '/suppliers', label: t('side.suppliers') }, { path: '/settings', label: t('side.settings') }] : []),
+    ] },
+  ]
+  const sideLink = sideGroups.flatMap((g) => g.links).filter((l) => path === l.path || path.startsWith(l.path + '/')).sort((a, b) => b.path.length - a.path.length)[0]
+  const pageTitle = tabs.find((tab) => tab.path === path)?.label ?? sideLink?.label
   const unsynced = pending + failed
 
   const kharchaPrint = path.match(/^\/print\/kharcha\/(\d{4}-\d{2})$/)
@@ -244,16 +261,16 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   }
 
   return (
-    <div className="mx-auto min-h-dvh max-w-xl pb-20">
+    <div className="mx-auto min-h-dvh max-w-xl pb-20 lg:max-w-none lg:pb-6 lg:pl-60">
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white">
         {!isTab && (
-          <button onClick={() => navigate(customerMatch ? '/khata' : orderMatch ? '/inbox' : isItemsPage ? '/items' : path === '/settings/staff' ? '/settings' : '/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}>
+          <button onClick={() => navigate(customerMatch ? '/khata' : orderMatch ? '/inbox' : isItemsPage ? '/items' : path === '/settings/staff' ? '/settings' : '/')} className={`-ml-2 flex h-11 w-11 items-center justify-center ${sideLink || customerMatch || orderMatch ? 'lg:hidden' : ''}`} aria-label={t('a11y.back')}>
             <BackIcon />
           </button>
         )}
         <div className="flex min-w-0 flex-1 flex-col">
           {path === '/' && <span className="text-sm opacity-85">{t('greeting', { name: userName.split(' ')[0] })}</span>}
-          <h1 className="truncate text-xl font-bold">{shopName}</h1>
+          <h1 className="truncate text-xl font-bold">{shopName}{pageTitle && <span className="hidden font-semibold opacity-85 lg:inline"> · {pageTitle}</span>}</h1>
         </div>
         <button
           onClick={() => navigate('/sync')}
@@ -281,10 +298,11 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         />
       </header>
 
-      <main>
+      {/* Desktop width: billing and the item list use the room; the other pages stay a readable width. */}
+      <main className={`lg:mx-auto ${path === '/bill' || path === '/items' || path === '/items/pick' || path === '/khata' || path === '/dues' || path === '/inbox' || path === '/suppliers' || path === '/settings' || path === '/settings/staff' || customerMatch || orderMatch ? 'lg:max-w-6xl' : 'lg:max-w-4xl'}`}>
         <Suspense fallback={<Loading />}>
         {customerMatch ? (
-          <CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} focusEntryId={customerMatch[2]} isOwner={isOwner} userName={userName} />
+          <ListDetail hasDetail list={<CustomersScreen shopId={shopId} selectedId={customerMatch[1]} />} detail={<CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} focusEntryId={customerMatch[2]} isOwner={isOwner} userName={userName} />} />
         ) : path === '/dues' ? (
           <DuesScreen shopId={shopId} shopName={shopName} />
         ) : path === '/reports' ? (
@@ -382,11 +400,11 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/import' ? (
           <ImportScreen shopId={shopId} />
         ) : orderMatch ? (
-          <OrderScreen shopId={shopId} orderId={orderMatch[1]} />
+          <ListDetail hasDetail list={<InboxScreen shopId={shopId} selectedId={orderMatch[1]} />} detail={<OrderScreen shopId={shopId} orderId={orderMatch[1]} />} />
         ) : path === '/inbox' ? (
-          <InboxScreen shopId={shopId} />
+          <ListDetail hasDetail={false} list={<InboxScreen shopId={shopId} />} detail={null} placeholder={t('inboxPick')} />
         ) : path === '/khata' ? (
-          <CustomersScreen shopId={shopId} />
+          <ListDetail hasDetail={false} list={<CustomersScreen shopId={shopId} />} detail={null} placeholder={t('khataPick')} />
         ) : path === '/disputes' ? (
           <DisputesScreen isOwner={isOwner} />
         ) : path === '/bill' ? (
@@ -403,24 +421,39 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
 
       <AppBanners />
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:right-auto lg:mx-0 lg:h-auto lg:w-60 lg:max-w-none lg:auto-rows-auto lg:grid-cols-1 lg:content-start lg:gap-1 lg:overflow-y-auto lg:border-t-0 lg:border-r lg:px-3 lg:pt-20 lg:pb-6 lg:[&>button]:min-h-12">
         {tabs.map((tab) => (
           <button
             key={tab.path}
             onClick={() => navigate(tab.path)}
             aria-current={path === tab.path ? 'page' : undefined}
-            className={`relative flex flex-col items-center justify-center gap-0.5 text-[13px] ${
-              path === tab.path ? 'font-bold text-teal-700' : 'font-semibold text-muted'
+            className={`relative flex flex-col items-center justify-center gap-0.5 text-[13px] lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-4 lg:text-base ${
+              path === tab.path ? 'font-bold text-teal-700 lg:bg-teal-50' : 'font-semibold text-muted lg:hover:bg-[#f1f5f4]'
             }`}
           >
             {tab.icon}
             {tab.label}
             {!!tab.badge && (
-              <span className="absolute top-1.5 right-[calc(50%-22px)] min-w-5 rounded-full bg-udhaar px-1.5 text-xs font-bold text-white" aria-label={`${tab.badge}`}>
+              <span className="absolute top-1.5 right-[calc(50%-22px)] min-w-5 lg:static lg:ml-auto rounded-full bg-udhaar px-1.5 text-xs font-bold text-white" aria-label={`${tab.badge}`}>
                 {tab.badge}
               </span>
             )}
           </button>
+        ))}
+        {sideGroups.map((group) => group.links.length > 0 && (
+          <div key={group.title} className="hidden lg:flex lg:flex-col lg:gap-0.5">
+            <span className="mt-4 px-4 pb-1 text-xs font-bold tracking-wide text-muted uppercase">{group.title}</span>
+            {group.links.map((link) => (
+              <button
+                key={link.path}
+                onClick={() => navigate(link.path)}
+                aria-current={sideLink?.path === link.path ? 'page' : undefined}
+                className={`flex min-h-10 items-center rounded-xl px-4 text-left text-[15px] ${sideLink?.path === link.path ? 'bg-teal-50 font-bold text-teal-700' : 'font-semibold text-muted hover:bg-[#f1f5f4]'}`}
+              >
+                {link.label}
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
     </div>

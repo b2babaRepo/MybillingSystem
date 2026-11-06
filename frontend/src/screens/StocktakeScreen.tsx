@@ -58,7 +58,7 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
           </li>
         ))}
       </ul>
-      <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3">
+      <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:left-60 lg:max-w-4xl max-w-xl border-t border-line bg-white px-4 py-3">
         <Button className="h-14 w-full" disabled={busy || counted.length === 0} onClick={save}>
           {t('stock.saveCount', { count: counted.length })}
         </Button>

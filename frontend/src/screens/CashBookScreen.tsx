@@ -36,7 +36,7 @@ export function CashBookScreen({ shopId }: { shopId: string }) {
 
       {book.isError && <p className="text-due">{book.error.message}</p>}
       {data && (
-        <>
+        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:[&>ul]:col-start-2 lg:[&>ul]:row-span-3 lg:[&>ul]:row-start-1">
           <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px]">
             <span className="text-[15px] font-semibold text-muted">{t('book.received')}</span>
             <span className="text-[40px] leading-none font-extrabold">{formatRupees(data.total)}</span>
@@ -77,7 +77,7 @@ export function CashBookScreen({ shopId }: { shopId: string }) {
               </li>
             ))}
           </ul>
-        </>
+        </div>
       )}
     </div>
   )

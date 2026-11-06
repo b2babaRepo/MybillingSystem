@@ -47,7 +47,7 @@ export function ProfitLossScreen() {
         </select></label>
       {data.isError && <p className="text-due">{data.error.message}</p>}
       {!r && !data.isError && <p className="text-muted">…</p>}
-      {r && <>
+      {r && <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:[&>p]:col-span-2 lg:[&>button]:col-span-2">
         {(r.turnoverAlerts ?? []).map((a) => (
           <p key={a.key} className={`rounded-xl p-3 text-sm font-semibold ${a.crossed ? 'bg-amber-50 text-due' : 'bg-teal-50 text-teal-900'}`}>
             {t(`pnl.limit.${a.key}`, { limit: formatRupees(a.limit), turnover: formatRupees(a.turnover) })} {a.crossed ? t('pnl.limitCrossed') : t('pnl.limitNear')}
@@ -85,7 +85,7 @@ export function ProfitLossScreen() {
         <p className="text-xs text-muted">{t('pnl.hint')}</p>
         <Button tone="plain" onClick={() => void download()}>{t('pnl.download')}</Button>
         {error && <p className="text-sm text-due">{error}</p>}
-      </>}
+      </div>}
     </div>
   )
 }

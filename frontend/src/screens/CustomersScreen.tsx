@@ -7,7 +7,7 @@ import { navigate } from '../router'
 import { OpenDisputesBanner } from '../components/OpenDisputesBanner'
 
 /** Everyone on khata, most due first ("who owes me?"). */
-export function CustomersScreen({ shopId }: { shopId: string }) {
+export function CustomersScreen({ shopId, selectedId }: { shopId: string; selectedId?: string }) {
   const { t } = useTranslation()
   const { customers, isLoading } = useCustomers(shopId)
   const [search, setSearch] = useState('')
@@ -25,6 +25,7 @@ export function CustomersScreen({ shopId }: { shopId: string }) {
   return (
     <div className="p-4">
       <OpenDisputesBanner />
+      <Button className="mb-3 hidden w-full lg:block" onClick={() => setAdding(true)}>+ {t('addCustomer')}</Button>
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -47,7 +48,7 @@ export function CustomersScreen({ shopId }: { shopId: string }) {
       <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
         {shown.map((c) => (
           <li key={c.id}>
-            <button className="flex min-h-16 w-full items-center gap-3 px-3.5 py-3 text-left active:bg-slate-50" onClick={() => navigate(`/c/${c.id}`)}>
+            <button aria-current={selectedId === c.id ? 'true' : undefined} className={`flex min-h-16 w-full items-center gap-3 px-3.5 py-3 text-left active:bg-slate-50 lg:hover:bg-[#f6faf9] ${selectedId === c.id ? 'lg:bg-teal-50' : ''}`} onClick={() => navigate(`/c/${c.id}`)}>
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e0efec] font-bold text-teal-700">{initials(c.name)}</span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 text-[17px] font-semibold">
@@ -61,7 +62,7 @@ export function CustomersScreen({ shopId }: { shopId: string }) {
           </li>
         ))}
       </ul>
-      <Button className="fixed right-[max(1rem,calc(50vw-17rem))] bottom-24 h-14 rounded-full! px-6 shadow-[0_6px_16px_rgba(15,118,110,0.35)]" onClick={() => setAdding(true)}>
+      <Button className="fixed right-[max(1rem,calc(50vw-17rem))] bottom-24 h-14 lg:hidden rounded-full! px-6 shadow-[0_6px_16px_rgba(15,118,110,0.35)]" onClick={() => setAdding(true)}>
         + {t('addCustomer')}
       </Button>
       {adding && <AddCustomerSheet shopId={shopId} onClose={() => setAdding(false)} onAdded={(id) => navigate(`/c/${id}`)} />}

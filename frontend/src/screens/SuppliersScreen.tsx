@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { ListDetail } from '../components/ListDetail'
 import { enqueue } from '../lib/outbox'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,8 +48,9 @@ export function SuppliersScreen({ shopId }: { shopId: string }) {
   const sum = (key: 'days0To15' | 'days16To30' | 'over30') => (suppliers.data ?? []).reduce((total, s) => total + (s[key] ?? 0), 0)
   // Who to pay first: the oldest unpaid bills at the top, then the biggest dues.
   const ordered = [...(suppliers.data ?? [])].sort((a, b) => (b.due > 0 ? 1 : 0) - (a.due > 0 ? 1 : 0) || (b.oldestDays ?? 0) - (a.oldestDays ?? 0) || b.due - a.due)
-  if (openId) return <SupplierPage shopId={shopId} id={openId} onBack={() => setOpenId(null)} />
+  // Desktop: the supplier list stays on the left with the open supplier beside it; a phone shows one at a time.
   return (
+    <ListDetail hasDetail={!!openId} detail={openId && <SupplierPage shopId={shopId} id={openId} onBack={() => setOpenId(null)} />} placeholder={t('suppliers.pick')} list={
     <div className="flex flex-col gap-3 p-4">
       <section className="rounded-[18px] bg-white p-4">
         <span className="text-sm font-semibold text-muted">{t('suppliers.totalDue')}</span>
@@ -64,7 +66,7 @@ export function SuppliersScreen({ shopId }: { shopId: string }) {
       <ul className="flex flex-col gap-2">
         {ordered.map((s) => (
           <li key={s.id}>
-            <button onClick={() => setOpenId(s.id)} className="flex min-h-14 w-full items-center justify-between gap-3 rounded-[18px] bg-white px-4 py-2 text-left">
+            <button onClick={() => setOpenId(s.id)} aria-current={openId === s.id ? 'true' : undefined} className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-[18px] bg-white px-4 py-2 text-left lg:hover:shadow-md ${openId === s.id ? 'lg:ring-2 lg:ring-teal-700' : ''}`}>
               <span className="flex min-w-0 flex-col">
                 <span className="truncate font-bold">{s.name}</span>
                 {s.due > 0 && (s.oldestDays ?? 0) > 0 && (
@@ -83,7 +85,7 @@ export function SuppliersScreen({ shopId }: { shopId: string }) {
         <Button disabled={draft.name.trim().length < 2} onClick={() => void add()}>{t('suppliers.add')}</Button>
         {message && <p className="text-sm text-due">{message}</p>}
       </section>
-    </div>
+    </div>} />
   )
 }
 

@@ -65,7 +65,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         </div>
       </section>
 
-      <section className="mx-4 mt-4 grid grid-cols-2 gap-3">
+      <section className="mx-4 mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Action label={t('newBill')} to="/bill" primary icon={<BillIcon size={28} />} />
         <Action label={t('addUdhaar')} to="/khata" icon={<PlusIcon size={28} className="text-udhaar" />} />
         <Action label={t('receivePayment')} to="/khata" icon={<PaymentIcon size={28} className="text-jama" />} />
@@ -77,14 +77,14 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
       {isOwner && <TodaySummary today={today} shopName={settings?.name ?? ''} lowCount={lowCount} />}
       {isOwner && <Digest />}
 
-      <div className="mx-4 mt-4 grid grid-cols-2 gap-3">
+      <div className="mx-4 mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <button onClick={() => navigate('/cashbook')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
           <span>{t('book.todayLink')}</span><span aria-hidden="true">→</span>
         </button>
         <KharchaRow shopId={shopId} />
       </div>
 
-      <div className="mx-4 mt-3 grid grid-cols-2 gap-3">
+      <div className="mx-4 mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <button onClick={() => navigate('/dues')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
           <span>{t('dues.link')}</span><span aria-hidden="true">→</span>
         </button>

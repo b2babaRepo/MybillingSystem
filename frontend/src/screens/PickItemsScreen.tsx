@@ -157,10 +157,17 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
     }
   }
 
+  const side = (on: boolean) => `flex min-h-10 items-center justify-between gap-2 rounded-xl px-3 text-left text-[15px] ${on ? 'bg-teal-50 font-bold text-teal-800' : 'font-semibold hover:bg-[#f1f5f4]'}`
   const chip = (on: boolean) => `min-h-11 shrink-0 rounded-full px-3 text-sm font-semibold ${on ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`
   return (
-    <div className="flex flex-col gap-3 p-4 pb-28">
-      <div className="-mx-4 -mt-4 flex items-center justify-between gap-2 rounded-b-[22px] bg-teal-700 px-4 pb-4 pt-1 text-white">
+    <div className="p-4 pb-28 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start lg:gap-5">
+      <aside className="hidden lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100dvh-6rem)] lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:rounded-[18px] lg:bg-white lg:p-2" aria-label={t('pick.suggestCategory')}>
+        {popularCount > 0 && <button onClick={() => setCategory(POPULAR)} className={side(category === POPULAR)}>★ {t('pick.popular', { count: popularCount })}</button>}
+        <button onClick={() => setCategory('')} className={side(!category)}><span>{t('pick.all')}</span><span className="text-xs text-muted">{tradeItems.length}</span></button>
+        {tiles.map((c) => <button key={c.name} onClick={() => setCategory(c.name)} className={side(c.name === category)}><span className="truncate">{c.name}</span><span className="text-xs text-muted">{c.count}</span></button>)}
+      </aside>
+      <div className="flex min-w-0 flex-col gap-3">
+      <div className="-mx-4 -mt-4 lg:mx-0 lg:mt-0 lg:rounded-[22px] lg:pt-3 flex items-center justify-between gap-2 rounded-b-[22px] bg-teal-700 px-4 pb-4 pt-1 text-white">
         <span className="flex flex-col">
           <h1 className="text-xl font-extrabold leading-tight">{t('pick.titleShort')}</h1>
           <span className="text-sm opacity-90">{t('pick.listCount', { trade: t(`shopType.${activeTrade}`), count: tradeItems.length })}</span>
@@ -191,13 +198,13 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
         </div>
       )}
       <input value={q} onChange={(e) => setQ(e.target.value)} type="search" placeholder={t('pick.searchAny')} aria-label={t('pick.search')} className="h-12 rounded-xl border border-line bg-white px-4 text-[16px]" />
-      <div className="flex gap-2 overflow-x-auto">
+      <div className="flex gap-2 overflow-x-auto lg:hidden">
         {popularCount > 0 && <button onClick={() => setCategory(POPULAR)} className={chip(category === POPULAR)}>★ {t('pick.popular', { count: popularCount })}</button>}
         <button onClick={() => setCategory('')} className={chip(!category)}>{t('pick.all')}</button>
         {categories.map((c) => <button key={c} onClick={() => setCategory(c)} className={chip(c === category)}>{c}</button>)}
       </div>
       {!category && !needle && tiles.length > 1 && (
-        <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+        <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 lg:hidden">
           {tiles.map((c) => (
             <button key={c.name} onClick={() => setCategory(c.name)} className="flex w-[76px] shrink-0 flex-col items-center gap-1 text-center">
               <span className="flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-2xl shadow-[0_1px_3px_rgba(16,32,29,0.1)]" style={{ background: c.tint }}>
@@ -219,17 +226,17 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
       )}
       {groups.map(([group, rows]) => (
         <section key={group} className="[content-visibility:auto] [contain-intrinsic-size:auto_600px]">
-          <div className="sticky top-0 z-[5] -mx-4 flex items-center justify-between bg-ground/95 px-4 py-2 backdrop-blur-sm">
+          <div className="sticky top-0 z-[5] -mx-4 flex items-center justify-between bg-ground/95 px-4 py-2 backdrop-blur-sm lg:top-16 lg:mx-0 lg:px-1">
             <h2 className="text-base font-bold">{group}{category === POPULAR ? '' : <span className="text-sm font-semibold text-muted"> · {rows.length}</span>}</h2>
             <button onClick={() => addGroup(rows)} className="min-h-9 rounded-xl border-2 border-teal-700 bg-white px-3 text-sm font-semibold text-teal-800">{category === POPULAR ? t('pick.addAllCount', { count: rows.length }) : t('pick.addGroup')}</button>
           </div>
-          <ul className="overflow-hidden rounded-[18px] bg-white shadow-[0_1px_3px_rgba(16,32,29,0.08)]">
+          <ul className="overflow-hidden rounded-[18px] bg-white shadow-[0_1px_3px_rgba(16,32,29,0.08)] lg:grid lg:grid-cols-2 lg:gap-px lg:bg-line xl:grid-cols-3">
             {rows.map((i) => {
               const on = chosen.has(i.id)
               const have = inShop(i)
               const other = i18n.language === 'hi' ? (i.nameHi ? i.name : null) : i.nameHi
               return (
-                <li key={i.id} className="border-b border-line last:border-b-0">
+                <li key={i.id} className="border-b border-line last:border-b-0 lg:border-b-0 lg:bg-white">
                   <button onClick={() => !have && toggle(i.id)} aria-pressed={on} disabled={have}
                     className={`flex min-h-16 w-full items-center gap-3 py-2 pr-3 pl-3 text-left transition-colors ${on ? 'bg-teal-50 shadow-[inset_4px_0_0_#0f6b5c]' : ''}`}>
                     {thumb(i)}
@@ -272,7 +279,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
         </div>
       </details>
       {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
-      <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto flex max-w-xl flex-col gap-2 px-3 pb-3">
+      <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:left-auto lg:right-6 lg:w-[440px] lg:max-w-none flex max-w-xl flex-col gap-2 px-3 pb-3">
         {undo && (
           <div role="status" className="flex items-center justify-between rounded-xl bg-ink px-4 py-2 text-sm text-white">
             <span>{t('pick.groupAdded', { count: undo.count })}</span>
@@ -296,6 +303,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
           <button type="button" onClick={() => setZoom(null)} className="h-11 rounded-xl bg-white px-6 font-bold text-ink">{t('pick.close')}</button>
         </div>
       )}
+      </div>
     </div>
   )
 }

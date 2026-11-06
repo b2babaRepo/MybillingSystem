@@ -282,7 +282,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
       )}
 
       {notice && (
-        <div className="fixed inset-x-4 bottom-24 z-10 mx-auto flex max-w-[34rem] flex-col gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
+        <div className="fixed inset-x-4 bottom-24 z-10 lg:bottom-8 lg:left-64 mx-auto flex max-w-[34rem] flex-col gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
           <span className="text-sm">{t('ledgerView.removedTell')}</span>
           <div className="flex items-center justify-between gap-3">
             <a className="flex h-11 flex-1 items-center justify-center rounded-xl bg-[#15803d] font-bold" href={whatsAppLink(customer.phone, notice)} target="_blank" rel="noreferrer"
@@ -295,7 +295,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
       )}
 
       {lastSaved && (
-        <div className="fixed inset-x-4 bottom-24 z-10 flex items-center justify-between gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
+        <div className="fixed inset-x-4 bottom-24 z-10 lg:bottom-8 lg:left-64 flex items-center justify-between gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
           <span>
             {t('saved')} {formatRupees(Math.abs(lastSaved.amount))}
           </span>

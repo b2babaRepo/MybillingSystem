@@ -66,7 +66,7 @@ export function StaffScreen() {
     void run(() => request(`/v1/shop/staff/${s.membershipId}/active?active=${active}`, 'POST', {}))
 
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3 p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-4 lg:[&>p]:col-start-1 lg:[&>ul]:col-start-1 lg:[&>section]:col-start-2 lg:[&>section]:row-span-3 lg:[&>section]:row-start-1">
       <p className="text-sm text-muted">{t('staff.hint')}</p>
       {message && <p className="rounded-[14px] bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
 

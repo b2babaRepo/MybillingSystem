@@ -125,7 +125,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
   const cancel = async () => (await confirmAsk(t('inbox.cancelConfirm'))) && void run(() => act(`/v1/orders/${orderId}/cancel`, {}, { status: 'cancelled' }, `${t('inbox.cancelledShort')} ${label}`))
 
   return (
-    <div className="flex flex-col gap-3 p-4 pb-32">
+    <div className="flex flex-col gap-3 p-4 pb-32 lg:pb-4">
       <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4">
         <span className="text-xl font-bold">{order.customerName}</span>
         <span className="text-sm text-muted">
@@ -230,7 +230,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
       )}
 
       {editable && (
-        <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto flex max-w-xl flex-col gap-2 border-t border-line bg-white px-4 py-3">
+        <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:sticky lg:bottom-0 lg:mx-0 lg:max-w-none lg:rounded-[18px] lg:border lg:shadow-lg flex max-w-xl flex-col gap-2 border-t border-line bg-white px-4 py-3">
           {canHandOver && (
             <button onClick={handOver} disabled={busy} className="h-14 rounded-2xl bg-teal-700 text-lg font-bold text-white disabled:opacity-40">
               {order.payment === 'khata' ? t('inbox.handOverKhata', { amount: formatRupees(total) }) : t('inbox.handOver', { amount: formatRupees(total) })}

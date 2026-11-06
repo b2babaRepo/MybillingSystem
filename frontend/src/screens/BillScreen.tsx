@@ -78,6 +78,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // Shown only while the bill is still below the screen: once scrolled to it, or past it down to the payment and
   // save button (a UPI QR makes that box tall), the bar would only cover them.
   const billRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const [keysHelp, setKeysHelp] = useState(false)
+  // A counter PC with a keyboard (no touch): the search box stays ready for the next item or scan.
+  const keyboardDesk = typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px) and (pointer: fine)').matches
   const [billBelow, setBillBelow] = useState(true)
   const billInView = !billBelow
   useEffect(() => {
@@ -120,6 +124,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       if (index < 0) return [...current, line]
       return current.map((l, i) => (i === index ? { ...l, quantity: round2(l.quantity + 1) } : l))
     })
+    if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
   }
 
   function setQuantity(index: number, quantity: number) {
@@ -158,10 +163,29 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     setPaid(null)
     setCustomerId('')
     setSearch('')
+    if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
   }
 
+  const canSave = total > 0 && !unpriced && !rxMissing && !serialsMissing && !overLimit
+  // Desktop keys: F2 search, F4 amount paid, Ctrl+Enter save, Esc clear search, ? the key list.
+  const keys = useRef({ save, canSave })
+  keys.current = { save, canSave }
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)
+      if (e.key === 'F2') { e.preventDefault(); searchRef.current?.focus(); searchRef.current?.select() }
+      else if (e.key === 'F4') { e.preventDefault(); const el = document.getElementById('bill-paid') as HTMLInputElement | null; if (el) { el.focus(); el.select() } else document.getElementById('bill-save')?.focus() }
+      else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (keys.current.canSave) void keys.current.save() }
+      else if (e.key === '?' && !typing) { e.preventDefault(); setKeysHelp((v) => !v) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3 p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:gap-4">
+      {/* Desktop: items on the left, the bill on the right (always in view). A phone shows them one under the other. */}
+      <div className="flex flex-col gap-3 lg:col-start-1">
       {exchange && (
         <div className="flex items-center gap-2 rounded-[14px] bg-amber-50 p-3 text-sm text-amber-950">
           <span className="flex-1">{t('exchange.banner', { note: exchange.noteNo, amount: formatRupees(exchange.total) })}</span>
@@ -170,10 +194,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       )}
       <div className="flex gap-2">
         <input
+          ref={searchRef}
+          autoFocus={keyboardDesk}
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key !== 'Enter') return
+            if (e.key === 'Escape') { onSearch(''); return }
+            if (e.key !== 'Enter' || e.ctrlKey || e.metaKey) return
             e.preventDefault()
             // A scanner's code (digits) that matches no item says so, instead of leaving the code sitting in the box.
             if (!addByBarcode(search) && /^\d{8,14}$/.test(search.trim())) setScanMiss(search.trim())
@@ -182,11 +209,22 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           aria-label={t('search')}
           className="h-12 min-w-0 flex-1 rounded-[14px] border border-line bg-white px-4 text-[17px] outline-none focus:border-teal-600"
         />
+        <button onClick={() => setKeysHelp((v) => !v)} aria-label={t('keys.title')} title={t('keys.title')} className="hidden h-12 w-12 shrink-0 rounded-[14px] border border-line bg-white font-bold text-muted lg:block">?</button>
         {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className="h-12 shrink-0 rounded-[14px] border-2 border-teal-700 px-3 font-bold text-teal-800">{t('barcodeBill.scan')}</button>}
       </div>
+      {keysHelp && (
+        <div className="hidden rounded-[14px] bg-white p-3 text-sm lg:block">
+          <p className="mb-1 font-bold">{t('keys.title')}</p>
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted">
+            {[['F2', t('keys.search')], ['Enter', t('keys.add')], ['F4', t('keys.paid')], ['Ctrl + Enter', t('keys.save')], ['Esc', t('keys.clear')], ['?', t('keys.toggle')]].map(([k, label]) => (
+              <li key={k}><kbd className="mr-2 rounded border border-line bg-[#f1f5f4] px-1.5 font-mono text-xs text-ink">{k}</kbd>{label}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {scanning && <ScanSheet onCode={(code) => { setScanning(false); if (!addByBarcode(code)) setScanMiss(code) }} onClose={() => setScanning(false)} />}
       {scanMiss && <p className="rounded-xl bg-red-50 p-2 text-sm font-semibold text-due">{t('barcodeBill.notFound', { code: scanMiss })}</p>}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5">
         {groupStyles(tiles).map((entry) => entry.kind === 'style' ? (
           <ItemCard
             key={`style-${entry.name}`}
@@ -242,6 +280,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         </Sheet>
       )}
 
+      </div>
+      <div className="flex flex-col gap-3 lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto">
       <div ref={billRef} className="rounded-[18px] bg-white p-3">
         {cart.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-4 text-center text-muted">
@@ -373,7 +413,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             </select>
           </label>
           {customer && (
-            <Field label={t('paidNow')} value={paid ?? String(total)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
+            <Field id="bill-paid" label={t('paidNow')} value={paid ?? String(total)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
           )}
           {customer && total - paidAmount > 0 && (
             <p className="font-semibold text-due">
@@ -414,15 +454,16 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           </div>
           {mode === 'upi' && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={paidAmount} />}
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
-          <Button className="w-full" onClick={save} disabled={total <= 0 || unpriced || rxMissing || serialsMissing || overLimit}>
+          <Button className="w-full" id="bill-save" onClick={save} disabled={!canSave}>
             {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(total) }) : `${t('saveBill')} · ${formatRupees(total)}`}
           </Button>
         </div>
       )}
 
+      </div>
       {cart.length > 0 && !billInView && (
         <button onClick={() => billRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          className="fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-10 mx-auto flex h-14 w-[calc(100%-2rem)] max-w-[34rem] items-center justify-between rounded-2xl bg-teal-700 px-4 font-bold text-white shadow-lg">
+          className="fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-10 mx-auto flex h-14 lg:hidden w-[calc(100%-2rem)] max-w-[34rem] items-center justify-between rounded-2xl bg-teal-700 px-4 font-bold text-white shadow-lg">
           <span>{t('billBar', { count: cart.length })}</span>
           <span>{formatRupees(total)} · {t('checkout')} ↓</span>
         </button>

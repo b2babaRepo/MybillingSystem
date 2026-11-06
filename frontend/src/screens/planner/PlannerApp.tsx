@@ -52,7 +52,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
   const unsynced = pending + failed
 
   return (
-    <div className="mx-auto min-h-dvh max-w-xl pb-20">
+    <div className="mx-auto min-h-dvh max-w-xl pb-20 lg:max-w-none lg:pb-6 lg:pl-60">
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white">
         {!isTab && (
           <button onClick={() => navigate(sendMatch ? `/list/${sendMatch[1]}` : khataMatch ? '/khata' : '/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}>
@@ -80,7 +80,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
         />
       </header>
 
-      <main>
+      <main className="lg:mx-auto lg:max-w-4xl">
         {path === '/' && session && <BlockedShopsNotice session={session} />}
         {listMatch ? (
           <ListScreen userId={userId} kind={listMatch[1] as ListKind} />
@@ -101,7 +101,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
 
       <AppBanners />
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-3 border-t border-line bg-white pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-3 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:right-auto lg:mx-0 lg:h-auto lg:w-60 lg:max-w-none lg:auto-rows-[56px] lg:grid-cols-1 lg:content-start lg:gap-1 lg:border-t-0 lg:border-r lg:px-3 lg:pt-20">
         {[
           { to: '/', label: t('plan.lists'), icon: <KhataIcon size={22} />, active: path === '/' || !!listMatch || !!sendMatch },
           { to: '/orders', label: t('orders'), icon: <BillIcon size={22} />, active: path === '/orders' },
@@ -111,7 +111,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
             key={tab.to}
             onClick={() => navigate(tab.to)}
             aria-current={tab.active ? 'page' : undefined}
-            className={`flex flex-col items-center justify-center gap-0.5 text-[13px] ${tab.active ? 'font-bold text-teal-700' : 'font-semibold text-muted'}`}
+            className={`flex flex-col items-center justify-center gap-0.5 text-[13px] lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-4 lg:text-base ${tab.active ? 'font-bold text-teal-700 lg:bg-teal-50' : 'font-semibold text-muted lg:hover:bg-[#f1f5f4]'}`}
           >
             {tab.icon}
             {tab.label}

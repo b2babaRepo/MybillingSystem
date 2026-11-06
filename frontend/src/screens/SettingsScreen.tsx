@@ -55,7 +55,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
           <span aria-hidden>›</span>
         </button>
       )}
-      <fieldset disabled={!isOwner} className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+      <fieldset disabled={!isOwner} className="flex flex-col gap-3 rounded-[18px] bg-white p-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6 lg:gap-y-4 lg:p-6 lg:[&>button]:col-span-2 lg:[&>button]:justify-self-end lg:[&>button]:px-10 lg:[&>fieldset]:col-span-2">
         <Field label={t('settings.shopName')} value={form.name} onChange={set('name')} />
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-muted">{t('shopType.label')}</span>
@@ -65,7 +65,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
         </label>
         <fieldset className="flex flex-col gap-1">
           <legend className="text-sm font-medium text-muted">{t('shopType.extra')}</legend>
-          <div className="grid grid-cols-2 gap-1">
+          <div className="grid grid-cols-2 gap-1 lg:grid-cols-4">
             {SHOP_TYPES.filter((type) => type !== form.type && type !== 'other').map((type) => (
               <label key={type} className="flex min-h-11 items-center gap-2 text-sm">
                 <input type="checkbox" checked={extra.includes(type)} onChange={(e) => setExtra(e.target.checked ? [...extra, type] : extra.filter((x) => x !== type))} className="h-5 w-5" />
