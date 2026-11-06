@@ -101,6 +101,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         (product.TracksSerials, product.WarrantyMonths) = request.IsService ? (false, null) : (request.TracksSerials, request.WarrantyMonths is > 0 and <= 240 ? request.WarrantyMonths : null);
         product.Mrp = CleanMrp(request.Mrp, request.SellingPrice);
         product.BillName = BillNames.Clean(request.BillName);
+        (product.StyleName, product.Size, product.Colour) = (Short(request.StyleName, 120), Short(request.Size, 20), Short(request.Colour, 30));
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)
@@ -156,6 +157,10 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.Mrp = request.Mrp is { } mrp ? CleanMrp(mrp, product.SellingPrice) : product.Mrp;
         // Null keeps it (older apps); an empty string clears it.
         product.BillName = request.BillName is null ? product.BillName : BillNames.Clean(request.BillName);
+        // Style, size and colour: null keeps them (older apps); an empty string clears them.
+        product.StyleName = request.StyleName is null ? product.StyleName : Short(request.StyleName, 120);
+        product.Size = request.Size is null ? product.Size : Short(request.Size, 20);
+        product.Colour = request.Colour is null ? product.Colour : Short(request.Colour, 30);
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
@@ -336,6 +341,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             var product = NewProduct(Guid.CreateVersion7(), row.Name, row.Category, row.Unit!.Value, row.SellingPrice ?? 0, row.CostPrice, row.ReorderLevel);
             product.CatalogueItemId = row.CatalogueItemId ?? product.CatalogueItemId;
             product.MasterItemId = row.MasterItemId;
+            (product.StyleName, product.Size) = (Short(row.StyleName, 120), Short(row.Size, 20));
             product.PackSize = row.PackSize is > 0 ? row.PackSize : null;
             product.PackUnit = product.PackSize is null ? null : row.PackUnit;
             product.GstRate = row.GstRate;
@@ -429,6 +435,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         return errors;
     }
 
+    private static string? Short(string? text, int max) => string.IsNullOrWhiteSpace(text) ? null : text.Trim()[..Math.Min(max, text.Trim().Length)];
+
     private static Product NewProduct(Guid id, string name, string? category, Unit unit, decimal price, decimal? cost, decimal? reorderLevel) => new()
     {
         Id = id,
@@ -491,7 +499,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null),
         p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp, p.Barcode,
         p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? MasterPhotos.Representative : null,
-        p.PhotoReports, p.PhotoReportNote, p.BillName);
+        p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour);
 
     /// <summary>An MRP only counts when it is above the selling price (otherwise there is nothing "off" to show).</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>

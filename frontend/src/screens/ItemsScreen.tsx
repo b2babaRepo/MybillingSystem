@@ -1,10 +1,11 @@
 import { useShopSettings } from '../lib/reports'
+import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useGstBilling } from '../lib/billing'
 import { GST_RATES } from '../lib/gst'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, PendingDot, Sheet } from '../components/ui'
-import { addProduct, useProducts } from '../lib/data'
+import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Product, Unit } from '../lib/types'
 import { navigate } from '../router'
@@ -27,6 +28,8 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
   const [category, setCategory] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'suggested'>('all')
   const [zoom, setZoom] = useState<{ src: string; name: string } | null>(null)
+  // The style whose new stock is being entered size by size.
+  const [receiving, setReceiving] = useState<string | null>(null)
 
   const categories = [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))].sort()
   const query = search.trim().toLowerCase()
@@ -125,7 +128,28 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
       )}
       {filter !== 'suggested' && !isLoading && products.length > 0 && shown.length === 0 && <p className="py-8 text-center text-muted">{t('items2.none')}</p>}
       <ul className={`divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white ${filter === 'suggested' ? 'hidden' : ''}`}>
-        {shown.map((p) => {
+        {groupStyles(shown).map((entry) => entry.kind === 'style' ? (
+          <li key={`style-${entry.name}`} className="flex items-start gap-3 px-3 py-2.5">
+            {(() => { const first = entry.items.find((x) => x.imageAt) ?? entry.items[0]; const th = imageUrl(shopId, first.id, first.imageAt, 'thumb'); const art = itemArt({ name: entry.name })
+              return th ? <img src={th} alt="" loading="lazy" width={52} height={52} className="h-[52px] w-[52px] shrink-0 rounded-xl border border-line bg-white object-contain" />
+                : <span aria-hidden className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl text-[26px]" style={{ background: art.tint }}>{art.emoji}</span> })()}
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-[16px] font-semibold">{entry.name}</span>
+                <span className="shrink-0 text-[13px] text-muted">{t('styles.total', { count: entry.items.reduce((n, x) => n + Math.max(0, x.stock), 0) })}</span>
+                {isOwner && <button onClick={() => setReceiving(entry.name)} className="min-h-9 shrink-0 rounded-lg bg-teal-700 px-2.5 text-[13px] font-bold text-white">{t('styles.receive')}</button>}
+              </span>
+              <span className="flex flex-wrap gap-1.5">
+                {entry.items.map((x) => (
+                  <button key={x.id} onClick={() => navigate(`/p/${x.id}`)}
+                    className={`min-h-9 rounded-lg border px-2 text-[13px] font-semibold ${x.stock <= 0 ? 'border-red-200 bg-red-50 text-due' : x.isLow ? 'border-amber-200 bg-amber-50 text-udhaar' : 'border-line bg-white'}`}>
+                    {variantLabel(x) || x.name} <span className="font-normal">· {x.stock}</span>
+                  </button>
+                ))}
+              </span>
+            </div>
+          </li>
+        ) : ((p) => {
           const thumb = imageUrl(shopId, p.id, p.imageAt, 'thumb')
           const art = itemArt({ name: p.name })
           return (
@@ -154,12 +178,13 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
               </button>
             </li>
           )
-        })}
+        })(entry.product))}
       </ul>
       <Button className="fixed right-[max(1rem,calc(50vw-17rem))] bottom-24 h-14 rounded-full! px-6 shadow-[0_6px_16px_rgba(15,118,110,0.35)]" onClick={() => setAdding(true)}>
         + {t('addItem')}
       </Button>
       {adding && <AddProductSheet shopId={shopId} categories={categories} onClose={() => setAdding(false)} />}
+      {receiving && <ReceiveSizesSheet shopId={shopId} styleName={receiving} items={sortVariants(products.filter((p) => p.styleName?.trim() === receiving))} onClose={() => setReceiving(null)} />}
       {zoom && (
         <div role="dialog" aria-modal="true" aria-label={zoom.name} onClick={() => setZoom(null)} onKeyDown={(e) => e.key === 'Escape' && setZoom(null)} tabIndex={-1} ref={(el) => el?.focus()}
           className="fixed inset-0 z-50 flex cursor-zoom-out flex-col items-center justify-center gap-3 bg-black/80 p-4">
@@ -283,6 +308,49 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
           <Button type="submit" disabled={!name.trim() || !(Number(price) > 0)}>{t('save')}</Button>
         </div>
       </form>
+    </Sheet>
+  )
+}
+
+/**
+ * New stock for one style, size by size: a box per size/colour, saved in one go as "goods in" for each (works
+ * offline like any stock entry). An optional buying price per piece is kept on each as its cost.
+ */
+function ReceiveSizesSheet({ shopId, styleName, items, onClose }: { shopId: string; styleName: string; items: Product[]; onClose: () => void }) {
+  const { t } = useTranslation()
+  const [qty, setQty] = useState<Record<string, string>>({})
+  const [cost, setCost] = useState('')
+  const [busy, setBusy] = useState(false)
+  const total = Object.values(qty).reduce((n, v) => n + (Number(v) || 0), 0)
+  async function save() {
+    setBusy(true)
+    for (const p of items) {
+      const n = Number(qty[p.id]) || 0
+      if (n > 0) await addStockMovement(shopId, { id: p.id, name: p.name }, 'purchase', n, null, Number(cost) > 0 ? Number(cost) : null, null)
+    }
+    onClose()
+  }
+  return (
+    <Sheet title={t('styles.receiveTitle', { name: styleName })} onClose={onClose}>
+      <p className="-mt-1 mb-3 text-sm text-muted">{t('styles.receiveHint')}</p>
+      <div className="grid grid-cols-3 gap-2">
+        {items.map((p) => (
+          <label key={p.id} className="flex flex-col gap-1 rounded-xl border border-line p-2">
+            <span className="text-center font-extrabold">{variantLabel(p) || p.name}</span>
+            <span className="text-center text-xs text-muted">{t('styles.left', { count: p.stock })}</span>
+            <input value={qty[p.id] ?? ''} onChange={(e) => setQty({ ...qty, [p.id]: e.target.value })} inputMode="numeric" placeholder="0"
+              aria-label={`${t('styles.receive')} ${variantLabel(p)}`} className="h-11 rounded-lg border border-line text-center text-lg" />
+          </label>
+        ))}
+      </div>
+      <label className="mt-3 block">
+        <span className="mb-1 block text-sm font-semibold text-muted">{t('styles.costEach')}</span>
+        <input value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" className="h-12 w-40 rounded-xl border border-line px-3 text-lg" />
+      </label>
+      <div className="mt-4 grid grid-cols-[1fr_2fr] gap-2">
+        <Button type="button" tone="plain" onClick={onClose}>{t('cancel')}</Button>
+        <Button type="button" onClick={() => void save()} disabled={busy || total <= 0}>{t('styles.receiveSave', { count: total })}</Button>
+      </div>
     </Sheet>
   )
 }

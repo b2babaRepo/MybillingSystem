@@ -226,6 +226,11 @@ export interface NewProduct {
   hsnCode?: string | null
   isService?: boolean
   durationMinutes?: number | null
+  mrp?: number | null
+  billName?: string | null
+  styleName?: string | null
+  size?: string | null
+  colour?: string | null
 }
 
 export async function addProduct(shopId: string, product: NewProduct) {

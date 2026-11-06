@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
 import { garmentRate } from '../lib/gst'
 import { useTranslation } from 'react-i18next'
@@ -27,11 +28,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const query = search.trim().toLowerCase()
   // Most-sold items first (the tiles the thumb needs), then the rest by name; typing filters.
   const tiles = products
-    .filter((p) => !query || p.name.toLowerCase().includes(query))
+    .filter((p) => !query || p.name.toLowerCase().includes(query) || (p.styleName ?? '').toLowerCase().includes(query))
     .sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9) || a.name.localeCompare(b.name))
     .slice(0, query ? 30 : 12)
   const { customers } = useCustomers(shopId)
   const [cart, setCart] = useState<CartLine[]>([])
+  // The style whose sizes/colours are being picked (a tile for a style opens this instead of adding straight away).
+  const [stylePick, setStylePick] = useState<string | null>(null)
   const [customerId, setCustomerId] = useState('')
   const [paid, setPaid] = useState<string | null>(null)
   const [mode, setMode] = useState<PaymentMode>('cash')
@@ -135,7 +138,18 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         className="h-12 w-full rounded-[14px] border border-line bg-white px-4 text-[17px] outline-none focus:border-teal-600"
       />
       <div className="grid grid-cols-3 gap-2">
-        {tiles.map((p) => (
+        {groupStyles(tiles).map((entry) => entry.kind === 'style' ? (
+          <ItemCard
+            key={`style-${entry.name}`}
+            compact
+            item={entry.items[0]}
+            imageUrl={imageUrl(shopId, entry.items[0].id, entry.items[0].imageAt, 'thumb')}
+            title={entry.name}
+            subtitle={t('styles.count', { count: entry.items.length })}
+            badge={cart.filter((l) => entry.items.some((p) => p.id === l.productId)).reduce((n, l) => n + l.quantity, 0) || undefined}
+            onClick={() => setStylePick(entry.name)}
+          />
+        ) : ((p) => (
           <ItemCard
             key={p.id}
             compact
@@ -148,7 +162,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             badge={cart.filter((l) => l.productId === p.id).reduce((n, l) => n + l.quantity, 0) || undefined}
             onClick={() => add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })}
           />
-        ))}
+        ))(entry.product))}
         {/* Building-material bills carry transport and loading as their own lines. */}
         {types.includes('building_materials') && (['transport', 'loading'] as const).map((charge) => (
           <button key={charge} onClick={() => setLoose({ name: t(`charge.${charge}`), unit: 'piece' })}
@@ -160,6 +174,24 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           + {t('addLooseItem')}
         </button>
       </div>
+
+      {stylePick && (
+        <Sheet title={stylePick} onClose={() => setStylePick(null)}>
+          <p className="-mt-1 mb-2 text-sm text-muted">{t('styles.pick')}</p>
+          <div className="grid grid-cols-3 gap-2">
+            {sortVariants(products.filter((p) => p.styleName?.trim() === stylePick)).map((p) => {
+              const out = !p.isService && p.stock <= 0
+              return (
+                <button key={p.id} onClick={() => { add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice }); setStylePick(null) }}
+                  className={`flex min-h-16 flex-col items-center justify-center rounded-xl border-2 px-1 py-2 ${out ? 'border-line opacity-60' : 'border-teal-700'}`}>
+                  <span className="text-lg font-extrabold">{variantLabel(p) || p.name}</span>
+                  <span className="text-xs text-muted">{p.sellingPrice > 0 ? formatRupees(p.sellingPrice) : t('stock.noPrice')} · {out ? t('stock.out') : t('styles.left', { count: p.stock })}</span>
+                </button>
+              )
+            })}
+          </div>
+        </Sheet>
+      )}
 
       <div ref={billRef} className="rounded-[18px] bg-white p-3">
         {cart.length === 0 && (

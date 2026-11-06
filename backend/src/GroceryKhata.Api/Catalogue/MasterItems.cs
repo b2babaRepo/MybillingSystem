@@ -213,6 +213,20 @@ public static class MasterItems
                 listed[item.ToLower()] = f[2];
                 if (!have.Add(item.ToLower()))
                 {
+                    // Already there (a starter item, or added before): fill only what it lacks, never overwrite an admin's edit.
+                    if (existing.GetValueOrDefault(item.ToLower()) is { } old)
+                    {
+                        if (old.NameHi is null && f[1].Length > 0)
+                        {
+                            (old.NameHi, old.UpdatedAt) = (f[1], now);
+                        }
+
+                        if (old.PackSizes.Count == 0 && f.Length > 6 && Sizes(f[6].Split('|')) is { Count: > 0 } fill)
+                        {
+                            (old.PackSizes, old.UpdatedAt) = (fill, now);
+                        }
+                    }
+
                     continue;
                 }
 
@@ -332,7 +346,9 @@ public static class MasterItems
 
         var rows = items.SelectMany(i => i.PackSizes.Count == 0
             ? [new ImportRow(i.NameHi ?? i.Name, i.Unit, 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id)]
-            : SizesFor(i, sizes).Select(size => new ImportRow($"{i.NameHi ?? i.Name} {size}", PackUnit(i.Unit), 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id)))
+            : SizesFor(i, sizes).Select(size => new ImportRow($"{i.NameHi ?? i.Name} {size}", PackUnit(i.Unit), 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id,
+                // Clothes sizes make one style: "पुरुष जींस" in 30, 32, 34. Grocery pack sizes stay separate items.
+                StyleName: IsWearSize(i) ? i.NameHi ?? i.Name : null, Size: IsWearSize(i) ? size : null)))
             .ToList();
         var (result, errors) = await stock.ImportAsync(new ImportRequest(rows), userId, ct);
         return errors is null ? TypedResults.Ok(result) : TypedResults.ValidationProblem(errors);
@@ -390,6 +406,9 @@ public static class MasterItems
     }
 
     /// <summary>A packed size of something sold by weight or volume is sold by the packet; a sized bag or piece keeps its unit.</summary>
+    /// <summary>A size that makes a style (clothes: 32, M, 34B, 0-3M), not a pack weight (500 g).</summary>
+    private static bool IsWearSize(MasterItem item) => item.Trade == ShopTypes.Name(ShopType.Clothes);
+
     private static Unit PackUnit(Unit unit) => unit is Unit.Kg or Unit.G or Unit.Litre or Unit.Ml ? Unit.Packet : unit;
 
     private static List<string> Sizes(IReadOnlyList<string>? sizes) =>

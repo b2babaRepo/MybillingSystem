@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, Sheet } from '../components/ui'
 import { api, request } from '../lib/api'
-import { addStockMovement, useProducts } from '../lib/data'
+import { addProduct, addStockMovement, useProducts } from '../lib/data'
+import { ask } from '../components/Ask'
 import { useGstBilling } from '../lib/billing'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { GST_RATES } from '../lib/gst'
@@ -147,6 +148,23 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
 function DetailsForm({ shopId, product }: { shopId: string; product: Product }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  async function addVariant() {
+    const size = (await ask(t('styles.askSize')))?.trim()
+    if (size === undefined || size === null) return
+    const colour = (await ask(t('styles.askColour')))?.trim() ?? ''
+    if (!size && !colour) return
+    const style = product.styleName?.trim() || product.name.replace(new RegExp(`\\s+${(product.size ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '').trim()
+    const name = [style, size, colour].filter(Boolean).join(' ')
+    await addProduct(shopId, {
+      name, unit: product.unit, sellingPrice: product.sellingPrice, costPrice: product.costPrice ?? null, category: product.category ?? null,
+      reorderLevel: product.reorderLevel ?? null, openingStock: null, gstRate: product.gstRate ?? null, hsnCode: product.hsnCode ?? null,
+      mrp: product.mrp ?? null, billName: product.billName ?? null, styleName: style, size: size || null, colour: colour || null,
+    })
+    // This item joins the style too, if it wasn't in one yet.
+    if (!product.styleName?.trim()) setForm((f) => ({ ...f, styleName: style }))
+    setMessage(t('styles.added', { name }))
+  }
+
   const [form, setForm] = useState({
     name: product.name,
     unit: product.unit as Unit,
@@ -162,6 +180,9 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     warranty: product.warrantyMonths ? String(product.warrantyMonths) : '',
     mrp: product.mrp ? String(product.mrp) : '',
     billName: product.billName ?? '',
+    styleName: product.styleName ?? '',
+    size: product.size ?? '',
+    colour: product.colour ?? '',
   })
   const gstBilling = useGstBilling(shopId)
   const types = shopTypes(useShopSettings(shopId).data)
@@ -182,6 +203,9 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     replaceTax: true,
     mrp: Number(form.mrp) || 0,
     billName: form.billName.trim(),
+    styleName: form.styleName.trim(),
+    size: form.size.trim(),
+    colour: form.colour.trim(),
     ...(medical ? { schedule: form.schedule || null, replaceSchedule: true, unitsPerPack: Number(form.perPack) || 0 } : {}),
     ...(service ? { tracksSerials: form.serials, warrantyMonths: Number(form.warranty) || 0 } : {}),
     isActive,
@@ -220,6 +244,17 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
       </div>
       {!product.isService && <Field label={t('stock.mrp')} value={form.mrp} onChange={set('mrp')} inputMode="decimal" placeholder={t('stock.mrpHint')} />}
       <Field label={t('billName.label')} value={form.billName} onChange={set('billName')} maxLength={60} placeholder={billNameFor({ billName: null, category: product.category }) ?? t('billName.hint')} />
+      {/* Clothes: which design this is one size/colour of, so its sizes show together on the bill and the item list. */}
+      {!product.isService && (
+        <div className="grid grid-cols-[2fr_1fr_1fr] gap-2">
+          <Field label={t('styles.style')} value={form.styleName} onChange={set('styleName')} maxLength={120} />
+          <Field label={t('styles.size')} value={form.size} onChange={set('size')} maxLength={20} />
+          <Field label={t('styles.colour')} value={form.colour} onChange={set('colour')} maxLength={30} />
+        </div>
+      )}
+      {!product.isService && (
+        <button type="button" onClick={() => void addVariant()} className="min-h-11 self-start rounded-xl border-2 border-dashed border-teal-700 px-3 font-semibold text-teal-800">{t('styles.addVariant')}</button>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <Field label={t('stock.buyingCostShort')} value={form.cost} onChange={set('cost')} inputMode="decimal" />
         <Field label={t('stock.reorderLevel')} value={form.reorder} onChange={set('reorder')} inputMode="decimal" />

@@ -94,6 +94,17 @@ public sealed class Product : Entity, ITenantOwned
     /// </summary>
     public string? BillName { get; set; }
 
+    /// <summary>
+    /// Clothes and similar: items that are one design in several sizes or colours share a <see cref="StyleName"/>
+    /// ("पुरुष जींस"), and each is one <see cref="Size"/> ("32") and <see cref="Colour"/> ("Blue"). Each stays its own
+    /// item with its own stock and price; the style only groups them on screen. Null for ordinary items.
+    /// </summary>
+    public string? StyleName { get; set; }
+
+    public string? Size { get; set; }
+
+    public string? Colour { get; set; }
+
     /// <summary>The pack's barcode (EAN-13 on Indian packs), when the shop has given it.</summary>
     public string? Barcode { get; set; }
 

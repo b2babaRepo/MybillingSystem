@@ -68,6 +68,10 @@ export interface Product {
   mrp?: number | null
   /** Printed on the customer's bill instead of the name ("Innerwear"); see lib/billNames.ts. */
   billName?: string | null
+  /** Clothes: the design this item is one size/colour of ("पुरुष जींस"); see lib/styles.ts. */
+  styleName?: string | null
+  size?: string | null
+  colour?: string | null
   barcode?: string | null
   imageCredit?: string | null
   photoReports?: number

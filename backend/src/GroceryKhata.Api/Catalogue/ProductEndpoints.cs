@@ -25,12 +25,15 @@ public sealed record ProductRequest(
     bool TracksSerials = false,
     int? WarrantyMonths = null,
     decimal? Mrp = null,
-    string? BillName = null);
+    string? BillName = null,
+    string? StyleName = null,
+    string? Size = null,
+    string? Colour = null);
 
 /// <summary><see cref="GstRate"/> and <see cref="HsnCode"/>: null keeps what the item has (older apps don't send them), unless <see cref="ReplaceTax"/> says null means clear it.</summary>
 public sealed record ProductUpdate(
     string? Name, Unit? Unit, decimal SellingPrice, decimal? CostPrice, string? Category, decimal? ReorderLevel, bool? IsActive,
-    decimal? GstRate = null, string? HsnCode = null, bool ReplaceTax = false, bool? IsService = null, int? DurationMinutes = null, DrugSchedule? Schedule = null, bool ReplaceSchedule = false, int? UnitsPerPack = null, bool? TracksSerials = null, int? WarrantyMonths = null, decimal? Mrp = null, string? BillName = null);
+    decimal? GstRate = null, string? HsnCode = null, bool ReplaceTax = false, bool? IsService = null, int? DurationMinutes = null, DrugSchedule? Schedule = null, bool ReplaceSchedule = false, int? UnitsPerPack = null, bool? TracksSerials = null, int? WarrantyMonths = null, decimal? Mrp = null, string? BillName = null, string? StyleName = null, string? Size = null, string? Colour = null);
 
 /// <summary><see cref="IsLow"/>: out of stock, or at/below the reorder level.</summary>
 public sealed record ProductDto(
@@ -62,7 +65,10 @@ public sealed record ProductDto(
     string? ImageCredit = null,
     int PhotoReports = 0,
     string? PhotoReportNote = null,
-    string? BillName = null);
+    string? BillName = null,
+    string? StyleName = null,
+    string? Size = null,
+    string? Colour = null);
 
 /// <summary>A purchase (positive) or an adjustment (signed, with a reason).</summary>
 public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note);
@@ -88,7 +94,7 @@ public sealed record ImportRow(
     string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel,
     int? CatalogueItemId = null, decimal? PackSize = null, Unit? PackUnit = null, decimal? GstRate = null, string? HsnCode = null,
     bool IsService = false, int? DurationMinutes = null, DrugSchedule? Schedule = null, int? UnitsPerPack = null, bool TracksSerials = false, int? WarrantyMonths = null,
-    int? MasterItemId = null);
+    int? MasterItemId = null, string? StyleName = null, string? Size = null);
 
 /// <summary>One item's new rate on the "today's rates" screen.</summary>
 public sealed record RateChange(Guid ProductId, decimal SellingPrice);
