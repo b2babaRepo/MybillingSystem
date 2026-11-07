@@ -18,6 +18,7 @@ interface KhataView {
   shopArea: string | null
   shopPhone: string | null
   statement: Statement
+  claims?: { amount: number; reportedAt: string; status: 'waiting' | 'notReceived' }[] | null
 }
 
 interface MyKhata {
@@ -135,8 +136,9 @@ function DisputeSheet({ entry, path, onClose, onSent }: { entry: StatementLine; 
 }
 
 /** "I have paid": the customer's word to the shop. Their khata changes only when the shop confirms the money came. */
-function PaidCard({ path, balance }: { path: string; balance: number }) {
+function PaidCard({ path, balance, queryKey }: { path: string; balance: number; queryKey: unknown[] }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState(String(balance))
   const [utr, setUtr] = useState('')
@@ -147,6 +149,7 @@ function PaidCard({ path, balance }: { path: string; balance: number }) {
     try {
       await api(path, 'POST', { id: crypto.randomUUID(), amount: Number(amount), utr: utr.trim() || null })
       setSent(true)
+      await queryClient.invalidateQueries({ queryKey })
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
     }
@@ -184,7 +187,12 @@ function KhataBody({ view, disputePath, paidPath, queryKey }: { view: KhataView;
           📞 {t('myKhata.callShop', { phone: formatPhone(view.shopPhone) })}
         </a>
       )}
-      {customer.balance > 0 && <PaidCard path={paidPath} balance={customer.balance} />}
+      {view.claims?.map((c) => (
+        <p key={c.reportedAt} className={`rounded-[14px] p-3 text-sm font-semibold ${c.status === 'waiting' ? 'bg-teal-50 text-teal-900' : 'bg-amber-50 text-amber-950'}`}>
+          {t(`receipts.claim_${c.status}`, { amount: formatRupees(c.amount) })}
+        </p>
+      ))}
+      {customer.balance > 0 && <PaidCard path={paidPath} balance={customer.balance} queryKey={queryKey} />}
       {open > 0 && <p className="rounded-[14px] bg-amber-50 p-3 text-sm font-semibold text-amber-950">⚠ {t('dispute.openCount', { count: open })}</p>}
       <p className="text-sm text-muted">{t('dispute.hint')}</p>
       <KhataHistory

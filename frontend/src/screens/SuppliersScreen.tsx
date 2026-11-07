@@ -175,7 +175,8 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
       lines: valid.map((r) => ({
         productId: r.productId, quantity: Number(r.quantity), unitCost: Number(r.unitCost), freeQuantity: Number(r.free) || 0, discountPercent: Number(r.discount) || 0,
         gstRate: r.gst === '' ? null : Number(r.gst),
-        ...(r.batchNo.trim() ? { batchNo: r.batchNo.trim(), expiryMonth: r.expiry, mrp: Number(r.mrp) } : {}),
+        // Only medicines keep batches. A batch read off a paint bill isn't on the screen, so it can't be asked about.
+        ...(medical && r.batchNo.trim() ? { batchNo: r.batchNo.trim(), expiryMonth: r.expiry, mrp: Number(r.mrp) } : {}),
       })),
     }, `${s?.name ?? ''} · ${formatRupees(billTotal)}`)
     if (!saved) queuedNote = t('suppliers.queued')

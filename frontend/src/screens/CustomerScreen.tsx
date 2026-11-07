@@ -282,7 +282,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
           <KhataHistory
             entries={entries}
             focusEntryId={focusEntryId}
-            canRemove={(e) => isOwner || Date.now() - new Date(e.occurredAt).getTime() <= REMOVAL_WINDOW_MS}
+            canRemove={(e) => !e.billId && (isOwner || Date.now() - new Date(e.occurredAt).getTime() <= REMOVAL_WINDOW_MS)}
             onRemove={(e) => void remove(e)}
           />
           {!customer.isNew && (

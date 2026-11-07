@@ -5,7 +5,7 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { formatPhone } from '../lib/format'
 
-interface Profile { fullName: string; phone: string; preferredLanguage: string; email: string | null; address: string | null; city: string | null; pincode: string | null }
+interface Profile { fullName: string; phone: string; preferredLanguage: string; email: string | null; address: string | null; city: string | null; pincode: string | null; hasPassword?: boolean }
 
 /** The signed-in person's own details. The mobile number is the login, so it only shows here. */
 export function ProfileScreen() {
@@ -23,6 +23,20 @@ function ProfileForm({ initial }: { initial: Profile }) {
   })
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
+
+  const [current, setCurrent] = useState('')
+  const [fresh, setFresh] = useState('')
+  async function savePassword() {
+    setMessage('')
+    try {
+      await api('/v1/profile/password', 'PUT', { currentPassword: current || null, newPassword: fresh })
+      setCurrent('')
+      setFresh('')
+      setMessage(t('profile.passwordSaved'))
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
 
   async function save() {
     setMessage('')
@@ -54,6 +68,12 @@ function ProfileForm({ initial }: { initial: Profile }) {
       </label>
       <Button disabled={form.fullName.trim().length < 2} onClick={() => void save()}>{t('save')}</Button>
       {message && <p className="text-sm text-muted">{message}</p>}
+      <div className="flex flex-col gap-2 border-t border-line pt-3">
+        <h2 className="font-bold">{t('profile.passwordTitle')}</h2>
+        {initial.hasPassword ? <Field label={t('profile.passwordCurrent')} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" /> : <p className="text-sm text-muted">{t('profile.passwordNone')}</p>}
+        <Field label={t('profile.passwordNew')} type="password" value={fresh} onChange={(e) => setFresh(e.target.value)} autoComplete="new-password" />
+        <Button disabled={fresh.length < 6} onClick={() => void savePassword()}>{t('profile.passwordSave')}</Button>
+      </div>
     </section>
   )
 }

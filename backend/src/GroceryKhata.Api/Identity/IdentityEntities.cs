@@ -91,4 +91,7 @@ public sealed class RefreshToken : Entity
     public DateTimeOffset? RevokedAt { get; set; }
 
     public Guid? ReplacedById { get; set; }
+
+    /// <summary>Made with a shop's PIN: refreshing it stays as narrow as the sign-in was.</summary>
+    public bool PinOnly { get; set; }
 }

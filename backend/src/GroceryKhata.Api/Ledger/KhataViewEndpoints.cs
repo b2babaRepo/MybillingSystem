@@ -10,7 +10,7 @@ namespace GroceryKhata.Api.Ledger;
 public sealed record KhataLinkDto(string ShopSlug, Guid CustomerId, string Token);
 
 /// <summary>A customer's own copy of their khata at one shop: read-only, the same ledger the shop sees.</summary>
-public sealed record KhataViewDto(string ShopName, string? ShopArea, string? ShopPhone, StatementDto Statement);
+public sealed record KhataViewDto(string ShopName, string? ShopArea, string? ShopPhone, StatementDto Statement, IReadOnlyList<ClaimStatusDto>? Claims = null);
 
 /// <summary><see cref="Confirmed"/> false: a khata under this phone that isn't proved theirs yet, so its name and balance stay hidden.</summary>
 public sealed record MyKhataDto(Guid ShopId, string ShopName, string? ShopArea, Guid CustomerId, string CustomerName, decimal Balance, bool Confirmed = true);
@@ -162,7 +162,7 @@ public static class KhataViewEndpoints
 
     /// <summary>The page behind the link. A wrong or missing token looks exactly like no such khata.</summary>
     private static async Task<IResult> GetByLinkAsync(
-        string slug, Guid customerId, string? t, AppDbContext db, TenantContext tenant, LedgerService ledger, CancellationToken ct)
+        string slug, Guid customerId, string? t, AppDbContext db, TenantContext tenant, LedgerService ledger, TimeProvider clock, CancellationToken ct)
     {
         if (await OpenByLinkAsync(slug, customerId, t, db, tenant, ct) is not { } shop)
         {
@@ -170,7 +170,7 @@ public static class KhataViewEndpoints
         }
 
         var statement = await ledger.GetStatementAsync(customerId, null, ct);
-        return statement is null ? TypedResults.NotFound() : TypedResults.Ok(new KhataViewDto(shop.Name, shop.Area, shop.OwnerPhone, statement));
+        return statement is null ? TypedResults.NotFound() : TypedResults.Ok(new KhataViewDto(shop.Name, shop.Area, shop.OwnerPhone, statement, await Receipts.ClaimsForAsync(db, customerId, clock, ct)));
     }
 
     /// <summary>
@@ -237,7 +237,7 @@ public static class KhataViewEndpoints
 
     /// <summary>One shop's khata for the signed-in person: read as that shop, after checking the phone is theirs.</summary>
     private static async Task<IResult> GetMineAtShopAsync(
-        Guid shopId, Guid customerId, ClaimsPrincipal user, IServiceScopeFactory scopes, AppDbContext db, CancellationToken ct)
+        Guid shopId, Guid customerId, ClaimsPrincipal user, IServiceScopeFactory scopes, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var phone = await VerifiedPhoneAsync(user, db, ct);
 
@@ -255,6 +255,6 @@ public static class KhataViewEndpoints
         }
 
         var statement = await sp.GetRequiredService<LedgerService>().GetStatementAsync(customerId, null, ct);
-        return statement is null ? TypedResults.NotFound() : TypedResults.Ok(new KhataViewDto(shop.Name, shop.Area, null, statement));
+        return statement is null ? TypedResults.NotFound() : TypedResults.Ok(new KhataViewDto(shop.Name, shop.Area, null, statement, await Receipts.ClaimsForAsync(shopDb, customerId, clock, ct)));
     }
 }

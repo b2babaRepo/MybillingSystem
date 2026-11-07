@@ -68,10 +68,10 @@ public static class StoreEndpoints
         return string.IsNullOrWhiteSpace(upi) ? TypedResults.NotFound() : TypedResults.Ok(new StorePayDto(shop.Name, upi));
     }
 
-    private static async Task<IResult> GetStoreAsync(string slug, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> GetStoreAsync(string slug, AppDbContext db, TenantContext tenant, Billing.Entitlements entitlements, TimeProvider clock, CancellationToken ct)
     {
         var today = IndiaTime.Today(clock);
-        if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop)
+        if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop || !(await entitlements.ForShopAsync(shop.Id, ct)).Has(Billing.Features.Store))
         {
             return TypedResults.NotFound();
         }
@@ -92,9 +92,9 @@ public static class StoreEndpoints
     /// Guest checkout. Prices come from the catalogue, never from the request. Each line reserves its quantity on
     /// the product, in the same transaction as the order. Idempotent on the app's order ID.
     /// </summary>
-    private static async Task<IResult> PlaceAsync(string slug, StoreOrderRequest request, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> PlaceAsync(string slug, StoreOrderRequest request, AppDbContext db, TenantContext tenant, Billing.Entitlements entitlements, TimeProvider clock, CancellationToken ct)
     {
-        if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop)
+        if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop || !(await entitlements.ForShopAsync(shop.Id, ct)).Has(Billing.Features.Store))
         {
             return TypedResults.NotFound();
         }

@@ -138,7 +138,7 @@ public static class OtpSignIn
     public static IEndpointRouteBuilder MapOtpSignIn(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/auth/otp").WithTags("Sign-in").AllowAnonymous().RequireRateLimiting(AuthSetup.AuthRateLimit);
-        group.MapPost("/send", SendAsync);
+        group.MapPost("/send", SendAsync).RequireRateLimiting(AuthSetup.OtpSendRateLimit);
         group.MapPost("/verify", VerifyAsync);
         return app;
     }
@@ -165,7 +165,9 @@ public static class OtpSignIn
             return TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Please wait before asking for another code.");
         }
 
-        if (await db.OtpCodes.CountAsync(c => c.CreatedAt > now.AddDays(-1), ct) >= o.MaxSendsPerDay)
+        // The cost brake holds back strangers' numbers only: someone flooding it must not lock real people out of their
+        // accounts. Each number has its own limit above, so known numbers can't run up much either.
+        if (await db.OtpCodes.CountAsync(c => c.CreatedAt > now.AddDays(-1), ct) >= o.MaxSendsPerDay && !await db.Users.AsNoTracking().AnyAsync(u => u.Phone == phone, ct))
         {
             logger.LogError("Daily sign-in code ceiling of {Max} reached: possible SMS abuse", o.MaxSendsPerDay);
             return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Codes by SMS aren't available right now.", detail: "Please sign in with your password.");

@@ -197,7 +197,7 @@ public sealed class OnlineStoreTests(ApiFactory api)
             .ReadAsync<ProductDto>();
         var dates = await (await shop.PostJsonAsync("/api/v1/products", new { id = Guid.CreateVersion7(), name = "Dates", unit = "packet", sellingPrice = 205m, openingStock = 5m, mrp = 150m }))
             .ReadAsync<ProductDto>();
-        // An MRP at or below the price has nothing "off", so it isn't kept.
+        // An MRP below the price is a slip, so it isn't kept.
         Assert.Equal((850m, (decimal?)null), (anjeer.Mrp!.Value, dates.Mrp));
 
         var full = "data:image/webp;base64," + Convert.ToBase64String(new byte[] { 0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 5, 6 });

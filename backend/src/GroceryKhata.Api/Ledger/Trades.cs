@@ -113,7 +113,7 @@ public static class TradeEndpoints
             .OrderBy(c => c.OccurredAt).ToListAsync(ct))
         .Select(ToDto).ToList();
 
-    private static async Task<IResult> AddChallanAsync(ChallanRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> AddChallanAsync(ChallanRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         if (await db.Challans.AsNoTracking().SingleOrDefaultAsync(c => c.Id == request.Id, ct) is { } existing)
         {
@@ -152,6 +152,27 @@ public static class TradeEndpoints
         if (productIds.Any(id => !products.ContainsKey(id)))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = ["Product not found."] });
+        }
+
+        // Anything the invoice would refuse is stopped here, before the goods leave: a challan can't be taken back.
+        var isOwner = LedgerEndpoints.IsOwner(user);
+        var maxDiscount = isOwner ? 100m : await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.StaffMaxDiscountPercent).SingleAsync(ct);
+        foreach (var line in request.Lines!.Where(l => l.ProductId is not null))
+        {
+            var product = products[line.ProductId!.Value];
+            var problem = product.TracksSerials || product.Schedule is DrugSchedule.H or DrugSchedule.H1 or DrugSchedule.X
+                ? $"{product.Name} needs a serial number or prescription: make a bill for it, not a challan."
+                : product.Mrp is > 0 && line.UnitPrice > product.Mrp ? $"{product.Name} has MRP ₹{product.Mrp:0.##}: the price can't be above it."
+                : isOwner ? null : LedgerService.DiscountProblem(product.Name, product, line.UnitPrice, maxDiscount);
+            if (problem is not null)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = [problem] });
+            }
+        }
+
+        if (!isOwner && request.OccurredAt < clock.GetUtcNow() - LedgerService.HelperBackdateLimit)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["OccurredAt"] = ["Only the owner can enter something older than 7 days. Ask the owner to add it."] });
         }
 
         var dtoLines = request.Lines!.Select(l =>
@@ -208,7 +229,7 @@ public static class TradeEndpoints
     private static async Task<IResult> InvoiceAsync(InvoiceChallansRequest request, ClaimsPrincipal user, AppDbContext db, LedgerService ledger, CancellationToken ct)
     {
         var challans = request.ChallanIds is { Count: > 0 and <= 100 } ids
-            ? await db.Challans.Where(c => ids.Contains(c.Id)).OrderBy(c => c.OccurredAt).ToListAsync(ct)
+            ? await db.Challans.AsNoTracking().Where(c => ids.Contains(c.Id)).OrderBy(c => c.OccurredAt).ToListAsync(ct)
             : [];
         if (challans.Count == 0 || challans.Count != request.ChallanIds!.Distinct().Count())
         {
@@ -228,21 +249,14 @@ public static class TradeEndpoints
         var challanLines = challans.SelectMany(c => JsonSerializer.Deserialize<List<BillLineDto>>(c.Lines, Json)!).ToList();
         var lines = challanLines.Select(l => new BillLineRequest(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice)).ToList();
         var sites = challans.Select(c => c.Site).Distinct().ToList();
+        var challanIds = challans.Select(c => c.Id).ToList();
         var result = await ledger.CreateBillAsync(
             new BillRequest(request.Id, challans[0].CustomerId, lines, request.PaidAmount, request.PaymentMode, null, sites.Count == 1 ? sites[0] : null),
-            user.UserId()!.Value, ct, stockAlreadyOut: true, taxSnapshot: challanLines.Select(l => (l.GstRate, l.HsnCode)).ToList());
-        if (result.Value is not { } bill)
-        {
-            return result.ToHttp($"/api/v1/bills/{request.Id}");
-        }
-
-        foreach (var challan in challans)
-        {
-            challan.InvoiceId = bill.Id;
-        }
-
-        await db.SaveChangesAsync(ct);
-        return result.ToHttp($"/api/v1/bills/{bill.Id}");
+            user.UserId()!.Value, ct, stockAlreadyOut: true, taxSnapshot: challanLines.Select(l => (l.GstRate, l.HsnCode)).ToList(),
+            // In the bill's transaction: of two invoices at once, the second finds them taken and its bill is undone.
+            beforeCommit: async () => await db.Challans.Where(c => challanIds.Contains(c.Id) && c.InvoiceId == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.InvoiceId, request.Id), ct) == challanIds.Count ? null : "Some of these challans are already billed.");
+        return result.ToHttp($"/api/v1/bills/{request.Id}");
     }
 
     /// <summary>A contractor's khata by site: what was billed at each, and challans still to bill there.</summary>

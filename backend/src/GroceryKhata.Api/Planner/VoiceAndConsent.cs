@@ -71,7 +71,8 @@ public static class AiPrivacy
 
     public static IEndpointRouteBuilder MapAiPrivacy(this IEndpointRouteBuilder app)
     {
-        var me = app.MapGroup("/api/v1/me").WithTags("Household planner").RequireAuthorization();
+        // Helpers on a PIN read bill photos too, so this one isn't personal enough to refuse them.
+        var me = app.MapGroup("/api/v1/me").WithTags("Household planner").RequireAuthorization(AppPolicies.AnySession);
         me.MapGet("/ai", StatusAsync);
         me.MapPost("/ai/consent", ConsentAsync);
         // Up to 1 MB of audio plus the form's own bytes.

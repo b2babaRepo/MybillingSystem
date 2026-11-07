@@ -138,7 +138,7 @@ public static class SupplierReturns
             db.StockMovements.Add(new StockMovement
             {
                 ProductId = batch.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Return, Quantity = -line.Quantity, CostPrice = cost,
-                Note = $"Returned to distributor Â· batch {batch.BatchNo} exp {batch.Expiry:MM/yy}", OccurredAt = now, CreatedByUserId = userId,
+                Note = $"Returned to distributor · batch {batch.BatchNo} exp {batch.Expiry:MM/yy}", OccurredAt = now, CreatedByUserId = userId,
             });
         }
 
@@ -156,7 +156,7 @@ public static class SupplierReturns
     /// <summary>The distributor's credit note arrived: it comes off what the shop owes them, and the return is settled.</summary>
     private static async Task<IResult> CreditNoteAsync(Guid id, ReturnCreditRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var record = await db.SupplierReturns.SingleOrDefaultAsync(r => r.Id == id, ct);
+        var record = await db.SupplierReturns.AsNoTracking().SingleOrDefaultAsync(r => r.Id == id, ct);
         if (record is null)
         {
             return TypedResults.NotFound();
@@ -167,24 +167,35 @@ public static class SupplierReturns
             return TypedResults.NoContent();
         }
 
-        if (request.Amount < 0 || request.Amount > record.Value * 2 || decimal.Round(request.Amount, 2) != request.Amount)
+        // A return with no known cost has a value of 0: its credit note still has to go in.
+        if (request.Amount < 0 || (record.Value > 0 && request.Amount > record.Value * 2) || request.Amount > Money.MaxAmount || decimal.Round(request.Amount, 2) != request.Amount)
         {
             return Invalid("Amount", "Enter the credit note's amount, or 0 if the distributor gave nothing.");
         }
 
         var number = request.CreditNoteNo?.Trim();
         var now = clock.GetUtcNow();
-        (record.CreditNoteNo, record.CreditAmount, record.SettledAt) = (string.IsNullOrEmpty(number) ? null : number[..Math.Min(40, number.Length)], request.Amount, now);
+        var noteNo = string.IsNullOrEmpty(number) ? null : number[..Math.Min(40, number.Length)];
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        // One update decides who settles it: a second tap changes no row and adds nothing.
+        var settled = await db.SupplierReturns.Where(r => r.Id == id && r.SettledAt == null).ExecuteUpdateAsync(s => s
+            .SetProperty(r => r.CreditNoteNo, noteNo).SetProperty(r => r.CreditAmount, request.Amount).SetProperty(r => r.SettledAt, now), ct);
+        if (settled == 0)
+        {
+            return TypedResults.NoContent();
+        }
+
         if (request.Amount > 0)
         {
             db.SupplierEntries.Add(new SupplierEntry
             {
-                SupplierId = record.SupplierId, Amount = -request.Amount, Note = $"Credit note {record.CreditNoteNo ?? ""} Â· return #{record.Number}".Replace("  ", " "), OccurredAt = now,
+                SupplierId = record.SupplierId, Amount = -request.Amount, Note = $"Credit note {noteNo ?? ""} · return #{record.Number}".Replace("  ", " "), OccurredAt = now,
                 CreatedByUserId = user.UserId()!.Value,
             });
         }
 
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return TypedResults.NoContent();
     }
 }

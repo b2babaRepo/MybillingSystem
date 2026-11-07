@@ -246,8 +246,8 @@ public static class SupplierEndpoints
             ProductBatch? batch = null;
             if (!string.IsNullOrWhiteSpace(line.BatchNo))
             {
+                await Batches.FollowMrpAsync(db, product, line.Mrp!.Value, today, ct);
                 batch = await Batches.AddToBatchAsync(db, line.ProductId, line.BatchNo.Trim().ToUpperInvariant(), Batches.ParseExpiry(line.ExpiryMonth)!.Value, line.Mrp!.Value, unitCost, units, now, ct);
-                product.SellingPrice = line.Mrp!.Value;
             }
 
             purchase.Lines.Add(new PurchaseLine

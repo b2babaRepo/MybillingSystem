@@ -72,7 +72,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }
   // The style whose sizes/colours are being picked (a tile for a style opens this instead of adding straight away).
   const [stylePick, setStylePick] = useState<string | null>(null)
-  const [customerId, setCustomerId] = useState('')
+  // An exchange's credit is that customer's, so the new bill starts on their name.
+  const [customerId, setCustomerId] = useState(() => currentExchange()?.customerId ?? '')
   // Held bills: park this customer's bill, serve the next one, pick it up again. Kept on this device only.
   const heldKey = `held-bills:${shopId}`
   const [held, setHeld] = useState<{ cart: CartLine[]; customerId: string; at: number }[]>(() => {
@@ -108,6 +109,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const shopState = settings?.gstin && settings.gstin.length >= 2 ? settings.gstin.slice(0, 2) : null
   // Schedule H, H1 and X medicines need the doctor and patient on the bill; H1 and X also the doctor's address (the register).
   const [rx, setRx] = useState({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
+  // A link to go with the bill on WhatsApp. It waits for the sync, and offline the message simply goes without one.
+  const [savedId, setSavedId] = useState<string | null>(null)
+  const billLink = useQuery({
+    queryKey: ['bill-link', savedId],
+    queryFn: () => api<{ shopSlug: string; billId: string; token: string }>(`/v1/bills/${savedId}/link`, 'POST'),
+    enabled: !!savedId, staleTime: Infinity, retry: 3, retryDelay: 1500,
+  }).data
   const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; mode: 'cash' | 'upi'; customer: { name: string; phone: string | null } | null } | null>(null)
 
   // On a phone the bill sits below the item grid: a bar above the tabs shows the total until the bill is in view.
@@ -196,6 +204,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     setPicked({})
     setExtras({ ...extras, site: '', vehicleNumber: '' })
     setDeliveredTo('')
+    setSavedId(result.id)
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
     if (exchange) { endExchange(); setExchangeState(null) }
@@ -363,7 +372,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             {saved && (
               <a
                 className="flex h-12 items-center justify-center rounded-2xl bg-[#15803d] px-5 font-bold text-white"
-                href={whatsAppLink(saved.customer?.phone ?? null, billReceipt(t, shopName, saved, (l) => billNameFor(products.find((p) => p.id === l.productId)) ?? l.name))}
+                href={whatsAppLink(saved.customer?.phone ?? null, [
+                  billReceipt(t, shopName, saved, (l) => billNameFor(products.find((p) => p.id === l.productId)) ?? l.name),
+                  billLink?.billId === saved.id ? `${window.location.origin}/#/b/${billLink.shopSlug}/${billLink.billId}?t=${billLink.token}` : null,
+                ].filter(Boolean).join('\n'))}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -475,7 +487,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
       {cart.length > 0 && (
         <div className="space-y-3 rounded-[18px] bg-white p-3">
-          <CustomerFinder customers={customers} selected={customer} onKhata={customer ? round2(total - paidAmount) : 0} onPick={setCustomerId} />
+          <CustomerFinder customers={customers} selected={customer} onKhata={customer ? round2(due - paidAmount) : 0} onPick={setCustomerId} />
           {customer && (
             <>
               <Field id="bill-paid" label={t('paidNow')} value={paid ?? String(total)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
@@ -484,12 +496,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           )}
           {customer && total - paidAmount > 0 && (
             <p className="font-semibold text-due">
-              {t('onKhata')}: {formatRupees(round2(total - paidAmount))}
+              {t('onKhata')}: {formatRupees(round2(due - paidAmount))}
             </p>
           )}
           {isTrade(types) && (
             <Suspense fallback={null}>
-              <TradeBillPanel shopId={shopId} shopType={shopType} customer={customer} total={total} onKhata={customer ? round2(total - paidAmount) : 0}
+              <TradeBillPanel shopId={shopId} shopType={shopType} customer={customer} total={total} onKhata={customer ? round2(due - paidAmount) : 0}
                 cart={cart} products={products} extras={extras} onExtras={setExtras} onAddLine={add}
                 onChallanSaved={() => { setCart([]); setPaid(null); setCustomerId(''); setExtras({ ...extras, site: '', vehicleNumber: '' }) }} />
             </Suspense>

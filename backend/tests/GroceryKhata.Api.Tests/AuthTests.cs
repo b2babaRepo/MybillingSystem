@@ -78,6 +78,14 @@ public sealed class AuthTests(ApiFactory api)
         Assert.Equal(auth.ShopId, rotated.ShopId);
         Assert.NotEqual(auth.RefreshToken, rotated.RefreshToken);
 
+        // Well past the retry window, so this can't be two tabs or a lost reply.
+        await using (var admin = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await admin.OpenAsync();
+            await using var age = new Npgsql.NpgsqlCommand("UPDATE refresh_tokens SET revoked_at = revoked_at - interval '1 hour' WHERE revoked_at IS NOT NULL", admin);
+            await age.ExecuteNonQueryAsync();
+        }
+
         var reuse = await client.PostJsonAsync("/api/v1/auth/refresh", new { auth.RefreshToken });
         Assert.Equal(HttpStatusCode.Unauthorized, reuse.StatusCode);
 

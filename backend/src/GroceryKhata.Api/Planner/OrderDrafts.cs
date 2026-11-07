@@ -81,6 +81,9 @@ public static class OrderDrafts
         return services;
     }
 
+    /// <summary>AI list reads per person per day: far more than a household needs.</summary>
+    public const int MaxReadsPerDay = 30;
+
     public static IEndpointRouteBuilder MapOrderDrafts(this IEndpointRouteBuilder app)
     {
         // A list photo (up to 1.5 MB) arrives as base64 in JSON, about a third larger: above the 1 MB default for other requests.
@@ -97,6 +100,14 @@ public static class OrderDrafts
         if (!await AiPrivacy.HasConsentedAsync(db, user, ct))
         {
             return AiPrivacy.NeedsConsent();
+        }
+
+        // Each read costs money and a household pays nothing, so one person can't use up everyone's daily allowance.
+        var userId = user.UserId()!.Value;
+        var dayAgo = clock.GetUtcNow().AddDays(-1);
+        if (await db.AiProposals.CountAsync(p => p.UserId == userId && p.CreatedAt > dayAgo, ct) >= MaxReadsPerDay)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "You've read a lot of lists today. Try again tomorrow, or type your list.");
         }
 
         var text = string.IsNullOrWhiteSpace(request.Text) ? null : request.Text.Trim();

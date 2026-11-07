@@ -86,7 +86,7 @@ public static class Batches
 
     /// <summary>
     /// Stock received in a batch (paid plus free units). The item's stock goes up; if the batch is already on the shelf
-    /// (same number and expiry) it is topped up. The item's MRP and cost follow the newest batch.
+    /// (same number and expiry) it is topped up. The item's MRP and cost follow the newest batch; its price, see <see cref="FollowMrpAsync"/>.
     /// </summary>
     private static async Task<IResult> ReceiveAsync(Guid productId, BatchRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
@@ -121,18 +121,30 @@ public static class Batches
         var cost = request.CostPrice is { } paid ? decimal.Round(paid * request.Quantity / units, 2, MidpointRounding.AwayFromZero) : (decimal?)null;
         var now = clock.GetUtcNow();
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await FollowMrpAsync(db, product, request.Mrp, today, ct);
         await AddToBatchAsync(db, productId, batchNo, expiry, request.Mrp, cost, units, now, ct);
         db.StockMovements.Add(new StockMovement
         {
             Id = request.Id, ProductId = productId, Kind = StockMovementKind.Purchase, Quantity = units, CostPrice = cost,
             Note = $"Batch {batchNo} exp {expiry:MM/yy}", OccurredAt = now, CreatedByUserId = user.UserId()!.Value,
         });
-        product.SellingPrice = request.Mrp;
         product.CostPrice = cost ?? product.CostPrice;
         await db.SaveChangesAsync(ct);
         await db.Products.Where(p => p.Id == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Stock, p => p.Stock + units), ct);
         await transaction.CommitAsync(ct);
         return await ListAsync(productId, db, clock, ct);
+    }
+
+    /// <summary>
+    /// A new batch brings a new MRP. A shop selling at MRP follows it, but no higher than the lowest MRP still on the
+    /// shelf, as those packs sell first; a price the shop set lower stays, unless the new MRP is below it.
+    /// </summary>
+    public static async Task FollowMrpAsync(AppDbContext db, Product product, decimal mrp, DateOnly today, CancellationToken ct)
+    {
+        var atMrp = product.SellingPrice <= 0 || product.Mrp is null || product.SellingPrice >= product.Mrp;
+        var onShelf = await db.ProductBatches.AsNoTracking().Where(b => b.ProductId == product.Id && b.Quantity > 0 && b.Expiry >= today).MinAsync(b => (decimal?)b.Mrp, ct);
+        product.SellingPrice = atMrp ? Math.Min(mrp, onShelf ?? mrp) : Math.Min(product.SellingPrice, mrp);
+        product.Mrp = mrp;
     }
 
     /// <summary>"2027-05" → 31 May 2027 (packs are good to the end of the month), or null when it isn't a month.</summary>
@@ -186,7 +198,7 @@ public static class Batches
 
         var ids = productIds.ToArray();
         // Lock the batches so two counters can't sell the same strip.
-        var batches = await db.ProductBatches.FromSql($"SELECT * FROM product_batches WHERE product_id = ANY({ids}) AND quantity > 0 ORDER BY expiry, received_at FOR UPDATE").ToListAsync(ct);
+        var batches = await db.ProductBatches.FromSql($"SELECT * FROM product_batches WHERE product_id = ANY({ids}) ORDER BY expiry, received_at FOR UPDATE").ToListAsync(ct);
         if (batches.Count == 0)
         {
             return null;
@@ -216,6 +228,12 @@ public static class Batches
                     : $"{line.Name}: only {good:0.###} in stock. Receive a new batch first.";
             }
 
+            // Each pack's own MRP is the limit, and an older one can be lower than the item's.
+            if (taken.Select(t => t.Batch).FirstOrDefault(b => line.UnitPrice > b.Mrp) is { } lower)
+            {
+                return $"{line.Name}: batch {lower.BatchNo} has MRP ₹{lower.Mrp:0.##}, so the price can't be above it.";
+            }
+
             line.Batch = Label(taken.Select(t => (t.Batch.BatchNo, t.Batch.Expiry)));
             if (taken.All(t => t.Batch.CostPrice is not null))
             {
@@ -227,6 +245,57 @@ public static class Batches
 
         await db.SaveChangesAsync(ct);
         return null;
+    }
+
+    /// <summary>Goods taken back on a credit note go on the batches this bill took them from.</summary>
+    public static async Task ReturnAsync(AppDbContext db, Guid billId, Guid productId, decimal quantity, CancellationToken ct)
+    {
+        foreach (var sale in await db.BatchSales.Where(s => s.BillId == billId && s.ProductId == productId && s.Quantity > 0).ToListAsync(ct))
+        {
+            var back = Math.Min(sale.Quantity, quantity);
+            sale.Quantity -= back;
+            quantity -= back;
+            await db.ProductBatches.Where(b => b.Id == sale.BatchId).ExecuteUpdateAsync(u => u.SetProperty(b => b.Quantity, b => b.Quantity + back), ct);
+            if (quantity == 0)
+            {
+                break;
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// A stock correction, so the batches agree with the shelf: losses come off the oldest packs first, and a count
+    /// that found more goes on the newest. In the caller's transaction. Items with no batches are left alone.
+    /// </summary>
+    public static async Task AdjustAsync(AppDbContext db, Guid productId, decimal quantity, CancellationToken ct)
+    {
+        var batches = await db.ProductBatches.FromSql($"SELECT * FROM product_batches WHERE product_id = {productId} ORDER BY expiry, received_at FOR UPDATE").ToListAsync(ct);
+        if (batches.Count == 0)
+        {
+            return;
+        }
+
+        if (quantity > 0)
+        {
+            batches[^1].Quantity += quantity;
+        }
+
+        var left = -quantity;
+        foreach (var batch in batches.Where(b => b.Quantity > 0))
+        {
+            if (left <= 0)
+            {
+                break;
+            }
+
+            var take = Math.Min(left, batch.Quantity);
+            batch.Quantity -= take;
+            left -= take;
+        }
+
+        await db.SaveChangesAsync(ct);
     }
 
     /// <summary>A cancelled bill's units go back on the batches they came from.</summary>

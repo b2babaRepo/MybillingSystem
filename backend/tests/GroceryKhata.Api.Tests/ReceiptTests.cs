@@ -87,9 +87,18 @@ public sealed class ReceiptTests(ApiFactory api)
         (await Allocate(shop, part, customer, 50m)).EnsureSuccessStatusCode();
 
         (await shop.PostJsonAsync($"/api/v1/receipts/{sale}/dismiss", new { @as = "counterSale" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync($"/api/v1/receipts/{part}/dismiss", new { @as = "notKhata" })).StatusCode);
         Assert.Equal(part, (await shop.GetJsonAsync<List<ReceiptDto>>("/api/v1/receipts")).Single().Id);
         Assert.Equal(HttpStatusCode.Conflict, (await Allocate(shop, sale, customer, 10m)).StatusCode);
+
+        // The rest of a part-matched receipt can be set aside, and the khata keeps what was matched.
+        (await shop.PostJsonAsync($"/api/v1/receipts/{part}/dismiss", new { @as = "counterSale" })).EnsureSuccessStatusCode();
+        Assert.Empty(await shop.GetJsonAsync<List<ReceiptDto>>("/api/v1/receipts"));
+        Assert.Equal(50m, await Balance(shop, customer));
+
+        // Taking the matched part off the khata brings the whole receipt back: that money needs a home.
+        var entry = (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).Entries.Single(e => e.Amount < 0);
+        (await shop.PostJsonAsync($"/api/v1/ledger-entries/{entry.Id}/reverse", new { id = Guid.CreateVersion7() })).EnsureSuccessStatusCode();
+        Assert.Equal((part, 90m), (await shop.GetJsonAsync<List<ReceiptDto>>("/api/v1/receipts")).Select(r => (r.Id, r.Left)).Single());
     }
 
     // As the app sends it: midnight in India, not UTC. The database only takes UTC, so this must be converted.
@@ -187,6 +196,88 @@ public sealed class ReceiptTests(ApiFactory api)
         (await Allocate(shop, proved.Id, customer, 300m)).EnsureSuccessStatusCode();
         Assert.Equal(400m, await Balance(shop, customer));
         Assert.Empty(await shop.GetJsonAsync<List<BalanceMismatch>>("/api/v1/ledger/reconcile"));
+    }
+
+    [Fact]
+    public async Task The_bank_figure_replaces_a_claim_so_an_inflated_claim_cannot_clear_debt()
+    {
+        var (shop, _) = await api.SignUpAsync("Inflated Store");
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Ramesh");
+        await KhataTests.AddEntryAsync(shop, customer, "credit", 5000m);
+        var (slug, token) = await Link(shop, customer);
+        (await api.CreateClient().PostJsonAsync($"/api/v1/khata/{slug}/{customer}/paid?t={token}", new { id = Guid.CreateVersion7(), amount = 5000m, utr = "432100009999" })).EnsureSuccessStatusCode();
+
+        var result = await (await shop.PostJsonAsync("/api/v1/receipts/import", new
+        {
+            rows = new object[] { new { amount = 50m, utr = "432100009999", payerName = "RAMESH", receivedAt = Day, narration = "x" } },
+        })).ReadAsync<StatementImportResult>();
+
+        Assert.Equal((1, 1), (result.Confirmed, result.Problems.Count));
+        var proved = (await shop.GetJsonAsync<List<ReceiptDto>>("/api/v1/receipts")).Single();
+        Assert.Equal((50m, 50m, ReceiptSource.Statement), (proved.Amount, proved.Left, proved.Source));
+        Assert.Equal(HttpStatusCode.Conflict, (await Allocate(shop, proved.Id, customer, 5000m)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Money_from_a_statement_is_not_lost_inside_a_claim_the_shop_turned_down()
+    {
+        var (shop, _) = await api.SignUpAsync("Turned Down Store");
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Ramesh");
+        await KhataTests.AddEntryAsync(shop, customer, "credit", 900m);
+        var (slug, token) = await Link(shop, customer);
+        (await api.CreateClient().PostJsonAsync($"/api/v1/khata/{slug}/{customer}/paid?t={token}", new { id = Guid.CreateVersion7(), amount = 500m })).EnsureSuccessStatusCode();
+        var claim = (await shop.GetJsonAsync<List<ReceiptDto>>("/api/v1/receipts")).Single();
+        (await shop.PostJsonAsync($"/api/v1/receipts/{claim.Id}/dismiss", new { @as = "notKhata" })).EnsureSuccessStatusCode();
+
+        var result = await (await shop.PostJsonAsync("/api/v1/receipts/import", new
+        {
+            rows = new object[] { new { amount = 500m, utr = "432100008888", payerName = "SOMEONE ELSE", receivedAt = Day, narration = "x" } },
+        })).ReadAsync<StatementImportResult>();
+
+        Assert.Equal((1, 0), (result.Added, result.Confirmed));
+        Assert.Equal("432100008888", (await shop.GetJsonAsync<List<ReceiptDto>>("/api/v1/receipts")).Single().Utr);
+    }
+
+    [Fact]
+    public async Task A_matched_payment_is_dated_when_the_money_came_not_when_it_was_matched()
+    {
+        var (shop, _) = await api.SignUpAsync("Dated Store");
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Ramesh");
+        await KhataTests.AddEntryAsync(shop, customer, "credit", 100m);
+        var came = DateTimeOffset.UtcNow.AddDays(-20);
+        (await shop.PostJsonAsync("/api/v1/receipts/import", new { rows = new object[] { new { amount = 100m, utr = "432100007777", payerName = "R", receivedAt = came, narration = "x" } } })).EnsureSuccessStatusCode();
+        var receipt = (await shop.GetJsonAsync<List<ReceiptDto>>("/api/v1/receipts")).Single();
+
+        (await Allocate(shop, receipt.Id, customer, 100m)).EnsureSuccessStatusCode();
+
+        var paid = (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).Entries.Single(e => e.Amount < 0);
+        Assert.Equal(came.Date, paid.OccurredAt.UtcDateTime.Date);
+    }
+
+    [Fact]
+    public async Task A_customer_sees_where_their_report_stands_and_is_told_if_the_money_did_not_come()
+    {
+        var (shop, _) = await api.SignUpAsync("Status Store");
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Ramesh");
+        await KhataTests.AddEntryAsync(shop, customer, "credit", 300m);
+        var (slug, token) = await Link(shop, customer);
+        var guest = api.CreateClient();
+        Task<KhataViewDto> View() => guest.GetJsonAsync<KhataViewDto>($"/api/v1/khata/{slug}/{customer}?t={token}");
+        Task<HttpResponseMessage> Claim(decimal amount) => guest.PostJsonAsync($"/api/v1/khata/{slug}/{customer}/paid?t={token}", new { id = Guid.CreateVersion7(), amount });
+
+        (await Claim(300m)).EnsureSuccessStatusCode();
+        Assert.Equal((300m, "waiting"), (await View()).Claims!.Select(c => (c.Amount, c.Status)).Single());
+
+        var claim = (await shop.GetJsonAsync<List<ReceiptDto>>("/api/v1/receipts")).Single();
+        (await shop.PostJsonAsync($"/api/v1/receipts/{claim.Id}/dismiss", new { @as = "notReceived" })).EnsureSuccessStatusCode();
+        Assert.Equal("notReceived", (await View()).Claims!.Single().Status);
+        Assert.Empty(await shop.GetJsonAsync<List<ReceiptDto>>("/api/v1/receipts"));
+        Assert.Equal(300m, await Balance(shop, customer));
+
+        (await Claim(100m)).EnsureSuccessStatusCode();
+        var second = (await shop.GetJsonAsync<List<ReceiptDto>>("/api/v1/receipts")).Single();
+        (await Allocate(shop, second.Id, customer, 100m)).EnsureSuccessStatusCode();
+        Assert.DoesNotContain((await View()).Claims!, c => c.Amount == 100m); // on the khata now, so the statement shows it
     }
 
     [Fact]

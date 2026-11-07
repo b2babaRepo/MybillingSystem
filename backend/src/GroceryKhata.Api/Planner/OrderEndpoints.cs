@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
@@ -55,7 +56,7 @@ public static class OrderEndpoints
             : TypedResults.NotFound();
 
     /// <summary>Sets what was actually packed and its price. Every line must be answered: packed or removed.</summary>
-    private static async Task<IResult> PackAsync(Guid id, PackRequest request, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> PackAsync(Guid id, PackRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         var order = await FindAsync(db, tenant, id, ct, tracked: true);
         if (order is null)
@@ -70,8 +71,12 @@ public static class OrderEndpoints
 
         var answers = (request.Lines ?? []).ToDictionary(l => l.Id);
         // The shop may pack another of its options than the one on the line (another brand, another pack size).
-        var swaps = answers.Values.Where(a => a.ProductId is not null).Select(a => a.ProductId!.Value).ToList();
+        var swaps = answers.Values.Where(a => a.ProductId is not null).Select(a => a.ProductId!.Value)
+            .Concat(order.Lines.Where(l => l.ProductId is not null).Select(l => l.ProductId!.Value)).ToList();
         var options = await db.Products.AsNoTracking().Where(p => swaps.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var isOwner = LedgerEndpoints.IsOwner(user);
+        var maxDiscount = isOwner ? 100m : await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.StaffMaxDiscountPercent).SingleAsync(ct);
+        var movedHolds = new List<(Guid From, Guid To, decimal Quantity)>();
         var errors = new Dictionary<string, string[]>();
         foreach (var line in order.Lines)
         {
@@ -90,6 +95,8 @@ public static class OrderEndpoints
 
             line.Removed = answer.Removed;
             line.ShopNote = string.IsNullOrWhiteSpace(answer.ShopNote) ? null : answer.ShopNote.Trim();
+            // The price the customer saw is theirs to keep; a helper's limit is for a price changed here.
+            var quoted = line.UnitPrice;
             if (!answer.Removed && answer.ProductId is { } swap && swap != line.ProductId)
             {
                 if (!options.TryGetValue(swap, out var option))
@@ -98,6 +105,13 @@ public static class OrderEndpoints
                     continue;
                 }
 
+                // The stock it was holding moves to what is really going out.
+                if (line.ProductId is { } before && line.ReservedQuantity > 0)
+                {
+                    movedHolds.Add((before, option.Id, line.ReservedQuantity));
+                }
+
+                quoted = null;
                 line.ProductId = option.Id;
                 line.Name = option.Name;
                 line.Unit = option.Unit;
@@ -117,6 +131,18 @@ public static class OrderEndpoints
             else if (answer.UnitPrice is not { } price || price < 0 || price > Money.MaxAmount || decimal.Round(price, 2) != price)
             {
                 errors[field] = [$"Enter the price of \"{line.Name}\"."];
+            }
+            else if (line.ProductId is { } packedId && options[packedId] is var packed && (packed.TracksSerials || packed.Schedule is DrugSchedule.H or DrugSchedule.H1 or DrugSchedule.X))
+            {
+                errors[field] = [$"{packed.Name} needs a serial number or prescription: remove it here and make a bill at the counter."];
+            }
+            else if (line.ProductId is { } mrpId && options[mrpId].Mrp is > 0 and var mrp && price > mrp)
+            {
+                errors[field] = [$"{line.Name} has MRP ₹{mrp:0.##}: the price can't be above it."];
+            }
+            else if (!isOwner && price != quoted && line.ProductId is { } pricedId && LedgerService.DiscountProblem(line.Name, options[pricedId], price, maxDiscount) is { } tooLow)
+            {
+                errors[field] = [tooLow];
             }
             else
             {
@@ -146,7 +172,15 @@ public static class OrderEndpoints
         order.FinalAmount = FinalAmount(order);
         order.Status = OrderStatus.Packed;
         order.PackedAt = clock.GetUtcNow();
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        foreach (var (from, to, held) in movedHolds)
+        {
+            await db.Products.Where(p => p.Id == from).ExecuteUpdateAsync(s => s.SetProperty(p => p.Reserved, p => p.Reserved - held), ct);
+            await db.Products.Where(p => p.Id == to).ExecuteUpdateAsync(s => s.SetProperty(p => p.Reserved, p => p.Reserved + held), ct);
+        }
+
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return TypedResults.Ok((await PlannerEndpoints.WithShopNamesAsync(db, [order], ct))[0]);
     }
 

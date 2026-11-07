@@ -106,14 +106,19 @@ public static class StaffEndpoints
 
         var user = await db.Users.SingleAsync(u => u.Id == membership.UserId, ct);
         membership.PinHash = hasher.HashPassword(user, request.Pin!);
-        user.FailedSignInCount = 0;
-        user.LockoutEndsAt = null; // a new PIN from the owner also lifts a lockout
+        // A new PIN lifts a helper's lockout. Not on an account with its own password: a shop can't be a way past that.
+        if (user.PasswordHash is null)
+        {
+            user.FailedSignInCount = 0;
+            user.LockoutEndsAt = null;
+        }
+
         await db.SaveChangesAsync(ct);
         return TypedResults.NoContent();
     }
 
     /// <summary>Turns someone's access off (signed out on their next request) or back on. Not your own; never the last owner.</summary>
     private static Task<IResult> SetActiveAsync(
-        Guid membershipId, bool active, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
-        ShopPeople.SetActiveAsync(membershipId, active, tenant.ShopId, user.UserId(), db, ct);
+        Guid membershipId, bool active, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, Billing.Entitlements entitlements, CancellationToken ct) =>
+        ShopPeople.SetActiveAsync(membershipId, active, tenant.ShopId, user.UserId(), db, entitlements, ct);
 }

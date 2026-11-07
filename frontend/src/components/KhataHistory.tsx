@@ -108,7 +108,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
             {t('dispute.raise')}
           </button>
         )}
-        {canRemove && e.kind !== 'reversal' && !e.isReversed && !e.pending && (
+        {canRemove && e.kind !== 'reversal' && !e.reversesEntryId && !e.isReversed && !e.pending && (
           <button className="min-h-11 px-1 text-sm text-muted underline" onClick={onRemove}>
             {t('remove')}
           </button>

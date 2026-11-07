@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Identity;
 
-public sealed record ProfileDto(string FullName, string Phone, string PreferredLanguage, string? Email, string? Address, string? City, string? Pincode);
+public sealed record ProfileDto(string FullName, string Phone, string PreferredLanguage, string? Email, string? Address, string? City, string? Pincode, bool HasPassword = false);
+
+public sealed record PasswordChange(string? CurrentPassword, string? NewPassword);
 
 /// <summary>The phone is the login, so it isn't changed here.</summary>
 public sealed record ProfileUpdate(string? FullName, string? PreferredLanguage, string? Email, string? Address, string? City, string? Pincode);
@@ -17,10 +19,44 @@ public static class Profile
         var group = app.MapGroup("/api/v1/profile").WithTags("Sign-in").RequireAuthorization();
         group.MapGet("", GetAsync);
         group.MapPut("", UpdateAsync);
+        group.MapPut("/password", SetPasswordAsync);
         return app;
     }
 
-    private static ProfileDto ToDto(User u) => new(u.FullName, u.Phone, u.PreferredLanguage, u.Email, u.Address, u.City, u.Pincode);
+    /// <summary>
+    /// Sets the password. Needs the current one if there is one; with none (SMS sign-in only), a number proved by SMS.
+    /// Every other sign-in ends, so a password that got out stops working everywhere.
+    /// </summary>
+    private static async Task<IResult> SetPasswordAsync(
+        PasswordChange request, ClaimsPrincipal principal, AppDbContext db, Microsoft.AspNetCore.Identity.IPasswordHasher<User> hasher, TimeProvider clock, CancellationToken ct)
+    {
+        var user = await db.Users.SingleOrDefaultAsync(u => u.Id == principal.UserId(), ct);
+        if (user is null)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        if (request.NewPassword is not { Length: >= SignUpRequest.MinPasswordLength and <= 128 })
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["NewPassword"] = [$"Use at least {SignUpRequest.MinPasswordLength} characters."] });
+        }
+
+        var allowed = user.PasswordHash is { } hash
+            ? request.CurrentPassword is not null && hasher.VerifyHashedPassword(user, hash, request.CurrentPassword) != Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed
+            : user.PhoneVerifiedAt is not null;
+        if (!allowed)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["CurrentPassword"] = ["That isn't your current password."] });
+        }
+
+        user.PasswordHash = hasher.HashPassword(user, request.NewPassword);
+        await db.SaveChangesAsync(ct);
+        var now = clock.GetUtcNow();
+        await db.RefreshTokens.Where(t => t.UserId == user.Id && t.RevokedAt == null).ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+        return TypedResults.NoContent();
+    }
+
+    private static ProfileDto ToDto(User u) => new(u.FullName, u.Phone, u.PreferredLanguage, u.Email, u.Address, u.City, u.Pincode, u.PasswordHash is not null);
 
     private static async Task<IResult> GetAsync(ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
         await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == principal.UserId(), ct) is { } user

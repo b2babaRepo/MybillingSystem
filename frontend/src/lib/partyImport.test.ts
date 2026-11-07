@@ -13,6 +13,9 @@ describe('parseBalance', () => {
     expect(parseBalance('(300)')).toBe(-300)
     expect(parseBalance('-300')).toBe(-300)
     expect(parseBalance('300', 'Cr')).toBe(-300)
+    expect(parseBalance('₹-300')).toBe(-300)
+    expect(parseBalance('Rs -300')).toBe(-300)
+    expect(parseBalance('300-')).toBe(-300)
   })
 
   it('takes empty as nothing owed, and rejects words', () => {

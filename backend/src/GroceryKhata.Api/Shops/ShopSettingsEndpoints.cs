@@ -52,9 +52,9 @@ public static partial class ShopSettingsEndpoints
         }
 
         var gstin = string.IsNullOrWhiteSpace(request.Gstin) ? null : request.Gstin.Trim().ToUpperInvariant();
-        if (gstin is not null && !GstinPattern().IsMatch(gstin))
+        if (gstin is not null && !Ledger.GstExport.IsValidGstin(gstin))
         {
-            errors[nameof(request.Gstin)] = ["A GSTIN has 15 letters and digits, like 08ABCDE1234F1Z5."];
+            errors[nameof(request.Gstin)] = ["This GSTIN isn't valid: check each letter and digit (the last one is a check digit)."];
         }
 
         if (request.StaffMaxDiscountPercent is < 0 or > 100)
@@ -90,6 +90,4 @@ public static partial class ShopSettingsEndpoints
     [GeneratedRegex(@"^[a-z0-9.\-_]{2,256}@[a-z][a-z0-9]{1,63}$")]
     private static partial Regex UpiPattern();
 
-    [GeneratedRegex(@"^[0-9]{2}[A-Z0-9]{13}$")]
-    private static partial Regex GstinPattern();
 }

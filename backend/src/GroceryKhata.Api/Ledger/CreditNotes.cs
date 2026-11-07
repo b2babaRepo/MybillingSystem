@@ -75,7 +75,7 @@ public sealed class CreditNoteLine : Entity, ITenantOwned
 public sealed record CreditNoteLineRequest(int LineNo, decimal Quantity);
 
 /// <summary><see cref="Restock"/>: the goods go back on the shelf (not damaged).</summary>
-public sealed record CreditNoteRequest(Guid Id, string? Reason, IReadOnlyList<CreditNoteLineRequest>? Lines, bool Restock = true, bool Exchange = false);
+public sealed record CreditNoteRequest(Guid Id, string? Reason, IReadOnlyList<CreditNoteLineRequest>? Lines, bool Restock = true, bool Exchange = false, IReadOnlyList<string>? Serials = null);
 
 public sealed record CreditNoteLineDto(int BillLineNo, string Name, decimal Quantity, decimal Amount, decimal TaxableValue, decimal Cgst, decimal Sgst, decimal Igst);
 
@@ -127,6 +127,26 @@ public static class CreditNotes
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = ["Say why, and take back no more than was sold (less what was already returned)."] });
         }
 
+        // Units sold by serial come back by serial: when only some of them return, the shop says which.
+        var comingBack = new List<ProductSerial>();
+        if (request.Restock)
+        {
+            var onBill = await db.ProductSerials.Where(s => s.BillId == billId && s.Status == SerialStatus.Sold).ToListAsync(ct);
+            var named = (request.Serials ?? []).Select(Serials.Clean).ToHashSet();
+            foreach (var group in asked.GroupBy(a => bill.Lines.Single(l => l.LineNo == a.LineNo).ProductId))
+            {
+                var units = onBill.Where(s => s.ProductId == group.Key).ToList();
+                var quantity = group.Sum(a => a.Quantity);
+                var chosen = quantity >= units.Count ? units : units.Where(s => named.Contains(s.SerialNo)).ToList();
+                if (chosen.Count != Math.Min(quantity, units.Count))
+                {
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Serials"] = [$"Enter the {quantity:0.###} serial number(s) coming back: {string.Join(", ", units.Select(s => s.SerialNo))}."] });
+                }
+
+                comingBack.AddRange(chosen);
+            }
+        }
+
         var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
         var lines = asked.Select(a =>
         {
@@ -134,7 +154,8 @@ public static class CreditNotes
             var share = a.Quantity / line.Quantity;
             var amount = decimal.Round(line.Amount * share, 2);
             // Tax in the same share as the bill line had; a line with no stored tax is worked out from its rate.
-            var taxable = line.TaxableValue is { } t ? decimal.Round(t * share, 2) : bill.Gstin is not null && line.GstRate is { } r ? decimal.Round(amount / (1 + (r / 100)), 2) : amount;
+            // A bill of supply collected none, so there is none to give back.
+            var taxable = line.TaxableValue is { } t ? decimal.Round(t * share, 2) : bill.Gstin is not null && !bill.BillOfSupply && line.GstRate is { } r ? decimal.Round(amount / (1 + (r / 100)), 2) : amount;
             var igst = line.Igst is > 0 ? amount - taxable : 0;
             var cgst = igst == 0 ? decimal.Round((amount - taxable) / 2, 2) : 0;
             return new CreditNoteLine
@@ -185,8 +206,14 @@ public static class CreditNotes
             }
         }
 
+        foreach (var unit in comingBack)
+        {
+            (unit.Status, unit.BillId, unit.CustomerId, unit.SoldOn, unit.WarrantyUntil, unit.WarrantyRegistered) = (SerialStatus.InStock, null, null, null, null, false);
+        }
+
         await db.SaveChangesAsync(ct);
-        if (bill.CustomerId is { } owing)
+        // An exchange moves the khata when its credit is used, on the new bill.
+        if (!request.Exchange && bill.CustomerId is { } owing)
         {
             await db.Customers.Where(c => c.Id == owing).ExecuteUpdateAsync(s => s.SetProperty(c => c.Balance, c => c.Balance - total), ct);
         }
@@ -197,6 +224,7 @@ public static class CreditNotes
             {
                 var quantity = group.Sum(x => x.a.Quantity);
                 await db.Products.Where(p => p.Id == group.Key).ExecuteUpdateAsync(s => s.SetProperty(p => p.Stock, p => p.Stock + quantity), ct);
+                await Batches.ReturnAsync(db, billId, group.Key, quantity, ct);
             }
         }
 

@@ -299,7 +299,7 @@ export const en = {
     percent: 'Commission %',
     add: 'Add painter',
   },
-  profile: { title: 'My profile', name: 'Full name', phone: 'Mobile number', email: 'Email', address: 'Address', city: 'City', pincode: 'Pincode', language: 'Language' },
+  profile: { passwordTitle: 'Password', passwordCurrent: 'Current password', passwordNew: 'New password (at least 6 characters)', passwordNone: 'You sign in with an SMS code. Set a password to use one too.', passwordSave: 'Save password', passwordSaved: 'Password saved. Other devices are signed out.',  title: 'My profile', name: 'Full name', phone: 'Mobile number', email: 'Email', address: 'Address', city: 'City', pincode: 'Pincode', language: 'Language' },
   plan2: {
     shopId: 'Shop ID: {{code}}',
     myPlan: 'My plan',

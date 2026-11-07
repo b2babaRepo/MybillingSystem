@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -164,7 +165,14 @@ public sealed class BillingTests(ApiFactory api)
         owner.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", signedIn.AccessToken);
         Assert.Equal(SubscriptionStatus.Trial, (await owner.GetJsonAsync<SubscriptionView>("/api/v1/subscription")).Status);
 
-        // The same number again: a second shop for the same owner, no new password.
+        // The same number again: refused until an SMS code proves it, or whoever opened the account would get the shop.
+        Assert.Equal(HttpStatusCode.BadRequest, (await approver.PostJsonAsync("/api/v1/platform/shops", body)).StatusCode);
+        var sms = api.CreateClient();
+        await sms.PostJsonAsync("/api/v1/auth/otp/send", new { phone });
+        var code = api.Services.GetRequiredService<GroceryKhata.Api.Identity.DevSmsSender>().LastCodeFor(GroceryKhata.Api.Common.PhoneNumber.Normalize(phone)!);
+        (await sms.PostJsonAsync("/api/v1/auth/otp/verify", new { phone, code })).EnsureSuccessStatusCode();
+
+        // Then a second shop for the same owner, no new password.
         var second = await (await approver.PostJsonAsync("/api/v1/platform/shops", body)).ReadAsync<GroceryKhata.Api.Shops.CreatedShop>();
         Assert.False(second.NewAccount);
         Assert.Null(second.TempPassword);

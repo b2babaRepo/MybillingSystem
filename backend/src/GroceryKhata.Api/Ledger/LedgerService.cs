@@ -128,6 +128,12 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 }
 
                 entry.UpiRef = receipt.Receipt?.Utr ?? upiRef;
+                // Matched later, but received then: the day's books must agree with the bank.
+                if (fromReceiptId is not null)
+                {
+                    entry.OccurredAt = receipt.Receipt!.ReceivedAt;
+                }
+
                 db.LedgerEntries.Add(entry);
                 if (receipt.Receipt is { } proof)
                 {
@@ -228,6 +234,12 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     return LedgerResult<KhataEntryResponse>.Conflicted("This entry is already reversed.");
                 }
 
+                // On its own this would leave the sale, its stock and its tax standing with nothing owed.
+                if (original.BillId is not null)
+                {
+                    return LedgerResult<KhataEntryResponse>.Conflicted("This line belongs to a bill. Cancel the bill, or take the goods back on a credit note.");
+                }
+
                 // The bank's proof stays either way: this only says the money isn't this customer's, so say why.
                 if (original.UpiRef is not null && request.Note?.Trim() is not { Length: >= 3 and <= 200 })
                 {
@@ -265,6 +277,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 db.LedgerEntries.Add(reversal);
                 await db.SaveChangesAsync(cancellationToken);
                 var balance = await AdjustBalanceAsync(reversal.CustomerId, reversal.Amount, cancellationToken);
+                // Money coming off a khata needs a new home, even if the rest of that receipt was set aside.
+                await db.IncomingReceipts
+                    .Where(r => r.Disposition != null && db.ReceiptAllocations.Any(a => a.ReceiptId == r.Id && a.LedgerEntryId == entryId))
+                    .ExecuteUpdateAsync(s => s.SetProperty(r => r.Disposition, (ReceiptDisposition?)null).SetProperty(r => r.DispositionByUserId, (Guid?)null), cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
                 return LedgerResult<KhataEntryResponse>.Created(new KhataEntryResponse(LedgerEntryDto.From(reversal), balance));
@@ -276,9 +292,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
     /// </summary>
     /// <param name="stockAlreadyOut">True for an invoice made from delivery challans: the goods left the shelf with the challans.</param>
     /// <param name="taxSnapshot">GST and HSN per line, kept from the challans; without it each line takes the item's current ones.</param>
+    /// <param name="beforeCommit">Runs in the bill's transaction, last: a message from it undoes the bill.</param>
     public Task<LedgerResult<BillDto>> CreateBillAsync(
         BillRequest request, Guid userId, CancellationToken cancellationToken, bool stockAlreadyOut = false, bool isOwner = true,
-        IReadOnlyList<(decimal? GstRate, string? HsnCode)>? taxSnapshot = null) =>
+        IReadOnlyList<(decimal? GstRate, string? HsnCode)>? taxSnapshot = null, Func<Task<string?>>? beforeCommit = null) =>
         WriteOnceAsync(
             () => FindBillAsync(request.Id, cancellationToken),
             async () =>
@@ -329,10 +346,9 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                         // Legal Metrology: nothing may be sold above the MRP printed on it.
                         errors[field] = [$"{name} has MRP ₹{mrp:0.##}: the price can't be above it."];
                     }
-                    else if (!isOwner && product is { SellingPrice: > 0 } regular && line.UnitPrice < regular.SellingPrice
-                        && (regular.SellingPrice - line.UnitPrice) / regular.SellingPrice * 100 > staffMaxDiscount)
+                    else if (!isOwner && DiscountProblem(name, product, line.UnitPrice, staffMaxDiscount) is { } tooLow)
                     {
-                        errors[field] = [$"{name}: helpers can take off at most {staffMaxDiscount:0.##}% (₹{regular.SellingPrice * (1 - staffMaxDiscount / 100):0.##} or more). Ask the owner."];
+                        errors[field] = [tooLow];
                     }
                     else
                     {
@@ -367,10 +383,15 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 CreditNote? exchange = null;
                 if (request.ExchangeNoteId is { } noteId)
                 {
-                    exchange = await db.CreditNotes.SingleOrDefaultAsync(n => n.Id == noteId, cancellationToken);
+                    exchange = await db.CreditNotes.AsNoTracking().SingleOrDefaultAsync(n => n.Id == noteId, cancellationToken);
                     if (exchange is not { ForExchange: true, ExchangeBillId: null })
                     {
                         errors[nameof(request.ExchangeNoteId)] = ["That exchange credit was already used, or isn't for an exchange."];
+                        exchange = null;
+                    }
+                    else if (exchange.CustomerId is { } creditOwner && creditOwner != request.CustomerId)
+                    {
+                        errors[nameof(request.ExchangeNoteId)] = ["This credit belongs to the customer who returned the goods: choose them on the bill."];
                         exchange = null;
                     }
                 }
@@ -454,15 +475,12 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
                 (bill.FinancialYear, bill.Number) = await NextBillNumberAsync(cancellationToken);
                 db.Bills.Add(bill);
-                if (exchange is not null)
+                // Returned goods worth more than the new ones: the change goes back out of the drawer.
+                if (exchange is not null && exchange.Total > total)
                 {
-                    exchange.ExchangeBillId = bill.Id;
-                    // Returned goods worth more than the new ones: the change goes back out of the drawer.
-                    if (exchange.Total > total)
-                    {
-                        db.Expenses.Add(new Expense { Amount = exchange.Total - total, Category = ExpenseCategory.Other, Mode = PaymentMode.Cash, Note = $"Refund {exchange.NoteNo} (exchange)", OccurredAt = occurredAt, CreatedByUserId = userId });
-                    }
+                    db.Expenses.Add(new Expense { Amount = exchange.Total - total, Category = ExpenseCategory.Other, Mode = PaymentMode.Cash, Note = $"Refund {exchange.NoteNo} (exchange)", OccurredAt = occurredAt, CreatedByUserId = userId });
                 }
+
                 if (prescription is not null)
                 {
                     prescription.BillId = bill.Id;
@@ -530,6 +548,13 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
 
                 await db.SaveChangesAsync(cancellationToken);
 
+                // One update decides which bill gets the credit: two tills can't both spend it.
+                if (exchange is not null && await db.CreditNotes.Where(n => n.Id == exchange.Id && n.ExchangeBillId == null)
+                        .ExecuteUpdateAsync(s => s.SetProperty(n => n.ExchangeBillId, bill.Id), cancellationToken) == 0)
+                {
+                    return LedgerResult<BillDto>.Conflicted("That exchange credit was just used on another bill.");
+                }
+
                 // The evening rush showed bills waiting on each other here: two cashiers selling the same items lock the
                 // same product rows. So keep the locks short: every product's stock in one statement, in id order (two
                 // bills can't deadlock), and the customer's new balance read straight from its update.
@@ -556,10 +581,15 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 decimal? balance = null;
                 if (bill.CustomerId is { } owingCustomerId)
                 {
-                    var delta = total - bill.PaidAmount;
+                    var delta = total - exchangeCredit - bill.PaidAmount;
                     balance = delta != 0
                         ? await AdjustBalanceAsync(owingCustomerId, delta, cancellationToken)
                         : await BalanceAsync(owingCustomerId, cancellationToken);
+                }
+
+                if (beforeCommit is not null && await beforeCommit() is { } refused)
+                {
+                    return LedgerResult<BillDto>.Conflicted(refused);
                 }
 
                 await transaction.CommitAsync(cancellationToken);
@@ -590,7 +620,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         }
 
         var entries = await db.LedgerEntries.AsNoTracking().Where(e => e.BillId == id).ToListAsync(cancellationToken);
-        if (entries.Any(e => e.Kind == LedgerEntryKind.Return))
+        // A walk-in return or an exchange leaves no khata line, so ask the credit notes too.
+        if (entries.Any(e => e.Kind == LedgerEntryKind.Return) || bill.ExchangeNoteId is not null || await db.CreditNotes.AnyAsync(n => n.BillId == id, cancellationToken))
         {
             return LedgerResult<BillDto>.Conflicted("Items on this bill were returned, so it can't be cancelled as a whole.");
         }
@@ -861,6 +892,12 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         var start = local.Month >= 4 ? local.Year : local.Year - 1;
         return $"{start}-{(start + 1) % 100:D2}";
     }
+
+    /// <summary>What's wrong with a helper's price for this item, or null when it's inside the shop's discount limit.</summary>
+    public static string? DiscountProblem(string name, Product? product, decimal price, decimal maxDiscount) =>
+        product is { SellingPrice: > 0 } regular && price < regular.SellingPrice && (regular.SellingPrice - price) / regular.SellingPrice * 100 > maxDiscount
+            ? $"{name}: helpers can take off at most {maxDiscount:0.##}% (₹{regular.SellingPrice * (1 - maxDiscount / 100):0.##} or more). Ask the owner."
+            : null;
 
     /// <summary>A helper can't date an entry more than a week back (room for a phone offline for days): older entries need the owner.</summary>
     private void CheckBackdate(DateTimeOffset? requested, bool isOwner, Dictionary<string, string[]> errors)

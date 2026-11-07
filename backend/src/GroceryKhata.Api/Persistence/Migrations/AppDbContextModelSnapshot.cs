@@ -544,6 +544,22 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("gateway_orders", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Billing.InvoiceCounter", b =>
+                {
+                    b.Property<string>("Prefix")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("prefix");
+
+                    b.Property<int>("LastNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_number");
+
+                    b.HasKey("Prefix");
+
+                    b.ToTable("invoice_counters", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Billing.Offer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2584,6 +2600,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<Guid?>("MembershipId")
                         .HasColumnType("uuid")
                         .HasColumnName("membership_id");
+
+                    b.Property<bool>("PinOnly")
+                        .HasColumnType("boolean")
+                        .HasColumnName("pin_only");
 
                     b.Property<Guid?>("ReplacedById")
                         .HasColumnType("uuid")

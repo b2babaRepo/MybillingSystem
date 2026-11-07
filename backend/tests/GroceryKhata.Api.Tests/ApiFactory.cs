@@ -60,6 +60,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             ["Database:MigrateOnStartup"] = "true",
             ["Auth:AuthRequestsPerMinutePerIp"] = "10000",
             ["Auth:StoreRequestsPerMinutePerIp"] = "10000",
+            ["Auth:OtpSendsPerHourPerIp"] = "100000",
+            ["Billing:RazorpayWebhookSecret"] = "test-webhook-secret",
             ["Security:RequestsPerMinutePerIp"] = "100000",
             ["Ai:Enabled"] = "false",
             ["Whatsapp:AppSecret"] = "test-app-secret",

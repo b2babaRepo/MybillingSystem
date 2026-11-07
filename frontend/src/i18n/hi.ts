@@ -301,7 +301,7 @@ export const hi: Texts = {
     percent: 'कमीशन %',
     add: 'पेंटर जोड़ें',
   },
-  profile: { title: 'मेरी प्रोफ़ाइल', name: 'पूरा नाम', phone: 'मोबाइल नंबर', email: 'ईमेल', address: 'पता', city: 'शहर', pincode: 'पिनकोड', language: 'भाषा' },
+  profile: { passwordTitle: 'पासवर्ड', passwordCurrent: 'अभी का पासवर्ड', passwordNew: 'नया पासवर्ड (कम से कम 6 अक्षर)', passwordNone: 'आप SMS कोड से साइन इन करते हैं। चाहें तो पासवर्ड भी बना लें।', passwordSave: 'पासवर्ड सेव करें', passwordSaved: 'पासवर्ड सेव हो गया। दूसरे डिवाइस साइन आउट हो गए।',  title: 'मेरी प्रोफ़ाइल', name: 'पूरा नाम', phone: 'मोबाइल नंबर', email: 'ईमेल', address: 'पता', city: 'शहर', pincode: 'पिनकोड', language: 'भाषा' },
   plan2: {
     shopId: 'दुकान ID: {{code}}',
     myPlan: 'मेरा प्लान',

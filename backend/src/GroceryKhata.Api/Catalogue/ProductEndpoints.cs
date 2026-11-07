@@ -148,8 +148,8 @@ public static class ProductEndpoints
                 _ => Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "This ID is already in use."),
             });
 
-        products.MapPut("/{id:guid}", async (Guid id, ProductUpdate request, StockService stock, CancellationToken ct) =>
-            await stock.UpdateAsync(id, request, ct) switch
+        products.MapPut("/{id:guid}", async (Guid id, ProductUpdate request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
+            await stock.UpdateAsync(id, request, ct, Ledger.LedgerEndpoints.IsOwner(user)) switch
             {
                 { Errors: { } errors } => Results.ValidationProblem(errors),
                 { Product: { } product } => Results.Ok(product),

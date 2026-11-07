@@ -25,7 +25,7 @@ public sealed class ShopDayTests(ApiFactory api)
     {
         var shop = await SignUpAsync(trade);
         var settings = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
-        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" }, ApiFactory.Json)).EnsureSuccessStatusCode();
 
         // Stock list from the trade's starter items, priced at â‚¹500 and costed at â‚¹350.
         (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
@@ -891,7 +891,7 @@ public sealed class ShopDayTests(ApiFactory api)
     {
         var shop = await SignUpAsync("lodge");
         var settings = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
-        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" }, ApiFactory.Json)).EnsureSuccessStatusCode();
         var room = Guid.CreateVersion7();
         (await shop.PostJsonAsync("/api/v1/rooms", new { id = room, name = "301", rate = 2000m })).EnsureSuccessStatusCode();
         var today = DateOnly.FromDateTime(DateTime.Today);
@@ -1189,7 +1189,7 @@ public sealed class ShopDayTests(ApiFactory api)
     {
         var shop = await SignUpAsync("medical");
         var settings = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
-        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" }, ApiFactory.Json)).EnsureSuccessStatusCode();
         var med = Guid.CreateVersion7();
         (await shop.PostJsonAsync("/api/v1/products", new { id = med, name = "Montelukast (strip)", unit = "piece", sellingPrice = 42m, gstRate = 5m, hsnCode = "3004" })).EnsureSuccessStatusCode();
         var supplier = Guid.CreateVersion7();

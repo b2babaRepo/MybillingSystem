@@ -132,12 +132,26 @@ public static class RazorpayCheckout
         }
 
         using var json = JsonDocument.Parse(body);
-        if (json.RootElement.GetProperty("event").GetString() != "payment.captured")
+        var kind = json.RootElement.GetProperty("event").GetString();
+        if (kind is not ("payment.captured" or "refund.processed"))
         {
             return TypedResults.Ok();
         }
 
         var payment = json.RootElement.GetProperty("payload").GetProperty("payment").GetProperty("entity");
+        if (kind == "refund.processed")
+        {
+            // A full refund in Razorpay takes the paid time back. A part refund is for a person to decide.
+            var paymentId = payment.GetProperty("id").GetString();
+            if (payment.GetProperty("amount_refunded").GetInt64() >= payment.GetProperty("amount").GetInt64()
+                && await db.SubscriptionPayments.AsNoTracking().Where(p => p.Reference == paymentId && p.Method == PaymentMethod.Gateway).Select(p => (Guid?)p.Id).FirstOrDefaultAsync(ct) is { } refunded)
+            {
+                await billing.RefundAsync(refunded, ct, fromGateway: true);
+            }
+
+            return TypedResults.Ok();
+        }
+
         var orderId = payment.GetProperty("order_id").GetString();
         var order = await db.GatewayOrders.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == orderId, ct);
         if (order is not null && payment.GetProperty("amount").GetInt32() == (int)decimal.Round(order.Amount * 100))

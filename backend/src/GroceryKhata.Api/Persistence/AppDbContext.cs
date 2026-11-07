@@ -88,6 +88,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Billing.GatewayOrder> GatewayOrders => Set<Billing.GatewayOrder>();
 
+    public DbSet<Billing.InvoiceCounter> InvoiceCounters => Set<Billing.InvoiceCounter>();
+
     public DbSet<ShopPhoto> ShopPhotos => Set<ShopPhoto>();
 
     public DbSet<User> Users => Set<User>();
@@ -241,6 +243,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Billing.InvoiceCounter>(b =>
+        {
+            b.ToTable("invoice_counters");
+            b.HasKey(c => c.Prefix);
+            b.Property(c => c.Prefix).HasMaxLength(20);
+        });
+
         modelBuilder.Entity<Billing.GatewayOrder>(b =>
         {
             b.ToTable("gateway_orders");

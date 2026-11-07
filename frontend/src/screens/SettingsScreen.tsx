@@ -74,7 +74,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
             ))}
           </div>
         </fieldset>
-        {gstBilling && <Field label={t('settings.gstin')} value={form.gstin} onChange={set('gstin')} maxLength={15} autoCapitalize="characters" placeholder="08ABCDE1234F1Z5" />}
+        {gstBilling && <Field label={t('settings.gstin')} value={form.gstin} onChange={set('gstin')} maxLength={15} autoCapitalize="characters" placeholder="08ABCDE1234F1Z0" />}
         {gstBilling && form.gstin.trim() && (
           <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!!form.gstComposition} onChange={(e) => setForm({ ...form, gstComposition: e.target.checked ? 'yes' : '' })} className="h-5 w-5" />
           <label className="block">

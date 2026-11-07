@@ -10,6 +10,7 @@ import { parseStatement } from '../lib/statementImport'
 
 interface Receipt {
   id: string
+  source: string
   amount: number
   left: number
   receivedAt: string
@@ -32,6 +33,7 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
   const [utr, setUtr] = useState('')
   const [payer, setPayer] = useState('')
   const [imported, setImported] = useState('')
+  const [problems, setProblems] = useState<string[]>([])
   const [message, setMessage] = useState('')
   const [statement, setStatement] = useState('')
   const parsed = parseStatement(statement)
@@ -42,6 +44,7 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
       const result = await api<{ added: number; known: number; confirmed: number; problems: string[] }>('/v1/receipts/import', 'POST', { rows: parsed.rows })
       setStatement('')
       setImported(t('receipts.imported', { added: result.added, known: result.known, confirmed: result.confirmed }))
+      setProblems(result.problems)
     })
   }
 
@@ -86,6 +89,7 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
           </label>
           <textarea aria-label={t('receipts.statementTitle')} value={statement} onChange={(e) => setStatement(e.target.value)} rows={3} placeholder={t('receipts.statementPaste')} className="w-full rounded-xl border border-line p-3 text-sm" />
           {statement.trim() && !parsed.found && <p className="text-sm font-semibold text-due">{t('receipts.statementNone')}</p>}
+          {parsed.found && parsed.rows.length === 0 && <p className="text-sm font-semibold text-due">{t('receipts.statementEmpty')}</p>}
           {parsed.rows.length > 0 && (
             <>
               <p className="font-bold">{t('receipts.statementSummary', { count: parsed.rows.length, total: formatRupees(statementTotal) })}</p>
@@ -99,6 +103,7 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
             </>
           )}
           {imported && <p className="rounded-xl bg-emerald-50 p-2 text-sm font-semibold text-emerald-800">{imported}</p>}
+          {problems.slice(0, 10).map((p) => <p key={p} className="text-sm font-semibold text-due">{p}</p>)}
         </section>
       )}
       {message && <p className="text-sm font-semibold text-due">{message}</p>}
@@ -117,7 +122,7 @@ function ReceiptCard({ shopId, receipt: r, isOwner, run }: { shopId: string; rec
   const matched = r.left < r.amount
   const allocate = (id: string, value: number) => run(() => api(`/v1/receipts/${r.id}/allocate`, 'POST', { id: crypto.randomUUID(), customerId: id, amount: value }))
   const link = (entryId: string) => run(() => api(`/v1/receipts/${r.id}/link`, 'POST', { entryId }))
-  const dismiss = (as: 'counterSale' | 'notKhata') => run(() => api(`/v1/receipts/${r.id}/dismiss`, 'POST', { as }))
+  const dismiss = (as: 'counterSale' | 'notKhata' | 'notReceived') => run(() => api(`/v1/receipts/${r.id}/dismiss`, 'POST', { as }))
 
   return (
     <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
@@ -146,7 +151,10 @@ function ReceiptCard({ shopId, receipt: r, isOwner, run }: { shopId: string; rec
           <Button disabled={!(Number(part) > 0)} onClick={() => void allocate(chosen.id, Number(part))}>{t('receipts.match')}</Button>
         </div>
       )}
-      {isOwner && !matched && (
+      {isOwner && r.source === 'claim' && (
+        <button onClick={() => void dismiss('notReceived')} className="min-h-11 self-start text-sm font-semibold text-due underline">{t('receipts.notReceived')}</button>
+      )}
+      {isOwner && r.source !== 'claim' && (
         <div className="flex flex-wrap gap-3">
           <button onClick={() => void dismiss('counterSale')} className="min-h-11 text-sm font-semibold text-teal-700 underline">{t('receipts.counterSale')}</button>
           <button onClick={() => void dismiss('notKhata')} className="min-h-11 text-sm font-semibold text-teal-700 underline">{t('receipts.notKhata')}</button>

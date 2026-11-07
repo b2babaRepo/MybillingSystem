@@ -18,7 +18,7 @@ const SIDE = /^(type|dr\s*\/?\s*cr|cr\s*\/?\s*dr)$/i
 export function parseBalance(text: string, side = ''): number | null {
   const cell = text.trim()
   if (!cell) return 0
-  const advance = /cr\.?\s*$|advance|jama|जमा/i.test(cell) || /^cr/i.test(side.trim()) || /^\(.*\)$/.test(cell) || cell.startsWith('-')
+  const advance = /cr\.?\s*$|advance|jama|जमा/i.test(cell) || /^cr/i.test(side.trim()) || /^\(.*\)$/.test(cell) || /^[^\d]*-|-\s*$/.test(cell)
   const digits = cell.replace(/₹|rs\.?|inr|dr\.?|cr\.?|advance|jama|जमा|[(),\s-]/gi, '')
   if (!/^\d+(\.\d+)?$/.test(digits)) return null
   const value = Number(digits)

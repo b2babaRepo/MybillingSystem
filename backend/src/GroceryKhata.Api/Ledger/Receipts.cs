@@ -26,6 +26,9 @@ public enum ReceiptDisposition
 {
     CounterSale,
     NotKhata,
+
+    /// <summary>A customer said they paid, and the shop can't find the money. They are told.</summary>
+    NotReceived,
 }
 
 /// <summary>
@@ -88,6 +91,9 @@ public sealed record AllocateRequest(Guid Id, Guid CustomerId, decimal Amount);
 
 public sealed record PaidClaimRequest(Guid Id, decimal Amount, string? Utr);
 
+/// <summary>What a customer sees of a payment they reported. <see cref="Status"/>: waiting or notReceived.</summary>
+public sealed record ClaimStatusDto(decimal Amount, DateTimeOffset ReportedAt, string Status);
+
 public sealed record StatementRow(decimal Amount, string? Utr, string? PayerName, DateTimeOffset ReceivedAt, string? Narration);
 
 public sealed record StatementImportRequest(IReadOnlyList<StatementRow>? Rows);
@@ -144,6 +150,22 @@ public static class Receipts
             .Where(x => x.Matched < x.Receipt.Amount)
             .OrderByDescending(x => x.Receipt.ReceivedAt).Take(200).ToListAsync(ct))
         .Select(x => (x.Receipt, x.Receipt.Amount - x.Matched)).ToList();
+
+    /// <summary>The customer's reports from the last 30 days that aren't on their khata, so they know where each one stands.</summary>
+    internal static async Task<IReadOnlyList<ClaimStatusDto>> ClaimsForAsync(AppDbContext db, Guid customerId, TimeProvider clock, CancellationToken ct)
+    {
+        var since = clock.GetUtcNow().AddDays(-30);
+        var rows = await db.IncomingReceipts.AsNoTracking()
+            .Where(r => r.ClaimedByCustomerId == customerId && r.ReceivedAt >= since && (r.Disposition == null || r.Disposition == ReceiptDisposition.NotReceived))
+            .Select(r => new
+            {
+                r.Amount, r.ReceivedAt, r.Disposition,
+                Matched = db.ReceiptAllocations.Where(a => a.ReceiptId == r.Id && !db.LedgerEntries.Any(e => e.ReversesEntryId == a.LedgerEntryId)).Sum(a => (decimal?)a.Amount) ?? 0m,
+            })
+            .ToListAsync(ct);
+        return rows.Where(x => x.Matched < x.Amount).OrderByDescending(x => x.ReceivedAt)
+            .Select(x => new ClaimStatusDto(x.Amount, x.ReceivedAt, x.Disposition is null ? "waiting" : "notReceived")).ToList();
+    }
 
     /// <summary>The customer's own "I have paid", from their private link.</summary>
     private static async Task<IResult> ClaimByLinkAsync(
@@ -329,10 +351,19 @@ public static class Receipts
             var payer = row.PayerName?.Trim();
             var cleanPayer = string.IsNullOrEmpty(payer) ? null : payer[..Math.Min(payer.Length, 120)];
             // The same money the customer said they paid: by its UTR, or by being the only claim of this amount around then.
-            var fits = claims.Where(c => c.Utr is null && c.Amount == row.Amount && (c.ReceivedAt - row.ReceivedAt).Duration() <= SameMoney).ToList();
+            // A claim the shop turned down isn't proof of anything, so it can't take this money in by amount.
+            var fits = claims.Where(c => c.Utr is null && c.Disposition is null && c.Amount == row.Amount && (c.ReceivedAt - row.ReceivedAt).Duration() <= SameMoney).ToList();
             if ((claimedUtr ?? (fits.Count == 1 ? fits[0] : null)) is { } claim)
             {
-                (claim.Source, claim.Utr, claim.Fingerprint, claim.PayerName) = (ReceiptSource.Statement, utr, print, cleanPayer);
+                // From here it is the bank's record, so the bank's figure and date replace the customer's, and a claim turned
+                // down but now proved by its UTR comes back to the tray.
+                if (claim.Amount != row.Amount)
+                {
+                    problems.Add($"Row {i + 1}: the customer said {claim.Amount:0.##} but the bank shows {row.Amount:0.##}. The bank's figure is kept.");
+                }
+
+                (claim.Source, claim.Utr, claim.Fingerprint, claim.PayerName, claim.Amount) = (ReceiptSource.Statement, utr, print, cleanPayer, row.Amount);
+                (claim.ReceivedAt, claim.Disposition, claim.DispositionByUserId) = (row.ReceivedAt.ToUniversalTime(), null, null);
                 claims.Remove(claim);
                 confirmed++;
                 continue;
@@ -422,18 +453,13 @@ public static class Receipts
             new KhataEntryRequest(request.Id, request.CustomerId, KhataEntryType.Payment, request.Amount, PaymentMode.Upi, null, null),
             user.UserId()!.Value, ct, LedgerEndpoints.IsOwner(user), id)).ToHttp($"/api/v1/customers/{request.CustomerId}/statement");
 
-    /// <summary>A counter sale or not khata money at all: out of the tray, and nobody chases it. Only money nothing is matched to.</summary>
+    /// <summary>A counter sale or not khata money at all: out of the tray, and nobody chases it. On a part-matched receipt this is what's left over.</summary>
     private static async Task<IResult> DismissAsync(Guid id, DismissRequest request, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
     {
         var receipt = await db.IncomingReceipts.SingleOrDefaultAsync(r => r.Id == id, ct);
         if (receipt is null)
         {
             return TypedResults.NotFound();
-        }
-
-        if (request.As is not null && await MatchedAsync(db, id, ct) > 0)
-        {
-            return TypedResults.Conflict(new { title = "Part of this money is on a customer's khata. Remove that entry first." });
         }
 
         (receipt.Disposition, receipt.DispositionByUserId) = (request.As, request.As is null ? null : user.UserId());

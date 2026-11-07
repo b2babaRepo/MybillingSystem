@@ -103,7 +103,9 @@ public sealed class PlatformTests(ApiFactory api)
         var phone = ApiFactory.NewPhone();
         await api.SignUpAsync("Helper's own shop", phone);
         Assert.Equal(HttpStatusCode.BadRequest, (await super.PostJsonAsync("/api/v1/platform/admins", new { phone, role = "support" })).StatusCode);
-        await SignInWithCodeAsync(phone);
+        // The SMS ends any password set before the number was proved, so they choose one now.
+        var verified = await SignInWithCodeAsync(phone);
+        (await verified.PutAsJsonAsync("/api/v1/profile/password", new { newPassword = "secret123" })).EnsureSuccessStatusCode();
 
         var admins = await (await super.PostJsonAsync("/api/v1/platform/admins", new { phone, role = "support" })).ReadAsync<List<AdminDto>>();
         var helperId = Assert.Single(admins, a => a.Role == AdminRole.Support).UserId;

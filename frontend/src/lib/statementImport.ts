@@ -13,7 +13,7 @@ const DATE = /^(txn\.?\s*|tran\.?\s*|transaction\s*|value\s*|posting\s*)?date\b/
 const NARRATION = /narration|description|particulars|remarks|details/i
 const CREDIT = /^(credit|deposit|cr\b|credit\s*amount|deposit\s*amt|deposit\s*amount|amount\s*\(?cr\)?)/i
 const AMOUNT = /^(transaction\s*)?amount/i
-const SIDE = /^(type|dr\s*\/?\s*cr|cr\s*\/?\s*dr)/i
+const SIDE = /^(type|dr\s*\/?\s*cr|cr\s*\/?\s*dr|credit\s*\/\s*debit|debit\s*\/\s*credit)/i
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
 /** "07/11/2026", "07-11-26", "7 Nov 2026", "2026-11-07": Indian banks put the day first. Midnight in India. Null if it isn't a date. */
@@ -43,7 +43,9 @@ const toAmount = (text: string): number | null => {
  * "UPI/CR/432112345678/RAMESH KUMAR/HDFC/..." and "UPI-RAMESH KUMAR-ramesh@okhdfc-HDFC0001-432112345678-NOTE".
  */
 export function readNarration(narration: string): { utr: string | null; payerName: string | null } {
-  const utr = narration.match(/(?<![\dA-Za-z])\d{12}(?![\dA-Za-z])/)?.[0] ?? null
+  // Twelve digits on their own, on UPI and IMPS rows only: a phone in a UPI ID (919876543210@ybl) or an account number
+  // in a NEFT row looks the same, and treating it as a UTR would make that person's later payments look like repeats.
+  const utr = /\b(upi|imps)\b/i.test(narration.replace(/[/-]/g, ' ')) ? narration.match(/(?<![\dA-Za-z@.])\d{12}(?![\dA-Za-z@.])/)?.[0] ?? null : null
   const parts = narration.split(/[/-]/).map((p) => p.trim())
   const looksLikeName = (p: string) => /^[A-Za-z][A-Za-z .]{2,}$/.test(p) && !/^(upi|cr|dr|in|p2a|p2m|payment|from|phone|paid|via|neft|imps|rtgs)$/i.test(p) && !/^[A-Z]{4}\d/.test(p)
   const afterUtr = utr ? parts.slice(parts.indexOf(utr) + 1).find(looksLikeName) : undefined
@@ -61,7 +63,8 @@ export function parseStatement(text: string): { rows: StatementRow[]; skipped: n
   const head = lines.slice(0, 40).findIndex((cells) => cells.some((c) => DATE.test(c.trim())) && cells.some((c) => NARRATION.test(c)) && cells.some((c) => CREDIT.test(c.trim()) || AMOUNT.test(c.trim())))
   if (head < 0) return { rows: [], skipped: 0, found: false }
   const find = (pattern: RegExp) => lines[head].findIndex((c) => pattern.test(c.trim()))
-  const columns = { date: find(DATE), narration: find(NARRATION), credit: find(CREDIT), amount: find(AMOUNT), side: find(SIDE) }
+  // "Cr/Dr" and "Credit/Debit" say which way the money went. They aren't the credit amount.
+  const columns = { date: find(DATE), narration: find(NARRATION), credit: lines[head].findIndex((c) => CREDIT.test(c.trim()) && !SIDE.test(c.trim())), amount: find(AMOUNT), side: find(SIDE) }
 
   const rows: StatementRow[] = []
   let skipped = 0

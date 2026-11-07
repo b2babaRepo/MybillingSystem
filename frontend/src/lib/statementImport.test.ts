@@ -24,6 +24,15 @@ describe('readNarration', () => {
     expect(readNarration('UPI-SURESH VERMA-suresh@okicici-ICIC0001234-432112345679-PAYMENT')).toEqual({ utr: '432112345679', payerName: 'SURESH VERMA' })
   })
 
+  it('does not take a phone number in a UPI ID for the UTR', () => {
+    expect(readNarration('UPI-RAMESH KUMAR-919876543210@ybl-HDFC0000001-432112345678-NOTE').utr).toBe('432112345678')
+    expect(readNarration('UPI-RAMESH KUMAR-919876543210@ybl-HDFC0000001-NOTE').utr).toBeNull()
+  })
+
+  it('does not take an account number on a NEFT row for a UTR', () => {
+    expect(readNarration('NEFT CR-HDFC0000001-SHARMA TRADERS-123456789012').utr).toBeNull()
+  })
+
   it('leaves out what it cannot find', () => {
     expect(readNarration('NEFT CR 12345')).toEqual({ utr: null, payerName: null })
   })
@@ -51,6 +60,11 @@ describe('parseStatement', () => {
   it('reads one amount column with a Cr or Dr beside it', () => {
     const { rows } = parseStatement('Txn Date,Description,Amount,Dr/Cr\n05-11-2026,UPI-A KUMAR-a@ok-X-432112345670-N,300.00,CR\n05-11-2026,UPI-SHOP-s@ok-X-432112345671-N,50.00,DR')
     expect(rows.map((r) => r.amount)).toEqual([300])
+  })
+
+  it('does not take a Cr/Dr or Credit/Debit column for the amount', () => {
+    expect(parseStatement('Date,Narration,Amount,Cr/Dr\n05/11/2026,UPI-A KUMAR-a@ok-X-432112345670-N,300.00,CR').rows.map((r) => r.amount)).toEqual([300])
+    expect(parseStatement('Date,Narration,Amount,Credit/Debit\n05/11/2026,UPI-A KUMAR-a@ok-X-432112345670-N,300.00,Credit').rows.map((r) => r.amount)).toEqual([300])
   })
 
   it('says so when no table is there', () => {

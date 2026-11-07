@@ -63,7 +63,7 @@ public static class ShopPeople
     }
 
     /// <summary>Turns someone's access off or on. The last active owner can't be turned off; signing out follows at once.</summary>
-    public static async Task<IResult> SetActiveAsync(Guid membershipId, bool active, Guid shopId, Guid? actingUserId, AppDbContext db, CancellationToken ct)
+    public static async Task<IResult> SetActiveAsync(Guid membershipId, bool active, Guid shopId, Guid? actingUserId, AppDbContext db, Billing.Entitlements entitlements, CancellationToken ct)
     {
         var membership = await db.Memberships.IgnoreQueryFilters().SingleOrDefaultAsync(m => m.Id == membershipId && m.ShopId == shopId, ct);
         if (membership is null)
@@ -81,6 +81,18 @@ public static class ShopPeople
             if (!await db.Memberships.IgnoreQueryFilters().AnyAsync(m => m.ShopId == shopId && m.Role == ShopRole.Owner && m.IsActive && m.Id != membershipId, ct))
             {
                 return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "A shop needs at least one owner.");
+            }
+        }
+
+        // Coming back counts against the plan like joining does, or off-and-on would beat the limit.
+        if (active && !membership.IsActive)
+        {
+            var plan = await entitlements.ForShopAsync(shopId, ct);
+            var count = await db.Memberships.IgnoreQueryFilters().CountAsync(m => m.ShopId == shopId && m.Role == membership.Role && m.IsActive, ct);
+            var limit = membership.Role == ShopRole.Owner ? plan.MaxOwners : plan.MaxStaff;
+            if (count >= limit)
+            {
+                return TypedResults.Problem(statusCode: StatusCodes.Status402PaymentRequired, title: $"The {plan.PlanName} plan has room for {limit}. Turn someone off or move to a bigger plan.");
             }
         }
 

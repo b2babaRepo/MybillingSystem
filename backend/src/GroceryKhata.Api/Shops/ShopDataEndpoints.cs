@@ -41,13 +41,15 @@ public static class ShopDataEndpoints
             shop = new { shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.CreatedAt },
             products = await db.Products.AsNoTracking().ToListAsync(ct),
             stockMovements = await db.StockMovements.AsNoTracking().OrderBy(m => m.OccurredAt).ToListAsync(ct),
-            customers = await db.Customers.AsNoTracking().ToListAsync(ct),
+            // Named fields, not whole rows: khata links and code hashes are keys, and this file gets passed around.
+            customers = await db.Customers.AsNoTracking().Select(c => new { c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.Gstin, c.Address, c.LastRemindedAt, c.ReminderConsentAt, c.CreatedAt }).ToListAsync(ct),
             ledgerEntries = await db.LedgerEntries.AsNoTracking().OrderBy(e => e.OccurredAt).ToListAsync(ct),
             bills = await db.Bills.AsNoTracking().Include(b => b.Lines).OrderBy(b => b.OccurredAt).ToListAsync(ct),
             orders = await db.Orders.AsNoTracking().Include(o => o.Lines).Where(o => o.ShopId == tenant.ShopId).OrderBy(o => o.CreatedAt)
                 .Select(o => new { o.Id, o.Source, o.CustomerName, o.CustomerPhone, o.Address, o.Status, o.FinalAmount, o.CreatedAt, o.DeliveredAt, o.Lines })
                 .ToListAsync(ct),
-            auditLog = await db.AuditEntries.AsNoTracking().OrderBy(a => a.CreatedAt).ToListAsync(ct),
+            // Rows from before these were kept out of the log.
+            auditLog = (await db.AuditEntries.AsNoTracking().OrderBy(a => a.CreatedAt).ToListAsync(ct)).Where(a => !a.Changes.Contains("khata_token") && !a.Changes.Contains("confirm_code_hash")).ToList(),
             expenses = await db.Expenses.AsNoTracking().OrderBy(e => e.OccurredAt).ToListAsync(ct),
             cashCounts = await db.CashCounts.AsNoTracking().OrderBy(c => c.Day).ToListAsync(ct),
             challans = await db.Challans.AsNoTracking().OrderBy(c => c.OccurredAt).ToListAsync(ct),
@@ -59,8 +61,8 @@ public static class ShopDataEndpoints
     }
 
     /// <summary>
-    /// Deletes the shop and all its rows, children before parents, in one transaction: all or nothing. People's
-    /// accounts stay (they may own other shops or shop as households); only their access to this shop goes.
+    /// Closes the shop: nobody can open it and its store goes. Its records stay, because GST invoices must be kept for
+    /// years. People's accounts stay too. Support can reopen it.
     /// </summary>
     private static async Task<IResult> DeleteAsync(
         DeleteShopRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, ILogger<AppDbContext> logger, CancellationToken ct)
@@ -74,42 +76,11 @@ public static class ShopDataEndpoints
             });
         }
 
-        var shopId = tenant.ShopId;
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await db.AuditEntries.ExecuteDeleteAsync(ct);
-        await db.Database.ExecuteSqlAsync($"DELETE FROM bill_counters", ct);
-        await db.Expenses.ExecuteDeleteAsync(ct);
-        await db.CashCounts.ExecuteDeleteAsync(ct);
-        await db.Challans.ExecuteDeleteAsync(ct);
-        await db.BalanceChecks.ExecuteDeleteAsync(ct);
-        await db.StockMovements.ExecuteDeleteAsync(ct);
-        await db.OrderLines.Where(l => l.ShopId == shopId).ExecuteDeleteAsync(ct);
-        await db.Orders.Where(o => o.ShopId == shopId).ExecuteDeleteAsync(ct);
-        await db.ReminderLogs.ExecuteDeleteAsync(ct);
-        await db.CustomerConsents.ExecuteDeleteAsync(ct);
-        await db.ReceiptAllocations.ExecuteDeleteAsync(ct);
-        await db.IncomingReceipts.ExecuteDeleteAsync(ct);
-        // Reversals point at the entries they cancel: delete those first.
-        await db.LedgerEntries.Where(e => e.ReversesEntryId != null).ExecuteDeleteAsync(ct);
-        await db.LedgerEntries.ExecuteDeleteAsync(ct);
-        await db.CreditNoteLines.ExecuteDeleteAsync(ct);
-        await db.CreditNotes.ExecuteDeleteAsync(ct);
-        await db.SupplierEntries.ExecuteDeleteAsync(ct);
-        await db.PurchaseLines.ExecuteDeleteAsync(ct);
-        await db.Purchases.ExecuteDeleteAsync(ct);
-        await db.Suppliers.ExecuteDeleteAsync(ct);
-        await db.BillLines.ExecuteDeleteAsync(ct);
-        await db.Bills.ExecuteDeleteAsync(ct);
-        await db.Painters.ExecuteDeleteAsync(ct);
-        await db.Customers.ExecuteDeleteAsync(ct);
-        await db.Products.ExecuteDeleteAsync(ct);
-        var membershipIds = await db.Memberships.Where(m => m.ShopId == shopId).Select(m => m.Id).ToListAsync(ct);
-        await db.RefreshTokens.Where(t => t.MembershipId != null && membershipIds.Contains(t.MembershipId.Value)).ExecuteDeleteAsync(ct);
-        await db.Memberships.Where(m => m.ShopId == shopId).ExecuteDeleteAsync(ct);
-        await db.Shops.Where(s => s.Id == shopId).ExecuteDeleteAsync(ct);
-        await transaction.CommitAsync(ct);
-
-        logger.LogWarning("Shop {ShopId} deleted by its owner {UserId}", shopId, user.UserId());
+        // Closed, not erased: bills are tax records that must be kept, and a mistake can be undone by support.
+        var closing = await db.Shops.SingleAsync(s => s.Id == tenant.ShopId, ct);
+        (closing.IsActive, closing.BlockedReason) = (false, "Closed by its owner.");
+        await db.SaveChangesAsync(ct);
+        logger.LogWarning("Shop {ShopId} was closed by user {UserId}", tenant.ShopId, user.UserId());
         return TypedResults.NoContent();
     }
 }

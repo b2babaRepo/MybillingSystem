@@ -291,6 +291,14 @@ public sealed class BillingOptions
 }
 
 /// <summary>Works out what a shop may use, from its subscription's dates and the plans.</summary>
+/// <summary>The next invoice number of each financial year. Platform data, not a shop's.</summary>
+public sealed class InvoiceCounter
+{
+    public required string Prefix { get; set; }
+
+    public int LastNumber { get; set; }
+}
+
 public sealed class Entitlements(AppDbContext db, TimeProvider clock, Microsoft.Extensions.Options.IOptions<BillingOptions> options)
 {
     public BillingOptions Options => options.Value;

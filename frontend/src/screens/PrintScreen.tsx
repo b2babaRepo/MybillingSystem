@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { stateLabel } from '../lib/states'
 import { navigate } from '../router'
 import { startExchange } from '../lib/exchange'
@@ -29,7 +29,23 @@ export function PrintScreen({ shopId, shopName, kind, id, month }: { shopId: str
 function Page({ title, subtitle, shareText, phone, children }: { title: string; subtitle: string; shareText: string; phone: string | null; children: ReactNode }) {
   const { t } = useTranslation()
   const [paper, choosePaper] = useState<Paper>(getPaper)
-  const rule = pageRule(paper)
+  // How long the printed part is: the shop-only buttons below it don't print, so they don't count.
+  const roll = useRef<HTMLDivElement>(null)
+  const [lengthMm, setLengthMm] = useState(297)
+  useEffect(() => {
+    const box = roll.current
+    if (!box || paper === 'a4') return
+    const measure = () => {
+      const printed = [...box.children].filter((c) => !c.classList.contains('print:hidden'))
+      const bottom = Math.max(...printed.map((c) => c.getBoundingClientRect().bottom))
+      setLengthMm(((bottom - box.getBoundingClientRect().top) / 96) * 25.4 + 8)
+    }
+    measure()
+    const watch = new ResizeObserver(measure)
+    watch.observe(box)
+    return () => watch.disconnect()
+  }, [paper])
+  const rule = pageRule(paper, lengthMm)
   // Opened with "Print" from the bill screen: show the print dialog straight away, once.
   useEffect(() => {
     let auto = false
@@ -49,7 +65,7 @@ function Page({ title, subtitle, shareText, phone, children }: { title: string; 
           <option value="58">{t('paper.r58')}</option>
         </select>
       </div>
-      <div className={paper === 'a4' ? '' : `receipt receipt-${paper}`}>
+      <div ref={roll} className={paper === 'a4' ? '' : `receipt receipt-${paper}`}>
         <header className="mb-4 border-b-2 border-black pb-3">
           <h1 className="text-2xl font-extrabold">{title}</h1>
           <p className="text-base">{subtitle}</p>
@@ -111,12 +127,14 @@ function StatementPrint({ shopName, customerId, month }: { shopName: string; cus
 }
 
 /** Goods taken back on this bill: earlier credit notes, and a form to make one. Owner only (the server checks). */
-function CreditNotesPanel({ billId, lines }: { billId: string; lines: BillView['bill']['lines'] }) {
+function CreditNotesPanel({ billId, customerId, lines }: { billId: string; customerId: string | null; lines: BillView['bill']['lines'] }) {
   const { t } = useTranslation()
   const notes = useQuery({ queryKey: ['credit-notes', billId], queryFn: () => api<{ id: string; noteNo: string; reason: string; total: number; occurredAt: string; lines: { billLineNo: number; quantity: number }[] }[]>(`/v1/bills/${billId}/credit-notes`), retry: false })
   const [open, setOpen] = useState(false)
   const [qty, setQty] = useState<Record<number, string>>({})
   const [reason, setReason] = useState('')
+  // Units sold by serial: which ones are coming back, when it isn't all of them.
+  const [serials, setSerials] = useState('')
   const [restock, setRestock] = useState(true)
   // Exchange: the goods' value stays as credit for a new bill instead of going back as money.
   const [exchange, setExchange] = useState(false)
@@ -128,11 +146,11 @@ function CreditNotesPanel({ billId, lines }: { billId: string; lines: BillView['
     setMessage('')
     try {
       const note = await api<{ id: string; noteNo: string; total: number }>(`/v1/bills/${billId}/credit-notes`, 'POST', {
-        id: crypto.randomUUID(), reason: reason.trim(), restock, exchange,
+        id: crypto.randomUUID(), reason: reason.trim(), restock, exchange, serials: serials.split(/[\s,]+/).filter(Boolean),
         lines: Object.entries(qty).filter(([, q]) => Number(q) > 0).map(([lineNo, q]) => ({ lineNo: Number(lineNo), quantity: Number(q) })),
       })
-      setQty({}); setReason(''); setOpen(false)
-      if (exchange) { startExchange({ noteId: note.id, noteNo: note.noteNo, total: note.total }); navigate('/bill'); return }
+      setQty({}); setReason(''); setSerials(''); setOpen(false)
+      if (exchange) { startExchange({ noteId: note.id, noteNo: note.noteNo, total: note.total, customerId }); navigate('/bill'); return }
       await notes.refetch()
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
@@ -158,6 +176,7 @@ function CreditNotesPanel({ billId, lines }: { billId: string; lines: BillView['
                 <input inputMode="decimal" value={qty[i + 1] ?? ''} onChange={(e) => setQty({ ...qty, [i + 1]: e.target.value })} className="h-11 w-24 rounded-lg border border-line px-2" /></label>
             ) : null
           })}
+          {lines.some((l) => l.batch?.includes('S/N')) && <input aria-label={t('creditNote.serials')} placeholder={t('creditNote.serials')} value={serials} onChange={(e) => setSerials(e.target.value)} className="h-11 rounded-lg border border-line px-3" />}
           <input aria-label={t('creditNote.reason')} placeholder={t('creditNote.reason')} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} className="h-11 rounded-lg border border-line px-3" />
           <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} className="h-5 w-5" />{t('creditNote.restock')}</label>
           <button disabled={reason.trim().length < 3 || !Object.values(qty).some((q) => Number(q) > 0)} onClick={() => void save()} className="h-11 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-40">{exchange ? t('exchange.next') : t('creditNote.save')}</button>
@@ -330,7 +349,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
         </div>
       )}
       <p className="mt-6 text-center">{t('print.thanks')}</p>
-      {onCancel && !bill.cancelledAt && <CreditNotesPanel billId={bill.id} lines={bill.lines} />}
+      {onCancel && !bill.cancelledAt && <CreditNotesPanel billId={bill.id} customerId={bill.customerId} lines={bill.lines} />}
       {onCancel && !bill.cancelledAt && <button onClick={onCancel} className="mt-6 h-11 w-full rounded-xl border border-line font-semibold text-due print:hidden">{t('print.cancelBill')}</button>}
     </Page>
   )

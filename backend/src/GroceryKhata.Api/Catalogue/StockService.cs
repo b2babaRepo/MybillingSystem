@@ -114,7 +114,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     }
 
     /// <summary>Changes the details, never the stock (that only moves through movements).</summary>
-    public async Task<(ProductDto? Product, Dictionary<string, string[]>? Errors)> UpdateAsync(Guid id, ProductUpdate request, CancellationToken ct)
+    /// <param name="isOwner">Prices are the owner's: a helper who could change one would have no discount limit.</param>
+    public async Task<(ProductDto? Product, Dictionary<string, string[]>? Errors)> UpdateAsync(Guid id, ProductUpdate request, CancellationToken ct, bool isOwner = true)
     {
         var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id, ct);
         if (product is null)
@@ -126,6 +127,12 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         if (errors.Count > 0)
         {
             return (null, errors);
+        }
+
+        if (!isOwner && (request.SellingPrice != product.SellingPrice || request.CostPrice != product.CostPrice
+            || (request.Mrp is { } asked && CleanMrp(asked, product.SellingPrice) != product.Mrp)))
+        {
+            return (null, new() { ["SellingPrice"] = ["Only the owner can change prices."] });
         }
 
         product.Name = request.Name!.Trim();
@@ -391,6 +398,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         db.StockMovements.Add(movement);
         await db.SaveChangesAsync(ct);
         await db.Products.Where(p => p.Id == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Stock, p => p.Stock + quantity), ct);
+        if (kind == StockMovementKind.Adjustment)
+        {
+            await Batches.AdjustAsync(db, productId, quantity, ct);
+        }
+
         return movement;
     }
 
@@ -502,9 +514,9 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? MasterPhotos.Representative : null,
         p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn);
 
-    /// <summary>An MRP only counts when it is above the selling price (otherwise there is nothing "off" to show).</summary>
+    /// <summary>An MRP below the selling price is a typing slip. At the price it stays: it's what stops a bill going above it.</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>
-        mrp is { } m && m > sellingPrice && Money.IsValidAmount(m) ? m : null;
+        mrp is { } m && m >= sellingPrice && Money.IsValidAmount(m) ? m : null;
 
     private static StockMovementDto ToDto(StockMovement m) =>
         new(m.Id, m.ProductId, m.Kind, m.Quantity, m.Reason, m.BillId, m.CostPrice, m.Note, m.OccurredAt);

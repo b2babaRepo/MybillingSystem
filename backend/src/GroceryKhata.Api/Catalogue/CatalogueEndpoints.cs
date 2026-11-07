@@ -19,7 +19,7 @@ public static class CatalogueEndpoints
 {
     public static IEndpointRouteBuilder MapCommonCatalogue(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Catalogue").RequireAuthorization();
+        var group = app.MapGroup("/api/v1").WithTags("Catalogue").RequireAuthorization(Identity.AppPolicies.AnySession);
         group.MapGet("/catalogue", GetCatalogueAsync);
         // The tree is public: the online store's guests browse by aisle too.
         app.MapGet("/api/v1/catalogue/aisles", () => Aisles.All).WithTags("Catalogue").AllowAnonymous();
