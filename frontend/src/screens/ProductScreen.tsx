@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { isOutToday } from '../lib/local'
 import { billNameFor } from '../lib/billNames'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -148,6 +149,11 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
 function DetailsForm({ shopId, product }: { shopId: string; product: Product }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  async function setOutToday(value: boolean) {
+    await api(`/v1/products/${product.id}/out-today`, 'PUT', { out: value })
+    await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+  }
+
   async function addVariant() {
     const size = (await ask(t('styles.askSize')))?.trim()
     if (size === undefined || size === null) return
@@ -183,6 +189,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     styleName: product.styleName ?? '',
     size: product.size ?? '',
     colour: product.colour ?? '',
+    uncounted: !!product.uncounted,
   })
   const gstBilling = useGstBilling(shopId)
   const types = shopTypes(useShopSettings(shopId).data)
@@ -206,6 +213,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     styleName: form.styleName.trim(),
     size: form.size.trim(),
     colour: form.colour.trim(),
+    uncounted: form.uncounted,
     ...(medical ? { schedule: form.schedule || null, replaceSchedule: true, unitsPerPack: Number(form.perPack) || 0 } : {}),
     ...(service ? { tracksSerials: form.serials, warrantyMonths: Number(form.warranty) || 0 } : {}),
     isActive,
@@ -253,6 +261,14 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         </div>
       )}
       {!product.isService && <BarcodeRow product={product} />}
+      {!product.isService && (
+        <button type="button" onClick={() => void setOutToday(!isOutToday(product.outOn))} className="min-h-11 self-start rounded-xl border-2 border-teal-700 px-3 font-semibold text-teal-800">
+          {isOutToday(product.outOn) ? t('stock.backOnSale') : t('stock.markOutToday')}
+        </button>
+      )}
+      {!product.isService && (
+        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={form.uncounted} onChange={(e) => setForm({ ...form, uncounted: e.target.checked })} className="h-5 w-5" />{t('stock.dontCount')}</label>
+      )}
       {!product.isService && (
         <button type="button" onClick={() => void addVariant()} className="min-h-11 self-start rounded-xl border-2 border-dashed border-teal-700 px-3 font-semibold text-teal-800">{t('styles.addVariant')}</button>
       )}

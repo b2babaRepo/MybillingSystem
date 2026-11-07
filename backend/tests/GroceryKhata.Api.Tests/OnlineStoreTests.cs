@@ -12,6 +12,51 @@ namespace GroceryKhata.Api.Tests;
 public sealed class OnlineStoreTests(ApiFactory api)
 {
     [Fact]
+    public async Task An_order_cannot_take_more_than_is_there_or_an_item_out_today()
+    {
+        var (shop, auth) = await api.SignUpAsync("Limits Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var atta = await CreateProductAsync(shop, "Atta", "kg", 44m, 2m);
+        var guest = api.CreateClient();
+        Task<HttpResponseMessage> Order(decimal quantity) => guest.PostJsonAsync($"/api/v1/store/{slug}/orders", new
+        {
+            id = Guid.CreateVersion7(), name = "Neha", phone = ApiFactory.NewPhone(), fulfilment = "pickup",
+            lines = new object[] { new { productId = atta.Id, quantity } },
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await Order(3m)).StatusCode);
+
+        (await shop.PutAsJsonAsync($"/api/v1/products/{atta.Id}/out-today", new { @out = true })).EnsureSuccessStatusCode();
+        Assert.Equal(0m, (await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single().Available);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Order(1m)).StatusCode);
+
+        (await shop.PutAsJsonAsync($"/api/v1/products/{atta.Id}/out-today", new { @out = false })).EnsureSuccessStatusCode();
+        Assert.Equal(2m, (await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single().Available);
+        Assert.Equal(HttpStatusCode.Created, (await Order(2m)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Order(1m)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Items_the_shop_does_not_count_stay_on_sale_and_are_never_low()
+    {
+        var (shop, auth) = await api.SignUpAsync("Uncounted Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var counted = await CreateProductAsync(shop, "Counted atta", "kg", 44m, 10m);
+        var loose = await CreateProductAsync(shop, "Loose nails", "kg", 90m, 0m);
+        var guest = api.CreateClient();
+        Assert.True((await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single(i => i.Id == loose.Id).Available <= 0);
+
+        (await shop.PostJsonAsync("/api/v1/products/stop-counting-empty", new { })).EnsureSuccessStatusCode();
+
+        var store = await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}");
+        Assert.True(store.Items.Single(i => i.Id == loose.Id).Available > 0);
+        Assert.Equal(10m, store.Items.Single(i => i.Id == counted.Id).Available);
+        var items = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        Assert.Equal((true, false), (items.Single(p => p.Id == loose.Id).Uncounted, items.Single(p => p.Id == loose.Id).IsLow));
+        Assert.False(items.Single(p => p.Id == counted.Id).Uncounted);
+    }
+
+    [Fact]
     public async Task A_guest_orders_online_the_shop_packs_and_delivers_paid_in_full_in_cash()
     {
         var (shop, auth) = await api.SignUpAsync("Sharma Store");

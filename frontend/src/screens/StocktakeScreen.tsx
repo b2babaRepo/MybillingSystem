@@ -41,7 +41,7 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
       <p className="text-muted">{t('stock.stocktakeHint')}</p>
       {result && <p className="rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800">{result}</p>}
       <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
-        {products.map((p) => (
+        {products.filter((p) => !p.uncounted).map((p) => (
           <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 lg:py-1.5">
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate font-semibold">{p.name}</span>

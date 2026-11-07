@@ -21,6 +21,8 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
   const current = thisMonth()
   const [month, setMonth] = useState(current)
   const [error, setError] = useState('')
+  // Owners only: for a helper this fails quietly and the section stays away.
+  const speed = useQuery({ queryKey: [shopId, 'bill-speed'], queryFn: () => api<{ bills: number; medianSeconds: number | null; rows: { group: string; bills: number; medianSeconds: number }[] }>('/v1/reports/bill-speed'), retry: false }).data
   const report = useQuery({ queryKey: [shopId, 'report', month], queryFn: () => api<MonthReport>(`/v1/reports/month?month=${month}`) })
   const data = report.data
   const today = new Date()
@@ -137,6 +139,16 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             </section>
           )}
 
+          {speed && speed.medianSeconds !== null && (
+            <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4">
+              <h2 className="text-base font-bold">{t('reports.speedTitle')}</h2>
+              <p className="text-lg font-semibold">{t('reports.speedTypical', { seconds: speed.medianSeconds, count: speed.bills })}</p>
+              {speed.rows.map((r) => (
+                <p key={r.group} className="flex justify-between text-sm"><span>{t(`reports.speed_${r.group}`)} · {r.bills}</span><span className="font-semibold">{t('reports.speedSeconds', { seconds: r.medianSeconds })}</span></p>
+              ))}
+              <p className="text-xs text-muted">{t('reports.speedNote')}</p>
+            </section>
+          )}
           <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
             <h2 className="text-base font-bold">{t('reports.download')}</h2>
             {isOwner ? (

@@ -30,7 +30,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         if (lowOnly)
         {
-            query = query.Where(p => !p.IsService && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)));
+            query = query.Where(p => !p.IsService && !p.Uncounted && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)));
         }
 
         if (popular)
@@ -137,6 +137,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.CostPrice = request.CostPrice;
         product.ReorderLevel = request.ReorderLevel;
         product.IsActive = request.IsActive ?? product.IsActive;
+        product.Uncounted = request.Uncounted ?? product.Uncounted;
         if (TaxErrors(request.GstRate, request.HsnCode) is { Count: > 0 } taxErrors)
         {
             return (null, taxErrors);
@@ -494,12 +495,12 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
     private static readonly System.Linq.Expressions.Expression<Func<Product, ProductDto>> AsDto = p => new ProductDto(
         p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.CostPrice, p.Stock, p.ReorderLevel,
-        !p.IsService && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption,
+        !p.IsService && !p.Uncounted && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption,
         // The shop's own photo, else its master item's (the server serves whichever it is at the same address).
         p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null),
         p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp, p.Barcode,
         p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? MasterPhotos.Representative : null,
-        p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour);
+        p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn);
 
     /// <summary>An MRP only counts when it is above the selling price (otherwise there is nothing "off" to show).</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>

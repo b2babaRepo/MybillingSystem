@@ -63,6 +63,18 @@ public sealed class Product : Entity, ITenantOwned
     /// <summary>At or below this, the item is on the low-stock list. Null: never warn.</summary>
     public decimal? ReorderLevel { get; set; }
 
+    /// <summary>
+    /// The shop doesn't count this item: it is never "out" or "low", it stays orderable online, and it adds nothing to
+    /// stock value. Movements are still recorded, so counting can start again from a stocktake.
+    /// </summary>
+    public bool Uncounted { get; set; }
+
+    /// <summary>The day the shop marked this item sold out: not on sale online for that day, then back by itself.</summary>
+    public DateOnly? OutOn { get; set; }
+
+    /// <summary>Whether the online store offers it today.</summary>
+    public bool OnSale(DateOnly today) => OutOn != today && (Uncounted || Stock - Reserved > 0);
+
     /// <summary>Hidden from billing and lists, kept for history.</summary>
     public bool IsActive { get; set; } = true;
 

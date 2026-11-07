@@ -46,7 +46,7 @@ public static class CatalogueEndpoints
         }).ToList();
     }
 
-    private static async Task<IResult> GetShopPricesAsync(Guid shopId, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    private static async Task<IResult> GetShopPricesAsync(Guid shopId, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         if (tenant.ShopId != Guid.Empty && tenant.ShopId != shopId)
         {
@@ -61,11 +61,11 @@ public static class CatalogueEndpoints
         }
 
         return TypedResults.Ok(MatchToCatalogue(await ShopProductsAsync(db, ct)).Select(m =>
-            new ShopPriceDto(m.CatalogueItemId, m.Product.Id, m.Product.Name, m.Product.Unit, m.Product.SellingPrice, m.Product.Stock - m.Product.Reserved > 0)).ToList());
+            new ShopPriceDto(m.CatalogueItemId, m.Product.Id, m.Product.Name, m.Product.Unit, m.Product.SellingPrice, m.Product.OnSale(IndiaTime.Today(clock)))).ToList());
     }
 
     /// <summary>Every option the shop has for each common-list item, default first, then cheapest.</summary>
-    private static async Task<IResult> GetShopOptionsAsync(Guid shopId, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    private static async Task<IResult> GetShopOptionsAsync(Guid shopId, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         if (tenant.ShopId != Guid.Empty && tenant.ShopId != shopId)
         {
@@ -84,7 +84,7 @@ public static class CatalogueEndpoints
             .Where(m => m.Id is not null)
             .OrderBy(m => m.Id).ThenByDescending(m => defaults.Contains(m.Product.Id)).ThenBy(m => m.Product.SellingPrice)
             .Select(m => new ShopOptionDto(m.Id!.Value, m.Product.Id, m.Product.Name, m.Product.Unit, m.Product.PackSize, m.Product.PackUnit,
-                m.Product.SellingPrice, m.Product.Stock - m.Product.Reserved > 0, defaults.Contains(m.Product.Id), m.Product.ImageAt))
+                m.Product.SellingPrice, m.Product.OnSale(IndiaTime.Today(clock)), defaults.Contains(m.Product.Id), m.Product.ImageAt))
             .ToList());
     }
 

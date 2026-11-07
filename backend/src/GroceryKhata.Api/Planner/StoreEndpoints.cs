@@ -14,6 +14,12 @@ public sealed record StoreItemDto(
     Guid Id, string Name, string? Category, Unit Unit, decimal Price, decimal Available, int? CatalogueItemId = null, DateTimeOffset? ImageAt = null,
     decimal? Mrp = null, decimal? PackSize = null, Unit? PackUnit = null, string? ImageCredit = null);
 
+public static class StoreStock
+{
+    /// <summary>What an item the shop doesn't count offers online: more than any one order takes.</summary>
+    public const decimal Uncounted = 9999m;
+}
+
 public sealed record StoreLineRequest(Guid ProductId, decimal Quantity);
 
 public sealed record StoreOrderRequest(
@@ -62,8 +68,9 @@ public static class StoreEndpoints
         return string.IsNullOrWhiteSpace(upi) ? TypedResults.NotFound() : TypedResults.Ok(new StorePayDto(shop.Name, upi));
     }
 
-    private static async Task<IResult> GetStoreAsync(string slug, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    private static async Task<IResult> GetStoreAsync(string slug, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
+        var today = IndiaTime.Today(clock);
         if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop)
         {
             return TypedResults.NotFound();
@@ -73,7 +80,7 @@ public static class StoreEndpoints
         var items = await db.Products.AsNoTracking()
             .Where(p => p.IsActive && p.SellingPrice > 0)
             .OrderBy(p => p.Category).ThenBy(p => p.Name)
-            .Select(p => new StoreItemDto(p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.Stock - p.Reserved, p.CatalogueItemId,
+            .Select(p => new StoreItemDto(p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.OutOn == today ? 0 : p.Uncounted ? StoreStock.Uncounted : p.Stock - p.Reserved, p.CatalogueItemId,
                 p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null), p.Mrp, p.PackSize, p.PackUnit,
                 p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? Catalogue.MasterPhotos.Representative : null))
             .ToListAsync(ct);
@@ -85,7 +92,7 @@ public static class StoreEndpoints
     /// Guest checkout. Prices come from the catalogue, never from the request. Each line reserves its quantity on
     /// the product, in the same transaction as the order. Idempotent on the app's order ID.
     /// </summary>
-    private static async Task<IResult> PlaceAsync(string slug, StoreOrderRequest request, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    private static async Task<IResult> PlaceAsync(string slug, StoreOrderRequest request, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop)
         {
@@ -151,6 +158,16 @@ public static class StoreEndpoints
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = ["Some items are no longer sold. Please refresh the store."] });
         }
 
+        // The store screen limits quantities, but only here is it certain. Services have no stock to run out of.
+        var today = IndiaTime.Today(clock);
+        var unavailable = wanted.Select(w => (Product: products[w.ProductId], w.Quantity))
+            .Where(w => !w.Product.IsService && (w.Product.OutOn == today || (!w.Product.Uncounted && w.Product.Stock - w.Product.Reserved < w.Quantity)))
+            .Select(w => w.Product.Name).ToList();
+        if (unavailable.Count > 0)
+        {
+            return NotEnough(unavailable);
+        }
+
         var token = Secrets.NewRefreshToken();
         var lineNo = 0;
         var order = new Order
@@ -187,7 +204,13 @@ public static class StoreEndpoints
         await db.SaveChangesAsync(ct);
         foreach (var (productId, quantity) in wanted)
         {
-            await db.Products.Where(p => p.Id == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Reserved, p => p.Reserved + quantity), ct);
+            // Checked again as it is taken, so two customers can't both get the last one. Leaving here undoes the whole order.
+            var taken = await db.Products.Where(p => p.Id == productId && (p.IsService || p.Uncounted || p.Stock - p.Reserved >= quantity))
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.Reserved, p => p.Reserved + quantity), ct);
+            if (taken == 0)
+            {
+                return NotEnough([products[productId].Name]);
+            }
         }
 
         await transaction.CommitAsync(ct);
@@ -196,6 +219,11 @@ public static class StoreEndpoints
     }
 
     /// <summary>The guest's status page. Needs the token from the link; a wrong or missing one looks like no order.</summary>
+    private static IResult NotEnough(IEnumerable<string> names) => TypedResults.ValidationProblem(new Dictionary<string, string[]>
+    {
+        [nameof(StoreOrderRequest.Lines)] = [$"Not available in that quantity: {string.Join(", ", names)}. Please refresh the store."],
+    });
+
     private static async Task<IResult> GetOrderAsync(string slug, Guid id, string? token, AppDbContext db, TenantContext tenant, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(token) || await OpenShopAsync(db, tenant, slug, ct) is not { } shop)

@@ -170,6 +170,9 @@ public sealed class Bill : Entity, ITenantOwned
     /// <summary>A composition shop's bill: a bill of supply, no tax on it.</summary>
     public bool BillOfSupply { get; set; }
 
+    /// <summary>Seconds from the first item to saving, as the counter timed it. Null: not timed.</summary>
+    public int? EntrySeconds { get; set; }
+
     /// <summary>Place of supply as a two-digit GST state code: the buyer's GSTIN state, else the state delivered to, else the shop's.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(2)]
     public string? PlaceOfSupply { get; set; }

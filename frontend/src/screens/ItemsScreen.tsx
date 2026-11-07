@@ -11,6 +11,8 @@ import type { Product, Unit } from '../lib/types'
 import { navigate } from '../router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
+import { confirmAsk } from '../components/Ask'
+import { isOutToday } from '../lib/local'
 import { imageUrl } from '../lib/images'
 import { itemArt } from '../lib/itemArt'
 import { UnitSelect } from './BillScreen'
@@ -31,9 +33,16 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
   // The style whose new stock is being entered size by size.
   const [receiving, setReceiving] = useState<string | null>(null)
 
+  async function stopCounting() {
+    if (!(await confirmAsk(t('stock.stopCountingConfirm')))) return
+    await api('/v1/products/stop-counting-empty', 'POST')
+    await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+    setFilter('all')
+  }
+
   const categories = [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))].sort()
   const query = search.trim().toLowerCase()
-  const isOut = (p: Product) => !p.isService && p.stock <= 0
+  const isOut = (p: Product) => !p.isService && !p.uncounted && p.stock <= 0
   const shown = products.filter((p) =>
     (!query || p.name.toLowerCase().includes(query)) && (!category || p.category === category)
     && (filter === 'all' || (filter === 'out' ? isOut(p) : p.isLow && !isOut(p))))
@@ -133,6 +142,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
           <Button className="px-5" onClick={() => setAdding(true)}>+ {t('addItem')}</Button>
         </div>
       )}
+      {isOwner && filter === 'out' && <button onClick={() => void stopCounting()} className="min-h-11 rounded-xl border border-line bg-white px-3 text-left text-sm font-semibold text-teal-800">{t('stock.stopCountingEmpty')}</button>}
       <ul className={`divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white ${filter === 'suggested' ? 'hidden' : ''}`}>
         {shown.length > 0 && (
           <li aria-hidden className="hidden items-center gap-3 bg-[#f6faf9] px-3 py-2 text-[13px] font-semibold text-muted lg:flex">
@@ -158,7 +168,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
               <span className="flex flex-wrap gap-1.5">
                 {entry.items.map((x) => (
                   <button key={x.id} onClick={() => navigate(`/p/${x.id}`)}
-                    className={`min-h-9 rounded-lg border px-2 text-[13px] font-semibold ${x.stock <= 0 ? 'border-red-200 bg-red-50 text-due' : x.isLow ? 'border-amber-200 bg-amber-50 text-udhaar' : 'border-line bg-white'}`}>
+                    className={`min-h-9 rounded-lg border px-2 text-[13px] font-semibold ${!x.uncounted && x.stock <= 0 ? 'border-red-200 bg-red-50 text-due' : x.isLow ? 'border-amber-200 bg-amber-50 text-udhaar' : 'border-line bg-white'}`}>
                     {variantLabel(x) || x.name} <span className="font-normal">· {x.stock}</span>
                   </button>
                 ))}
@@ -220,7 +230,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
 /** The list's stock: a coloured pill with words, so it reads at a glance and without colour too. */
 function StockPill({ product }: { product: Product }) {
   const { t } = useTranslation()
-  if (product.isService) return <StockBadge product={product} />
+  if (product.isService || product.uncounted || isOutToday(product.outOn)) return <StockBadge product={product} />
   const out = product.stock <= 0
   const tone = out ? 'bg-red-50 text-due' : product.isLow ? 'bg-amber-50 text-udhaar' : 'bg-teal-50 text-teal-800'
   return (
@@ -237,6 +247,8 @@ export function StockBadge({ product, large = false }: { product: Product; large
   if (product.isService) {
     return <span className="shrink-0 text-right text-sm font-semibold text-teal-800">{t('salon.serviceBadge')}{product.durationMinutes ? ` · ${t('salon.minutesShort', { count: product.durationMinutes })}` : ''}</span>
   }
+  if (isOutToday(product.outOn)) return <span className="shrink-0 text-right text-sm font-semibold text-due">{t('stock.outToday')}</span>
+  if (product.uncounted) return <span className="shrink-0 text-right text-sm font-semibold text-muted">{t('stock.notCounted')}</span>
   const out = product.stock <= 0
   const tone = out ? 'text-due' : product.isLow ? 'text-udhaar' : 'text-ink'
   return (

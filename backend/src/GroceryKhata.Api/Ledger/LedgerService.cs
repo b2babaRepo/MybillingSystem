@@ -382,6 +382,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     VehicleNumber = vehicle,
                     PainterId = request.PainterId,
                     Gstin = await BillGstinAsync(cancellationToken),
+                    EntrySeconds = BillSpeed.Clean(request.EntrySeconds),
                 };
                 if (bill.Gstin is not null)
                 {

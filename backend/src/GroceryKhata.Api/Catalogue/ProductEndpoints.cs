@@ -33,7 +33,7 @@ public sealed record ProductRequest(
 /// <summary><see cref="GstRate"/> and <see cref="HsnCode"/>: null keeps what the item has (older apps don't send them), unless <see cref="ReplaceTax"/> says null means clear it.</summary>
 public sealed record ProductUpdate(
     string? Name, Unit? Unit, decimal SellingPrice, decimal? CostPrice, string? Category, decimal? ReorderLevel, bool? IsActive,
-    decimal? GstRate = null, string? HsnCode = null, bool ReplaceTax = false, bool? IsService = null, int? DurationMinutes = null, DrugSchedule? Schedule = null, bool ReplaceSchedule = false, int? UnitsPerPack = null, bool? TracksSerials = null, int? WarrantyMonths = null, decimal? Mrp = null, string? BillName = null, string? StyleName = null, string? Size = null, string? Colour = null);
+    decimal? GstRate = null, string? HsnCode = null, bool ReplaceTax = false, bool? IsService = null, int? DurationMinutes = null, DrugSchedule? Schedule = null, bool ReplaceSchedule = false, int? UnitsPerPack = null, bool? TracksSerials = null, int? WarrantyMonths = null, decimal? Mrp = null, string? BillName = null, string? StyleName = null, string? Size = null, string? Colour = null, bool? Uncounted = null);
 
 /// <summary><see cref="IsLow"/>: out of stock, or at/below the reorder level.</summary>
 public sealed record ProductDto(
@@ -68,7 +68,11 @@ public sealed record ProductDto(
     string? BillName = null,
     string? StyleName = null,
     string? Size = null,
-    string? Colour = null);
+    string? Colour = null,
+    bool Uncounted = false,
+    DateOnly? OutOn = null);
+
+public sealed record OutTodayRequest(bool Out);
 
 /// <summary>A purchase (positive) or an adjustment (signed, with a reason).</summary>
 public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note);
@@ -154,6 +158,18 @@ public static class ProductEndpoints
 
         // Today's rates: building-material prices move daily, so the owner changes many at once. Each change is in
         // the audit log (old and new price), which is the rate history.
+        // Sold out for today. Helpers can too: they are the ones at the shelf.
+        products.MapPut("/{id:guid}/out-today", async (Guid id, OutTodayRequest request, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        {
+            DateOnly? day = request.Out ? IndiaTime.Today(clock) : null;
+            return await db.Products.Where(p => p.Id == id).ExecuteUpdateAsync(s => s.SetProperty(p => p.OutOn, day), ct) > 0 ? Results.NoContent() : Results.NotFound();
+        });
+
+        // Shops that never counted: every item at zero stops showing as out, in one go. Owner only.
+        products.MapPost("/stop-counting-empty", async (AppDbContext db, CancellationToken ct) =>
+            TypedResults.Ok(new { Changed = await db.Products.Where(p => !p.IsService && !p.Uncounted && p.Stock <= 0).ExecuteUpdateAsync(s => s.SetProperty(p => p.Uncounted, true), ct) }))
+            .RequireAuthorization(AppPolicies.ShopOwner);
+
         products.MapPut("/rates", async (RatesRequest request, StockService stock, CancellationToken ct) =>
             await stock.SetRatesAsync(request, ct) switch
             {

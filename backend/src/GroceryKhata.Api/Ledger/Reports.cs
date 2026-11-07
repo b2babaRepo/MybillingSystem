@@ -159,6 +159,8 @@ public static class ReportEndpoints
             var dues = await DuesAsync(db, clock, ct);
             return new DigestDto(dues.Customers.Count(d => d.Over30 > 0), dues.Over30, await db.SupplierEntries.AsNoTracking().SumAsync(e => (decimal?)e.Amount, ct) ?? 0m);
         }).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapGet("/reports/bill-speed", async (AppDbContext db, TimeProvider clock, CancellationToken ct) => TypedResults.Ok(await BillSpeed.ReportAsync(db, clock, ct)))
+            .RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/pnl", ProfitLossAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/pnl.csv", ProfitLossCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/year", YearAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
@@ -290,7 +292,7 @@ public static class ReportEndpoints
             .ToDictionaryAsync(g => g.Key, g => g.Total, ct);
         decimal Spent(ExpenseCategory c) => spent.GetValueOrDefault(c);
         // Today's figures, whichever month is open: stock at cost (items with a count and a cost) and what suppliers are owed.
-        var stockValue = await db.Products.AsNoTracking().Where(p => p.IsActive && p.Stock > 0 && p.CostPrice != null).SumAsync(p => (decimal?)(p.Stock * p.CostPrice!.Value), ct) ?? 0m;
+        var stockValue = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.Uncounted && p.Stock > 0 && p.CostPrice != null).SumAsync(p => (decimal?)(p.Stock * p.CostPrice!.Value), ct) ?? 0m;
         var supplierDue = await db.SupplierEntries.AsNoTracking().SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
         return new MonthReport(
             $"{period.Year:D4}-{period.Month:D2}", sales, bills.Count, Received(PaymentMode.Cash), Received(PaymentMode.Upi), udhaar, khataCollected,

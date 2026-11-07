@@ -92,7 +92,7 @@ public static class PharmacyAssist
                           where l.ProductId != null && b.CancelledAt == null && b.OccurredAt >= since
                           group l by l.ProductId into g
                           select new { ProductId = g.Key!.Value, Quantity = g.Sum(l => l.Quantity) }).ToDictionaryAsync(x => x.ProductId, x => x.Quantity, ct);
-        var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService).Select(p => new { p.Id, p.Name, p.Stock, p.ReorderLevel }).ToListAsync(ct);
+        var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService && !p.Uncounted).Select(p => new { p.Id, p.Name, p.Stock, p.ReorderLevel }).ToListAsync(ct);
         var needed = products
             .Select(p => (p.Id, p.Name, p.Stock, p.ReorderLevel, Sold: sold.GetValueOrDefault(p.Id)))
             .Where(p => p.Stock <= 0 || (p.ReorderLevel is { } level && p.Stock <= level) || (p.Sold > 0 && p.Stock < p.Sold / 2))

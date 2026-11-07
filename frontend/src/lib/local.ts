@@ -39,6 +39,9 @@ export function mergeCustomers(server: Customer[], ops: OutboxOp[]): LocalCustom
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/** Marked sold out for today, by the shop's clock (India time, as the server counts it). */
+export const isOutToday = (outOn: string | null | undefined, now = new Date()) => !!outOn && outOn === now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+
 /** A product is low when it's out, or at/below its reorder level (the same rule as the server). */
 export const isLow = (stock: number, reorderLevel: number | null) => stock <= 0 || (reorderLevel !== null && stock <= reorderLevel)
 
@@ -61,7 +64,7 @@ export function mergeProducts(server: Product[], ops: OutboxOp[]): Product[] {
     const product = byId.get(productId)
     if (!product) return
     product.stock = Math.round((product.stock + delta) * 1000) / 1000
-    product.isLow = isLow(product.stock, product.reorderLevel)
+    product.isLow = !product.uncounted && isLow(product.stock, product.reorderLevel)
     product.pending = true
   }
   for (const op of live(ops)) {

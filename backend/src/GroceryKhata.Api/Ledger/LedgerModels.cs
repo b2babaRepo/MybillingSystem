@@ -47,7 +47,8 @@ public sealed record BillRequest(
     PrescriptionRequest? Prescription = null,
     IReadOnlyList<Catalogue.BillSerialRequest>? Serials = null,
     Guid? ExchangeNoteId = null,
-    string? PlaceOfSupply = null);
+    string? PlaceOfSupply = null,
+    int? EntrySeconds = null);
 
 /// <summary>For Schedule H, H1 and X medicines: who prescribed them and for whom, as the drug rules ask.</summary>
 public sealed record PrescriptionRequest(string? DoctorName, string? DoctorAddress, string? DoctorRegNo, string? PatientName, string? PatientAddress, DateOnly? PrescribedOn);

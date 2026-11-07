@@ -55,6 +55,10 @@ export interface Product {
   reorderLevel: number | null
   /** Out of stock, or at/below the reorder level. */
   isLow: boolean
+  /** The shop doesn't count this item: never out or low. */
+  uncounted?: boolean
+  /** "2026-11-07": the day the shop marked it sold out. */
+  outOn?: string | null
   /** A service (haircut): sold without stock. */
   isService?: boolean
   durationMinutes?: number | null

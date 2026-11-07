@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { CashChange, CustomerFinder } from '../components/CustomerFinder'
+import { billSeconds } from '../lib/billTimer'
 import { GST_STATES } from '../lib/states'
 import { nameMatches, splitQuantity } from '../lib/nameMatch'
 import { getSession } from '../lib/session'
@@ -42,6 +43,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     .slice(0, query ? 30 : 12)
   const { customers } = useCustomers(shopId)
   const [cart, setCart] = useState<CartLine[]>([])
+  // When this bill's first item went in. 0: picked up from hold, so its time can't be known.
+  const startedAt = useRef<number | null>(null)
+  useEffect(() => {
+    if (cart.length === 0) startedAt.current = null
+    else startedAt.current ??= Date.now()
+  }, [cart.length])
   // Who is selling: everyone with access to the shop. The bill's choice goes on every line; a line can name another.
   const sellers = useQuery({ queryKey: [shopId, 'sellers'], queryFn: () => api<{ userId: string; name: string }[]>('/v1/shop/sellers'), staleTime: 300_000, retry: false }).data ?? []
   const [soldBy, setSoldBy] = useState<string>(() => getSession()?.user.id ?? '')
@@ -83,6 +90,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }
   function resumeBill(index: number) {
     const pick = held[index]
+    startedAt.current = 0
     const rest = held.filter((_, i) => i !== index)
     keepHeld(cart.length > 0 ? [...rest, { cart, customerId, at: Date.now() }] : rest)
     setCart(pick.cart); setCustomerId(pick.customerId); setPaid(null); setSaved(null)
@@ -182,7 +190,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     const result = await saveBill(shopId, cart.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
-      exchangeNoteId: exchange?.noteId ?? null, exchangeCredit, placeOfSupply: deliveredTo || null,
+      exchangeNoteId: exchange?.noteId ?? null, exchangeCredit, placeOfSupply: deliveredTo || null, entrySeconds: billSeconds(startedAt.current, Date.now()),
       prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
     })
     setRx({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
@@ -319,12 +327,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           <p className="-mt-1 mb-2 text-sm text-muted">{t('styles.pick')}</p>
           <div className="grid grid-cols-3 gap-2">
             {sortVariants(products.filter((p) => p.styleName?.trim() === stylePick)).map((p) => {
-              const out = !p.isService && p.stock <= 0
+              const out = !p.isService && !p.uncounted && p.stock <= 0
               return (
                 <button key={p.id} onClick={() => { add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice }); setStylePick(null) }}
                   className={`flex min-h-16 flex-col items-center justify-center rounded-xl border-2 px-1 py-2 ${out ? 'border-line opacity-60' : 'border-teal-700'}`}>
                   <span className="text-lg font-extrabold">{variantLabel(p) || p.name}</span>
-                  <span className="text-xs text-muted">{p.sellingPrice > 0 ? formatRupees(p.sellingPrice) : t('stock.noPrice')} · {out ? t('stock.out') : t('styles.left', { count: p.stock })}</span>
+                  <span className="text-xs text-muted">{p.sellingPrice > 0 ? formatRupees(p.sellingPrice) : t('stock.noPrice')} · {p.uncounted ? t('stock.notCounted') : out ? t('stock.out') : t('styles.left', { count: p.stock })}</span>
                 </button>
               )
             })}

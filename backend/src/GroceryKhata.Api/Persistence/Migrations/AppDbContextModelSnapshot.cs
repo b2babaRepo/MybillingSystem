@@ -2069,6 +2069,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("name");
 
+                    b.Property<DateOnly?>("OutOn")
+                        .HasColumnType("date")
+                        .HasColumnName("out_on");
+
                     b.Property<decimal?>("PackSize")
                         .HasPrecision(12, 3)
                         .HasColumnType("numeric(12,3)")
@@ -2127,6 +2131,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<bool>("TracksSerials")
                         .HasColumnType("boolean")
                         .HasColumnName("tracks_serials");
+
+                    b.Property<bool>("Uncounted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("uncounted");
 
                     b.Property<string>("Unit")
                         .IsRequired()
@@ -3022,6 +3030,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<Guid?>("CustomerId")
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
+
+                    b.Property<int?>("EntrySeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("entry_seconds");
 
                     b.Property<decimal>("ExchangeCredit")
                         .HasPrecision(18, 2)

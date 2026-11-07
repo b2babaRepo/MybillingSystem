@@ -1,6 +1,19 @@
 import { garmentRate } from './gst'
+import { isOutToday } from './local'
 import { describe, expect, it } from 'vitest'
 import { gstSummary, gstUnsetAmount } from './gst'
+
+describe('isOutToday', () => {
+  // 7 Nov 19:00 UTC is already 8 Nov in India.
+  const now = new Date('2026-11-07T19:00:00Z')
+  it('goes by the India date', () => {
+    expect(isOutToday('2026-11-08', now)).toBe(true)
+    expect(isOutToday('2026-11-07', now)).toBe(false)
+  })
+  it('is false when never marked', () => {
+    expect(isOutToday(null, now)).toBe(false)
+  })
+})
 
 describe('gstSummary', () => {
   it('takes GST out of inclusive prices by rate and splits it into CGST and SGST', () => {
