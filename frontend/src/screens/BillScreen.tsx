@@ -19,9 +19,8 @@ import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { PaymentMode, Unit } from '../lib/types'
 import { useShopSettings, shopTypes, isTrade, upiUri } from '../lib/reports'
-import QRCode from 'qrcode'
 import { navigate } from '../router'
-import { useSerialsInStock } from './SerialsScreen'
+import { useSerialsInStock } from '../lib/serials'
 import { ask } from '../components/Ask'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
@@ -625,7 +624,8 @@ function UpiCollect({ upiId, shop, amount }: { upiId: string | null; shop: strin
   useEffect(() => {
     if (!uri) return
     let live = true
-    void QRCode.toDataURL(uri, { width: 360, margin: 1, color: { dark: '#10201d', light: '#ffffff' } }).then((url) => { if (live) setQr(url) })
+    // On demand: most bills never show a QR, so the library stays out of the first download.
+    void import('qrcode').then(({ default: QRCode }) => QRCode.toDataURL(uri, { width: 360, margin: 1, color: { dark: '#10201d', light: '#ffffff' } })).then((url) => { if (live) setQr(url) })
     return () => { live = false }
   }, [uri])
   if (!upiId) {

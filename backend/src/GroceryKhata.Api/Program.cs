@@ -122,6 +122,7 @@ app.MapExpenses();
 app.MapBillPhotos();
 app.MapInvoicePhotos();
 GroceryKhata.Api.Ledger.PartyImport.MapPartyImport(app);
+GroceryKhata.Api.Ledger.Receipts.MapReceipts(app);
 app.MapMarkets();
 app.MapProfile();
 app.MapAddresses();

@@ -44,7 +44,7 @@ export function KhataHistory({ entries, canRemove, onRemove, onDispute, focusEnt
             entry={e}
             open={open === e.id}
             onToggle={() => setOpen(open === e.id ? null : e.id)}
-            canRemove={!!onRemove && !e.upiRef && (canRemove?.(e) ?? true)}
+            canRemove={!!onRemove && (canRemove?.(e) ?? true)}
             onRemove={() => onRemove?.(e)}
             onDispute={onDispute && e.kind !== 'reversal' && e.kind !== 'return' && !(e.dispute && !e.dispute.resolvedAt) ? () => onDispute(e) : undefined}
           />
@@ -115,7 +115,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
         )}
       </div>
       {e.upiRef && (
-        <div className="-mt-2 px-3 pb-2 text-xs font-semibold text-jama">🔒 {t('ledgerView.upiLocked', { ref: e.upiRef })}</div>
+        <div className="-mt-2 px-3 pb-2 text-xs font-semibold text-jama">{t('ledgerView.upiLocked', { ref: e.upiRef })}</div>
       )}
       {e.dispute && (
         <div className={`mx-3 mb-3 rounded-xl p-3 text-sm ${e.dispute.resolvedAt ? 'bg-[#f4f8f7]' : 'bg-amber-50 text-amber-950'}`}>

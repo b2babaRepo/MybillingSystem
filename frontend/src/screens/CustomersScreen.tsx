@@ -45,6 +45,7 @@ export function CustomersScreen({ shopId, selectedId, isOwner = false }: { shopI
         ))}
       </div>
       {!isLoading && customers.length === 0 && <p className="py-8 text-center text-muted">{t('noCustomers')}</p>}
+      <button onClick={() => navigate('/receipts')} className="mb-2 mr-4 min-h-11 text-sm font-semibold text-teal-700 underline">{t('receipts.link')}</button>
       {isOwner && <button onClick={() => navigate('/khata/import')} className="mb-2 min-h-11 text-sm font-semibold text-teal-700 underline">{t('partyImport.link')}</button>}
       <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
         {shown.map((c) => (

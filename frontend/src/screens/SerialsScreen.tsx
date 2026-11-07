@@ -4,22 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
+import type { Serial } from '../lib/serials'
 import { navigate } from '../router'
 
-export interface Serial {
-  id: string; productId: string; productName: string; serialNo: string; status: 'in_stock' | 'sold'; receivedOn: string; billNo: string | null
-  customerName: string | null; soldOn: string | null; warrantyUntil: string | null; inWarranty: boolean; warrantyRegistered: boolean
-}
-
 const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-
-/** In-stock serials of one item, for the bill's picker. */
-export function useSerialsInStock(shopId: string, productId: string | null) {
-  return useQuery({
-    queryKey: [shopId, 'serials', productId, 'in_stock'], enabled: !!productId,
-    queryFn: () => api<Serial[]>(`/v1/serials?productId=${productId}&status=in_stock`),
-  }).data ?? []
-}
 
 /** On a sales & service shop's home. */
 export function ServiceHomeCard({ isOwner }: { isOwner: boolean }) {

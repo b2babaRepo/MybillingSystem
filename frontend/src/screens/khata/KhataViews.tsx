@@ -27,6 +27,7 @@ interface MyKhata {
   customerId: string
   customerName: string
   balance: number
+  confirmed: boolean
 }
 
 type Ticked = { problem: ItemProblem; received: string }
@@ -205,6 +206,34 @@ export function KhataLinkPage({ path }: { path: string }) {
   )
 }
 
+/** A khata under my number that isn't proved mine yet: the shop's code opens it. Nothing about it shows until then. */
+function ConfirmKhata({ khata }: { khata: MyKhata }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [code, setCode] = useState('')
+  const [message, setMessage] = useState('')
+  async function confirm() {
+    setMessage('')
+    try {
+      await api(`/v1/me/khata/${khata.shopId}/${khata.customerId}/confirm`, 'POST', { code: code.trim() })
+      await queryClient.invalidateQueries({ queryKey: ['my-khata'] })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2 px-3.5 py-3">
+      <div className="font-bold">{khata.shopName}</div>
+      <p className="text-sm text-muted">{t('myKhata.confirmHint')}</p>
+      <div className="flex gap-2">
+        <input aria-label={t('myKhata.confirmCode')} placeholder={t('myKhata.confirmCode')} value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={6} autoComplete="one-time-code" className="h-11 min-w-0 flex-1 rounded-xl border border-line px-3 text-lg" />
+        <Button disabled={code.trim().length !== 6} onClick={() => void confirm()}>{t('myKhata.confirmNow')}</Button>
+      </div>
+      {message && <p className="text-sm text-due">{message}</p>}
+    </div>
+  )
+}
+
 /** Household app: every shop where my phone has a khata. */
 export function MyKhataScreen() {
   const { t } = useTranslation()
@@ -215,7 +244,7 @@ export function MyKhataScreen() {
       <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
         {mine.data?.map((k) => (
           <li key={k.customerId}>
-            <button className="flex min-h-16 w-full items-center gap-3 px-3.5 py-3 text-left" onClick={() => navigate(`/khata/${k.shopId}/${k.customerId}`)}>
+            {!k.confirmed ? <ConfirmKhata khata={k} /> : <button className="flex min-h-16 w-full items-center gap-3 px-3.5 py-3 text-left" onClick={() => navigate(`/khata/${k.shopId}/${k.customerId}`)}>
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e0efec] text-lg font-extrabold text-teal-700">{k.shopName.charAt(0)}</span>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-bold">{k.shopName}</div>
@@ -226,7 +255,7 @@ export function MyKhataScreen() {
                 <div className="text-xs font-normal">{k.balance > 0 ? t('myKhata.youOwe') : t('settled')}</div>
               </div>
               <span aria-hidden className="text-xl text-muted">›</span>
-            </button>
+            </button>}
           </li>
         ))}
       </ul>

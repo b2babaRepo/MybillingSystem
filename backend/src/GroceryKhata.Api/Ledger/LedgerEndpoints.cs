@@ -50,6 +50,6 @@ public static class LedgerEndpoints
         return app;
     }
 
-    private static bool IsOwner(ClaimsPrincipal user) => user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner));
+    internal static bool IsOwner(ClaimsPrincipal user) => user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner));
 }
 

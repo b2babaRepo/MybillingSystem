@@ -26,3 +26,6 @@ void i18nReady.then(() => createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 ))
+
+// The counter's main screen isn't in the first download, but it mustn't make anyone wait: fetch it once the app is up.
+void i18nReady.then(() => setTimeout(() => void import('./screens/BillScreen'), 500))

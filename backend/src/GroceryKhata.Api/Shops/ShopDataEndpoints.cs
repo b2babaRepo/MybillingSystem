@@ -85,6 +85,8 @@ public static class ShopDataEndpoints
         await db.StockMovements.ExecuteDeleteAsync(ct);
         await db.OrderLines.Where(l => l.ShopId == shopId).ExecuteDeleteAsync(ct);
         await db.Orders.Where(o => o.ShopId == shopId).ExecuteDeleteAsync(ct);
+        await db.ReceiptAllocations.ExecuteDeleteAsync(ct);
+        await db.IncomingReceipts.ExecuteDeleteAsync(ct);
         // Reversals point at the entries they cancel: delete those first.
         await db.LedgerEntries.Where(e => e.ReversesEntryId != null).ExecuteDeleteAsync(ct);
         await db.LedgerEntries.ExecuteDeleteAsync(ct);

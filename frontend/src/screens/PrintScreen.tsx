@@ -10,6 +10,7 @@ import { api, ApiError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { gstSummary, gstUnsetAmount, storedSummary } from '../lib/gst'
 import { listOps } from '../lib/outbox'
+import { getPaper, pageRule, setPaper, type Paper } from '../lib/paper'
 import { provisionalBill } from '../lib/provisionalBill'
 import type { ProvisionalBill } from '../lib/provisionalBill'
 import type { BillView, Statement } from '../lib/types'
@@ -27,6 +28,8 @@ export function PrintScreen({ shopId, shopName, kind, id, month }: { shopId: str
 
 function Page({ title, subtitle, shareText, phone, children }: { title: string; subtitle: string; shareText: string; phone: string | null; children: ReactNode }) {
   const { t } = useTranslation()
+  const [paper, choosePaper] = useState<Paper>(getPaper)
+  const rule = pageRule(paper)
   // Opened with "Print" from the bill screen: show the print dialog straight away, once.
   useEffect(() => {
     let auto = false
@@ -34,17 +37,25 @@ function Page({ title, subtitle, shareText, phone, children }: { title: string; 
     if (auto) setTimeout(() => window.print(), 300)
   }, [])
   return (
-    <div className="mx-auto min-h-dvh max-w-2xl bg-white p-6 text-black print:p-0">
+    <div className="mx-auto min-h-dvh max-w-2xl bg-white p-6 text-black print:m-0 print:min-h-0 print:max-w-none print:p-0">
+      {rule && <style>{rule}</style>}
       <div className="mb-4 flex flex-wrap gap-2 print:hidden">
         <button onClick={() => history.back()} className="h-11 rounded-xl border border-line px-4 font-semibold" aria-label={t('a11y.back')}>←</button>
         <button onClick={() => window.print()} className="h-11 rounded-xl bg-teal-700 px-4 font-semibold text-white">{t('print.printPdf')}</button>
         <a href={whatsAppLink(phone, shareText)} target="_blank" rel="noreferrer" className="flex h-11 items-center rounded-xl bg-[#15803d] px-4 font-semibold text-white">{t('print.share')}</a>
+        <select aria-label={t('paper.label')} value={paper} onChange={(e) => { const next = e.target.value as Paper; setPaper(next); choosePaper(next) }} className="h-11 rounded-xl border border-line bg-white px-2 font-semibold">
+          <option value="a4">{t('paper.a4')}</option>
+          <option value="80">{t('paper.r80')}</option>
+          <option value="58">{t('paper.r58')}</option>
+        </select>
       </div>
-      <header className="mb-4 border-b-2 border-black pb-3">
-        <h1 className="text-2xl font-extrabold">{title}</h1>
-        <p className="text-base">{subtitle}</p>
-      </header>
-      {children}
+      <div className={paper === 'a4' ? '' : `receipt receipt-${paper}`}>
+        <header className="mb-4 border-b-2 border-black pb-3">
+          <h1 className="text-2xl font-extrabold">{title}</h1>
+          <p className="text-base">{subtitle}</p>
+        </header>
+        {children}
+      </div>
     </div>
   )
 }
@@ -164,7 +175,7 @@ function ProvisionalPrint({ shopName, bill }: { shopName: string; bill: Provisio
   return (
     <Page title={shopName} subtitle={`${t('print.provisional')} · ${when}${bill.customerName ? ` · ${bill.customerName}` : ''}`} shareText={t('print.billShare', { shop: shopName, total: bill.total, paid: bill.paidAmount, khata: bill.onKhata })} phone={null}>
       <p className="mb-3 border-2 border-black p-2 text-center text-sm font-bold">{t('print.provisionalNote')}</p>
-      <table className="w-full border-collapse text-[15px]">
+      <table className="bill-lines w-full border-collapse text-[15px]">
         <thead>
           <tr className="border-b border-black text-left">
             <th className="py-1.5">{t('print.item')}</th><th className="text-right">{t('print.qty')}</th><th className="text-right">{t('print.rate')}</th><th className="text-right">{t('print.amount')}</th>
@@ -244,7 +255,8 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
       )}
       {bill.buyerAddress && <p className="mb-3 text-sm">{t('print.buyerAddress')}: {bill.buyerAddress}</p>}
       {bill.buyerGstin && !bill.buyerAddress && <p className="mb-3 text-sm font-semibold text-due print:hidden">{t('print.buyerAddressMissing')}</p>}
-      <table className="w-full border-collapse text-[15px]">
+      {gstin && !bill.buyerGstin && bill.total >= 50000 && !bill.buyerAddress && <p className="mb-3 text-sm font-semibold text-due print:hidden">{t('print.bigBillAddress')}</p>}
+      <table className="bill-lines w-full border-collapse text-[15px]">
         <thead>
           <tr className="border-b border-black text-left">
             <th className="py-1.5">{t('print.item')}</th><th className="text-right">{t('print.qty')}</th><th className="text-right">{t('print.rate')}</th><th className="text-right">{t('print.amount')}</th>

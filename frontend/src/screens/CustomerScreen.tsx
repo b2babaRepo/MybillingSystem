@@ -41,6 +41,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
 }) {
   const { t } = useTranslation()
   const { customers } = useCustomers(shopId)
+  const queryClient = useQueryClient()
   const customer = customers.find((c) => c.id === customerId)
   const { entries } = useStatement(shopId, customer)
   const settings = useShopSettings(shopId)
@@ -92,7 +93,8 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
     if (!customer) return
     const late = Date.now() - new Date(e.occurredAt).getTime() > REMOVAL_WINDOW_MS
     let reason = ''
-    if (late) {
+    // A UPI payment always says why: the money stays proved received, and goes back to the tray to be matched again.
+    if (late || e.upiRef) {
       reason = (await ask(t('ledgerView.removeReason')))?.trim() ?? ''
       if (reason.length < 3) return
     } else if (!(await confirmAsk(t('removeConfirm')))) {
@@ -122,7 +124,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
     setPart('')
   }
 
-  // UPI: the bank reference (UTR) from the payment app. Optional, but a payment with one is locked for good.
+  // UPI: the bank reference (UTR) from the payment app. Optional. It proves the money came, and can't be entered twice.
   const modeButtons = (
     <div className="flex flex-col gap-2">
       <div className="flex gap-2 text-sm">
@@ -148,6 +150,22 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
     </div>
   )
 
+  /** Name and number, one question each. A new number means the old link and confirmation stop, so the owner is told first. */
+  async function correctDetails() {
+    const name = (await ask(t('customerEdit.name'), customer!.name))?.trim()
+    if (!name) return
+    const phone = await ask(t('customerEdit.phone'), customer!.phone?.replace(/^\+91/, '') ?? '')
+    if (phone === null) return
+    if (phone.replace(/\D/g, '').slice(-10) !== (customer!.phone ?? '').replace(/\D/g, '').slice(-10) && !(await confirmAsk(t('customerEdit.phoneWarn')))) return
+    try {
+      await api(`/v1/customers/${customer!.id}`, 'PUT', { name, phone: phone.trim() || null })
+      await queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] })
+      queryClient.removeQueries({ queryKey: ['khata-link', customer!.id] })
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : t('error'))
+    }
+  }
+
   const reminder = buildReminder(settings.data?.reminderTemplate, { name: customer.name, amount: customer.balance, shop: shopName, upi: settings.data?.upiId ?? null, slug: settings.data?.slug })
 
   return (
@@ -156,6 +174,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
         <div>
           <div className="text-2xl font-bold">{customer.name}</div>
           {customer.phone && <div className="text-muted">{formatPhone(customer.phone)}</div>}
+          {isOwner && !customer.isNew && <button onClick={() => void correctDetails()} className="min-h-9 text-sm font-semibold text-teal-700 underline">{t('customerEdit.button')}</button>}
         </div>
         <Balance amount={customer.balance} large />
       </div>
@@ -348,6 +367,11 @@ function KhataLinkCard({ customer, shopName, isOwner }: { customer: { id: string
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const key = ['khata-link', customer.id]
+  const [appCode, setAppCode] = useState<string | null>(null)
+  async function showAppCode() {
+    const made = await api<{ code: string | null; confirmed: boolean }>(`/v1/customers/${customer.id}/phone-code`, 'POST')
+    setAppCode(made.confirmed ? t('phoneCode.done') : t('phoneCode.show', { code: made.code }))
+  }
   const link = useQuery({ queryKey: key, queryFn: () => api<KhataLink>(`/v1/customers/${customer.id}/khata-link`, 'POST'), staleTime: Infinity, retry: false })
 
   async function reset() {
@@ -360,6 +384,7 @@ function KhataLinkCard({ customer, shopName, isOwner }: { customer: { id: string
   return (
     <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
       <span className="text-sm text-muted">{t('ledgerView.linkHint')}</span>
+      {customer.phone && <span className="text-sm font-semibold">{t('phoneCode.sendsTo', { phone: customer.phone })}</span>}
       <a
         className="flex h-12 items-center justify-center rounded-2xl border-2 border-teal-700 font-bold text-teal-800"
         href={whatsAppLink(customer.phone, t('ledgerView.linkMessage', { name: customer.name, shop: shopName, url }))}
@@ -368,6 +393,8 @@ function KhataLinkCard({ customer, shopName, isOwner }: { customer: { id: string
       >
         🔗 {t('ledgerView.shareLink')}
       </a>
+      {customer.phone && <button onClick={() => void showAppCode()} className="min-h-11 text-sm font-semibold text-teal-700 underline">{t('phoneCode.button')}</button>}
+      {appCode && <p className="rounded-xl bg-teal-50 p-2 text-sm font-semibold text-teal-900">{appCode}</p>}
       {isOwner && (
         <button className="min-h-11 text-sm text-muted underline" onClick={() => void reset()}>
           {t('ledgerView.resetLink')}

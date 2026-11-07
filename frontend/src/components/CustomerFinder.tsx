@@ -5,7 +5,7 @@ import { formatRupees } from '../lib/format'
 import type { Customer } from '../lib/types'
 
 /** The bill's customer: type a name or phone digits, see what they owe, Enter takes the top match. */
-export function CustomerFinder({ customers, selected, onKhata, onPick }: { customers: Customer[]; selected: Customer | null; onKhata: number; onPick: (id: string) => void }) {
+export function CustomerFinder({ customers, selected, onKhata, onPick, placeholder, inputId = 'bill-customer' }: { customers: Customer[]; selected: Customer | null; onKhata: number; onPick: (id: string) => void; placeholder?: string; inputId?: string }) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
@@ -42,7 +42,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick }: { custo
       <label className="block">
         <span className="mb-1 block text-sm font-medium text-muted">{t('customer')}</span>
         <input
-          id="bill-customer"
+          id={inputId}
           value={text}
           onChange={(e) => { setText(e.target.value); setActive(0); setOpen(true) }}
           onFocus={() => setOpen(true)}
@@ -54,7 +54,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick }: { custo
             else if (e.key === 'Enter' && open && hits[active]) { e.preventDefault(); pick(hits[active].id) }
             else if (e.key === 'Escape') { setText(''); setOpen(false) }
           }}
-          placeholder={t('billFind.placeholder')}
+          placeholder={placeholder ?? t('billFind.placeholder')}
           autoComplete="off"
           className="h-12 w-full rounded-xl border border-line bg-white px-3 text-lg outline-none focus:border-teal-600"
         />

@@ -60,3 +60,21 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .item-card-emoji, .item-card-bubble, .item-card-shine { animation: none; }
 }
+
+/* A thermal roll: printable width less than the paper's, solid black (thermal has no grey), one small size. */
+.receipt { margin: 0 auto; color: #000; font-size: 12px; line-height: 1.25; }
+.receipt-80 { width: 72mm; }
+.receipt-58 { width: 48mm; font-size: 11px; }
+.receipt :is(p, span, table, td, th, caption, div) { font-size: inherit !important; color: #000 !important; }
+.receipt header { margin-bottom: 0.5em; padding-bottom: 0.4em; text-align: center; }
+.receipt h1 { font-size: 1.3em !important; text-align: center; }
+.receipt .text-xl { font-size: 1.2em !important; }
+.receipt td, .receipt th { padding: 1px 2px 1px 0 !important; overflow-wrap: break-word; }
+/* Like a shop receipt: the item's name on its own line, its numbers on the line below. */
+.receipt .bill-lines tr { display: grid; grid-template-columns: 1fr auto auto; column-gap: 0.8em; }
+.receipt .bill-lines :is(th, td):first-child { grid-column: 1 / -1; }
+.receipt-58 .bill-lines tr { grid-template-columns: 1fr auto; }
+.receipt .mt-4, .receipt .mt-6 { margin-top: 0.5em; }
+.receipt-58 .bill-lines :is(th, td):nth-child(3) { display: none; } /* 58 mm can't hold four columns: quantity and amount stay */
+.receipt .print\:hidden { min-width: 18rem; } /* shop-only buttons keep their size on screen, and never print */
+@media print { body { background: #fff; } }

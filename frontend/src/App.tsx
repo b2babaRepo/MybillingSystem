@@ -16,11 +16,13 @@ import { confirmAsk } from './components/Ask'
 // Signed-in people (most opens) never need the sign-in screen, so it loads on demand.
 const AuthScreen = lazy(() => import('./screens/AuthScreen').then((module) => ({ default: module.AuthScreen })))
 const ShopPicker = lazy(() => import('./screens/AuthScreen').then((module) => ({ default: module.ShopPicker })))
-import { BillScreen } from './screens/BillScreen'
+const billScreen = () => import('./screens/BillScreen')
+const BillScreen = lazy(() => billScreen().then((module) => ({ default: module.BillScreen })))
 const CustomerScreen = lazy(() => import('./screens/CustomerScreen').then((module) => ({ default: module.CustomerScreen })))
 const DisputesScreen = lazy(() => import('./screens/DisputesScreen').then((module) => ({ default: module.DisputesScreen })))
 const CommonListScreen = lazy(() => import('./screens/CommonListScreen').then((module) => ({ default: module.CommonListScreen })))
 const CustomerImportScreen = lazy(() => import('./screens/CustomerImportScreen').then((module) => ({ default: module.CustomerImportScreen })))
+const ReceiptsScreen = lazy(() => import('./screens/ReceiptsScreen').then((module) => ({ default: module.ReceiptsScreen })))
 const CustomersScreen = lazy(() => import('./screens/CustomersScreen').then((module) => ({ default: module.CustomersScreen })))
 import { HomeScreen } from './screens/HomeScreen'
 const ItemsScreen = lazy(() => import('./screens/ItemsScreen').then((module) => ({ default: module.ItemsScreen })))
@@ -231,6 +233,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const sideGroups: { title: string; links: { path: string; label: string }[] }[] = [
     { title: t('side.money'), links: [
       { path: '/dues', label: t('side.dues') },
+      { path: '/receipts', label: t('side.receipts') },
       { path: '/cashbook', label: t('side.cashbook') },
       { path: '/expenses', label: t('side.expenses') },
       { path: '/reports', label: t('side.reports') },
@@ -399,6 +402,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <StocktakeScreen shopId={shopId} />
         ) : path === '/items/common' ? (
           <CommonListScreen shopId={shopId} />
+        ) : path === '/receipts' ? (
+          <ReceiptsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/khata/import' ? (
           <CustomerImportScreen shopId={shopId} />
         ) : path === '/import' ? (

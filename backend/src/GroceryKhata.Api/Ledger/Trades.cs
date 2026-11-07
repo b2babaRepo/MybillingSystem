@@ -63,6 +63,8 @@ public sealed record CustomerGstinRequest(string? Gstin);
 
 public sealed record CustomerAddressRequest(string? Address);
 
+public sealed record CustomerDetailsRequest(string? Name, string? Phone);
+
 /// <summary>What a contractor's khata adds up to at one site.</summary>
 public sealed record SiteTotal(string Site, int Bills, decimal Billed, int OpenChallans);
 
@@ -88,6 +90,7 @@ public static class TradeEndpoints
         shop.MapPost("/challans/invoice", InvoiceAsync).RequireFeature(Billing.Features.Trade);
         shop.MapGet("/customers/{id:guid}/sites", SitesAsync);
         shop.MapPut("/customers/{id:guid}/credit-limit", SetLimitAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapPut("/customers/{id:guid}", SetDetailsAsync).RequireAuthorization(AppPolicies.ShopOwner);
         shop.MapGet("/customers/{id:guid}/gstin", async (Guid id, AppDbContext db, CancellationToken ct) =>
             Results.Ok(new CustomerGstinRequest(await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Gstin).SingleOrDefaultAsync(ct))));
         shop.MapPut("/customers/{id:guid}/gstin", SetGstinAsync).RequireAuthorization(AppPolicies.ShopOwner);
@@ -293,6 +296,47 @@ public static class TradeEndpoints
         customer.Gstin = gstin;
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(request with { Gstin = gstin });
+    }
+
+    /// <summary>
+    /// Puts right a customer's name or phone. A new number is a new person as far as the khata can tell: the old link
+    /// stops and they must confirm again, so a wrong number that once had access keeps none. Both changes are audited.
+    /// </summary>
+    private static async Task<IResult> SetDetailsAsync(Guid id, CustomerDetailsRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string[]>();
+        var name = request.Name?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length > 120)
+        {
+            errors[nameof(request.Name)] = ["Enter the customer's name."];
+        }
+
+        var phone = PhoneNumber.Normalize(request.Phone);
+        if (!string.IsNullOrWhiteSpace(request.Phone) && phone is null)
+        {
+            errors[nameof(request.Phone)] = ["Enter a valid mobile number, or leave it empty."];
+        }
+
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (customer.Phone != phone)
+        {
+            (customer.Phone, customer.PhoneConfirmedAt, customer.ConfirmCodeHash, customer.ConfirmCodeAt, customer.ConfirmCodeTries) = (phone, null, null, null, 0);
+            (customer.KhataToken, customer.KhataTokenAt) = (null, null);
+        }
+
+        customer.Name = name!;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(new CustomerDto(customer.Id, customer.Name, customer.Phone, customer.Balance, customer.CreditLimit));
     }
 
     /// <summary>The customer's address, for their bills. Empty clears it.</summary>

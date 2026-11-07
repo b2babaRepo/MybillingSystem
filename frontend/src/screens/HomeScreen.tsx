@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { TodaySummary } from '../components/TodaySummary'
 import type { ReactNode } from 'react'
@@ -9,10 +10,11 @@ import { formatRupees } from '../lib/format'
 import { useSubscription } from '../lib/billing'
 import { useShopSettings, shopTypes, isTrade, COMMISSION_TYPES } from '../lib/reports'
 import { navigate } from '../router'
-import { SalonHomeCard } from './SalonSetupScreen'
-import { MedicalHomeCard } from './MedicalScreen'
-import { DairyHomeCard } from './DairyScreen'
-import { ServiceHomeCard } from './SerialsScreen'
+// Each trade's card comes with its whole screen, so only the shops of that trade fetch it.
+const SalonHomeCard = lazy(() => import('./SalonSetupScreen').then((module) => ({ default: module.SalonHomeCard })))
+const MedicalHomeCard = lazy(() => import('./MedicalScreen').then((module) => ({ default: module.MedicalHomeCard })))
+const DairyHomeCard = lazy(() => import('./DairyScreen').then((module) => ({ default: module.DairyHomeCard })))
+const ServiceHomeCard = lazy(() => import('./SerialsScreen').then((module) => ({ default: module.ServiceHomeCard })))
 
 /**
  * Dashboard A, "Clean Teal": today's sales with the cash / UPI / udhaar split, four big actions,
@@ -101,10 +103,12 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         <span aria-hidden="true">→</span>
       </button>
 
-      {types.includes('medical') && <MedicalHomeCard shopId={shopId} />}
-      {types.includes('dairy') && <DairyHomeCard shopId={shopId} />}
-      {types.includes('sales_service') && <ServiceHomeCard isOwner={isOwner} />}
-      {types.includes('beauty') && <SalonHomeCard shopId={shopId} isOwner={isOwner} />}
+      <Suspense fallback={null}>
+        {types.includes('medical') && <MedicalHomeCard shopId={shopId} />}
+        {types.includes('dairy') && <DairyHomeCard shopId={shopId} />}
+        {types.includes('sales_service') && <ServiceHomeCard isOwner={isOwner} />}
+        {types.includes('beauty') && <SalonHomeCard shopId={shopId} isOwner={isOwner} />}
+      </Suspense>
       {types.includes('lodge') && (
         <button onClick={() => navigate('/rooms')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
           <span>{t('rooms.link')}</span><span aria-hidden="true">→</span>

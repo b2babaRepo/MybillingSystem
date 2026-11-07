@@ -36,6 +36,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Common.AiUsageDay> AiUsageDays => Set<Common.AiUsageDay>();
 
+    public DbSet<Ledger.IncomingReceipt> IncomingReceipts => Set<Ledger.IncomingReceipt>();
+
+    public DbSet<Ledger.ReceiptAllocation> ReceiptAllocations => Set<Ledger.ReceiptAllocation>();
+
     public DbSet<Market> Markets => Set<Market>();
 
     public DbSet<MasterItem> MasterItems => Set<MasterItem>();
@@ -1311,7 +1315,30 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantForeignKey<LedgerEntry, Bill>(nameof(LedgerEntry.BillId));
             b.HasTenantForeignKey<LedgerEntry, LedgerEntry>(nameof(LedgerEntry.ReversesEntryId));
             b.Property(e => e.UpiRef).HasMaxLength(30);
-            b.HasIndex(e => new { e.ShopId, e.UpiRef }).IsUnique().HasFilter("upi_ref IS NOT NULL");
+            // Not unique: a corrected or split payment shows the same reference. One UTR, one receipt is kept on the receipt.
+            b.HasIndex(e => new { e.ShopId, e.UpiRef }).HasFilter("upi_ref IS NOT NULL");
+        });
+
+        modelBuilder.Entity<Ledger.IncomingReceipt>(b =>
+        {
+            b.ToTable("incoming_receipts");
+            b.HasTenantKey();
+            b.Property(r => r.Amount).HasPrecision(14, 2);
+            b.HasIndex(r => new { r.ShopId, r.Utr }).IsUnique().HasFilter("utr IS NOT NULL");
+            b.HasIndex(r => new { r.ShopId, r.ReceivedAt });
+            b.HasOne<Shop>().WithMany().HasForeignKey(r => r.ShopId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Ledger.ReceiptAllocation>(b =>
+        {
+            b.ToTable("receipt_allocations");
+            b.HasTenantKey();
+            b.Property(a => a.Amount).HasPrecision(14, 2);
+            b.HasIndex(a => new { a.ShopId, a.ReceiptId });
+            b.HasIndex(a => new { a.ShopId, a.LedgerEntryId }).IsUnique();
+            b.HasTenantForeignKey<Ledger.ReceiptAllocation, Ledger.IncomingReceipt>(nameof(Ledger.ReceiptAllocation.ReceiptId));
+            b.HasTenantForeignKey<Ledger.ReceiptAllocation, Customer>(nameof(Ledger.ReceiptAllocation.CustomerId));
+            b.HasTenantForeignKey<Ledger.ReceiptAllocation, LedgerEntry>(nameof(Ledger.ReceiptAllocation.LedgerEntryId));
         });
 
         modelBuilder.Entity<Dispute>(b =>

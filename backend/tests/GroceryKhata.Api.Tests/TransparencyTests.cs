@@ -38,7 +38,7 @@ public sealed class TransparencyTests(ApiFactory api)
     }
 
     [Fact]
-    public async Task A_UPI_payment_with_a_bank_reference_can_never_be_removed_or_entered_twice()
+    public async Task A_UPI_payment_with_a_bank_reference_is_never_entered_twice_and_needs_a_reason_to_remove()
     {
         var (shop, _) = await api.SignUpAsync("Sharma General Store");
         var customer = await KhataTests.CreateCustomerAsync(shop, "Anita");
@@ -52,7 +52,7 @@ public sealed class TransparencyTests(ApiFactory api)
 
         Assert.Equal(HttpStatusCode.Conflict, twice.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, cashWithRef.StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, removed.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, removed.StatusCode);
         var statement = await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement");
         Assert.Equal("4321ABCD9876", statement.Entries.Single(e => e.Kind == LedgerEntryKind.Payment).UpiRef);
         Assert.Equal(200m, statement.ClosingBalance);

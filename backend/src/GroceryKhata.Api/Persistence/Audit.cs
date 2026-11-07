@@ -44,8 +44,12 @@ public sealed class AuditInterceptor(ITenantContext tenant) : SaveChangesInterce
         [typeof(Order)] = "orders",
     };
 
-    // Bookkeeping columns, not decisions anyone made.
-    private static readonly HashSet<string> Ignored = [nameof(Entity.UpdatedAt), nameof(Entity.CreatedAt), nameof(Customer.LastRemindedAt)];
+    // Bookkeeping columns, not decisions anyone made, and secrets, which must not be copied into a readable log.
+    private static readonly HashSet<string> Ignored =
+    [
+        nameof(Entity.UpdatedAt), nameof(Entity.CreatedAt), nameof(Customer.LastRemindedAt),
+        nameof(Customer.KhataToken), nameof(Customer.KhataTokenAt), nameof(Customer.ConfirmCodeHash), nameof(Customer.ConfirmCodeAt), nameof(Customer.ConfirmCodeTries),
+    ];
 
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)

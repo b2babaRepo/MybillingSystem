@@ -33,6 +33,21 @@ public sealed class Customer : Entity, ITenantOwned
     /// <summary>When <see cref="KhataToken"/> was made: a link works for <c>KhataViewEndpoints.LinkLife</c> after it.</summary>
     public DateTimeOffset? KhataTokenAt { get; set; }
 
+    /// <summary>
+    /// When the person with this phone proved the khata is theirs, with a code the shop gave them. Until then a typed
+    /// number proves nothing: one wrong digit would show this khata to a stranger who signs in with that number.
+    /// </summary>
+    public DateTimeOffset? PhoneConfirmedAt { get; set; }
+
+    /// <summary>The shop's current code for that step, hashed. Null when none is waiting.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(64)]
+    public string? ConfirmCodeHash { get; set; }
+
+    public DateTimeOffset? ConfirmCodeAt { get; set; }
+
+    /// <summary>Wrong tries at the current code. Too many and the code stops.</summary>
+    public int ConfirmCodeTries { get; set; }
+
     /// <summary>A business customer's GSTIN, printed on their tax invoices; its first two digits are their state.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(15)]
     public string? Gstin { get; set; }

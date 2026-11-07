@@ -63,7 +63,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
     public static readonly TimeSpan LateAfter = TimeSpan.FromHours(24);
 
     public Task<LedgerResult<KhataEntryResponse>> AddKhataEntryAsync(
-        KhataEntryRequest request, Guid userId, CancellationToken cancellationToken, bool isOwner = true) =>
+        KhataEntryRequest request, Guid userId, CancellationToken cancellationToken, bool isOwner = true, Guid? fromReceiptId = null) =>
         WriteOnceAsync(
             () => FindEntryResponseAsync(request.Id, cancellationToken),
             async () =>
@@ -101,11 +101,6 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     return LedgerResult<KhataEntryResponse>.Invalid(errors);
                 }
 
-                if (upiRef is not null && await db.LedgerEntries.AnyAsync(e => e.UpiRef == upiRef, cancellationToken))
-                {
-                    return LedgerResult<KhataEntryResponse>.Conflicted("This UPI reference is already recorded. The same payment can't be entered twice.");
-                }
-
                 if (!await db.Customers.AnyAsync(c => c.Id == request.CustomerId, cancellationToken))
                 {
                     return LedgerResult<KhataEntryResponse>.Invalid(nameof(request.CustomerId), "Customer not found.");
@@ -126,13 +121,77 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 };
 
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+                var receipt = await ReceiptForAsync(fromReceiptId, upiRef, request.Amount, userId, cancellationToken);
+                if (receipt.Problem is { } problem)
+                {
+                    return problem;
+                }
+
+                entry.UpiRef = receipt.Receipt?.Utr ?? upiRef;
                 db.LedgerEntries.Add(entry);
+                if (receipt.Receipt is { } proof)
+                {
+                    db.ReceiptAllocations.Add(new ReceiptAllocation { ReceiptId = proof.Id, CustomerId = entry.CustomerId, LedgerEntryId = entry.Id, Amount = request.Amount, UserId = userId });
+                }
+
                 await db.SaveChangesAsync(cancellationToken);
                 var balance = await AdjustBalanceAsync(entry.CustomerId, entry.Amount, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
                 return LedgerResult<KhataEntryResponse>.Created(new KhataEntryResponse(LedgerEntryDto.From(entry), balance));
             });
+
+    /// <summary>
+    /// The proof this payment hangs on, locked for the rest of the transaction so two matches can't both take the same
+    /// money: the receipt being matched, or the one for a typed UTR, made if it's the first time this UTR is seen.
+    /// </summary>
+    private async Task<(IncomingReceipt? Receipt, LedgerResult<KhataEntryResponse>? Problem)> ReceiptForAsync(
+        Guid? fromReceiptId, string? upiRef, decimal amount, Guid userId, CancellationToken cancellationToken)
+    {
+        const string twice = "This UPI reference is already recorded. The same payment can't be entered twice.";
+        if (fromReceiptId is null && upiRef is null)
+        {
+            return (null, null);
+        }
+
+        var locked = await (fromReceiptId is { } receiptId
+            ? db.IncomingReceipts.FromSql($"SELECT * FROM incoming_receipts WHERE id = {receiptId} FOR UPDATE")
+            : db.IncomingReceipts.FromSql($"SELECT * FROM incoming_receipts WHERE utr = {upiRef} FOR UPDATE")).SingleOrDefaultAsync(cancellationToken);
+        if (locked is null)
+        {
+            if (fromReceiptId is not null)
+            {
+                return (null, LedgerResult<KhataEntryResponse>.Missing());
+            }
+
+            var typed = new IncomingReceipt { Source = ReceiptSource.Manual, Amount = amount, Utr = upiRef, ReceivedAt = clock.GetUtcNow(), CreatedByUserId = userId };
+            db.IncomingReceipts.Add(typed);
+            return (typed, null);
+        }
+
+        if (locked.Disposition is not null)
+        {
+            return (null, LedgerResult<KhataEntryResponse>.Conflicted("This money is marked as not khata. Put it back in the tray first."));
+        }
+
+        var matched = await Receipts.MatchedAsync(db, locked.Id, cancellationToken);
+        if (fromReceiptId is null && matched > 0)
+        {
+            return (null, LedgerResult<KhataEntryResponse>.Conflicted(twice));
+        }
+
+        // A hand-typed amount is only the shop's word: once freed, retyping the same UTR may put a wrong figure right.
+        if (fromReceiptId is null && locked.Source == ReceiptSource.Manual)
+        {
+            locked.Amount = amount;
+        }
+        else if (matched + amount > locked.Amount)
+        {
+            return (null, LedgerResult<KhataEntryResponse>.Conflicted(fromReceiptId is null ? twice : "That's more than is left of this payment."));
+        }
+
+        return (locked, null);
+    }
 
     /// <summary>
     /// How long anyone may remove an entry, to fix a slip. After that only the owner can, and must say why: a
@@ -169,9 +228,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     return LedgerResult<KhataEntryResponse>.Conflicted("This entry is already reversed.");
                 }
 
-                if (original.UpiRef is not null)
+                // The bank's proof stays either way: this only says the money isn't this customer's, so say why.
+                if (original.UpiRef is not null && request.Note?.Trim() is not { Length: >= 3 and <= 200 })
                 {
-                    return LedgerResult<KhataEntryResponse>.Conflicted("A UPI payment with a bank reference can't be removed: the bank's record proves it.");
+                    return LedgerResult<KhataEntryResponse>.Invalid(nameof(request.Note), "Say why this payment is being removed. The customer will see it.");
                 }
 
                 if (clock.GetUtcNow() - original.CreatedAt > RemovalWindow)

@@ -125,7 +125,7 @@ export interface StatementLine {
   bill?: BillSummary | null
   /** Who wrote the line; on a removal, who removed it. */
   recordedBy?: string | null
-  /** The bank reference of a UPI payment: such a payment can't be removed. */
+  /** The bank reference of a UPI payment: removing it needs a reason, and frees the money to be matched again. */
   upiRef?: string | null
   /** The latest dispute the customer raised on this line. */
   dispute?: DisputeView | null
