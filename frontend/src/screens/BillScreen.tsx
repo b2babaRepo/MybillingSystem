@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { CashChange, CustomerFinder } from '../components/CustomerFinder'
 import { GST_STATES } from '../lib/states'
 import { nameMatches, splitQuantity } from '../lib/nameMatch'
 import { getSession } from '../lib/session'
@@ -88,6 +89,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }
   const [paid, setPaid] = useState<string | null>(null)
   const [mode, setMode] = useState<PaymentMode>('cash')
+  const [received, setReceived] = useState('')
   // A loose item, or a charge line ("Transport") with its name filled in.
   const [loose, setLoose] = useState<false | { name: string; unit: Unit }>(false)
   const settings = useShopSettings(shopId).data
@@ -191,6 +193,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     setCart([])
     if (exchange) { endExchange(); setExchangeState(null) }
     setPaid(null)
+    setReceived('')
     setCustomerId('')
     setSearch('')
     if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
@@ -204,12 +207,18 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
   const canSave = total > 0 && !unpriced && !rxMissing && !serialsMissing && !overLimit
   // Desktop keys: F2 search, F4 amount paid, Ctrl+Enter save, Esc clear search, ? the key list.
-  const keys = useRef({ save, canSave, printSaved, canPrint: false })
-  keys.current = { save, canSave, printSaved, canPrint: !!saved && cart.length === 0 }
+  function allOnKhata() {
+    if (customer) setPaid('0')
+    else document.getElementById('bill-customer')?.focus()
+  }
+  const keys = useRef({ save, canSave, printSaved, canPrint: false, allOnKhata })
+  keys.current = { save, canSave, printSaved, canPrint: !!saved && cart.length === 0, allOnKhata }
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)
       if (e.key === 'F2') { e.preventDefault(); searchRef.current?.focus(); searchRef.current?.select() }
+      else if (e.key === 'F3') { e.preventDefault(); document.getElementById('bill-customer')?.focus() }
+      else if (e.key === 'F6') { e.preventDefault(); keys.current.allOnKhata() }
       else if (e.key === 'F4') { e.preventDefault(); const el = document.getElementById('bill-paid') as HTMLInputElement | null; if (el) { el.focus(); el.select() } else document.getElementById('bill-save')?.focus() }
       else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (keys.current.canSave) void keys.current.save() }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p' && keys.current.canPrint) { e.preventDefault(); keys.current.printSaved() }
@@ -246,7 +255,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             // A name typed: Enter adds the best match (a style opens its sizes).
             const top = query ? groupStyles(tiles)[0] : undefined
             if (top?.kind === 'style') setStylePick(top.name)
-            else if (top) add({ productId: top.product.id, name: top.product.name, quantity: 1, unit: top.product.unit, unitPrice: top.product.sellingPrice })
+            else if (top) { add({ productId: top.product.id, name: top.product.name, quantity: 1, unit: top.product.unit, unitPrice: top.product.sellingPrice }); setSearch('') }
           }}
           placeholder={t('barcodeBill.search')}
           aria-label={t('search')}
@@ -259,7 +268,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         <div className="hidden rounded-[14px] bg-white p-3 text-sm lg:block">
           <p className="mb-1 font-bold">{t('keys.title')}</p>
           <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted">
-            {[['F2', t('keys.search')], ['Enter', t('keys.add')], ['F4', t('keys.paid')], ['Ctrl + Enter', t('keys.save')], ['Ctrl + P', t('keys.print')], ['2*', t('keys.qty')], ['Esc', t('keys.clear')], ['?', t('keys.toggle')]].map(([k, label]) => (
+            {[['F2', t('keys.search')], ['Enter', t('keys.add')], ['F3', t('keys.customer')], ['F6', t('keys.khata')], ['F4', t('keys.paid')], ['Ctrl + Enter', t('keys.save')], ['Ctrl + P', t('keys.print')], ['2*', t('keys.qty')], ['Esc', t('keys.clear')], ['?', t('keys.toggle')]].map(([k, label]) => (
               <li key={k}><kbd className="mr-2 rounded border border-line bg-[#f1f5f4] px-1.5 font-mono text-xs text-ink">{k}</kbd>{label}</li>
             ))}
           </ul>
@@ -459,17 +468,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
       {cart.length > 0 && (
         <div className="space-y-3 rounded-[18px] bg-white p-3">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-muted">{t('customer')}</span>
-            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-12 w-full rounded-xl border border-line bg-white px-3 text-lg">
-              <option value="">{t('walkIn')}</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </label>
+          <CustomerFinder customers={customers} selected={customer} onKhata={customer ? round2(total - paidAmount) : 0} onPick={setCustomerId} />
           {customer && (
-            <Field id="bill-paid" label={t('paidNow')} value={paid ?? String(total)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
+            <>
+              <Field id="bill-paid" label={t('paidNow')} value={paid ?? String(total)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
+              {paidAmount > 0 && <button onClick={allOnKhata} className="min-h-11 w-full rounded-xl border-2 border-teal-700 font-bold text-teal-800">{t('billFind.allKhata')}</button>}
+            </>
           )}
           {customer && total - paidAmount > 0 && (
             <p className="font-semibold text-due">
@@ -508,6 +512,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               </button>
             ))}
           </div>
+          {mode === 'cash' && paidAmount > 0 && <CashChange paying={paidAmount} received={received} onChange={setReceived} />}
           {mode === 'upi' && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={paidAmount} />}
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
           {shopState && !settings?.gstComposition && (

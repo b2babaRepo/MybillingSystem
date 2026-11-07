@@ -244,6 +244,8 @@ export interface BillView {
     buyerGstin?: string | null
     billOfSupply?: boolean
     placeOfSupply?: string | null
+    shopAddress?: string | null
+    buyerAddress?: string | null
     prescription?: Prescription | null
     /** An exchange: what the returned goods (credit note exchangeNoteNo) paid of this bill. */
     exchangeCredit?: number

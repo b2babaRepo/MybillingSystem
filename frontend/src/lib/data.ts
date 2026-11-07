@@ -211,6 +211,7 @@ export async function saveBill(
     body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), ...extras, exchangeCredit: undefined },
     customerId: customer?.id,
     delta: customer ? round2(total - paidAmount - Math.min(extras.exchangeCredit ?? 0, total)) : undefined,
+    customerName: customer?.name,
     label: `Bill ₹${total}${customer ? ` · ${customer.name}` : ''}`,
   })
   return { id, total }

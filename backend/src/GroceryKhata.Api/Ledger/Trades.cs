@@ -61,6 +61,8 @@ public sealed record CreditLimitRequest(decimal? CreditLimit);
 
 public sealed record CustomerGstinRequest(string? Gstin);
 
+public sealed record CustomerAddressRequest(string? Address);
+
 /// <summary>What a contractor's khata adds up to at one site.</summary>
 public sealed record SiteTotal(string Site, int Bills, decimal Billed, int OpenChallans);
 
@@ -89,6 +91,9 @@ public static class TradeEndpoints
         shop.MapGet("/customers/{id:guid}/gstin", async (Guid id, AppDbContext db, CancellationToken ct) =>
             Results.Ok(new CustomerGstinRequest(await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Gstin).SingleOrDefaultAsync(ct))));
         shop.MapPut("/customers/{id:guid}/gstin", SetGstinAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapGet("/customers/{id:guid}/address", async (Guid id, AppDbContext db, CancellationToken ct) =>
+            Results.Ok(new CustomerAddressRequest(await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Address).SingleOrDefaultAsync(ct))));
+        shop.MapPut("/customers/{id:guid}/address", SetAddressAsync).RequireAuthorization(AppPolicies.ShopOwner);
         shop.MapGet("/painters", (AppDbContext db, CancellationToken ct) =>
             db.Painters.AsNoTracking().OrderBy(p => p.Name).Select(p => new PainterDto(p.Id, p.Name, p.Phone, p.CommissionPercent)).ToListAsync(ct));
         shop.MapPost("/painters", AddPainterAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Trade);
@@ -288,6 +293,26 @@ public static class TradeEndpoints
         customer.Gstin = gstin;
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(request with { Gstin = gstin });
+    }
+
+    /// <summary>The customer's address, for their bills. Empty clears it.</summary>
+    private static async Task<IResult> SetAddressAsync(Guid id, CustomerAddressRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
+        if (address?.Length > 200)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Address"] = ["Keep the address under 200 letters."] });
+        }
+
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        customer.Address = address;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(request with { Address = address });
     }
 
     private static async Task<IResult> AddPainterAsync(PainterRequest request, AppDbContext db, CancellationToken ct)

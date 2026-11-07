@@ -175,6 +175,23 @@ public sealed class TradeTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_bill_carries_the_shop_and_buyer_addresses_for_printing()
+    {
+        var shop = await SignUpAsync("building_materials");
+        var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Address = "12 Station Road" })).EnsureSuccessStatusCode();
+        var buyer = await KhataTests.CreateCustomerAsync(shop, "Mill Lane Traders");
+        (await shop.PutAsJsonAsync($"/api/v1/customers/{buyer}/address", new { address = " 4 Mill Lane, Jaipur " })).EnsureSuccessStatusCode();
+        var id = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/bills", new { id, customerId = buyer, paidAmount = 100m, lines = new[] { new { name = "Paint", quantity = 1m, unitPrice = 100m } } })).EnsureSuccessStatusCode();
+
+        var view = await shop.GetJsonAsync<BillView>($"/api/v1/bills/{id}");
+
+        Assert.Contains("12 Station Road", view.Bill.ShopAddress);
+        Assert.Equal("4 Mill Lane, Jaipur", view.Bill.BuyerAddress);
+    }
+
+    [Fact]
     public void Gstin_check_digits_are_checked()
     {
         Assert.True(GroceryKhata.Api.Ledger.GstExport.IsValidGstin("27AAPFU0939F1ZV"));

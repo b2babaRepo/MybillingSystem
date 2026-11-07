@@ -49,6 +49,14 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
     setMessage(t('trade.gstinSaved'))
   })
 
+  const setAddress = () => run(async () => {
+    const current = (await api<{ address: string | null }>(`/v1/customers/${customer.id}/address`)).address ?? ''
+    const address = await ask(t('trade.addressAsk'), current)
+    if (address === null) return
+    await api(`/v1/customers/${customer.id}/address`, 'PUT', { address: address.trim() || null })
+    setMessage(t('trade.addressSaved'))
+  })
+
   const saveLimit = () => run(async () => {
     await api(`/v1/customers/${customer.id}/credit-limit`, 'PUT', { creditLimit: limit ? Number(limit) : null })
     setLimit(null)
@@ -86,6 +94,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
       )}
 
       {isOwner && <button onClick={() => void setGstin()} className="min-h-11 self-start text-sm text-teal-700 underline">{t('trade.gstinSet')}</button>}
+      {isOwner && <button onClick={() => void setAddress()} className="min-h-11 self-start text-sm text-teal-700 underline">{t('trade.addressSet')}</button>}
 
       {/* Sites */}
       {sites.some((s) => s.site) && (

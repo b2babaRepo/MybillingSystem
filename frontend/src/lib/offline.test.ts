@@ -6,6 +6,7 @@ import { buildReminder } from './reports'
 import { mergeCustomers, mergeProducts, mergeStatement, mergeToday } from './local'
 import { mergeLists } from './planner'
 import { enqueue, flush, listOps, type OutboxOp } from './outbox'
+import { setSession } from './session'
 import type { Statement } from './types'
 
 const shopId = 'shop-1'
@@ -226,5 +227,29 @@ describe('outbox', () => {
     await flush(shopId)
 
     expect(await listOps(shopId)).toMatchObject([{ id: 'x', status: 'pending', attempts: 1 }])
+  })
+
+  it("sends a second shop's writes too when both are flushed at once", async () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 201 }))
+    await enqueue({ id: 'one', shopId, kind: 'khata', path: '/v1/khata-entries', body: { id: 'one' }, label: 'one' })
+    await enqueue({ id: 'two', shopId: 'shop-2', kind: 'khata', path: '/v1/khata-entries', body: { id: 'two' }, label: 'two' })
+
+    await Promise.all([flush(shopId), flush('shop-2')])
+
+    expect([...(await listOps(shopId)), ...(await listOps('shop-2'))]).toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("never sends one shop's writes while signed in to another", async () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 201 }))
+    await enqueue({ id: 'held', shopId: 'shop-2', kind: 'khata', path: '/v1/khata-entries', body: { id: 'held' }, label: 'held' })
+    setSession({ shopId, accessToken: 't', refreshToken: 'r' } as never)
+
+    await flush('shop-2')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect((await listOps('shop-2')).map((o) => o.id)).toEqual(['held'])
+    setSession(null)
+    await flush('shop-2')
   })
 })

@@ -9,6 +9,9 @@ import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { gstSummary, gstUnsetAmount, storedSummary } from '../lib/gst'
+import { listOps } from '../lib/outbox'
+import { provisionalBill } from '../lib/provisionalBill'
+import type { ProvisionalBill } from '../lib/provisionalBill'
 import type { BillView, Statement } from '../lib/types'
 import { ask } from '../components/Ask'
 
@@ -18,8 +21,8 @@ import { ask } from '../components/Ask'
  * phone's "Print → Save as PDF" makes a clean PDF with Hindi rendered by the browser; a WhatsApp button sends a
  * short summary for customers without a printer.
  */
-export function PrintScreen({ shopName, kind, id, month }: { shopName: string; kind: 'statement' | 'bill'; id: string; month?: string }) {
-  return kind === 'statement' ? <StatementPrint shopName={shopName} customerId={id} month={month!} /> : <BillPrint shopName={shopName} billId={id} />
+export function PrintScreen({ shopId, shopName, kind, id, month }: { shopId: string; shopName: string; kind: 'statement' | 'bill'; id: string; month?: string }) {
+  return kind === 'statement' ? <StatementPrint shopName={shopName} customerId={id} month={month!} /> : <BillPrint shopId={shopId} shopName={shopName} billId={id} />
 }
 
 function Page({ title, subtitle, shareText, phone, children }: { title: string; subtitle: string; shareText: string; phone: string | null; children: ReactNode }) {
@@ -154,10 +157,54 @@ function CreditNotesPanel({ billId, lines }: { billId: string; lines: BillView['
   )
 }
 
-function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
+/** A bill still on this device: the customer gets a receipt now, without a bill number or tax, which only the server gives. */
+function ProvisionalPrint({ shopName, bill }: { shopName: string; bill: ProvisionalBill }) {
+  const { t } = useTranslation()
+  const when = new Date(bill.occurredAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return (
+    <Page title={shopName} subtitle={`${t('print.provisional')} · ${when}${bill.customerName ? ` · ${bill.customerName}` : ''}`} shareText={t('print.billShare', { shop: shopName, total: bill.total, paid: bill.paidAmount, khata: bill.onKhata })} phone={null}>
+      <p className="mb-3 border-2 border-black p-2 text-center text-sm font-bold">{t('print.provisionalNote')}</p>
+      <table className="w-full border-collapse text-[15px]">
+        <thead>
+          <tr className="border-b border-black text-left">
+            <th className="py-1.5">{t('print.item')}</th><th className="text-right">{t('print.qty')}</th><th className="text-right">{t('print.rate')}</th><th className="text-right">{t('print.amount')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {bill.lines.map((l, i) => (
+            <tr key={i} className="border-b border-gray-300">
+              <td className="py-1.5 pr-2">{l.name}</td>
+              <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`)}</td>
+              <td className="text-right whitespace-nowrap">{formatRupees(l.unitPrice)}</td>
+              <td className="text-right whitespace-nowrap">{formatRupees(l.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-4 flex flex-col gap-1 border-t-2 border-black pt-2 text-lg">
+        <p className="flex justify-between text-xl font-extrabold"><span>{t('print.total')}</span><span>{formatRupees(bill.total)}</span></p>
+        <p className="flex justify-between"><span>{t('print.paid')} ({t(bill.paymentMode)})</span><span>{formatRupees(bill.paidAmount)}</span></p>
+        {bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.onKhata')}</span><span>{formatRupees(bill.onKhata)}</span></p>}
+      </div>
+      <p className="mt-6 text-center">{t('print.thanks')}</p>
+    </Page>
+  )
+}
+
+function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: string; billId: string }) {
   const { t } = useTranslation()
   const query = useServer<BillView>(['print', 'bill', billId], `/v1/bills/${billId}`)
-  if (query.isError) return <Problem error={query.error} />
+  // The server doesn't have it (not sent yet, or no connection): it may still be waiting on this device.
+  const waiting = useQuery({
+    queryKey: ['print', 'waiting', billId],
+    queryFn: async () => provisionalBill((await listOps(shopId)).find((op) => op.kind === 'bill' && op.id === billId)),
+    enabled: query.isError,
+    gcTime: 0,
+  })
+  if (query.isError) {
+    if (waiting.isPending) return <p className="p-6">…</p>
+    return waiting.data ? <ProvisionalPrint shopName={shopName} bill={waiting.data} /> : <Problem error={query.error} />
+  }
   const view = query.data
   if (!view) return <p className="p-6">…</p>
   const { bill, customer } = view
@@ -184,6 +231,9 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
 
   return (
     <Page title={shopName} subtitle={`${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
+      {bill.billOfSupply && <p className="mb-2 text-sm font-semibold">{t('print.compositionNote')}</p>}
+      {bill.shopAddress && <p className="mb-2 text-sm">{bill.shopAddress}</p>}
+      {gstin && !bill.shopAddress && <p className="mb-2 text-sm font-semibold text-due print:hidden">{t('print.shopAddressMissing')}</p>}
       {bill.cancelledAt && <p className="mb-3 border-2 border-black p-2 text-center font-extrabold">{t('print.cancelled')}{bill.cancelReason && ` · ${bill.cancelReason}`}</p>}
       {bill.prescription && <PrescriptionPhoto billId={bill.id} />}
       {bill.prescription && <p className="mb-2 text-sm">{t('rx.prescribedBy', { doctor: [bill.prescription.doctorName, bill.prescription.doctorRegNo].filter(Boolean).join(', '), patient: bill.prescription.patientName })}</p>}
@@ -192,6 +242,8 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
           {[gstin && `GSTIN ${gstin}`, bill.buyerGstin && `${t('print.buyerGstin')} ${bill.buyerGstin}`, gstin && !bill.billOfSupply && stateLabel(bill.placeOfSupply) && `${t('pos.print')}: ${stateLabel(bill.placeOfSupply)}`, bill.site && `${t('trade.site')}: ${bill.site}`, bill.vehicleNumber && `${t('trade.vehicle')}: ${bill.vehicleNumber}`].filter(Boolean).join(' · ')}
         </p>
       )}
+      {bill.buyerAddress && <p className="mb-3 text-sm">{t('print.buyerAddress')}: {bill.buyerAddress}</p>}
+      {bill.buyerGstin && !bill.buyerAddress && <p className="mb-3 text-sm font-semibold text-due print:hidden">{t('print.buyerAddressMissing')}</p>}
       <table className="w-full border-collapse text-[15px]">
         <thead>
           <tr className="border-b border-black text-left">
@@ -250,8 +302,14 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
         </table>
       )}
       {gst.length > 0 && <p className="mt-1 text-xs text-gray-600">{t('print.gstIncluded')}</p>}
-      {bill.billOfSupply && <p className="mt-2 text-sm">{t('print.compositionNote')}</p>}
+      {isTaxInvoice && <p className="mt-2 text-sm">{t('print.reverseCharge')}</p>}
       {unset > 0 && <p className="mt-1 text-sm font-semibold text-due print:hidden">{t('print.gstUnsetWarning')}</p>}
+      {gstin && (
+        <div className="mt-6 text-right text-sm">
+          <p>{t('print.forShop', { shop: shopName })}</p>
+          <p className="mt-10">{t('print.signatory')}</p>
+        </div>
+      )}
       <p className="mt-6 text-center">{t('print.thanks')}</p>
       {!bill.cancelledAt && <CreditNotesPanel billId={billId} lines={bill.lines} />}
       {!bill.cancelledAt && <button onClick={cancel} className="mt-6 h-11 w-full rounded-xl border border-line font-semibold text-due print:hidden">{t('print.cancelBill')}</button>}

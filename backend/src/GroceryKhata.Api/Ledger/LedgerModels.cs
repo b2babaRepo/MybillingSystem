@@ -95,7 +95,9 @@ public sealed record BillDto(
     PrescriptionRequest? Prescription = null,
     decimal ExchangeCredit = 0,
     string? ExchangeNoteNo = null,
-    string? PlaceOfSupply = null);
+    string? PlaceOfSupply = null,
+    string? ShopAddress = null,
+    string? BuyerAddress = null);
 
 public sealed record CancelBillRequest(string? Reason);
 

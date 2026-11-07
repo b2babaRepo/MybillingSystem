@@ -36,6 +36,10 @@ public sealed class Customer : Entity, ITenantOwned
     /// <summary>A business customer's GSTIN, printed on their tax invoices; its first two digits are their state.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(15)]
     public string? Gstin { get; set; }
+
+    /// <summary>The customer's address, printed on their bills: a registered buyer's tax invoice must show it.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(200)]
+    public string? Address { get; set; }
 }
 
 /// <summary>

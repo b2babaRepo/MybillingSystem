@@ -255,7 +255,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   if (printMatch) {
     return (
       <Suspense fallback={<Loading />}>
-        <PrintScreen shopName={shopName} kind={printMatch[1] as 'statement' | 'bill'} id={printMatch[2]} month={printMatch[3]} />
+        <PrintScreen shopId={shopId} shopName={shopName} kind={printMatch[1] as 'statement' | 'bill'} id={printMatch[2]} month={printMatch[3]} />
       </Suspense>
     )
   }

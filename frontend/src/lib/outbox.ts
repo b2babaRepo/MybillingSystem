@@ -1,4 +1,5 @@
 import { NetworkError, problemMessage, readProblem, request } from './api'
+import { getSession } from './session'
 import { db } from './db'
 
 export type OutboxKind = 'customer' | 'product' | 'khata' | 'bill' | 'reverse' | 'listItem' | 'listItemDelete' | 'order' | 'stock' | 'expense' | 'expenseStrike' | 'orderAction' | 'supplier'
@@ -19,6 +20,8 @@ export interface OutboxOp {
   /** For khata ops: whose balance moves, and by how much (+ owes more, − paid). */
   customerId?: string
   delta?: number
+  /** For a bill: the customer's name, for printing it before it syncs. */
+  customerName?: string
   /** For a reverse op: the entry it cancels. */
   reversesEntryId?: string
   /** PUT and DELETE for household list edits (both safe to repeat); POST otherwise. */
@@ -37,7 +40,9 @@ export type SyncState = 'idle' | 'syncing' | 'offline' | 'signed-out'
 
 const listeners = new Set<() => void>()
 let syncState: SyncState = 'idle'
-let flushing: Promise<void> | null = null
+/** The run in progress or queued, per shop. Runs go one at a time, so another shop's turn waits instead of being skipped. */
+const flushing = new Map<string, Promise<void>>()
+let lastFlush: Promise<unknown> = Promise.resolve()
 let onSynced: (op: OutboxOp, response: unknown) => void = () => {}
 
 function notify() {
@@ -104,13 +109,26 @@ export async function retryFailed(shopId: string) {
  * the shopkeeper to see, and the rest carry on.
  */
 export function flush(shopId: string): Promise<void> {
-  flushing ??= (async () => {
+  const running = flushing.get(shopId)
+  if (running) return running
+  const run = lastFlush.then(() => flushShop(shopId)).finally(() => {
+    flushing.delete(shopId)
+    notify()
+  })
+  flushing.set(shopId, run)
+  lastFlush = run.catch(() => {})
+  return run
+}
+
+async function flushShop(shopId: string): Promise<void> {
     const database = await db()
     syncState = 'syncing'
     notify()
     try {
       for (;;) {
-        const op = (await listOps(shopId)).find((o) => o.status === 'pending')
+        // Switched to another shop: the sign-in now speaks for that shop, so this one's writes wait for its next turn.
+        const active = getSession()?.shopId
+        const op = active && active !== shopId ? undefined : (await listOps(shopId)).find((o) => o.status === 'pending')
         if (!op) {
           syncState = 'idle'
           return
@@ -146,9 +164,6 @@ export function flush(shopId: string): Promise<void> {
         }
       }
     } finally {
-      flushing = null
       notify()
     }
-  })()
-  return flushing
 }

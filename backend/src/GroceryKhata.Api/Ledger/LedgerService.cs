@@ -663,7 +663,12 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         var customer = bill.CustomerId is { } customerId
             ? await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit)).SingleAsync(cancellationToken)
             : null;
-        return new BillView(bill, customer);
+        // For the printed bill. Today's addresses, not a copy kept on the bill: a shop that moves shows its new address on old bills.
+        var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.ShopNo, s.Address, s.Area, s.Village, s.City, s.District, s.State }).SingleAsync(cancellationToken);
+        var shopAddress = string.Join(", ", new[] { shop.ShopNo, shop.Address, shop.Area, shop.Village, shop.City, shop.District, shop.State }
+            .Where(part => !string.IsNullOrWhiteSpace(part)).Select(part => part!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase));
+        var buyerAddress = bill.CustomerId is { } buyerId ? await db.Customers.AsNoTracking().Where(c => c.Id == buyerId).Select(c => c.Address).SingleAsync(cancellationToken) : null;
+        return new BillView(bill with { ShopAddress = shopAddress.Length > 0 ? shopAddress : null, BuyerAddress = buyerAddress }, customer);
     }
 
     /// <summary>Customers whose stored balance differs from the sum of their entries. Should always be empty.</summary>
