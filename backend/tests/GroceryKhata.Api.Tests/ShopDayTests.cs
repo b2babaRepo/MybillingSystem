@@ -91,6 +91,10 @@ public sealed class ShopDayTests(ApiFactory api)
         var xml = await vouchers.ReadToEndAsync();
         Assert.Equal(2, xml.Split("VCHTYPE=\"Sales\"").Length - 1);
         Assert.Contains("VCHTYPE=\"Credit Note\"", xml);
+        // The UPI money received on khata comes in as a Receipt into the UPI bank ledger, credited to the customer.
+        Assert.True(gst.Receipts >= 1);
+        Assert.Contains("VCHTYPE=\"Receipt\"", xml);
+        Assert.Contains("<LEDGERNAME>UPI Collections</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-100.00</AMOUNT>", xml);
     }
 
     [Fact]
