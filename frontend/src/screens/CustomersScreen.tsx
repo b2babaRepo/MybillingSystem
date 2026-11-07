@@ -7,7 +7,7 @@ import { navigate } from '../router'
 import { OpenDisputesBanner } from '../components/OpenDisputesBanner'
 
 /** Everyone on khata, most due first ("who owes me?"). */
-export function CustomersScreen({ shopId, selectedId }: { shopId: string; selectedId?: string }) {
+export function CustomersScreen({ shopId, selectedId, isOwner = false }: { shopId: string; selectedId?: string; isOwner?: boolean }) {
   const { t } = useTranslation()
   const { customers, isLoading } = useCustomers(shopId)
   const [search, setSearch] = useState('')
@@ -45,6 +45,7 @@ export function CustomersScreen({ shopId, selectedId }: { shopId: string; select
         ))}
       </div>
       {!isLoading && customers.length === 0 && <p className="py-8 text-center text-muted">{t('noCustomers')}</p>}
+      {isOwner && <button onClick={() => navigate('/khata/import')} className="mb-2 min-h-11 text-sm font-semibold text-teal-700 underline">{t('partyImport.link')}</button>}
       <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
         {shown.map((c) => (
           <li key={c.id}>

@@ -34,6 +34,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Shop> Shops => Set<Shop>();
 
+    public DbSet<Common.AiUsageDay> AiUsageDays => Set<Common.AiUsageDay>();
+
     public DbSet<Market> Markets => Set<Market>();
 
     public DbSet<MasterItem> MasterItems => Set<MasterItem>();
@@ -328,6 +330,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.ContentType).HasMaxLength(40);
             b.HasIndex(p => p.ShopId).IsUnique();
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Common.AiUsageDay>(b =>
+        {
+            b.ToTable("ai_usage_days");
+            b.HasKey(d => d.Day);
         });
 
         modelBuilder.Entity<Shop>(b =>

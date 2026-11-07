@@ -159,7 +159,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     return LedgerResult<KhataEntryResponse>.Missing();
                 }
 
-                if (original.Kind == LedgerEntryKind.Reversal)
+                if (original.Kind == LedgerEntryKind.Reversal || original.ReversesEntryId is not null)
                 {
                     return LedgerResult<KhataEntryResponse>.Conflicted("A reversal can't be reversed. Add a new entry instead.");
                 }
@@ -191,7 +191,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 {
                     Id = request.Id,
                     CustomerId = original.CustomerId,
-                    Kind = LedgerEntryKind.Reversal,
+                    Kind = original.Kind == LedgerEntryKind.Opening ? LedgerEntryKind.Opening : LedgerEntryKind.Reversal,
                     Amount = -original.Amount,
                     PaymentMode = original.PaymentMode,
                     BillId = original.BillId,

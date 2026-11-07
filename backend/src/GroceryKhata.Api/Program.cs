@@ -59,6 +59,7 @@ builder.Services.AddDairyHelper(builder.Configuration);
 builder.Services.AddOtpSignIn(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
+GroceryKhata.Api.Common.AiBudget.Scopes = app.Services.GetRequiredService<IServiceScopeFactory>();
 
 // Before anything touches the database: refuse unsafe production settings.
 await app.CheckProductionSafetyAsync();
@@ -120,6 +121,7 @@ app.MapBalanceChecks();
 app.MapExpenses();
 app.MapBillPhotos();
 app.MapInvoicePhotos();
+GroceryKhata.Api.Ledger.PartyImport.MapPartyImport(app);
 app.MapMarkets();
 app.MapProfile();
 app.MapAddresses();

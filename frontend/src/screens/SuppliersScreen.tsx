@@ -220,7 +220,7 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
 
       <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
         <h2 className="font-bold">{t('suppliers.bill')}</h2>
-        {medical && ai?.canReadPhotos && (ai.consentedAt ? (
+        {ai?.canReadPhotos && (ai.consentedAt ? (
           <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-teal-700 font-bold text-teal-800 ${reading ? 'opacity-50' : ''}`}>
             📷 {reading ? t('invoicePhoto.reading') : t('invoicePhoto.button')}
             <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={reading}
@@ -258,10 +258,15 @@ function SupplierPage({ shopId, id, onBack }: { shopId: string; id: string; onBa
                 <input aria-label={t('batches.batchNo')} placeholder={t('batches.batchNo')} value={r.batchNo} onChange={(e) => set(i, 'batchNo', e.target.value)} className={input} />
                 <input aria-label={t('batches.expiry')} type="month" value={r.expiry} onChange={(e) => set(i, 'expiry', e.target.value)} className={input} />
                 <input aria-label="MRP" placeholder="MRP" value={r.mrp} onChange={(e) => set(i, 'mrp', e.target.value)} inputMode="decimal" className={input} />
+              </>
+            )}
+            {/* What a photo read goes on the bill's total, so it must be there to see and correct, in any trade. */}
+            {(medical || r.read) && (
+              <>
                 <input aria-label={t('batches.free')} placeholder={t('batches.free')} value={r.free} onChange={(e) => set(i, 'free', e.target.value)} inputMode="decimal" className={input} />
                 <input aria-label={t('returns.discount')} placeholder={t('returns.discount')} value={r.discount} onChange={(e) => set(i, 'discount', e.target.value)} inputMode="decimal" className={input} />
                 <select aria-label={t('pmonth.purchaseGst')} value={r.gst} onChange={(e) => set(i, 'gst', e.target.value)} className={input}>
-                  <option value="">{t('pmonth.purchaseGst')}</option>{['0', '5', '12', '18'].map((g) => <option key={g} value={g}>GST {g}%</option>)}
+                  <option value="">{t('pmonth.purchaseGst')}</option>{['0', '5', '12', '18', '28', '40'].map((g) => <option key={g} value={g}>GST {g}%</option>)}
                 </select>
               </>
             )}

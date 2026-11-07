@@ -103,7 +103,7 @@ public static class CashBookEndpoints
         var cash = money.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount);
         var upi = money.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount);
         var spent = lines.Where(l => l.Source == CashBookSource.Expense).ToList();
-        var udhaar = entries.Where(e => e.PaymentMode is null).Sum(e => e.Amount)
+        var udhaar = entries.Where(e => e.PaymentMode is null && e.Kind != LedgerEntryKind.Opening).Sum(e => e.Amount)
             + entries.Where(e => e.PaymentMode is not null && e.BillId is not null).Sum(e => e.Amount);
         return new CashBookDto(day, cash, upi, cash + upi, bills.Sum(b => b.Total), udhaar, lines,
             -spent.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount), -spent.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount));

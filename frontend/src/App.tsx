@@ -20,6 +20,7 @@ import { BillScreen } from './screens/BillScreen'
 const CustomerScreen = lazy(() => import('./screens/CustomerScreen').then((module) => ({ default: module.CustomerScreen })))
 const DisputesScreen = lazy(() => import('./screens/DisputesScreen').then((module) => ({ default: module.DisputesScreen })))
 const CommonListScreen = lazy(() => import('./screens/CommonListScreen').then((module) => ({ default: module.CommonListScreen })))
+const CustomerImportScreen = lazy(() => import('./screens/CustomerImportScreen').then((module) => ({ default: module.CustomerImportScreen })))
 const CustomersScreen = lazy(() => import('./screens/CustomersScreen').then((module) => ({ default: module.CustomersScreen })))
 import { HomeScreen } from './screens/HomeScreen'
 const ItemsScreen = lazy(() => import('./screens/ItemsScreen').then((module) => ({ default: module.ItemsScreen })))
@@ -303,7 +304,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         {/* Keyed by screen: a page change shows the loading state at once, never the previous screen lingering. */}
         <Suspense key={customerMatch ? '/khata' : orderMatch ? '/inbox' : path} fallback={<Loading />}>
         {customerMatch ? (
-          <ListDetail hasDetail list={<CustomersScreen shopId={shopId} selectedId={customerMatch[1]} />} detail={<CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} focusEntryId={customerMatch[2]} isOwner={isOwner} userName={userName} />} />
+          <ListDetail hasDetail list={<CustomersScreen shopId={shopId} isOwner={isOwner} selectedId={customerMatch[1]} />} detail={<CustomerScreen shopId={shopId} shopName={shopName} customerId={customerMatch[1]} focusEntryId={customerMatch[2]} isOwner={isOwner} userName={userName} />} />
         ) : path === '/dues' ? (
           <DuesScreen shopId={shopId} shopName={shopName} />
         ) : path === '/reports' ? (
@@ -398,6 +399,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <StocktakeScreen shopId={shopId} />
         ) : path === '/items/common' ? (
           <CommonListScreen shopId={shopId} />
+        ) : path === '/khata/import' ? (
+          <CustomerImportScreen shopId={shopId} />
         ) : path === '/import' ? (
           <ImportScreen shopId={shopId} />
         ) : orderMatch ? (
@@ -405,7 +408,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/inbox' ? (
           <ListDetail hasDetail={false} list={<InboxScreen shopId={shopId} />} detail={null} placeholder={t('inboxPick')} />
         ) : path === '/khata' ? (
-          <ListDetail hasDetail={false} list={<CustomersScreen shopId={shopId} />} detail={null} placeholder={t('khataPick')} />
+          <ListDetail hasDetail={false} list={<CustomersScreen shopId={shopId} isOwner={isOwner} />} detail={null} placeholder={t('khataPick')} />
         ) : path === '/disputes' ? (
           <DisputesScreen isOwner={isOwner} />
         ) : path === '/bill' ? (

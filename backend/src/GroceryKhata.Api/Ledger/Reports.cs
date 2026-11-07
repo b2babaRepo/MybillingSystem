@@ -225,7 +225,7 @@ public static class ReportEndpoints
             .ToListAsync(ct);
         var entries = await db.LedgerEntries.AsNoTracking()
             .Where(e => e.OccurredAt >= start && e.OccurredAt < end)
-            .Select(e => new { e.OccurredAt, e.Amount, e.PaymentMode, e.BillId })
+            .Select(e => new { e.OccurredAt, e.Amount, e.PaymentMode, e.BillId, e.Kind })
             .ToListAsync(ct);
         var productIds = bills.SelectMany(b => b.Lines).Where(l => l.ProductId != null).Select(l => l.ProductId!.Value).Distinct().ToList();
         var costs = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id) && p.CostPrice != null)
@@ -236,7 +236,7 @@ public static class ReportEndpoints
             bills.Where(b => b.PaymentMode == mode).Sum(b => b.PaidAmount)
             - entries.Where(e => e.PaymentMode == mode && e.BillId == null).Sum(e => e.Amount);
         var khataCollected = -entries.Where(e => e.PaymentMode != null && e.BillId == null).Sum(e => e.Amount);
-        var udhaar = entries.Where(e => e.PaymentMode == null).Sum(e => e.Amount)
+        var udhaar = entries.Where(e => e.PaymentMode == null && e.Kind != LedgerEntryKind.Opening).Sum(e => e.Amount)
             + entries.Where(e => e.PaymentMode != null && e.BillId != null).Sum(e => e.Amount);
 
         var lines = bills.SelectMany(b => b.Lines).ToList();

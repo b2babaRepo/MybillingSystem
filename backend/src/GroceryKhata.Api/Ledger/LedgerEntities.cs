@@ -97,6 +97,12 @@ public enum LedgerEntryKind
     /// received, so it has no payment mode and stays out of the cash book.
     /// </summary>
     Return,
+
+    /// <summary>
+    /// What a customer already owed when the shop moved to the app (below zero: an advance). Part of the balance, but
+    /// not new udhaar or a sale on any day. Its reversal keeps this kind, so it stays out of those figures too.
+    /// </summary>
+    Opening,
 }
 
 public enum PaymentMode

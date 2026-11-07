@@ -17,7 +17,7 @@ public static class ClaudeJson
         AnthropicClient client, string model, ILogger? logger, string what, string instructions, Dictionary<string, JsonElement> schema, string text,
         (string MediaType, string Base64)? photo = null, Effort? effort = null, int maxTokens = 2000, CancellationToken ct = default)
     {
-        AiBudget.Take();
+        await AiBudget.TakeAsync(ct);
         var content = new List<ContentBlockParam>();
         if (photo is { } p)
         {

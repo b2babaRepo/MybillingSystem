@@ -2417,6 +2417,21 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("stock_movements", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Common.AiUsageDay", b =>
+                {
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date")
+                        .HasColumnName("day");
+
+                    b.Property<int>("Calls")
+                        .HasColumnType("integer")
+                        .HasColumnName("calls");
+
+                    b.HasKey("Day");
+
+                    b.ToTable("ai_usage_days", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Common.JobRun", b =>
                 {
                     b.Property<string>("Job")

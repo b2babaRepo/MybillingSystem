@@ -6,7 +6,7 @@ export type AdminRole = 'super' | 'approver' | 'support' | 'billing' | 'agent_ma
 
 export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'pair' | 'dozen' | 'box' | 'jar' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre' | 'sq_ft' | 'running_ft'
 export type PaymentMode = 'cash' | 'upi'
-export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return'
+export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return' | 'opening'
 export type KhataEntryType = 'credit' | 'payment'
 
 export interface MembershipSummary {

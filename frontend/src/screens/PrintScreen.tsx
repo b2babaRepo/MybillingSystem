@@ -83,7 +83,7 @@ function StatementPrint({ shopName, customerId, month }: { shopName: string; cus
             <tr key={e.id} className={`border-b border-gray-300 ${e.isReversed ? 'line-through' : ''}`}>
               <td className="py-1.5 pr-2 whitespace-nowrap">{new Date(e.occurredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
               <td className="pr-2">
-                {e.kind === 'reversal' ? t('reversal') : e.amount > 0 ? t('creditShort') : t('paymentShort')}
+                {e.kind === 'reversal' ? t('reversal') : e.kind === 'opening' ? t('partyImport.openingShort') : e.amount > 0 ? t('creditShort') : t('paymentShort')}
                 {e.paymentMode && ` (${t(e.paymentMode)})`}{e.note && ` · ${e.note}`}
               </td>
               <td className="text-right whitespace-nowrap">{e.amount > 0 ? '+' : '−'}{formatRupees(Math.abs(e.amount))}</td>

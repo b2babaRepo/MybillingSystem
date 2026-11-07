@@ -43,7 +43,7 @@ public static class DashboardEndpoints
             .ToListAsync(ct);
         var entries = await db.LedgerEntries.AsNoTracking()
             .Where(e => e.OccurredAt >= start && e.OccurredAt < end)
-            .Select(e => new { e.Amount, e.PaymentMode, e.BillId })
+            .Select(e => new { e.Amount, e.PaymentMode, e.BillId, e.Kind })
             .ToListAsync(ct);
 
         // Money in: what bills took at the counter, plus khata payments (and their reversals) not tied to a bill.
@@ -52,7 +52,7 @@ public static class DashboardEndpoints
             - entries.Where(e => e.PaymentMode == mode && e.BillId == null).Sum(e => e.Amount);
 
         // New udhaar: credits (and their reversals) less what was paid at once on the same bills.
-        var udhaar = entries.Where(e => e.PaymentMode == null).Sum(e => e.Amount)
+        var udhaar = entries.Where(e => e.PaymentMode == null && e.Kind != LedgerEntryKind.Opening).Sum(e => e.Amount)
             + entries.Where(e => e.PaymentMode != null && e.BillId != null).Sum(e => e.Amount);
 
         var owing = db.Customers.AsNoTracking().Where(c => c.Balance > 0);
