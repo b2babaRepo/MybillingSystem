@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { stateLabel } from '../lib/states'
 import { navigate } from '../router'
 import { startExchange } from '../lib/exchange'
 import { useQuery } from '@tanstack/react-query'
@@ -188,7 +189,7 @@ function BillPrint({ shopName, billId }: { shopName: string; billId: string }) {
       {bill.prescription && <p className="mb-2 text-sm">{t('rx.prescribedBy', { doctor: [bill.prescription.doctorName, bill.prescription.doctorRegNo].filter(Boolean).join(', '), patient: bill.prescription.patientName })}</p>}
       {(gstin || bill.site || bill.vehicleNumber) && (
         <p className="mb-3 text-sm">
-          {[gstin && `GSTIN ${gstin}`, bill.buyerGstin && `${t('print.buyerGstin')} ${bill.buyerGstin}`, bill.site && `${t('trade.site')}: ${bill.site}`, bill.vehicleNumber && `${t('trade.vehicle')}: ${bill.vehicleNumber}`].filter(Boolean).join(' · ')}
+          {[gstin && `GSTIN ${gstin}`, bill.buyerGstin && `${t('print.buyerGstin')} ${bill.buyerGstin}`, gstin && !bill.billOfSupply && stateLabel(bill.placeOfSupply) && `${t('pos.print')}: ${stateLabel(bill.placeOfSupply)}`, bill.site && `${t('trade.site')}: ${bill.site}`, bill.vehicleNumber && `${t('trade.vehicle')}: ${bill.vehicleNumber}`].filter(Boolean).join(' · ')}
         </p>
       )}
       <table className="w-full border-collapse text-[15px]">

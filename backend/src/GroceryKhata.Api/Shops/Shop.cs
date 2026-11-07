@@ -58,6 +58,10 @@ public sealed class Shop : Entity
 
     public string? State { get; set; }
 
+    /// <summary>The CA's own Tally account names (JSON: key to name), so the export matches their books. Empty: the defaults.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(2000)]
+    public string? TallyLedgers { get; set; }
+
     public string? District { get; set; }
 
     public string? City { get; set; }

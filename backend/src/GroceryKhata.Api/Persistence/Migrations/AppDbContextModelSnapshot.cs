@@ -3065,6 +3065,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("payment_mode");
 
+                    b.Property<string>("PlaceOfSupply")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("place_of_supply");
+
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
@@ -7214,6 +7219,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
                         .HasColumnName("state");
+
+                    b.Property<string>("TallyLedgers")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("tally_ledgers");
 
                     b.Property<string>("Type")
                         .IsRequired()

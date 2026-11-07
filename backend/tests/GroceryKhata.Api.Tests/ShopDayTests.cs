@@ -95,6 +95,17 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.True(gst.Receipts >= 1);
         Assert.Contains("VCHTYPE=\"Receipt\"", xml);
         Assert.Contains("<LEDGERNAME>UPI Collections</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-100.00</AMOUNT>", xml);
+
+        // The CA's own account names: saved once, used in the next file; two accounts can't share a name.
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/gst/ledgers", new Dictionary<string, string> { ["sales"] = "Cash" })).StatusCode);
+        (await shop.PutAsJsonAsync("/api/v1/gst/ledgers", new Dictionary<string, string> { ["sales"] = "Sales GST & Local", ["upi"] = "HDFC Bank" })).EnsureSuccessStatusCode();
+        var named = await shop.GetJsonAsync<List<GroceryKhata.Api.Ledger.TallyLedgerDto>>("/api/v1/gst/ledgers");
+        Assert.Equal(("HDFC Bank", "Output CGST"), (named.Single(x => x.Key == "upi").Name, named.Single(x => x.Key == "cgst").Name));
+        using var renamed = new ZipArchive(await (await shop.GetAsync($"/api/v1/gst/export.zip?month={gst.Month}")).Content.ReadAsStreamAsync());
+        var xml2 = await new StreamReader(renamed.GetEntry("2-vouchers.xml")!.Open()).ReadToEndAsync();
+        Assert.Contains("<LEDGERNAME>HDFC Bank</LEDGERNAME>", xml2);
+        Assert.Contains("<LEDGERNAME>Sales GST &amp; Local</LEDGERNAME>", xml2);
+        Assert.DoesNotContain("UPI Collections", xml2);
     }
 
     [Fact]

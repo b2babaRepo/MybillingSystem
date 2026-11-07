@@ -386,7 +386,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 if (bill.Gstin is not null)
                 {
                     TaxLines(bill, lines, await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.GstComposition).SingleAsync(cancellationToken),
-                        bill.CustomerId is { } buyerId ? await db.Customers.AsNoTracking().Where(c => c.Id == buyerId).Select(c => c.Gstin).SingleOrDefaultAsync(cancellationToken) : null);
+                        bill.CustomerId is { } buyerId ? await db.Customers.AsNoTracking().Where(c => c.Id == buyerId).Select(c => c.Gstin).SingleOrDefaultAsync(cancellationToken) : null,
+                        request.PlaceOfSupply?.Trim());
                 }
 
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -506,7 +507,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName)).ToList(),
                     balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, BuyerGstin: bill.BuyerGstin, BillOfSupply: bill.BillOfSupply,
                     Prescription: prescription is null ? null : new PrescriptionRequest(prescription.DoctorName, prescription.DoctorAddress, prescription.DoctorRegNo, prescription.PatientName, prescription.PatientAddress, prescription.PrescribedOn),
-                    ExchangeCredit: bill.ExchangeCredit, ExchangeNoteNo: exchange?.NoteNo));
+                    ExchangeCredit: bill.ExchangeCredit, ExchangeNoteNo: exchange?.NoteNo, PlaceOfSupply: bill.PlaceOfSupply));
             });
 
     /// <summary>
@@ -709,16 +710,20 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
     /// collects no tax: its bill is a bill of supply. A buyer whose GSTIN shows another state is charged IGST, others
     /// CGST and SGST (the place of supply is the buyer's state when known, else the shop's).
     /// </summary>
-    private static void TaxLines(Bill bill, List<BillLine> lines, bool composition, string? buyerGstin)
+    private static void TaxLines(Bill bill, List<BillLine> lines, bool composition, string? buyerGstin, string? deliveredTo = null)
     {
         bill.BillOfSupply = composition;
         bill.BuyerGstin = buyerGstin;
+        // Place of supply: a registered buyer's own state; else the state the goods were delivered to; else the shop's.
+        var shopState = bill.Gstin is { Length: 15 } ? bill.Gstin[..2] : null;
+        bill.PlaceOfSupply = buyerGstin is { Length: 15 } && GstExport.States.ContainsKey(buyerGstin[..2]) ? buyerGstin[..2]
+            : deliveredTo is not null && GstExport.States.ContainsKey(deliveredTo) ? deliveredTo : shopState;
         if (composition)
         {
             return;
         }
 
-        var interState = buyerGstin is { Length: 15 } && bill.Gstin is { Length: 15 } && buyerGstin[..2] != bill.Gstin[..2];
+        var interState = shopState is not null && bill.PlaceOfSupply is not null && bill.PlaceOfSupply != shopState;
         foreach (var line in lines.Where(l => l.GstRate is not null))
         {
             var taxable = decimal.Round(line.Amount / (1 + (line.GstRate!.Value / 100)), 2);
@@ -752,7 +757,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
             await db.BillPrescriptions.AsNoTracking().Where(r => r.BillId == id)
                 .Select(r => new PrescriptionRequest(r.DoctorName, r.DoctorAddress, r.DoctorRegNo, r.PatientName, r.PatientAddress, r.PrescribedOn)).SingleOrDefaultAsync(cancellationToken),
             bill.ExchangeCredit,
-            bill.ExchangeNoteId is { } exchangeId ? (await db.CreditNotes.AsNoTracking().Where(n => n.Id == exchangeId).Select(n => new { n.FinancialYear, n.Number }).SingleOrDefaultAsync(cancellationToken)) is { } x ? $"CN/{x.FinancialYear}/{x.Number:D4}" : null : null);
+            bill.ExchangeNoteId is { } exchangeId ? (await db.CreditNotes.AsNoTracking().Where(n => n.Id == exchangeId).Select(n => new { n.FinancialYear, n.Number }).SingleOrDefaultAsync(cancellationToken)) is { } x ? $"CN/{x.FinancialYear}/{x.Number:D4}" : null : null,
+            bill.PlaceOfSupply);
     }
 
     private Task<decimal> BalanceAsync(Guid customerId, CancellationToken cancellationToken) =>

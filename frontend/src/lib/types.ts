@@ -243,6 +243,7 @@ export interface BillView {
     cancelReason?: string | null
     buyerGstin?: string | null
     billOfSupply?: boolean
+    placeOfSupply?: string | null
     prescription?: Prescription | null
     /** An exchange: what the returned goods (credit note exchangeNoteNo) paid of this bill. */
     exchangeCredit?: number

@@ -151,17 +151,24 @@ public sealed class TradeTests(ApiFactory api)
         var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
         await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" });
         var buyer = await KhataTests.CreateCustomerAsync(shop, "Delhi Builders");
-        async Task<BillDto> Bill(Guid? customer) => await (await shop.PostJsonAsync("/api/v1/bills", new
+        async Task<BillDto> Bill(Guid? customer, string? deliveredTo = null) => await (await shop.PostJsonAsync("/api/v1/bills", new
         {
-            id = Guid.CreateVersion7(), customerId = customer, paidAmount = 1180m,
+            id = Guid.CreateVersion7(), customerId = customer, paidAmount = 1180m, placeOfSupply = deliveredTo,
             lines = new[] { new { productId = cement.Id, quantity = 1m, unitPrice = 1180m } },
         })).ReadAsync<BillDto>();
 
         var local = await Bill(null);
         Assert.Equal((1000m, 90m, 90m, 0m), (local.Lines[0].TaxableValue, local.Lines[0].Cgst, local.Lines[0].Sgst, local.Lines[0].Igst));
+        Assert.Equal("08", local.PlaceOfSupply);
+
+        // Delivered to another state (no GSTIN): the place of supply is where it went, so IGST.
+        var delivered = await Bill(null, "27");
+        Assert.Equal(("27", 180m, 0m), (delivered.PlaceOfSupply, delivered.Lines[0].Igst, delivered.Lines[0].Cgst));
+        Assert.Equal("08", (await Bill(null, "99")).PlaceOfSupply); // not a state code: the shop's own state
         (await shop.PutAsJsonAsync($"/api/v1/customers/{buyer}/gstin", new { gstin = "07AAACD1234E1ZB" })).EnsureSuccessStatusCode();
         var other = await Bill(buyer);
         Assert.Equal(("07AAACD1234E1ZB", 180m, 0m), (other.BuyerGstin, other.Lines[0].Igst, other.Lines[0].Cgst));
+        Assert.Equal("07", other.PlaceOfSupply);
         await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5", GstComposition = true });
         var supply = await Bill(null);
         Assert.Equal((true, (decimal?)null), (supply.BillOfSupply, supply.Lines[0].TaxableValue));

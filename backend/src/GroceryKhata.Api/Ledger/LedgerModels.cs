@@ -46,7 +46,8 @@ public sealed record BillRequest(
     Guid? PainterId = null,
     PrescriptionRequest? Prescription = null,
     IReadOnlyList<Catalogue.BillSerialRequest>? Serials = null,
-    Guid? ExchangeNoteId = null);
+    Guid? ExchangeNoteId = null,
+    string? PlaceOfSupply = null);
 
 /// <summary>For Schedule H, H1 and X medicines: who prescribed them and for whom, as the drug rules ask.</summary>
 public sealed record PrescriptionRequest(string? DoctorName, string? DoctorAddress, string? DoctorRegNo, string? PatientName, string? PatientAddress, DateOnly? PrescribedOn);
@@ -93,7 +94,8 @@ public sealed record BillDto(
     bool BillOfSupply = false,
     PrescriptionRequest? Prescription = null,
     decimal ExchangeCredit = 0,
-    string? ExchangeNoteNo = null);
+    string? ExchangeNoteNo = null,
+    string? PlaceOfSupply = null);
 
 public sealed record CancelBillRequest(string? Reason);
 

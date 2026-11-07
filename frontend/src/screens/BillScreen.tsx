@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { GST_STATES } from '../lib/states'
 import { nameMatches, splitQuantity } from '../lib/nameMatch'
 import { getSession } from '../lib/session'
 import { api } from '../lib/api'
@@ -93,6 +94,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const shopType = settings?.type ?? 'kirana'
   const types = shopTypes(settings)
   const [extras, setExtras] = useState({ site: '', vehicleNumber: '', painterId: '' })
+  // A GST shop delivering to another state: the place of supply is that state, so the bill charges IGST.
+  const [deliveredTo, setDeliveredTo] = useState('')
+  const shopState = settings?.gstin && settings.gstin.length >= 2 ? settings.gstin.slice(0, 2) : null
   // Schedule H, H1 and X medicines need the doctor and patient on the bill; H1 and X also the doctor's address (the register).
   const [rx, setRx] = useState({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
   const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; mode: 'cash' | 'upi'; customer: { name: string; phone: string | null } | null } | null>(null)
@@ -176,12 +180,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     const result = await saveBill(shopId, cart.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
-      exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
+      exchangeNoteId: exchange?.noteId ?? null, exchangeCredit, placeOfSupply: deliveredTo || null,
       prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
     })
     setRx({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
     setPicked({})
     setExtras({ ...extras, site: '', vehicleNumber: '' })
+    setDeliveredTo('')
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
     if (exchange) { endExchange(); setExchangeState(null) }
@@ -505,6 +510,16 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           </div>
           {mode === 'upi' && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={paidAmount} />}
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
+          {shopState && !settings?.gstComposition && (
+            <label className="flex items-center justify-between gap-2 text-sm">
+              <span className="font-semibold text-muted">{t('pos.label')}</span>
+              <select value={deliveredTo} onChange={(e) => setDeliveredTo(e.target.value === shopState ? '' : e.target.value)} className="h-11 max-w-56 rounded-xl border border-line bg-white px-2">
+                <option value="">{t('pos.here', { state: GST_STATES[shopState] ?? shopState })}</option>
+                {Object.entries(GST_STATES).filter(([code]) => code !== shopState).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+              </select>
+            </label>
+          )}
+          {deliveredTo && <p className="text-xs font-semibold text-amber-800">{t('pos.igst', { state: GST_STATES[deliveredTo] })}</p>}
           <div className="flex gap-2">
             <button type="button" onClick={holdBill} className="min-h-12 shrink-0 rounded-2xl border-2 border-teal-700 px-4 font-bold text-teal-800">{t('hold.button')}</button>
             <Button className="flex-1" id="bill-save" onClick={save} disabled={!canSave}>
