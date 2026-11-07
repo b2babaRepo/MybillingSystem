@@ -332,6 +332,8 @@ public static class TradeEndpoints
         {
             (customer.Phone, customer.PhoneConfirmedAt, customer.ConfirmCodeHash, customer.ConfirmCodeAt, customer.ConfirmCodeTries) = (phone, null, null, null, 0);
             (customer.KhataToken, customer.KhataTokenAt) = (null, null);
+            // The agreement was for the old number.
+            customer.ReminderConsentAt = null;
         }
 
         customer.Name = name!;

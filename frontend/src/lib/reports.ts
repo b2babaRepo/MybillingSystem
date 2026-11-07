@@ -13,6 +13,8 @@ export interface Due {
   oldestDays: number
   lastPaymentAt: string | null
   lastRemindedAt: string | null
+  /** Money seen lately may be theirs: check before chasing. */
+  moneyWaiting?: boolean
 }
 
 export interface DuesReport {

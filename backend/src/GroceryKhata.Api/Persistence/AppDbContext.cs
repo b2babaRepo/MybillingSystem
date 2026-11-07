@@ -38,6 +38,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Ledger.IncomingReceipt> IncomingReceipts => Set<Ledger.IncomingReceipt>();
 
+    public DbSet<Ledger.CustomerConsent> CustomerConsents => Set<Ledger.CustomerConsent>();
+
+    public DbSet<Ledger.ReminderLog> ReminderLogs => Set<Ledger.ReminderLog>();
+
     public DbSet<Ledger.ReceiptAllocation> ReceiptAllocations => Set<Ledger.ReceiptAllocation>();
 
     public DbSet<Market> Markets => Set<Market>();
@@ -1319,13 +1323,31 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(e => new { e.ShopId, e.UpiRef }).HasFilter("upi_ref IS NOT NULL");
         });
 
+        modelBuilder.Entity<Ledger.CustomerConsent>(b =>
+        {
+            b.ToTable("customer_consents");
+            b.HasTenantKey();
+            b.HasIndex(c => new { c.ShopId, c.CustomerId, c.RecordedAt });
+            b.HasTenantForeignKey<Ledger.CustomerConsent, Customer>(nameof(Ledger.CustomerConsent.CustomerId));
+        });
+
+        modelBuilder.Entity<Ledger.ReminderLog>(b =>
+        {
+            b.ToTable("reminder_logs");
+            b.HasTenantKey();
+            b.HasIndex(r => new { r.ShopId, r.CustomerId, r.SentAt });
+            b.HasTenantForeignKey<Ledger.ReminderLog, Customer>(nameof(Ledger.ReminderLog.CustomerId));
+        });
+
         modelBuilder.Entity<Ledger.IncomingReceipt>(b =>
         {
             b.ToTable("incoming_receipts");
             b.HasTenantKey();
             b.Property(r => r.Amount).HasPrecision(14, 2);
             b.HasIndex(r => new { r.ShopId, r.Utr }).IsUnique().HasFilter("utr IS NOT NULL");
+            b.HasIndex(r => new { r.ShopId, r.Fingerprint }).IsUnique().HasFilter("fingerprint IS NOT NULL");
             b.HasIndex(r => new { r.ShopId, r.ReceivedAt });
+            b.HasTenantForeignKey<Ledger.IncomingReceipt, Customer>(nameof(Ledger.IncomingReceipt.ClaimedByCustomerId));
             b.HasOne<Shop>().WithMany().HasForeignKey(r => r.ShopId).OnDelete(DeleteBehavior.Restrict);
         });
 

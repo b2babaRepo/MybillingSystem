@@ -4006,6 +4006,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("phone_confirmed_at");
 
+                    b.Property<DateTimeOffset?>("ReminderConsentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reminder_consent_at");
+
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
@@ -4023,6 +4027,61 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ShopId", "Phone");
 
                     b.ToTable("customers", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.CustomerConsent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<bool>("Given")
+                        .HasColumnType("boolean")
+                        .HasColumnName("given");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("phone");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("Wording")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("wording");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "CustomerId", "RecordedAt");
+
+                    b.ToTable("customer_consents", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.CustomerPlan", b =>
@@ -4640,6 +4699,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(14,2)")
                         .HasColumnName("amount");
 
+                    b.Property<Guid?>("ClaimedByCustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("claimed_by_customer_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -4656,6 +4719,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<Guid?>("DispositionByUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("disposition_by_user_id");
+
+                    b.Property<string>("Fingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("fingerprint");
 
                     b.Property<string>("PayerName")
                         .HasMaxLength(120)
@@ -4686,6 +4754,12 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnName("utr");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ShopId", "ClaimedByCustomerId");
+
+                    b.HasIndex("ShopId", "Fingerprint")
+                        .IsUnique()
+                        .HasFilter("fingerprint IS NOT NULL");
 
                     b.HasIndex("ShopId", "ReceivedAt");
 
@@ -5652,6 +5726,51 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ShopId", "ReceiptId");
 
                     b.ToTable("receipt_allocations", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.ReminderLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "CustomerId", "SentAt");
+
+                    b.ToTable("reminder_logs", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Room", b =>
@@ -7952,6 +8071,16 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.CustomerConsent", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Ledger.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("ShopId", "CustomerId")
+                        .HasPrincipalKey("ShopId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.DairyGridCell", b =>
                 {
                     b.HasOne("GroceryKhata.Api.Ledger.DairyRatePlan", null)
@@ -8010,6 +8139,12 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasForeignKey("ShopId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("GroceryKhata.Api.Ledger.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("ShopId", "ClaimedByCustomerId")
+                        .HasPrincipalKey("ShopId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.LedgerEntry", b =>
@@ -8062,6 +8197,16 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasOne("GroceryKhata.Api.Ledger.IncomingReceipt", null)
                         .WithMany()
                         .HasForeignKey("ShopId", "ReceiptId")
+                        .HasPrincipalKey("ShopId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.ReminderLog", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Ledger.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("ShopId", "CustomerId")
                         .HasPrincipalKey("ShopId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

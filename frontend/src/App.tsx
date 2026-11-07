@@ -23,6 +23,7 @@ const DisputesScreen = lazy(() => import('./screens/DisputesScreen').then((modul
 const CommonListScreen = lazy(() => import('./screens/CommonListScreen').then((module) => ({ default: module.CommonListScreen })))
 const CustomerImportScreen = lazy(() => import('./screens/CustomerImportScreen').then((module) => ({ default: module.CustomerImportScreen })))
 const ReceiptsScreen = lazy(() => import('./screens/ReceiptsScreen').then((module) => ({ default: module.ReceiptsScreen })))
+const RemindersScreen = lazy(() => import('./screens/RemindersScreen').then((module) => ({ default: module.RemindersScreen })))
 const CustomersScreen = lazy(() => import('./screens/CustomersScreen').then((module) => ({ default: module.CustomersScreen })))
 import { HomeScreen } from './screens/HomeScreen'
 const ItemsScreen = lazy(() => import('./screens/ItemsScreen').then((module) => ({ default: module.ItemsScreen })))
@@ -86,6 +87,7 @@ const KharchaPrint = lazy(() => import('./screens/KharchaMonth').then((module) =
 const TeamScreen = lazy(() => import('./screens/TeamScreen').then((module) => ({ default: module.TeamScreen })))
 const TeamViewPage = lazy(() => import('./screens/TeamViewPage').then((module) => ({ default: module.TeamViewPage })))
 const PlatformScreen = lazy(() => import('./screens/PlatformScreen').then((module) => ({ default: module.PlatformScreen })))
+const BillLinkPage = lazy(() => import('./screens/PrintScreen').then((module) => ({ default: module.BillLinkPage })))
 const PayPage = lazy(() => import('./screens/PayPage').then((module) => ({ default: module.PayPage })))
 const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((module) => ({ default: module.PlannerApp })))
 
@@ -99,6 +101,14 @@ export default function App() {
     return (
       <Suspense fallback={<Loading />}>
         <StoreApp path={path} />
+      </Suspense>
+    )
+  }
+  // A bill sent to a customer: open to anyone holding the link.
+  if (path.startsWith('/b/')) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <BillLinkPage path={path} />
       </Suspense>
     )
   }
@@ -404,6 +414,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <CommonListScreen shopId={shopId} />
         ) : path === '/receipts' ? (
           <ReceiptsScreen shopId={shopId} isOwner={isOwner} />
+        ) : path === '/reminders' ? (
+          <RemindersScreen shopId={shopId} shopName={shopName} />
         ) : path === '/khata/import' ? (
           <CustomerImportScreen shopId={shopId} />
         ) : path === '/import' ? (

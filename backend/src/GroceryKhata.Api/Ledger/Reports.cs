@@ -45,7 +45,8 @@ public sealed record DueDto(
     decimal Over30,
     int OldestDays,
     DateTimeOffset? LastPaymentAt,
-    DateTimeOffset? LastRemindedAt);
+    DateTimeOffset? LastRemindedAt,
+    bool MoneyWaiting = false);
 
 public sealed record DuesReport(decimal Total, decimal Days0To7, decimal Days8To30, decimal Over30, IReadOnlyList<DueDto> Customers);
 
@@ -179,6 +180,9 @@ public static class ReportEndpoints
                 .Select(e => new { e.CustomerId, e.OccurredAt, e.Amount, e.PaymentMode }).ToListAsync(ct))
             .ToLookup(e => e.CustomerId);
         var today = IndiaTime.Today(clock);
+        // Money seen lately that may be theirs: chasing someone who just paid is what loses a customer.
+        var recent = clock.GetUtcNow().AddHours(-72);
+        var waiting = (await Receipts.OpenAsync(db, ct)).Where(x => x.Receipt.ReceivedAt >= recent).ToList();
 
         var dues = customers.Select(c =>
         {
@@ -193,7 +197,8 @@ public static class ReportEndpoints
                 unpaid.Where(e => Age(e) > 30).Sum(e => e.Amount),
                 unpaid.Count == 0 ? 0 : Age(unpaid[0]),
                 lastPayment,
-                c.LastRemindedAt);
+                c.LastRemindedAt,
+                waiting.Any(x => x.Receipt.ClaimedByCustomerId == c.Id || x.Left == c.Balance));
         })
         .OrderByDescending(d => d.Over30).ThenByDescending(d => d.Days8To30).ThenByDescending(d => d.Balance)
         .ToList();
@@ -201,12 +206,20 @@ public static class ReportEndpoints
         return new DuesReport(dues.Sum(d => d.Balance), dues.Sum(d => d.Days0To7), dues.Sum(d => d.Days8To30), dues.Sum(d => d.Over30), dues);
     }
 
-    private static async Task<IResult> RemindedAsync(Guid id, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> RemindedAsync(Guid id, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var now = clock.GetUtcNow();
         // A direct update: a reminder is bookkeeping, not an edit to audit.
         var updated = await db.Customers.Where(c => c.Id == id).ExecuteUpdateAsync(s => s.SetProperty(c => c.LastRemindedAt, now), ct);
-        return updated == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
+        if (updated == 0)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var owed = await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Balance).SingleAsync(ct);
+        db.ReminderLogs.Add(new ReminderLog { CustomerId = id, Amount = owed, UserId = user.UserId()!.Value, SentAt = now });
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
     }
 
     private static async Task<IResult> MonthAsync(string? month, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct) =>

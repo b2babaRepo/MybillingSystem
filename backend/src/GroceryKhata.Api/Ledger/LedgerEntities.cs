@@ -52,6 +52,9 @@ public sealed class Customer : Entity, ITenantOwned
     [System.ComponentModel.DataAnnotations.MaxLength(15)]
     public string? Gstin { get; set; }
 
+    /// <summary>When the shop recorded that this customer agreed to reminders, on this number. Null: no reminders. History: CustomerConsent.</summary>
+    public DateTimeOffset? ReminderConsentAt { get; set; }
+
     /// <summary>The customer's address, printed on their bills: a registered buyer's tax invoice must show it.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(200)]
     public string? Address { get; set; }

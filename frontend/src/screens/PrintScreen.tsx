@@ -212,15 +212,14 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
     enabled: query.isError,
     gcTime: 0,
   })
+  // A link to send with the bill. Only for a bill the server has: an unsynced one has none yet.
+  const link = useQuery({ queryKey: ['bill-link', billId], queryFn: () => api<{ shopSlug: string; billId: string; token: string }>(`/v1/bills/${billId}/link`, 'POST'), enabled: !!query.data, staleTime: Infinity, retry: false })
   if (query.isError) {
     if (waiting.isPending) return <p className="p-6">…</p>
     return waiting.data ? <ProvisionalPrint shopName={shopName} bill={waiting.data} /> : <Problem error={query.error} />
   }
   const view = query.data
   if (!view) return <p className="p-6">…</p>
-  const { bill, customer } = view
-  const gstin = bill.gstin
-
   async function cancel() {
     const reason = (await ask(t('print.cancelReason')))?.trim()
     if (!reason) return
@@ -231,8 +230,16 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
       window.alert(err instanceof Error ? err.message : t('error'))
     }
   }
+  const url = link.data ? `${window.location.origin}/#/b/${link.data.shopSlug}/${link.data.billId}?t=${link.data.token}` : null
+  return <BillDocument shopName={shopName} bill={view.bill} customerName={view.customer?.name ?? null} phone={view.customer?.phone ?? null} link={url} onCancel={() => void cancel()} />
+}
+
+/** The bill itself, for the shop and, with no onCancel, for whoever opens its link. */
+function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: { shopName: string; bill: BillView['bill']; customerName: string | null; phone: string | null; link: string | null; onCancel?: () => void }) {
+  const { t } = useTranslation()
+  const gstin = bill.gstin
   const when = new Date(bill.occurredAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-  const share = t('print.billShare', { shop: shopName, total: bill.total, paid: bill.paidAmount, khata: bill.onKhata })
+  const share = [t('print.billShare', { shop: shopName, total: bill.total, paid: bill.paidAmount, khata: bill.onKhata }), link].filter(Boolean).join('\n')
   // No GSTIN: not registered, so no tax on the bill at all.
   // A composition shop's bill of supply shows no tax. Bills keep their tax since it was stored; older ones work it out.
   const gst = gstin && !bill.billOfSupply ? storedSummary(bill.lines) ?? gstSummary(bill.lines).map((g) => ({ ...g, igst: 0 })) : []
@@ -241,7 +248,7 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
   const isTaxInvoice = gst.length > 0 && unset === 0
 
   return (
-    <Page title={shopName} subtitle={`${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${customer ? ` · ${customer.name}` : ''}`} shareText={share} phone={customer?.phone ?? null}>
+    <Page title={shopName} subtitle={`${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${customerName ? ` · ${customerName}` : ''}`} shareText={share} phone={phone}>
       {bill.billOfSupply && <p className="mb-2 text-sm font-semibold">{t('print.compositionNote')}</p>}
       {bill.shopAddress && <p className="mb-2 text-sm">{bill.shopAddress}</p>}
       {gstin && !bill.shopAddress && <p className="mb-2 text-sm font-semibold text-due print:hidden">{t('print.shopAddressMissing')}</p>}
@@ -323,8 +330,28 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
         </div>
       )}
       <p className="mt-6 text-center">{t('print.thanks')}</p>
-      {!bill.cancelledAt && <CreditNotesPanel billId={billId} lines={bill.lines} />}
-      {!bill.cancelledAt && <button onClick={cancel} className="mt-6 h-11 w-full rounded-xl border border-line font-semibold text-due print:hidden">{t('print.cancelBill')}</button>}
+      {onCancel && !bill.cancelledAt && <CreditNotesPanel billId={bill.id} lines={bill.lines} />}
+      {onCancel && !bill.cancelledAt && <button onClick={onCancel} className="mt-6 h-11 w-full rounded-xl border border-line font-semibold text-due print:hidden">{t('print.cancelBill')}</button>}
     </Page>
+  )
+}
+
+/** #/b/{shop}/{bill}?t={token}: a bill anyone holding the link can open, print or save as a PDF. No account needed. */
+export function BillLinkPage({ path }: { path: string }) {
+  const { t } = useTranslation()
+  const match = path.match(/^\/b\/([^/]+)\/([0-9a-f-]+)\?t=([0-9a-f]+)/)
+  const view = useQuery({
+    queryKey: ['bill-link-view', path],
+    queryFn: () => api<{ shopName: string; bill: BillView['bill']; customerName: string | null }>(`/v1/bill/${match![1]}/${match![2]}?t=${match![3]}`),
+    enabled: !!match,
+    retry: false,
+  })
+  if (view.isError || !match) return <p className="p-6 text-center text-muted">{t('billLink.gone')}</p>
+  if (!view.data) return <p className="p-6 text-center text-muted">…</p>
+  return (
+    <>
+      <BillDocument shopName={view.data.shopName} bill={view.data.bill} customerName={view.data.customerName} phone={null} link={null} />
+      <p className="mx-auto max-w-2xl bg-white p-4 text-center text-sm text-muted print:hidden">{t('billLink.madeWith')}</p>
+    </>
   )
 }

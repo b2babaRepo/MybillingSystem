@@ -6,6 +6,7 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
+import { parseStatement } from '../lib/statementImport'
 
 interface Receipt {
   id: string
@@ -14,7 +15,8 @@ interface Receipt {
   receivedAt: string
   utr: string | null
   payerName: string | null
-  suggestion: { customerId: string; name: string; why: 'amount' | 'name' } | null
+  suggestion: { customerId: string; name: string; why: 'amount' | 'name' | 'claim' } | null
+  already: { kind: 'entered' | 'sale'; entryId: string | null; customerName: string | null } | null
 }
 
 /**
@@ -29,7 +31,19 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
   const [amount, setAmount] = useState('')
   const [utr, setUtr] = useState('')
   const [payer, setPayer] = useState('')
+  const [imported, setImported] = useState('')
   const [message, setMessage] = useState('')
+  const [statement, setStatement] = useState('')
+  const parsed = parseStatement(statement)
+  const statementTotal = parsed.rows.reduce((sum, r) => sum + r.amount, 0)
+
+  async function importStatement() {
+    await run(async () => {
+      const result = await api<{ added: number; known: number; confirmed: number; problems: string[] }>('/v1/receipts/import', 'POST', { rows: parsed.rows })
+      setStatement('')
+      setImported(t('receipts.imported', { added: result.added, known: result.known, confirmed: result.confirmed }))
+    })
+  }
 
   async function refresh() {
     await Promise.all([queryClient.invalidateQueries({ queryKey: key }), queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] })])
@@ -62,6 +76,31 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
         <Field label={t('receipts.payer')} value={payer} onChange={(e) => setPayer(e.target.value)} maxLength={120} />
         <Button disabled={!(Number(amount) > 0)} onClick={() => void note()}>{t('receipts.add')}</Button>
       </section>
+      {isOwner && (
+        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+          <h2 className="font-bold">{t('receipts.statementTitle')}</h2>
+          <p className="text-sm text-muted">{t('receipts.statementHint')}</p>
+          <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-line font-semibold">
+            {t('partyImport.file')}
+            <input type="file" accept=".csv,.txt,text/csv,text/plain" className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void file.text().then(setStatement) }} />
+          </label>
+          <textarea aria-label={t('receipts.statementTitle')} value={statement} onChange={(e) => setStatement(e.target.value)} rows={3} placeholder={t('receipts.statementPaste')} className="w-full rounded-xl border border-line p-3 text-sm" />
+          {statement.trim() && !parsed.found && <p className="text-sm font-semibold text-due">{t('receipts.statementNone')}</p>}
+          {parsed.rows.length > 0 && (
+            <>
+              <p className="font-bold">{t('receipts.statementSummary', { count: parsed.rows.length, total: formatRupees(statementTotal) })}</p>
+              {parsed.skipped > 0 && <p className="text-sm text-muted">{t('receipts.statementSkipped', { count: parsed.skipped })}</p>}
+              <ul className="divide-y divide-[#edf2f1]">
+                {parsed.rows.slice(0, 5).map((r, i) => (
+                  <li key={i} className="flex justify-between gap-2 py-1 text-sm"><span className="min-w-0 truncate">{r.payerName ?? r.narration}</span><span className="shrink-0 font-semibold">{formatRupees(r.amount)}</span></li>
+                ))}
+              </ul>
+              <Button onClick={() => void importStatement()}>{t('receipts.statementNow', { count: parsed.rows.length })}</Button>
+            </>
+          )}
+          {imported && <p className="rounded-xl bg-emerald-50 p-2 text-sm font-semibold text-emerald-800">{imported}</p>}
+        </section>
+      )}
       {message && <p className="text-sm font-semibold text-due">{message}</p>}
       {tray.data?.length === 0 && <p className="py-6 text-center text-muted">{t('receipts.empty')}</p>}
       {tray.data?.map((r) => <ReceiptCard key={r.id} shopId={shopId} receipt={r} isOwner={isOwner} run={run} />)}
@@ -77,6 +116,7 @@ function ReceiptCard({ shopId, receipt: r, isOwner, run }: { shopId: string; rec
   const chosen = customers.find((c) => c.id === customerId) ?? null
   const matched = r.left < r.amount
   const allocate = (id: string, value: number) => run(() => api(`/v1/receipts/${r.id}/allocate`, 'POST', { id: crypto.randomUUID(), customerId: id, amount: value }))
+  const link = (entryId: string) => run(() => api(`/v1/receipts/${r.id}/link`, 'POST', { entryId }))
   const dismiss = (as: 'counterSale' | 'notKhata') => run(() => api(`/v1/receipts/${r.id}/dismiss`, 'POST', { as }))
 
   return (
@@ -89,6 +129,13 @@ function ReceiptCard({ shopId, receipt: r, isOwner, run }: { shopId: string; rec
         </div>
         <span className="shrink-0 text-sm text-muted">{new Date(r.receivedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
       </div>
+      {r.already?.kind === 'entered' && (
+        <>
+          <p className="rounded-xl bg-amber-50 p-2 text-sm font-semibold text-amber-900">{t('receipts.alreadyEntered', { name: r.already.customerName })}</p>
+          <Button onClick={() => void link(r.already!.entryId!)}>{t('receipts.linkIt')}</Button>
+        </>
+      )}
+      {r.already?.kind === 'sale' && <p className="rounded-xl bg-amber-50 p-2 text-sm font-semibold text-amber-900">{t('receipts.alreadySale')}</p>}
       {r.suggestion && (
         <Button onClick={() => void allocate(r.suggestion!.customerId, r.left)}>{t(`receipts.suggest_${r.suggestion.why}`, { name: r.suggestion.name })}</Button>
       )}

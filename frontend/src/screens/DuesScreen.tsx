@@ -43,6 +43,7 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
 
   return (
     <div className="flex flex-col gap-3 p-4">
+      <button onClick={() => navigate('/reminders')} className="flex h-12 items-center justify-center rounded-2xl border-2 border-teal-700 font-bold text-teal-800">{t('reminders.title')}</button>
       <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px] lg:flex-row lg:items-center lg:gap-6">
         <button onClick={() => setBucket('all')} className="flex min-h-11 items-center justify-between gap-3 text-left lg:shrink-0" aria-pressed={bucket === 'all'}>
           <span className="text-[15px] font-semibold text-muted">{t('dues.total')}</span>
@@ -69,7 +70,8 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
           columns={[
             { key: 'name', header: t('dues.colName'), sortValue: (d) => d.name, render: (d) => (
               <span className="flex flex-col"><span className="font-bold">{d.name}</span>
-                {d.lastRemindedAt && <span className="text-xs text-muted">{t('dues.remindedAgo', { when: ago(d.lastRemindedAt, t) })}</span>}</span>) },
+                {d.lastRemindedAt && <span className="text-xs text-muted">{t('dues.remindedAgo', { when: ago(d.lastRemindedAt, t) })}</span>}
+                {d.moneyWaiting && <span className="text-xs font-semibold text-udhaar">{t('receipts.moneyWaiting')}</span>}</span>) },
             { key: 'days', header: t('dues.colDays'), align: 'right', sortValue: (d) => d.oldestDays, render: (d) => d.oldestDays },
             { key: 'd0', header: t('dues.bucket0'), align: 'right', sortValue: (d) => d.days0To7, render: (d) => (d.days0To7 ? formatRupees(d.days0To7) : '—') },
             { key: 'd8', header: t('dues.bucket8'), align: 'right', sortValue: (d) => d.days8To30, render: (d) => (d.days8To30 ? formatRupees(d.days8To30) : '—') },
@@ -91,6 +93,7 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
                   {t('dues.oldest', { days: d.oldestDays })}
                   {d.lastRemindedAt && ` · ${t('dues.remindedAgo', { when: ago(d.lastRemindedAt, t) })}`}
                 </span>
+                {d.moneyWaiting && <span className="text-[13px] font-semibold text-udhaar">{t('receipts.moneyWaiting')}</span>}
               </span>
               <span className="flex flex-col items-end">
                 <span className="text-lg font-bold text-due">{formatRupees(d.balance)}</span>

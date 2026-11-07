@@ -1,6 +1,16 @@
 // English text no first screen needs. It loads just after the app starts: see i18n.ts.
 export const enMore = {
-  receipts: { findCustomer: 'Type a name or phone digits', link: 'Money received', title: 'Money received, not yet on a khata', hint: 'Note money you see in your bank or UPI app. It changes no balance until you match it to a customer. A payment taken off the wrong customer comes back here.',
+  billLink: { gone: 'This bill link is not valid. Ask the shop to send it again.', madeWith: 'Bill made with Grocery Khata' },
+  reminders: { title: "Today's reminders", hint: 'Tap to open WhatsApp with the message ready. Only customers who agreed are listed, at most once a week, and nobody who may have just paid.',
+    none: 'Nobody to remind today.', send: 'Send on WhatsApp', stop: 'Customer asked to stop', agreed: 'Customer agreed',
+    agreeConfirm: 'Has {{name}} told you they agree to get payment reminders on WhatsApp? Ask them first. This records your name and the time.', stopConfirm: 'Stop reminders to {{name}}?',
+    hold_noConsent: 'Not agreed yet', hold_moneyWaiting: 'Money may have arrived', hold_recent: 'Reminded this week', hold_tooNew: 'Too recent to chase', hold_noPhone: 'No phone number' },
+  receipts: { iPaid: 'I have paid', tellShop: 'Tell the shop', paidSent: 'Sent to the shop. Your khata changes once they confirm the money came.', moneyWaiting: 'Money may have arrived. Check before reminding.', suggest_claim: '{{name}} says they paid. Money came? Match',
+    statementTitle: 'Import a bank statement', statementHint: 'Download a CSV from your bank and pick it here, or paste from Excel. Only money in by UPI or bank transfer comes in, and no balance changes until you match it. Importing the same dates twice is safe.',
+    statementPaste: 'Or paste the statement here', statementNone: "No statement table found. It needs a date, a description and an amount column.", statementSummary_one: '{{count}} payment in, {{total}}', statementSummary_other: '{{count}} payments in, {{total}}',
+    statementSkipped_one: '{{count}} other credit left out, such as interest or cash', statementSkipped_other: '{{count}} other credits left out, such as interest or cash', statementNow_one: 'Bring in {{count}} payment', statementNow_other: 'Bring in {{count}} payments',
+    imported: '{{added}} added, {{known}} already here, {{confirmed}} customer claims confirmed by the bank.', alreadyEntered: 'Looks already entered on {{name}}\'s khata. Matching again would count it twice.', linkIt: 'Yes, it is that payment', alreadySale: 'A UPI bill for this amount was made around then. Probably a counter sale.',
+    findCustomer: 'Type a name or phone digits', link: 'Money received', title: 'Money received, not yet on a khata', hint: 'Note money you see in your bank or UPI app. It changes no balance until you match it to a customer. A payment taken off the wrong customer comes back here.',
     amount: 'Amount received', utr: 'UPI reference (UTR), if you have it', payer: 'Name shown by the bank or app', add: 'Note this money', empty: 'Nothing waiting. All received money is matched.',
     leftOf: 'left of {{amount}}', part: 'How much is theirs', match: 'Match', suggest_amount: '{{name}} owes exactly this. Match', suggest_name: 'Looks like {{name}}. Match',
     counterSale: 'It was a counter sale', notKhata: 'Not khata money' },

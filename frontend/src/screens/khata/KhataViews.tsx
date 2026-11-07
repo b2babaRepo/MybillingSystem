@@ -134,7 +134,36 @@ function DisputeSheet({ entry, path, onClose, onSent }: { entry: StatementLine; 
   )
 }
 
-function KhataBody({ view, disputePath, queryKey }: { view: KhataView; disputePath: string; queryKey: unknown[] }) {
+/** "I have paid": the customer's word to the shop. Their khata changes only when the shop confirms the money came. */
+function PaidCard({ path, balance }: { path: string; balance: number }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [amount, setAmount] = useState(String(balance))
+  const [utr, setUtr] = useState('')
+  const [message, setMessage] = useState('')
+  const [sent, setSent] = useState(false)
+  async function send() {
+    setMessage('')
+    try {
+      await api(path, 'POST', { id: crypto.randomUUID(), amount: Number(amount), utr: utr.trim() || null })
+      setSent(true)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+  if (sent) return <p className="rounded-[14px] bg-teal-50 p-3 text-sm font-semibold text-teal-900">{t('receipts.paidSent')}</p>
+  if (!open) return <button onClick={() => setOpen(true)} className="flex h-12 items-center justify-center rounded-2xl border-2 border-teal-700 font-bold text-teal-800">{t('receipts.iPaid')}</button>
+  return (
+    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <input aria-label={t('receipts.amount')} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="h-12 rounded-xl border border-line px-3 text-lg font-bold" />
+      <input aria-label={t('receipts.utr')} placeholder={t('receipts.utr')} value={utr} onChange={(e) => setUtr(e.target.value)} maxLength={30} className="h-12 rounded-xl border border-line px-3" />
+      <Button disabled={!(Number(amount) > 0)} onClick={() => void send()}>{t('receipts.tellShop')}</Button>
+      {message && <p className="text-sm font-semibold text-due">{message}</p>}
+    </div>
+  )
+}
+
+function KhataBody({ view, disputePath, paidPath, queryKey }: { view: KhataView; disputePath: string; paidPath: string; queryKey: unknown[] }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [disputing, setDisputing] = useState<StatementLine | null>(null)
@@ -155,6 +184,7 @@ function KhataBody({ view, disputePath, queryKey }: { view: KhataView; disputePa
           📞 {t('myKhata.callShop', { phone: formatPhone(view.shopPhone) })}
         </a>
       )}
+      {customer.balance > 0 && <PaidCard path={paidPath} balance={customer.balance} />}
       {open > 0 && <p className="rounded-[14px] bg-amber-50 p-3 text-sm font-semibold text-amber-950">⚠ {t('dispute.openCount', { count: open })}</p>}
       <p className="text-sm text-muted">{t('dispute.hint')}</p>
       <KhataHistory
@@ -196,7 +226,7 @@ export function KhataLinkPage({ path }: { path: string }) {
         </button>
       </header>
       {view.data ? (
-        <KhataBody view={view.data} queryKey={['khata-link-view', path]} disputePath={`/v1/khata/${match![1]}/${match![2]}/disputes?t=${match![3]}`} />
+        <KhataBody view={view.data} queryKey={['khata-link-view', path]} disputePath={`/v1/khata/${match![1]}/${match![2]}/disputes?t=${match![3]}`} paidPath={`/v1/khata/${match![1]}/${match![2]}/paid?t=${match![3]}`} />
       ) : view.isError || !match ? (
         <p className="p-6 text-center text-muted">{t('myKhata.linkInvalid')}</p>
       ) : (
@@ -269,7 +299,7 @@ export function MyKhataDetail({ shopId, customerId }: { shopId: string; customer
   const view = useQuery({ queryKey: ['my-khata', shopId, customerId], queryFn: () => api<KhataView>(`/v1/me/khata/${shopId}/${customerId}`) })
   if (view.isError) return <p className="p-6 text-center text-muted">{t('myKhata.linkInvalid')}</p>
   return view.data ? (
-    <KhataBody view={view.data} queryKey={['my-khata', shopId, customerId]} disputePath={`/v1/me/khata/${shopId}/${customerId}/disputes`} />
+    <KhataBody view={view.data} queryKey={['my-khata', shopId, customerId]} disputePath={`/v1/me/khata/${shopId}/${customerId}/disputes`} paidPath={`/v1/me/khata/${shopId}/${customerId}/paid`} />
   ) : (
     <p className="p-6 text-center text-muted">…</p>
   )
