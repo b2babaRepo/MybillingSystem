@@ -99,7 +99,7 @@ function NotFound() {
 function Header({ title, subtitle }: { title: string; subtitle?: string | null }) {
   const { i18n } = useTranslation()
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white">
+    <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white lg:rounded-b-2xl lg:px-6">
       <div className="flex min-w-0 flex-1 flex-col">
         <h1 className="truncate text-xl font-bold">{title}</h1>
         {subtitle && <span className="truncate text-sm opacity-85">{subtitle}</span>}
@@ -143,7 +143,7 @@ function Catalogue({ slug }: { slug: string }) {
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.item.price), 0))
 
   return (
-    <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-28">
+    <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-28 lg:max-w-6xl lg:px-4">
       <Header title={data.name} subtitle={[data.area, data.address].filter(Boolean).join(' · ') || t('store.title')} />
 
       {myOrders.length > 0 && (
@@ -209,7 +209,7 @@ function Catalogue({ slug }: { slug: string }) {
       </ul>
 
       {lines.length > 0 && !checkingOut && (
-        <div className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3">
+        <div className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-[440px] lg:rounded-2xl lg:border lg:shadow-xl">
           <button onClick={() => setCheckingOut(true)} className="flex h-14 w-full items-center justify-between rounded-2xl bg-teal-700 px-5 text-lg font-bold text-white">
             <span>{t('store.cart', { count: lines.length, total: formatRupees(total) })}</span>
             <span>{t('store.checkout')} →</span>
@@ -269,8 +269,8 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
 
   const input = 'h-12 w-full rounded-[14px] border-[1.5px] border-line bg-white px-3 text-lg outline-none focus:border-teal-600'
   return (
-    <div className="fixed inset-0 z-20 flex items-end bg-black/40" onClick={onClose}>
-      <form onSubmit={place} onClick={(e) => e.stopPropagation()} className="flex max-h-[92dvh] w-full flex-col gap-3 overflow-y-auto rounded-t-3xl bg-ground p-4 pb-8">
+    <div className="fixed inset-0 z-20 flex items-end bg-black/40 lg:items-center lg:justify-center lg:p-6" onClick={onClose}>
+      <form onSubmit={place} onClick={(e) => e.stopPropagation()} className="flex max-h-[92dvh] w-full flex-col gap-3 overflow-y-auto rounded-t-3xl bg-ground p-4 pb-8 lg:max-w-lg lg:rounded-3xl lg:p-6">
         <h2 className="text-xl font-bold">{t('store.checkout')}</h2>
         <ul className="rounded-[14px] bg-white px-3 text-sm">
           {lines.map((l) => (
@@ -332,7 +332,7 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
   const shopPhone = store.data?.phone ?? null
 
   return (
-    <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-8">
+    <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-8 lg:max-w-2xl">
       <Header title={order.shopName} subtitle={`${t('store.placedTitle')} ${code}`} />
       <div className="flex flex-col gap-3 p-4">
         <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px]">

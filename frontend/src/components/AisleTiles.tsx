@@ -32,7 +32,7 @@ export function AisleTiles({ available, counts, onPick }: { available?: Set<stri
         return (
           <section key={section}>
             <h3 className="mb-2 text-[17px] font-extrabold">{hindi ? section : inSection[0].sectionEn}</h3>
-            <div className="grid grid-cols-4 gap-x-2 gap-y-3">
+            <div className="grid grid-cols-4 gap-x-2 gap-y-3 sm:grid-cols-6 lg:grid-cols-8">
               {inSection.map((aisle) => {
                 const art = AISLE_ART[aisle.code]
                 const count = counts?.get(aisle.code)

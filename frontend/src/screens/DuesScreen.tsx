@@ -44,7 +44,7 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
   return (
     <div className="flex flex-col gap-3 p-4">
       <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px] lg:flex-row lg:items-center lg:gap-6">
-        <button onClick={() => setBucket('all')} className="flex min-h-11 items-center justify-between text-left" aria-pressed={bucket === 'all'}>
+        <button onClick={() => setBucket('all')} className="flex min-h-11 items-center justify-between gap-3 text-left lg:shrink-0" aria-pressed={bucket === 'all'}>
           <span className="text-[15px] font-semibold text-muted">{t('dues.total')}</span>
           <span className="text-[34px] leading-none font-extrabold text-due">{formatRupees(data.total)}</span>
         </button>
