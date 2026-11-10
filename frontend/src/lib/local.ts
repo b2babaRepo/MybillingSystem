@@ -118,17 +118,23 @@ export function mergeToday(server: Today | undefined, ops: OutboxOp[]): Today | 
   const today = { ...server }
   for (const op of live(ops)) {
     if (op.kind === 'khata') {
-      const body = op.body as { type: 'credit' | 'payment'; amount: number; paymentMode?: 'cash' | 'upi' | null }
+      const body = op.body as { type: 'credit' | 'payment'; amount: number; paymentMode?: string | null }
       if (body.type === 'credit') today.udhaar = round2(today.udhaar + body.amount)
       else if (body.paymentMode === 'upi') today.upi = round2(today.upi + body.amount)
+      else if (body.paymentMode === 'card') today.card = round2((today.card ?? 0) + body.amount)
+      // A cheque waits on the bank: not money in yet.
+      else if (body.paymentMode === 'cheque') today.chequesPending = round2((today.chequesPending ?? 0) + body.amount)
       else today.cash = round2(today.cash + body.amount)
     } else if (op.kind === 'bill') {
-      const body = op.body as { customerId: string | null; lines: { quantity: number; unitPrice: number }[]; paidAmount: number; paymentMode: 'cash' | 'upi' }
+      const body = op.body as { customerId: string | null; lines: { quantity: number; unitPrice: number }[]; paidAmount: number; paymentMode: 'cash' | 'upi'; payments?: { mode: string; amount: number }[] }
       const total = round2(body.lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
       today.sales = round2(today.sales + total)
       today.bills += 1
-      if (body.paymentMode === 'upi') today.upi = round2(today.upi + body.paidAmount)
-      else today.cash = round2(today.cash + body.paidAmount)
+      for (const p of body.payments ?? [{ mode: body.paymentMode, amount: body.paidAmount }]) {
+        if (p.mode === 'upi') today.upi = round2(today.upi + p.amount)
+        else if (p.mode === 'card') today.card = round2((today.card ?? 0) + p.amount)
+        else today.cash = round2(today.cash + p.amount)
+      }
       if (body.customerId) today.udhaar = round2(today.udhaar + total - body.paidAmount)
     }
   }

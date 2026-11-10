@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Button } from '../components/ui'
-import { useOutbox } from '../lib/data'
+import { counterName, setCounterName, useOutbox } from '../lib/data'
+import { useState } from 'react'
 import { formatDateTime } from '../lib/format'
 import { discardFailed, flush, retryFailed } from '../lib/outbox'
 
@@ -12,6 +13,7 @@ export function SyncScreen({ shopId, persistent }: { shopId: string; persistent:
   return (
     <div className="space-y-3 p-4">
       {!persistent && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">{t('storageWarning')}</p>}
+      <CounterName />
       <div className="rounded-[18px] bg-white p-4">
         <p className="text-lg font-semibold">
           {state === 'syncing' ? t('syncing') : pending + failed === 0 ? t('allSynced') : t('waiting', { count: pending })}
@@ -44,5 +46,22 @@ export function SyncScreen({ shopId, persistent }: { shopId: string; persistent:
         ))}
       </ul>
     </div>
+  )
+}
+
+/** Names this device as a counter ("Counter 2"): bills made here carry the name. Kept on this device only. */
+function CounterName() {
+  const { t } = useTranslation()
+  const [name, setName] = useState(counterName)
+  const [saved, setSaved] = useState(false)
+  return (
+    <label className="flex flex-col gap-1 rounded-[18px] bg-white p-4 text-sm">
+      <b>{t('counter.label')}</b>
+      <span className="text-muted">{t('counter.hint')}</span>
+      <span className="flex gap-2">
+        <input value={name} maxLength={30} onChange={(e) => { setName(e.target.value); setSaved(false) }} className="h-11 flex-1 rounded-xl border border-line px-3" />
+        <button onClick={() => { setCounterName(name); setSaved(true) }} className="h-11 rounded-xl bg-teal-700 px-4 font-semibold text-white">{saved ? '✓' : t('counter.save')}</button>
+      </span>
+    </label>
   )
 }

@@ -8,6 +8,16 @@ import './index.css'
 import { installSyncHandler } from './lib/data'
 import './lib/pwa'
 
+// A tab left open across an update asks for files the update replaced: without this it goes white. Once only,
+// so a real outage shows its error instead of reloading for ever.
+window.addEventListener('vite:preloadError', () => {
+  try {
+    if (Date.now() - Number(sessionStorage.getItem('gk-update-reload') ?? 0) < 30_000) return
+    sessionStorage.setItem('gk-update-reload', String(Date.now()))
+  } catch { /* storage blocked: reload anyway */ }
+  window.location.reload()
+})
+
 const queryClient = new QueryClient({
   defaultOptions: {
     // Query functions fall back to the saved copy themselves when offline, so let them run.

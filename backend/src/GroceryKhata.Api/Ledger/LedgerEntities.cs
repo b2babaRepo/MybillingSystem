@@ -9,6 +9,12 @@ public sealed class Customer : Entity, ITenantOwned
 
     public required string Name { get; set; }
 
+    /// <summary>
+    /// Udhaar to someone who gave no name yet: a placeholder ("Name later 3") the owner names, once known. Kept apart on
+    /// Home and the day book so it gets followed up, and refused on bills of ₹50,000 or more (GST needs the buyer then).
+    /// </summary>
+    public bool NameLater { get; set; }
+
     /// <summary>E.164, optional: many khata customers are known by name only.</summary>
     public string? Phone { get; set; }
 
@@ -18,6 +24,9 @@ public sealed class Customer : Entity, ITenantOwned
     /// </summary>
     /// <summary>The most this customer may owe; a bill that would cross it warns the shop (it doesn't block). Null: none.</summary>
     public decimal? CreditLimit { get; set; }
+
+    /// <summary>The state an unregistered customer lives in (GST code, "24"): a bill to them is offered there.</summary>
+    public string? State { get; set; }
 
     public decimal Balance { get; set; }
 
@@ -90,6 +99,18 @@ public sealed class LedgerEntry : Entity, ITenantOwned
     /// </summary>
     public string? UpiRef { get; set; }
 
+    /// <summary>A cheque payment's number, bank and date (a post-dated one carries a later date).</summary>
+    public string? ChequeNo { get; set; }
+
+    public string? ChequeBank { get; set; }
+
+    public DateOnly? ChequeDate { get; set; }
+
+    /// <summary>Pending until the owner marks it cleared or bounced. A reversal carries its cheque's status.</summary>
+    public ChequeStatus? ChequeStatus { get; set; }
+
+    public DateTimeOffset? ChequeSettledAt { get; set; }
+
     /// <summary>When it happened in the shop (the phone's clock), which may be before an offline sync.</summary>
     public DateTimeOffset OccurredAt { get; set; }
 
@@ -127,6 +148,25 @@ public enum PaymentMode
 {
     Cash,
     Upi,
+
+    /// <summary>A bank transfer: paying suppliers only, and never out of the drawer.</summary>
+    Bank,
+
+    /// <summary>A debit or credit card on the shop's machine: money that reaches the bank, not the drawer.</summary>
+    Card,
+
+    /// <summary>
+    /// A customer's cheque against their khata. It lowers what they owe when handed over, but counts as money received
+    /// only once it clears; a bounce puts the amount back on the khata.
+    /// </summary>
+    Cheque,
+}
+
+public enum ChequeStatus
+{
+    Pending,
+    Cleared,
+    Bounced,
 }
 
 /// <summary>A cash memo. Paid in full, or partly or wholly on the customer's khata.</summary>
@@ -158,6 +198,9 @@ public sealed class Bill : Entity, ITenantOwned
 
     public decimal ExchangeCredit { get; set; }
 
+    /// <summary>A bill paid more than one way: its parts as JSON (see <see cref="BillPayments"/>). Null: one way, by <see cref="PaymentMode"/>.</summary>
+    public string? Payments { get; set; }
+
     public PaymentMode? PaymentMode { get; set; }
 
     public DateTimeOffset OccurredAt { get; set; }
@@ -171,6 +214,9 @@ public sealed class Bill : Entity, ITenantOwned
 
     /// <summary>The truck or tempo that carried it; goods over ₹50,000 moved by road need an e-way bill.</summary>
     public string? VehicleNumber { get; set; }
+
+    /// <summary>The counter (device) that made the bill, as the shop named it on that device ("Counter 2"); null: unnamed.</summary>
+    public string? Counter { get; set; }
 
     /// <summary>The painter who brought the customer (paint shops): their commission is counted from these bills.</summary>
     public Guid? PainterId { get; set; }
@@ -224,6 +270,11 @@ public sealed class BillLine : Entity, ITenantOwned
 
     /// <summary>The item's regular price when this line was sold below it (a discount); null at the regular price or above.</summary>
     public decimal? ListPrice { get; set; }
+
+    /// <summary>The planned offer this line was sold under, and its name as it was, for the bill and the offer's report.</summary>
+    public Guid? OfferId { get; set; }
+
+    public string? OfferName { get; set; }
 
     /// <summary>What the customer's bill shows instead of <see cref="Name"/> ("Innerwear"); null shows the name.</summary>
     public string? PrintName { get; set; }

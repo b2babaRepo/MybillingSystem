@@ -226,4 +226,27 @@ public sealed class OnlineStoreTests(ApiFactory api)
         return await (await client.PostJsonAsync("/api/v1/products", new { id = Guid.CreateVersion7(), name, unit, sellingPrice = price, openingStock = stock }))
             .ReadAsync<ProductDto>();
     }
+
+    [Fact]
+    public async Task The_store_shows_the_sale_offer_and_the_order_keeps_its_price()
+    {
+        var (shop, auth) = await api.SignUpAsync("Sale Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var atta = await CreateProductAsync(shop, "Atta", "kg", 50m, 10m);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5)).ToString("yyyy-MM-dd");
+        (await shop.PostJsonAsync("/api/v1/offers", new { id = Guid.CreateVersion7(), name = "Diwali sale", kind = "percent", value = 10m, startsOn = today, endsOn = today, scope = "items", productIds = new[] { atta.Id } })).EnsureSuccessStatusCode();
+
+        var guest = api.CreateClient();
+        var item = (await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single();
+        Assert.Equal((45m, (decimal?)50m, "Diwali sale"), (item.Price, item.RegularPrice, item.OfferName));
+
+        var placed = await guest.PostJsonAsync($"/api/v1/store/{slug}/orders", new
+        {
+            id = Guid.CreateVersion7(), name = "Neha", phone = ApiFactory.NewPhone(), fulfilment = "pickup",
+            lines = new object[] { new { productId = atta.Id, quantity = 2m } },
+        });
+        Assert.Equal(HttpStatusCode.Created, placed.StatusCode);
+        var order = (await shop.GetJsonAsync<List<System.Text.Json.JsonElement>>("/api/v1/orders?status=placed")).Single();
+        Assert.Equal(45m, order.GetProperty("lines")[0].GetProperty("unitPrice").GetDecimal());
+    }
 }

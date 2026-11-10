@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { CashChange, CustomerFinder } from '../components/CustomerFinder'
+import { CashLimitNote } from '../components/CashLimitNote'
 import { billSeconds } from '../lib/billTimer'
 import { GST_STATES } from '../lib/states'
 import { nameMatches, splitQuantity } from '../lib/nameMatch'
@@ -9,22 +10,31 @@ import { useQuery } from '@tanstack/react-query'
 import { currentExchange, endExchange, type Exchange } from '../lib/exchange'
 import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
-import { garmentRate } from '../lib/gst'
+import { billTax, garmentRate } from '../lib/gst'
+import { bestOffer, isRunning, offerPrice, useOffers } from '../lib/offers'
+import { cameraPossible, normBarcode } from '../lib/barcode'
+const UnknownBarcode = lazy(() => import('../components/UnknownBarcode').then((module) => ({ default: module.UnknownBarcode })))
+const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
+import { enqueue } from '../lib/outbox'
 import { useTranslation } from 'react-i18next'
 import { ItemCard } from '../components/ItemCard'
 import { imageUrl } from '../lib/images'
 import { Button, Field, Sheet } from '../components/ui'
-import { saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
+import { addCustomer, saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { PaymentMode, Unit } from '../lib/types'
-import { useShopSettings, shopTypes, isTrade, upiUri } from '../lib/reports'
+import { useShopSettings, shopTypes, isTrade, sendsToSites, upiUri } from '../lib/reports'
 import { navigate } from '../router'
 import { useSerialsInStock } from '../lib/serials'
 import { ask } from '../components/Ask'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
 const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))
+const TradeDelivery = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeDelivery })))
+
+/** What a bill's delivery section holds, kept with a held bill. */
+interface Delivery { deliveredTo: string; site: string; vehicleNumber: string }
 
 /** Item billing: tap tiles, adjust quantities, choose who pays and how much now. The rest goes on khata. */
 export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: string; shopName: string; isOwner?: boolean }) {
@@ -39,7 +49,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const tiles = products
     .filter((p) => !query || p.name.toLowerCase().includes(query) || (p.styleName ?? '').toLowerCase().includes(query) || nameMatches(p.name, query) || (!!p.styleName && nameMatches(p.styleName, query)))
     .sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9) || a.name.localeCompare(b.name))
-    .slice(0, query ? 30 : 12)
+  // Cut after grouping sizes into one tile, so a clothes shop isn't left with five tiles. A wide screen has room for more.
+  const wide = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+  const groups = groupStyles(tiles).slice(0, query || wide ? 30 : 12)
   const { customers } = useCustomers(shopId)
   const [cart, setCart] = useState<CartLine[]>([])
   // When this bill's first item went in. 0: picked up from hold, so its time can't be known.
@@ -54,10 +66,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // Barcodes: a scanner types the code and Enter; a typed code works the same. A camera scan where the phone can.
   const [scanning, setScanning] = useState(false)
   const [scanMiss, setScanMiss] = useState<string | null>(null)
-  const canScan = typeof window !== 'undefined' && 'BarcodeDetector' in window
+  // Every phone with a camera: its own barcode reader where it has one, else the app's backup reader.
+  const canScan = cameraPossible()
   function addByBarcode(code: string) {
-    const clean = code.replace(/\s/g, '')
-    const p = clean.length >= 4 ? products.find((x) => x.barcode && x.barcode === clean) : undefined
+    const clean = normBarcode(code)
+    const p = clean.length >= 4 ? products.find((x) => x.barcode && normBarcode(x.barcode) === clean) : undefined
     if (!p) return false
     add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })
     setSearch('')
@@ -76,24 +89,51 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [customerId, setCustomerId] = useState(() => currentExchange()?.customerId ?? '')
   // Held bills: park this customer's bill, serve the next one, pick it up again. Kept on this device only.
   const heldKey = `held-bills:${shopId}`
-  const [held, setHeld] = useState<{ cart: CartLine[]; customerId: string; at: number }[]>(() => {
+  const [held, setHeld] = useState<{ cart: CartLine[]; customerId: string; at: number; delivery?: Delivery }[]>(() => {
     try { return JSON.parse(localStorage.getItem(heldKey) ?? '[]') } catch { return [] }
   })
   function keepHeld(next: typeof held) {
     setHeld(next)
     try { localStorage.setItem(heldKey, JSON.stringify(next)) } catch { /* private window: held bills last until reload */ }
   }
+  // An estimate the customer agreed to: its lines come into this bill (read once), and saving the bill marks it billed.
+  const [fromEstimate, setFromEstimate] = useState<{ id: string; number: number } | null>(null)
+  const [estimateSaved, setEstimateSaved] = useState<{ id: string; number: number } | null>(null)
+  useEffect(() => {
+    let raw: string | null = null
+    try { raw = sessionStorage.getItem('gk-estimate'); sessionStorage.removeItem('gk-estimate') } catch { /* no storage */ }
+    if (!raw) return
+    const e = JSON.parse(raw) as { id: string; number: number; customerId: string | null; lines: { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number }[] }
+    startedAt.current = 0
+    setCart(e.lines.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })))
+    setCustomerId(e.customerId ?? '')
+    setFromEstimate({ id: e.id, number: e.number })
+  }, [])
+  async function saveEstimate() {
+    if (cart.length === 0) return
+    try {
+      const e = await api<{ id: string; number: number }>('/v1/estimates', 'POST', {
+        id: crypto.randomUUID(), customerId: customerId || null,
+        lines: cart.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })),
+      })
+      setEstimateSaved({ id: e.id, number: e.number })
+      setCart([]); setCustomerId(''); setPaid(null); setSaved(null); setFromEstimate(null)
+    } catch (err) {
+      await ask(err instanceof Error ? err.message : String(err))
+    }
+  }
   function holdBill() {
     if (cart.length === 0) return
-    keepHeld([...held, { cart, customerId, at: Date.now() }])
+    keepHeld([...held, { cart, customerId, at: Date.now(), delivery: currentDelivery() }])
     setCart([]); setCustomerId(''); setPaid(null); setSaved(null)
   }
   function resumeBill(index: number) {
     const pick = held[index]
     startedAt.current = 0
     const rest = held.filter((_, i) => i !== index)
-    keepHeld(cart.length > 0 ? [...rest, { cart, customerId, at: Date.now() }] : rest)
+    keepHeld(cart.length > 0 ? [...rest, { cart, customerId, at: Date.now(), delivery: currentDelivery() }] : rest)
     setCart(pick.cart); setCustomerId(pick.customerId); setPaid(null); setSaved(null)
+    setDelivery(pick.delivery)
   }
   const [paid, setPaid] = useState<string | null>(null)
   const [mode, setMode] = useState<PaymentMode>('cash')
@@ -107,6 +147,54 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // A GST shop delivering to another state: the place of supply is that state, so the bill charges IGST.
   const [deliveredTo, setDeliveredTo] = useState('')
   const shopState = settings?.gstin && settings.gstin.length >= 2 ? settings.gstin.slice(0, 2) : null
+  // Most sales leave over the counter, so delivery stays shut until the bill needs it. Every bill starts without it:
+  // a state left over from the last sale would change this bill's tax without anyone seeing.
+  const [deliveryOpen, setDeliveryOpen] = useState(false)
+  const picksState = !!shopState && !settings?.gstComposition
+  const sendsGoods = sendsToSites(shopType)
+  const deliversGoods = settings?.deliversGoods ?? sendsGoods
+  function currentDelivery(): Delivery | undefined {
+    return deliveryOpen ? { deliveredTo, site: extras.site, vehicleNumber: extras.vehicleNumber } : undefined
+  }
+  function setDelivery(next?: Delivery) {
+    setDeliveryOpen(!!next)
+    setDeliveredTo(next?.deliveredTo ?? '')
+    setExtras((current) => ({ ...current, site: next?.site ?? '', vehicleNumber: next?.vehicleNumber ?? '' }))
+  }
+  // A saved, held or emptied bill takes its delivery with it.
+  useEffect(() => {
+    if (cart.length > 0) return
+    setDelivery()
+    stateOffered.current = ''
+  }, [cart.length])
+  // Another customer's bill isn't going to this one's site.
+  function pickCustomer(id: string) {
+    if (customerId && id !== customerId) setDelivery()
+    stateOffered.current = ''
+    setCustomerId(id)
+  }
+  // Where this customer's tax goes, whatever this shop has chosen about delivery. Online only: offline it's the shop's state.
+  const buyer = useQuery({
+    queryKey: [shopId, 'bill-details', customerId],
+    queryFn: () => api<{ gstin: string | null; address: string | null; state: string | null }>(`/v1/customers/${customerId}/bill-details`),
+    enabled: !!shopState && !!customerId,
+  }).data
+  // The server follows a registered buyer's GSTIN over anything chosen here, so the screen must say the same.
+  const buyerState = buyer?.gstin && buyer.gstin.length === 15 && GST_STATES[buyer.gstin.slice(0, 2)] ? buyer.gstin.slice(0, 2) : null
+  const stateOffered = useRef('')
+  useEffect(() => {
+    if (!buyer || stateOffered.current === customerId) return
+    stateOffered.current = customerId
+    if (picksState && !buyerState && buyer.state && buyer.state !== shopState && !deliveryOpen) {
+      setDeliveryOpen(true)
+      setDeliveredTo(buyer.state)
+    }
+  }, [buyer, customerId, picksState, buyerState, shopState, deliveryOpen])
+  const earlierSites = useQuery({
+    queryKey: [shopId, 'sites', customerId],
+    queryFn: () => api<{ site: string }[]>(`/v1/customers/${customerId}/sites`),
+    enabled: sendsGoods && deliversGoods && !!customerId,
+  }).data?.filter((s) => s.site).slice(0, 2).map((s) => s.site).join(', ')
   // Schedule H, H1 and X medicines need the doctor and patient on the bill; H1 and X also the doctor's address (the register).
   const [rx, setRx] = useState({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
   // A link to go with the bill on WhatsApp. It waits for the sync, and offline the message simply goes without one.
@@ -116,7 +204,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     queryFn: () => api<{ shopSlug: string; billId: string; token: string }>(`/v1/bills/${savedId}/link`, 'POST'),
     enabled: !!savedId, staleTime: Infinity, retry: 3, retryDelay: 1500,
   }).data
-  const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; mode: 'cash' | 'upi'; customer: { name: string; phone: string | null } | null } | null>(null)
+  const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; mode: PaymentMode; customer: { name: string; phone: string | null } | null } | null>(null)
 
   // On a phone the bill sits below the item grid: a bar above the tabs shows the total until the bill is in view.
   // Shown only while the bill is still below the screen: once scrolled to it, or past it down to the payment and
@@ -144,14 +232,48 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const regularOf = (l: CartLine) => products.find((p) => p.id === l.productId)?.sellingPrice ?? 0
   const offOf = (l: CartLine) => { const r = regularOf(l); return r > 0 && l.unitPrice > 0 && l.unitPrice < r ? { amount: round2((r - l.unitPrice) * l.quantity), percent: Math.round(((r - l.unitPrice) / r) * 1000) / 10 } : null }
   const discountTotal = round2(cart.reduce((sum, l) => sum + (offOf(l)?.amount ?? 0), 0))
-  const overLimit = !isOwner && cart.some((l) => (offOf(l)?.percent ?? 0) > staffLimit)
+  // The owner's planned offers. A line under one is the owner's price, so the helper's limit doesn't apply to it.
+  const offers = useOffers(shopId).data ?? []
+  // Only while the offer still runs: a held bill picked up after the offer ended goes back under the helper's limit, as on the server.
+  const underOffer = (l: CartLine) => !!l.offerId && offers.some((o) => o.id === l.offerId && isRunning(o, Date.now()))
+  const overLimit = !isOwner && cart.some((l) => !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit)
   const total = useMemo(() => round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [cart])
+  // A discount on the whole bill, if the shop wants one: spread over the lines by their share, so each line's price, its
+  // GST and the helper's limit all stay right. "remove" puts the prices back as they were.
+  const [billOff, setBillOff] = useState<{ before: CartLine[]; amount: number } | null>(null)
+  const [offForm, setOffForm] = useState<{ value: string; percent: boolean } | null>(null)
+  useEffect(() => { if (billOff && cart.length !== billOff.before.length) setBillOff(null) }, [cart, billOff])
+  function applyBillOff() {
+    if (!offForm) return
+    const value = Number(offForm.value)
+    const off = round2(offForm.percent ? (total * value) / 100 : value)
+    if (!(off > 0) || off >= total) { void ask(t('billOff.tooMuch')); return }
+    const factor = (total - off) / total
+    const next = cart.map((l) => ({ ...l, unitPrice: round2(l.unitPrice * factor) }))
+    // Rounding can leave a few paise: the line with the most money takes them, if that keeps its price whole.
+    const gap = round2(total - off - next.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
+    const big = next.reduce((best, l, i) => (round2(l.quantity * l.unitPrice) > round2(next[best].quantity * next[best].unitPrice) ? i : best), 0)
+    if (gap !== 0 && next[big].quantity === 1) next[big] = { ...next[big], unitPrice: round2(next[big].unitPrice + gap) }
+    setBillOff({ before: cart, amount: round2(total - next.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)) })
+    setCart(next)
+    setOffForm(null)
+  }
   const customer = customers.find((c) => c.id === customerId) ?? null
   // An exchange started from an old bill: its credit note pays this much of the new bill (the rest, or change back).
   const [exchange, setExchangeState] = useState<Exchange | null>(() => currentExchange())
   const exchangeCredit = exchange ? Math.min(exchange.total, total) : 0
   const due = round2(total - exchangeCredit)
   const paidAmount = paid === null || !customer ? due : Math.min(Number(paid) || 0, due)
+  // Paid two ways: the UPI part typed, the rest of what is paid now in cash. null: one way, by mode.
+  const [upiPart, setUpiPart] = useState<string | null>(null)
+  const upiPaid = upiPart === null ? 0 : Math.min(Math.max(Number(upiPart) || 0, 0), paidAmount)
+  const cashPaid = round2(paidAmount - upiPaid)
+  const split = upiPart !== null && upiPaid > 0 && cashPaid > 0
+  // The other way of a split: UPI or card. And the UPI reference (UTR) the customer's app shows, if typed: proof on the bill.
+  const [splitWith, setSplitWith] = useState<'upi' | 'card'>('upi')
+  const [utr, setUtr] = useState('')
+  const upiNow = upiPart === null ? mode === 'upi' && paidAmount > 0 : split && splitWith === 'upi'
+  const reference = upiNow && utr.length >= 6 ? utr : null
   const schedules = cart.map((l) => products.find((p) => p.id === l.productId)?.schedule).filter((s) => s === 'h' || s === 'h1' || s === 'x')
   const needsAddress = schedules.some((s) => s === 'h1' || s === 'x')
   // Serialised units go out by serial number, one per unit (the warranty runs from this bill).
@@ -162,6 +284,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
   function add(line: CartLine) {
     setSaved(null)
+    // At its regular price, an item a running offer covers goes in at the offer's price, with the offer's name.
+    const item = line.productId ? products.find((p) => p.id === line.productId) : undefined
+    const offer = item && line.unitPrice === item.sellingPrice ? bestOffer(offers, item) : null
+    if (offer && item) line = { ...line, unitPrice: offerPrice(offer, item.sellingPrice), offerId: offer.id, offerName: offer.name }
     const qty = pendingQty ?? 1
     if (pendingQty) { line = { ...line, quantity: pendingQty }; setSearch('') }
     setCart((current) => {
@@ -171,6 +297,22 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       return current.map((l, i) => (i === index ? { ...l, quantity: round2(l.quantity + qty) } : l))
     })
     if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
+  }
+
+  // A USB or serial weighing scale (Chrome on computers): weigh a kg or g line instead of typing it.
+  const hasScale = typeof navigator !== 'undefined' && 'serial' in navigator
+  const [weighing, setWeighing] = useState<number | null>(null)
+  async function weigh(index: number, unit: Unit, choose = false) {
+    setWeighing(index)
+    try {
+      const { readScale } = await import('../lib/scale')
+      const kg = await readScale(choose)
+      setQuantity(index, unit === 'g' ? Math.round(kg * 1000) : kg)
+    } catch (e) {
+      if (!(e instanceof Error && e.name === 'NotFoundError')) window.alert(`${t('scale.failed')} ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setWeighing(null)
+    }
   }
 
   function setQuantity(index: number, quantity: number) {
@@ -190,21 +332,33 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
   /** Prices change, and starter-catalogue items have none yet: the counter price is editable per line. */
   function setPrice(index: number, unitPrice: number) {
-    setCart((current) => current.map((l, i) => (i === index ? { ...l, unitPrice } : l)))
+    // A price changed by hand is the counter's, not the offer's: offers and counter discounts don't add up.
+    setCart((current) => current.map((l, i) => (i === index ? { ...l, unitPrice, offerId: null, offerName: null } : l)))
   }
 
   async function save() {
     const result = await saveBill(shopId, cart.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
-      exchangeNoteId: exchange?.noteId ?? null, exchangeCredit, placeOfSupply: deliveredTo || null, entrySeconds: billSeconds(startedAt.current, Date.now()),
+      exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
+      payments: split ? [{ mode: 'cash', amount: cashPaid }, { mode: splitWith, amount: upiPaid, reference: splitWith === 'upi' ? reference : null }]
+        : reference ? [{ mode: 'upi', amount: paidAmount, reference }] : undefined, placeOfSupply: (picksState && deliveredTo) || null, entrySeconds: billSeconds(startedAt.current, Date.now()), withoutGst: picksState && withoutGst,
       prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
     })
     setRx({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
     setPicked({})
-    setExtras({ ...extras, site: '', vehicleNumber: '' })
-    setDeliveredTo('')
     setSavedId(result.id)
+    setUpiPart(null)
+    setUtr('')
+    setBillOff(null)
+    setOffForm(null)
+    setWithoutGst(false)
+    // In the same queue as the bill, after it: sent when the bill is, offline too.
+    if (fromEstimate) {
+      await enqueue({ id: `${fromEstimate.id}:billed`, shopId, kind: 'estimateBilled', path: `/v1/estimates/${fromEstimate.id}/billed`, body: { billId: result.id }, label: t('estimate.number', { number: fromEstimate.number }) })
+      setFromEstimate(null)
+    }
+    setEstimateSaved(null)
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
     if (exchange) { endExchange(); setExchangeState(null) }
@@ -221,6 +375,18 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     navigate(`/print/bill/${saved.id}`)
   }
 
+  // Rule 46: a tax bill of this size to an unregistered buyer carries their address. Said before saving, not after.
+  const needsBuyerAddress = !!shopState && total >= 50000 && (customer ? !!buyer && !buyer.gstin && !buyer.address : true)
+  // What this bill will be, shown before it's saved: the server decides, and the screen must say the same.
+  // A registered shop picks the kind of bill: a GST bill (the usual), or a bill without GST. Every new bill starts as a GST bill.
+  const [withoutGst, setWithoutGst] = useState(false)
+  const taxInvoice = picksState && !withoutGst
+  const taxState = buyerState ?? (deliveredTo || shopState)
+  const tax = useMemo(() => billTax(cart.map((l) => {
+    const item = products.find((p) => p.id === l.productId)
+    return { amount: round2(l.quantity * l.unitPrice), gstRate: item ? garmentRate(item.hsnCode, item.gstRate, l.unitPrice) : null }
+  }), taxState !== shopState), [cart, products, taxState, shopState])
+  const [taxOpen, setTaxOpen] = useState(false)
   const canSave = total > 0 && !unpriced && !rxMissing && !serialsMissing && !overLimit
   // Desktop keys: F2 search, F4 amount paid, Ctrl+Enter save, Esc clear search, ? the key list.
   function allOnKhata() {
@@ -269,7 +435,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             if (addByBarcode(code)) return
             if (/^\d{8,14}$/.test(code)) { setScanMiss(code); return }
             // A name typed: Enter adds the best match (a style opens its sizes).
-            const top = query ? groupStyles(tiles)[0] : undefined
+            const top = query ? groups[0] : undefined
             if (top?.kind === 'style') setStylePick(top.name)
             else if (top) { add({ productId: top.product.id, name: top.product.name, quantity: 1, unit: top.product.unit, unitPrice: top.product.sellingPrice }); setSearch('') }
           }}
@@ -290,17 +456,30 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           </ul>
         </div>
       )}
-      {scanning && <ScanSheet onCode={(code) => { setScanning(false); if (!addByBarcode(code)) setScanMiss(code) }} onClose={() => setScanning(false)} />}
-      {scanMiss && <p className="rounded-xl bg-red-50 p-2 text-sm font-semibold text-due">{t('barcodeBill.notFound', { code: scanMiss })}</p>}
-      <div className="grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5">
-        {groupStyles(tiles).map((entry) => entry.kind === 'style' ? (
+      {/* Scanning stays open for the next item; a code no item has waits below, to be put on an item or made one. */}
+      {scanning && (
+        <Suspense fallback={null}>
+          <ScanSheet continuous onCode={(code) => { const ok = addByBarcode(code); if (!ok) setScanMiss(normBarcode(code)); return ok }} onClose={() => setScanning(false)} />
+        </Suspense>
+      )}
+      {scanMiss && (
+        <Suspense fallback={null}><UnknownBarcode shopId={shopId} code={scanMiss} products={products} onClose={() => setScanMiss(null)}
+          onItem={(p) => { add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice }); setScanMiss(null); setSearch('') }} /></Suspense>
+      )}
+      <div className="grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+        {groups.map((entry) => entry.kind === 'style' ? (
           <ItemCard
             key={`style-${entry.name}`}
             compact
             item={entry.items[0]}
             imageUrl={imageUrl(shopId, entry.items[0].id, entry.items[0].imageAt, 'thumb')}
             title={entry.name}
-            subtitle={t('styles.count', { count: entry.items.length })}
+            subtitle={(() => {
+              const offer = entry.items.map((p) => bestOffer(offers, p)).find(Boolean)
+              return offer
+                ? <span><span className="mr-1 rounded-full bg-amber-100 px-1.5 text-[11px] font-bold text-amber-900">🏷 {offer.kind === 'percent' ? `${offer.value}%` : formatRupees(offer.value)} {t('offers.off')}</span>{t('styles.count', { count: entry.items.length })}</span>
+                : t('styles.count', { count: entry.items.length })
+            })()}
             badge={cart.filter((l) => entry.items.some((p) => p.id === l.productId)).reduce((n, l) => n + l.quantity, 0) || undefined}
             onClick={() => setStylePick(entry.name)}
           />
@@ -312,7 +491,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             imageUrl={imageUrl(shopId, p.id, p.imageAt, 'thumb')}
             title={p.name}
             subtitle={p.sellingPrice > 0
-              ? <span><b className="text-ink">{formatRupees(p.sellingPrice)}</b>/{t(`units.${p.unit}`)}</span>
+              ? ((offer) => offer
+                ? <span><s className="text-muted">{formatRupees(p.sellingPrice)}</s> <b className="text-teal-800">{formatRupees(offerPrice(offer, p.sellingPrice))}</b> <span className="rounded-full bg-amber-100 px-1.5 text-[11px] font-bold text-amber-900">🏷 {offer.name}</span></span>
+                : <span><b className="text-ink">{formatRupees(p.sellingPrice)}</b>/{t(`units.${p.unit}`)}</span>)(bestOffer(offers, p))
               : t('stock.noPrice')}
             badge={cart.filter((l) => l.productId === p.id).reduce((n, l) => n + l.quantity, 0) || undefined}
             onClick={() => add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })}
@@ -340,7 +521,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 <button key={p.id} onClick={() => { add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice }); setStylePick(null) }}
                   className={`flex min-h-16 flex-col items-center justify-center rounded-xl border-2 px-1 py-2 ${out ? 'border-line opacity-60' : 'border-teal-700'}`}>
                   <span className="text-lg font-extrabold">{variantLabel(p) || p.name}</span>
-                  <span className="text-xs text-muted">{p.sellingPrice > 0 ? formatRupees(p.sellingPrice) : t('stock.noPrice')} · {p.uncounted ? t('stock.notCounted') : out ? t('stock.out') : t('styles.left', { count: p.stock })}</span>
+                  <span className="text-xs text-muted">{(() => {
+                    // A running offer shows here too, so the counter sees the price the bill will use.
+                    const offer = p.sellingPrice > 0 ? bestOffer(offers, p) : null
+                    return p.sellingPrice <= 0 ? t('stock.noPrice') : offer ? <><s>{formatRupees(p.sellingPrice)}</s> <b className="text-teal-800">{formatRupees(offerPrice(offer, p.sellingPrice))}</b></> : formatRupees(p.sellingPrice)
+                  })()} · {p.uncounted ? t('stock.notCounted') : out ? t('stock.out') : t('styles.left', { count: p.stock })}</span>
                 </button>
               )
             })}
@@ -364,6 +549,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         {cart.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-4 text-center text-muted">
             <p>{saved ? `${t('saved')} ${formatRupees(saved.total)}` : t('emptyCart')}</p>
+          {estimateSaved && (
+            <p className="flex items-center justify-between gap-2 rounded-xl bg-teal-50 p-2 text-sm text-teal-900">
+              <span>{t('estimate.saved', { number: estimateSaved.number })}</span>
+              <button type="button" onClick={() => navigate(`/print/estimate/${estimateSaved.id}`)} className="min-h-11 shrink-0 font-semibold underline">{t('estimate.open')}</button>
+            </p>
+          )}
             {saved && saved.paid > 0 && (
               <p className={`rounded-full px-3 py-1 text-sm font-semibold ${saved.mode === 'upi' ? 'bg-teal-50 text-teal-800' : 'bg-amber-50 text-amber-900'}`}>
                 {t(saved.mode === 'upi' ? 'upiPay.paidUpi' : 'upiPay.paidCash', { amount: formatRupees(saved.paid) })}
@@ -414,11 +605,6 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               )}
               {regularOf(l) > 0 && (
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  {/* One tap for the usual shop discounts, from the item's regular price; tap the price box for any other. */}
-                  {[5, 10].map((pct) => (
-                    <button key={pct} type="button" onClick={() => setPrice(i, round2(regularOf(l) * (1 - pct / 100)))}
-                      className="h-8 rounded-full border border-line px-2.5 text-xs font-semibold">{t('discount.chip', { percent: pct })}</button>
-                  ))}
                   {offOf(l) && (
                     <>
                       <span className={`text-xs font-semibold ${!isOwner && offOf(l)!.percent > staffLimit ? 'text-due' : 'text-teal-800'}`}>
@@ -429,7 +615,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                   )}
                 </div>
               )}
-              {!isOwner && (offOf(l)?.percent ?? 0) > staffLimit && <p className="text-xs font-semibold text-due">{t('discount.overLimit', { percent: staffLimit })}</p>}
+              {l.offerId && (
+                <p className="mt-1 flex items-center gap-2 text-xs font-semibold text-teal-800">
+                  <span className="rounded-full bg-teal-50 px-2 py-0.5">🏷 {t('offers.tag', { name: l.offerName })}</span>
+                  <button type="button" onClick={() => setPrice(i, regularOf(l))} className="min-h-8 text-muted underline">{t('offers.remove')}</button>
+                </p>
+              )}
+              {!isOwner && !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit && <p className="text-xs font-semibold text-due">{t('discount.overLimit', { percent: staffLimit })}</p>}
               {(() => {
                 // Medicines run on thin margins: warn when this price, before GST, is at or under what the item cost.
                 const p = products.find((x) => x.id === l.productId)
@@ -447,6 +639,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               {(() => { const per = products.find((p) => p.id === l.productId)?.unitsPerPack; return per ? (
                 <button onClick={() => sellLoose(i, per)} className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('loose.button')}</button>
               ) : null })()}
+              {hasScale && (l.unit === 'kg' || l.unit === 'g') && (
+                <span className="flex gap-3">
+                  <button disabled={weighing !== null} onClick={() => void weigh(i, l.unit)} className="min-h-11 text-xs font-semibold text-teal-700 underline disabled:opacity-50">{weighing === i ? t('scale.reading') : t('scale.button')}</button>
+                  <button disabled={weighing !== null} onClick={() => void weigh(i, l.unit, true)} className="min-h-11 text-xs text-muted underline">{t('scale.change')}</button>
+                </span>
+              )}
               {tmtKgPerBar(l.name) && l.unit === 'kg' && (
                 <button onClick={async () => { const bars = Number((await ask(t('bars.ask', { name: l.name }))) || 0); if (bars > 0) setQuantity(i, Math.round(bars * tmtKgPerBar(l.name)! * 1000) / 1000) }}
                   className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('bars.button', { kg: tmtKgPerBar(l.name) })}</button>
@@ -478,6 +676,62 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>
             </div>
           )}
+          {/* Optional: the shopkeeper's own discount on the whole bill. */}
+          {billOff ? (
+            <p className="mt-1 flex items-center justify-between gap-2 text-sm font-semibold text-teal-800">
+              <span>{t('billOff.applied', { amount: formatRupees(billOff.amount) })}</span>
+              <button type="button" onClick={() => { setCart(billOff.before); setBillOff(null) }} className="min-h-9 text-xs font-normal text-muted underline">{t('billOff.remove')}</button>
+            </p>
+          ) : offForm ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              <input value={offForm.value} onChange={(e) => setOffForm({ ...offForm, value: e.target.value })} inputMode="decimal" placeholder={t('billOff.amount')} aria-label={t('billOff.amount')} autoFocus
+                className="h-11 w-24 rounded-xl border border-line bg-white px-2" />
+              <div className="flex rounded-xl border border-line">
+                {([false, true] as const).map((pct) => (
+                  <button key={String(pct)} type="button" onClick={() => setOffForm({ ...offForm, percent: pct })} aria-pressed={offForm.percent === pct}
+                    className={`min-h-11 px-3 font-semibold ${offForm.percent === pct ? 'bg-teal-700 text-white' : ''} ${pct ? 'rounded-r-xl' : 'rounded-l-xl'}`}>{t(pct ? 'billOff.percent' : 'billOff.rupees')}</button>
+                ))}
+              </div>
+              <button type="button" onClick={applyBillOff} disabled={!(Number(offForm.value) > 0)} className="min-h-11 rounded-xl bg-teal-700 px-4 font-semibold text-white disabled:opacity-40">{t('billOff.apply')}</button>
+              <button type="button" onClick={() => setOffForm(null)} className="min-h-11 px-2 text-muted">{t('cancel')}</button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setOffForm({ value: '', percent: false })} className="mt-1 min-h-11 text-sm font-semibold text-teal-700">{t('billOff.add')}</button>
+          )}
+          {settings && (
+            <div className="mt-2 text-sm">
+              {picksState && (
+                <label className="mb-1 flex items-center justify-between gap-2">
+                  <span className="font-semibold text-muted">{t('gstLine.kind')}</span>
+                  <select value={withoutGst ? 'none' : 'gst'} onChange={(e) => setWithoutGst(e.target.value === 'none')} className="h-11 min-w-0 rounded-xl border border-line bg-white px-2 font-semibold">
+                    <option value="gst">{t('gstLine.gstBill')}</option>
+                    <option value="none">{t('gstLine.noGstBill')}</option>
+                  </select>
+                </label>
+              )}
+              {picksState && withoutGst && <p className="mb-1 rounded-xl bg-amber-50 p-2 text-xs text-amber-900">{t('gstLine.noGstHint')}</p>}
+              <p className="font-semibold text-muted">
+                {t(taxInvoice ? 'gstLine.invoice' : picksState && withoutGst ? 'gstLine.withoutGst' : shopState ? 'gstLine.supply' : 'gstLine.plain')}
+                {!shopState && isOwner && <button type="button" onClick={() => navigate('/settings')} className="ml-2 min-h-11 font-semibold text-teal-700 underline">{t('gstLine.addGstin')}</button>}
+              </p>
+              {/* Prices include GST: show what the total is made of, so it is plain the GST is inside it, not on top. */}
+              {taxInvoice && tax.tax > 0 && (
+                <p className="flex justify-between gap-2 text-muted"><span>{t('gstLine.beforeGst')}</span><span>{formatRupees(total - tax.tax)}</span></p>
+              )}
+              {taxInvoice && (
+                <button type="button" onClick={() => setTaxOpen(!taxOpen)} aria-expanded={taxOpen} className="flex min-h-11 w-full items-center justify-between text-left font-semibold">
+                  <span>{t('gstLine.inBill')} {taxOpen ? '▴' : '▾'}</span><span>{formatRupees(tax.tax)}</span>
+                </button>
+              )}
+              {taxInvoice && taxOpen && tax.rows.map((r) => (
+                <p key={r.rate} className="flex justify-between gap-2 text-muted">
+                  <span>{r.rate}% · {t('gstLine.taxable', { amount: formatRupees(r.taxable) })}</span>
+                  <span>{r.igst > 0 ? `IGST ${formatRupees(r.igst)}` : `CGST ${formatRupees(r.cgst)} · SGST ${formatRupees(r.sgst)}`}</span>
+                </p>
+              ))}
+              {taxInvoice && tax.unset > 0 && <p className="font-semibold text-amber-800">{t('gstLine.noRate', { amount: formatRupees(tax.unset) })}</p>}
+            </div>
+          )}
           <div className="mt-2 flex justify-between text-xl font-bold">
             <span>{t('total')}</span>
             <span>{formatRupees(total)}</span>
@@ -487,7 +741,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
       {cart.length > 0 && (
         <div className="space-y-3 rounded-[18px] bg-white p-3">
-          <CustomerFinder customers={customers} selected={customer} onKhata={customer ? round2(due - paidAmount) : 0} onPick={setCustomerId} />
+          <CustomerFinder customers={customers} selected={customer} onKhata={customer ? round2(due - paidAmount) : 0} onPick={pickCustomer} onNameLater={() => addCustomer(shopId, '', '', true)} onCreate={(name, phone) => addCustomer(shopId, name, phone)} />
           {customer && (
             <>
               <Field id="bill-paid" label={t('paidNow')} value={paid ?? String(total)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
@@ -501,10 +755,41 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           )}
           {isTrade(types) && (
             <Suspense fallback={null}>
-              <TradeBillPanel shopId={shopId} shopType={shopType} customer={customer} total={total} onKhata={customer ? round2(due - paidAmount) : 0}
-                cart={cart} products={products} extras={extras} onExtras={setExtras} onAddLine={add}
-                onChallanSaved={() => { setCart([]); setPaid(null); setCustomerId(''); setExtras({ ...extras, site: '', vehicleNumber: '' }) }} />
+              <TradeBillPanel shopId={shopId} shopType={shopType} customer={customer} onKhata={customer ? round2(due - paidAmount) : 0}
+                products={products} extras={extras} onExtras={setExtras} onAddLine={add} />
             </Suspense>
+          )}
+          {picksState && buyerState && buyerState !== shopState && <p className="text-xs font-semibold text-amber-800">{t('pos.byGstin', { state: GST_STATES[buyerState] })}</p>}
+          {deliversGoods && (picksState || sendsGoods) && !deliveryOpen && (
+            <button type="button" onClick={() => setDeliveryOpen(true)} className="min-h-11 w-full rounded-xl border border-dashed border-line px-3 py-2 text-left font-semibold text-teal-800">
+              + {t('delivery.add')}
+              {earlierSites && <span className="block text-xs font-normal text-muted">{t('delivery.earlier', { sites: earlierSites })}</span>}
+            </button>
+          )}
+          {deliveryOpen && (
+            <section aria-label={t('delivery.title')} className="flex flex-col gap-2 rounded-xl border border-line p-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold">{t('delivery.title')}</h3>
+                <button type="button" onClick={() => setDelivery()} className="min-h-11 px-1 text-sm font-semibold text-teal-700 underline">{t('delivery.remove')}</button>
+              </div>
+              {picksState && buyerState && <p className="text-sm text-muted">{t('pos.followsGstin', { state: GST_STATES[buyerState] })}</p>}
+              {picksState && !buyerState && (
+                <label className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-semibold text-muted">{t('pos.label')}</span>
+                  <select value={deliveredTo} onChange={(e) => setDeliveredTo(e.target.value === shopState ? '' : e.target.value)} className="h-11 max-w-56 rounded-xl border border-line bg-white px-2">
+                    <option value="">{t('pos.here', { state: GST_STATES[shopState] ?? shopState })}</option>
+                    {Object.entries(GST_STATES).filter(([code]) => code !== shopState).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+                  </select>
+                </label>
+              )}
+              {picksState && !buyerState && deliveredTo && <p className="text-xs font-semibold text-amber-800">{t('pos.igst', { state: GST_STATES[deliveredTo] })}</p>}
+              {sendsGoods && (
+                <Suspense fallback={null}>
+                  <TradeDelivery shopId={shopId} customer={customer} total={total} cart={cart} extras={extras} onExtras={setExtras} placeOfSupply={(picksState && deliveredTo) || null}
+                    onChallanSaved={() => { setCart([]); setPaid(null); setCustomerId('') }} />
+                </Suspense>
+              )}
+            </section>
           )}
           {serialLines.map((l) => (
             <SerialPicker key={l.productId} shopId={shopId} productId={l.productId!} name={l.name} quantity={l.quantity}
@@ -524,26 +809,37 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               </div>
             </div>
           )}
-          <div className="flex gap-2 text-sm">
-            {(['cash', 'upi'] as const).map((m) => (
-              <button key={m} onClick={() => setMode(m)} className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}>
+          <div className="flex flex-wrap gap-2 text-sm">
+            {(['cash', 'upi', 'card'] as const).map((m) => (
+              <button key={m} onClick={() => { setMode(m); setUpiPart(null) }} className={`h-11 rounded-xl px-4 font-semibold ${upiPart === null && mode === m ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}>
                 {t(m)}
               </button>
             ))}
+            {paidAmount > 0 && (
+              <button onClick={() => { setMode('cash'); setUpiPart(upiPart === null ? '' : null) }} aria-pressed={upiPart !== null}
+                className={`h-11 rounded-xl px-4 font-semibold ${upiPart !== null ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}>{t('split.button')}</button>
+            )}
           </div>
-          {mode === 'cash' && paidAmount > 0 && <CashChange paying={paidAmount} received={received} onChange={setReceived} />}
-          {mode === 'upi' && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={paidAmount} />}
-          {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
-          {shopState && !settings?.gstComposition && (
-            <label className="flex items-center justify-between gap-2 text-sm">
-              <span className="font-semibold text-muted">{t('pos.label')}</span>
-              <select value={deliveredTo} onChange={(e) => setDeliveredTo(e.target.value === shopState ? '' : e.target.value)} className="h-11 max-w-56 rounded-xl border border-line bg-white px-2">
-                <option value="">{t('pos.here', { state: GST_STATES[shopState] ?? shopState })}</option>
-                {Object.entries(GST_STATES).filter(([code]) => code !== shopState).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-              </select>
-            </label>
+          {upiPart !== null && paidAmount > 0 && (
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#f1f5f4] p-2 text-sm">
+              <label className="flex flex-col gap-1"><span className="flex gap-1">{(['upi', 'card'] as const).map((m) => (
+                <button key={m} type="button" onClick={() => setSplitWith(m)} aria-pressed={splitWith === m} className={`rounded-md px-2 font-semibold ${splitWith === m ? 'bg-ink text-white' : 'text-muted'}`}>{t(m)}</button>))}</span>
+                <input value={upiPart} onChange={(e) => setUpiPart(e.target.value)} inputMode="decimal" autoFocus placeholder="0" className="h-11 rounded-lg border border-line bg-white px-2 text-lg" /></label>
+              <span className="flex flex-col gap-1"><span className="text-muted">{t('cash')}</span><b className="flex h-11 items-center text-lg">{formatRupees(cashPaid)}</b></span>
+              <span className="col-span-2 text-xs text-muted">{t('split.hint', { total: formatRupees(paidAmount) })}</span>
+            </div>
           )}
-          {deliveredTo && <p className="text-xs font-semibold text-amber-800">{t('pos.igst', { state: GST_STATES[deliveredTo] })}</p>}
+          <CashLimitNote customerId={customer?.id ?? null} cash={upiPart === null ? (mode === 'cash' ? paidAmount : 0) : cashPaid} />
+          {(upiPart === null ? mode === 'cash' : cashPaid > 0) && paidAmount > 0 && <CashChange paying={upiPart === null ? paidAmount : cashPaid} received={received} onChange={setReceived} />}
+          {upiNow && (
+            <input value={utr} onChange={(e) => setUtr(e.target.value.replace(/[^0-9a-zA-Z]/g, '').toUpperCase().slice(0, 30))} placeholder={t('split.utr')} aria-label={t('split.utr')}
+              className="h-11 rounded-xl border border-line bg-white px-3 text-sm outline-none focus:border-teal-600" />
+          )}
+          {(upiPart === null ? mode === 'upi' : upiPaid > 0 && splitWith === 'upi') && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={upiPart === null ? paidAmount : upiPaid} />}
+          {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
+          {needsBuyerAddress && <p className="text-sm font-semibold text-due">{t('print.bigBillAddress')}</p>}
+          {fromEstimate && <p className="rounded-xl bg-teal-50 p-2 text-sm text-teal-900">{t('estimate.fromEstimate', { number: fromEstimate.number })}</p>}
+          <button type="button" onClick={() => void saveEstimate()} disabled={cart.length === 0 || !!fromEstimate} className="min-h-11 self-start text-sm font-semibold text-teal-700 underline disabled:opacity-40">{t('estimate.save')}</button>
           <div className="flex gap-2">
             <button type="button" onClick={holdBill} className="min-h-12 shrink-0 rounded-2xl border-2 border-teal-700 px-4 font-bold text-teal-800">{t('hold.button')}</button>
             <Button className="flex-1" id="bill-save" onClick={save} disabled={!canSave}>
@@ -660,7 +956,7 @@ function UpiCollect({ upiId, shop, amount }: { upiId: string | null; shop: strin
 function billReceipt(
   t: (key: string, options?: Record<string, unknown>) => string,
   shopName: string,
-  bill: { total: number; lines: CartLine[]; paid: number; mode?: 'cash' | 'upi'; customer: { name: string } | null },
+  bill: { total: number; lines: CartLine[]; paid: number; mode?: PaymentMode; customer: { name: string } | null },
   nameOf: (line: CartLine) => string = (l) => l.name,
 ) {
   const items = bill.lines.map((l) => `• ${nameOf(l)} ${l.quantity} ${t(`units.${l.unit}`)} × ${formatRupees(l.unitPrice)} = ${formatRupees(Math.round(l.quantity * l.unitPrice * 100) / 100)}`)
@@ -718,36 +1014,3 @@ function SerialPicker({ shopId, productId, name, quantity, chosen, onChange }: {
 }
 
 /** The phone camera reading a barcode (BarcodeDetector, in Chrome on Android and some others). */
-function ScanSheet({ onCode, onClose }: { onCode: (code: string) => void; onClose: () => void }) {
-  const { t } = useTranslation()
-  const video = useRef<HTMLVideoElement>(null)
-  const [error, setError] = useState('')
-  useEffect(() => {
-    let stream: MediaStream | null = null
-    let timer = 0
-    let done = false
-    ;(async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-        if (!video.current) return
-        video.current.srcObject = stream
-        await video.current.play()
-        const Detector = (window as unknown as { BarcodeDetector: new (o: { formats: string[] }) => { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> } }).BarcodeDetector
-        const detector = new Detector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] })
-        timer = window.setInterval(async () => {
-          if (done || !video.current) return
-          const found = await detector.detect(video.current).catch(() => [])
-          if (found[0]?.rawValue) { done = true; onCode(found[0].rawValue) }
-        }, 300)
-      } catch {
-        setError(t('barcodeBill.noCamera'))
-      }
-    })()
-    return () => { done = true; window.clearInterval(timer); stream?.getTracks().forEach((track) => track.stop()) }
-  }, [onCode, t])
-  return (
-    <Sheet title={t('barcodeBill.scan')} onClose={onClose}>
-      {error ? <p className="text-sm text-due">{error}</p> : <video ref={video} muted playsInline className="w-full rounded-xl bg-black" />}
-    </Sheet>
-  )
-}

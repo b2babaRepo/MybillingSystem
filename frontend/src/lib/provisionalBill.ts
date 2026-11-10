@@ -10,6 +10,7 @@ export interface ProvisionalBill {
   paidAmount: number
   onKhata: number
   paymentMode: PaymentMode
+  payments?: { mode: PaymentMode; amount: number }[] | null
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -17,7 +18,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 /** A bill still in the outbox, as a receipt can show it. Null when there is no such op. */
 export function provisionalBill(op: OutboxOp | undefined): ProvisionalBill | null {
   if (!op) return null
-  const body = op.body as { lines: CartLine[]; paidAmount: number; paymentMode: PaymentMode; occurredAt: string }
+  const body = op.body as { lines: CartLine[]; paidAmount: number; paymentMode: PaymentMode; payments?: { mode: PaymentMode; amount: number }[]; occurredAt: string }
   const lines = body.lines.map((l) => ({ ...l, amount: round2(l.quantity * l.unitPrice) }))
   return {
     occurredAt: body.occurredAt,
@@ -27,5 +28,6 @@ export function provisionalBill(op: OutboxOp | undefined): ProvisionalBill | nul
     paidAmount: body.paidAmount,
     onKhata: Math.max(op.delta ?? 0, 0),
     paymentMode: body.paymentMode,
+    payments: body.payments ?? null,
   }
 }

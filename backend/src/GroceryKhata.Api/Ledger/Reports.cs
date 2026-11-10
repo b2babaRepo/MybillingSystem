@@ -26,7 +26,8 @@ public sealed record ProfitLossReport(
     string FinancialYear, decimal Sales, decimal Turnover, decimal Gst, decimal GoodsProfit, decimal Returns, decimal StockLoss, decimal Expenses, decimal NetProfit,
     decimal TakenHome, decimal Purchases, decimal OpeningStock, decimal ClosingStock, DateOnly ClosingDate, decimal SupplierDue, decimal CustomerDue, int ItemsWithoutCost, decimal ProfitCoverage,
     decimal WorkInProgress = 0, decimal MachineWear = 0, decimal FinishedGoods = 0,
-    decimal CashReceipts = 0, decimal DigitalReceipts = 0, decimal PresumedProfit = 0, decimal LastYearTurnover = 0, IReadOnlyList<TurnoverAlert>? TurnoverAlerts = null);
+    decimal CashReceipts = 0, decimal DigitalReceipts = 0, decimal PresumedProfit = 0, decimal LastYearTurnover = 0, IReadOnlyList<TurnoverAlert>? TurnoverAlerts = null,
+    IReadOnlyList<KharchaLine>? ExpenseLines = null, IReadOnlyList<KharchaLine>? NotInProfit = null);
 
 /// <summary>A turnover limit the shop has crossed or is near: <see cref="ReportEndpoints.TurnoverLimits"/>.</summary>
 public sealed record TurnoverAlert(string Key, decimal Limit, decimal Turnover, bool Crossed);
@@ -85,11 +86,37 @@ public sealed record MonthReport(
     decimal Returns = 0,
     decimal StockLoss = 0,
     decimal StockValue = 0,
-    decimal SupplierDue = 0)
+    decimal SupplierDue = 0,
+    MonthStatement? Statement = null,
+    decimal Card = 0,
+    decimal Cheque = 0)
 {
     /// <summary>Estimated profit less running costs. Stock bought isn't taken off (sales already count goods at cost); money taken home isn't a cost.</summary>
     public decimal NetProfit => EstimatedProfit - Expenses;
 }
+
+/// <summary>One heading's money in the month statement.</summary>
+public sealed record KharchaLine(ExpenseCategory Category, decimal Amount);
+
+/// <summary>
+/// The month on one page, the way an accountant reads it: sales, less GST, less what the goods cost, gives gross
+/// profit; less each running cost gives net profit. Money out that is not a cost is listed after, apart.
+/// Gross profit counts only items with a cost written, so the sales with no cost are a line of their own.
+/// </summary>
+public sealed record MonthStatement(
+    decimal SalesWithGst,
+    decimal RoundOff,
+    decimal GstInSales,
+    decimal Sales,
+    decimal NoCostSales,
+    decimal CostOfGoods,
+    decimal Returns,
+    decimal StockLoss,
+    decimal GrossProfit,
+    IReadOnlyList<KharchaLine> Running,
+    decimal Expenses,
+    decimal NetProfit,
+    IReadOnlyList<KharchaLine> NotInProfit);
 
 /// <summary>
 /// Ageing by first-in, first-out: every payment (and every reversal of udhaar) pays off the oldest udhaar first,
@@ -227,7 +254,7 @@ public static class ReportEndpoints
             // Profit shows what goods cost: for the owner, not helpers.
             ? TypedResults.Ok(await BuildMonthAsync(db, period, ct) is var report && user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))
                 ? report
-                : report with { EstimatedProfit = 0, ProfitCoverage = 0, Expenses = 0, StockPurchases = 0, TakenHome = 0, Returns = 0, StockLoss = 0, StockValue = 0, SupplierDue = 0 })
+                : report with { Statement = null, EstimatedProfit = 0, ProfitCoverage = 0, Expenses = 0, StockPurchases = 0, TakenHome = 0, Returns = 0, StockLoss = 0, StockValue = 0, SupplierDue = 0 })
             : TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
 
     public static async Task<MonthReport> BuildMonthAsync(AppDbContext db, (int Year, int Month) period, CancellationToken ct)
@@ -237,8 +264,8 @@ public static class ReportEndpoints
             .Where(b => b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null)
             .ToListAsync(ct);
         var entries = await db.LedgerEntries.AsNoTracking()
-            .Where(e => e.OccurredAt >= start && e.OccurredAt < end)
-            .Select(e => new { e.OccurredAt, e.Amount, e.PaymentMode, e.BillId, e.Kind })
+            .Where(e => (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end))
+            .Select(e => new { OccurredAt = e.PaymentMode == PaymentMode.Cheque && e.ReversesEntryId == null ? e.ChequeSettledAt ?? e.OccurredAt : e.OccurredAt, e.Amount, e.PaymentMode, e.BillId, e.Kind })
             .ToListAsync(ct);
         var productIds = bills.SelectMany(b => b.Lines).Where(l => l.ProductId != null).Select(l => l.ProductId!.Value).Distinct().ToList();
         var costs = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id) && p.CostPrice != null)
@@ -246,7 +273,7 @@ public static class ReportEndpoints
 
         // Money in, the cash-book way: bills paid at the counter plus khata payments (and their reversals) not tied to a bill.
         decimal Received(PaymentMode mode) =>
-            bills.Where(b => b.PaymentMode == mode).Sum(b => b.PaidAmount)
+            bills.Sum(b => b.PaidBy(mode))
             - entries.Where(e => e.PaymentMode == mode && e.BillId == null).Sum(e => e.Amount);
         var khataCollected = -entries.Where(e => e.PaymentMode != null && e.BillId == null).Sum(e => e.Amount);
         var udhaar = entries.Where(e => e.PaymentMode == null && e.Kind != LedgerEntryKind.Opening).Sum(e => e.Amount)
@@ -299,18 +326,28 @@ public static class ReportEndpoints
 
         var outstanding = await db.Customers.AsNoTracking().Where(c => c.Balance > 0).SumAsync(c => (decimal?)c.Balance, ct) ?? 0m;
         var spent = await db.Expenses.AsNoTracking()
-            // A walk-in refund on a credit note is already counted as a return.
+            // A walk-in refund on a credit note is already counted as a return (Kharcha.IsReturnRefund).
             .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && (e.Note == null || !e.Note.StartsWith("Refund CN/")))
             .GroupBy(e => e.Category).Select(g => new { g.Key, Total = g.Sum(e => e.Amount) })
             .ToDictionaryAsync(g => g.Key, g => g.Total, ct);
         decimal Spent(ExpenseCategory c) => spent.GetValueOrDefault(c);
+        var running = spent.Where(x => !Kharcha.OutsideProfit.Contains(x.Key) && x.Value != 0).OrderByDescending(x => x.Value).Select(x => new KharchaLine(x.Key, x.Value)).ToList();
+        var notInProfit = Kharcha.OutsideProfit.Where(c => Spent(c) != 0).Select(c => new KharchaLine(c, Spent(c))).ToList();
+        var expenses = running.Sum(x => x.Amount);
+        var salesWithoutGst = lines.Sum(WithoutGst);
+        var linesTotal = lines.Sum(l => l.Amount);
+        var statement = new MonthStatement(
+            sales, sales - linesTotal, linesTotal - salesWithoutGst, salesWithoutGst,
+            salesWithoutGst - costed.Sum(WithoutGst), costed.Sum(l => Money.LineAmount(l.Quantity, Cost(l)!.Value)),
+            returns, stockLoss, profit, running, expenses, profit - expenses, notInProfit);
         // Today's figures, whichever month is open: stock at cost (items with a count and a cost) and what suppliers are owed.
         var stockValue = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.Uncounted && p.Stock > 0 && p.CostPrice != null).SumAsync(p => (decimal?)(p.Stock * p.CostPrice!.Value), ct) ?? 0m;
         var supplierDue = await db.SupplierEntries.AsNoTracking().SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
         return new MonthReport(
             $"{period.Year:D4}-{period.Month:D2}", sales, bills.Count, Received(PaymentMode.Cash), Received(PaymentMode.Upi), udhaar, khataCollected,
             outstanding, profit, sales == 0 ? 0 : decimal.Round(costed.Sum(l => l.Amount) / sales, 2), top, days,
-            spent.Values.Sum() - Spent(ExpenseCategory.Purchase) - Spent(ExpenseCategory.Home), Spent(ExpenseCategory.Purchase), Spent(ExpenseCategory.Home), returns, stockLoss, stockValue, supplierDue);
+            expenses, Spent(ExpenseCategory.Purchase), Spent(ExpenseCategory.Home), returns, stockLoss, stockValue, supplierDue, statement,
+            Received(PaymentMode.Card), Received(PaymentMode.Cheque));
     }
 
     /// <summary>
@@ -389,7 +426,7 @@ public static class ReportEndpoints
 
     private static async Task<IResult> SupplierDuesCsvAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var csv = new StringBuilder("Supplier,Phone,Due,0-15 days,16-30 days,30+ days,Oldest unpaid bill (days)\n");
+        var csv = new StringBuilder("Supplier,Phone,We owe (minus = they owe us),0-15 days,16-30 days,30+ days,Oldest unpaid bill (days)\n");
         foreach (var x in await SupplierEndpoints.SupplierDuesAsync(db, clock, ct))
         {
             csv.AppendJoin(',', Cell(x.Name), Cell(x.Phone), Num(x.Due), Num(x.Days0To15), Num(x.Days16To30), Num(x.Over30), x.OldestDays).Append('\n');
@@ -401,7 +438,7 @@ public static class ReportEndpoints
     private static async Task<IResult> DuesCsvAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var report = await DuesAsync(db, clock, ct);
-        var csv = new StringBuilder("Name,Phone,Balance,0-7 days,8-30 days,30+ days,Oldest due (days),Last payment,Last reminded\n");
+        var csv = new StringBuilder("Name,Phone,Customer owes (minus = advance),0-7 days,8-30 days,30+ days,Oldest due (days),Last payment,Last reminded\n");
         foreach (var d in report.Customers)
         {
             csv.AppendJoin(',', Cell(d.Name), Cell(d.Phone), Num(d.Balance), Num(d.Days0To7), Num(d.Days8To30), Num(d.Over30), d.OldestDays,
@@ -418,14 +455,14 @@ public static class ReportEndpoints
     {
         var r = await BuildProfitLossAsync(db, clock, fy ?? ThisFinancialYear(clock), ct);
         var csv = new StringBuilder("Line,Amount\n");
-        foreach (var (label, amount) in new[]
-        {
+        foreach (var (label, amount) in (List<(string Label, decimal Amount)>)
+        [
             ("Sales with GST", r.Sales), ("GST in sales", r.Gst), ("Turnover without GST", r.Turnover), ("Profit on goods", r.GoodsProfit), ("Returns", -r.Returns), ("Stock lost", -r.StockLoss),
-            ("Running expenses", -r.Expenses), ("Machine wear (depreciation)", -r.MachineWear), ("Net profit", r.NetProfit), ("Taken home", r.TakenHome), ("Supplier bills", r.Purchases), ("Opening stock at cost", r.OpeningStock),
-            ($"Closing stock at cost {r.ClosingDate:yyyy-MM-dd}", r.ClosingStock), ("Owed to suppliers today", r.SupplierDue), ("Owed by customers today", r.CustomerDue),
+            ("Running expenses", -r.Expenses), .. (r.ExpenseLines ?? []).Select(x => ($"  of which {Heading(x.Category)}", -x.Amount)), ("Machine wear (depreciation)", -r.MachineWear), ("Net profit", r.NetProfit), ("Taken home", r.TakenHome), ("Supplier bills", r.Purchases), ("Opening stock at cost", r.OpeningStock),
+            ($"Closing stock at cost {r.ClosingDate:yyyy-MM-dd}", r.ClosingStock), ("Owed to suppliers today", r.SupplierDue), ("Owed by customers today", r.CustomerDue), .. (r.NotInProfit ?? []).Where(x => x.Category != ExpenseCategory.Home).Select(x => ($"Not in profit: {Heading(x.Category)}", x.Amount)),
             ("Jobs being made, at cost (today)", r.WorkInProgress), ("Furniture ready, at cost (today)", r.FinishedGoods),
             ("Received in cash", r.CashReceipts), ("Received by UPI or bank", r.DigitalReceipts), ("Presumed profit under 44AD (8% cash, 6% digital)", r.PresumedProfit),
-        })
+        ])
         {
             csv.AppendJoin(',', label, Num(amount)).Append('\n');
         }
@@ -478,6 +515,11 @@ public static class ReportEndpoints
         var expenses = months.Sum(m => m.Expenses);
         var wear = await Workshop.WearForYearAsync(db, startYear, ct);
         var coveredSales = months.Sum(m => m.ProfitCoverage * m.Sales);
+        // The year's kharcha, heading by heading, from the month statements, so the year adds up the same way.
+        static List<KharchaLine> ByHeading(IEnumerable<KharchaLine> lines) =>
+            lines.GroupBy(x => x.Category).Select(g => new KharchaLine(g.Key, g.Sum(x => x.Amount))).OrderByDescending(x => x.Amount).ToList();
+        var expenseLines = ByHeading(months.SelectMany(m => m.Statement?.Running ?? []));
+        var notInProfit = ByHeading(months.SelectMany(m => m.Statement?.NotInProfit ?? []));
         return new ProfitLossReport(
             year.FinancialYear, year.Total.Sales, year.Total.Turnover, year.Total.Gst, profit + returns + loss, returns, loss, expenses, profit - expenses - wear,
             months.Sum(m => m.TakenHome),
@@ -488,7 +530,7 @@ public static class ReportEndpoints
             missing, year.Total.Sales == 0 ? 0 : decimal.Round(coveredSales / year.Total.Sales, 2),
             await Jobs.WorkInProgressAsync(db, ct), wear, await Jobs.FinishedGoodsAsync(db, ct),
             year.Total.Cash, year.Total.Digital, PresumedProfit(year.Total.Cash, year.Total.Digital), lastYear.Total.Turnover,
-            TurnoverAlerts(year.Total.Turnover, lastYear.Total.Turnover));
+            TurnoverAlerts(year.Total.Turnover, lastYear.Total.Turnover), expenseLines, notInProfit);
     }
 
     /// <summary>
@@ -552,8 +594,8 @@ public static class ReportEndpoints
         var bills = await db.Bills.AsNoTracking().Include(b => b.Lines)
             .Where(b => b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null).ToListAsync(ct);
         var khata = await db.LedgerEntries.AsNoTracking()
-            .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.BillId == null && e.PaymentMode != null)
-            .Select(e => new { e.OccurredAt, e.Amount, e.PaymentMode }).ToListAsync(ct);
+            .Where(e => (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end) && e.BillId == null && e.PaymentMode != null)
+            .Select(e => new { OccurredAt = e.PaymentMode == PaymentMode.Cheque && e.ReversesEntryId == null ? e.ChequeSettledAt ?? e.OccurredAt : e.OccurredAt, e.Amount, e.PaymentMode }).ToListAsync(ct);
 
         var rows = new List<YearMonthRow>();
         for (var i = 0; i < 12; i++)
@@ -568,14 +610,36 @@ public static class ReportEndpoints
             var gst = gstLines.Where(l => l.TaxableValue != null).Sum(l => (l.Cgst ?? 0) + (l.Sgst ?? 0) + (l.Igst ?? 0))
                 + gstLines.Where(l => l.TaxableValue == null && l.GstRate is > 0).GroupBy(l => l.GstRate!.Value)
                     .Sum(g => { var amount = g.Sum(l => l.Amount); return amount - decimal.Round(amount / (1 + (g.Key / 100)), 2); });
-            decimal Received(PaymentMode mode) => own.Where(b => b.PaymentMode == mode).Sum(b => b.PaidAmount) - ownKhata.Where(e => e.PaymentMode == mode).Sum(e => e.Amount);
+            decimal Received(PaymentMode mode) => own.Sum(b => b.PaidBy(mode)) - ownKhata.Where(e => e.PaymentMode == mode).Sum(e => e.Amount);
             var sales = own.Sum(b => b.Total);
-            rows.Add(new YearMonthRow($"{year:D4}-{month:D2}", own.Count, sales, gst, sales - gst, gstLines.Where(l => l.GstRate == null).Sum(l => l.Amount), Received(PaymentMode.Cash), Received(PaymentMode.Upi)));
+            rows.Add(new YearMonthRow($"{year:D4}-{month:D2}", own.Count, sales, gst, sales - gst, gstLines.Where(l => l.GstRate == null).Sum(l => l.Amount), Received(PaymentMode.Cash),
+                // Digital for 44AD: UPI, card and cleared cheques.
+                Received(PaymentMode.Upi) + Received(PaymentMode.Card) + Received(PaymentMode.Cheque)));
         }
 
         var total = new YearMonthRow("Total", rows.Sum(r => r.Bills), rows.Sum(r => r.Sales), rows.Sum(r => r.Gst), rows.Sum(r => r.Turnover), rows.Sum(r => r.NoRate), rows.Sum(r => r.Cash), rows.Sum(r => r.Digital));
         return new YearReport($"{startYear}-{(startYear + 1) % 100:D2}", rows, total);
     }
+
+    /// <summary>A kharcha heading in English, for the CA's file.</summary>
+    private static string Heading(ExpenseCategory category) => category switch
+    {
+        ExpenseCategory.Tea => "Tea and snacks",
+        ExpenseCategory.Transport => "Transport",
+        ExpenseCategory.Rent => "Rent",
+        ExpenseCategory.Electricity => "Electricity",
+        ExpenseCategory.Salary => "Salary",
+        ExpenseCategory.Purchase => "Stock paid for",
+        ExpenseCategory.Packaging => "Packing",
+        ExpenseCategory.Repair => "Repairs",
+        ExpenseCategory.Home => "Taken home",
+        ExpenseCategory.Tax => "Tax paid",
+        ExpenseCategory.Loan => "Loan EMI",
+        ExpenseCategory.Equipment => "Equipment bought",
+        ExpenseCategory.Deposit => "Cash to bank",
+        ExpenseCategory.Advance => "Staff advance",
+        _ => "Other expenses",
+    };
 
     private static async Task<IResult> MonthCsvAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
@@ -592,9 +656,30 @@ public static class ReportEndpoints
         }
 
         csv.Append('\n').AppendJoin(',', "Total", Num(report.Sales), Num(report.Cash + report.Upi)).Append('\n');
-        csv.AppendJoin(',', "Estimated profit", Num(report.EstimatedProfit), "").Append('\n');
-        csv.AppendJoin(',', "Running expenses", Num(report.Expenses), "").Append('\n');
-        csv.AppendJoin(',', "Net profit", Num(report.NetProfit), "").Append('\n');
+
+        // The month's results are not daily sales: they get their own heading, so they don't read as a "Sales" column.
+        csv.Append('\n').Append("Statement,Amount\n");
+        var st = report.Statement!;
+        var rows = new List<(string, decimal)> { ("Sales with GST", st.SalesWithGst) };
+        if (st.RoundOff != 0)
+        {
+            rows.Add(("Less round-off and bill discounts", -st.RoundOff));
+        }
+
+        rows.AddRange([("Less GST in sales", -st.GstInSales), ("Sales", st.Sales), ("Less sales with no cost written", -st.NoCostSales), ("Less cost of goods sold", -st.CostOfGoods),
+            ("Less returns", -st.Returns), ("Less stock lost", -st.StockLoss), ("Gross profit", st.GrossProfit)]);
+        rows.AddRange(st.Running.Select(x => ($"Less {Heading(x.Category)}", -x.Amount)));
+        rows.AddRange([("Total running expenses", -st.Expenses), ("Net profit", st.NetProfit)]);
+        foreach (var (label, amount) in rows)
+        {
+            csv.AppendJoin(',', label, Num(amount)).Append('\n');
+        }
+
+        csv.Append('\n').Append("Not in profit,Amount\n");
+        foreach (var x in st.NotInProfit)
+        {
+            csv.AppendJoin(',', Heading(x.Category), Num(x.Amount)).Append('\n');
+        }
         return Csv(csv, $"month-{report.Month}.csv");
     }
 

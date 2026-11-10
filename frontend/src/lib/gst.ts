@@ -31,6 +31,41 @@ export function gstSummary(lines: Pick<BillLineView, 'amount' | 'gstRate'>[]) {
   })
 }
 
+/**
+ * The tax a bill will carry, worked out line by line as the server does when it saves (so the figure on the screen is
+ * the one on the bill), then added up by rate. Lines with no rate carry no tax: they come back in `unset`.
+ */
+export function billTax(lines: { amount: number; gstRate: number | null }[], interState: boolean) {
+  const byRate = new Map<number, { rate: number; taxable: number; cgst: number; sgst: number; igst: number }>()
+  let unset = 0
+  for (const line of lines) {
+    if (line.gstRate == null) {
+      unset += Math.round(line.amount * 100)
+      continue
+    }
+
+    const paise = Math.round(line.amount * 100)
+    const taxable = Math.round(paise / (1 + line.gstRate / 100))
+    const tax = paise - taxable
+    // The server rounds a half to the even paisa, so an odd tax splits the same way here.
+    const low = Math.floor(tax / 2)
+    const half = tax % 2 === 0 || low % 2 === 0 ? low : low + 1
+    const row = byRate.get(line.gstRate) ?? { rate: line.gstRate, taxable: 0, cgst: 0, sgst: 0, igst: 0 }
+    row.taxable += taxable
+    if (interState) row.igst += tax
+    else { row.cgst += half; row.sgst += tax - half }
+    byRate.set(line.gstRate, row)
+  }
+
+  const rupees = (paise: number) => paise / 100
+  const rows = [...byRate.values()].sort((a, b) => a.rate - b.rate)
+  return {
+    rows: rows.map((r) => ({ rate: r.rate, taxable: rupees(r.taxable), cgst: rupees(r.cgst), sgst: rupees(r.sgst), igst: rupees(r.igst) })),
+    tax: rupees(rows.reduce((sum, r) => sum + r.cgst + r.sgst + r.igst, 0)),
+    unset: rupees(unset),
+  }
+}
+
 /** Tax by rate as kept on the bill when it was made; null for bills from before tax was kept. */
 export function storedSummary(lines: Pick<BillLineView, 'amount' | 'gstRate' | 'taxableValue' | 'cgst' | 'sgst' | 'igst'>[]) {
   if (!lines.some((l) => l.taxableValue != null)) return null

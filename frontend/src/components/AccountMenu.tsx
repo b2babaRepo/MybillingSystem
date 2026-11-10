@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { setLanguage } from '../i18n'
+import { LANGUAGES, setLanguage } from '../i18n'
 import { useSession } from '../lib/data'
 import { formatPhone } from '../lib/format'
 import { setSession } from '../lib/session'
@@ -60,9 +60,15 @@ export function AccountMenu({ name, role, actions, unsynced, onSignOut }: {
             {[...shared, ...actions].map((a) => (
               <button key={a.label} onClick={run(a.onClick)} className="min-h-12 shrink-0 rounded-2xl border border-line px-4 text-left font-semibold">{a.label}</button>
             ))}
-            <button onClick={() => setLanguage(i18n.language === 'hi' ? 'en' : 'hi')} className="min-h-12 shrink-0 rounded-2xl border border-line px-4 text-left font-semibold">
-              {t('account.language')}: {i18n.language === 'hi' ? 'हिंदी → English' : 'English → हिंदी'}
-            </button>
+            {(() => {
+              const at = Math.max(0, LANGUAGES.findIndex((l) => l.code === i18n.language))
+              const next = LANGUAGES[(at + 1) % LANGUAGES.length]
+              return (
+                <button onClick={() => setLanguage(next.code)} className="min-h-12 shrink-0 rounded-2xl border border-line px-4 text-left font-semibold">
+                  {t('account.language')}: {LANGUAGES[at].name} → {next.name}
+                </button>
+              )
+            })()}
             <button onClick={run(onSignOut)} className="mt-1.5 min-h-14 shrink-0 rounded-2xl bg-red-50 text-[17px] font-bold text-red-700">{t('signOut')}</button>
             {unsynced > 0 && <p className="text-center text-sm text-muted">{t('account.unsynced', { count: unsynced })}</p>}
           </div>

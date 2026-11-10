@@ -71,11 +71,10 @@ public static class Features
     public const string Ai = "ai";
     public const string Trade = "trade";
     public const string BillPhoto = "bill_photo";
-    public const string Gst = "gst";
     /// <summary>Tally files and the GST summary for the CA.</summary>
     public const string GstExport = "gst_export";
 
-    public static readonly string[] All = [Reports, Store, WhatsApp, Staff, Ai, Trade, BillPhoto, Gst, GstExport];
+    public static readonly string[] All = [Reports, Store, WhatsApp, Staff, Ai, Trade, BillPhoto, GstExport];
 }
 
 /// <summary>

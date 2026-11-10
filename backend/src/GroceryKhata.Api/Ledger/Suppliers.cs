@@ -16,6 +16,16 @@ public sealed class Supplier : Entity, ITenantOwned
     public required string Name { get; set; }
 
     public string? Phone { get; set; }
+
+    public string? Gstin { get; set; }
+
+    public string? Address { get; set; }
+
+    /// <summary>Days the supplier gives to pay a bill. Null: no terms agreed.</summary>
+    public int? PaymentDays { get; set; }
+
+    /// <summary>A supplier with history is never deleted: it is put away, and its khata stays.</summary>
+    public bool IsActive { get; set; } = true;
 }
 
 /// <summary>A supplier's bill: goods in, on credit for whatever wasn't paid at once.</summary>
@@ -30,9 +40,16 @@ public sealed class Purchase : Entity, ITenantOwned
 
     public decimal Total { get; set; }
 
+    /// <summary>Freight and round-off on the printed bill (minus for a round-down), in the total but on no item.</summary>
+    public decimal ExtraCharges { get; set; }
+
+    /// <summary>The date printed on the supplier's bill, not the day it was entered.</summary>
     public DateTimeOffset OccurredAt { get; set; }
 
     public Guid CreatedByUserId { get; set; }
+
+    /// <summary>The order these goods came against, if any.</summary>
+    public Guid? PurchaseOrderId { get; set; }
 
     /// <summary>Set when the bill was entered by mistake: stock and the amount owed are taken back.</summary>
     public DateTimeOffset? CancelledAt { get; set; }
@@ -68,6 +85,20 @@ public sealed class PurchaseLine : Entity, ITenantOwned
     public decimal Taxable { get; set; }
 
     public decimal Gst { get; set; }
+
+    /// <summary>Units of this line already counted in on a goods receipt: the bill added no stock for them.</summary>
+    public decimal FromReceipt { get; set; }
+}
+
+/// <summary>What a line of a supplier's khata is. Other: lines from before kinds were kept, whose kind can't be told.</summary>
+public enum SupplierEntryKind
+{
+    Other,
+    Opening,
+    Bill,
+    Payment,
+    CreditNote,
+    BillCancelled,
 }
 
 /// <summary>The supplier's khata, append-only: + a bill, − a payment. What the shop owes is the sum.</summary>
@@ -77,27 +108,47 @@ public sealed class SupplierEntry : Entity, ITenantOwned
 
     public Guid SupplierId { get; set; }
 
+    public SupplierEntryKind Kind { get; set; }
+
     public decimal Amount { get; set; }
 
     public Guid? PurchaseId { get; set; }
 
     public string? Note { get; set; }
 
+    /// <summary>How a payment went, and its cheque or transfer number.</summary>
+    public PaymentMode? Mode { get; set; }
+
+    public string? Reference { get; set; }
+
     public DateTimeOffset OccurredAt { get; set; }
 
     public Guid CreatedByUserId { get; set; }
 }
 
-public sealed record SupplierRequest(Guid Id, string? Name, string? Phone);
+/// <summary>On a change, null keeps a detail and an empty value clears it.</summary>
+public sealed record SupplierRequest(Guid Id, string? Name, string? Phone, string? Gstin = null, string? Address = null, int? PaymentDays = null, bool? IsActive = null);
 
 /// <summary>
 /// A supplier and what the shop owes them, split by how old the unpaid bills are: payments clear the oldest bills
 /// first, so what is still owed sits on the newest ones. <see cref="OldestDays"/>: the oldest unpaid bill's age.
 /// </summary>
 public sealed record SupplierDto(Guid Id, string Name, string? Phone, decimal Due,
-    decimal Days0To15 = 0, decimal Days16To30 = 0, decimal Over30 = 0, int OldestDays = 0);
+    decimal Days0To15 = 0, decimal Days16To30 = 0, decimal Over30 = 0, int OldestDays = 0,
+    string? Gstin = null, string? Address = null, int? PaymentDays = null, bool IsActive = true);
 
-public sealed record SupplierEntryDto(Guid Id, decimal Amount, Guid? PurchaseId, string? Note, DateTimeOffset OccurredAt, bool Cancelled = false);
+/// <summary><see cref="Balance"/>: what was owed after this line, oldest line first.</summary>
+public sealed record SupplierEntryDto(
+    Guid Id, decimal Amount, Guid? PurchaseId, string? Note, DateTimeOffset OccurredAt, bool Cancelled = false,
+    SupplierEntryKind Kind = SupplierEntryKind.Other, PaymentMode? Mode = null, string? Reference = null, decimal Balance = 0, DateOnly? DueOn = null);
+
+/// <summary><see cref="Amount"/>: what was owed when the shop started here; minus when the supplier owed the shop.</summary>
+public sealed record SupplierOpeningRequest(Guid Id, decimal Amount, DateOnly? AsOf = null);
+
+public sealed record PurchaseLineDto(string Name, decimal Quantity, decimal FreeQuantity, decimal UnitCost, decimal DiscountPercent, decimal? GstRate, decimal Taxable, decimal Gst);
+
+/// <summary>A supplier's bill as it was entered, line by line.</summary>
+public sealed record PurchaseDetailDto(Guid Id, string? BillNo, decimal Total, decimal Extra, DateTimeOffset OccurredAt, bool Cancelled, IReadOnlyList<PurchaseLineDto> Lines);
 
 public sealed record SupplierDetail(SupplierDto Supplier, IReadOnlyList<SupplierEntryDto> Entries);
 
@@ -110,9 +161,10 @@ public sealed record PurchaseLineRequest(
     decimal? GstRate = null);
 
 /// <summary><see cref="Id"/> is made by the app, so a repeated tap saves once.</summary>
-public sealed record PurchaseRequest(Guid Id, Guid SupplierId, string? BillNo, IReadOnlyList<PurchaseLineRequest>? Lines, decimal PaidAmount, PaymentMode? PaymentMode);
+public sealed record PurchaseRequest(Guid Id, Guid SupplierId, string? BillNo, IReadOnlyList<PurchaseLineRequest>? Lines, decimal PaidAmount, PaymentMode? PaymentMode, DateOnly? BillDate = null, decimal Extra = 0, Guid? OrderId = null,
+    IReadOnlyList<Guid>? ReceiptIds = null);
 
-public sealed record SupplierPaymentRequest(Guid Id, decimal Amount, PaymentMode? PaymentMode);
+public sealed record SupplierPaymentRequest(Guid Id, decimal Amount, PaymentMode? PaymentMode, string? Reference = null, DateOnly? PaidOn = null);
 
 /// <summary>
 /// Buying: a supplier's bill adds stock and moves each item's cost to the moving average; money paid is also a
@@ -127,7 +179,9 @@ public static class SupplierEndpoints
         group.MapPost("", AddAsync);
         group.MapGet("/{id:guid}", GetAsync);
         group.MapPost("/{id:guid}/pay", PayAsync);
+        group.MapPost("/{id:guid}/opening", OpeningAsync);
         group.MapPost("/purchases", PurchaseAsync);
+        group.MapGet("/purchases/{id:guid}", GetPurchaseAsync);
         group.MapPut("/{id:guid}", ChangeAsync);
         group.MapPost("/purchases/{id:guid}/cancel", CancelPurchaseAsync);
         return app;
@@ -138,8 +192,10 @@ public static class SupplierEndpoints
 
     public static async Task<IReadOnlyList<SupplierDto>> SupplierDuesAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var suppliers = await db.Suppliers.AsNoTracking().OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.Phone }).ToListAsync(ct);
-        var entries = await db.SupplierEntries.AsNoTracking().Select(e => new { e.SupplierId, e.Amount, e.OccurredAt }).ToListAsync(ct);
+        var suppliers = await db.Suppliers.AsNoTracking().OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.Phone, x.Gstin, x.Address, x.PaymentDays, x.IsActive }).ToListAsync(ct);
+        // A cancelled bill isn't owed, so it can't be the old bill that makes a supplier look overdue.
+        var cancelled = (await db.Purchases.AsNoTracking().Where(p => p.CancelledAt != null).Select(p => p.Id).ToListAsync(ct)).ToHashSet();
+        var entries = await db.SupplierEntries.AsNoTracking().Select(e => new { e.SupplierId, e.Amount, e.OccurredAt, e.PurchaseId }).ToListAsync(ct);
         var byId = entries.ToLookup(e => e.SupplierId);
         var now = clock.GetUtcNow();
         return suppliers.Select(x =>
@@ -150,7 +206,7 @@ public static class SupplierEndpoints
             var oldest = 0;
             // Walk the bills from newest back until what is owed is covered: those are the unpaid ones.
             var left = due;
-            foreach (var bill in mine.Where(e => e.Amount > 0).OrderByDescending(e => e.OccurredAt))
+            foreach (var bill in mine.Where(e => e.Amount > 0 && !(e.PurchaseId is { } billId && cancelled.Contains(billId))).OrderByDescending(e => e.OccurredAt))
             {
                 if (left <= 0) break;
                 var part = Math.Min(bill.Amount, left);
@@ -160,7 +216,7 @@ public static class SupplierEndpoints
                 if (days <= 15) d0 += part; else if (days <= 30) d16 += part; else d30 += part;
             }
 
-            return new SupplierDto(x.Id, x.Name, x.Phone, due, d0, d16, d30, oldest);
+            return new SupplierDto(x.Id, x.Name, x.Phone, due, d0, d16, d30, oldest, x.Gstin, x.Address, x.PaymentDays, x.IsActive);
         }).ToList();
     }
 
@@ -172,9 +228,16 @@ public static class SupplierEndpoints
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Name"] = ["Enter the supplier's name."] });
         }
 
+        if (DetailsProblem(request) is { } problem)
+        {
+            return problem;
+        }
+
         if (!await db.Suppliers.AnyAsync(s => s.Id == request.Id, ct))
         {
-            db.Suppliers.Add(new Supplier { Id = request.Id, Name = name, Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim() });
+            var supplier = new Supplier { Id = request.Id, Name = name, Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim() };
+            ApplyDetails(supplier, request);
+            db.Suppliers.Add(supplier);
             await db.SaveChangesAsync(ct);
         }
 
@@ -189,10 +252,108 @@ public static class SupplierEndpoints
             return TypedResults.NotFound();
         }
 
-        var entries = await db.SupplierEntries.AsNoTracking().Where(e => e.SupplierId == id).OrderByDescending(e => e.OccurredAt)
-            .Select(e => new SupplierEntryDto(e.Id, e.Amount, e.PurchaseId, e.Note, e.OccurredAt,
-                e.Amount > 0 && db.Purchases.Any(p => p.Id == e.PurchaseId && p.CancelledAt != null))).ToListAsync(ct);
-        return TypedResults.Ok(new SupplierDetail(new SupplierDto(id, supplier.Name, supplier.Phone, entries.Sum(e => e.Amount)), entries));
+        // The opening balance is where the khata starts, whatever date it carries or bills dated before it.
+        var rows = await db.SupplierEntries.AsNoTracking().Where(e => e.SupplierId == id).OrderBy(e => e.Kind == SupplierEntryKind.Opening ? 0 : 1).ThenBy(e => e.OccurredAt).ThenBy(e => e.CreatedAt)
+            .Select(e => new { Entry = e, Cancelled = e.Amount > 0 && db.Purchases.Any(p => p.Id == e.PurchaseId && p.CancelledAt != null) }).ToListAsync(ct);
+        var running = 0m;
+        var entries = rows.Select(r =>
+        {
+            var e = r.Entry;
+            running += e.Amount;
+            var due = e.Kind == SupplierEntryKind.Bill && !r.Cancelled && supplier.PaymentDays is { } days
+                ? DateOnly.FromDateTime(e.OccurredAt.ToOffset(IndiaTime.Offset).DateTime).AddDays(days) : (DateOnly?)null;
+            return new SupplierEntryDto(e.Id, e.Amount, e.PurchaseId, e.Note, e.OccurredAt, r.Cancelled, e.Kind, e.Mode, e.Reference, running, due);
+        }).Reverse().ToList();
+        return TypedResults.Ok(new SupplierDetail(new SupplierDto(id, supplier.Name, supplier.Phone, running, Gstin: supplier.Gstin, Address: supplier.Address, PaymentDays: supplier.PaymentDays, IsActive: supplier.IsActive), entries));
+    }
+
+    /// <summary>A bill as it was entered, so it can be opened and checked later.</summary>
+    private static async Task<IResult> GetPurchaseAsync(Guid id, AppDbContext db, CancellationToken ct)
+    {
+        var purchase = await db.Purchases.AsNoTracking().Include(p => p.Lines).SingleOrDefaultAsync(p => p.Id == id, ct);
+        if (purchase is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var ids = purchase.Lines.Select(l => l.ProductId).Distinct().ToList();
+        var names = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+        return TypedResults.Ok(new PurchaseDetailDto(purchase.Id, purchase.BillNo, purchase.Total, purchase.ExtraCharges, purchase.OccurredAt, purchase.CancelledAt is not null,
+            purchase.Lines.Select(l => new PurchaseLineDto(names.GetValueOrDefault(l.ProductId) ?? "", l.Quantity, l.FreeQuantity, l.UnitCost, l.DiscountPercent, l.GstRate, l.Taxable, l.Gst)).ToList()));
+    }
+
+    /// <summary>What was owed when the shop started using the app: a line of its own, never a bill, so purchases and stock stay true. Once per supplier.</summary>
+    private static async Task<IResult> OpeningAsync(Guid id, SupplierOpeningRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (await db.SupplierEntries.AnyAsync(e => e.Id == request.Id, ct))
+        {
+            return TypedResults.NoContent();
+        }
+
+        if (request.Id == Guid.Empty || request.Amount == 0 || Math.Abs(request.Amount) > Money.MaxAmount || decimal.Round(request.Amount, 2) != request.Amount)
+        {
+            return Invalid("Amount", "Enter what was owed to this supplier when you started.");
+        }
+
+        if (!await db.Suppliers.AnyAsync(s => s.Id == id, ct))
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (await db.SupplierEntries.AnyAsync(e => e.SupplierId == id && e.Kind == SupplierEntryKind.Opening, ct))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This supplier already has an opening balance.");
+        }
+
+        if (OnDate(request.AsOf, clock) is not { } at)
+        {
+            return Invalid("AsOf", "The date can't be in the future.");
+        }
+
+        // It comes before everything else, or the running balance would start in the wrong place.
+        var first = await db.SupplierEntries.Where(e => e.SupplierId == id).MinAsync(e => (DateTimeOffset?)e.OccurredAt, ct);
+        var when = first is { } earliest && earliest <= at ? earliest.AddSeconds(-1) : at;
+        db.SupplierEntries.Add(new SupplierEntry { Id = request.Id, SupplierId = id, Kind = SupplierEntryKind.Opening, Amount = request.Amount, OccurredAt = when, CreatedByUserId = user.UserId()!.Value });
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>A date on a supplier's paper, as a moment; today is now. Null when it's in the future.</summary>
+    private static DateTimeOffset? OnDate(DateOnly? date, TimeProvider clock)
+    {
+        var now = clock.GetUtcNow();
+        var today = IndiaTime.Today(clock);
+        if (date is not { } day || day == today)
+        {
+            return now;
+        }
+
+        return day > today ? null : new DateTimeOffset(day.ToDateTime(new TimeOnly(12, 0)), IndiaTime.Offset).ToUniversalTime();
+    }
+
+    private static IResult? DetailsProblem(SupplierRequest request)
+    {
+        var gstin = request.Gstin?.Trim().ToUpperInvariant();
+        if (!string.IsNullOrEmpty(gstin) && !GstExport.IsValidGstin(gstin))
+        {
+            return Invalid("Gstin", "This GSTIN isn't valid: check each letter and digit (the last one is a check digit).");
+        }
+
+        if (request.Address?.Trim().Length > 200)
+        {
+            return Invalid("Address", "Keep the address under 200 letters.");
+        }
+
+        return request.PaymentDays is < 0 or > 365 ? Invalid("PaymentDays", "Enter the days to pay, from 0 to 365.") : null;
+    }
+
+    private static void ApplyDetails(Supplier supplier, SupplierRequest request)
+    {
+        static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+        supplier.Gstin = request.Gstin is null ? supplier.Gstin : Clean(request.Gstin)?.ToUpperInvariant();
+        supplier.Address = request.Address is null ? supplier.Address : Clean(request.Address);
+        supplier.PaymentDays = request.PaymentDays is null ? supplier.PaymentDays : request.PaymentDays == 0 ? null : request.PaymentDays;
+        supplier.IsActive = request.IsActive ?? supplier.IsActive;
     }
 
     private static async Task<IResult> PurchaseAsync(PurchaseRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
@@ -204,11 +365,12 @@ public static class SupplierEndpoints
 
         var lines = request.Lines ?? [];
         var products = await db.Products.Where(p => lines.Select(l => l.ProductId).Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        var total = lines.Sum(LineTotal);
+        var total = lines.Sum(LineTotal) + request.Extra;
         // A product can come in two batches on one bill, but not the same batch twice.
         if (request.Id == Guid.Empty || lines.Count is 0 or > 200 || lines.Select(l => (l.ProductId, l.BatchNo?.Trim().ToUpperInvariant())).Distinct().Count() != lines.Count
             || lines.Any(l => !products.ContainsKey(l.ProductId) || !Money.IsValidQuantity(l.Quantity) || l.UnitCost < 0 || l.UnitCost > Money.MaxAmount || decimal.Round(l.UnitCost, 2) != l.UnitCost
                 || l.FreeQuantity < 0 || (l.FreeQuantity > 0 && !Money.IsValidQuantity(l.FreeQuantity)) || l.DiscountPercent is < 0 or >= 100 || l.GstRate is < 0 or > 40)
+            || Math.Abs(request.Extra) > Money.MaxAmount || decimal.Round(request.Extra, 2) != request.Extra
             || total <= 0 || request.PaidAmount < 0 || request.PaidAmount > total || !await db.Suppliers.AnyAsync(s => s.Id == request.SupplierId, ct))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = ["Check the supplier, items, quantities, costs and amount paid."] });
@@ -223,23 +385,51 @@ public static class SupplierEndpoints
             if (l.Mrp is not { } mrp || mrp <= 0 || !Money.IsValidAmount(mrp)) return Invalid("Lines", $"{name}: enter the MRP for batch {l.BatchNo.Trim()}.");
         }
 
+        if (OnDate(request.BillDate, clock) is not { } billDate)
+        {
+            return Invalid("BillDate", "The bill date can't be in the future.");
+        }
+
         var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var billNo = request.BillNo?.Trim();
         db.Purchases.Add(new Purchase
         {
-            Id = request.Id, SupplierId = request.SupplierId, BillNo = string.IsNullOrEmpty(billNo) ? null : billNo[..Math.Min(billNo.Length, 40)], Total = total, OccurredAt = now, CreatedByUserId = userId,
+            Id = request.Id, SupplierId = request.SupplierId, BillNo = string.IsNullOrEmpty(billNo) ? null : billNo[..Math.Min(billNo.Length, 40)], Total = total, ExtraCharges = request.Extra, OccurredAt = billDate, CreatedByUserId = userId,
+            PurchaseOrderId = request.OrderId,
         });
-        db.SupplierEntries.Add(new SupplierEntry { SupplierId = request.SupplierId, Amount = total, PurchaseId = request.Id, Note = billNo, OccurredAt = now, CreatedByUserId = userId });
+        db.SupplierEntries.Add(new SupplierEntry { SupplierId = request.SupplierId, Kind = SupplierEntryKind.Bill, Amount = total, PurchaseId = request.Id, Note = billNo?[..Math.Min(billNo.Length, 40)], OccurredAt = billDate, CreatedByUserId = userId });
         var purchase = db.Purchases.Local.Single(p => p.Id == request.Id);
         var added = new Dictionary<Guid, decimal>();
+        // Goods already counted in on receipts of this supplier: the bill takes them over and adds only what is more.
+        var receiptIds = request.ReceiptIds?.Distinct().ToList() ?? [];
+        var receipts = receiptIds.Count == 0 ? [] : await db.GoodsReceipts.Where(r => receiptIds.Contains(r.Id)).ToListAsync(ct);
+        if (receipts.Count != receiptIds.Count || receipts.Any(r => r.SupplierId != request.SupplierId || r.PurchaseId is not null || r.CancelledAt is not null))
+        {
+            return Invalid("ReceiptIds", "Those goods receipts aren't this supplier's open ones.");
+        }
+
+        var alreadyIn = receipts.SelectMany(GoodsReceipts.LinesOf).GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+        // A receipt closes with its bill, so every item on it must be on the bill: otherwise those goods would never be costed.
+        if (alreadyIn.Keys.FirstOrDefault(p => lines.All(l => l.ProductId != p)) is { } missing && missing != Guid.Empty)
+        {
+            var name = receipts.SelectMany(GoodsReceipts.LinesOf).First(l => l.ProductId == missing).Name;
+            return Invalid("ReceiptIds", $"{name} came on the goods receipt but isn't on this bill. Add it, or bill it on its own receipt.");
+        }
+        foreach (var receipt in receipts)
+        {
+            receipt.PurchaseId = request.Id;
+        }
         foreach (var line in lines)
         {
             var product = products[line.ProductId];
             var units = line.Quantity + line.FreeQuantity;
+            var fromReceipt = Math.Min(units, alreadyIn.GetValueOrDefault(line.ProductId));
+            alreadyIn[line.ProductId] = alreadyIn.GetValueOrDefault(line.ProductId) - fromReceipt;
             // What one unit really cost: the line's value before GST (the GST comes back as input credit) over paid and free units together.
             var unitCost = decimal.Round(Taxable(line) / units, 2, MidpointRounding.AwayFromZero);
-            var held = Math.Max(0, product.Stock + added.GetValueOrDefault(line.ProductId));
+            // Units from a receipt are already on the shelf but weren't costed: they take this bill's cost, not the old one.
+            var held = Math.Max(0, product.Stock + added.GetValueOrDefault(line.ProductId) - fromReceipt - alreadyIn.GetValueOrDefault(line.ProductId));
             product.CostPrice = product.CostPrice is { } cost && held > 0
                 ? decimal.Round(((held * cost) + (units * unitCost)) / (held + units), 2)
                 : unitCost;
@@ -253,19 +443,30 @@ public static class SupplierEndpoints
             purchase.Lines.Add(new PurchaseLine
             {
                 ProductId = line.ProductId, Quantity = line.Quantity, UnitCost = line.UnitCost, FreeQuantity = line.FreeQuantity, DiscountPercent = line.DiscountPercent, BatchId = batch?.Id,
-                GstRate = line.GstRate, Taxable = Taxable(line), Gst = LineTotal(line) - Taxable(line),
+                GstRate = line.GstRate, Taxable = Taxable(line), Gst = LineTotal(line) - Taxable(line), FromReceipt = fromReceipt,
             });
-            db.StockMovements.Add(new StockMovement
+            if (units - fromReceipt > 0)
             {
-                ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = units, CostPrice = unitCost,
-                OccurredAt = now, CreatedByUserId = userId, Note = batch is null ? "Supplier bill" : $"Supplier bill · batch {batch.BatchNo}",
-            });
-            added[line.ProductId] = added.GetValueOrDefault(line.ProductId) + units;
+                db.StockMovements.Add(new StockMovement
+                {
+                    ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = units - fromReceipt, CostPrice = unitCost,
+                    OccurredAt = now, CreatedByUserId = userId, Note = batch is null ? "Supplier bill" : $"Supplier bill · batch {batch.BatchNo}",
+                });
+            }
+
+            added[line.ProductId] = added.GetValueOrDefault(line.ProductId) + units - fromReceipt;
+        }
+
+        // Goods against an order: what came counts off what is still to come.
+        if (request.OrderId is { } orderId && receipts.Count == 0
+            && await PurchaseOrders.ReceiveAsync(db, orderId, request.SupplierId, lines.Select(l => (l.ProductId, l.Quantity + l.FreeQuantity)), 1, clock, ct) is { } orderProblem)
+        {
+            return Invalid("OrderId", orderProblem);
         }
 
         if (request.PaidAmount > 0)
         {
-            AddPayment(db, request.SupplierId, request.PaidAmount, request.PaymentMode ?? PaymentMode.Cash, request.Id, now, userId, Guid.CreateVersion7());
+            AddPayment(db, request.SupplierId, request.PaidAmount, request.PaymentMode ?? PaymentMode.Cash, null, request.Id, now, userId, Guid.CreateVersion7());
         }
 
         await db.SaveChangesAsync(ct);
@@ -286,6 +487,11 @@ public static class SupplierEndpoints
 
     private static async Task<IResult> ChangeAsync(Guid id, SupplierRequest request, AppDbContext db, CancellationToken ct)
     {
+        if (DetailsProblem(request) is { } problem)
+        {
+            return problem;
+        }
+
         var name = request.Name?.Trim();
         var supplier = await db.Suppliers.SingleOrDefaultAsync(s => s.Id == id, ct);
         if (supplier is null)
@@ -299,6 +505,7 @@ public static class SupplierEndpoints
         }
 
         (supplier.Name, supplier.Phone) = (name, string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim());
+        ApplyDetails(supplier, request);
         await db.SaveChangesAsync(ct);
         return TypedResults.NoContent();
     }
@@ -322,12 +529,18 @@ public static class SupplierEndpoints
             return TypedResults.NoContent();
         }
 
-        db.SupplierEntries.Add(new SupplierEntry { SupplierId = purchase.SupplierId, Amount = -purchase.Total, PurchaseId = id, Note = "Bill cancelled", OccurredAt = now, CreatedByUserId = userId });
+        if (purchase.PurchaseOrderId is { } orderId)
+        {
+            await PurchaseOrders.ReceiveAsync(db, orderId, purchase.SupplierId, purchase.Lines.Select(l => (l.ProductId, l.Quantity + l.FreeQuantity)), -1, clock, ct);
+        }
+
+        await db.GoodsReceipts.Where(r => r.PurchaseId == id).ExecuteUpdateAsync(s => s.SetProperty(r => r.PurchaseId, (Guid?)null), ct);
+        db.SupplierEntries.Add(new SupplierEntry { SupplierId = purchase.SupplierId, Kind = SupplierEntryKind.BillCancelled, Amount = -purchase.Total, PurchaseId = id, Note = "Bill cancelled", OccurredAt = now, CreatedByUserId = userId });
         foreach (var line in purchase.Lines)
         {
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -(line.Quantity + line.FreeQuantity), OccurredAt = now,
+                ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -(line.Quantity + line.FreeQuantity - line.FromReceipt), OccurredAt = now,
                 CreatedByUserId = userId, Note = "Supplier bill cancelled",
             });
             if (line.BatchId is { } batchId)
@@ -341,7 +554,7 @@ public static class SupplierEndpoints
         await db.SaveChangesAsync(ct);
         var byProduct = purchase.Lines.GroupBy(l => l.ProductId).OrderBy(g => g.Key).ToList();
         var ids = byProduct.Select(g => g.Key).ToArray();
-        var quantities = byProduct.Select(g => g.Sum(l => l.Quantity + l.FreeQuantity)).ToArray();
+        var quantities = byProduct.Select(g => g.Sum(l => l.Quantity + l.FreeQuantity - l.FromReceipt)).ToArray();
         await db.Database.ExecuteSqlAsync($"UPDATE products AS p SET stock = p.stock - v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", ct);
         await transaction.CommitAsync(ct);
         return TypedResults.NoContent();
@@ -359,15 +572,21 @@ public static class SupplierEndpoints
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Amount"] = ["Enter the amount paid."] });
         }
 
-        AddPayment(db, id, request.Amount, request.PaymentMode ?? PaymentMode.Cash, null, clock.GetUtcNow(), user.UserId()!.Value, request.Id);
+        if (OnDate(request.PaidOn, clock) is not { } paidOn)
+        {
+            return Invalid("PaidOn", "The payment date can't be in the future.");
+        }
+
+        var reference = request.Reference?.Trim();
+        AddPayment(db, id, request.Amount, request.PaymentMode ?? PaymentMode.Cash, string.IsNullOrEmpty(reference) ? null : reference[..Math.Min(reference.Length, 40)], null, paidOn, user.UserId()!.Value, request.Id);
         await db.SaveChangesAsync(ct);
         return TypedResults.NoContent();
     }
 
     /// <summary>Money out: on the supplier's khata, and as stock bought in the kharcha so the cash book shows it.</summary>
-    private static void AddPayment(AppDbContext db, Guid supplierId, decimal amount, PaymentMode mode, Guid? purchaseId, DateTimeOffset at, Guid userId, Guid entryId)
+    private static void AddPayment(AppDbContext db, Guid supplierId, decimal amount, PaymentMode mode, string? reference, Guid? purchaseId, DateTimeOffset at, Guid userId, Guid entryId)
     {
-        db.SupplierEntries.Add(new SupplierEntry { Id = entryId, SupplierId = supplierId, Amount = -amount, PurchaseId = purchaseId, OccurredAt = at, CreatedByUserId = userId });
+        db.SupplierEntries.Add(new SupplierEntry { Id = entryId, SupplierId = supplierId, Kind = SupplierEntryKind.Payment, Amount = -amount, Mode = mode, Reference = reference, PurchaseId = purchaseId, OccurredAt = at, CreatedByUserId = userId });
         db.Expenses.Add(new Expense { Amount = amount, Category = ExpenseCategory.Purchase, Mode = mode, Note = "Supplier payment", OccurredAt = at, CreatedByUserId = userId });
     }
 }

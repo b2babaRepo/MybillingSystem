@@ -198,7 +198,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
             <button className="min-h-11 text-sm text-muted underline" onClick={() => void finishWhatsApp().then(() => setDraft(null))}>{t('ai.setAside')}</button>
           )}
         </div>
-        <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:left-60 lg:max-w-4xl flex max-w-xl flex-col gap-2 border-t border-line bg-white px-4 py-3">
+        <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:max-w-4xl flex max-w-xl flex-col gap-2 border-t border-line bg-white px-4 py-3">
           <div role="tablist" className="grid grid-cols-2 rounded-xl bg-[#edf2f1] p-1 text-sm">
             {(['monthly', 'weekly'] as const).map((k) => (
               <button key={k} role="tab" aria-selected={kind === k} onClick={() => setKind(k)}

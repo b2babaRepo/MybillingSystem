@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { KhataHistory } from '../../components/KhataHistory'
 import { Balance, Button, Sheet } from '../../components/ui'
-import { setLanguage } from '../../i18n'
+import { nextLanguage, setLanguage } from '../../i18n'
 import { api } from '../../lib/api'
 import { formatPhone, formatRupees } from '../../lib/format'
 import type { ItemProblem, StatementLine, Statement } from '../../lib/types'
@@ -229,8 +229,8 @@ export function KhataLinkPage({ path }: { path: string }) {
     <div className="mx-auto min-h-dvh max-w-xl">
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white">
         <h1 className="flex-1 truncate text-xl font-bold">{t('myKhata.title')}</h1>
-        <button onClick={() => setLanguage(i18n.language === 'hi' ? 'en' : 'hi')} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">
-          {i18n.language === 'hi' ? 'EN' : 'हि'}
+        <button onClick={() => setLanguage(nextLanguage(i18n.language).code)} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">
+          {nextLanguage(i18n.language).short}
         </button>
       </header>
       {view.data ? (

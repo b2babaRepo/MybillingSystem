@@ -7,7 +7,6 @@ import { Button, Field, Sheet } from '../components/ui'
 import { api, request } from '../lib/api'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { ask } from '../components/Ask'
-import { useGstBilling } from '../lib/billing'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { GST_RATES } from '../lib/gst'
 import { formatDateTime, formatRupees } from '../lib/format'
@@ -18,6 +17,9 @@ import { ItemCard } from '../components/ItemCard'
 import { imageUrl, itemPhotos } from '../lib/images'
 import { navigate } from '../router'
 import { confirmAsk } from '../components/Ask'
+import { lazy, Suspense } from 'react'
+import { cameraPossible } from '../lib/barcode'
+const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
 
 const REASONS: StockReason[] = ['damage', 'wastage', 'return', 'count_correction', 'other']
 
@@ -191,7 +193,6 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     colour: product.colour ?? '',
     uncounted: !!product.uncounted,
   })
-  const gstBilling = useGstBilling(shopId)
   const types = shopTypes(useShopSettings(shopId).data)
   const medical = types.includes('medical')
   const service = types.includes('sales_service')
@@ -293,7 +294,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         </div>
       )}
       {medical && !product.isService && <Field label={t('loose.perPack')} value={form.perPack} onChange={set('perPack')} inputMode="numeric" placeholder="10" />}
-      {gstBilling && <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-muted">{t('stock.gst')}</span>
           <select value={form.gst} onChange={set('gst')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
@@ -302,7 +303,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
           </select>
         </label>
         <Field label={t('stock.hsn')} value={form.hsn} onChange={set('hsn')} inputMode="numeric" maxLength={8} />
-      </div>}
+      </div>
       <Button onClick={save} disabled={!form.name.trim() || product.pending}>{t('stock.saveDetails')}</Button>
       {message && <p className="text-sm text-muted">{message}</p>}
       <button type="button" onClick={() => void remove()} disabled={product.pending} className="min-h-11 text-sm font-semibold text-due disabled:opacity-50">{t('stock.remove')}</button>
@@ -388,6 +389,7 @@ function BarcodeRow({ product }: { product: Product }) {
   const queryClient = useQueryClient()
   const [code, setCode] = useState(product.barcode ?? '')
   const [message, setMessage] = useState('')
+  const [scanning, setScanning] = useState(false)
   async function save(path: string, method: 'PUT' | 'POST', body: unknown) {
     setMessage('')
     try {
@@ -402,8 +404,9 @@ function BarcodeRow({ product }: { product: Product }) {
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
       <span className="text-sm font-semibold text-muted">{t('barcodeBill.label')}</span>
-      <div className="grid grid-cols-[1fr_auto] gap-2">
+      <div className={`grid gap-2 ${cameraPossible() ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-[1fr_auto]'}`}>
         <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={30} aria-label={t('barcodeBill.label')} className="h-11 min-w-0 rounded-xl border border-line px-3" />
+        {cameraPossible() && <button type="button" onClick={() => setScanning(true)} className="h-11 rounded-xl border-2 border-teal-700 px-3 font-semibold text-teal-800">{t('scan.scanIt')}</button>}
         <button type="button" onClick={() => void save(`/v1/products/${product.id}/barcode`, 'PUT', { barcode: code })} className="h-11 rounded-xl border border-line px-3 font-semibold">{t('save')}</button>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -411,6 +414,12 @@ function BarcodeRow({ product }: { product: Product }) {
         <button type="button" onClick={() => navigate(`/tags/${product.id}`)} className="min-h-11 rounded-xl border border-line px-2 text-sm font-semibold">{t('tags.open')}</button>
       </div>
       {message && <p className="text-xs text-muted">{message}</p>}
+      {/* Read the code off the pack and save it straight away. */}
+      {scanning && (
+        <Suspense fallback={null}>
+          <ScanSheet onCode={(read) => { setScanning(false); setCode(read); void save(`/v1/products/${product.id}/barcode`, 'PUT', { barcode: read }) }} onClose={() => setScanning(false)} />
+        </Suspense>
+      )}
     </div>
   )
 }

@@ -7,12 +7,17 @@ import { addExpense, strikeExpense, type ExpenseBody } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { shrinkPhoto } from '../lib/images'
 import { listOps, subscribeOutbox } from '../lib/outbox'
-import type { PaymentMode } from '../lib/types'
-import { KharchaMonth } from './KharchaMonth'
+type PaymentMode = 'cash' | 'upi'
+import { KharchaMonth, MissingRegular } from './KharchaMonth'
+import { MeterCard } from './MeterCard'
 import { navigate } from '../router'
 import { confirmAsk } from '../components/Ask'
 
 export type ExpenseCategory = 'tea' | 'transport' | 'rent' | 'electricity' | 'salary' | 'purchase' | 'packaging' | 'repair' | 'home' | 'other'
+  | 'tax' | 'loan' | 'equipment' | 'deposit' | 'advance'
+
+/** Money out that is not a running cost, so it never lowers profit. The server keeps the same list. */
+export const OUTSIDE_PROFIT: ExpenseCategory[] = ['purchase', 'home', 'tax', 'loan', 'equipment', 'deposit', 'advance']
 
 interface ExpenseLine {
   id: string
@@ -97,7 +102,7 @@ interface Guess {
 }
 
 const ICONS: Record<ExpenseCategory, string> = {
-  tea: '☕', transport: '🛺', rent: '🏠', electricity: '💡', salary: '👷', purchase: '📦', packaging: '🛍️', repair: '🔧', home: '👪', other: '📝',
+  tea: '☕', transport: '🛺', rent: '🏠', electricity: '💡', salary: '👷', purchase: '📦', packaging: '🛍️', repair: '🔧', home: '👪', other: '📝', tax: '🧾', loan: '🏦', equipment: '🧊', deposit: '🏧', advance: '🤝',
 }
 const QUICK: ExpenseCategory[] = ['tea', 'transport', 'packaging', 'salary', 'purchase', 'electricity', 'rent', 'home']
 const ALL = Object.keys(ICONS) as ExpenseCategory[]
@@ -118,9 +123,10 @@ function shiftDay(day: string, by: number) {
  * auto 120, thaili 250 upi"), check what was read, save. Or tap a heading and type just the amount. A wrong line is
  * struck through, never rubbed out. Cash lines come out of the drawer in the cash book; UPI ones don't.
  */
-export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: string; shopName: string; month?: boolean }) {
+export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { shopId: string; shopName: string; isOwner: boolean; month?: boolean }) {
   const { t } = useTranslation()
-  const [view, setView] = useState<'day' | 'month'>(month ? 'month' : 'day')
+  // The month shows salary and money taken home: the owner's figures.
+  const [view, setView] = useState<'day' | 'month'>(month && isOwner ? 'month' : 'day')
   const queryClient = useQueryClient()
   const today = indiaToday()
   const [day, setDay] = useState(today)
@@ -142,6 +148,11 @@ export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: st
     .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt))
   const live = lines.filter((l) => !l.struckAt)
   const cashOut = live.filter((l) => l.mode === 'cash').reduce((sum, l) => sum + l.amount, 0)
+  // Cash to one payee (the same note) on the day, already written plus being added: the ₹10,000 tax line is per person per day.
+  const payee = (note: string | null | undefined) => (note ?? '').trim().toLowerCase()
+  const cashTo = (g: Guess) => !payee(g.note) ? Number(g.amount) || 0
+    : live.filter((l) => l.mode === 'cash' && payee(l.note) === payee(g.note)).reduce((sum, l) => sum + l.amount, 0)
+      + guesses.filter((x) => x.mode === 'cash' && payee(x.note) === payee(g.note)).reduce((sum, x) => sum + (Number(x.amount) || 0), 0)
   const upiOut = live.filter((l) => l.mode === 'upi').reduce((sum, l) => sum + l.amount, 0)
   const label = new Date(`${day}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
   const isToday = day === today
@@ -219,13 +230,13 @@ export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: st
     <button onClick={() => navigate('/team')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-teal-50 px-4 text-left font-semibold text-teal-900">
       <span>👥 {t('teamLink')}</span><span aria-hidden="true">→</span>
     </button>
-    <div role="tablist" className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 font-semibold">
+    {isOwner && <div role="tablist" className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 font-semibold">
       {(['day', 'month'] as const).map((v) => (
         <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`min-h-11 rounded-xl ${view === v ? 'bg-teal-700 text-white' : ''}`}>
           {t(`kharchaMonth.tab.${v}`)}
         </button>
       ))}
-    </div>
+    </div>}
     </>
   )
   if (view === 'month') {
@@ -240,6 +251,13 @@ export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: st
         <span className="text-lg font-bold">{isToday ? t('expense.today') : label}</span>
         <button onClick={() => setDay(shiftDay(day, 1))} disabled={isToday} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
       </div>
+
+      {isOwner && isToday && (
+        <MissingRegular shopId={shopId} skip={[...guesses.map((g) => g.category), ...pending.lines.map((l) => l.category)]}
+          onRepeat={(l) => setGuesses([...guesses, { key: nextKey.current++, amount: String(l.amount), category: l.category, note: l.note ?? '', mode: l.mode }])} />
+      )}
+
+      {isToday && <MeterCard shopId={shopId} />}
 
       {/* Write: one line like the notebook, or tap a heading. */}
       <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
@@ -312,6 +330,10 @@ export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: st
                 ))}
                 <button onClick={() => setGuesses(guesses.filter((x) => x.key !== g.key))} aria-label={t('expense.remove')} className="h-11 w-11 rounded-xl text-xl text-muted">×</button>
               </div>
+              {/* A business payment above ₹10,000 in cash to one person in a day isn't allowed as an expense for tax. */}
+              {g.mode === 'cash' && cashTo(g) > 10_000 && !['deposit', 'home', 'tax', 'loan', 'advance'].includes(g.category) && (
+                <p role="status" className="rounded-xl bg-amber-50 p-2 text-sm text-amber-800">{t('cashLimit.expense')}{cashTo(g) > (Number(g.amount) || 0) && ` ${t('cashLimit.expenseDay', { total: formatRupees(cashTo(g)) })}`}</p>
+              )}
             </div>
           ))}
           <button disabled={busy || !ready} onClick={() => void save()} className="h-12 rounded-2xl bg-teal-700 font-bold text-white disabled:opacity-40">
@@ -328,7 +350,7 @@ export function ExpensesScreen({ shopId, shopName, month = false }: { shopId: st
           <div className="grid grid-cols-3 gap-2 border-b border-[#e8dfc8] p-3 text-center">
             <div><div className="text-xs text-muted">{t('expense.cashOut')}</div><div className="text-lg font-extrabold text-due">{formatRupees(cashOut)}</div></div>
             <div><div className="text-xs text-muted">{t('expense.upiOut')}</div><div className="text-lg font-extrabold">{formatRupees(upiOut)}</div></div>
-            <div><div className="text-xs text-muted">{t('expense.total')}</div><div className="text-lg font-extrabold">{formatRupees(cashOut + upiOut)}</div></div>
+            <div><div className="text-xs text-muted">{t('expense.total')}</div><div className="text-lg font-extrabold">{formatRupees(live.reduce((sum, l) => sum + l.amount, 0))}</div></div>
           </div>
           <ul className="border-l-2 border-red-300 pl-3" style={{ backgroundImage: 'repeating-linear-gradient(transparent 0 55px, #e8dfc8 55px 56px)' }}>
             {lines.length === 0 && <li className="flex min-h-14 items-center pr-3 text-muted">{t('expense.empty')}</li>}

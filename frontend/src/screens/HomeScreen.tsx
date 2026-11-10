@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { TodaySummary } from '../components/TodaySummary'
+// Below the fold and owner-only: kept out of the first load.
+const TodaySummary = lazy(() => import('../components/TodaySummary').then((m) => ({ default: m.TodaySummary })))
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BillIcon, CustomersIcon, PaymentIcon, PlusIcon } from '../components/Icons'
@@ -10,6 +11,8 @@ import { formatRupees } from '../lib/format'
 import { useSubscription } from '../lib/billing'
 import { useShopSettings, shopTypes, isTrade, COMMISSION_TYPES } from '../lib/reports'
 import { navigate } from '../router'
+// Last week's summary, on Mondays and Tuesdays only: loaded then, not with the app.
+const WeekSummaryCard = lazy(() => import('./SalesInsightsScreens').then((module) => ({ default: module.WeekSummaryCard })))
 // Each trade's card comes with its whole screen, so only the shops of that trade fetch it.
 const SalonHomeCard = lazy(() => import('./SalonSetupScreen').then((module) => ({ default: module.SalonHomeCard })))
 const MedicalHomeCard = lazy(() => import('./MedicalScreen').then((module) => ({ default: module.MedicalHomeCard })))
@@ -53,11 +56,12 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
 
   return (
     <div className="pb-4">
-      <div className="h-14 bg-teal-700" />
-      <section className="mx-4 -mt-12 flex flex-col gap-3.5 rounded-[20px] bg-white p-[18px] shadow-[0_6px_20px_rgba(16,32,29,0.08)]">
+      {/* On a phone the sales card rises into the bar; on a large screen it sits below it. */}
+      <div className="h-14 bg-teal-700 lg:hidden" />
+      <section className="mx-4 -mt-12 lg:mt-4 flex flex-col gap-3.5 rounded-[20px] bg-white p-[18px] shadow-[0_6px_20px_rgba(16,32,29,0.08)]">
         <div className="flex items-baseline justify-between">
           <span className="text-[15px] font-semibold text-muted">{t('todaySales')}</span>
-          <span className="text-[13px] text-muted">{today ? t('billsCount', { count: today.bills }) : ' '}</span>
+          <button onClick={() => navigate('/reports/day')} className="min-h-9 text-[13px] font-semibold text-teal-700 underline">{today ? t('billsCount', { count: today.bills }) : ' '} ›</button>
         </div>
         <div className="text-[40px] leading-none font-extrabold">{today ? formatRupees(today.sales) : '…'}</div>
         <div className="grid grid-cols-3 gap-2">
@@ -76,8 +80,9 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
 
       {isOwner && <PlanBanner shopId={shopId} />}
       {isOwner && <BalanceAlert />}
-      {isOwner && <TodaySummary today={today} shopName={settings?.name ?? ''} lowCount={lowCount} />}
+      {isOwner && <Suspense fallback={null}><TodaySummary today={today} shopName={settings?.name ?? ''} lowCount={lowCount} /></Suspense>}
       {isOwner && <Digest />}
+      {isOwner && [1, 2].includes(new Date(Date.now() + 5.5 * 3_600_000).getUTCDay()) && <Suspense fallback={null}><WeekSummaryCard shopId={shopId} shopName={settings?.name ?? ''} /></Suspense>}
 
       <div className="mx-4 mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <button onClick={() => navigate('/cashbook')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
@@ -140,6 +145,13 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
           <span>{t('rates.link')}</span><span aria-hidden="true">→</span>
         </button>
       )}
+
+      {isOwner && ([['/suppliers', t('side.suppliers')], ['/reorder', t('reorder.link')], ['/offers', t('offers.link')]] as const).map(([to, label]) => (
+        <button key={to} onClick={() => navigate(to)} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+          <span>{label}</span>
+          <span aria-hidden="true">→</span>
+        </button>
+      ))}
 
       {isOwner && (
         <button onClick={() => navigate('/settings')} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">

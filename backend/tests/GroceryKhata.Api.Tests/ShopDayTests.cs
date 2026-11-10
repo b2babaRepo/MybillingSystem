@@ -91,6 +91,13 @@ public sealed class ShopDayTests(ApiFactory api)
         var xml = await vouchers.ReadToEndAsync();
         Assert.Equal(2, xml.Split("VCHTYPE=\"Sales\"").Length - 1);
         Assert.Contains("VCHTYPE=\"Credit Note\"", xml);
+        // Buying and spending go in too: the supplier bill as a Purchase, the ₹100 paid on it and the rent as Payments,
+        // and the supplier payment's own kharcha line is not sent a second time.
+        Assert.Single(xml.Split("VCHTYPE=\"Purchase\"").Skip(1));
+        Assert.Equal(2, xml.Split("VCHTYPE=\"Payment\"").Length - 1);
+        Assert.Contains("<LEDGERNAME>Rent</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-250.00</AMOUNT>", xml);
+        var masters = await new StreamReader(archive.GetEntry("1-masters.xml")!.Open()).ReadToEndAsync();
+        Assert.Contains("<PARENT>Sundry Creditors</PARENT>", masters);
         // The UPI money received on khata comes in as a Receipt into the UPI bank ledger, credited to the customer.
         Assert.True(gst.Receipts >= 1);
         Assert.Contains("VCHTYPE=\"Receipt\"", xml);

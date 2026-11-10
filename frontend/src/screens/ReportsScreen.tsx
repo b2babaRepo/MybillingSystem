@@ -6,6 +6,8 @@ import { Button } from '../components/ui'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { downloadCsv, type MonthReport } from '../lib/reports'
+import { MonthStatementCard } from './MonthStatement'
+import { change, Delta, ReportShell, Sparkline, UpDownBars, useReportView } from '../components/ReportShell'
 
 function shiftMonth(month: string, by: number) {
   const [year, m] = month.split('-').map(Number)
@@ -25,11 +27,14 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
   const speed = useQuery({ queryKey: [shopId, 'bill-speed'], queryFn: () => api<{ bills: number; medianSeconds: number | null; rows: { group: string; bills: number; medianSeconds: number }[] }>('/v1/reports/bill-speed'), retry: false }).data
   const report = useQuery({ queryKey: [shopId, 'report', month], queryFn: () => api<MonthReport>(`/v1/reports/month?month=${month}`) })
   const data = report.data
+  // The month before, for the moves (▲▼) and the dashed average line.
+  const before = useQuery({ queryKey: [shopId, 'report', shiftMonth(month, -1)], queryFn: () => api<MonthReport>(`/v1/reports/month?month=${shiftMonth(month, -1)}`), retry: false }).data
+  const [view, setView] = useReportView()
   const today = new Date()
   const fy = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1
   const year = useQuery({
     queryKey: [shopId, 'report-year', fy], enabled: isOwner, retry: false,
-    queryFn: () => api<{ financialYear: string; total: { sales: number; gst: number; turnover: number; noRate: number; cash: number; digital: number } }>(`/v1/reports/year?fy=${fy}`),
+    queryFn: () => api<{ financialYear: string; months: YearRow[]; total: YearRow }>(`/v1/reports/year?fy=${fy}`),
   }).data
   const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
   const peak = Math.max(1, ...(data?.days.map((d) => d.sales) ?? [1]))
@@ -43,8 +48,25 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
     }
   }
 
+  const avgBill = data && data.bills ? Math.round(data.sales / data.bills) : 0
+  const avgBefore = before && before.bills ? before.sales / before.bills : null
+  let run = 0
+  const cumulative = data?.days.map((d) => (run += d.sales)) ?? []
+  const ticks = data ? [
+    { label: t('reports.sales'), value: formatRupees(data.sales), change: change(data.sales, before?.sales) },
+    { label: t('rv.billsTick'), value: String(data.bills), change: change(data.bills, before?.bills) },
+    { label: t('rv.avgBill'), value: formatRupees(avgBill), change: change(avgBill, avgBefore) },
+    { label: t('reports.outstanding'), value: formatRupees(data.outstanding) },
+    ...data.topItems.slice(0, 4).map((i) => ({ label: i.name, value: formatRupees(i.amount) })),
+  ] : []
+  const mix = data ? [
+    { key: 'cash', amount: data.cash, color: '#0f766e' }, { key: 'upi', amount: data.upi, color: '#2563eb' },
+    { key: 'card', amount: data.card ?? 0, color: '#f59e0b' }, { key: 'cheque', amount: data.cheque ?? 0, color: '#7c3aed' },
+  ].filter((m) => m.amount > 0) : []
+  const mixTotal = mix.reduce((a, m) => a + m.amount, 0)
+
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <ReportShell page="reports" title={t('rv.reportsTitle')} isOwner={isOwner} view={view} onView={setView} ticks={ticks}>
       <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('reports.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{label}</span>
@@ -52,6 +74,51 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
       </div>
 
       {report.isError && <p className="text-due">{report.error.message}</p>}
+      {data && view === 'chart' && <>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Tile label={t('reports.sales')} value={formatRupees(data.sales)} delta={change(data.sales, before?.sales)} trend={cumulative} />
+          <Tile label={t('rv.billsTick')} value={String(data.bills)} delta={change(data.bills, before?.bills)} />
+          <Tile label={t('rv.avgBill')} value={formatRupees(avgBill)} delta={change(avgBill, avgBefore)} />
+          <Tile label={t('reports.outstanding')} value={formatRupees(data.outstanding)} />
+        </div>
+        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[2fr_1fr] lg:items-start">
+          <UpDownBars days={data.days} average={before && before.days.length ? before.sales / before.days.length : undefined} label={t('rv.daily')} />
+          {mixTotal > 0 && (
+            <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+              <b>{t('rv.cameBy')}</b>
+              <div role="img" aria-label={mix.map((m) => `${t(m.key)} ${Math.round((m.amount * 100) / mixTotal)}%`).join(', ')} className="flex h-4 overflow-hidden rounded-full">
+                {mix.map((m) => <span key={m.key} style={{ width: `${(m.amount * 100) / mixTotal}%`, background: m.color }} />)}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {mix.map((m) => <span key={m.key}><span style={{ color: m.color }}>●</span> {t(m.key)} · {Math.round((m.amount * 100) / mixTotal)}%<b className="block text-base">{formatRupees(m.amount)}</b></span>)}
+              </div>
+            </section>
+          )}
+        </div>
+      </>}
+      {data && view === 'ledger' && (
+        <section className="overflow-x-auto rounded-xl border border-line bg-white">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
+            <caption className="p-3 text-left font-bold">{year ? t('rv.monthsTable', { fy: year.financialYear }) : t('rv.daysTable')}</caption>
+            <thead><tr className="bg-[#f3f6f5] text-right">{(year ? ['rv.month', 'reports.sales', 'rv.billsTick', 'cash', 'rv.digital', 'rv.gstCol', 'rv.change'] : ['rv.day', 'reports.sales', 'rv.received', 'rv.change']).map((k, i) => <th key={k} className={`border-b border-line px-3 py-2 ${i === 0 ? 'text-left' : ''}`}>{t(k)}</th>)}</tr></thead>
+            <tbody className="text-right tabular-nums">
+              {year ? year.months.filter((m) => m.month <= month && (m.sales > 0 || m.month === month)).map((m, i, all) => (
+                <tr key={m.month} className={m.month === month ? 'bg-emerald-50 font-semibold' : i % 2 ? 'bg-[#fafbfb]' : ''}>
+                  <td className="px-3 py-2 text-left">{new Date(`${m.month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' })}</td>
+                  <td className="px-3 py-2">{formatRupees(m.sales)}</td><td className="px-3 py-2">{m.bills}</td><td className="px-3 py-2">{formatRupees(m.cash)}</td><td className="px-3 py-2">{formatRupees(m.digital)}</td><td className="px-3 py-2">{formatRupees(m.gst)}</td>
+                  <td className="px-3 py-2"><Delta value={i > 0 ? change(m.sales, all[i - 1].sales) : null} /></td>
+                </tr>
+              )) : data.days.map((d, i) => (
+                <tr key={d.date} className={i % 2 ? 'bg-[#fafbfb]' : ''}>
+                  <td className="px-3 py-2 text-left">{new Date(d.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                  <td className="px-3 py-2">{formatRupees(d.sales)}</td><td className="px-3 py-2">{formatRupees(d.received)}</td>
+                  <td className="px-3 py-2"><Delta value={i > 0 ? change(d.sales, data.days[i - 1].sales) : null} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
       {data && (
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start">
           <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px]">
@@ -70,6 +137,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
 
           <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4">
             {isOwner && <>
+            {data.statement ? <MonthStatementCard st={data.statement} /> : <>
             <span className="text-sm font-semibold text-muted">{t('reports.profit')}</span>
             <span className="text-2xl font-extrabold text-jama">{formatRupees(data.estimatedProfit)}</span>
             {((data.returns ?? 0) !== 0 || (data.stockLoss ?? 0) !== 0) && <span className="text-xs text-muted">{t('reports.lessLosses', { returns: formatRupees(data.returns ?? 0), loss: formatRupees(data.stockLoss ?? 0) })}</span>}
@@ -84,6 +152,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             {((data.stockPurchases ?? 0) > 0 || (data.takenHome ?? 0) > 0) && (
               <span className="text-xs text-muted">{t('reports.notCosts', { stock: formatRupees(data.stockPurchases ?? 0), home: formatRupees(data.takenHome ?? 0) })}</span>
             )}
+            </>}
             <div className="mt-2 flex flex-col gap-1 border-t border-[#edf2f1] pt-2 text-sm">
               <span className="flex justify-between"><span className="text-muted">{t('reports.stockValue')}</span><span className="font-bold">{formatRupees(data.stockValue ?? 0)}</span></span>
               <span className="flex justify-between"><span className="text-muted">{t('reports.supplierDue')}</span><span className="font-bold text-due">{formatRupees(data.supplierDue ?? 0)}</span></span>
@@ -109,7 +178,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
 
           {data.topItems.length > 0 && (
             <section className="rounded-[18px] bg-white px-4 py-3">
-              <h2 className="pb-1 text-base font-bold">{t('reports.topItems')}</h2>
+              <h2 className="flex justify-between gap-2 pb-1 text-base font-bold">{t('reports.topItems')}<span className="text-xs font-semibold text-muted">{t('heads.topRow')}</span></h2>
               <ol className="divide-y divide-[#edf2f1]">
                 {data.topItems.map((item, i) => (
                   <li key={`${item.name}-${i}`} className="flex justify-between gap-2 py-2">
@@ -121,6 +190,10 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             </section>
           )}
 
+          <Button tone="plain" onClick={() => navigate('/reports/day')}>{t('day.link')}</Button>
+          <Button tone="plain" onClick={() => navigate('/cheques')}>{t('cheques.link')}</Button>
+          <Button tone="plain" onClick={() => navigate('/reports/week')}>{t('insights.weekLink')}</Button>
+          {isOwner && <Button tone="plain" onClick={() => navigate('/reports/customers')}>{t('insights.customersLink')}</Button>}
           {isOwner && <Button tone="plain" onClick={() => navigate('/reports/items')}>{t('margin.title')}</Button>}
           {isOwner && <Button tone="plain" onClick={() => navigate('/reports/sizes')}>{t('sizeReport.title')}</Button>}
           {isOwner && <Button tone="plain" onClick={() => navigate('/reports/staff')}>{t('sales.title')}</Button>}
@@ -164,15 +237,29 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
           </section>
         </div>
       )}
-    </div>
+    </ReportShell>
   )
 }
+
+type YearRow = { month: string; bills: number; sales: number; gst: number; turnover: number; noRate: number; cash: number; digital: number }
 
 function Stat({ label, value, tone }: { label: string; value: number; tone: string }) {
   return (
     <div className={`flex flex-col rounded-xl p-2.5 ${tone}`}>
       <span className="text-xs">{label}</span>
       <span className="text-[17px] font-bold">{formatRupees(value)}</span>
+    </div>
+  )
+}
+
+function Tile({ label, value, delta, trend, invert = false }: { label: string; value: string; delta?: number | null; trend?: number[]; invert?: boolean }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-1 rounded-[18px] bg-white p-4">
+      <span className="text-[13px] text-muted">{label}</span>
+      <b className="text-[26px] leading-tight">{value}</b>
+      {delta === undefined ? null : delta !== null ? <span className="text-[13px]"><Delta value={delta} invert={invert} /> {t('rv.vsBefore')}</span> : <span className="text-[13px] text-muted">{t('rv.noCompare')}</span>}
+      {trend && <Sparkline values={trend} />}
     </div>
   )
 }

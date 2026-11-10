@@ -24,3 +24,15 @@ export function ean13Modules(digits13: string): string {
   for (let i = 7; i <= 12; i++) bits += R[d[i]]
   return bits + '101'
 }
+
+/**
+ * One spelling per barcode, as the server keeps it: letters and digits only, and a 12-digit UPC-A with its leading 0,
+ * the 13-digit form cameras often report. So a pack saved one way still matches when scanned the other.
+ */
+export function normBarcode(code: string | null | undefined) {
+  const clean = (code ?? '').replace(/[^0-9A-Za-z]/g, '')
+  return /^\d{12}$/.test(clean) ? `0${clean}` : clean
+}
+
+/** A camera can be used here (a phone or laptop with a camera API). On a page that isn't https the scanner says so. */
+export const cameraPossible = () => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia

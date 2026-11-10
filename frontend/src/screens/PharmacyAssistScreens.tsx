@@ -38,9 +38,22 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
   const { t } = useTranslation()
   const groups = useQuery({ queryKey: [shopId, 'reorder'], queryFn: () => api<ReorderGroup[]>('/v1/pharmacy/reorder') }).data
   const [qty, setQty] = useState<Record<string, string>>({})
+  const queryClient = useQueryClient()
+  const [saved, setSaved] = useState<Record<string, string>>({})
+  // Saved, an order counts as on its way: it leaves this list, and its goods match it when they come.
+  async function saveOrder(supplierId: string, lines: { productId: string; order: number; lastRate: number | null }[]) {
+    try {
+      const order = await api<{ number: number }>('/v1/suppliers/orders', 'POST', { id: crypto.randomUUID(), supplierId, lines: lines.map((l) => ({ productId: l.productId, quantity: l.order, rate: l.lastRate })) })
+      setSaved({ ...saved, [supplierId]: t('supplier2.savedOrder', { number: order.number }) })
+      await queryClient.invalidateQueries({ queryKey: [shopId, 'reorder'] })
+    } catch (e) {
+      setSaved({ ...saved, [supplierId]: e instanceof Error ? e.message : t('error') })
+    }
+  }
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t(general ? 'reorder.hintAll' : 'reorder.hint')}</p>
+      {Object.values(saved).map((m) => <p key={m} className="rounded-[18px] bg-teal-50 p-3 text-sm text-teal-900">{m}</p>)}
       {groups?.length === 0 && <p className="rounded-[18px] bg-white p-3 text-sm text-muted">{t('reorder.none')}</p>}
       {groups?.map((g) => {
         const lines = g.lines.map((l) => ({ ...l, order: Number(qty[l.productId] ?? l.suggested) || 0 })).filter((l) => l.order > 0)
@@ -55,6 +68,7 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
                   onChange={(e) => setQty({ ...qty, [l.productId]: e.target.value })} className="h-11 rounded-lg border border-line px-2" />
               </div>
             ))}
+            {g.supplierId && lines.length > 0 && <button onClick={() => void saveOrder(g.supplierId!, lines)} className="h-11 rounded-xl border-2 border-teal-700 font-semibold text-teal-800">{t('supplier2.saveAsOrder')}</button>}
             {(g.phone || !g.supplierId) && lines.length > 0
               ? <a href={whatsAppLink(g.phone ?? null, message)} target="_blank" rel="noreferrer" className="flex h-11 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('reorder.send')}</a>
               : <p className="text-xs text-muted">{t(general ? 'reorder.noPhoneAll' : 'reorder.noPhone')}</p>}

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { localeOf } from '../i18n'
 import { DataTable } from '../components/DataTable'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
@@ -23,7 +24,7 @@ export function StaffSalesScreen({ shopId }: { shopId: string }) {
   const now = thisMonth()
   const [month, setMonth] = useState(now)
   const rows = useQuery({ queryKey: [shopId, 'staff-sales', month], queryFn: () => api<StaffSales[]>(`/v1/reports/staff?month=${month}`) }).data
-  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : 'en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(localeOf(i18n.language), { month: 'long', year: 'numeric', timeZone: 'UTC' })
   const totalCommission = (rows ?? []).reduce((n, r) => n + r.commission, 0)
   return (
     <div className="flex flex-col gap-3 p-4 pb-24">

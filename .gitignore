@@ -25,3 +25,6 @@ out/
 
 # Six Labors (ImageSharp) licence key: kept out of git (or set the SixLaborsLicenseKey environment variable)
 sixlabors.lic
+
+# The demo's generated logins
+deploy/demo/demo-logins.txt

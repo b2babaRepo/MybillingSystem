@@ -1,7 +1,6 @@
 import { useShopSettings } from '../lib/reports'
 import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { useGstBilling } from '../lib/billing'
 import { GST_RATES } from '../lib/gst'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, PendingDot, Sheet } from '../components/ui'
@@ -279,7 +278,6 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
   const [category, setCategory] = useState('')
   const [opening, setOpening] = useState('')
   const [reorder, setReorder] = useState('')
-  const gstBilling = useGstBilling(shopId)
   const [gst, setGst] = useState('')
   const [hsn, setHsn] = useState('')
   const [service, setService] = useState(false)
@@ -325,7 +323,7 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
           <Field label={t('stock.openingStock')} value={opening} onChange={(e) => setOpening(e.target.value)} inputMode="decimal" />
           <Field label={t('stock.reorderLevel')} value={reorder} onChange={(e) => setReorder(e.target.value)} inputMode="decimal" />
         </div>}
-        {gstBilling && <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium text-muted">{t('stock.gst')}</span>
             <select value={gst} onChange={(e) => setGst(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
@@ -334,7 +332,7 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
             </select>
           </label>
           <Field label={t('stock.hsn')} value={hsn} onChange={(e) => setHsn(e.target.value)} inputMode="numeric" maxLength={8} />
-        </div>}
+        </div>
         <div className="grid grid-cols-[1fr_2fr] gap-2">
           <Button type="button" tone="plain" onClick={onClose}>{t('cancel')}</Button>
           <Button type="submit" disabled={!name.trim() || !(Number(price) > 0)}>{t('save')}</Button>

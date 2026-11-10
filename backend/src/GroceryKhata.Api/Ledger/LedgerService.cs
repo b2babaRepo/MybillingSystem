@@ -10,7 +10,7 @@ namespace GroceryKhata.Api.Ledger;
 /// entries are append-only (fix with a reversal); a customer's balance changes only in the same
 /// transaction as the entry that moves it; every write carries the app's own ID, so a retry is a no-op.
 /// </summary>
-public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantContext tenant, Billing.Entitlements entitlements, IHttpContextAccessor? http = null)
+public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantContext tenant, IHttpContextAccessor? http = null)
 {
     public async Task<IReadOnlyList<CustomerDto>> ListCustomersAsync(string? search, CancellationToken cancellationToken)
     {
@@ -22,18 +22,24 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         }
 
         return await query.OrderBy(c => c.Name).Take(500)
-            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit))
+            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater))
             .ToListAsync(cancellationToken);
     }
 
     public Task<LedgerResult<CustomerDto>> CreateCustomerAsync(CustomerRequest request, CancellationToken cancellationToken) =>
         WriteOnceAsync(
             () => db.Customers.AsNoTracking().Where(c => c.Id == request.Id)
-                .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit)).SingleOrDefaultAsync(cancellationToken),
+                .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater)).SingleOrDefaultAsync(cancellationToken),
             async () =>
             {
                 var errors = new Dictionary<string, string[]>();
                 RequireId(request.Id, errors);
+                if (request.NameLater && (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim() == "Name later"))
+                {
+                    // Numbered, so two of them on one day can be told apart.
+                    request = request with { Name = $"Name later {await db.Customers.CountAsync(c => c.NameLater, cancellationToken) + 1}" };
+                }
+
                 if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 120)
                 {
                     errors[nameof(request.Name)] = ["Enter the customer's name."];
@@ -50,10 +56,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     return LedgerResult<CustomerDto>.Invalid(errors);
                 }
 
-                var customer = new Customer { Id = request.Id, Name = request.Name!.Trim(), Phone = phone };
+                var customer = new Customer { Id = request.Id, Name = request.Name!.Trim(), Phone = phone, NameLater = request.NameLater };
                 db.Customers.Add(customer);
                 await db.SaveChangesAsync(cancellationToken);
-                return LedgerResult<CustomerDto>.Created(new CustomerDto(customer.Id, customer.Name, customer.Phone, 0));
+                return LedgerResult<CustomerDto>.Created(new CustomerDto(customer.Id, customer.Name, customer.Phone, 0, null, customer.NameLater));
             });
 
     /// <summary>How far back a helper may date an entry or bill; older needs the owner.</summary>
@@ -86,6 +92,38 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 }
 
                 CheckBackdate(request.OccurredAt, isOwner, errors);
+                // Customers pay by cash or UPI for now: "bank" is for suppliers, and the customer reports and the Tally
+                // file only know cash and UPI, so a bank receipt would go missing from them.
+                if (request.PaymentMode == PaymentMode.Bank)
+                {
+                    errors[nameof(request.PaymentMode)] = ["Choose cash, UPI, card or cheque for a customer's payment."];
+                }
+
+                // A cheque: its number (and, if known, bank and date) so the owner can match it with the bank later.
+                var isCheque = request.PaymentMode == PaymentMode.Cheque;
+                var chequeNo = request.ChequeNo?.Trim();
+                if (request.Type == KhataEntryType.Credit && tenant.IsBlocked(Identity.StaffLimits.Udhaar))
+                {
+                    errors[nameof(request.Type)] = [Identity.StaffLimits.Message(Identity.StaffLimits.Udhaar)];
+                }
+
+                if (isCheque && request.Type != KhataEntryType.Payment)
+                {
+                    errors[nameof(request.PaymentMode)] = ["A cheque is a payment (jama)."];
+                }
+                else if (isCheque && (chequeNo is null || chequeNo.Length is < 4 or > 12 || !chequeNo.All(char.IsAsciiDigit)))
+                {
+                    errors[nameof(request.ChequeNo)] = ["Enter the cheque number (the 6 digits at the bottom left)."];
+                }
+                else if (!isCheque && (!string.IsNullOrWhiteSpace(request.ChequeNo) || !string.IsNullOrWhiteSpace(request.ChequeBank) || request.ChequeDate is not null))
+                {
+                    errors[nameof(request.ChequeNo)] = ["Cheque details go only with a cheque payment."];
+                }
+                else if (request.ChequeBank?.Trim().Length > 40)
+                {
+                    errors[nameof(request.ChequeBank)] = ["Keep the bank name under 40 characters."];
+                }
+
                 var upiRef = string.IsNullOrWhiteSpace(request.UpiRef) ? null : request.UpiRef.Trim().ToUpperInvariant();
                 if (upiRef is not null && (request.Type != KhataEntryType.Payment || request.PaymentMode != PaymentMode.Upi))
                 {
@@ -116,6 +154,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     PaymentMode = isPayment ? request.PaymentMode ?? PaymentMode.Cash : null,
                     Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
                     UpiRef = upiRef,
+                    ChequeNo = isCheque ? chequeNo : null,
+                    ChequeBank = isCheque && !string.IsNullOrWhiteSpace(request.ChequeBank) ? request.ChequeBank.Trim() : null,
+                    ChequeDate = isCheque ? request.ChequeDate : null,
+                    ChequeStatus = isCheque ? ChequeStatus.Pending : null,
                     OccurredAt = OccurredAt(request.OccurredAt),
                     CreatedByUserId = userId,
                 };
@@ -266,6 +308,9 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     Kind = original.Kind == LedgerEntryKind.Opening ? LedgerEntryKind.Opening : LedgerEntryKind.Reversal,
                     Amount = -original.Amount,
                     PaymentMode = original.PaymentMode,
+                    ChequeNo = original.ChequeNo,
+                    // Carries the cheque's status, so a pending cheque and its removal both stay out of money received.
+                    ChequeStatus = original.ChequeStatus,
                     BillId = original.BillId,
                     ReversesEntryId = original.Id,
                     Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
@@ -316,6 +361,11 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     .Where(p => productIds.Contains(p.Id))
                     .ToDictionaryAsync(p => p.Id, cancellationToken);
 
+                // Planned offers named on the lines: one the bill's moment falls in, on that item, lets its price stand.
+                var billAt = OccurredAt(request.OccurredAt);
+                var offerIds = request.Lines.Where(l => l.OfferId is not null).Select(l => l.OfferId!.Value).Distinct().ToList();
+                var offers = offerIds.Count == 0 ? [] : await db.SaleOffers.AsNoTracking().Where(o => offerIds.Contains(o.Id)).ToDictionaryAsync(o => o.Id, cancellationToken);
+
                 var lines = new List<BillLine>();
                 for (var i = 0; i < request.Lines.Count; i++)
                 {
@@ -329,6 +379,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     }
 
                     var name = string.IsNullOrWhiteSpace(line.Name) ? product?.Name : line.Name.Trim();
+                    var offer = line.OfferId is { } offerId && product is not null && offers.GetValueOrDefault(offerId) is { } named && SaleOffers.Covers(named, product, billAt) ? named : null;
+                    var offerPrice = offer is null ? (decimal?)null : SaleOffers.PriceFor(offer, product!.SellingPrice);
                     if (string.IsNullOrEmpty(name) || name.Length > 120)
                     {
                         errors[field] = ["Each item needs a name."];
@@ -346,7 +398,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                         // Legal Metrology: nothing may be sold above the MRP printed on it.
                         errors[field] = [$"{name} has MRP ₹{mrp:0.##}: the price can't be above it."];
                     }
-                    else if (!isOwner && DiscountProblem(name, product, line.UnitPrice, staffMaxDiscount) is { } tooLow)
+                    // The owner set the offer's price before billing, so a helper may sell at it, past their own limit.
+                    else if (!isOwner && !(offerPrice is { } floor && line.UnitPrice >= floor) && DiscountProblem(name, product, line.UnitPrice, staffMaxDiscount) is { } tooLow)
                     {
                         errors[field] = [tooLow];
                     }
@@ -363,6 +416,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                             // Sold below the item's regular price: keep that price, so every discount is on record.
                             ListPrice = product is { SellingPrice: > 0 } p && line.UnitPrice < p.SellingPrice ? p.SellingPrice : null,
                             PrintName = Catalogue.BillNames.For(product),
+                            OfferId = offer?.Id,
+                            OfferName = offer?.Name,
                             SalespersonId = line.SalespersonId is { } seller && sellers.Contains(seller) ? seller : userId,
                             UnitCost = product?.CostPrice,
                             Amount = Money.LineAmount(line.Quantity, line.UnitPrice),
@@ -401,6 +456,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 if (request.PaidAmount < 0 || decimal.Round(request.PaidAmount, 2) != request.PaidAmount || request.PaidAmount > due)
                 {
                     errors[nameof(request.PaidAmount)] = [exchange is null ? "Paid amount must be between ₹0 and the bill total." : $"With the exchange credit, at most ₹{due:0.##} is left to pay."];
+                }
+                else if (request.PaidAmount < due && tenant.IsBlocked(Identity.StaffLimits.Udhaar))
+                {
+                    errors[nameof(request.PaidAmount)] = [Identity.StaffLimits.Message(Identity.StaffLimits.Udhaar)];
                 }
                 else if (request.CustomerId is null && request.PaidAmount != due)
                 {
@@ -445,14 +504,36 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     return LedgerResult<BillDto>.Invalid(nameof(request.CustomerId), "Customer not found.");
                 }
 
+                // GST wants the buyer's name and address on a bill of ₹50,000 or more: a "name later" khata can't take one.
+                if (request.CustomerId is { } unnamedId && total >= NameLaterBillLimit && await db.Customers.AnyAsync(c => c.Id == unnamedId && c.NameLater, cancellationToken))
+                {
+                    return LedgerResult<BillDto>.Invalid(nameof(request.CustomerId), "A bill of ₹50,000 or more needs the buyer's name. Add their name first.");
+                }
+
+                if (request.PaymentMode is PaymentMode.Bank or PaymentMode.Cheque && request.PaidAmount > 0)
+                {
+                    return LedgerResult<BillDto>.Invalid(nameof(request.PaymentMode), "Choose cash, UPI or card for a bill's payment. A cheque goes on the khata as a payment.");
+                }
+
+                // Paid two ways: each part cash or UPI, above ₹0, together exactly what was paid.
+                var parts = (request.Payments ?? []).Where(p => p.Amount != 0).Select(p => new BillPaymentPart(p.Mode, p.Amount, string.IsNullOrWhiteSpace(p.Reference) ? null : p.Reference.Trim().ToUpperInvariant())).ToList();
+                if (parts.Count > 0 && (parts.Count > 4 || parts.Any(p => p.Amount < 0 || decimal.Round(p.Amount, 2) != p.Amount || p.Mode is not (PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Card) || (p.Reference is { } r && (p.Mode != PaymentMode.Upi || r.Length is < 6 or > 30 || !r.All(char.IsAsciiLetterOrDigit))))
+                    || parts.Sum(p => p.Amount) != request.PaidAmount))
+                {
+                    return LedgerResult<BillDto>.Invalid(nameof(request.Payments), "The cash, UPI and card parts must add up to the amount paid, and a UPI reference is 6 to 30 letters and digits.");
+                }
+
+                // Parts of one mode join up; one part left is an ordinary one-way payment.
+                parts = parts.GroupBy(p => p.Mode).Select(g => new BillPaymentPart(g.Key, g.Sum(p => p.Amount), g.Select(p => p.Reference).FirstOrDefault(r => r is not null))).OrderByDescending(p => p.Amount).ToList();
                 var occurredAt = OccurredAt(request.OccurredAt);
-                var paymentMode = request.PaidAmount > 0 ? request.PaymentMode ?? PaymentMode.Cash : (PaymentMode?)null;
+                var paymentMode = request.PaidAmount > 0 ? parts.FirstOrDefault()?.Mode ?? request.PaymentMode ?? PaymentMode.Cash : (PaymentMode?)null;
                 var bill = new Bill
                 {
                     Id = request.Id,
                     CustomerId = request.CustomerId,
                     Total = total,
                     PaidAmount = request.PaidAmount,
+                    Payments = BillPayments.ToJson(parts),
                     PaymentMode = paymentMode,
                     ExchangeNoteId = exchange?.Id,
                     ExchangeCredit = exchangeCredit,
@@ -461,8 +542,9 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     Lines = lines,
                     Site = site,
                     VehicleNumber = vehicle,
+                    Counter = string.IsNullOrWhiteSpace(request.Counter) ? null : request.Counter.Trim()[..Math.Min(30, request.Counter.Trim().Length)],
                     PainterId = request.PainterId,
-                    Gstin = await BillGstinAsync(cancellationToken),
+                    Gstin = request.WithoutGst ? null : await BillGstinAsync(cancellationToken),
                     EntrySeconds = BillSpeed.Clean(request.EntrySeconds),
                 };
                 if (bill.Gstin is not null)
@@ -508,17 +590,21 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                         });
                     }
 
-                    if (bill.PaidAmount > 0)
+                    // One payment line per way it was paid, so the statement says "₹500 cash, ₹300 UPI".
+                    var paidParts = bill.Parts();
+                    for (var p = 0; p < paidParts.Count; p++)
                     {
                         db.LedgerEntries.Add(new LedgerEntry
                         {
                             CustomerId = billCustomerId,
                             Kind = LedgerEntryKind.Payment,
-                            Amount = -bill.PaidAmount,
-                            PaymentMode = paymentMode,
+                            Amount = -paidParts[p].Amount,
+                            PaymentMode = paidParts[p].Mode,
+                            // The UTR typed on the bill, so the khata line shows the proof too.
+                            UpiRef = paidParts[p].Mode == PaymentMode.Upi ? paidParts[p].Reference : null,
                             BillId = bill.Id,
                             // A microsecond after the credit, so the statement always lists the bill before its payment.
-                            OccurredAt = occurredAt.AddMicroseconds(1),
+                            OccurredAt = occurredAt.AddMicroseconds(1 + p),
                             CreatedByUserId = userId,
                         });
                     }
@@ -598,7 +684,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName)).ToList(),
                     balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, BuyerGstin: bill.BuyerGstin, BillOfSupply: bill.BillOfSupply,
                     Prescription: prescription is null ? null : new PrescriptionRequest(prescription.DoctorName, prescription.DoctorAddress, prescription.DoctorRegNo, prescription.PatientName, prescription.PatientAddress, prescription.PrescribedOn),
-                    ExchangeCredit: bill.ExchangeCredit, ExchangeNoteNo: exchange?.NoteNo, PlaceOfSupply: bill.PlaceOfSupply));
+                    ExchangeCredit: bill.ExchangeCredit, ExchangeNoteNo: exchange?.NoteNo, PlaceOfSupply: bill.PlaceOfSupply, Payments: bill.Parts(), Counter: bill.Counter));
             });
 
     /// <summary>
@@ -738,7 +824,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
             running += e.Amount;
             return new StatementLine(e.Id, e.Kind, e.Amount, e.PaymentMode, e.BillId, e.ReversesEntryId, e.Note, e.OccurredAt,
                 running, reversed.Contains(e.Id), e.BillId is { } billId && e.Kind != LedgerEntryKind.Return ? bills.GetValueOrDefault(billId) : null, names.GetValueOrDefault(e.CreatedByUserId), e.UpiRef, disputes.GetValueOrDefault(e.Id),
-                e.CreatedAt - e.OccurredAt > LateAfter, e.CreatedAt);
+                e.CreatedAt - e.OccurredAt > LateAfter, e.CreatedAt, e.ChequeNo, e.ChequeStatus);
         }).ToList();
 
         return new StatementDto(customer, lines, opening, running,
@@ -830,12 +916,9 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         }
     }
 
-    /// <summary>The GSTIN a new bill carries: none unless the shop's plan has GST billing, so it prints as a plain bill.</summary>
-    private async Task<string?> BillGstinAsync(CancellationToken cancellationToken)
-    {
-        var gstin = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.Gstin).SingleOrDefaultAsync(cancellationToken);
-        return gstin is not null && (await entitlements.ForShopAsync(tenant.ShopId, cancellationToken)).Has(Billing.Features.Gst) ? gstin : null;
-    }
+    /// <summary>The GSTIN a new bill carries. On every plan: a registered shop's bill is a tax document, whatever it pays us.</summary>
+    private Task<string?> BillGstinAsync(CancellationToken cancellationToken) =>
+        db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.Gstin).SingleOrDefaultAsync(cancellationToken);
 
     private async Task<BillDto?> FindBillAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -855,7 +938,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 .Select(r => new PrescriptionRequest(r.DoctorName, r.DoctorAddress, r.DoctorRegNo, r.PatientName, r.PatientAddress, r.PrescribedOn)).SingleOrDefaultAsync(cancellationToken),
             bill.ExchangeCredit,
             bill.ExchangeNoteId is { } exchangeId ? (await db.CreditNotes.AsNoTracking().Where(n => n.Id == exchangeId).Select(n => new { n.FinancialYear, n.Number }).SingleOrDefaultAsync(cancellationToken)) is { } x ? $"CN/{x.FinancialYear}/{x.Number:D4}" : null : null,
-            bill.PlaceOfSupply);
+            bill.PlaceOfSupply, Payments: bill.Parts(), Counter: bill.Counter);
     }
 
     private Task<decimal> BalanceAsync(Guid customerId, CancellationToken cancellationToken) =>
@@ -865,6 +948,163 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
     /// Atomic in the database (balance = balance + delta), so two tills posting at once can't lose an update. Returns the
     /// new balance from the same statement, saving a read while the row is locked.
     /// </summary>
+    /// <summary>
+    /// Settles a customer's pending cheque: cleared, it now counts as money received; bounced, its amount goes back on
+    /// the khata as a reversal the customer sees, with the reason. Safe to repeat: a settled cheque comes back as it is.
+    /// </summary>
+    public async Task<LedgerResult<KhataEntryResponse>> SettleChequeAsync(Guid entryId, bool cleared, string? reason, Guid userId, CancellationToken cancellationToken)
+    {
+        reason = reason?.Trim();
+        if (!cleared && reason is not { Length: >= 3 and <= 150 })
+        {
+            return LedgerResult<KhataEntryResponse>.Invalid("Reason", "Say why the cheque bounced (as the bank wrote it). The customer will see it.");
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var entry = await db.LedgerEntries.FromSql($"SELECT * FROM ledger_entries WHERE id = {entryId} FOR UPDATE").SingleOrDefaultAsync(cancellationToken);
+        if (entry is null || entry.PaymentMode != PaymentMode.Cheque || entry.ReversesEntryId is not null)
+        {
+            return LedgerResult<KhataEntryResponse>.Missing();
+        }
+
+        var balance = await db.Customers.Where(c => c.Id == entry.CustomerId).Select(c => c.Balance).SingleAsync(cancellationToken);
+        if (entry.ChequeStatus != ChequeStatus.Pending)
+        {
+            var wanted = cleared ? ChequeStatus.Cleared : ChequeStatus.Bounced;
+            return entry.ChequeStatus == wanted
+                ? LedgerResult<KhataEntryResponse>.Replay(new KhataEntryResponse(LedgerEntryDto.From(entry), balance))
+                : LedgerResult<KhataEntryResponse>.Conflicted(entry.ChequeStatus == ChequeStatus.Cleared ? "This cheque is already marked cleared." : "This cheque is already marked bounced.");
+        }
+
+        if (await db.LedgerEntries.AnyAsync(e => e.ReversesEntryId == entryId, cancellationToken))
+        {
+            return LedgerResult<KhataEntryResponse>.Conflicted("This cheque payment was removed from the khata.");
+        }
+
+        var now = clock.GetUtcNow();
+        entry.ChequeStatus = cleared ? ChequeStatus.Cleared : ChequeStatus.Bounced;
+        entry.ChequeSettledAt = now;
+        if (!cleared)
+        {
+            var bounce = new LedgerEntry
+            {
+                CustomerId = entry.CustomerId, Kind = LedgerEntryKind.Reversal, Amount = -entry.Amount, PaymentMode = PaymentMode.Cheque,
+                ChequeNo = entry.ChequeNo, ChequeStatus = ChequeStatus.Bounced, ReversesEntryId = entry.Id,
+                Note = $"Cheque {entry.ChequeNo} bounced: {reason}", OccurredAt = now, CreatedByUserId = userId,
+            };
+            db.LedgerEntries.Add(bounce);
+            await db.SaveChangesAsync(cancellationToken);
+            balance = await AdjustBalanceAsync(entry.CustomerId, bounce.Amount, cancellationToken);
+        }
+        else
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return LedgerResult<KhataEntryResponse>.Created(new KhataEntryResponse(LedgerEntryDto.From(entry), balance));
+    }
+
+    /// <summary>The bill total at which GST needs the buyer named, so a "name later" khata can't be used.</summary>
+    public const decimal NameLaterBillLimit = 50_000m;
+
+    /// <summary>
+    /// Puts a paid walk-in bill on a customer's khata after the fact: the bill line and its payments, dated when it was
+    /// made and marked "added later", so the statement shows the purchase while the balance doesn't move. The bill itself
+    /// (number, GST, money) never changes: the cash book, day book and GST file stay as they were. Once only.
+    /// </summary>
+    public async Task<LedgerResult<BillDto>> AttachCustomerAsync(Guid billId, AttachCustomerRequest request, Guid userId, bool isOwner, CancellationToken cancellationToken)
+    {
+        var bill = await db.Bills.AsNoTracking().SingleOrDefaultAsync(b => b.Id == billId, cancellationToken);
+        if (bill is null)
+        {
+            return LedgerResult<BillDto>.Missing();
+        }
+
+        if (bill.CustomerId == request.CustomerId)
+        {
+            return LedgerResult<BillDto>.Replay((await FindBillAsync(billId, cancellationToken))!);
+        }
+
+        if (bill.CustomerId is not null)
+        {
+            return LedgerResult<BillDto>.Conflicted("This bill is already on a customer's khata.");
+        }
+
+        if (bill.CancelledAt is not null)
+        {
+            return LedgerResult<BillDto>.Conflicted("This bill was cancelled.");
+        }
+
+        var reason = request.Reason?.Trim();
+        var old = clock.GetUtcNow() - bill.OccurredAt > HelperBackdateLimit;
+        if (old && !isOwner)
+        {
+            return LedgerResult<BillDto>.Invalid("Reason", "After a week only the shop owner can add a customer to a bill.");
+        }
+
+        if (old && reason is not { Length: >= 3 and <= 200 })
+        {
+            return LedgerResult<BillDto>.Invalid("Reason", "Say why this bill is being put on the customer's khata now. They will see it.");
+        }
+
+        if (reason?.Length > 200)
+        {
+            return LedgerResult<BillDto>.Invalid("Reason", "Keep the reason under 200 characters.");
+        }
+
+        if (!await db.Customers.AnyAsync(c => c.Id == request.CustomerId, cancellationToken))
+        {
+            return LedgerResult<BillDto>.Invalid(nameof(request.CustomerId), "Customer not found.");
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        // One update decides it: a second attempt changes no row.
+        var claimed = await db.Bills.Where(b => b.Id == billId && b.CustomerId == null && b.CancelledAt == null)
+            .ExecuteUpdateAsync(u => u.SetProperty(b => b.CustomerId, request.CustomerId), cancellationToken);
+        if (claimed == 0)
+        {
+            return LedgerResult<BillDto>.Conflicted("This bill was just put on a khata.");
+        }
+
+        var note = string.IsNullOrEmpty(reason) ? "Added to khata later" : $"Added to khata later: {reason}";
+        db.LedgerEntries.Add(new LedgerEntry
+        {
+            CustomerId = request.CustomerId, Kind = LedgerEntryKind.Credit, Amount = bill.Total, BillId = bill.Id, Note = note,
+            OccurredAt = bill.OccurredAt, CreatedByUserId = userId,
+        });
+        if (bill.ExchangeCredit > 0)
+        {
+            db.LedgerEntries.Add(new LedgerEntry
+            {
+                CustomerId = request.CustomerId, Kind = LedgerEntryKind.Return, Amount = -bill.ExchangeCredit, BillId = bill.Id,
+                OccurredAt = bill.OccurredAt.AddMicroseconds(1), CreatedByUserId = userId,
+            });
+        }
+
+        var parts = bill.Parts();
+        for (var p = 0; p < parts.Count; p++)
+        {
+            db.LedgerEntries.Add(new LedgerEntry
+            {
+                CustomerId = request.CustomerId, Kind = LedgerEntryKind.Payment, Amount = -parts[p].Amount, PaymentMode = parts[p].Mode,
+                UpiRef = parts[p].Mode == PaymentMode.Upi ? parts[p].Reference : null, BillId = bill.Id,
+                OccurredAt = bill.OccurredAt.AddMicroseconds(1 + p), CreatedByUserId = userId,
+            });
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        // A walk-in bill is paid in full, so the lines net to nothing; whatever they net to goes on the balance.
+        var net = bill.Total - bill.ExchangeCredit - parts.Sum(p => p.Amount);
+        if (net != 0)
+        {
+            await AdjustBalanceAsync(request.CustomerId, net, cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return LedgerResult<BillDto>.Created((await FindBillAsync(billId, cancellationToken))!);
+    }
+
     private async Task<decimal> AdjustBalanceAsync(Guid customerId, decimal delta, CancellationToken cancellationToken) =>
         (await db.Database.SqlQuery<decimal>($"UPDATE customers SET balance = balance + {delta} WHERE id = {customerId} RETURNING balance AS \"Value\"")
             .ToListAsync(cancellationToken)).Single();

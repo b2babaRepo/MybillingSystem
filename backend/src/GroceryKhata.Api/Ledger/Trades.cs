@@ -31,6 +31,9 @@ public sealed class Challan : Entity, ITenantOwned
 
     public string? VehicleNumber { get; set; }
 
+    /// <summary>The state the goods went to (two-digit GST code), when it isn't the shop's own. The invoice made from it keeps it.</summary>
+    public string? PlaceOfSupply { get; set; }
+
     /// <summary>The invoice these goods were billed on. Null: still open.</summary>
     public Guid? InvoiceId { get; set; }
 
@@ -49,10 +52,10 @@ public sealed class Painter : Entity, ITenantOwned
     public decimal CommissionPercent { get; set; }
 }
 
-public sealed record ChallanRequest(Guid Id, Guid CustomerId, IReadOnlyList<BillLineRequest>? Lines, string? Site, string? VehicleNumber, DateTimeOffset? OccurredAt);
+public sealed record ChallanRequest(Guid Id, Guid CustomerId, IReadOnlyList<BillLineRequest>? Lines, string? Site, string? VehicleNumber, DateTimeOffset? OccurredAt, string? PlaceOfSupply = null);
 
 public sealed record ChallanDto(
-    Guid Id, Guid CustomerId, DateTimeOffset OccurredAt, IReadOnlyList<BillLineDto> Lines, decimal Total, string? Site, string? VehicleNumber, Guid? InvoiceId);
+    Guid Id, Guid CustomerId, DateTimeOffset OccurredAt, IReadOnlyList<BillLineDto> Lines, decimal Total, string? Site, string? VehicleNumber, Guid? InvoiceId, string? PlaceOfSupply = null);
 
 /// <summary>Make open challans into one invoice (the bill that goes on the khata).</summary>
 public sealed record InvoiceChallansRequest(Guid Id, IReadOnlyList<Guid>? ChallanIds, decimal PaidAmount, PaymentMode? PaymentMode);
@@ -64,6 +67,11 @@ public sealed record CustomerGstinRequest(string? Gstin);
 public sealed record CustomerAddressRequest(string? Address);
 
 public sealed record CustomerDetailsRequest(string? Name, string? Phone);
+
+public sealed record CustomerStateRequest(string? State);
+
+/// <summary>What a bill needs to know about its customer: where the tax goes, and whether the bill has an address.</summary>
+public sealed record CustomerBillDetails(string? Gstin, string? Address, string? State);
 
 /// <summary>What a contractor's khata adds up to at one site.</summary>
 public sealed record SiteTotal(string Site, int Bills, decimal Billed, int OpenChallans);
@@ -97,6 +105,10 @@ public static class TradeEndpoints
         shop.MapGet("/customers/{id:guid}/address", async (Guid id, AppDbContext db, CancellationToken ct) =>
             Results.Ok(new CustomerAddressRequest(await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Address).SingleOrDefaultAsync(ct))));
         shop.MapPut("/customers/{id:guid}/address", SetAddressAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapGet("/customers/{id:guid}/bill-details", async (Guid id, AppDbContext db, CancellationToken ct) =>
+            await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => new CustomerBillDetails(c.Gstin, c.Address, c.State)).SingleOrDefaultAsync(ct) is { } details
+                ? Results.Ok(details) : Results.NotFound());
+        shop.MapPut("/customers/{id:guid}/state", SetStateAsync).RequireAuthorization(AppPolicies.ShopOwner);
         shop.MapGet("/painters", (AppDbContext db, CancellationToken ct) =>
             db.Painters.AsNoTracking().OrderBy(p => p.Name).Select(p => new PainterDto(p.Id, p.Name, p.Phone, p.CommissionPercent)).ToListAsync(ct));
         shop.MapPost("/painters", AddPainterAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Trade);
@@ -193,6 +205,7 @@ public static class TradeEndpoints
             Total = dtoLines.Sum(l => l.Amount),
             Site = string.IsNullOrWhiteSpace(request.Site) ? null : request.Site.Trim(),
             VehicleNumber = string.IsNullOrWhiteSpace(request.VehicleNumber) ? null : request.VehicleNumber.Trim().ToUpperInvariant().Replace(" ", ""),
+            PlaceOfSupply = request.PlaceOfSupply?.Trim() is { Length: 2 } state && GstExport.States.ContainsKey(state) ? state : null,
             CreatedByUserId = user.UserId()!.Value,
         };
 
@@ -249,9 +262,13 @@ public static class TradeEndpoints
         var challanLines = challans.SelectMany(c => JsonSerializer.Deserialize<List<BillLineDto>>(c.Lines, Json)!).ToList();
         var lines = challanLines.Select(l => new BillLineRequest(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice)).ToList();
         var sites = challans.Select(c => c.Site).Distinct().ToList();
+        // The vehicle and the state the goods went to carry onto the invoice when every challan agrees.
+        var vehicles = challans.Select(c => c.VehicleNumber).Distinct().ToList();
+        var states = challans.Select(c => c.PlaceOfSupply).Distinct().ToList();
         var challanIds = challans.Select(c => c.Id).ToList();
         var result = await ledger.CreateBillAsync(
-            new BillRequest(request.Id, challans[0].CustomerId, lines, request.PaidAmount, request.PaymentMode, null, sites.Count == 1 ? sites[0] : null),
+            new BillRequest(request.Id, challans[0].CustomerId, lines, request.PaidAmount, request.PaymentMode, null, sites.Count == 1 ? sites[0] : null,
+                vehicles.Count == 1 ? vehicles[0] : null, PlaceOfSupply: states.Count == 1 ? states[0] : null),
             user.UserId()!.Value, ct, stockAlreadyOut: true, taxSnapshot: challanLines.Select(l => (l.GstRate, l.HsnCode)).ToList(),
             // In the bill's transaction: of two invoices at once, the second finds them taken and its bill is undone.
             beforeCommit: async () => await db.Challans.Where(c => challanIds.Contains(c.Id) && c.InvoiceId == null)
@@ -350,9 +367,35 @@ public static class TradeEndpoints
             customer.ReminderConsentAt = null;
         }
 
+        // Named at last: no longer a "name later" khata.
+        if (customer.Name != name || phone is not null)
+        {
+            customer.NameLater = false;
+        }
+
         customer.Name = name!;
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(new CustomerDto(customer.Id, customer.Name, customer.Phone, customer.Balance, customer.CreditLimit));
+        return TypedResults.Ok(new CustomerDto(customer.Id, customer.Name, customer.Phone, customer.Balance, customer.CreditLimit, customer.NameLater));
+    }
+
+    /// <summary>The state a customer lives in, by its GST code. Empty clears it.</summary>
+    private static async Task<IResult> SetStateAsync(Guid id, CustomerStateRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var state = string.IsNullOrWhiteSpace(request.State) ? null : request.State.Trim();
+        if (state is not null && !GstExport.States.ContainsKey(state))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["State"] = ["Choose a state from the list."] });
+        }
+
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        customer.State = state;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(request with { State = state });
     }
 
     /// <summary>The customer's address, for their bills. Empty clears it.</summary>
@@ -415,5 +458,5 @@ public static class TradeEndpoints
     }
 
     private static ChallanDto ToDto(Challan c) =>
-        new(c.Id, c.CustomerId, c.OccurredAt, JsonSerializer.Deserialize<List<BillLineDto>>(c.Lines, Json) ?? [], c.Total, c.Site, c.VehicleNumber, c.InvoiceId);
+        new(c.Id, c.CustomerId, c.OccurredAt, JsonSerializer.Deserialize<List<BillLineDto>>(c.Lines, Json) ?? [], c.Total, c.Site, c.VehicleNumber, c.InvoiceId, c.PlaceOfSupply);
 }

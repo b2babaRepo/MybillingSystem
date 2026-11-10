@@ -86,6 +86,17 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             errors[field] = messages;
         }
 
+        // A new item can come with its barcode (made from a scan the shop didn't know yet).
+        var barcode = Barcodes.Normalize(request.Barcode);
+        if (barcode.Length > 0 && (barcode.Length is < 4 or > 30 || !Barcodes.CheckDigitOk(barcode)))
+        {
+            errors[nameof(request.Barcode)] = ["Check the barcode: 4 to 30 letters and digits, with the right last digit."];
+        }
+        else if (barcode.Length > 0 && await db.Products.AnyAsync(p => p.Barcode == barcode && p.IsActive, ct))
+        {
+            errors[nameof(request.Barcode)] = ["Another item already has this barcode."];
+        }
+
         if (errors.Count > 0)
         {
             return (null, errors, false);
@@ -102,6 +113,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.Mrp = CleanMrp(request.Mrp, request.SellingPrice);
         product.BillName = BillNames.Clean(request.BillName);
         (product.StyleName, product.Size, product.Colour) = (Short(request.StyleName, 120), Short(request.Size, 20), Short(request.Colour, 30));
+        product.Barcode = barcode.Length > 0 ? barcode : null;
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)

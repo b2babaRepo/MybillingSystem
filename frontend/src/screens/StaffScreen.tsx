@@ -14,6 +14,41 @@ interface Staff {
   role: 'owner' | 'staff'
   isActive: boolean
   hasPin: boolean
+  commissionPercent?: number | null
+  blocked?: string[] | null
+}
+
+const LIMITS = ['udhaar', 'cancel', 'items', 'purchases', 'expenses', 'reports'] as const
+
+/** What the owner can stop one helper doing. Nothing is stopped until ticked; the server enforces it. */
+function Limits({ staff, onSaved }: { staff: Staff; onSaved: () => void }) {
+  const { t } = useTranslation()
+  const [blocked, setBlocked] = useState<string[]>(staff.blocked ?? [])
+  const [busy, setBusy] = useState(false)
+  async function toggle(limit: string) {
+    const next = blocked.includes(limit) ? blocked.filter((b) => b !== limit) : [...blocked, limit]
+    setBusy(true)
+    try {
+      await api(`/v1/shop/staff/${staff.membershipId}/limits`, 'POST', { blocked: next })
+      setBlocked(next)
+      onSaved()
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <fieldset className="flex flex-col gap-1 text-sm">
+      <legend className="font-semibold text-muted">{t('staffLimits.title')}</legend>
+      {LIMITS.map((limit) => (
+        <label key={limit} className="flex min-h-10 items-center gap-2">
+          <input type="checkbox" disabled={busy} checked={blocked.includes(limit)} onChange={() => void toggle(limit)} className="h-5 w-5" />
+          {t(`staffLimits.${limit}`)}
+        </label>
+      ))}
+    </fieldset>
+  )
 }
 
 /**
@@ -83,6 +118,7 @@ export function StaffScreen() {
               </span>
             </div>
             <Commission staff={s} onSaved={() => void staff.refetch()} />
+            {s.role === 'staff' && s.isActive && <Limits staff={s} onSaved={() => void staff.refetch()} />}
             {(s.role === 'staff' || staff.data!.filter((x) => x.role === 'owner' && x.isActive).length > 1 || !s.isActive) && (
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {s.role === 'staff' ? <button disabled={busy} onClick={() => changePin(s)} className="min-h-11 rounded-xl border border-line font-semibold">🔑 {t('staff.changePin')}</button> : <span />}

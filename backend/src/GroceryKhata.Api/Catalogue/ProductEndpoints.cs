@@ -28,7 +28,8 @@ public sealed record ProductRequest(
     string? BillName = null,
     string? StyleName = null,
     string? Size = null,
-    string? Colour = null);
+    string? Colour = null,
+    string? Barcode = null);
 
 /// <summary><see cref="GstRate"/> and <see cref="HsnCode"/>: null keeps what the item has (older apps don't send them), unless <see cref="ReplaceTax"/> says null means clear it.</summary>
 public sealed record ProductUpdate(
@@ -268,10 +269,15 @@ public static class ProductEndpoints
                 return Results.NotFound();
             }
 
-            var code = new string((request.Barcode ?? "").Where(char.IsAsciiLetterOrDigit).ToArray());
+            var code = Barcodes.Normalize(request.Barcode);
             if (code.Length is > 0 and (< 4 or > 30))
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["A barcode is 4 to 30 letters and digits."] });
+            }
+
+            if (!Barcodes.CheckDigitOk(code))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["The last digit of this barcode doesn't match the rest: check the number on the pack, or scan it again."] });
             }
 
             if (code.Length > 0 && await db.Products.AnyAsync(p => p.Id != id && p.Barcode == code && p.IsActive, ct))
@@ -280,7 +286,16 @@ public static class ProductEndpoints
             }
 
             product.Barcode = code.Length > 0 ? code : null;
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+            {
+                // Saved at the same moment for another item: the database's one-code-per-item rule caught it.
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["Another item already has this barcode."] });
+            }
+
             return Results.Ok(new { product.Barcode });
         });
 
@@ -296,11 +311,15 @@ public static class ProductEndpoints
 
             if (product.Barcode is null)
             {
+                // One shop code at a time, so two items made at once never get the same number.
+                await using var transaction = await db.Database.BeginTransactionAsync(ct);
+                await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext('shop_barcodes'))", ct);
                 var used = await db.Products.Where(p => p.Barcode != null && p.Barcode.Length == 13 && p.Barcode.StartsWith("2")).Select(p => p.Barcode!).ToListAsync(ct);
                 var next = used.Select(c => long.TryParse(c[1..12], out var n) ? n : 0).DefaultIfEmpty(0).Max() + 1;
                 var body = "2" + next.ToString("D11");
                 product.Barcode = body + Ean13Check(body);
                 await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
             }
 
             return Results.Ok(new { product.Barcode });

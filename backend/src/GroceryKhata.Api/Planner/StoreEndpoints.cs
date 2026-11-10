@@ -12,7 +12,8 @@ public sealed record StoreDto(string Name, string Slug, string? Area, string? Ad
 /// <summary><see cref="Available"/>: on the shelf minus what other online orders hold.</summary>
 public sealed record StoreItemDto(
     Guid Id, string Name, string? Category, Unit Unit, decimal Price, decimal Available, int? CatalogueItemId = null, DateTimeOffset? ImageAt = null,
-    decimal? Mrp = null, decimal? PackSize = null, Unit? PackUnit = null, string? ImageCredit = null);
+    decimal? Mrp = null, decimal? PackSize = null, Unit? PackUnit = null, string? ImageCredit = null,
+    decimal? RegularPrice = null, string? OfferName = null);
 
 public static class StoreStock
 {
@@ -85,6 +86,17 @@ public static class StoreEndpoints
                 p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? Catalogue.MasterPhotos.Representative : null))
             .ToListAsync(ct);
         items = items.Select(i => i.CatalogueItemId is null ? i with { CatalogueItemId = Catalogue.CommonCatalogue.Match(i.Name) } : i).ToList();
+
+        // The shop's running sale offers: the customer sees the offer price, the regular price struck out, and its name.
+        var now = clock.GetUtcNow();
+        var running = await Ledger.SaleOffers.RunningAsync(db, now, ct);
+        if (running.Count > 0)
+        {
+            var onSale = await db.Products.AsNoTracking().Where(p => p.IsActive && p.SellingPrice > 0).ToDictionaryAsync(p => p.Id, ct);
+            items = items.Select(i => onSale.TryGetValue(i.Id, out var product) && Ledger.SaleOffers.Best(running, product, now) is { } best && best.Price < i.Price
+                ? i with { Price = best.Price, RegularPrice = i.Price, OfferName = best.Offer.Name } : i).ToList();
+        }
+
         return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items, shop.Id));
     }
 
@@ -168,6 +180,8 @@ public static class StoreEndpoints
             return NotEnough(unavailable);
         }
 
+        // The price the customer saw: a running offer's, when there is one.
+        var running = await Ledger.SaleOffers.RunningAsync(db, clock.GetUtcNow(), ct);
         var token = Secrets.NewRefreshToken();
         var lineNo = 0;
         var order = new Order
@@ -186,6 +200,7 @@ public static class StoreEndpoints
             Lines = wanted.Select(w =>
             {
                 var product = products[w.ProductId];
+                var best = Ledger.SaleOffers.Best(running, product, clock.GetUtcNow());
                 return new OrderLine
                 {
                     LineNo = ++lineNo,
@@ -193,7 +208,8 @@ public static class StoreEndpoints
                     Name = product.Name,
                     Quantity = w.Quantity,
                     Unit = product.Unit,
-                    UnitPrice = product.SellingPrice,
+                    UnitPrice = best?.Price ?? product.SellingPrice,
+                    OfferId = best?.Offer.Id,
                     ReservedQuantity = w.Quantity,
                 };
             }).ToList(),

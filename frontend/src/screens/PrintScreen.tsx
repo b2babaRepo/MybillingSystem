@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
+import { AttachCustomer } from '../components/AttachCustomer'
+import { Page } from '../components/PrintPage'
+import type { ReceiptRow } from '../lib/escpos'
+const EwayBill = lazy(() => import('../components/EwayBill').then((m) => ({ default: m.EwayBill })))
 import { stateLabel } from '../lib/states'
 import { navigate } from '../router'
 import { startExchange } from '../lib/exchange'
 import { useQuery } from '@tanstack/react-query'
 import { PrescriptionPhoto } from './PharmacyAssistScreens'
-import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { gstSummary, gstUnsetAmount, storedSummary } from '../lib/gst'
 import { listOps } from '../lib/outbox'
-import { getPaper, pageRule, setPaper, type Paper } from '../lib/paper'
 import { provisionalBill } from '../lib/provisionalBill'
 import type { ProvisionalBill } from '../lib/provisionalBill'
 import type { BillView, Statement } from '../lib/types'
@@ -22,59 +24,11 @@ import { ask } from '../components/Ask'
  * phone's "Print → Save as PDF" makes a clean PDF with Hindi rendered by the browser; a WhatsApp button sends a
  * short summary for customers without a printer.
  */
-export function PrintScreen({ shopId, shopName, kind, id, month }: { shopId: string; shopName: string; kind: 'statement' | 'bill'; id: string; month?: string }) {
+export function PrintScreen({ shopId, shopName, kind, id, month }: { shopId: string; shopName: string; kind: 'statement' | 'bill' | 'supplier'; id: string; month?: string }) {
+  if (kind === 'supplier') return <SupplierStatementPrint shopName={shopName} supplierId={id} />
   return kind === 'statement' ? <StatementPrint shopName={shopName} customerId={id} month={month!} /> : <BillPrint shopId={shopId} shopName={shopName} billId={id} />
 }
 
-function Page({ title, subtitle, shareText, phone, children }: { title: string; subtitle: string; shareText: string; phone: string | null; children: ReactNode }) {
-  const { t } = useTranslation()
-  const [paper, choosePaper] = useState<Paper>(getPaper)
-  // How long the printed part is: the shop-only buttons below it don't print, so they don't count.
-  const roll = useRef<HTMLDivElement>(null)
-  const [lengthMm, setLengthMm] = useState(297)
-  useEffect(() => {
-    const box = roll.current
-    if (!box || paper === 'a4') return
-    const measure = () => {
-      const printed = [...box.children].filter((c) => !c.classList.contains('print:hidden'))
-      const bottom = Math.max(...printed.map((c) => c.getBoundingClientRect().bottom))
-      setLengthMm(((bottom - box.getBoundingClientRect().top) / 96) * 25.4 + 8)
-    }
-    measure()
-    const watch = new ResizeObserver(measure)
-    watch.observe(box)
-    return () => watch.disconnect()
-  }, [paper])
-  const rule = pageRule(paper, lengthMm)
-  // Opened with "Print" from the bill screen: show the print dialog straight away, once.
-  useEffect(() => {
-    let auto = false
-    try { auto = sessionStorage.getItem('gk-autoprint') === '1'; sessionStorage.removeItem('gk-autoprint') } catch { /* no storage */ }
-    if (auto) setTimeout(() => window.print(), 300)
-  }, [])
-  return (
-    <div className="mx-auto min-h-dvh max-w-2xl bg-white p-6 text-black print:m-0 print:min-h-0 print:max-w-none print:p-0">
-      {rule && <style>{rule}</style>}
-      <div className="mb-4 flex flex-wrap gap-2 print:hidden">
-        <button onClick={() => history.back()} className="h-11 rounded-xl border border-line px-4 font-semibold" aria-label={t('a11y.back')}>←</button>
-        <button onClick={() => window.print()} className="h-11 rounded-xl bg-teal-700 px-4 font-semibold text-white">{t('print.printPdf')}</button>
-        <a href={whatsAppLink(phone, shareText)} target="_blank" rel="noreferrer" className="flex h-11 items-center rounded-xl bg-[#15803d] px-4 font-semibold text-white">{t('print.share')}</a>
-        <select aria-label={t('paper.label')} value={paper} onChange={(e) => { const next = e.target.value as Paper; setPaper(next); choosePaper(next) }} className="h-11 rounded-xl border border-line bg-white px-2 font-semibold">
-          <option value="a4">{t('paper.a4')}</option>
-          <option value="80">{t('paper.r80')}</option>
-          <option value="58">{t('paper.r58')}</option>
-        </select>
-      </div>
-      <div ref={roll} className={paper === 'a4' ? '' : `receipt receipt-${paper}`}>
-        <header className="mb-4 border-b-2 border-black pb-3">
-          <h1 className="text-2xl font-extrabold">{title}</h1>
-          <p className="text-base">{subtitle}</p>
-        </header>
-        {children}
-      </div>
-    </div>
-  )
-}
 
 function useServer<T>(key: unknown[], path: string) {
   return useQuery({ queryKey: key, queryFn: () => api<T>(path), retry: false })
@@ -85,6 +39,87 @@ function Problem({ error }: { error: Error }) {
   return <p className="p-6 text-due">{error instanceof ApiError && error.status === 404 ? t('print.notSynced') : error.message}</p>
 }
 
+interface LedgerRow { key: string; date: string; details: string; debit: number; credit: number; balance: number | null; struck?: boolean }
+
+/**
+ * A party's account as owners and their CAs read it: money each way in its own column (Dr, Cr), never a minus sign,
+ * a balance that says which way it stands, a totals row, and one closing line in words: who owes whom.
+ * On a receipt roll each line takes two rows: the date and details, then the three amounts.
+ */
+function Ledger({ rows, debitLabel, creditLabel, balanceSide, closing }: {
+  rows: LedgerRow[]; debitLabel: string; creditLabel: string; balanceSide: (balance: number) => string; closing: string
+}) {
+  const { t } = useTranslation()
+  const money = (n: number) => (n ? formatRupees(n) : '')
+  const totalDebit = rows.reduce((sum, r) => sum + r.debit, 0)
+  const totalCredit = rows.reduce((sum, r) => sum + r.credit, 0)
+  return (
+    <>
+      <table className="ledger w-full border-collapse text-[15px]">
+        <thead>
+          <tr className="border-b border-black text-left">
+            <th className="py-1.5 pr-2">{t('ledger.date')}</th><th className="pr-2">{t('ledger.details')}</th>
+            <th className="text-right">{debitLabel}</th><th className="pl-2 text-right">{creditLabel}</th><th className="pl-3 text-right">{t('ledger.balance')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key} className={`border-b border-gray-300 ${r.struck ? 'line-through' : ''}`}>
+              <td className="py-1.5 pr-2 whitespace-nowrap">{r.date}</td>
+              <td className="pr-2">{r.details}</td>
+              <td className="text-right whitespace-nowrap">{money(r.debit)}</td>
+              <td className="pl-2 text-right whitespace-nowrap">{money(r.credit)}</td>
+              <td className="pl-3 text-right whitespace-nowrap">{r.balance == null ? '' : r.balance === 0 ? formatRupees(0) : `${formatRupees(Math.abs(r.balance))} ${balanceSide(r.balance)}`}</td>
+            </tr>
+          ))}
+          <tr className="border-b border-black font-bold">
+            <td className="py-1.5" /><td>{t('ledger.total')}</td>
+            <td className="text-right whitespace-nowrap">{formatRupees(totalDebit)}</td><td className="pl-2 text-right whitespace-nowrap">{formatRupees(totalCredit)}</td><td />
+          </tr>
+        </tbody>
+      </table>
+      <p className="mt-4 border-t-2 border-black pt-2 text-xl font-extrabold">{closing}</p>
+    </>
+  )
+}
+
+/** Dr and Cr after a balance, the way the books write it. */
+const side = (t: (key: string) => string, dr: boolean) => t(dr ? 'ledger.dr' : 'ledger.cr')
+
+/** Everything between the shop and a supplier, oldest first: bills on the Cr side, payments on the Dr side. */
+function SupplierStatementPrint({ shopName, supplierId }: { shopName: string; supplierId: string }) {
+  const { t } = useTranslation()
+  const query = useServer<{
+    supplier: { name: string; phone: string | null; due: number; gstin?: string | null }
+    entries: { id: string; amount: number; note: string | null; occurredAt: string; kind: string; mode: string | null; reference: string | null; balance: number; cancelled: boolean }[]
+  }>(['print', 'supplier', supplierId], `/v1/suppliers/${supplierId}`)
+  if (query.isError) return <Problem error={query.error} />
+  const s = query.data
+  if (!s) return <p className="p-6">…</p>
+  const name = s.supplier.name
+  const due = s.supplier.due
+  const rows: LedgerRow[] = [...s.entries].reverse().map((e) => {
+    const kind = t(`supplier2.kind.${e.kind}`)
+    // "Bill cancelled" is already in the line's kind; the note only repeats it.
+    // Older credit notes stored "Credit note" in their note too.
+    const text = e.note?.replace(/^Credit note\s*/, '')
+    const note = text && e.kind !== 'bill_cancelled' && text !== kind ? ` ${text}` : ''
+    return {
+      key: e.id, date: new Date(e.occurredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }),
+      details: `${kind}${note}${e.mode ? ` · ${t(e.mode)}` : ''}${e.reference ? ` ${e.reference}` : ''}`,
+      debit: e.amount < 0 ? -e.amount : 0, credit: e.amount > 0 ? e.amount : 0, balance: e.balance, struck: e.cancelled,
+    }
+  })
+  const closing = due > 0 ? t('ledger.weMustPay', { name, amount: formatRupees(due) }) : due < 0 ? t('ledger.theyMustPay', { name, amount: formatRupees(-due) }) : t('ledger.settled')
+  return (
+    <Page title={shopName} subtitle={`${t('supplier2.statementTitle')} · ${name}${s.supplier.gstin ? ` · ${s.supplier.gstin}` : ''}`} phone={s.supplier.phone}
+      shareText={t('supplier2.share', { shop: shopName, name, amount: formatRupees(due) })}>
+      {/* Owed to the supplier is a credit balance (Cr); owed by them, a debit (Dr). */}
+      <Ledger rows={rows} debitLabel={t('ledger.paid')} creditLabel={t('ledger.bill')} balanceSide={(b) => side(t, b < 0)} closing={closing} />
+    </Page>
+  )
+}
+
 function StatementPrint({ shopName, customerId, month }: { shopName: string; customerId: string; month: string }) {
   const { t } = useTranslation()
   const query = useServer<Statement>(['print', 'statement', customerId, month], `/v1/customers/${customerId}/statement?month=${month}`)
@@ -93,35 +128,21 @@ function StatementPrint({ shopName, customerId, month }: { shopName: string; cus
   if (!s) return <p className="p-6">…</p>
   const monthLabel = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
   const share = t('print.statementShare', { shop: shopName, month: monthLabel, opening: s.openingBalance, closing: s.closingBalance })
-
+  const name = s.customer.name
+  const rows: LedgerRow[] = [
+    { key: 'opening', date: '', details: t('print.openingBalance'), debit: 0, credit: 0, balance: s.openingBalance },
+    ...s.entries.map((e) => ({
+      key: e.id, date: new Date(e.occurredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+      details: `${e.kind === 'reversal' ? t('reversal') : e.kind === 'opening' ? t('partyImport.openingShort') : e.amount > 0 ? t('creditShort') : t('paymentShort')}${e.paymentMode ? ` (${t(e.paymentMode)}${e.upiRef ? ` · UTR ${e.upiRef}` : ''}${e.chequeNo ? ` #${e.chequeNo}` : ''}${e.chequeStatus && e.kind !== 'reversal' ? ` · ${t(`cheques.status.${e.chequeStatus}`)}` : ''})` : ''}${e.note ? ` · ${e.note}` : ''}`,
+      debit: e.amount > 0 ? e.amount : 0, credit: e.amount < 0 ? -e.amount : 0, balance: e.runningBalance, struck: e.isReversed,
+    })),
+  ]
+  const closing = s.closingBalance > 0 ? t('ledger.owesYou', { name, amount: formatRupees(s.closingBalance) })
+    : s.closingBalance < 0 ? t('ledger.advance', { name, amount: formatRupees(-s.closingBalance) }) : t('ledger.settled')
   return (
-    <Page title={shopName} subtitle={`${t('print.monthStatement')} · ${monthLabel} · ${s.customer.name}${s.customer.phone ? ` · ${s.customer.phone}` : ''}`} shareText={share} phone={s.customer.phone}>
-      <table className="w-full border-collapse text-[15px]">
-        <thead>
-          <tr className="border-b border-black text-left">
-            <th className="py-1.5">{t('print.date')}</th><th>{t('print.details')}</th><th className="text-right">{t('print.amount')}</th><th className="text-right">{t('print.balance')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="border-b border-gray-300">
-            <td className="py-1.5" colSpan={3}>{t('print.openingBalance')}</td><td className="text-right font-semibold">{formatRupees(s.openingBalance)}</td>
-          </tr>
-          {s.entries.map((e) => (
-            <tr key={e.id} className={`border-b border-gray-300 ${e.isReversed ? 'line-through' : ''}`}>
-              <td className="py-1.5 pr-2 whitespace-nowrap">{new Date(e.occurredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
-              <td className="pr-2">
-                {e.kind === 'reversal' ? t('reversal') : e.kind === 'opening' ? t('partyImport.openingShort') : e.amount > 0 ? t('creditShort') : t('paymentShort')}
-                {e.paymentMode && ` (${t(e.paymentMode)})`}{e.note && ` · ${e.note}`}
-              </td>
-              <td className="text-right whitespace-nowrap">{e.amount > 0 ? '+' : '−'}{formatRupees(Math.abs(e.amount))}</td>
-              <td className="text-right whitespace-nowrap">{formatRupees(e.runningBalance)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="mt-4 flex justify-between border-t-2 border-black pt-2 text-xl font-extrabold">
-        <span>{t('print.closingBalance')}</span><span>{formatRupees(s.closingBalance)}</span>
-      </p>
+    <Page title={shopName} subtitle={`${t('print.monthStatement')} · ${monthLabel} · ${name}${s.customer.phone ? ` · ${s.customer.phone}` : ''}`} shareText={share} phone={s.customer.phone}>
+      {/* The customer owes: a debit balance (Dr). Paid ahead: an advance, a credit (Cr). */}
+      <Ledger rows={rows} debitLabel={t('ledger.udhaar')} creditLabel={t('ledger.jama')} balanceSide={(b) => side(t, b > 0)} closing={closing} />
     </Page>
   )
 }
@@ -213,7 +234,7 @@ function ProvisionalPrint({ shopName, bill }: { shopName: string; bill: Provisio
       </table>
       <div className="mt-4 flex flex-col gap-1 border-t-2 border-black pt-2 text-lg">
         <p className="flex justify-between text-xl font-extrabold"><span>{t('print.total')}</span><span>{formatRupees(bill.total)}</span></p>
-        <p className="flex justify-between"><span>{t('print.paid')} ({t(bill.paymentMode)})</span><span>{formatRupees(bill.paidAmount)}</span></p>
+        {(bill.payments?.length ?? 0) > 0 ? bill.payments!.map((p) => <p key={p.mode} className="flex justify-between"><span>{t('print.paid')} ({t(p.mode)}{'reference' in p && p.reference ? ` · UTR ${p.reference}` : ''})</span><span>{formatRupees(p.amount)}</span></p>) : <p className="flex justify-between"><span>{t('print.paid')} ({t(bill.paymentMode)})</span><span>{formatRupees(bill.paidAmount)}</span></p>}
         {bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.onKhata')}</span><span>{formatRupees(bill.onKhata)}</span></p>}
       </div>
       <p className="mt-6 text-center">{t('print.thanks')}</p>
@@ -224,6 +245,7 @@ function ProvisionalPrint({ shopName, bill }: { shopName: string; bill: Provisio
 function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: string; billId: string }) {
   const { t } = useTranslation()
   const query = useServer<BillView>(['print', 'bill', billId], `/v1/bills/${billId}`)
+  const [attached, setAttached] = useState(false)
   // The server doesn't have it (not sent yet, or no connection): it may still be waiting on this device.
   const waiting = useQuery({
     queryKey: ['print', 'waiting', billId],
@@ -239,6 +261,7 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
   }
   const view = query.data
   if (!view) return <p className="p-6">…</p>
+  const cash = (view.bill.payments?.length ?? 0) > 0 ? view.bill.payments!.filter((p) => p.mode === 'cash').reduce((a, p) => a + p.amount, 0) : view.bill.paymentMode === 'cash' ? view.bill.paidAmount : 0
   async function cancel() {
     const reason = (await ask(t('print.cancelReason')))?.trim()
     if (!reason) return
@@ -250,7 +273,21 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
     }
   }
   const url = link.data ? `${window.location.origin}/#/b/${link.data.shopSlug}/${link.data.billId}?t=${link.data.token}` : null
-  return <BillDocument shopName={shopName} bill={view.bill} customerName={view.customer?.name ?? null} phone={view.customer?.phone ?? null} link={url} onCancel={() => void cancel()} />
+  return (
+    <>
+      <BillDocument shopName={shopName} bill={view.bill} customerName={view.customer?.name ?? null} phone={view.customer?.phone ?? null} link={url} onCancel={() => void cancel()} />
+      {!view.bill.customerId && !view.bill.cancelledAt && (
+        <div className="mx-auto max-w-2xl bg-white px-4 pb-4"><AttachCustomer shopId={shopId} billId={billId} occurredAt={view.bill.occurredAt} cash={cash} onDone={() => { setAttached(true); void query.refetch() }} /></div>
+      )}
+      {/* Just put on their khata: offer to tell them, with the bill's link. */}
+      {attached && view.customer && (
+        <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-3 bg-white px-4 pb-4 text-sm print:hidden">
+          <span>{t('attach.done', { name: view.customer.name })}</span>
+          <a href={whatsAppLink(view.customer.phone ?? null, [t('attach.message', { shop: shopName, total: view.bill.total, no: view.bill.billNo ?? '' }), url].filter(Boolean).join('\n'))} target="_blank" rel="noreferrer" className="flex h-11 items-center rounded-xl bg-[#15803d] px-4 font-semibold text-white">{t('attach.send')}</a>
+        </div>
+      )}
+    </>
+  )
 }
 
 /** The bill itself, for the shop and, with no onCancel, for whoever opens its link. */
@@ -265,11 +302,40 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
   const igst = gst.some((g) => g.igst > 0)
   const unset = gstin ? gstUnsetAmount(bill.lines) : 0
   const isTaxInvoice = gst.length > 0 && unset === 0
+  const title = `${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''}`
+
+  /** The same bill for a Bluetooth roll printer. */
+  function billReceipt(): ReceiptRow[] {
+    const rows: ReceiptRow[] = [{ text: shopName, align: 'center', big: true }]
+    if (bill.shopAddress) rows.push({ text: bill.shopAddress, align: 'center' })
+    if (gstin) rows.push({ text: `GSTIN ${gstin}`, align: 'center' })
+    rows.push({ text: title, align: 'center', bold: true }, { text: when, align: 'center' })
+    if (customerName || phone) rows.push({ text: t('print.billTo', { who: [customerName, phone].filter(Boolean).join(' · ') }) })
+    if (bill.buyerGstin) rows.push({ text: `${t('print.buyerGstin')} ${bill.buyerGstin}` })
+    if (bill.cancelledAt) rows.push({ text: t('print.cancelled'), align: 'center', big: true })
+    rows.push({ rule: true })
+    for (const l of bill.lines) {
+      rows.push({ left: l.printName ?? l.name, right: formatRupees(l.amount), bold: true })
+      rows.push({ text: `  ${l.quantity} ${t(`units.${l.unit}`)} × ${formatRupees(l.unitPrice)}${l.hsnCode ? ` · HSN ${l.hsnCode}` : ''}${gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}` })
+    }
+    rows.push({ rule: true }, { left: t('print.total'), right: formatRupees(bill.total), big: true })
+    if ((bill.exchangeCredit ?? 0) > 0) rows.push({ left: t('exchange.credit', { note: bill.exchangeNoteNo ?? '' }), right: `− ${formatRupees(bill.exchangeCredit!)}` })
+    if ((bill.payments?.length ?? 0) > 0) for (const p of bill.payments!) rows.push({ left: `${t('print.paid')} (${t(p.mode)}${p.reference ? ` · UTR ${p.reference}` : ''})`, right: formatRupees(p.amount) })
+    else rows.push({ left: `${t('print.paid')}${bill.paymentMode ? ` (${t(bill.paymentMode)})` : ''}`, right: formatRupees(bill.paidAmount) })
+    if (bill.onKhata > 0) rows.push({ left: t('print.onKhata'), right: formatRupees(bill.onKhata), bold: true })
+    if (gst.length > 0) {
+      rows.push({ rule: true }, { text: t('print.gstTitle'), bold: true })
+      for (const g of gst) rows.push({ left: `${g.rate}% · ${formatRupees(g.taxable)}`, right: igst ? `IGST ${formatRupees(g.igst)}` : `${formatRupees(g.cgst)} + ${formatRupees(g.sgst)}` })
+    }
+    rows.push({ gap: true }, { text: t('btPrint.thanks'), align: 'center' })
+    return rows
+  }
 
   return (
-    <Page title={shopName} subtitle={`${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${customerName ? ` · ${customerName}` : ''}`} shareText={share} phone={phone}>
+    <Page title={shopName} subtitle={`${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${bill.counter ? ` · ${bill.counter}` : ''}${customerName ? ` · ${customerName}` : ''}`} shareText={share} phone={phone} receipt={() => billReceipt()}>
       {bill.billOfSupply && <p className="mb-2 text-sm font-semibold">{t('print.compositionNote')}</p>}
       {bill.shopAddress && <p className="mb-2 text-sm">{bill.shopAddress}</p>}
+      {(customerName || phone) && <p className="mb-2 text-sm font-semibold">{t('print.billTo', { who: [customerName, phone].filter(Boolean).join(' · ') })}</p>}
       {gstin && !bill.shopAddress && <p className="mb-2 text-sm font-semibold text-due print:hidden">{t('print.shopAddressMissing')}</p>}
       {bill.cancelledAt && <p className="mb-3 border-2 border-black p-2 text-center font-extrabold">{t('print.cancelled')}{bill.cancelReason && ` · ${bill.cancelReason}`}</p>}
       {bill.prescription && <PrescriptionPhoto billId={bill.id} />}
@@ -307,7 +373,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
         })()}
         <p className="flex justify-between text-xl font-extrabold"><span>{t('print.total')}</span><span>{formatRupees(bill.total)}</span></p>
         {(bill.exchangeCredit ?? 0) > 0 && <p className="flex justify-between text-sm font-semibold"><span>{t('exchange.credit', { note: bill.exchangeNoteNo ?? '' })}</span><span>− {formatRupees(bill.exchangeCredit!)}</span></p>}
-        <p className="flex justify-between"><span>{t('print.paid')}{bill.paymentMode && ` (${t(bill.paymentMode)})`}</span><span>{formatRupees(bill.paidAmount)}</span></p>
+        {(bill.payments?.length ?? 0) > 0 ? bill.payments!.map((p) => <p key={p.mode} className="flex justify-between"><span>{t('print.paid')} ({t(p.mode)}{'reference' in p && p.reference ? ` · UTR ${p.reference}` : ''})</span><span>{formatRupees(p.amount)}</span></p>) : <p className="flex justify-between"><span>{t('print.paid')}{bill.paymentMode && ` (${t(bill.paymentMode)})`}</span><span>{formatRupees(bill.paidAmount)}</span></p>}
         {bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.onKhata')}</span><span>{formatRupees(bill.onKhata)}</span></p>}
       </div>
       {gst.length > 0 && (
@@ -341,6 +407,8 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
       )}
       {gst.length > 0 && <p className="mt-1 text-xs text-gray-600">{t('print.gstIncluded')}</p>}
       {isTaxInvoice && <p className="mt-2 text-sm">{t('print.reverseCharge')}</p>}
+      {/* Goods over ₹50,000 moving by vehicle need an e-way bill: the shop's copy offers the portal file. */}
+      {onCancel && gstin && !bill.billOfSupply && !bill.cancelledAt && bill.total >= 50000 && <Suspense fallback={null}><EwayBill shopName={shopName} bill={bill} customerName={customerName} /></Suspense>}
       {unset > 0 && <p className="mt-1 text-sm font-semibold text-due print:hidden">{t('print.gstUnsetWarning')}</p>}
       {gstin && (
         <div className="mt-6 text-right text-sm">

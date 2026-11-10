@@ -20,3 +20,6 @@ export function whatsAppLink(phone: string | null, text: string) {
   const digits = phone?.replace(/\D/g, '') ?? ''
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`
 }
+
+/** Today in India, "2026-11-09", whatever the phone's own time zone. */
+export const indiaToday = () => new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10)

@@ -42,7 +42,7 @@ public static class ShopDataEndpoints
             products = await db.Products.AsNoTracking().ToListAsync(ct),
             stockMovements = await db.StockMovements.AsNoTracking().OrderBy(m => m.OccurredAt).ToListAsync(ct),
             // Named fields, not whole rows: khata links and code hashes are keys, and this file gets passed around.
-            customers = await db.Customers.AsNoTracking().Select(c => new { c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.Gstin, c.Address, c.LastRemindedAt, c.ReminderConsentAt, c.CreatedAt }).ToListAsync(ct),
+            customers = await db.Customers.AsNoTracking().Select(c => new { c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.Gstin, c.Address, c.State, c.LastRemindedAt, c.ReminderConsentAt, c.CreatedAt }).ToListAsync(ct),
             ledgerEntries = await db.LedgerEntries.AsNoTracking().OrderBy(e => e.OccurredAt).ToListAsync(ct),
             bills = await db.Bills.AsNoTracking().Include(b => b.Lines).OrderBy(b => b.OccurredAt).ToListAsync(ct),
             orders = await db.Orders.AsNoTracking().Include(o => o.Lines).Where(o => o.ShopId == tenant.ShopId).OrderBy(o => o.CreatedAt)

@@ -5,12 +5,31 @@ import { formatRupees } from '../lib/format'
 import type { Customer } from '../lib/types'
 
 /** The bill's customer: type a name or phone digits, see what they owe, Enter takes the top match. */
-export function CustomerFinder({ customers, selected, onKhata, onPick, placeholder, inputId = 'bill-customer' }: { customers: Customer[]; selected: Customer | null; onKhata: number; onPick: (id: string) => void; placeholder?: string; inputId?: string }) {
+export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate, placeholder, inputId = 'bill-customer', onNameLater }: { customers: Customer[]; selected: Customer | null; onKhata: number; onPick: (id: string) => void; onCreate?: (name: string, phone: string) => Promise<string>; placeholder?: string; inputId?: string; onNameLater?: () => Promise<string> }) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const hits = findCustomers(customers, text)
+  // Someone new: their name and mobile go on the bill (and into the khata list), so the shop has both from now on.
+  const [adding, setAdding] = useState<{ name: string; phone: string } | null>(null)
+  const [problem, setProblem] = useState('')
+  function startAdding() {
+    const typed = text.trim()
+    const digits = typed.replace(/\D/g, '')
+    setAdding(digits.length >= 6 && digits.length === typed.replace(/[\s+-]/g, '').length ? { name: '', phone: digits.slice(-10) } : { name: typed, phone: '' })
+    setOpen(false)
+    setProblem('')
+  }
+  async function saveNew() {
+    if (!adding || !onCreate) return
+    const phone = adding.phone.replace(/\D/g, '')
+    if (phone && phone.length !== 10) { setProblem(t('newBuyer.badPhone')); return }
+    const id = await onCreate(adding.name.trim() || phone, phone)
+    setAdding(null)
+    setText('')
+    onPick(id)
+  }
 
   function pick(id: string) {
     onPick(id)
@@ -37,6 +56,24 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, placehold
     )
   }
 
+  if (adding) {
+    return (
+      <div className="flex flex-col gap-2 rounded-xl border border-teal-700 p-3">
+        <span className="text-sm font-semibold">{t('newBuyer.title')}</span>
+        <input value={adding.name} onChange={(e) => setAdding({ ...adding, name: e.target.value })} placeholder={t('newBuyer.name')} aria-label={t('newBuyer.name')} maxLength={80}
+          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-lg" />
+        <input value={adding.phone} onChange={(e) => setAdding({ ...adding, phone: e.target.value })} placeholder={t('newBuyer.phone')} aria-label={t('newBuyer.phone')} inputMode="tel" maxLength={14}
+          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-lg" />
+        <p className="text-xs text-muted">{t('newBuyer.hint')}</p>
+        {problem && <p className="text-sm text-due">{problem}</p>}
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" disabled={!adding.name.trim() && !adding.phone.trim()} onClick={() => void saveNew()} className="min-h-11 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-40">{t('newBuyer.save')}</button>
+          <button type="button" onClick={() => setAdding(null)} className="min-h-11 rounded-xl border border-line font-semibold">{t('cancel')}</button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="relative">
       <label className="block">
@@ -59,6 +96,14 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, placehold
           className="h-12 w-full rounded-xl border border-line bg-white px-3 text-lg outline-none focus:border-teal-600"
         />
       </label>
+      {/* Always in sight: a new customer's name and mobile go straight on the bill. */}
+      {onCreate && !open && (
+        <span className="flex flex-wrap gap-x-4">
+          <button type="button" onClick={startAdding} className="mt-1 min-h-11 text-sm font-semibold text-teal-700 underline">{t('newBuyer.addBlank')}</button>
+          {/* Udhaar to someone who won't give a name yet: a numbered "Name later" khata the owner names afterwards. */}
+          {onNameLater && <button type="button" onClick={() => void onNameLater().then(onPick)} className="mt-1 min-h-11 text-sm font-semibold text-teal-700 underline">{t('nameLater.button')}</button>}
+        </span>
+      )}
       {open && (
         <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-line bg-white shadow-lg">
           {hits.map((c, i) => (
@@ -75,7 +120,12 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, placehold
               {c.balance > 0 && <span className="shrink-0 text-sm font-semibold text-due">{formatRupees(c.balance)}</span>}
             </button>
           ))}
-          {hits.length === 0 && <p className="p-3 text-sm text-muted">{t('billFind.none')}</p>}
+          {hits.length === 0 && !(onCreate && text.trim()) && <p className="p-3 text-sm text-muted">{t('billFind.none')}</p>}
+          {onCreate && text.trim() && (
+            <button onMouseDown={(e) => { e.preventDefault(); startAdding() }} className="flex min-h-11 w-full items-center border-t border-line px-3 text-left font-semibold text-teal-800">
+              {t('newBuyer.add', { text: text.trim() })}
+            </button>
+          )}
         </div>
       )}
     </div>

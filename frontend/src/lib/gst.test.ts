@@ -1,4 +1,4 @@
-import { garmentRate } from './gst'
+import { garmentRate, billTax } from './gst'
 import { isOutToday } from './local'
 import { describe, expect, it } from 'vitest'
 import { gstSummary, gstUnsetAmount } from './gst'
@@ -51,5 +51,31 @@ describe('garmentRate', () => {
     expect(garmentRate('6204', 0, 5000)).toBe(0)
     expect(garmentRate(null, 5, 5000)).toBe(5)
     expect(garmentRate('5208', 5, 5000)).toBe(5) // fabric by the metre is not a garment
+  })
+})
+
+describe('billTax', () => {
+  it('takes the GST out of the price, line by line like the saved bill', () => {
+    const bill = billTax([{ amount: 1050, gstRate: 5 }, { amount: 118, gstRate: 18 }, { amount: 118, gstRate: 18 }], false)
+    expect(bill.rows).toEqual([
+      { rate: 5, taxable: 1000, cgst: 25, sgst: 25, igst: 0 },
+      { rate: 18, taxable: 200, cgst: 18, sgst: 18, igst: 0 },
+    ])
+    expect(bill.tax).toBe(86)
+  })
+
+  it('charges IGST alone on a sale to another state', () => {
+    expect(billTax([{ amount: 1180, gstRate: 18 }], true).rows).toEqual([{ rate: 18, taxable: 1000, cgst: 0, sgst: 0, igst: 180 }])
+  })
+
+  it('splits an odd paisa the way the server rounds it', () => {
+    // Tax of ₹0.03: half is 1.5 paise, which goes to the even 2, so CGST 0.02 and SGST 0.01.
+    expect(billTax([{ amount: 0.63, gstRate: 5 }], false).rows[0]).toMatchObject({ taxable: 0.6, cgst: 0.02, sgst: 0.01 })
+  })
+
+  it('leaves lines with no rate out of the tax and says how much they come to', () => {
+    const bill = billTax([{ amount: 200, gstRate: null }, { amount: 100, gstRate: 0 }], false)
+    expect(bill).toMatchObject({ tax: 0, unset: 200 })
+    expect(bill.rows).toEqual([{ rate: 0, taxable: 100, cgst: 0, sgst: 0, igst: 0 }])
   })
 })

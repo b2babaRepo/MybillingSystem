@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { localeOf } from '../i18n'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import type { Unit } from '../lib/types'
@@ -32,7 +33,7 @@ export function ItemMarginScreen({ shopId }: { shopId: string }) {
   const [sort, setSort] = useState<Sort>('profit')
   const report = useQuery({ queryKey: [shopId, 'item-margins', month], queryFn: () => api<ItemMarginReport>(`/v1/reports/items?month=${month}`) })
   const data = report.data
-  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : 'en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(localeOf(i18n.language), { month: 'long', year: 'numeric', timeZone: 'UTC' })
   const items = (data?.items ?? []).filter((i) => (sort === 'noCost' ? i.profit === null : sort === 'low' ? i.marginPercent !== null : true))
   if (sort === 'low') items.sort((a, b) => (a.marginPercent ?? 0) - (b.marginPercent ?? 0))
   const noCostCount = data?.items.filter((i) => i.profit === null).length ?? 0
@@ -66,6 +67,7 @@ export function ItemMarginScreen({ shopId }: { shopId: string }) {
           </div>
 
           {items.length === 0 && <p className="py-6 text-center text-muted">{data.items.length === 0 ? t('margin.noSales') : t('margin.none')}</p>}
+          {items.length > 0 && <p className="px-3 text-right text-xs font-semibold text-muted">{t('heads.marginRow')}</p>}
           <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white px-3">
             {items.map((i) => (
               <li key={`${i.productId ?? i.name}-${i.unit}`}>

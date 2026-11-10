@@ -5,7 +5,7 @@ import { AisleTiles } from '../../components/AisleTiles'
 import { ItemCard } from '../../components/ItemCard'
 import { imageUrl } from '../../lib/images'
 import { aisleOf } from '../../lib/itemArt'
-import { setLanguage } from '../../i18n'
+import { nextLanguage, setLanguage } from '../../i18n'
 import { formatRupees, whatsAppLink } from '../../lib/format'
 import { uuidv7 } from '../../lib/ids'
 import { round2 } from '../../lib/local'
@@ -22,6 +22,9 @@ interface StoreItem {
   category: string | null
   unit: Unit
   price: number
+  /** Before the shop's sale offer, when one is on; then price is the offer price. */
+  regularPrice?: number | null
+  offerName?: string | null
   available: number
   catalogueItemId?: number | null
   imageAt?: string | null
@@ -104,8 +107,8 @@ function Header({ title, subtitle }: { title: string; subtitle?: string | null }
         <h1 className="truncate text-xl font-bold">{title}</h1>
         {subtitle && <span className="truncate text-sm opacity-85">{subtitle}</span>}
       </div>
-      <button onClick={() => setLanguage(i18n.language === 'hi' ? 'en' : 'hi')} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">
-        {i18n.language === 'hi' ? 'EN' : 'हि'}
+      <button onClick={() => setLanguage(nextLanguage(i18n.language).code)} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">
+        {nextLanguage(i18n.language).short}
       </button>
     </header>
   )
@@ -181,7 +184,12 @@ function Catalogue({ slug }: { slug: string }) {
               <div className="mt-0.5 text-[11px] text-muted">{item.packSize && item.packUnit ? `${item.packSize} ${t(`units.${item.packUnit}`)}` : `/${t(`units.${item.unit}`)}`}</div>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
                 <span className="text-[15px] font-bold">{formatRupees(item.price)}</span>
-                {item.mrp != null && item.mrp > item.price && (
+                {item.regularPrice != null && item.regularPrice > item.price ? (
+                  <>
+                    <span className="text-[11px] text-muted line-through">{formatRupees(item.regularPrice)}</span>
+                    <span className="rounded-full bg-amber-100 px-1.5 text-[11px] font-bold text-amber-900">🏷 {item.offerName} · {Math.round((1 - item.price / item.regularPrice) * 100)}%</span>
+                  </>
+                ) : item.mrp != null && item.mrp > item.price && (
                   <>
                     <span className="text-[11px] text-muted line-through">{formatRupees(item.mrp)}</span>
                     <span className="text-[11px] font-semibold text-green-700">{t('store.off', { percent: Math.round((1 - item.price / item.mrp) * 100) })}</span>

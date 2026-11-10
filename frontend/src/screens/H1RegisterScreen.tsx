@@ -12,7 +12,7 @@ interface Row {
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 /** The Schedule H1 register: every H1 sale, with its doctor and patient, for a period. Printable for the drug inspector. */
-export function H1RegisterScreen({ shopId }: { shopId: string }) {
+export function H1RegisterScreen({ shopId, shopName }: { shopId: string; shopName: string }) {
   const { t } = useTranslation()
   const today = new Date()
   const [from, setFrom] = useState(iso(new Date(today.getFullYear(), today.getMonth(), 1)))
@@ -22,6 +22,7 @@ export function H1RegisterScreen({ shopId }: { shopId: string }) {
     <div className="flex flex-col gap-3 p-4 pb-28">
       <h2 className="text-lg font-bold">{t('rx.register')}</h2>
       <p className="text-sm text-muted print:hidden">{t('rx.registerHint')}</p>
+      <p className="hidden font-semibold print:block">{t('heads.h1Line', { shop: shopName, from: new Date(from).toLocaleDateString('en-IN'), to: new Date(to).toLocaleDateString('en-IN') })}</p>
       <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 print:hidden">
         <Field label={t('rx.from')} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         <Field label={t('rx.to')} type="date" value={to} onChange={(e) => setTo(e.target.value)} />

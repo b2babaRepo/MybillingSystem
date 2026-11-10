@@ -1,8 +1,10 @@
 import { ListDetail } from './components/ListDetail'
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AccountMenu } from './components/AccountMenu'
-import { AppBanners } from './components/AppBanners'
+// The account menu loads just after the first screen: its circle shows meanwhile.
+const AccountMenu = lazy(() => import('./components/AccountMenu').then((module) => ({ default: module.AccountMenu })))
+// Update and install banners: shown a moment after the first screen.
+const AppBanners = lazy(() => import('./components/AppBanners').then((module) => ({ default: module.AppBanners })))
 import { BackIcon, BillIcon, CheckIcon, CloudOffIcon, HomeIcon, ItemsIcon, KhataIcon, PaymentIcon } from './components/Icons'
 import { request } from './lib/api'
 import { useOutbox, useSession } from './lib/data'
@@ -32,6 +34,8 @@ const SyncScreen = lazy(() => import('./screens/SyncScreen').then((module) => ({
 // Billing, khata and items load with the app; screens used now and then load on first visit (and are then
 // cached by the service worker, so they open offline too). Keeps the start fast on low-end phones.
 const InboxScreen = lazy(() => import('./screens/InboxScreen').then((module) => ({ default: module.InboxScreen })))
+const CashLedgerScreen = lazy(() => import('./screens/CashLedgerScreen').then((module) => ({ default: module.CashLedgerScreen })))
+const BankBookScreen = lazy(() => import('./screens/BankBookScreen').then((module) => ({ default: module.BankBookScreen })))
 const CashBookScreen = lazy(() => import('./screens/CashBookScreen').then((module) => ({ default: module.CashBookScreen })))
 const ImportScreen = lazy(() => import('./screens/ImportScreen').then((module) => ({ default: module.ImportScreen })))
 const PrintScreen = lazy(() => import('./screens/PrintScreen').then((module) => ({ default: module.PrintScreen })))
@@ -42,6 +46,11 @@ const DuesScreen = lazy(() => import('./screens/DuesScreen').then((module) => ({
 const StaffSalesScreen = lazy(() => import('./screens/StaffSalesScreen').then((module) => ({ default: module.StaffSalesScreen })))
 const TagsScreen = lazy(() => import('./screens/TagsScreen').then((module) => ({ default: module.TagsScreen })))
 const SizeReportScreen = lazy(() => import('./screens/SizeReportScreen').then((module) => ({ default: module.SizeReportScreen })))
+const SideGroups = lazy(() => import('./components/SideGroups').then((module) => ({ default: module.SideGroups })))
+const ChequesScreen = lazy(() => import('./screens/ChequesScreen').then((module) => ({ default: module.ChequesScreen })))
+const DayReportScreen = lazy(() => import('./screens/DayReportScreen').then((module) => ({ default: module.DayReportScreen })))
+const SalesWeekScreen = lazy(() => import('./screens/SalesInsightsScreens').then((module) => ({ default: module.SalesWeekScreen })))
+const CustomerPatternsScreen = lazy(() => import('./screens/SalesInsightsScreens').then((module) => ({ default: module.CustomerPatternsScreen })))
 const ItemMarginScreen = lazy(() => import('./screens/ItemMarginScreen').then((module) => ({ default: module.ItemMarginScreen })))
 const ReportsScreen = lazy(() => import('./screens/ReportsScreen').then((module) => ({ default: module.ReportsScreen })))
 const StaffScreen = lazy(() => import('./screens/StaffScreen').then((module) => ({ default: module.StaffScreen })))
@@ -74,6 +83,9 @@ const RoomsScreen = lazy(() => import('./screens/RoomsScreen').then((module) => 
 const TableBookingsScreen = lazy(() => import('./screens/TableBookingsScreen').then((module) => ({ default: module.TableBookingsScreen })))
 const BookingsScreen = lazy(() => import('./screens/BookingsScreen').then((module) => ({ default: module.BookingsScreen })))
 const JobsScreen = lazy(() => import('./screens/JobsScreen').then((module) => ({ default: module.JobsScreen })))
+const EstimatesScreen = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatesScreen })))
+const EstimatePrint = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatePrint })))
+const OffersScreen = lazy(() => import('./screens/OffersScreen').then((module) => ({ default: module.OffersScreen })))
 const SuppliersScreen = lazy(() => import('./screens/SuppliersScreen').then((module) => ({ default: module.SuppliersScreen })))
 const ProfileScreen = lazy(() => import('./screens/ProfileScreen').then((module) => ({ default: module.ProfileScreen })))
 const MyPlanScreen = lazy(() => import('./screens/MyPlanScreen').then((module) => ({ default: module.MyPlanScreen })))
@@ -196,6 +208,10 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const notifyText = useCallback((order: Order) => t('myStore.newOrder', { name: order.customerName }), [t])
   const newOrders = useNewOrders(shopId, notifyText)
   const [persistent, setPersistent] = useState(true)
+  // Large screens: the side menu stays out of the way until asked for, and the page keeps its full width.
+  // Laptop side menu: open (icons and names) or narrow (icons only), toggled by the panel button and remembered.
+  const [menuOpen, setMenuOpenState] = useState(() => { try { return localStorage.getItem('gk-menu') !== 'narrow' } catch { return true } })
+  const setMenuOpen = (open: boolean) => { setMenuOpenState(open); try { localStorage.setItem('gk-menu', open ? 'open' : 'narrow') } catch { /* not remembered */ } }
 
   useEffect(() => {
     void requestPersistentStorage().then(setPersistent)
@@ -229,7 +245,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const orderMatch = path.match(/^\/o\/([0-9a-f-]+)$/)
   const productMatch = path.match(/^\/p\/([0-9a-f-]+)$/)
   const tagsMatch = path.match(/^\/tags\/([0-9a-f,-]+)$/)
-  const printMatch = path.match(/^\/print\/(statement|bill)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
+  const printMatch = path.match(/^\/print\/(statement|bill|supplier)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
   const isItemsPage = !!productMatch || path === '/items/pick' || path === '/stocktake' || path === '/import' || path === '/items/common'
   const tabs: { path: string; label: string; icon: ReactNode; badge?: number }[] = [
     { path: '/', label: t('home'), icon: <HomeIcon size={22} /> },
@@ -239,25 +255,56 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     { path: '/items', label: t('items'), icon: <ItemsIcon size={22} /> },
   ]
   const isTab = tabs.some((tab) => tab.path === path)
-  // Desktop only: the pages a phone reaches from Home get their own place in the side menu, in two groups.
-  const sideGroups: { title: string; links: { path: string; label: string }[] }[] = [
-    { title: t('side.money'), links: [
+  // Desktop only: the pages a phone reaches from Home, grouped by the job (sell, people, buy, money, stock, reports).
+  // Each group folds, and its + starts the group's most common job.
+  const sideGroups: { key: string; title: string; add?: { path: string; label: string }; links: { path: string; label: string }[] }[] = [
+    { key: 'sell', title: t('menu.sell'), add: { path: '/bill', label: t('menu.addBill') }, links: [
+      { path: '/estimates', label: t('estimate.link') },
+      { path: '/reports/day', label: t('menu.dayBook') },
+      ...(isOwner ? [{ path: '/offers', label: t('offers.link') }] : []),
+    ] },
+    { key: 'people', title: t('menu.people'), add: { path: '/khata', label: t('menu.addCustomer') }, links: [
       { path: '/dues', label: t('side.dues') },
       { path: '/receipts', label: t('side.receipts') },
+      { path: '/reminders', label: t('menu.reminders') },
+      { path: '/disputes', label: t('menu.disputes') },
+    ] },
+    ...(isOwner ? [{ key: 'buy', title: t('menu.buy'), add: { path: '/suppliers', label: t('menu.addPurchase') }, links: [
+      { path: '/suppliers', label: t('side.suppliers') },
+      { path: '/reorder', label: t('reorder.link') },
+    ] }] : []),
+    { key: 'money', title: t('menu.money'), add: { path: '/expenses', label: t('menu.addExpense') }, links: [
       { path: '/cashbook', label: t('side.cashbook') },
+      ...(isOwner ? [{ path: '/cashledger', label: t('cashLedger.title') }] : []),
+      ...(isOwner ? [{ path: '/bankbook', label: t('bankBook.title') }] : []),
+      { path: '/cheques', label: t('cheques.link') },
       { path: '/expenses', label: t('side.expenses') },
+    ] },
+    { key: 'stock', title: t('menu.stock'), add: { path: '/stocktake', label: t('menu.addCount') }, links: [
+      { path: '/stocktake', label: t('side.stocktake') },
+    ] },
+    { key: 'reports', title: t('menu.reports'), links: [
       { path: '/reports', label: t('side.reports') },
       ...(isOwner ? [{ path: '/pnl', label: t('side.pnl') }, { path: '/gst', label: 'GST' }] : []),
     ] },
-    { title: t('side.shop'), links: [
-      { path: '/stocktake', label: t('side.stocktake') },
-      ...(isOwner ? [{ path: '/suppliers', label: t('side.suppliers') }, { path: '/settings', label: t('side.settings') }] : []),
+    { key: 'more', title: t('menu.more'), links: [
+      ...(isOwner ? [{ path: '/store', label: t('menu.store') }] : []),
+      { path: '/sync', label: t('menu.sync') },
+      ...(isOwner ? [{ path: '/settings', label: t('side.settings') }] : []),
     ] },
   ]
   const sideLink = sideGroups.flatMap((g) => g.links).filter((l) => path === l.path || path.startsWith(l.path + '/')).sort((a, b) => b.path.length - a.path.length)[0]
   const pageTitle = tabs.find((tab) => tab.path === path)?.label ?? sideLink?.label
   const unsynced = pending + failed
 
+  const estimatePrint = path.match(/^\/print\/estimate\/([0-9a-f-]+)$/)
+  if (estimatePrint) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <EstimatePrint shopId={shopId} shopName={shopName} id={estimatePrint[1]} />
+      </Suspense>
+    )
+  }
   const kharchaPrint = path.match(/^\/print\/kharcha\/(\d{4}-\d{2})$/)
   if (kharchaPrint) {
     return (
@@ -269,14 +316,18 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   if (printMatch) {
     return (
       <Suspense fallback={<Loading />}>
-        <PrintScreen shopId={shopId} shopName={shopName} kind={printMatch[1] as 'statement' | 'bill'} id={printMatch[2]} month={printMatch[3]} />
+        <PrintScreen shopId={shopId} shopName={shopName} kind={printMatch[1] as 'statement' | 'bill' | 'supplier'} id={printMatch[2]} month={printMatch[3]} />
       </Suspense>
     )
   }
 
   return (
-    <div className="mx-auto min-h-dvh max-w-xl pb-20 lg:max-w-none lg:pb-6 lg:pl-60">
-      <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white">
+    <div className="mx-auto min-h-dvh max-w-xl pb-20 lg:max-w-none lg:pb-6">
+      <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white lg:h-16 lg:py-0 print:hidden">
+        <button type="button" onClick={() => setMenuOpen(!menuOpen)} aria-label={t('a11y.menu')} aria-expanded={menuOpen} className="-ml-2 hidden h-10 w-10 items-center justify-center rounded-lg border border-white/50 lg:flex">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M9 4v16" /></svg>
+        </button>
+        <img src="/favicon.svg" alt="" className="hidden h-9 w-9 lg:block" />
         {!isTab && (
           <button onClick={() => navigate(customerMatch ? '/khata' : orderMatch ? '/inbox' : isItemsPage ? '/items' : path === '/settings/staff' ? '/settings' : '/')} className={`-ml-2 flex h-11 w-11 items-center justify-center ${sideLink || customerMatch || orderMatch ? 'lg:hidden' : ''}`} aria-label={t('a11y.back')}>
             <BackIcon />
@@ -295,7 +346,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           {state === 'offline' ? <CloudOffIcon size={16} /> : unsynced === 0 ? <CheckIcon size={16} /> : null}
           {unsynced > 0 ? t('waiting', { count: unsynced }) : state === 'offline' ? t('pwa.offline') : t('synced')}
         </button>
-        <AccountMenu
+        <Suspense fallback={<span className="h-11 w-11 shrink-0 rounded-full bg-amber-400" aria-hidden="true" />}><AccountMenu
           name={userName}
           role={t(isOwner ? 'account.ownerAt' : 'account.helperAt', { shop: shopName })}
           unsynced={unsynced}
@@ -309,11 +360,11 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
             { label: t('plan.householdLists'), onClick: onHousehold },
             { label: t('account.syncStatus'), onClick: () => navigate('/sync') },
           ]}
-        />
+        /></Suspense>
       </header>
 
       {/* Desktop width: billing and the item list use the room; the other pages stay a readable width. */}
-      <main className={`lg:mx-auto ${path === '/bill' || path === '/items' || path === '/items/pick' || path === '/khata' || path === '/dues' || path === '/inbox' || path === '/suppliers' || path === '/settings' || path === '/settings/staff' || customerMatch || orderMatch ? 'lg:max-w-6xl' : 'lg:max-w-4xl'}`}>
+      <main className={`${menuOpen ? 'lg:ml-60' : 'lg:ml-16'} lg:mx-auto ${path === '/bill' || path === '/items' || path === '/items/pick' || path === '/khata' || path === '/dues' || path === '/inbox' || path === '/suppliers' || path === '/settings' || path === '/settings/staff' || customerMatch || orderMatch ? 'lg:max-w-6xl 2xl:max-w-[1500px]' : 'lg:max-w-4xl xl:max-w-5xl'}`}>
         {/* Keyed by screen: a page change shows the loading state at once, never the previous screen lingering. */}
         <Suspense key={customerMatch ? '/khata' : orderMatch ? '/inbox' : path} fallback={<Loading />}>
         {customerMatch ? (
@@ -329,11 +380,15 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/store' ? (
           <MyStoreScreen shopName={shopName} slug={shopSlug} />
         ) : path === '/cashbook' ? (
-          <CashBookScreen shopId={shopId} />
+          <CashBookScreen shopId={shopId} isOwner={isOwner} />
+        ) : path === '/cashledger' && isOwner ? (
+          <CashLedgerScreen shopId={shopId} />
+        ) : path === '/bankbook' && isOwner ? (
+          <BankBookScreen shopId={shopId} />
         ) : path === '/expenses' ? (
-          <ExpensesScreen shopId={shopId} shopName={shopName} />
+          <ExpensesScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
         ) : path === '/expenses/month' ? (
-          <ExpensesScreen shopId={shopId} shopName={shopName} month />
+          <ExpensesScreen shopId={shopId} shopName={shopName} isOwner={isOwner} month />
         ) : path === '/items/pick' ? (
           <PickItemsScreen shopId={shopId} />
         ) : path === '/gst' && isOwner ? (
@@ -342,6 +397,14 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <StaffSalesScreen shopId={shopId} />
         ) : path === '/reports/sizes' && isOwner ? (
           <SizeReportScreen shopId={shopId} />
+        ) : path === '/cheques' ? (
+          <ChequesScreen isOwner={isOwner} />
+        ) : path === '/reports/day' ? (
+          <DayReportScreen shopName={shopName} />
+        ) : path === '/reports/week' ? (
+          <SalesWeekScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
+        ) : path === '/reports/customers' && isOwner ? (
+          <CustomerPatternsScreen shopId={shopId} shopName={shopName} />
         ) : path === '/reports/items' && isOwner ? (
           <ItemMarginScreen shopId={shopId} />
         ) : path === '/pnl' && isOwner ? (
@@ -379,7 +442,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/medical/returns' && isOwner ? (
           <ReturnsScreen shopId={shopId} />
         ) : path === '/medical/h1' ? (
-          <H1RegisterScreen shopId={shopId} />
+          <H1RegisterScreen shopId={shopId} shopName={shopName} />
         ) : path === '/medical/stock' ? (
           <MedicineStockScreen shopId={shopId} />
         ) : path === '/medical/setup' ? (
@@ -394,8 +457,12 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <BookingsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/jobs' ? (
           <JobsScreen shopId={shopId} isOwner={isOwner} />
+        ) : path === '/estimates' ? (
+          <EstimatesScreen shopId={shopId} />
+        ) : path === '/offers' && isOwner ? (
+          <OffersScreen shopId={shopId} />
         ) : path === '/suppliers' ? (
-          <SuppliersScreen shopId={shopId} />
+          <SuppliersScreen shopId={shopId} shopName={shopName} />
         ) : path === '/profile' ? (
           <ProfileScreen />
         ) : path === '/plan' || path === '/choose-plan' ? (
@@ -440,42 +507,29 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         </Suspense>
       </main>
 
-      <AppBanners />
+      <Suspense fallback={null}><AppBanners /></Suspense>
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:right-auto lg:mx-0 lg:h-auto lg:w-60 lg:max-w-none lg:auto-rows-auto lg:grid-cols-1 lg:content-start lg:gap-1 lg:overflow-y-auto lg:border-t-0 lg:border-r lg:px-3 lg:pt-20 lg:pb-6 lg:[&>button]:min-h-12">
+      <nav className={`fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:top-16 lg:bottom-0 lg:right-auto lg:z-20 print:hidden lg:mx-0 lg:h-auto ${menuOpen ? 'lg:w-60' : 'lg:w-16 lg:px-2'} lg:max-w-none lg:auto-rows-auto lg:grid-cols-1 lg:content-start lg:gap-1 lg:overflow-y-auto lg:border-t-0 lg:border-r lg:px-3 lg:pt-3 lg:pb-6 lg:[scrollbar-width:thin] lg:[&>button]:min-h-12`}>
         {tabs.map((tab) => (
           <button
             key={tab.path}
             onClick={() => navigate(tab.path)}
+            title={tab.label}
             aria-current={path === tab.path ? 'page' : undefined}
-            className={`relative flex flex-col items-center justify-center gap-0.5 text-[13px] lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-4 lg:text-base ${
+            className={`relative flex flex-col items-center justify-center gap-0.5 text-[13px] lg:flex-row ${menuOpen ? 'lg:justify-start lg:px-4' : 'lg:justify-center lg:px-0'} lg:gap-3 lg:rounded-xl lg:text-base ${
               path === tab.path ? 'font-bold text-teal-700 lg:bg-teal-50' : 'font-semibold text-muted lg:hover:bg-[#f1f5f4]'
             }`}
           >
             {tab.icon}
-            {tab.label}
+            <span className={menuOpen ? '' : 'lg:sr-only'}>{tab.label}</span>
             {!!tab.badge && (
-              <span className="absolute top-1.5 right-[calc(50%-22px)] min-w-5 lg:static lg:ml-auto rounded-full bg-udhaar px-1.5 text-xs font-bold text-white" aria-label={`${tab.badge}`}>
+              <span className={`absolute top-1.5 right-[calc(50%-22px)] min-w-5 ${menuOpen ? 'lg:static lg:ml-auto' : 'lg:top-0.5 lg:right-0.5'} rounded-full bg-udhaar px-1.5 text-xs font-bold text-white`} aria-label={`${tab.badge}`}>
                 {tab.badge}
               </span>
             )}
           </button>
         ))}
-        {sideGroups.map((group) => group.links.length > 0 && (
-          <div key={group.title} className="hidden lg:flex lg:flex-col lg:gap-0.5">
-            <span className="mt-4 px-4 pb-1 text-xs font-bold tracking-wide text-muted uppercase">{group.title}</span>
-            {group.links.map((link) => (
-              <button
-                key={link.path}
-                onClick={() => navigate(link.path)}
-                aria-current={sideLink?.path === link.path ? 'page' : undefined}
-                className={`flex min-h-10 items-center rounded-xl px-4 text-left text-[15px] ${sideLink?.path === link.path ? 'bg-teal-50 font-bold text-teal-700' : 'font-semibold text-muted hover:bg-[#f1f5f4]'}`}
-              >
-                {link.label}
-              </button>
-            ))}
-          </div>
-        ))}
+        <Suspense fallback={null}><SideGroups groups={sideGroups} open={menuOpen} current={sideLink?.path} /></Suspense>
       </nav>
     </div>
   )

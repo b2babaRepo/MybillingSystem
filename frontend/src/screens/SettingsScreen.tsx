@@ -1,11 +1,10 @@
-import { useGstBilling } from '../lib/billing'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { navigate } from '../router'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
-import { buildReminder, DEFAULT_REMINDER, SHOP_TYPES, useShopSettings, type ShopSettings, type ShopType } from '../lib/reports'
+import { buildReminder, DEFAULT_REMINDER, SHOP_TYPES, useShopSettings, type ShopSettings, type ShopType, sendsToSites, SERVICE_TYPES } from '../lib/reports'
 
 /** The shop's name and place, its UPI ID, and the reminder wording, with a live preview. */
 export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
@@ -16,7 +15,6 @@ export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
 
 function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: boolean; initial: ShopSettings }) {
   const { t } = useTranslation()
-  const gstBilling = useGstBilling(shopId)
   const queryClient = useQueryClient()
   const [extra, setExtra] = useState<ShopType[]>(initial.extraTypes ?? [])
   const [form, setForm] = useState({
@@ -28,6 +26,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     type: initial.type ?? 'kirana',
     gstin: initial.gstin ?? '',
     gstComposition: initial.gstComposition ? 'yes' : '',
+    deliversGoods: initial.deliversGoods ?? sendsToSites(initial.type ?? 'kirana') ? 'yes' : '',
     staffMaxDiscountPercent: String(initial.staffMaxDiscountPercent ?? 10),
   })
   const [message, setMessage] = useState('')
@@ -37,7 +36,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   async function save() {
     setMessage('')
     try {
-      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, extraTypes: extra.filter((x) => x !== form.type) })
+      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, extraTypes: extra.filter((x) => x !== form.type) })
       queryClient.setQueryData([shopId, 'settings'], saved)
       setMessage(t('settings.saved'))
     } catch (err) {
@@ -74,14 +73,18 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
             ))}
           </div>
         </fieldset>
-        {gstBilling && <Field label={t('settings.gstin')} value={form.gstin} onChange={set('gstin')} maxLength={15} autoCapitalize="characters" placeholder="08ABCDE1234F1Z0" />}
-        {gstBilling && form.gstin.trim() && (
+        <Field label={t('settings.gstin')} value={form.gstin} onChange={set('gstin')} maxLength={15} autoCapitalize="characters" placeholder="08ABCDE1234F1Z0" />
+        {form.gstin.trim() && (
           <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!!form.gstComposition} onChange={(e) => setForm({ ...form, gstComposition: e.target.checked ? 'yes' : '' })} className="h-5 w-5" />
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-muted">{t('discount.limitLabel')}</span>
             <input value={form.staffMaxDiscountPercent} onChange={(e) => setForm({ ...form, staffMaxDiscountPercent: e.target.value })} inputMode="decimal" className="h-12 w-28 rounded-xl border border-line px-3 text-lg" /> %
           </label>
             <span>{t('settings.composition')}</span></label>
+        )}
+        {!SERVICE_TYPES.includes(form.type as ShopType) && (
+          <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!!form.deliversGoods} onChange={(e) => setForm({ ...form, deliversGoods: e.target.checked ? 'yes' : '' })} className="h-5 w-5" />
+            <span>{t('settings.delivers')}</span></label>
         )}
         <Field label={t('settings.area')} value={form.area} onChange={set('area')} />
         <Field label={t('settings.address')} value={form.address} onChange={set('address')} />

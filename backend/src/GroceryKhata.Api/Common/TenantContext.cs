@@ -10,6 +10,11 @@ public interface ITenantContext
 
     /// <summary>The signed-in person, shop token or not. Lets a household see the orders it placed at any shop.</summary>
     Guid UserId { get; }
+
+    /// <summary>What the owner has stopped this helper doing (Identity.StaffLimits); empty for owners.</summary>
+    IReadOnlyCollection<string> Blocked => [];
+
+    bool IsBlocked(string limit) => Blocked.Contains(limit);
 }
 
 /// <summary>
@@ -38,4 +43,8 @@ public sealed class TenantContext : ITenantContext
     public Guid UserId { get; private set; }
 
     public void SetUser(Guid userId) => UserId = userId;
+
+    public IReadOnlyCollection<string> Blocked { get; private set; } = [];
+
+    public void SetBlocked(IReadOnlyCollection<string> blocked) => Blocked = blocked;
 }

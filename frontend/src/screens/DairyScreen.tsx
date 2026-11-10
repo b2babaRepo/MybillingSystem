@@ -322,7 +322,7 @@ function Bills({ shopId, shopName }: { shopId: string; shopName: string }) {
       {bills.length === 0 && <p className="rounded-[18px] bg-white p-3 text-sm text-muted">{t('dairy.noBills')}</p>}
       {bills.map((b) => (
         <section key={b.farmerId} className="flex flex-col gap-1 rounded-[18px] bg-white p-3 text-sm">
-          <p className="flex justify-between font-bold"><span>#{b.code} {b.name}</span><span className={b.due < 0 ? 'text-due' : ''}>{formatRupees(b.due)}</span></p>
+          <p className="flex justify-between font-bold"><span>#{b.code} {b.name}</span><span className={b.due < 0 ? 'text-due' : ''}>{t(b.due < 0 ? 'dairy.owesUs' : 'dairy.weOwe', { amount: formatRupees(Math.abs(b.due)) })}</span></p>
           <p>{t('dairy.billLine', { count: b.collections, litres: b.litres, fat: b.avgFat, milk: formatRupees(b.milkAmount) })}</p>
           {(b.feed > 0 || b.advance > 0 || b.bonus > 0 || b.opening !== 0 || b.paidInPeriod > 0) && <p className="text-xs text-muted">{t('dairy.billDeductions', { feed: formatRupees(b.feed), advance: formatRupees(b.advance), bonus: formatRupees(b.bonus), opening: formatRupees(b.opening), paid: formatRupees(b.paidInPeriod) })}</p>}
           <div className="mt-1 flex gap-2">

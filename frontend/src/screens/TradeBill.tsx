@@ -7,6 +7,7 @@ import { uuidv7 } from '../lib/ids'
 import type { CartLine } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { round2 } from '../lib/local'
+import { useSubscription } from '../lib/billing'
 import type { ShopType } from '../lib/reports'
 import type { Customer, Product } from '../lib/types'
 
@@ -23,38 +24,31 @@ const EWAY_LIMIT = 50_000
 interface Painter { id: string; name: string; phone: string | null; commissionPercent: number }
 
 /**
- * The bill's extra panel for non-kirana shops (loaded only for them). Building material: the site (earlier sites of
- * this customer offered), vehicle number, an e-way bill reminder over ₹50,000, the credit-limit warning, and "Save as
- * delivery challan". Paint: the painter, and a tinted line (base tin + shade + tinting charge).
+ * The delivery part of a bill for shops that send goods to a site (loaded only for them, once delivery is opened): the
+ * site (earlier sites of this customer offered), vehicle number, an e-way bill reminder and "Save as delivery challan".
  */
-export function TradeBillPanel({ shopId, shopType, customer, total, onKhata, cart, products, extras, onExtras, onAddLine, onChallanSaved }: {
+export function TradeDelivery({ shopId, customer, total, cart, extras, onExtras, onChallanSaved, placeOfSupply = null }: {
   shopId: string
-  shopType: ShopType
   customer: Customer | null
   total: number
-  onKhata: number
   cart: CartLine[]
-  products: Product[]
   extras: TradeExtras
   onExtras: (extras: TradeExtras) => void
-  onAddLine: (line: CartLine) => void
-  onChallanSaved: (total: number) => void
+  onChallanSaved: () => void
+  /** The state the goods go to, when it isn't the shop's own: the challan keeps it for the invoice. */
+  placeOfSupply?: string | null
 }) {
   const { t } = useTranslation()
-  const building = shopType === 'building_materials' || shopType === 'hardware' || shopType === 'electrical' || shopType === 'woodwork'
-  const paint = shopType === 'paint'
-  // Painters bring paint customers, electricians bring electrical ones: the same commission.
-  const fitters = paint || shopType === 'electrical' || shopType === 'woodwork'
   const sites = useQuery({
     queryKey: [shopId, 'sites', customer?.id],
     queryFn: () => api<{ site: string }[]>(`/v1/customers/${customer!.id}/sites`),
-    enabled: building && !!customer,
+    enabled: !!customer,
   }).data
-  const painters = useQuery({ queryKey: [shopId, 'painters'], queryFn: () => api<Painter[]>('/v1/painters'), enabled: fitters }).data
-  const [tinting, setTinting] = useState(false)
+  // Challans are a trade feature: true until the plan is known (offline), and the server has the last word.
+  const features = useSubscription(shopId).data?.features
+  const canChallan = !features || features.includes('trade')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const overLimit = customer?.creditLimit ? customer.balance + onKhata > customer.creditLimit : false
 
   async function saveChallan() {
     setBusy(true)
@@ -66,8 +60,9 @@ export function TradeBillPanel({ shopId, shopType, customer, total, onKhata, car
         lines: cart.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })),
         site: extras.site.trim() || null,
         vehicleNumber: extras.vehicleNumber.trim() || null,
+        placeOfSupply,
       })
-      onChallanSaved(total)
+      onChallanSaved()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -76,31 +71,52 @@ export function TradeBillPanel({ shopId, shopType, customer, total, onKhata, car
   }
 
   return (
+    <>
+      <Field label={t('trade.site')} value={extras.site} onChange={(e) => onExtras({ ...extras, site: e.target.value })} list="bill-sites" maxLength={80}
+        placeholder={t('trade.sitePlaceholder')} />
+      <datalist id="bill-sites">{sites?.filter((s) => s.site).map((s) => <option key={s.site} value={s.site} />)}</datalist>
+      <Field label={t('trade.vehicle')} value={extras.vehicleNumber} onChange={(e) => onExtras({ ...extras, vehicleNumber: e.target.value })} maxLength={15}
+        placeholder="RJ14 GB 1234" autoCapitalize="characters" />
+      {total > EWAY_LIMIT && (
+        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t('trade.eway', { amount: formatRupees(EWAY_LIMIT) })}</p>
+      )}
+      {customer && canChallan && (
+        <button disabled={busy || cart.length === 0} onClick={() => void saveChallan()}
+          className="min-h-12 rounded-2xl border-2 border-teal-700 font-bold text-teal-800 disabled:opacity-40">
+          {t('trade.saveChallan')}
+        </button>
+      )}
+      {!customer && canChallan && <p className="text-xs text-muted">{t('trade.challanNeedsCustomer')}</p>}
+      {error && <p className="text-sm text-due">{error}</p>}
+    </>
+  )
+}
+
+/** The rest of the bill's extras for trades: the credit-limit warning, and the painter with a tinted line (base tin + shade + tinting charge). */
+export function TradeBillPanel({ shopId, shopType, customer, onKhata, products, extras, onExtras, onAddLine }: {
+  shopId: string
+  shopType: ShopType
+  customer: Customer | null
+  onKhata: number
+  products: Product[]
+  extras: TradeExtras
+  onExtras: (extras: TradeExtras) => void
+  onAddLine: (line: CartLine) => void
+}) {
+  const { t } = useTranslation()
+  const paint = shopType === 'paint'
+  // Painters bring paint customers, electricians bring electrical ones: the same commission.
+  const fitters = paint || shopType === 'electrical' || shopType === 'woodwork'
+  const painters = useQuery({ queryKey: [shopId, 'painters'], queryFn: () => api<Painter[]>('/v1/painters'), enabled: fitters }).data
+  const [tinting, setTinting] = useState(false)
+  const overLimit = customer?.creditLimit ? customer.balance + onKhata > customer.creditLimit : false
+
+  return (
     <div className="flex flex-col gap-2">
       {overLimit && (
         <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">
           {t('trade.overLimit', { limit: formatRupees(customer!.creditLimit!), after: formatRupees(round2(customer!.balance + onKhata)) })}
         </p>
-      )}
-
-      {building && (
-        <>
-          <Field label={t('trade.site')} value={extras.site} onChange={(e) => onExtras({ ...extras, site: e.target.value })} list="bill-sites" maxLength={80}
-            placeholder={t('trade.sitePlaceholder')} />
-          <datalist id="bill-sites">{sites?.filter((s) => s.site).map((s) => <option key={s.site} value={s.site} />)}</datalist>
-          <Field label={t('trade.vehicle')} value={extras.vehicleNumber} onChange={(e) => onExtras({ ...extras, vehicleNumber: e.target.value })} maxLength={15}
-            placeholder="RJ14 GB 1234" autoCapitalize="characters" />
-          {total > EWAY_LIMIT && (
-            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t('trade.eway', { amount: formatRupees(EWAY_LIMIT) })}</p>
-          )}
-          {customer && (
-            <button disabled={busy || cart.length === 0} onClick={() => void saveChallan()}
-              className="min-h-12 rounded-2xl border-2 border-teal-700 font-bold text-teal-800 disabled:opacity-40">
-              {t('trade.saveChallan')}
-            </button>
-          )}
-          {!customer && <p className="text-xs text-muted">{t('trade.challanNeedsCustomer')}</p>}
-        </>
       )}
 
       {fitters && (
@@ -119,7 +135,6 @@ export function TradeBillPanel({ shopId, shopType, customer, total, onKhata, car
         </>
       )}
 
-      {error && <p className="text-sm text-due">{error}</p>}
       {tinting && <TintSheet products={products} onClose={() => setTinting(false)} onAdd={onAddLine} />}
     </div>
   )

@@ -3,9 +3,12 @@ using GroceryKhata.Api.Catalogue;
 namespace GroceryKhata.Api.Ledger;
 
 /// <summary><see cref="Id"/> is made by the app, so a retried or synced-again request finds the same customer.</summary>
-public sealed record CustomerRequest(Guid Id, string? Name, string? Phone);
+public sealed record CustomerRequest(Guid Id, string? Name, string? Phone, bool NameLater = false);
 
-public sealed record CustomerDto(Guid Id, string Name, string? Phone, decimal Balance, decimal? CreditLimit = null);
+/// <summary>Puts a paid walk-in bill on a customer's khata after the fact; older than a week needs the owner and a reason.</summary>
+public sealed record AttachCustomerRequest(Guid CustomerId, string? Reason);
+
+public sealed record CustomerDto(Guid Id, string Name, string? Phone, decimal Balance, decimal? CreditLimit = null, bool NameLater = false);
 
 /// <summary>
 /// The fast path: "Ramesh, ₹340, udhaar" with no items. <see cref="Amount"/> is always positive;
@@ -19,7 +22,10 @@ public sealed record KhataEntryRequest(
     PaymentMode? PaymentMode,
     string? Note,
     DateTimeOffset? OccurredAt,
-    string? UpiRef = null);
+    string? UpiRef = null,
+    string? ChequeNo = null,
+    string? ChequeBank = null,
+    DateOnly? ChequeDate = null);
 
 public enum KhataEntryType
 {
@@ -32,7 +38,8 @@ public enum KhataEntryType
 
 public sealed record ReverseRequest(Guid Id, string? Note);
 
-public sealed record BillLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice, Guid? SalespersonId = null);
+/// <summary><see cref="OfferId"/>: the planned offer the counter applied to this line, if any.</summary>
+public sealed record BillLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice, Guid? SalespersonId = null, Guid? OfferId = null);
 
 public sealed record BillRequest(
     Guid Id,
@@ -48,7 +55,14 @@ public sealed record BillRequest(
     IReadOnlyList<Catalogue.BillSerialRequest>? Serials = null,
     Guid? ExchangeNoteId = null,
     string? PlaceOfSupply = null,
-    int? EntrySeconds = null);
+    int? EntrySeconds = null,
+    // The shop chose a bill without GST (goods with no GST, or a sale the shop doesn't bill under its GSTIN): no tax
+    // invoice, no GST worked out, and it stays out of the GST return.
+    bool WithoutGst = false,
+    // Paid more than one way: each part's mode and amount. They add up to PaidAmount; none: one way, by PaymentMode.
+    IReadOnlyList<BillPaymentRequest>? Payments = null,
+    // The counter (device) it was made on, as named on that device.
+    string? Counter = null);
 
 /// <summary>For Schedule H, H1 and X medicines: who prescribed them and for whom, as the drug rules ask.</summary>
 public sealed record PrescriptionRequest(string? DoctorName, string? DoctorAddress, string? DoctorRegNo, string? PatientName, string? PatientAddress, DateOnly? PrescribedOn);
@@ -98,7 +112,9 @@ public sealed record BillDto(
     string? ExchangeNoteNo = null,
     string? PlaceOfSupply = null,
     string? ShopAddress = null,
-    string? BuyerAddress = null);
+    string? BuyerAddress = null,
+    IReadOnlyList<BillPaymentPart>? Payments = null,
+    string? Counter = null);
 
 public sealed record CancelBillRequest(string? Reason);
 
@@ -118,7 +134,9 @@ public sealed record StatementLine(
     string? UpiRef = null,
     DisputeView? Dispute = null,
     bool EnteredLate = false,
-    DateTimeOffset? RecordedAt = null);
+    DateTimeOffset? RecordedAt = null,
+    string? ChequeNo = null,
+    ChequeStatus? ChequeStatus = null);
 
 /// <summary>The latest dispute on an entry, as both sides see it.</summary>
 public sealed record DisputeView(

@@ -23,6 +23,33 @@ public enum ExpenseCategory
     /// <summary>Taken home (owner's drawing). Lowers the cash box, never the shop's profit.</summary>
     Home,
     Other,
+
+    // Money that leaves the cash box but is not a cost of running the shop, so it stays out of profit.
+
+    /// <summary>GST, income tax or other tax paid.</summary>
+    Tax,
+    /// <summary>A loan instalment (EMI).</summary>
+    Loan,
+    /// <summary>Something that lasts years: a fridge, a machine, a counter.</summary>
+    Equipment,
+    /// <summary>Cash put into the bank.</summary>
+    Deposit,
+    /// <summary>An advance to staff, taken back from their salary later.</summary>
+    Advance,
+}
+
+/// <summary>What "kharcha" means, the same on the kharcha page, the month report and its downloads.</summary>
+public static class Kharcha
+{
+    /// <summary>Headings that are not a running cost: stock (already counted at cost), money taken home, and the out-of-profit headings.</summary>
+    public static readonly ExpenseCategory[] OutsideProfit =
+        [ExpenseCategory.Purchase, ExpenseCategory.Home, ExpenseCategory.Tax, ExpenseCategory.Loan, ExpenseCategory.Equipment, ExpenseCategory.Deposit, ExpenseCategory.Advance];
+
+    /// <summary>A walk-in refund on a credit note: already counted as a return, so never kharcha.</summary>
+    public static bool IsReturnRefund(string? note) => note is not null && note.StartsWith("Refund CN/", StringComparison.Ordinal);
+
+    /// <summary>A running cost of the shop, which lowers profit.</summary>
+    public static bool IsRunningCost(ExpenseCategory category, string? note) => !OutsideProfit.Contains(category) && !IsReturnRefund(note);
 }
 
 /// <summary>
@@ -72,7 +99,7 @@ public sealed record ExpenseDayTotal(DateOnly Date, decimal Total, int Count);
 public sealed record ExpenseMonthDto(
     string Month, bool Complete, decimal Total, decimal Cash, decimal Upi, decimal TakenHome, decimal ShopKharcha, int Count,
     IReadOnlyList<ExpenseCategoryTotal> ByCategory, IReadOnlyList<ExpenseDayTotal> ByDay, IReadOnlyList<ExpenseDto> Lines,
-    decimal? PreviousMonthShopKharcha);
+    decimal? PreviousMonthShopKharcha, decimal OutsideProfit = 0, decimal Refunds = 0);
 
 public sealed record ExpensePageDto(DateOnly Date, decimal Cash, decimal Upi, decimal Total, IReadOnlyList<ExpenseDto> Lines);
 
@@ -93,7 +120,8 @@ public static class ExpenseEndpoints
     {
         var group = app.MapGroup("/api/v1/expenses").WithTags("Expenses").RequireAuthorization(AppPolicies.ShopMember);
         group.MapGet("", PageAsync);
-        group.MapGet("/month", MonthAsync);
+        // The month shows salary and money taken home: the owner's figures, like the month report.
+        group.MapGet("/month", MonthAsync).RequireAuthorization(AppPolicies.ShopOwner);
         group.MapPost("", AddAsync);
         group.MapPost("/read", (ExpenseReadRequest request) => TypedResults.Ok(ExpenseReader.Read(request.Text)));
         group.MapPost("/{id:guid}/strike", StrikeAsync);
@@ -140,16 +168,23 @@ public static class ExpenseEndpoints
         var byDay = lines.GroupBy(l => DateOnly.FromDateTime(l.OccurredAt.ToOffset(IndiaTime.Offset).DateTime))
             .Select(g => new ExpenseDayTotal(g.Key, g.Sum(l => l.Amount), g.Count())).OrderBy(d => d.Date).ToList();
 
+        // Shop kharcha is running costs only, as in the month report: stock paid for, money taken home, the
+        // out-of-profit headings and credit-note refunds are shown apart.
+        var running = lines.Where(l => Kharcha.IsRunningCost(l.Category, l.Note)).Sum(l => l.Amount);
+        var refunds = lines.Where(l => Kharcha.IsReturnRefund(l.Note)).Sum(l => l.Amount);
+
         // Last month's shop kharcha, to compare.
         var (prevStart, prevEnd) = IndiaTime.Month(m.Month == 1 ? m.Year - 1 : m.Year, m.Month == 1 ? 12 : m.Month - 1);
-        var previous = await db.Expenses.AsNoTracking()
-            .Where(e => e.OccurredAt >= prevStart && e.OccurredAt < prevEnd && e.StruckAt == null && e.Category != ExpenseCategory.Home)
-            .SumAsync(e => (decimal?)e.Amount, ct);
+        // Summed in the database, on the same rule as Kharcha.IsRunningCost.
+        var previousMonth = db.Expenses.AsNoTracking().Where(e => e.OccurredAt >= prevStart && e.OccurredAt < prevEnd && e.StruckAt == null);
+        decimal? previous = !await previousMonth.AnyAsync(ct) ? null : await previousMonth
+            .Where(e => !Kharcha.OutsideProfit.Contains(e.Category) && (e.Note == null || !e.Note.StartsWith("Refund CN/")))
+            .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
 
         return TypedResults.Ok(new ExpenseMonthDto(
             $"{m.Year:D4}-{m.Month:D2}", end <= clock.GetUtcNow(), total,
             lines.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount), lines.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount),
-            home, total - home, lines.Count, byCategory, byDay, lines, previous));
+            home, running, lines.Count, byCategory, byDay, lines, previous, total - home - running - refunds, refunds));
     }
 
     internal static async Task<ExpensePageDto> LoadPageAsync(AppDbContext db, DateOnly day, CancellationToken ct)
@@ -265,7 +300,22 @@ public static partial class ExpenseReader
         (ExpenseCategory.Packaging, ["thaili", "thaila", "polythene", "packing", "carrybag", "थैली", "पन्नी"]),
         (ExpenseCategory.Repair, ["repair", "marammat", "mistri", "मरम्मत", "मिस्त्री"]),
         (ExpenseCategory.Home, ["ghar", "home", "personal", "घर"]),
+        (ExpenseCategory.Tax, ["gst", "tax", "incometax", "टैक्स"]),
+        (ExpenseCategory.Loan, ["emi", "loan", "kist", "kisht", "qist", "लोन", "किस्त", "क़िस्त"]),
+        (ExpenseCategory.Equipment, ["fridge", "freezer", "machine", "equipment", "counter", "inverter", "फ्रिज", "मशीन"]),
+        (ExpenseCategory.Deposit, ["deposit", "jama", "jamaa", "जमा"]),
+        (ExpenseCategory.Advance, ["advance", "एडवांस"]),
     ];
+
+    /// <summary>
+    /// Words before a meter number ("bijli 3200 reading 14520"): that number is the dial, not rupees. Only "reading":
+    /// "meter" and "unit" are also measures ("rassi 10 meter 200"), where the number after them is the rupees.
+    /// </summary>
+    private static readonly string[] ReadingWords = ["reading", "रीडिंग"];
+
+    /// <summary>Measures that follow a quantity ("10 meter", "2 kg"): that number is how much, not rupees.</summary>
+    private static readonly string[] MeasureWords =
+        ["meter", "metre", "mtr", "m", "kg", "kilo", "gram", "gm", "litre", "liter", "ltr", "l", "piece", "pieces", "pc", "pcs", "dozen", "packet", "packets", "bag", "bags", "box", "feet", "ft", "मीटर", "किलो", "लीटर", "दर्जन", "पैकेट"];
 
     private static readonly string[] UpiWords = ["upi", "online", "gpay", "phonepe", "paytm", "bank", "यूपीआई", "ऑनलाइन"];
 
@@ -295,13 +345,16 @@ public static partial class ExpenseReader
             var words = new List<string>();
             var upi = false;
             var amountFirst = false; // "300 mandi tempo": words after a leading amount all belong to it
+            var dialNext = false; // the number after "reading" stays in the note
 
             void Flush()
             {
                 if (amount is > 0)
                 {
                     var note = words.Count == 0 ? null : string.Join(' ', words);
-                    result.Add(new ExpenseGuess(amount.Value, Guess(note ?? "").Category, note, upi ? PaymentMode.Upi : PaymentMode.Cash));
+                    var category = Guess(note ?? "").Category;
+                    // "bank jama 5000": cash taken from the box to the bank, so the mode is cash even though it says bank.
+                    result.Add(new ExpenseGuess(amount.Value, category, note, upi && category != ExpenseCategory.Deposit ? PaymentMode.Upi : PaymentMode.Cash));
                 }
 
                 amount = null;
@@ -310,8 +363,10 @@ public static partial class ExpenseReader
                 amountFirst = false;
             }
 
-            foreach (var raw in part.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            var tokens = part.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            for (var at = 0; at < tokens.Length; at++)
             {
+                var raw = tokens[at];
                 var token = raw.Trim('₹', '.', ':', '-', '/', '=').ToLowerInvariant();
                 if (token is "rs" or "rupaye" or "rupees" or "rupay" or "रुपये" or "रुपए" or "रु" or "")
                 {
@@ -321,6 +376,22 @@ public static partial class ExpenseReader
                 if (UpiWords.Contains(token))
                 {
                     upi = true;
+                    continue;
+                }
+
+                if (ReadingWords.Contains(token))
+                {
+                    dialNext = true;
+                    words.Add(raw.Trim('₹', ',', '.'));
+                    continue;
+                }
+
+                // "rassi 10 meter 200": a number before a measure is how much was bought, not rupees, so it stays in the note.
+                var measured = at + 1 < tokens.Length && MeasureWords.Contains(tokens[at + 1].Trim('.', ',').ToLowerInvariant());
+                if ((dialNext || measured) && ParseNumber(token) is not null)
+                {
+                    dialNext = false;
+                    words.Add(raw.Trim('₹', ',', '.'));
                     continue;
                 }
 

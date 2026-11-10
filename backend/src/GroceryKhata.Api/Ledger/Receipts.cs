@@ -284,8 +284,10 @@ public static class Receipts
                               where e.Kind == LedgerEntryKind.Payment && e.PaymentMode == PaymentMode.Upi && e.BillId == null && e.OccurredAt >= since
                                   && !db.LedgerEntries.Any(r => r.ReversesEntryId == e.Id) && !db.ReceiptAllocations.Any(a => a.LedgerEntryId == e.Id)
                               select new { e.Id, c.Name, e.Amount, e.OccurredAt }).ToListAsync(ct)).Select(e => (e.Id, e.Name, -e.Amount, e.OccurredAt)).ToList();
-        var bills = (await db.Bills.AsNoTracking().Where(b => b.PaymentMode == PaymentMode.Upi && b.CancelledAt == null && b.OccurredAt >= since)
-            .Select(b => new { b.PaidAmount, b.OccurredAt }).ToListAsync(ct)).Select(b => (b.PaidAmount, b.OccurredAt)).ToList();
+        // Bills with a UPI part (all UPI, or the UPI share of a split one).
+        var bills = (await db.Bills.AsNoTracking().Where(b => (b.PaymentMode == PaymentMode.Upi || b.Payments != null) && b.CancelledAt == null && b.OccurredAt >= since)
+            .Select(b => new { b.PaymentMode, b.PaidAmount, b.Payments, b.OccurredAt }).ToListAsync(ct))
+            .Select(b => (BillPayments.PaidBy(b.PaymentMode, b.PaidAmount, b.Payments, PaymentMode.Upi), b.OccurredAt)).Where(b => b.Item1 > 0).ToList();
         var claimed = new HashSet<Guid>();
         return rows.Select(x =>
         {

@@ -76,7 +76,8 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
           <div className="flex-1">
             <div className={`flex flex-wrap items-center gap-x-2 font-semibold ${e.isReversed ? 'line-through' : ''}`}>
               {e.kind === 'reversal' ? t('reversal') : e.kind === 'return' ? t('dispute.returned') : e.amount > 0 ? t('creditShort') : t('paymentShort')}
-              {e.paymentMode && <span className="text-xs text-muted uppercase">{t(e.paymentMode)}</span>}
+              {e.paymentMode && <span className="text-xs text-muted uppercase">{t(e.paymentMode)}{e.chequeNo ? ` #${e.chequeNo}` : ''}</span>}
+              {e.chequeStatus && e.kind !== 'reversal' && <span className={`rounded px-1 text-xs font-normal ${e.chequeStatus === 'cleared' ? 'bg-emerald-50 text-emerald-800' : e.chequeStatus === 'bounced' ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>{t(`cheques.status.${e.chequeStatus}`)}</span>}
               {items.length > 0 && (
                 <span className="text-xs font-normal text-teal-700">
                   {t('ledgerView.items', { count: items.length })} {open ? '▴' : '▾'}
@@ -100,7 +101,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
           <div className={`text-right font-bold ${e.amount > 0 ? 'text-udhaar' : 'text-jama'}`}>
             {e.amount > 0 ? '+' : '−'}
             {formatRupees(Math.abs(e.amount))}
-            <div className="text-xs font-normal text-muted">{t('ledgerView.balanceAfter', { amount: formatRupees(e.runningBalance) })}</div>
+            <div className="text-xs font-normal text-muted">{e.runningBalance < 0 ? `${t('advance')} ${formatRupees(-e.runningBalance)}` : t('ledgerView.balanceAfter', { amount: formatRupees(e.runningBalance) })}</div>
           </div>
         </button>
         {onDispute && (

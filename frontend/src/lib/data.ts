@@ -123,9 +123,10 @@ export function installSyncHandler(queryClient: QueryClient) {
 
 // ---- Writes: all go through the outbox, so they work the same online and offline. ----
 
-export async function addCustomer(shopId: string, name: string, phone: string) {
+export async function addCustomer(shopId: string, name: string, phone: string, nameLater = false) {
   const id = uuidv7()
-  await enqueue({ id, shopId, kind: 'customer', path: '/v1/customers', body: { id, name, phone: phone || null }, label: `+ ${name}` })
+  // "Name later": udhaar to someone who gave no name yet; the server numbers it ("Name later 3").
+  await enqueue({ id, shopId, kind: 'customer', path: '/v1/customers', body: { id, name: nameLater ? 'Name later' : name, phone: phone || null, nameLater }, label: `+ ${nameLater ? 'Name later' : name}` })
   return id
 }
 
@@ -137,8 +138,10 @@ export async function addKhataEntry(
   paymentMode: PaymentMode,
   note: string,
   upiRef = '',
+  cheque?: { no: string; bank: string; date: string },
 ) {
   const id = uuidv7()
+  const isCheque = type === 'payment' && paymentMode === 'cheque' && !!cheque
   await enqueue({
     id,
     shopId,
@@ -153,6 +156,9 @@ export async function addKhataEntry(
       note: note || null,
       occurredAt: new Date().toISOString(),
       upiRef: type === 'payment' && paymentMode === 'upi' && upiRef.trim() ? upiRef.trim() : null,
+      chequeNo: isCheque ? cheque.no.trim() : null,
+      chequeBank: isCheque && cheque.bank.trim() ? cheque.bank.trim() : null,
+      chequeDate: isCheque && cheque.date ? cheque.date : null,
     },
     customerId: customer.id,
     delta: type === 'credit' ? amount : -amount,
@@ -190,6 +196,9 @@ export interface CartLine {
   unitPrice: number
   /** Who sold this line (staff sales and commission); none: whoever makes the bill. */
   salespersonId?: string | null
+  /** The planned offer applied to this line, and its name for the tag. */
+  offerId?: string | null
+  offerName?: string | null
 }
 
 export async function saveBill(
@@ -199,7 +208,7 @@ export async function saveBill(
   paidAmount: number,
   paymentMode: PaymentMode,
   /** Other trades: the site, the vehicle, the painter. */
-  extras: { site?: string | null; vehicleNumber?: string | null; painterId?: string | null; prescription?: { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null } | null; serials?: { productId: string; serialNo: string }[]; exchangeNoteId?: string | null; exchangeCredit?: number; placeOfSupply?: string | null; entrySeconds?: number | null } = {},
+  extras: { withoutGst?: boolean; payments?: { mode: PaymentMode; amount: number; reference?: string | null }[]; site?: string | null; vehicleNumber?: string | null; painterId?: string | null; prescription?: { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null } | null; serials?: { productId: string; serialNo: string }[]; exchangeNoteId?: string | null; exchangeCredit?: number; placeOfSupply?: string | null; entrySeconds?: number | null } = {},
 ) {
   const id = uuidv7()
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
@@ -207,8 +216,9 @@ export async function saveBill(
     id,
     shopId,
     kind: 'bill',
+    // extras.withoutGst rides along in the body: a bill the shop chose to make without GST.
     path: '/v1/bills',
-    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), ...extras, exchangeCredit: undefined },
+    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), counter: counterName() || null, ...extras, exchangeCredit: undefined },
     customerId: customer?.id,
     delta: customer ? round2(total - paidAmount - Math.min(extras.exchangeCredit ?? 0, total)) : undefined,
     customerName: customer?.name,
@@ -218,6 +228,8 @@ export async function saveBill(
 }
 
 export interface NewProduct {
+  /** A barcode for the new item (from a scan no item had yet). */
+  barcode?: string | null
   name: string
   unit: Unit
   sellingPrice: number
@@ -285,4 +297,13 @@ export async function addExpense(shopId: string, line: Omit<ExpenseBody, 'id'>) 
 /** Strikes a kharcha line out (it stays on the page, crossed). Queued like every other write. */
 export async function strikeExpense(shopId: string, id: string, label: string) {
   await enqueue({ id: `${id}:strike`, shopId, kind: 'expenseStrike', path: `/v1/expenses/${id}/strike`, body: {}, label: `✕ ${label}` })
+}
+
+/** This device's counter name ("Counter 2"), set by the shop on the device; bills made here carry it. */
+export function counterName(): string {
+  try { return localStorage.getItem('gk-counter') ?? '' } catch { return '' }
+}
+
+export function setCounterName(name: string) {
+  try { if (name.trim()) localStorage.setItem('gk-counter', name.trim().slice(0, 30)); else localStorage.removeItem('gk-counter') } catch { /* no storage */ }
 }

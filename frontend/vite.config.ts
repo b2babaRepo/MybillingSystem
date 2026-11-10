@@ -33,7 +33,9 @@ export default defineConfig({
       workbox: {
         // The app shell is cached so billing opens with no network; API data is never cached here (offline data
         // lives in IndexedDB, written by the app itself). Item photos are the one exception, below.
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,wasm}'],
+        // The backup barcode reader (WebAssembly, about 1 MB) is kept too, so the camera scans offline.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
         // The Mukta font, kept after the first visit so text looks the same offline.

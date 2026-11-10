@@ -24,7 +24,7 @@ public sealed class User : Entity
     [System.ComponentModel.DataAnnotations.MaxLength(6)]
     public string? Pincode { get; set; }
 
-    /// <summary>"en" or "hi".</summary>
+    /// <summary>"en", "hi" or "gu".</summary>
     public string PreferredLanguage { get; set; } = "hi";
 
     public bool IsActive { get; set; } = true;
@@ -65,6 +65,9 @@ public sealed class Membership : Entity
     /// password; wrong tries count towards the same lockout. Null: this membership signs in with a password only.
     /// </summary>
     public string? PinHash { get; set; }
+
+    /// <summary>What the owner has stopped this helper doing (<see cref="StaffLimits"/>). Empty: nothing.</summary>
+    public string[] Blocked { get; set; } = [];
 }
 
 public enum ShopRole

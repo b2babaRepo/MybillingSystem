@@ -86,6 +86,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<SupplierEntry> SupplierEntries => Set<SupplierEntry>();
 
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+
+    public DbSet<SaleOffer> SaleOffers => Set<SaleOffer>();
+
+    public DbSet<MeterReading> MeterReadings => Set<MeterReading>();
+
+    public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+
+    public DbSet<Estimate> Estimates => Set<Estimate>();
+
+    public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
+
     public DbSet<Billing.GatewayOrder> GatewayOrders => Set<Billing.GatewayOrder>();
 
     public DbSet<Billing.InvoiceCounter> InvoiceCounters => Set<Billing.InvoiceCounter>();
@@ -202,6 +214,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
+
+    public DbSet<Ledger.CashMove> CashMoves => Set<Ledger.CashMove>();
 
     public DbSet<Challan> Challans => Set<Challan>();
 
@@ -359,6 +373,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         {
             b.ToTable("shops");
             b.Property(s => s.State).HasMaxLength(80);
+            b.Property(s => s.BankAccounts).HasColumnType("jsonb");
             b.Property(s => s.District).HasMaxLength(80);
             b.Property(s => s.City).HasMaxLength(80);
             b.Property(s => s.Village).HasMaxLength(80);
@@ -507,6 +522,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(p => new { p.ShopId, p.Name });
             b.HasIndex(p => new { p.ShopId, p.Category });
             b.HasIndex(p => new { p.ShopId, p.CatalogueItemId });
+            // One active item per barcode in a shop: scanning it must find exactly one item.
+            b.HasIndex(p => new { p.ShopId, p.Barcode }).IsUnique().HasFilter("barcode IS NOT NULL AND is_active");
             b.HasOne<CatalogueItem>().WithMany().HasForeignKey(p => p.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -575,6 +592,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(c => c.Lines).HasColumnType("jsonb");
             b.Property(c => c.Site).HasMaxLength(80);
             b.Property(c => c.VehicleNumber).HasMaxLength(15);
+            b.Property(c => c.PlaceOfSupply).HasMaxLength(2);
             b.HasIndex(c => new { c.ShopId, c.CustomerId, c.InvoiceId });
             b.HasTenantForeignKey<Challan, Customer>(nameof(Challan.CustomerId));
         });
@@ -586,6 +604,34 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Name).HasMaxLength(120);
             b.Property(p => p.Phone).HasMaxLength(16);
             b.Property(p => p.CommissionPercent).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<Estimate>(b =>
+        {
+            b.ToTable("estimates");
+            b.HasTenantKey();
+            b.Property(e => e.Lines).HasColumnType("jsonb");
+            b.Property(e => e.PartyName).HasMaxLength(80);
+            b.Property(e => e.Note).HasMaxLength(300);
+            b.HasIndex(e => new { e.ShopId, e.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<GoodsReceipt>(b =>
+        {
+            b.ToTable("goods_receipts");
+            b.HasTenantKey();
+            b.Property(r => r.Lines).HasColumnType("jsonb");
+            b.Property(r => r.Note).HasMaxLength(200);
+            b.HasIndex(r => new { r.ShopId, r.SupplierId, r.PurchaseId });
+            b.HasIndex(r => new { r.ShopId, r.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<MeterReading>(b =>
+        {
+            b.ToTable("meter_readings");
+            b.HasTenantKey();
+            b.Property(r => r.Note).HasMaxLength(200);
+            b.HasIndex(r => new { r.ShopId, r.Day });
         });
 
         modelBuilder.Entity<CashCount>(b =>
@@ -630,6 +676,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(s => s.Name).HasMaxLength(120);
             b.Property(s => s.Phone).HasMaxLength(20);
+            b.Property(s => s.Gstin).HasMaxLength(15);
+            b.Property(s => s.Address).HasMaxLength(200);
         });
 
         modelBuilder.Entity<Purchase>(b =>
@@ -638,6 +686,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(p => p.BillNo).HasMaxLength(40);
             b.Property(p => p.Total).HasPrecision(12, 2);
+            b.Property(p => p.ExtraCharges).HasPrecision(12, 2);
             b.HasMany(p => p.Lines).WithOne().HasForeignKey(l => l.PurchaseId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -725,12 +774,42 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(l => l.UnitCost).HasPrecision(12, 2);
         });
 
+        modelBuilder.Entity<SaleOffer>(b =>
+        {
+            b.ToTable("sale_offers");
+            b.HasTenantKey();
+            b.Property(o => o.Name).HasMaxLength(60);
+            b.Property(o => o.Category).HasMaxLength(60);
+            b.Property(o => o.Value).HasPrecision(12, 2);
+            b.HasIndex(o => new { o.ShopId, o.EndsAt });
+        });
+
+        modelBuilder.Entity<PurchaseOrder>(b =>
+        {
+            b.ToTable("purchase_orders");
+            b.HasTenantKey();
+            b.Property(o => o.Note).HasMaxLength(200);
+            b.HasIndex(o => new { o.ShopId, o.Number }).IsUnique();
+            b.HasIndex(o => new { o.ShopId, o.SupplierId, o.Status });
+            b.HasMany(o => o.Lines).WithOne().HasForeignKey(l => l.OrderId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PurchaseOrderLine>(b =>
+        {
+            b.ToTable("purchase_order_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Quantity).HasPrecision(12, 3);
+            b.Property(l => l.Received).HasPrecision(12, 3);
+            b.Property(l => l.Rate).HasPrecision(12, 2);
+        });
+
         modelBuilder.Entity<SupplierEntry>(b =>
         {
             b.ToTable("supplier_entries");
             b.HasTenantKey();
             b.Property(e => e.Amount).HasPrecision(12, 2);
             b.Property(e => e.Note).HasMaxLength(40);
+            b.Property(e => e.Reference).HasMaxLength(40);
             b.HasIndex(e => new { e.ShopId, e.SupplierId });
         });
 
@@ -1099,6 +1178,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(e => new { e.ShopId, e.JobId });
         });
 
+        modelBuilder.Entity<Ledger.CashMove>(b =>
+        {
+            b.ToTable("cash_moves");
+            b.HasTenantKey();
+            b.Property(m => m.Amount).HasPrecision(12, 2);
+            b.Property(m => m.Note).HasMaxLength(120);
+            b.Property(m => m.BankAccount).HasMaxLength(40);
+            b.Ignore(m => m.CashEffect);
+            b.HasIndex(m => new { m.ShopId, m.OccurredAt });
+        });
+
         modelBuilder.Entity<Expense>(b =>
         {
             b.ToTable("expenses");
@@ -1163,6 +1253,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("customers");
             b.HasTenantKey();
             b.Property(c => c.Name).HasMaxLength(120);
+            b.Property(c => c.State).HasMaxLength(2);
             b.Property(c => c.Phone).HasMaxLength(16);
             b.HasIndex(c => new { c.ShopId, c.Name });
             b.HasIndex(c => new { c.ShopId, c.Phone });
@@ -1175,6 +1266,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         modelBuilder.Entity<Bill>(b =>
         {
             b.ToTable("bills");
+            b.Property(x => x.Payments).HasColumnType("jsonb");
             b.HasTenantKey();
             b.HasIndex(x => new { x.ShopId, x.OccurredAt });
             b.HasTenantForeignKey<Bill, Customer>(nameof(Bill.CustomerId));
@@ -1304,6 +1396,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         {
             b.ToTable("bill_lines");
             b.Property(l => l.Name).HasMaxLength(120);
+            b.Property(l => l.OfferName).HasMaxLength(60);
+            b.HasIndex(l => l.OfferId).HasFilter("offer_id IS NOT NULL");
             b.Property(l => l.Quantity).HasPrecision(12, 3);
             b.Property(l => l.GstRate).HasPrecision(5, 2);
             b.Property(l => l.HsnCode).HasMaxLength(8);
@@ -1328,6 +1422,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantForeignKey<LedgerEntry, Bill>(nameof(LedgerEntry.BillId));
             b.HasTenantForeignKey<LedgerEntry, LedgerEntry>(nameof(LedgerEntry.ReversesEntryId));
             b.Property(e => e.UpiRef).HasMaxLength(30);
+            b.Property(e => e.ChequeNo).HasMaxLength(12);
+            b.Property(e => e.ChequeBank).HasMaxLength(40);
+            b.HasIndex(e => new { e.ShopId, e.ChequeStatus }).HasFilter("cheque_status IS NOT NULL");
             // Not unique: a corrected or split payment shows the same reference. One UTR, one receipt is kept on the receipt.
             b.HasIndex(e => new { e.ShopId, e.UpiRef }).HasFilter("upi_ref IS NOT NULL");
         });

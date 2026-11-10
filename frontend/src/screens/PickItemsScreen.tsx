@@ -72,6 +72,8 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
   // Your own photo of the item first, else the master list's, else its drawn picture (🛒 when there's none).
   const photoFor = (i: MasterItem) => shopPhoto(i) ?? (i.imageAt ? `/api/v1/master-images/${i.id}?v=${Date.parse(i.imageAt)}&size=thumb` : undefined)
   const activeTrade = trade || trades[0] || ''
+  // The hint shows names from this list, so a clothes shop isn't told to search for aata.
+  const searchHint = (([first, second]) => first ? [first.name, first.nameHi, second?.name].filter(Boolean).join(', ') : '')(items.filter((i) => i.trade === activeTrade))
   const categories = [...new Set(items.filter((i) => i.trade === activeTrade).map((i) => i.category))]
   const label = (i: MasterItem) => (i18n.language === 'hi' && i.nameHi ? i.nameHi : i.name)
   const needle = loose(q.trim())
@@ -197,7 +199,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
           {trades.map((x) => <button key={x} onClick={() => { setTrade(x); setCategory('') }} className={chip(x === activeTrade)}>{t(`shopType.${x}`)}</button>)}
         </div>
       )}
-      <input value={q} onChange={(e) => setQ(e.target.value)} type="search" placeholder={t('pick.searchAny')} aria-label={t('pick.search')} className="h-12 rounded-xl border border-line bg-white px-4 text-[16px]" />
+      <input value={q} onChange={(e) => setQ(e.target.value)} type="search" placeholder={searchHint ? t('pick.searchAny', { hint: searchHint }) : t('pick.search')} aria-label={t('pick.search')} className="h-12 rounded-xl border border-line bg-white px-4 text-[16px]" />
       <div className="flex gap-2 overflow-x-auto lg:hidden">
         {popularCount > 0 && <button onClick={() => setCategory(POPULAR)} className={chip(category === POPULAR)}>★ {t('pick.popular', { count: popularCount })}</button>}
         <button onClick={() => setCategory('')} className={chip(!category)}>{t('pick.all')}</button>

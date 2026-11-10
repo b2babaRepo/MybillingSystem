@@ -229,7 +229,7 @@ public static class OrderEndpoints
                 order.Id,
                 customerId,
                 order.Lines.Where(l => !l.Removed).OrderBy(l => l.LineNo)
-                    .Select(l => new BillLineRequest(l.ProductId, l.Name, l.PackedQuantity!.Value, l.Unit, l.UnitPrice!.Value)).ToList(),
+                    .Select(l => new BillLineRequest(l.ProductId, l.Name, l.PackedQuantity!.Value, l.Unit, l.UnitPrice!.Value, OfferId: l.OfferId)).ToList(),
                 paid,
                 mode,
                 clock.GetUtcNow()),

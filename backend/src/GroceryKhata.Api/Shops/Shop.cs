@@ -79,6 +79,9 @@ public sealed class Shop : Entity
     /// <summary>On the composition scheme: bills are bills of supply, with no tax collected.</summary>
     public bool GstComposition { get; set; }
 
+    /// <summary>The shop sends goods out, so its bills offer delivery. Null: not chosen yet, its trade decides.</summary>
+    public bool? DeliversGoods { get; set; }
+
     /// <summary>Other trades the shop also works in ("kirana" plus "sweets"). The <see cref="Type"/> is its main one.</summary>
     public string[] ExtraTypes { get; set; } = [];
 
@@ -93,6 +96,14 @@ public sealed class Shop : Entity
 
     /// <summary>The platform admins' private support note about this shop. Never shown to the shop.</summary>
     public string? AdminNote { get; set; }
+
+    /// <summary>The bank balance on the passbook on <see cref="BankOpeningDate"/>, where the bank book starts. Null: from ₹0.</summary>
+    public decimal? BankOpeningBalance { get; set; }
+
+    public DateOnly? BankOpeningDate { get; set; }
+
+    /// <summary>The bank accounts and which kind of money uses which, as JSON (see <see cref="Ledger.BankSetup"/>). Null: one account.</summary>
+    public string? BankAccounts { get; set; }
 }
 
 /// <summary>The trade. One app for all: the type only changes defaults (units, starter items, bill buttons).</summary>

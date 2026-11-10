@@ -9,7 +9,8 @@ namespace GroceryKhata.Api.Ledger;
 public sealed record RefillDto(Guid CustomerId, string CustomerName, string? Phone, Guid ProductId, string Medicine, decimal LastQuantity, DateOnly LastBought, int EveryDays, DateOnly DueOn, int DaysLate);
 
 /// <summary>One medicine to order: sold <see cref="SoldLast30Days"/> in a month, <see cref="Stock"/> left, so <see cref="Suggested"/> covers a month.</summary>
-public sealed record ReorderLineDto(Guid ProductId, string Medicine, decimal Stock, decimal SoldLast30Days, decimal Suggested, decimal? LastRate);
+/// <summary><see cref="OnOrder"/>: still to come on open orders, already taken off <see cref="Suggested"/>.</summary>
+public sealed record ReorderLineDto(Guid ProductId, string Medicine, decimal Stock, decimal SoldLast30Days, decimal Suggested, decimal? LastRate, decimal OnOrder = 0);
 
 public sealed record ReorderGroupDto(Guid? SupplierId, string? SupplierName, string? Phone, IReadOnlyList<ReorderLineDto> Lines);
 
@@ -98,6 +99,9 @@ public static class PharmacyAssist
             .Where(p => p.Stock <= 0 || (p.ReorderLevel is { } level && p.Stock <= level) || (p.Sold > 0 && p.Stock < p.Sold / 2))
             .Select(p => (p.Id, p.Name, p.Stock, p.Sold, Suggested: Math.Max(1, Math.Ceiling(Math.Max(p.Sold, p.ReorderLevel ?? 0) - Math.Max(0, p.Stock)))))
             .ToList();
+        // What is already on its way isn't ordered again; an item whose need it covers drops off the list.
+        var pending = await PurchaseOrders.PendingAsync(db, ct);
+        needed = needed.Select(n => n with { Suggested = n.Suggested - pending.GetValueOrDefault(n.Id) }).Where(n => n.Suggested > 0).ToList();
         var ids = needed.Select(n => n.Id).ToList();
         // The distributor and rate each one last came in at.
         var last = (await (from l in db.PurchaseLines.AsNoTracking()
@@ -109,7 +113,7 @@ public static class PharmacyAssist
         return needed
             .GroupBy(n => last.GetValueOrDefault(n.Id)?.SupplierId)
             .Select(g => new ReorderGroupDto(g.Key, g.Key is { } s ? suppliers.GetValueOrDefault(s)?.Name : null, g.Key is { } p ? suppliers.GetValueOrDefault(p)?.Phone : null,
-                g.Select(n => new ReorderLineDto(n.Id, n.Name, n.Stock, n.Sold, n.Suggested, last.GetValueOrDefault(n.Id)?.UnitCost)).OrderBy(l => l.Medicine).ToList()))
+                g.Select(n => new ReorderLineDto(n.Id, n.Name, n.Stock, n.Sold, n.Suggested, last.GetValueOrDefault(n.Id)?.UnitCost, pending.GetValueOrDefault(n.Id))).OrderBy(l => l.Medicine).ToList()))
             .OrderBy(g => g.SupplierName == null).ThenBy(g => g.SupplierName).ToList();
     }
 }

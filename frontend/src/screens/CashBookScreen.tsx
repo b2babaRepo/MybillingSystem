@@ -18,7 +18,7 @@ function shiftDay(day: string, by: number) {
 }
 
 /** The day book: money received by cash and UPI, line by line, so closing the drawer is a check, not a guess. */
-export function CashBookScreen({ shopId }: { shopId: string }) {
+export function CashBookScreen({ shopId, isOwner = false }: { shopId: string; isOwner?: boolean }) {
   const { t } = useTranslation()
   const today = indiaToday()
   const [day, setDay] = useState(today)
@@ -28,6 +28,13 @@ export function CashBookScreen({ shopId }: { shopId: string }) {
 
   return (
     <div className="flex flex-col gap-3 p-4">
+      {isOwner && (
+        <div className="flex gap-2 text-sm">
+          <span className="flex h-10 items-center rounded-xl bg-ink px-4 font-semibold text-white">{t('bankBook.cashBook')}</span>
+          <button onClick={() => navigate('/cashledger')} className="h-10 rounded-xl border border-line bg-white px-4 font-semibold">{t('cashLedger.title')}</button>
+          <button onClick={() => navigate('/bankbook')} className="h-10 rounded-xl border border-line bg-white px-4 font-semibold">{t('bankBook.title')}</button>
+        </div>
+      )}
       <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{label}</span>
@@ -57,6 +64,7 @@ export function CashBookScreen({ shopId }: { shopId: string }) {
             <div className="flex flex-col rounded-[18px] bg-white p-3"><span className="text-xs text-muted">{t('book.sales')}</span><span className="text-lg font-bold">{formatRupees(data.salesTotal)}</span></div>
             <div className="flex flex-col rounded-[18px] bg-white p-3"><span className="text-xs text-muted">{t('book.udhaarGiven')}</span><span className="text-lg font-bold text-udhaar">{formatRupees(data.udhaarGiven)}</span></div>
           </div>
+          {data.lines.length > 0 && <p className="px-4 text-right text-xs font-semibold text-muted">{t('heads.cashRow')}</p>}
           <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white px-4">
             {data.lines.length === 0 && <li className="py-4 text-muted">{t('book.empty')}</li>}
             {data.lines.map((line, i) => (

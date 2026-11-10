@@ -5,7 +5,8 @@ export type ShopRole = 'owner' | 'staff'
 export type AdminRole = 'super' | 'approver' | 'support' | 'billing' | 'agent_manager'
 
 export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'pair' | 'dozen' | 'box' | 'jar' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre' | 'sq_ft' | 'running_ft'
-export type PaymentMode = 'cash' | 'upi'
+/** Card and cheque reach the bank, not the drawer. A cheque is for khata payments, and counts once cleared. */
+export type PaymentMode = 'cash' | 'upi' | 'card' | 'cheque'
 export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return' | 'opening'
 export type KhataEntryType = 'credit' | 'payment'
 
@@ -38,6 +39,8 @@ export interface Customer {
   balance: number
   /** The most they may owe: a bill that would cross it warns the shop. */
   creditLimit?: number | null
+  /** A placeholder khata ("Name later 3") for udhaar to someone not named yet. */
+  nameLater?: boolean
 }
 
 export interface Product {
@@ -127,6 +130,8 @@ export interface StatementLine {
   recordedBy?: string | null
   /** The bank reference of a UPI payment: removing it needs a reason, and frees the money to be matched again. */
   upiRef?: string | null
+  chequeNo?: string | null
+  chequeStatus?: 'pending' | 'cleared' | 'bounced' | null
   /** The latest dispute the customer raised on this line. */
   dispute?: DisputeView | null
   /** Written more than a day after the date it carries. */
@@ -181,7 +186,7 @@ export interface Statement {
 
 export interface CashBookLine {
   occurredAt: string
-  source: 'bill' | 'khata_payment' | 'reversal' | 'expense' | 'technician'
+  source: 'bill' | 'khata_payment' | 'reversal' | 'expense' | 'technician' | 'bill_cancelled' | 'cash_added' | 'cash_removed' | 'to_bank' | 'from_bank'
   who: string
   mode: PaymentMode
   amount: number
@@ -234,6 +239,7 @@ export interface BillView {
     paidAmount: number
     onKhata: number
     paymentMode: PaymentMode | null
+    payments?: { mode: PaymentMode; amount: number; reference?: string | null }[] | null
     occurredAt: string
     lines: BillLineView[]
     customerBalance: number | null
@@ -254,6 +260,8 @@ export interface BillView {
     /** An exchange: what the returned goods (credit note exchangeNoteNo) paid of this bill. */
     exchangeCredit?: number
     exchangeNoteNo?: string | null
+    /** The counter (device) it was made on. */
+    counter?: string | null
   }
   customer: Customer | null
 }
@@ -276,4 +284,13 @@ export interface Today {
   topDues: Customer[]
   /** Khata money received today. */
   collected?: number
+  card?: number
+  /** Cheques cleared that were received today. */
+  cheque?: number
+  /** Cheques still waiting on the bank, shop-wide. */
+  chequesPending?: number
+  chequesPendingCount?: number
+  /** Udhaar to people not named yet. */
+  nameLaterDue?: number
+  nameLaterCount?: number
 }

@@ -1,3 +1,4 @@
+import { GST_STATES } from '../lib/states'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +27,8 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
   const [mode, setMode] = useState<PaymentMode>('cash')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  // The saved state while it's being changed; null when the list is shut.
+  const [stateCode, setStateCode] = useState<string | null>(null)
   const pickedTotal = challans.filter((c) => picked.includes(c.id)).reduce((sum, c) => sum + c.total, 0)
 
   async function run(action: () => Promise<void>) {
@@ -47,6 +50,16 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
     if (gstin === null) return
     await api(`/v1/customers/${customer.id}/gstin`, 'PUT', { gstin: gstin.trim() || null })
     setMessage(t('trade.gstinSaved'))
+  })
+
+  const openState = () => run(async () => {
+    setStateCode((await api<{ state: string | null }>(`/v1/customers/${customer.id}/bill-details`)).state ?? '')
+  })
+
+  const saveState = (state: string) => run(async () => {
+    await api(`/v1/customers/${customer.id}/state`, 'PUT', { state: state || null })
+    setStateCode(null)
+    setMessage(t('trade.stateSaved'))
   })
 
   const setAddress = () => run(async () => {
@@ -95,6 +108,13 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
 
       {isOwner && <button onClick={() => void setGstin()} className="min-h-11 self-start text-sm text-teal-700 underline">{t('trade.gstinSet')}</button>}
       {isOwner && <button onClick={() => void setAddress()} className="min-h-11 self-start text-sm text-teal-700 underline">{t('trade.addressSet')}</button>}
+      {isOwner && stateCode === null && <button onClick={() => void openState()} className="min-h-11 self-start text-sm text-teal-700 underline">{t('trade.stateSet')}</button>}
+      {stateCode !== null && (
+        <select aria-label={t('trade.stateSet')} value={stateCode} disabled={busy} onChange={(e) => void saveState(e.target.value)} className="h-11 self-start rounded-xl border border-line bg-white px-2">
+          <option value="">{t('trade.noPainter')}</option>
+          {Object.entries(GST_STATES).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+        </select>
+      )}
 
       {/* Sites */}
       {sites.some((s) => s.site) && (

@@ -63,7 +63,7 @@ function ProfileForm({ initial }: { initial: Profile }) {
       <label className="flex flex-col gap-1">
         <span className="text-sm font-medium text-muted">{t('profile.language')}</span>
         <select value={form.preferredLanguage} onChange={set('preferredLanguage')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
-          <option value="hi">हिंदी</option><option value="en">English</option>
+          <option value="hi">हिंदी</option><option value="en">English</option><option value="gu">ગુજરાતી</option>
         </select>
       </label>
       <Button disabled={form.fullName.trim().length < 2} onClick={() => void save()}>{t('save')}</Button>

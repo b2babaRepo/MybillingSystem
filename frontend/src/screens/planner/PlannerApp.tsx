@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AccountMenu } from '../../components/AccountMenu'
 import { AppBanners } from '../../components/AppBanners'
@@ -50,10 +50,15 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
   const khataMatch = path.match(/^\/khata\/([0-9a-f-]+)\/([0-9a-f-]+)$/)
   const isTab = path === '/' || path === '/orders' || path === '/khata'
   const unsynced = pending + failed
+  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <div className="mx-auto min-h-dvh max-w-xl pb-20 lg:max-w-none lg:pb-6 lg:pl-60">
-      <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white">
+    <div className="mx-auto min-h-dvh max-w-xl pb-20 lg:max-w-none lg:pb-6">
+      <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white lg:h-16 lg:py-0 print:hidden">
+        <button type="button" onClick={() => setMenuOpen(!menuOpen)} aria-label={t('a11y.menu')} aria-expanded={menuOpen} className="-ml-2 hidden h-11 w-11 items-center justify-center lg:flex">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+        <img src="/favicon.svg" alt="" className="hidden h-9 w-9 lg:block" />
         {!isTab && (
           <button onClick={() => navigate(sendMatch ? `/list/${sendMatch[1]}` : khataMatch ? '/khata' : '/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}>
             <BackIcon />
@@ -101,7 +106,8 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
 
       <AppBanners />
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-3 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:right-auto lg:mx-0 lg:h-auto lg:w-60 lg:max-w-none lg:auto-rows-[56px] lg:grid-cols-1 lg:content-start lg:gap-1 lg:border-t-0 lg:border-r lg:px-3 lg:pt-20">
+      {menuOpen && <button type="button" onClick={() => setMenuOpen(false)} aria-label={t('a11y.close')} className="fixed inset-x-0 top-16 bottom-0 z-10 hidden bg-black/25 lg:block" />}
+      <nav onClick={() => setMenuOpen(false)} className={`fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-3 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:top-16 lg:bottom-0 lg:right-auto lg:z-20 lg:shadow-xl print:hidden lg:mx-0 lg:h-auto lg:w-60 lg:max-w-none lg:auto-rows-[56px] lg:grid-cols-1 lg:content-start lg:gap-1 lg:border-t-0 lg:border-r lg:px-3 lg:pt-3 ${menuOpen ? '' : 'lg:hidden'}`}>
         {[
           { to: '/', label: t('plan.lists'), icon: <KhataIcon size={22} />, active: path === '/' || !!listMatch || !!sendMatch },
           { to: '/orders', label: t('orders'), icon: <BillIcon size={22} />, active: path === '/orders' },

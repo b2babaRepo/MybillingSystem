@@ -76,5 +76,13 @@ body {
 .receipt-58 .bill-lines tr { grid-template-columns: 1fr auto; }
 .receipt .mt-4, .receipt .mt-6 { margin-top: 0.5em; }
 .receipt-58 .bill-lines :is(th, td):nth-child(3) { display: none; } /* 58 mm can't hold four columns: quantity and amount stay */
+/* A statement on a roll: the date and details on one line, the three amounts under them. */
+.receipt .ledger tr { display: grid; grid-template-columns: auto 1fr 1fr; column-gap: 0.6em; }
+.receipt .ledger :is(th, td):nth-child(2) { grid-column: 2 / -1; }
+.receipt .ledger :is(th, td):nth-child(n + 3) { padding-left: 0 !important; }
+/* Kharcha lines on a roll: date, heading (note under it), mode and amount; 58 mm drops the mode. */
+.receipt .kharcha-lines tr { display: grid; grid-template-columns: auto 1fr auto auto; column-gap: 0.5em; }
+.receipt-58 .kharcha-lines tr { grid-template-columns: auto 1fr auto; }
+.receipt-58 .kharcha-lines :is(th, td):nth-child(3) { display: none; }
 .receipt .print\:hidden { min-width: 18rem; } /* shop-only buttons keep their size on screen, and never print */
 @media print { body { background: #fff; } }

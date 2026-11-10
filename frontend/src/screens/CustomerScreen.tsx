@@ -12,6 +12,7 @@ import { buildReminder, useShopSettings } from '../lib/reports'
 import type { KhataEntryType, PaymentMode, StatementLine } from '../lib/types'
 import { navigate } from '../router'
 import { ask, confirmAsk } from '../components/Ask'
+import { CashLimitNote } from '../components/CashLimitNote'
 
 const CustomerTradePanel = lazy(() => import('./CustomerTrade').then((module) => ({ default: module.CustomerTradePanel })))
 
@@ -19,7 +20,7 @@ const UNDO_SECONDS = 30
 /** Same as the server's LedgerService.RemovalWindow: after this only the owner may remove, with a reason. */
 const REMOVAL_WINDOW_MS = 15 * 60_000
 
-type Saved = { id: string; amount: number; dueAfter: number; mode: PaymentMode; at: string }
+type Saved = { id: string; amount: number; dueAfter: number; mode: PaymentMode; at: string; proof?: string }
 
 /**
  * One customer's khata. History first: every udhaar with the items behind it (date, quantity, price), every
@@ -53,6 +54,8 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
   const [tab, setTab] = useState<'history' | 'entry'>('history')
   const [part, setPart] = useState('')
   const [upiRef, setUpiRef] = useState('')
+  const [cheque, setCheque] = useState({ no: '', bank: '', date: '' })
+  const chequeOk = mode !== 'cheque' || /^\d{4,12}$/.test(cheque.no)
 
   useEffect(() => {
     if (!lastSaved) return
@@ -67,7 +70,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
 
   async function save(type: KhataEntryType) {
     if (!customer || !valid) return
-    const id = await addKhataEntry(shopId, customer, type, value, mode, note.trim(), upiRef)
+    const id = await addKhataEntry(shopId, customer, type, value, mode, note.trim(), upiRef, cheque)
     saved(id, type === 'credit' ? value : -value)
     setAmount('')
     setNote('')
@@ -77,15 +80,19 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
     if (!customer || customer.balance <= 0) return
     const due = customer.balance
     if (!(await confirmAsk(t('ledgerView.settleConfirm', { amount: formatRupees(due), mode: t(mode) })))) return
-    const id = await addKhataEntry(shopId, customer, 'payment', due, mode, '', upiRef)
+    if (!chequeOk) return
+    const id = await addKhataEntry(shopId, customer, 'payment', due, mode, '', upiRef, cheque)
     saved(id, -due)
   }
 
   function saved(id: string, delta: number) {
     if (!customer) return
     setNotice(null)
+    // The proof the customer can check: the UPI reference, or the cheque number (which counts once it clears).
+    const proof = delta < 0 && mode === 'upi' && upiRef.trim() ? `UTR ${upiRef.trim()}` : delta < 0 && mode === 'cheque' && cheque.no ? t('cheques.receiptProof', { no: cheque.no }) : undefined
     setUpiRef('')
-    setLastSaved({ id, amount: delta, dueAfter: round2(customer.balance + delta), mode, at: new Date().toISOString() })
+    setCheque({ no: '', bank: '', date: '' })
+    setLastSaved({ id, amount: delta, dueAfter: round2(customer.balance + delta), mode, at: new Date().toISOString(), proof })
   }
 
   /** Inside the window anyone may remove with a tap; later the owner must give a reason the customer will see. */
@@ -119,7 +126,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
 
   async function payPart() {
     if (!customer || !partValid) return
-    const id = await addKhataEntry(shopId, customer, 'payment', partValue, mode, '', upiRef)
+    const id = await addKhataEntry(shopId, customer, 'payment', partValue, mode, '', upiRef, cheque)
     saved(id, -partValue)
     setPart('')
   }
@@ -127,8 +134,8 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
   // UPI: the bank reference (UTR) from the payment app. Optional. It proves the money came, and can't be entered twice.
   const modeButtons = (
     <div className="flex flex-col gap-2">
-      <div className="flex gap-2 text-sm">
-        {(['cash', 'upi'] as const).map((m) => (
+      <div className="flex flex-wrap gap-2 text-sm">
+        {(['cash', 'upi', 'card', 'cheque'] as const).map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
@@ -146,6 +153,18 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
           aria-label={t('ledgerView.upiRefPlaceholder')}
           className="h-11 rounded-xl border border-line bg-white px-3 text-sm outline-none focus:border-teal-600"
         />
+      )}
+      {mode === 'cash' && <CashLimitNote customerId={customerId} cash={Math.max(valid ? value : 0, partValid ? partValue : 0)} />}
+      {mode === 'cheque' && (
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <input value={cheque.no} onChange={(e) => setCheque({ ...cheque, no: e.target.value.replace(/\D/g, '').slice(0, 12) })} inputMode="numeric"
+            placeholder={t('cheques.no')} aria-label={t('cheques.no')} className="h-11 rounded-xl border border-line bg-white px-3 outline-none focus:border-teal-600" />
+          <input value={cheque.bank} onChange={(e) => setCheque({ ...cheque, bank: e.target.value.slice(0, 40) })}
+            placeholder={t('cheques.bank')} aria-label={t('cheques.bank')} className="h-11 rounded-xl border border-line bg-white px-3 outline-none focus:border-teal-600" />
+          <label className="col-span-2 flex items-center gap-2 text-muted">{t('cheques.date')}
+            <input type="date" value={cheque.date} onChange={(e) => setCheque({ ...cheque, date: e.target.value })} className="h-11 flex-1 rounded-xl border border-line bg-white px-3 text-ink" /></label>
+          <p className="col-span-2 text-xs text-muted">{t('cheques.hint')}</p>
+        </div>
       )}
     </div>
   )
@@ -175,6 +194,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
           <div className="text-2xl font-bold">{customer.name}</div>
           {customer.phone && <div className="text-muted">{formatPhone(customer.phone)}</div>}
           {isOwner && !customer.isNew && <button onClick={() => void correctDetails()} className="min-h-9 text-sm font-semibold text-teal-700 underline">{t('customerEdit.button')}</button>}
+          {isOwner && customer.nameLater && !customer.isNew && <MoveInto from={customer.id} customers={customers.filter((c) => c.id !== customer.id && !c.nameLater)} onMoved={async (to) => { await queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] }); navigate(`/c/${to}`) }} />}
         </div>
         <Balance amount={customer.balance} large />
       </div>
@@ -188,7 +208,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
       {customer.balance > 0 && (
         <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
           {modeButtons}
-          <Button tone="payment" className="h-14" onClick={() => void settleAll()}>
+          <Button tone="payment" className="h-14" disabled={!chequeOk} onClick={() => void settleAll()}>
             ✓ {t('ledgerView.settleAll', { amount: formatRupees(customer.balance) })}
           </Button>
           <div className="mt-1 flex flex-col gap-2 rounded-[14px] border border-line p-3">
@@ -217,7 +237,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
                 aria-label={t('ledgerView.partPay')}
                 className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 text-lg font-bold outline-none focus:border-teal-600"
               />
-              <Button tone="payment" className="h-12 px-4" disabled={!partValid} onClick={() => void payPart()}>
+              <Button tone="payment" className="h-12 px-4" disabled={!partValid || !chequeOk} onClick={() => void payPart()}>
                 {t('ledgerView.partSave')}
               </Button>
             </div>
@@ -270,7 +290,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
             <Button tone="credit" className="h-16" disabled={!valid} onClick={() => save('credit')}>
               + {t('credit')}
             </Button>
-            <Button tone="payment" className="h-16" disabled={!valid} onClick={() => save('payment')}>
+            <Button tone="payment" className="h-16" disabled={!valid || !chequeOk} onClick={() => save('payment')}>
               − {t('payment')}
             </Button>
           </div>
@@ -301,7 +321,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
       )}
 
       {notice && (
-        <div className="fixed inset-x-4 bottom-24 z-10 lg:bottom-8 lg:left-64 mx-auto flex max-w-[34rem] flex-col gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
+        <div className="fixed inset-x-4 bottom-24 z-10 lg:bottom-8 mx-auto flex max-w-[34rem] flex-col gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
           <span className="text-sm">{t('ledgerView.removedTell')}</span>
           <div className="flex items-center justify-between gap-3">
             <a className="flex h-11 flex-1 items-center justify-center rounded-xl bg-[#15803d] font-bold" href={whatsAppLink(customer.phone, notice)} target="_blank" rel="noreferrer"
@@ -314,7 +334,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
       )}
 
       {lastSaved && (
-        <div className="fixed inset-x-4 bottom-24 z-10 lg:bottom-8 lg:left-64 flex items-center justify-between gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
+        <div className="fixed inset-x-4 bottom-24 z-10 lg:bottom-8 flex items-center justify-between gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
           <span>
             {t('saved')} {formatRupees(Math.abs(lastSaved.amount))}
           </span>
@@ -326,7 +346,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
                 amount: formatRupees(-lastSaved.amount),
                 name: customer.name,
                 date: formatDateTime(lastSaved.at),
-                mode: t(lastSaved.mode),
+                mode: lastSaved.proof ? `${t(lastSaved.mode)}, ${lastSaved.proof}` : t(lastSaved.mode),
                 due: formatRupees(lastSaved.dueAfter),
                 ref: lastSaved.id.slice(-6).toUpperCase(),
               }))}
@@ -412,3 +432,35 @@ function monthKey(offset: number) {
 }
 
 const monthLabel = (month: string) => new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' })
+
+/** A "Name later" khata turned out to be someone already on the list: move everything onto them. */
+function MoveInto({ from, customers, onMoved }: { from: string; customers: { id: string; name: string; phone: string | null }[]; onMoved: (to: string) => Promise<void> }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [to, setTo] = useState('')
+  const [busy, setBusy] = useState(false)
+  if (!open) return <button onClick={() => setOpen(true)} className="block min-h-9 text-sm font-semibold text-teal-700 underline">{t('moveInto.button')}</button>
+  async function move() {
+    const target = customers.find((c) => c.id === to)
+    if (!target || !(await confirmAsk(t('moveInto.confirm', { name: target.name })))) return
+    setBusy(true)
+    try {
+      await api(`/v1/customers/${from}/move-into`, 'POST', { customerId: to })
+      await onMoved(to)
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="mt-2 flex flex-wrap gap-2 text-sm">
+      <select aria-label={t('moveInto.button')} value={to} onChange={(e) => setTo(e.target.value)} className="h-11 min-w-48 rounded-xl border border-line px-2">
+        <option value="">{t('moveInto.pick')}</option>
+        {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone.replace(/^\+91/, '')}` : ''}</option>)}
+      </select>
+      <button disabled={!to || busy} onClick={() => void move()} className="h-11 rounded-xl bg-teal-700 px-4 font-semibold text-white disabled:opacity-40">{t('moveInto.save')}</button>
+      <button onClick={() => setOpen(false)} className="h-11 rounded-xl border border-line px-4 font-semibold">{t('cancel')}</button>
+    </div>
+  )
+}

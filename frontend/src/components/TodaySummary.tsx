@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { localeOf } from '../i18n'
 import { formatRupees } from '../lib/format'
 import type { Today } from '../lib/types'
 import { navigate } from '../router'
@@ -15,12 +16,16 @@ export function TodaySummary({ today, shopName, lowCount }: { today: Today | und
     { label: t('summary.sales', { count: today.bills }), value: formatRupees(today.sales) },
     { label: t('cash'), value: formatRupees(today.cash), tone: 'text-emerald-800' },
     { label: t('upi'), value: formatRupees(today.upi), tone: 'text-blue-800' },
+    ...((today.card ?? 0) > 0 ? [{ label: t('card'), value: formatRupees(today.card!), tone: 'text-blue-800' }] : []),
+    ...((today.cheque ?? 0) > 0 ? [{ label: t('cheques.clearedRow'), value: formatRupees(today.cheque!), tone: 'text-blue-800' }] : []),
+    ...((today.chequesPendingCount ?? 0) > 0 ? [{ label: t('cheques.waitingRow', { count: today.chequesPendingCount }), value: formatRupees(today.chequesPending ?? 0), tone: 'text-amber-700', to: '/cheques' }] : []),
+    ...((today.nameLaterCount ?? 0) > 0 ? [{ label: t('nameLater.row', { count: today.nameLaterCount }), value: formatRupees(today.nameLaterDue ?? 0), tone: 'text-amber-700', to: '/khata' }] : []),
     { label: t('summary.udhaarGiven'), value: formatRupees(today.udhaar), tone: 'text-udhaar' },
     { label: t('summary.collected'), value: formatRupees(collected), tone: 'text-jama' },
     { label: t('summary.outstanding', { count: today.customersOwing }), value: formatRupees(today.outstanding), tone: 'text-due', to: '/dues' },
     ...(lowCount > 0 ? [{ label: t('summary.lowStock'), value: String(lowCount), tone: 'text-udhaar', to: '/reorder' }] : []),
   ]
-  const day = new Date(today.date).toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short' })
+  const day = new Date(today.date).toLocaleDateString(localeOf(i18n.language), { day: 'numeric', month: 'short' })
   const message = [`*${shopName} · ${t('summary.title')} · ${day}*`, ...rows.map((r) => `${r.label}: ${r.value}`), t('summary.footer')].join('\n')
 
   function share() {

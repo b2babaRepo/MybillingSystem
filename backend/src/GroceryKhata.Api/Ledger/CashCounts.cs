@@ -96,6 +96,9 @@ public static class CashCountEndpoints
     /// The day's sum. Opening: the typed one, else this day's saved count's, else the last earlier count's counted
     /// cash, else 0 (and the screen asks).
     /// </summary>
+    /// <summary>The day's drawer sum, for the day report.</summary>
+    internal static Task<CashCountDto> SummaryForAsync(AppDbContext db, DateOnly day, CancellationToken ct) => SummaryAsync(db, day, null, ct);
+
     private static async Task<CashCountDto> SummaryAsync(AppDbContext db, DateOnly day, decimal? typedOpening, CancellationToken ct)
     {
         var saved = await (from c in db.CashCounts.AsNoTracking()

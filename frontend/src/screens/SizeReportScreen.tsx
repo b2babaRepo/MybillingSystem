@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { localeOf } from '../i18n'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { groupStyles, variantLabel } from '../lib/styles'
@@ -29,7 +30,7 @@ export function SizeReportScreen({ shopId }: { shopId: string }) {
   const sales = useQuery({ queryKey: [shopId, 'item-margins', month], queryFn: () => api<{ items: ItemMargin[] }>(`/v1/reports/items?month=${month}`) }).data
   const sold = new Map((sales?.items ?? []).filter((i) => i.productId).map((i) => [i.productId!, i.quantity]))
   const styles = groupStyles(products).flatMap((e) => (e.kind === 'style' ? [e] : []))
-  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : 'en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(localeOf(i18n.language), { month: 'long', year: 'numeric', timeZone: 'UTC' })
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-24">

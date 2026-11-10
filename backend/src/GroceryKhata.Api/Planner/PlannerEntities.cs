@@ -141,6 +141,9 @@ public sealed class OrderLine : Entity, IPlacedByUser
 
     public decimal? UnitPrice { get; set; }
 
+    /// <summary>The shop's sale offer this line was priced under in the online store; it goes onto the bill.</summary>
+    public Guid? OfferId { get; set; }
+
     /// <summary>Out of stock or not wanted: left out of the bill.</summary>
     public bool Removed { get; set; }
 

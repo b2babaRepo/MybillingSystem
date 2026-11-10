@@ -45,8 +45,28 @@ export interface MonthReport {
   stockPurchases?: number
   takenHome?: number
   netProfit?: number
+  /** The month on one page (owners only). */
+  statement?: MonthStatement | null
   topItems: { name: string; quantity: number; unit: Unit; amount: number }[]
   days: { date: string; sales: number; received: number }[]
+  card?: number
+  cheque?: number
+}
+
+export interface MonthStatement {
+  salesWithGst: number
+  roundOff: number
+  gstInSales: number
+  sales: number
+  noCostSales: number
+  costOfGoods: number
+  returns: number
+  stockLoss: number
+  grossProfit: number
+  running: { category: string; amount: number }[]
+  expenses: number
+  netProfit: number
+  notInProfit: { category: string; amount: number }[]
 }
 
 export interface ShopSettings {
@@ -63,6 +83,8 @@ export interface ShopSettings {
   gstComposition?: boolean
   /** The most a helper may take off an item's regular price, in percent. */
   staffMaxDiscountPercent?: number
+  /** Bills offer delivery. Null: not chosen yet, the trade decides. */
+  deliversGoods?: boolean | null
   extraTypes?: ShopType[] | null
 }
 
@@ -73,6 +95,12 @@ export const STARTER_TYPES: ShopType[] = ['kirana', 'water_supply', 'beauty', 's
 const TRADE_TYPES: ShopType[] = ['building_materials', 'paint', 'hardware', 'electrical', 'woodwork']
 /** Trades where a fitter (painter, electrician, carpenter) brings customers for a commission. */
 export const COMMISSION_TYPES: ShopType[] = ['paint', 'electrical', 'woodwork']
+
+/** Trades that send goods to a site: the site, vehicle and delivery challan go with their bills. */
+export const sendsToSites = (type: ShopType) => type === 'building_materials' || type === 'hardware' || type === 'electrical' || type === 'woodwork'
+
+/** Trades that serve people where they are, so bills never offer delivery. */
+export const SERVICE_TYPES: ShopType[] = ['beauty', 'restaurant', 'lodge', 'banquet']
 
 /** The shop's trades: its main type and any others it works in. */
 export function shopTypes(s?: { type?: ShopType; extraTypes?: ShopType[] | null }): ShopType[] {

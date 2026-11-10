@@ -55,14 +55,14 @@ public static class PharmacyMonth
         var expired = await db.ProductBatches.AsNoTracking().Where(b => b.Quantity > 0 && b.Expiry < today).Select(b => new { b.Quantity, b.CostPrice }).ToListAsync(ct);
 
         // Money received: bills paid at the counter, and khata payments taken later.
-        var counter = bills.Where(b => b.PaidAmount > 0).GroupBy(b => b.PaymentMode).ToDictionary(g => g.Key ?? PaymentMode.Cash, g => g.Sum(b => b.PaidAmount));
-        var khata = await db.LedgerEntries.AsNoTracking().Where(e => e.Kind == LedgerEntryKind.Payment && e.BillId == null && e.OccurredAt >= start && e.OccurredAt < end)
+        var counter = bills.SelectMany(b => b.Parts()).GroupBy(p => p.Mode).ToDictionary(g => g.Key, g => g.Sum(p => p.Amount));
+        var khata = await db.LedgerEntries.AsNoTracking().Where(e => e.Kind == LedgerEntryKind.Payment && e.BillId == null && (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end))
             .GroupBy(e => e.PaymentMode).Select(g => new { g.Key, Total = -g.Sum(e => e.Amount) }).ToListAsync(ct);
         decimal Received(PaymentMode mode) => counter.GetValueOrDefault(mode) + khata.Where(k => (k.Key ?? PaymentMode.Cash) == mode).Sum(k => k.Total);
 
         return TypedResults.Ok(new PharmacyMonthDto(
             $"{period.Year:D4}-{period.Month:D2}", bills.Sum(b => b.Total), salesTaxable, outputGst, inputGst, payable, Math.Max(0, inputGst - outputGst),
             purchases.Sum(p => p.Total), costOfSales, gross, salesTaxable > 0 ? decimal.Round(gross * 100 / salesTaxable, 1) : 0, expiryLoss,
-            expired.Sum(b => Money.LineAmount(b.Quantity, b.CostPrice ?? 0)), gross - expiryLoss, Received(PaymentMode.Cash), Received(PaymentMode.Upi), noCost, composition));
+            expired.Sum(b => Money.LineAmount(b.Quantity, b.CostPrice ?? 0)), gross - expiryLoss, Received(PaymentMode.Cash), Received(PaymentMode.Upi) + Received(PaymentMode.Card) + Received(PaymentMode.Cheque), noCost, composition));
     }
 }
