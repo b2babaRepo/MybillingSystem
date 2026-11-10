@@ -30,7 +30,7 @@ export function KhataHistory({ entries, canRemove, onRemove, onDispute, focusEnt
     focused.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [focusEntryId, loaded])
   return (
-    <ul className="divide-y divide-[#edf2f1] rounded-2xl bg-white px-1">
+    <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white px-1 shadow-sm">
       {entries.length === 0 && <li className="p-4 text-muted">{t('noEntries')}</li>}
       {[...entries].reverse().map((e, i, newestFirst) => (
         <li key={e.id} ref={e.id === focusEntryId ? focused : undefined} className={e.id === focusEntryId ? 'rounded-xl ring-2 ring-amber-400' : undefined}>
@@ -69,17 +69,20 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
     <div className={e.isReversed ? 'opacity-40' : ''}>
       <div className="flex items-center gap-3 p-3">
         <button
-          className="flex flex-1 items-center gap-2 text-left"
+          className="flex flex-1 items-center gap-3 text-left"
           onClick={items.length ? onToggle : undefined}
           aria-expanded={items.length ? open : undefined}
         >
-          <div className="flex-1">
+          <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-bold ${e.kind === 'reversal' ? 'bg-slate-100 text-muted' : e.amount > 0 ? 'bg-orange-50 text-udhaar' : 'bg-green-50 text-jama'}`}>
+            {e.kind === 'reversal' ? '↺' : e.amount > 0 ? '↑' : '↓'}
+          </span>
+          <div className="min-w-0 flex-1">
             <div className={`flex flex-wrap items-center gap-x-2 font-semibold ${e.isReversed ? 'line-through' : ''}`}>
               {e.kind === 'reversal' ? t('reversal') : e.kind === 'return' ? t('dispute.returned') : e.amount > 0 ? t('creditShort') : t('paymentShort')}
-              {e.paymentMode && <span className="text-xs text-muted uppercase">{t(e.paymentMode)}{e.chequeNo ? ` #${e.chequeNo}` : ''}</span>}
+              {e.paymentMode && <span className="rounded-full bg-[#edf2f1] px-2 py-0.5 text-[11px] font-semibold text-muted uppercase">{t(e.paymentMode)}{e.chequeNo ? ` #${e.chequeNo}` : ''}</span>}
               {e.chequeStatus && e.kind !== 'reversal' && <span className={`rounded px-1 text-xs font-normal ${e.chequeStatus === 'cleared' ? 'bg-emerald-50 text-emerald-800' : e.chequeStatus === 'bounced' ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>{t(`cheques.status.${e.chequeStatus}`)}</span>}
               {items.length > 0 && (
-                <span className="text-xs font-normal text-teal-700">
+                <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-800">
                   {t('ledgerView.items', { count: items.length })} {open ? '▴' : '▾'}
                 </span>
               )}
@@ -98,7 +101,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
               </div>
             )}
           </div>
-          <div className={`text-right font-bold ${e.amount > 0 ? 'text-udhaar' : 'text-jama'}`}>
+          <div className={`shrink-0 text-right text-[17px] font-bold ${e.amount > 0 ? 'text-udhaar' : 'text-jama'}`}>
             {e.amount > 0 ? '+' : '−'}
             {formatRupees(Math.abs(e.amount))}
             <div className="text-xs font-normal text-muted">{e.runningBalance < 0 ? `${t('advance')} ${formatRupees(-e.runningBalance)}` : t('ledgerView.balanceAfter', { amount: formatRupees(e.runningBalance) })}</div>
@@ -134,7 +137,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
         </div>
       )}
       {open && e.bill && (
-        <div className="mx-3 mb-3 rounded-xl bg-[#f4f8f7] p-3 text-sm">
+        <div className="mx-3 mb-3 ml-16 rounded-xl bg-[#f4f8f7] p-3 text-sm ring-1 ring-line">
           {items.map((item, n) => (
             <div
               key={n}

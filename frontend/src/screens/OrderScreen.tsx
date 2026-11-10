@@ -126,7 +126,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-32 lg:pb-4">
-      <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm">
         <span className="text-xl font-bold">{order.customerName}</span>
         <span className="text-sm text-muted">
           {order.customerPhone} · {order.fulfilment === 'delivery' ? t('plan.delivery') : t('plan.pickup')} · {order.payment === 'khata' ? t('plan.onKhata') : t(order.payment)}
@@ -145,7 +145,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
           const d = drafts[l.id]
           if (!d) return null
           return (
-            <li key={l.id} className={`flex flex-col gap-2 rounded-[18px] bg-white p-3 ${d.removed ? 'opacity-60' : ''}`}>
+            <li key={l.id} className={`flex flex-col gap-2 rounded-[18px] bg-white p-3 ${d.removed ? 'opacity-60' : ''} shadow-sm`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="flex flex-col">
                   <span className="font-bold">{products.find((p) => p.id === d.productId)?.name ?? l.name}</span>
@@ -182,7 +182,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
                       const option = products.find((p) => p.id === e.target.value)
                       if (option) set(l.id, { productId: option.id, unitPrice: String(option.sellingPrice) })
                     }}
-                    className="h-11 w-full rounded-xl border border-line bg-white px-2"
+                    className="h-11 w-full rounded-xl border border-line bg-white px-2 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
                   >
                     {optionsFor(l.productId).map((p) => (
                       <option key={p.id} value={p.id}>
@@ -196,16 +196,16 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
                 <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-muted">{t('inbox.packedQty')} ({t(`units.${l.unit}`)})</span>
-                    <input value={d.packedQuantity} disabled={!editable} onChange={(e) => set(l.id, { packedQuantity: e.target.value })} inputMode="decimal" className="h-11 w-full rounded-xl border border-line px-2" />
+                    <input value={d.packedQuantity} disabled={!editable} onChange={(e) => set(l.id, { packedQuantity: e.target.value })} inputMode="decimal" className="h-11 w-full rounded-xl border border-line px-2 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-muted">{t('inbox.price')}</span>
-                    <input value={d.unitPrice} disabled={!editable} onChange={(e) => set(l.id, { unitPrice: e.target.value })} inputMode="decimal" placeholder="₹" className="h-11 w-full rounded-xl border border-line px-2" />
+                    <input value={d.unitPrice} disabled={!editable} onChange={(e) => set(l.id, { unitPrice: e.target.value })} inputMode="decimal" placeholder="₹" className="h-11 w-full rounded-xl border border-line px-2 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
                   </label>
                   <span className="w-20 pb-2.5 text-right font-bold">{formatRupees(round2((Number(d.packedQuantity) || 0) * (Number(d.unitPrice) || 0)))}</span>
                 </div>
               )}
-              <input value={d.shopNote} disabled={!editable} onChange={(e) => set(l.id, { shopNote: e.target.value })} maxLength={200} placeholder={t('inbox.shopNote')} className="h-11 rounded-xl border border-line px-2 text-sm" />
+              <input value={d.shopNote} disabled={!editable} onChange={(e) => set(l.id, { shopNote: e.target.value })} maxLength={200} placeholder={t('inbox.shopNote')} className="h-11 rounded-xl border border-line px-2 text-sm bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
             </li>
           )
         })}
@@ -214,13 +214,13 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
       {error && <p className="rounded-lg bg-red-50 p-3 text-due">{error}</p>}
 
       {order.status === 'packed' && (
-        <label className="block rounded-[18px] bg-white p-3">
+        <label className="block rounded-[18px] bg-white p-3 shadow-sm">
           <span className="mb-1 block text-sm font-semibold text-muted">{t('inbox.paidNow')}</span>
-          <input value={paid ?? String(defaultPaid)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" className="h-12 w-full rounded-[14px] border border-line px-3 text-lg" />
+          <input value={paid ?? String(defaultPaid)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" className="h-12 w-full rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
           {/* Cash received at the door: all of it, some (type it), or none (all on khata). */}
           <span className="mt-2 grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setPaid(String(order.finalAmount ?? 0))} className="min-h-11 rounded-xl border border-line font-semibold">{t('print.paid')} · {formatRupees(order.finalAmount ?? 0)}</button>
-            <button type="button" onClick={() => setPaid('0')} className="min-h-11 rounded-xl border border-line font-semibold">{t('print.onKhata')} · {formatRupees(order.finalAmount ?? 0)}</button>
+            <button type="button" onClick={() => setPaid(String(order.finalAmount ?? 0))} className="min-h-11 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">{t('print.paid')} · {formatRupees(order.finalAmount ?? 0)}</button>
+            <button type="button" onClick={() => setPaid('0')} className="min-h-11 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">{t('print.onKhata')} · {formatRupees(order.finalAmount ?? 0)}</button>
           </span>
         </label>
       )}

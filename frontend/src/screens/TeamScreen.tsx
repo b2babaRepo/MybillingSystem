@@ -98,7 +98,7 @@ function MyTeams({ userName }: { userName: string }) {
       <div className="flex flex-col gap-3 p-4">
         <p className="text-sm text-muted">{t('team.intro')}</p>
         {teams.map((x) => (
-          <button key={x.id} onClick={() => navigate(`/team/${x.id}`)} className="flex items-center justify-between rounded-[18px] bg-white p-4 text-left">
+          <button key={x.id} onClick={() => navigate(`/team/${x.id}`)} className="flex items-center justify-between rounded-[18px] bg-white p-4 text-left shadow-sm">
             <span className="flex flex-col"><b className="text-lg">{x.name}</b><span className="text-sm text-muted">{t('team.people', { count: x.members })} · {t(`team.role.${x.myRole}`)}</span></span>
             <span className="text-right"><span className="block text-xs text-muted">{t('team.thisMonth')}</span><b>{formatRupees(x.thisMonth)}</b></span>
           </button>
@@ -148,7 +148,7 @@ function JoinTeam({ code, userName }: { code: string; userName: string }) {
             <span className="text-2xl font-extrabold">{p.name}</span>
             <span className="text-sm text-muted">{t('team.madeBy', { name: p.createdBy, count: p.members })}</span>
             <label className="flex flex-col gap-1"><span className="text-sm text-muted">{t('team.yourName')}</span>
-              <input value={yourName} onChange={(e) => setYourName(e.target.value)} className="h-12 rounded-xl border border-line px-3 text-lg" /></label>
+              <input value={yourName} onChange={(e) => setYourName(e.target.value)} className="h-12 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
             <Consent checked={consent} onChange={setConsent} />
             <Button disabled={busy || !consent} onClick={() => void run(async () => {
               const team = await api<Team>('/v1/teams/join', 'POST', { code, yourName: yourName.trim(), consent })
@@ -241,7 +241,7 @@ function TeamDay({ team }: { team: Team }) {
 
   return (
     <>
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{isToday ? t('team.today') : new Date(`${day}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
         <button onClick={() => setDay(shiftDay(day, 1))} disabled={isToday} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -251,7 +251,7 @@ function TeamDay({ team }: { team: Team }) {
         <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4">
           <div className="grid grid-cols-[1fr_2fr] gap-2">
             <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^\d.]/g, '') })} inputMode="decimal" placeholder="₹" aria-label={t('team.amount')} className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg font-bold" />
-            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={t('team.notePlaceholder')} aria-label={t('team.note')} className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg" />
+            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={t('team.notePlaceholder')} aria-label={t('team.note')} className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             {(['cash', 'upi'] as const).map((m) => (
@@ -273,7 +273,7 @@ function TeamDay({ team }: { team: Team }) {
           {team.approvalAbove && !manages && <p className="text-xs text-muted">{t('team.approvalNote', { amount: formatRupees(team.approvalAbove) })}</p>}
           {manages && (
             <label className="flex items-center gap-2 text-sm"><span className="text-muted">{t('team.spentBy')}</span>
-              <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} className="h-11 flex-1 rounded-xl border border-line bg-white px-2">
+              <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} className="h-11 flex-1 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
                 {team.members.filter((m) => m.role !== 'viewer').map((m) => <option key={m.id} value={m.id}>{m.isMe ? t('team.me', { name: m.name }) : m.name}</option>)}
               </select>
             </label>
@@ -331,7 +331,7 @@ function TeamMonth({ team }: { team: Team }) {
   ].filter(Boolean).join('\n')
   return (
     <>
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{monthLabel(month)}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= thisMonth()} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -377,13 +377,13 @@ function TeamPeople({ team }: { team: Team }) {
             {team.myRole === 'owner' && !m.isMe && m.role !== 'owner' && m.hasLogin && (
               <select aria-label={t('team.roleLabel')} value={m.role} disabled={busy}
                 onChange={(e) => void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/members/${m.id}/role`, 'PUT', { role: e.target.value })))}
-                className="h-11 rounded-xl border border-line bg-white px-2 text-sm">
+                className="h-11 rounded-xl border border-line bg-white px-2 text-sm outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
                 {(['admin', 'member', 'viewer'] as const).map((r) => <option key={r} value={r}>{t(`team.role.${r}`)}</option>)}
               </select>
             )}
             {manages && !m.isMe && m.role !== 'owner' && (
               <button disabled={busy} onClick={async () => (await confirmAsk(t('team.removeAsk', { name: m.name }))) && void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/members/${m.id}/remove`, 'POST', {})))}
-                className="min-h-11 rounded-xl border border-line px-3 text-sm font-semibold text-due">{t('team.remove')}</button>
+                className="min-h-11 rounded-xl border border-line px-3 text-sm font-semibold text-due transition hover:bg-[#f6faf9]">{t('team.remove')}</button>
             )}
           </li>
         ))}
@@ -396,13 +396,13 @@ function TeamPeople({ team }: { team: Team }) {
           <label className="flex items-center gap-2 text-sm"><span className="flex-1">{t('team.approvalAbove')}</span>
             <input defaultValue={team.approvalAbove ?? ''} inputMode="numeric" placeholder={t('team.none')} aria-label={t('team.approvalAbove')}
               onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); if (String(team.approvalAbove ?? '') !== v) void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/rules`, 'PUT', { approvalAbove: v ? Number(v) : null }))) }}
-              className="h-11 w-28 rounded-xl border border-line px-2 text-right" /></label>
+              className="h-11 w-28 rounded-xl border border-line px-2 text-right bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
           {team.members.filter((m) => m.role !== 'owner' && m.role !== 'viewer').map((m) => (
             <label key={m.id} className="flex flex-col gap-1 text-sm">
               <span className="flex items-center gap-2"><span className="flex-1">{t('team.limitFor', { name: m.name })}</span>
                 <input defaultValue={m.monthlyLimit ?? ''} inputMode="numeric" placeholder={t('team.none')} aria-label={t('team.limitFor', { name: m.name })}
                   onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); if (String(m.monthlyLimit ?? '') !== v) void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/members/${m.id}/limit`, 'PUT', { monthlyLimit: v ? Number(v) : null }))) }}
-                  className="h-11 w-28 rounded-xl border border-line px-2 text-right" /></span>
+                  className="h-11 w-28 rounded-xl border border-line px-2 text-right bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></span>
               {m.monthlyLimit && (
                 <span className="flex items-center gap-2 text-xs text-muted">
                   <span className="h-2 flex-1 rounded-full bg-ground"><span className={`block h-2 rounded-full ${m.spentThisMonth > m.monthlyLimit ? 'bg-red-500' : 'bg-teal-600'}`} style={{ width: `${Math.min(100, (m.spentThisMonth / m.monthlyLimit) * 100)}%` }} /></span>
@@ -428,7 +428,7 @@ function TeamPeople({ team }: { team: Team }) {
           <h2 className="mt-2 font-bold">{t('team.namedTitle')}</h2>
           <p className="text-xs text-muted">{t('team.namedHint')}</p>
           <div className="flex gap-2">
-            <input value={named} onChange={(e) => setNamed(e.target.value)} placeholder={t('team.namedPlaceholder')} aria-label={t('team.namedTitle')} className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3" />
+            <input value={named} onChange={(e) => setNamed(e.target.value)} placeholder={t('team.namedPlaceholder')} aria-label={t('team.namedTitle')} className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
             <button disabled={busy || named.trim().length < 2} onClick={() => void run(async () => { refresh(await api<Team>(`/v1/teams/${team.id}/members`, 'POST', { name: named.trim() })); setNamed('') })}
               className="h-12 rounded-xl bg-teal-700 px-4 font-bold text-white disabled:opacity-40">{t('team.addNamed')}</button>
           </div>
@@ -444,7 +444,7 @@ function TeamPeople({ team }: { team: Team }) {
             <a href={whatsAppLink(null, t('team.viewShare', { team: team.name, link: teamViewLink(team.id, team.viewToken) }))} target="_blank" rel="noreferrer"
               className="flex min-h-12 items-center justify-center rounded-xl bg-[#15803d] font-bold text-white">{t('team.viewSend')}</a>
             <button disabled={busy} onClick={() => void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/view-link?on=false`, 'POST', {})))}
-              className="min-h-11 rounded-xl border border-line font-semibold text-due">{t('team.viewOff')}</button>
+              className="min-h-11 rounded-xl border border-line font-semibold text-due transition hover:bg-[#f6faf9]">{t('team.viewOff')}</button>
           </> : (
             <Button disabled={busy} onClick={() => void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/view-link?on=true`, 'POST', {})))}>{t('team.viewOn')}</Button>
           )}
@@ -457,7 +457,7 @@ function TeamPeople({ team }: { team: Team }) {
           <p className="text-xs text-muted">{t('team.leaveHint')}</p>
           <div className="grid grid-cols-2 gap-2">
             {[false, true].map((del) => (
-              <button key={String(del)} disabled={busy} className="min-h-11 rounded-xl border border-line text-sm font-semibold text-due"
+              <button key={String(del)} disabled={busy} className="min-h-11 rounded-xl border border-line text-sm font-semibold text-due transition hover:bg-[#f6faf9]"
                 onClick={async () => (await confirmAsk(t(del ? 'team.leaveDeleteAsk' : 'team.leaveKeepAsk'))) && void run(async () => {
                   await api(`/v1/teams/${team.id}/leave`, 'POST', { deleteMyLines: del })
                   await queryClient.invalidateQueries({ queryKey: ['teams'] })
@@ -519,12 +519,12 @@ function TeamAdvances({ team }: { team: Team }) {
                 className={`min-h-11 rounded-xl font-semibold ${form.kind === k ? 'bg-teal-700 text-white' : 'border border-line'}`}>{t(`team.advanceKind.${k}`)}</button>
             ))}
           </div>
-          <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} aria-label={t('team.spentBy')} className="h-12 rounded-xl border border-line bg-white px-2">
+          <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} aria-label={t('team.spentBy')} className="h-12 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
             {people.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
           <div className="grid grid-cols-[1fr_2fr] gap-2">
             <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^\d.]/g, '') })} inputMode="decimal" placeholder="₹" aria-label={t('team.amount')} className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg font-bold" />
-            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={t('team.advanceNote')} aria-label={t('team.note')} className="h-12 min-w-0 rounded-xl border border-line px-3" />
+            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={t('team.advanceNote')} aria-label={t('team.note')} className="h-12 min-w-0 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
           </div>
           <Button disabled={busy || !(Number(form.amount) > 0)} onClick={() => void run(async () => {
             save(await api<Advances>(`/v1/teams/${team.id}/advances`, 'POST', { ...form, amount: Number(form.amount), note: form.note.trim() || null }))

@@ -67,10 +67,10 @@ export function GstExportScreen() {
   return (
     <ReportShell page="gst" title={t('rv.gstTitle')} isOwner view={view} onView={setView} ticks={ticks}>
       <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('gstExport.month')}</span>
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3 text-lg" /></label>
+        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
       {data && !data.composition && view === 'chart' && (
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start">
-          <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+          <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
             <span className="text-[13px] text-muted">{t('rv.toPay')}</span>
             <b className="text-[36px] leading-none text-teal-900">{formatRupees(pay)}</b>
             {output > 0 && (
@@ -82,7 +82,7 @@ export function GstExportScreen() {
             <p className="text-[13px] text-muted">{t('rv.meterHint', { output: formatRupees(output), credit: formatRupees(credit), count: data.purchaseBills ?? 0 })}</p>
             {carry > 0 && <p className="rounded-xl bg-teal-50 p-2 text-sm text-teal-900">{t('rv.carry', { amount: formatRupees(carry) })}</p>}
           </section>
-          <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+          <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
             {dues.map((d) => {
               const left = daysUntil(d.date)
               return (
@@ -121,7 +121,7 @@ export function GstExportScreen() {
             ))}
           </section>
         )}
-        <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
           {data.composition && <p className="mb-2 text-sm font-semibold">{t('gstExport.composition')}</p>}
           {row(t('gstExport.bills'), `${data.bills}${data.cancelled ? ` · ${t('gstExport.cancelled', { count: data.cancelled })}` : ''}`)}
           {data.firstBillNo && row(t('gstExport.series'), `${data.firstBillNo} – ${data.lastBillNo}`)}

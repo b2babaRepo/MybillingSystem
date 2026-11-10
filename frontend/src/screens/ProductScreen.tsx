@@ -131,7 +131,7 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
             <div className="flex flex-wrap gap-2">
               {REASONS.map((r) => (
                 <button key={r} onClick={() => setReason(r)} aria-pressed={reason === r}
-                  className={`h-11 rounded-full px-4 font-semibold ${reason === r ? 'bg-ink text-white' : 'border border-line bg-white'}`}>
+                  className={`h-11 rounded-full px-4 font-semibold ${reason === r ? 'bg-teal-700 text-white shadow-sm' : 'border border-line bg-white'}`}>
                   {t(`stock.reasons.${r}`)}
                 </button>
               ))}

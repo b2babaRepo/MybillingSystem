@@ -134,14 +134,15 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
   // UPI: the bank reference (UTR) from the payment app. Optional. It proves the money came, and can't be entered twice.
   const modeButtons = (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-2 text-sm">
+      <div className="grid grid-cols-4 gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
         {(['cash', 'upi', 'card', 'cheque'] as const).map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
-            className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}
+            aria-pressed={mode === m}
+            className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${mode === m ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted hover:text-ink'}`}
           >
-            {t(m)}
+            <span aria-hidden className="text-lg leading-none">{m === 'cash' ? '💵' : m === 'upi' ? '📱' : m === 'card' ? '💳' : '🏦'}</span>{t(m)}
           </button>
         ))}
       </div>
@@ -189,14 +190,35 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <div className="flex items-start justify-between rounded-[18px] bg-white p-4">
-        <div>
-          <div className="text-2xl font-bold">{customer.name}</div>
-          {customer.phone && <div className="text-muted">{formatPhone(customer.phone)}</div>}
-          {isOwner && !customer.isNew && <button onClick={() => void correctDetails()} className="min-h-9 text-sm font-semibold text-teal-700 underline">{t('customerEdit.button')}</button>}
-          {isOwner && customer.nameLater && !customer.isNew && <MoveInto from={customer.id} customers={customers.filter((c) => c.id !== customer.id && !c.nameLater)} onMoved={async (to) => { await queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] }); navigate(`/c/${to}`) }} />}
+      <div className="overflow-hidden rounded-[18px] bg-white shadow-sm">
+        {/* A thin band in the balance's colour: red owes, green advance, grey settled. */}
+        <div className={`h-1.5 ${customer.balance > 0 ? 'bg-due' : customer.balance < 0 ? 'bg-jama' : 'bg-line'}`} />
+        <div className="flex flex-col gap-3 p-4">
+          <div className="flex items-center gap-3">
+          <div aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-xl font-bold text-teal-800">
+            {customer.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="truncate text-2xl font-bold">{customer.name}</div>
+            {customer.phone && (
+              <a href={`tel:${customer.phone}`} className="flex w-fit items-center gap-1.5 text-muted hover:text-teal-800">
+                <span aria-hidden className="flex h-6 w-6 items-center justify-center rounded-full bg-[#edf2f1] text-xs">📞</span>{formatPhone(customer.phone)}
+              </a>
+            )}
+          </div>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            {isOwner && !customer.isNew ? (
+              <button onClick={() => void correctDetails()} className="flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-teal-700/30 bg-teal-50/60 px-3.5 text-sm font-semibold text-teal-800 hover:bg-teal-50">
+                <span aria-hidden>✎</span>{t('customerEdit.button')}
+              </button>
+            ) : <span />}
+          <div className={`rounded-2xl px-4 py-2.5 ${customer.balance > 0 ? 'bg-red-50' : customer.balance < 0 ? 'bg-green-50' : 'bg-[#edf2f1]'}`}>
+            <Balance amount={customer.balance} large />
+          </div>
+          </div>
         </div>
-        <Balance amount={customer.balance} large />
+        {isOwner && customer.nameLater && !customer.isNew && <div className="px-4 pb-4"><MoveInto from={customer.id} customers={customers.filter((c) => c.id !== customer.id && !c.nameLater)} onMoved={async (to) => { await queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] }); navigate(`/c/${to}`) }} /></div>}
       </div>
 
       {settings.data?.type && settings.data.type !== 'kirana' && (
@@ -206,12 +228,12 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
       )}
 
       {customer.balance > 0 && (
-        <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+        <div className="flex flex-col gap-3 rounded-[18px] bg-white p-4 shadow-sm">
           {modeButtons}
-          <Button tone="payment" className="h-14" disabled={!chequeOk} onClick={() => void settleAll()}>
+          <Button tone="payment" className="h-14 text-lg shadow-md shadow-green-900/15" disabled={!chequeOk} onClick={() => void settleAll()}>
             ✓ {t('ledgerView.settleAll', { amount: formatRupees(customer.balance) })}
           </Button>
-          <div className="mt-1 flex flex-col gap-2 rounded-[14px] border border-line p-3">
+          <div className="flex flex-col gap-2 rounded-2xl bg-[#f6faf9] p-3 ring-1 ring-line">
             <span className="text-sm font-semibold text-muted">{t('ledgerView.partPay')}</span>
             <div className="grid grid-cols-4 gap-2">
               {[25, 50, 75, 90].map((percent) => {
@@ -221,7 +243,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
                     key={percent}
                     onClick={() => setPart(String(share))}
                     aria-pressed={part === String(share)}
-                    className={`flex min-h-12 flex-col items-center justify-center rounded-xl text-sm font-semibold ${part === String(share) ? 'bg-teal-700 text-white' : 'bg-[#edf2f1] text-ink'}`}
+                    className={`flex min-h-12 flex-col items-center justify-center rounded-xl text-sm font-semibold transition ${part === String(share) ? 'bg-teal-700 text-white shadow-sm' : 'bg-white text-ink ring-1 ring-line hover:ring-teal-600/40'}`}
                   >
                     {percent}%<span className="text-xs font-normal">{formatRupees(share)}</span>
                   </button>
@@ -235,7 +257,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
                 inputMode="decimal"
                 placeholder={t('ledgerView.partPlaceholder')}
                 aria-label={t('ledgerView.partPay')}
-                className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 text-lg font-bold outline-none focus:border-teal-600"
+                className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-lg font-bold outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
               />
               <Button tone="payment" className="h-12 px-4" disabled={!partValid || !chequeOk} onClick={() => void payPart()}>
                 {t('ledgerView.partSave')}
@@ -249,23 +271,23 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
               </p>
             )}
           </div>
-          <a className="flex h-12 items-center justify-center rounded-2xl bg-[#15803d] font-bold text-white" href={whatsAppLink(customer.phone, reminder)} target="_blank" rel="noreferrer"
+          <a className="flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-[#15803d] bg-green-50 font-bold text-[#15803d] hover:bg-green-100" href={whatsAppLink(customer.phone, reminder)} target="_blank" rel="noreferrer"
             onClick={() => void request(`/v1/customers/${customer.id}/reminded`, 'POST').catch(() => {})}>
-            {t('remind')}
+            <span aria-hidden>💬</span>{t('remind')}
           </a>
         </div>
       )}
 
       {!customer.isNew && <KhataLinkCard customer={customer} shopName={shopName} isOwner={isOwner} />}
 
-      <div role="tablist" className="grid grid-cols-2 rounded-[14px] bg-white p-1">
+      <div role="tablist" className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 shadow-sm">
         {(['history', 'entry'] as const).map((k) => (
           <button
             key={k}
             role="tab"
             aria-selected={tab === k}
             onClick={() => setTab(k)}
-            className={`h-11 rounded-[10px] font-semibold ${tab === k ? 'bg-teal-700 text-white' : 'text-muted'}`}
+            className={`h-11 rounded-xl font-semibold transition ${tab === k ? 'bg-teal-700 text-white shadow-sm' : 'text-muted hover:bg-[#f6faf9]'}`}
           >
             {t(`ledgerView.${k}`)}
           </button>

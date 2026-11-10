@@ -48,17 +48,17 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     <div className="flex flex-col gap-3 p-4">
       {!isOwner && <p className="rounded-xl bg-amber-50 p-3 text-amber-900">{t('settings.ownerOnly')}</p>}
       {isOwner && (
-        <button onClick={() => navigate('/settings/staff')} className="flex min-h-14 items-center gap-3 rounded-[18px] bg-white px-4 text-left font-bold">
+        <button onClick={() => navigate('/settings/staff')} className="flex min-h-14 items-center gap-3 rounded-[18px] bg-white px-4 text-left font-bold shadow-sm">
           <span aria-hidden className="text-2xl">👥</span>
           <span className="flex-1">{t('staff.title')}<span className="block text-sm font-normal text-muted">{t('staff.menuHint')}</span></span>
           <span aria-hidden>›</span>
         </button>
       )}
-      <fieldset disabled={!isOwner} className="flex flex-col gap-3 rounded-[18px] bg-white p-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6 lg:gap-y-4 lg:p-6 lg:[&>button]:col-span-2 lg:[&>button]:justify-self-end lg:[&>button]:px-10 lg:[&>fieldset]:col-span-2">
+      <fieldset disabled={!isOwner} className="flex flex-col gap-3 rounded-[18px] bg-white p-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6 lg:gap-y-4 lg:p-6 lg:[&>button]:col-span-2 lg:[&>button]:justify-self-end lg:[&>button]:px-10 lg:[&>fieldset]:col-span-2 shadow-sm">
         <Field label={t('settings.shopName')} value={form.name} onChange={set('name')} />
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-muted">{t('shopType.label')}</span>
-          <select value={form.type} onChange={set('type')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
+          <select value={form.type} onChange={set('type')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
             {SHOP_TYPES.map((type) => <option key={type} value={type}>{t(`shopType.${type}`)}</option>)}
           </select>
         </label>
@@ -78,7 +78,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
           <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!!form.gstComposition} onChange={(e) => setForm({ ...form, gstComposition: e.target.checked ? 'yes' : '' })} className="h-5 w-5" />
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-muted">{t('discount.limitLabel')}</span>
-            <input value={form.staffMaxDiscountPercent} onChange={(e) => setForm({ ...form, staffMaxDiscountPercent: e.target.value })} inputMode="decimal" className="h-12 w-28 rounded-xl border border-line px-3 text-lg" /> %
+            <input value={form.staffMaxDiscountPercent} onChange={(e) => setForm({ ...form, staffMaxDiscountPercent: e.target.value })} inputMode="decimal" className="h-12 w-28 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /> %
           </label>
             <span>{t('settings.composition')}</span></label>
         )}
@@ -95,7 +95,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-muted">{t('settings.template')}</span>
           <textarea value={form.reminderTemplate} onChange={set('reminderTemplate')} rows={4} maxLength={500} placeholder={DEFAULT_REMINDER}
-            className="w-full rounded-[14px] border-[1.5px] border-line p-3 text-base" />
+            className="w-full rounded-[14px] border-[1.5px] border-line p-3 text-base bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
           <span className="mt-1 block text-sm text-muted">{t('settings.templateHint')}</span>
         </label>
         <div>

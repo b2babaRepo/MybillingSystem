@@ -1,6 +1,7 @@
 // English text. Loaded on demand: a phone downloads only the language it shows.
 export const en = {
   appName: 'Grocery Khata',
+  authTagline: 'Bills, khata and stock for your shop, in one app',
   signIn: 'Sign in',
   signUp: 'Open a new shop',
   phone: 'Mobile number',

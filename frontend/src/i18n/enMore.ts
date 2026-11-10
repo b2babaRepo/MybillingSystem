@@ -276,6 +276,7 @@ export const enMore = {
     recount: 'Count again',
   },
   trade: {
+    detailsTitle: 'Bill details', notAdded: 'Not added',
     stateSet: 'Customer state', stateSaved: 'State saved. New bills will use it.',
     addressSet: 'Customer address', addressAsk: 'Customer address for bills (leave empty to remove)', addressSaved: 'Address saved. Bills will show it.',
     gstinSet: 'Buyer GSTIN', gstinAsk: 'Customer GSTIN (leave empty to remove)', gstinSaved: 'GSTIN saved. New bills will show it.',

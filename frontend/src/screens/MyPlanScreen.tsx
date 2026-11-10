@@ -149,7 +149,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
 
       {/* Period, offer, pay */}
       {chosen && (
-        <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
+        <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4 shadow-sm print:shadow-none">
           <div role="radiogroup" aria-label={t('plan2.period')} className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {terms.map((x) => {
               const price = priceFor(chosen, x)
@@ -167,8 +167,8 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
           <div className="flex gap-2">
             <label className="sr-only" htmlFor="offer-code">{t('plan2.offer')}</label>
             <input id="offer-code" value={offer} onChange={(e) => setOffer(e.target.value.toUpperCase())} placeholder={t('plan2.offer')}
-              className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 uppercase" />
-            <button disabled={busy || !offer.trim()} onClick={() => void applyOffer()} className="h-12 rounded-xl border border-line px-4 font-semibold">{t('plan2.apply')}</button>
+              className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 uppercase bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+            <button disabled={busy || !offer.trim()} onClick={() => void applyOffer()} className="h-12 rounded-xl border border-line px-4 font-semibold transition hover:bg-[#f6faf9]">{t('plan2.apply')}</button>
           </div>
 
           <div className="flex items-baseline justify-between text-lg">
@@ -188,7 +188,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
               <label className="flex flex-col gap-1">
                 <span className="text-sm font-semibold">{t('plan2.utr')}</span>
                 <input value={utr} onChange={(e) => setUtr(e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 30))} inputMode="numeric" placeholder="412345678901"
-                  className="h-12 rounded-xl border border-line px-3 text-lg" />
+                  className="h-12 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
               </label>
               <Button disabled={busy || utr.length < 6 || !!s.pendingClaim} onClick={() => void claim()}>{t('plan2.sendRef')}</Button>
             </>
@@ -199,7 +199,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
       {message && <p className="rounded-[14px] bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
 
       {/* Bring a shop */}
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
         <h2 className="font-bold">{t('plan2.referTitle', { days: s.referralBonusDays })}</h2>
         <p className="text-sm text-muted">{t('plan2.referHint')}</p>
         <p className="rounded-xl bg-ground p-2 text-center font-mono text-lg font-bold">{s.referralCode}</p>
@@ -208,7 +208,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
       </section>
 
       {s.payments.length > 0 && (
-        <section className="rounded-[18px] bg-white p-4">
+        <section className="rounded-[18px] bg-white p-4 shadow-sm">
           <h2 className="mb-2 font-bold">{t('plan2.payments')}</h2>
           <ul className="divide-y divide-[#edf2f1] text-sm">
             {s.payments.map((p) => (

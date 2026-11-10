@@ -278,6 +278,7 @@ export const hiMore: TextsMore = {
     recount: 'फिर से गिनें',
   },
   trade: {
+    detailsTitle: 'बिल की जानकारी', notAdded: 'नहीं जोड़ा',
     stateSet: 'ग्राहक का राज्य', stateSaved: 'राज्य सेव हो गया। नए बिल इसी से बनेंगे।',
     addressSet: 'ग्राहक का पता', addressAsk: 'बिल के लिए ग्राहक का पता (हटाने के लिए खाली छोड़ें)', addressSaved: 'पता सेव हो गया। बिलों पर दिखेगा।',
     gstinSet: 'खरीदार GSTIN', gstinAsk: 'ग्राहक का GSTIN (हटाने के लिए खाली छोड़ें)', gstinSaved: 'GSTIN सेव हो गया। नए बिलों पर दिखेगा।',

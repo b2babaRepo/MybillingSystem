@@ -51,7 +51,7 @@ export function ReportShell({ page, title, isOwner, view, onView, ticks, childre
             <nav aria-label={t('rv.pages')} className="flex flex-wrap gap-1.5">
               {tabs.map((tab) => (
                 <button key={tab.key} onClick={() => navigate(tab.path)} aria-current={tab.key === page ? 'page' : undefined}
-                  className={`min-h-11 rounded-full px-4 text-sm font-semibold ${tab.key === page ? 'bg-white text-[#0f3d38]' : 'border border-[#3f6f69] text-white'}`}>{tab.label}</button>
+                  className={`min-h-11 rounded-full px-4 text-sm font-semibold ${tab.key === page ? 'bg-[#ffffff] text-[#0f3d38]' : 'border border-[#3f6f69] text-white'}`}>{tab.label}</button>
               ))}
             </nav>
           )}
@@ -95,7 +95,7 @@ export function UpDownBars({ days, average, label }: { days: { date: string; sal
   const y = (v: number) => 200 - (v / peak) * 185
   const best = days.reduce((a, d) => (d.sales > (a?.sales ?? -1) ? d : a), days[0])
   return (
-    <figure className="m-0 flex flex-col gap-2 rounded-[18px] bg-white p-4">
+    <figure className="m-0 flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
       <figcaption className="flex flex-wrap items-baseline justify-between gap-2">
         <b>{label}</b>
         <span className="text-xs text-muted"><span className="text-teal-700">■</span> {t('rv.up')} · <span className="text-orange-700">■</span> {t('rv.down')}{average ? ` · ${t('rv.avgLine')}` : ''}</span>

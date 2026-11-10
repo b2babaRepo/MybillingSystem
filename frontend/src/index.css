@@ -86,3 +86,85 @@ body {
 .receipt-58 .kharcha-lines :is(th, td):nth-child(3) { display: none; }
 .receipt .print\:hidden { min-width: 18rem; } /* shop-only buttons keep their size on screen, and never print */
 @media print { body { background: #fff; } }
+
+/* Checkboxes and radio buttons in the app colour. */
+input[type="checkbox"], input[type="radio"] { accent-color: #0f766e; }
+
+
+/* Dark mode, following the phone's setting. The colour tokens turn dark, and the fixed light colours used across the
+   screens are mapped to dark ones here, so no screen needs its own dark styles. Print stays light. */
+@media screen and (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-ground: #0c1513;
+    --color-ink: #e3eeeb;
+    --color-muted: #9fb3ae;
+    --color-line: #2b3c38;
+    --color-udhaar: #fb923c;
+    --color-jama: #34d399;
+    --color-due: #f87171;
+  }
+  /* The print sheet keeps the light colours. */
+  [data-light] {
+    color-scheme: light;
+    --color-ink: #10201d;
+    --color-muted: #4a5b58;
+    --color-line: #dbe5e3;
+    --color-udhaar: #c2410c;
+    --color-jama: #047857;
+    --color-due: #b91c1c;
+  }
+  .bg-white:not([data-light], [data-light] *) { background-color: #16221f; }
+  .bg-white\/95:not([data-light], [data-light] *), .bg-white\/90:not([data-light], [data-light] *) { background-color: rgb(22 34 31 / 0.95); }
+  .bg-\[\#edf2f1\]:not([data-light], [data-light] *), .bg-\[\#f1f5f4\]:not([data-light], [data-light] *), .bg-\[\#f3f6f5\]:not([data-light], [data-light] *), .bg-\[\#e0efec\]:not([data-light], [data-light] *), .bg-slate-100:not([data-light], [data-light] *), .bg-slate-50:not([data-light], [data-light] *), .bg-slate-200:not([data-light], [data-light] *), .bg-\[\#cfd8d6\]:not([data-light], [data-light] *) { background-color: #22322f; }
+  .bg-\[\#f6faf9\]:not([data-light], [data-light] *), .bg-\[\#f4f8f7\]:not([data-light], [data-light] *), .bg-\[\#fafbfb\]:not([data-light], [data-light] *), .bg-\[\#fffdf6\]:not([data-light], [data-light] *), .bg-\[\#f3efe4\]:not([data-light], [data-light] *) { background-color: #1c2a27; }
+  .hover\:bg-\[\#f6faf9\]\:hover:not([data-light], [data-light] *), .hover\:bg-white\:hover:not([data-light], [data-light] *), .active\:bg-\[\#edf2f1\]\:active:not([data-light], [data-light] *), .lg\:hover\:bg-\[\#f6faf9\]\:hover:not([data-light], [data-light] *), .active\:bg-slate-50\:active:not([data-light], [data-light] *) { background-color: #243633; }
+  .bg-teal-50:not([data-light], [data-light] *), .bg-teal-50\/60:not([data-light], [data-light] *), .bg-teal-50\/40:not([data-light], [data-light] *) { background-color: rgb(20 184 166 / 0.12); }
+  .bg-teal-100:not([data-light], [data-light] *), .bg-teal-200:not([data-light], [data-light] *) { background-color: rgb(20 184 166 / 0.2); }
+  .hover\:bg-teal-50\:hover:not([data-light], [data-light] *), .hover\:bg-teal-100\:hover:not([data-light], [data-light] *) { background-color: rgb(20 184 166 / 0.22); }
+  .bg-amber-50:not([data-light], [data-light] *), .bg-amber-50\/60:not([data-light], [data-light] *), .bg-amber-50\/40:not([data-light], [data-light] *) { background-color: rgb(245 158 11 / 0.12); }
+  .bg-amber-100:not([data-light], [data-light] *), .bg-amber-200:not([data-light], [data-light] *) { background-color: rgb(245 158 11 / 0.2); }
+  .hover\:bg-amber-50\:hover:not([data-light], [data-light] *), .hover\:bg-amber-100\:hover:not([data-light], [data-light] *) { background-color: rgb(245 158 11 / 0.22); }
+  .bg-red-50:not([data-light], [data-light] *), .bg-red-50\/60:not([data-light], [data-light] *), .bg-red-50\/40:not([data-light], [data-light] *) { background-color: rgb(239 68 68 / 0.12); }
+  .bg-red-100:not([data-light], [data-light] *), .bg-red-200:not([data-light], [data-light] *) { background-color: rgb(239 68 68 / 0.2); }
+  .hover\:bg-red-50\:hover:not([data-light], [data-light] *), .hover\:bg-red-100\:hover:not([data-light], [data-light] *) { background-color: rgb(239 68 68 / 0.22); }
+  .bg-emerald-50:not([data-light], [data-light] *), .bg-emerald-50\/60:not([data-light], [data-light] *), .bg-emerald-50\/40:not([data-light], [data-light] *) { background-color: rgb(16 185 129 / 0.12); }
+  .bg-emerald-100:not([data-light], [data-light] *), .bg-emerald-200:not([data-light], [data-light] *) { background-color: rgb(16 185 129 / 0.2); }
+  .hover\:bg-emerald-50\:hover:not([data-light], [data-light] *), .hover\:bg-emerald-100\:hover:not([data-light], [data-light] *) { background-color: rgb(16 185 129 / 0.22); }
+  .bg-green-50:not([data-light], [data-light] *), .bg-green-50\/60:not([data-light], [data-light] *), .bg-green-50\/40:not([data-light], [data-light] *) { background-color: rgb(34 197 94 / 0.12); }
+  .bg-green-100:not([data-light], [data-light] *), .bg-green-200:not([data-light], [data-light] *) { background-color: rgb(34 197 94 / 0.2); }
+  .hover\:bg-green-50\:hover:not([data-light], [data-light] *), .hover\:bg-green-100\:hover:not([data-light], [data-light] *) { background-color: rgb(34 197 94 / 0.22); }
+  .bg-orange-50:not([data-light], [data-light] *), .bg-orange-50\/60:not([data-light], [data-light] *), .bg-orange-50\/40:not([data-light], [data-light] *) { background-color: rgb(249 115 22 / 0.12); }
+  .bg-orange-100:not([data-light], [data-light] *), .bg-orange-200:not([data-light], [data-light] *) { background-color: rgb(249 115 22 / 0.2); }
+  .hover\:bg-orange-50\:hover:not([data-light], [data-light] *), .hover\:bg-orange-100\:hover:not([data-light], [data-light] *) { background-color: rgb(249 115 22 / 0.22); }
+  .bg-blue-50:not([data-light], [data-light] *), .bg-blue-50\/60:not([data-light], [data-light] *), .bg-blue-50\/40:not([data-light], [data-light] *) { background-color: rgb(59 130 246 / 0.12); }
+  .bg-blue-100:not([data-light], [data-light] *), .bg-blue-200:not([data-light], [data-light] *) { background-color: rgb(59 130 246 / 0.2); }
+  .hover\:bg-blue-50\:hover:not([data-light], [data-light] *), .hover\:bg-blue-100\:hover:not([data-light], [data-light] *) { background-color: rgb(59 130 246 / 0.22); }
+  .bg-violet-50:not([data-light], [data-light] *), .bg-violet-50\/60:not([data-light], [data-light] *), .bg-violet-50\/40:not([data-light], [data-light] *) { background-color: rgb(139 92 246 / 0.12); }
+  .bg-violet-100:not([data-light], [data-light] *), .bg-violet-200:not([data-light], [data-light] *) { background-color: rgb(139 92 246 / 0.2); }
+  .hover\:bg-violet-50\:hover:not([data-light], [data-light] *), .hover\:bg-violet-100\:hover:not([data-light], [data-light] *) { background-color: rgb(139 92 246 / 0.22); }
+  .bg-sky-50:not([data-light], [data-light] *), .bg-sky-50\/60:not([data-light], [data-light] *), .bg-sky-50\/40:not([data-light], [data-light] *) { background-color: rgb(14 165 233 / 0.12); }
+  .bg-sky-100:not([data-light], [data-light] *), .bg-sky-200:not([data-light], [data-light] *) { background-color: rgb(14 165 233 / 0.2); }
+  .hover\:bg-sky-50\:hover:not([data-light], [data-light] *), .hover\:bg-sky-100\:hover:not([data-light], [data-light] *) { background-color: rgb(14 165 233 / 0.22); }
+  .bg-pink-50:not([data-light], [data-light] *), .bg-pink-50\/60:not([data-light], [data-light] *), .bg-pink-50\/40:not([data-light], [data-light] *) { background-color: rgb(236 72 153 / 0.12); }
+  .bg-pink-100:not([data-light], [data-light] *), .bg-pink-200:not([data-light], [data-light] *) { background-color: rgb(236 72 153 / 0.2); }
+  .hover\:bg-pink-50\:hover:not([data-light], [data-light] *), .hover\:bg-pink-100\:hover:not([data-light], [data-light] *) { background-color: rgb(236 72 153 / 0.22); }
+  .bg-rose-50:not([data-light], [data-light] *), .bg-rose-50\/60:not([data-light], [data-light] *), .bg-rose-50\/40:not([data-light], [data-light] *) { background-color: rgb(244 63 94 / 0.12); }
+  .bg-rose-100:not([data-light], [data-light] *), .bg-rose-200:not([data-light], [data-light] *) { background-color: rgb(244 63 94 / 0.2); }
+  .hover\:bg-rose-50\:hover:not([data-light], [data-light] *), .hover\:bg-rose-100\:hover:not([data-light], [data-light] *) { background-color: rgb(244 63 94 / 0.22); }
+  .bg-cyan-50:not([data-light], [data-light] *), .bg-cyan-50\/60:not([data-light], [data-light] *), .bg-cyan-50\/40:not([data-light], [data-light] *) { background-color: rgb(6 182 212 / 0.12); }
+  .bg-cyan-100:not([data-light], [data-light] *), .bg-cyan-200:not([data-light], [data-light] *) { background-color: rgb(6 182 212 / 0.2); }
+  .hover\:bg-cyan-50\:hover:not([data-light], [data-light] *), .hover\:bg-cyan-100\:hover:not([data-light], [data-light] *) { background-color: rgb(6 182 212 / 0.22); }
+  .text-teal-700:not([data-light], [data-light] *), .text-teal-800:not([data-light], [data-light] *), .text-teal-900:not([data-light], [data-light] *) { color: #5eead4; }
+  .text-amber-700:not([data-light], [data-light] *), .text-amber-800:not([data-light], [data-light] *), .text-amber-900:not([data-light], [data-light] *) { color: #fcd34d; }
+  .text-red-700:not([data-light], [data-light] *), .text-red-800:not([data-light], [data-light] *), .text-red-900:not([data-light], [data-light] *) { color: #fca5a5; }
+  .text-emerald-700:not([data-light], [data-light] *), .text-emerald-800:not([data-light], [data-light] *), .text-emerald-900:not([data-light], [data-light] *) { color: #6ee7b7; }
+  .text-green-700:not([data-light], [data-light] *), .text-green-800:not([data-light], [data-light] *), .text-green-900:not([data-light], [data-light] *) { color: #86efac; }
+  .text-orange-700:not([data-light], [data-light] *), .text-orange-800:not([data-light], [data-light] *), .text-orange-900:not([data-light], [data-light] *) { color: #fdba74; }
+  .text-blue-700:not([data-light], [data-light] *), .text-blue-800:not([data-light], [data-light] *), .text-blue-900:not([data-light], [data-light] *) { color: #93c5fd; }
+  .text-violet-700:not([data-light], [data-light] *), .text-violet-800:not([data-light], [data-light] *), .text-violet-900:not([data-light], [data-light] *) { color: #c4b5fd; }
+  .text-black:not([data-light], [data-light] *) { color: var(--color-ink); }
+  .bg-\[\#dcf8c6\]:not([data-light], [data-light] *), .bg-\[\#e7f8ee\]:not([data-light], [data-light] *) { background-color: rgb(34 197 94 / 0.15); }
+  input:not([data-light] *)::placeholder, textarea:not([data-light] *)::placeholder { color: #6f8580; }
+  img:not([data-light], [data-light] *) { filter: brightness(0.92); }
+}

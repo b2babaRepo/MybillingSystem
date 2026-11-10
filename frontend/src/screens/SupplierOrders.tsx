@@ -79,7 +79,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
   }
 
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-bold">{t('supplier2.orders')}</h2>
         {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-teal-700">+ {t('supplier2.newOrder')}</button>}
@@ -151,7 +151,7 @@ export function ReturnsPanel({ shopId, supplierId, products }: { shopId: string;
   })
 
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-bold">{t('supplier2.returns')}</h2>
         {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-teal-700">+ {t('supplier2.returnGoods')}</button>}
@@ -215,7 +215,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
   const cancel = async (r: GoodsReceipt) => { if (await confirmAsk(t('receipt.cancelConfirm', { number: r.number }))) void run(() => api(`/v1/goods-receipts/${r.id}/cancel`, 'POST', {})) }
 
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-bold">{t('receipt.title')}</h2>
         {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-teal-700">{t('receipt.add')}</button>}
@@ -267,7 +267,7 @@ export function SupplierImport({ shopId }: { shopId: string }) {
   }
 
   return (
-    <details className="rounded-[18px] bg-white p-4">
+    <details className="rounded-[18px] bg-white p-4 shadow-sm">
       <summary className="min-h-11 cursor-pointer font-bold">{t('supplier2.import')}</summary>
       <p className="mb-2 text-sm text-muted">{t('supplier2.importHint')}</p>
       <input type="file" accept=".csv,text/csv,text/plain" aria-label={t('supplier2.import')} className="mb-2 text-sm"

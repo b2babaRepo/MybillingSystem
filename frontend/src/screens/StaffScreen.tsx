@@ -105,7 +105,7 @@ export function StaffScreen() {
       <p className="text-sm text-muted">{t('staff.hint')}</p>
       {message && <p className="rounded-[14px] bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
 
-      <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
+      <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white shadow-sm">
         {staff.data?.map((s) => (
           <li key={s.membershipId} className={`flex flex-col gap-2 p-4 ${s.isActive ? '' : 'opacity-60'}`}>
             <div className="flex items-start justify-between gap-2">
@@ -121,7 +121,7 @@ export function StaffScreen() {
             {s.role === 'staff' && s.isActive && <Limits staff={s} onSaved={() => void staff.refetch()} />}
             {(s.role === 'staff' || staff.data!.filter((x) => x.role === 'owner' && x.isActive).length > 1 || !s.isActive) && (
               <div className="grid grid-cols-2 gap-2 text-sm">
-                {s.role === 'staff' ? <button disabled={busy} onClick={() => changePin(s)} className="min-h-11 rounded-xl border border-line font-semibold">🔑 {t('staff.changePin')}</button> : <span />}
+                {s.role === 'staff' ? <button disabled={busy} onClick={() => changePin(s)} className="min-h-11 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">🔑 {t('staff.changePin')}</button> : <span />}
                 <button disabled={busy} onClick={() => setActive(s, !s.isActive)}
                   className={`min-h-11 rounded-xl font-semibold ${s.isActive ? 'border border-line text-due' : 'bg-teal-700 text-white'}`}>
                   {s.isActive ? t('staff.turnOff') : t('staff.turnOn')}
@@ -132,7 +132,7 @@ export function StaffScreen() {
         ))}
       </ul>
 
-      <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4 shadow-sm">
         <h2 className="text-lg font-bold">{t('staff.addTitle')}</h2>
         <Field label={t('staff.name')} value={name} onChange={(e) => setName(e.target.value)} />
         <Field label={t('staff.phone')} value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />

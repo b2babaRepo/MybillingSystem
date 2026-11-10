@@ -77,7 +77,9 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
   return (
     <div className="relative">
       <label className="block">
-        <span className="mb-1 block text-sm font-medium text-muted">{t('customer')}</span>
+        <span className="mb-1.5 block text-sm font-semibold text-muted">{t('customer')}</span>
+        <span className="relative block">
+        <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">👤</span>
         <input
           id={inputId}
           value={text}
@@ -93,15 +95,16 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
           }}
           placeholder={placeholder ?? t('billFind.placeholder')}
           autoComplete="off"
-          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-lg outline-none focus:border-teal-600"
+          className="h-12 w-full rounded-2xl border border-line bg-[#f6faf9] pl-11 pr-3 text-lg outline-none transition focus:border-teal-600 focus:bg-white focus:ring-4 focus:ring-teal-600/10"
         />
+        </span>
       </label>
       {/* Always in sight: a new customer's name and mobile go straight on the bill. */}
       {onCreate && !open && (
-        <span className="flex flex-wrap gap-x-4">
-          <button type="button" onClick={startAdding} className="mt-1 min-h-11 text-sm font-semibold text-teal-700 underline">{t('newBuyer.addBlank')}</button>
+        <span className="flex flex-wrap gap-x-2">
+          <button type="button" onClick={startAdding} className="mt-2 flex min-h-10 items-center gap-1.5 rounded-full border border-teal-700/30 bg-teal-50/60 px-3.5 text-sm font-semibold text-teal-800 hover:bg-teal-50">{t('newBuyer.addBlank')}</button>
           {/* Udhaar to someone who won't give a name yet: a numbered "Name later" khata the owner names afterwards. */}
-          {onNameLater && <button type="button" onClick={() => void onNameLater().then(onPick)} className="mt-1 min-h-11 text-sm font-semibold text-teal-700 underline">{t('nameLater.button')}</button>}
+          {onNameLater && <button type="button" onClick={() => void onNameLater().then(onPick)} className="mt-2 flex min-h-10 items-center gap-1.5 rounded-full border border-amber-600/30 bg-amber-50 px-3.5 text-sm font-semibold text-amber-900 hover:bg-amber-100"><span aria-hidden>⏳</span>{t('nameLater.button')}</button>}
         </span>
       )}
       {open && (
@@ -137,11 +140,14 @@ export function CashChange({ paying, received, onChange }: { paying: number; rec
   const { t } = useTranslation()
   const back = received.trim() ? changeDue(Number(received) || 0, paying) : null
   return (
-    <label className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="font-medium text-muted">{t('billFind.received')}</span>
-      <input id="bill-received" value={received} onChange={(e) => onChange(e.target.value)} inputMode="decimal" autoComplete="off" className="h-11 w-28 rounded-lg border border-line px-2 text-lg" />
-      {back !== null && back >= 0 && <span className="text-lg font-bold">{t('billFind.giveBack', { amount: formatRupees(back) })}</span>}
-      {back !== null && back < 0 && <span className="font-semibold text-due">{t('billFind.short', { amount: formatRupees(-back) })}</span>}
+    <label className="flex flex-wrap items-center gap-3 rounded-2xl bg-[#f6faf9] p-3 text-sm">
+      <span className="font-semibold text-muted">💵 {t('billFind.received')}</span>
+      <span className="relative">
+        <span aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg text-muted">₹</span>
+        <input id="bill-received" value={received} onChange={(e) => onChange(e.target.value)} inputMode="decimal" autoComplete="off" placeholder={String(paying)} className="h-12 w-36 rounded-xl border border-line bg-white pl-8 pr-2 text-lg font-semibold outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+      </span>
+      {back !== null && back >= 0 && <span className="rounded-full bg-green-100 px-3 py-1 text-base font-bold text-green-900">{t('billFind.giveBack', { amount: formatRupees(back) })}</span>}
+      {back !== null && back < 0 && <span className="rounded-full bg-red-100 px-3 py-1 font-semibold text-due">{t('billFind.short', { amount: formatRupees(-back) })}</span>}
     </label>
   )
 }

@@ -421,6 +421,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         </div>
       )}
       <div className="flex gap-2">
+        <span className="relative min-w-0 flex-1">
+        <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-muted">🔍</span>
         <input
           ref={searchRef}
           autoFocus={keyboardDesk}
@@ -441,10 +443,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           }}
           placeholder={t('barcodeBill.search')}
           aria-label={t('search')}
-          className="h-12 min-w-0 flex-1 rounded-[14px] border border-line bg-white px-4 text-[17px] outline-none focus:border-teal-600"
+          className="h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-4 text-[17px] shadow-sm outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
         />
+        </span>
         <button onClick={() => setKeysHelp((v) => !v)} aria-label={t('keys.title')} title={t('keys.title')} className="hidden h-12 w-12 shrink-0 rounded-[14px] border border-line bg-white font-bold text-muted lg:block">?</button>
-        {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className="h-12 shrink-0 rounded-[14px] border-2 border-teal-700 px-3 font-bold text-teal-800">{t('barcodeBill.scan')}</button>}
+        {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className="flex h-12 shrink-0 items-center gap-1.5 rounded-2xl bg-teal-700 px-4 font-bold text-white shadow-sm hover:bg-teal-800"><span aria-hidden>📷</span>{t('barcodeBill.scan')}</button>}
       </div>
       {keysHelp && (
         <div className="hidden rounded-[14px] bg-white p-3 text-sm lg:block">
@@ -506,7 +509,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             + {t(`charge.${charge}`)}
           </button>
         ))}
-        <button onClick={() => setLoose({ name: '', unit: 'kg' })} className="min-h-20 rounded-xl border-2 border-dashed border-line p-2 font-semibold text-muted">
+        <button onClick={() => setLoose({ name: '', unit: 'kg' })} className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-[18px] border-2 border-dashed border-teal-700/30 bg-teal-50/40 p-2 font-semibold text-teal-800 hover:bg-teal-50">
           + {t('addLooseItem')}
         </button>
       </div>
@@ -650,10 +653,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                   className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('bars.button', { kg: tmtKgPerBar(l.name) })}</button>
               )}
             </div>
-            <button className="h-11 w-11 rounded-lg bg-[#edf2f1] text-xl" onClick={() => setQuantity(i, round2(l.quantity - 1))}>−</button>
-            <QuantityInput value={l.quantity} onChange={(q) => setQuantity(i, q)} label={`${t('quantity')}: ${l.name}`} />
-            <button className="h-11 w-11 rounded-lg bg-[#edf2f1] text-xl" onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
-            <div className="w-20 text-right font-semibold">{formatRupees(round2(l.quantity * l.unitPrice))}</div>
+            <span className="flex shrink-0 items-center gap-0.5 rounded-xl bg-[#edf2f1] p-0.5">
+              <button aria-label="−" className="h-10 w-10 rounded-lg bg-white text-xl font-bold text-teal-800 shadow-sm active:scale-95 lg:h-8 lg:w-8" onClick={() => setQuantity(i, round2(l.quantity - 1))}>−</button>
+              <QuantityInput value={l.quantity} onChange={(q) => setQuantity(i, q)} label={`${t('quantity')}: ${l.name}`} />
+              <button aria-label="+" className="h-10 w-10 rounded-lg bg-teal-700 text-xl font-bold text-white shadow-sm active:scale-95 lg:h-8 lg:w-8" onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
+            </span>
+            <div className="w-20 text-right font-bold">{formatRupees(round2(l.quantity * l.unitPrice))}</div>
           </div>
         ))}
         {cart.length > 0 && (<>
@@ -740,7 +745,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       </div>
 
       {cart.length > 0 && (
-        <div className="space-y-3 rounded-[18px] bg-white p-3">
+        <div className="space-y-4 rounded-[18px] bg-white p-4 shadow-sm">
           <CustomerFinder customers={customers} selected={customer} onKhata={customer ? round2(due - paidAmount) : 0} onPick={pickCustomer} onNameLater={() => addCustomer(shopId, '', '', true)} onCreate={(name, phone) => addCustomer(shopId, name, phone)} />
           {customer && (
             <>
@@ -809,15 +814,21 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               </div>
             </div>
           )}
-          <div className="flex flex-wrap gap-2 text-sm">
-            {(['cash', 'upi', 'card'] as const).map((m) => (
-              <button key={m} onClick={() => { setMode(m); setUpiPart(null) }} className={`h-11 rounded-xl px-4 font-semibold ${upiPart === null && mode === m ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}>
-                {t(m)}
-              </button>
-            ))}
+          <div className={`grid gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm ${paidAmount > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            {(['cash', 'upi', 'card'] as const).map((m) => {
+              const on = upiPart === null && mode === m
+              return (
+                <button key={m} onClick={() => { setMode(m); setUpiPart(null) }} aria-pressed={on}
+                  className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${on ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted hover:text-ink'}`}>
+                  <span aria-hidden className="text-lg leading-none">{m === 'cash' ? '💵' : m === 'upi' ? '📱' : '💳'}</span>{t(m)}
+                </button>
+              )
+            })}
             {paidAmount > 0 && (
               <button onClick={() => { setMode('cash'); setUpiPart(upiPart === null ? '' : null) }} aria-pressed={upiPart !== null}
-                className={`h-11 rounded-xl px-4 font-semibold ${upiPart !== null ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}>{t('split.button')}</button>
+                className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${upiPart !== null ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted hover:text-ink'}`}>
+                <span aria-hidden className="text-lg leading-none">➗</span>{t('split.button')}
+              </button>
             )}
           </div>
           {upiPart !== null && paidAmount > 0 && (
@@ -839,10 +850,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
           {needsBuyerAddress && <p className="text-sm font-semibold text-due">{t('print.bigBillAddress')}</p>}
           {fromEstimate && <p className="rounded-xl bg-teal-50 p-2 text-sm text-teal-900">{t('estimate.fromEstimate', { number: fromEstimate.number })}</p>}
-          <button type="button" onClick={() => void saveEstimate()} disabled={cart.length === 0 || !!fromEstimate} className="min-h-11 self-start text-sm font-semibold text-teal-700 underline disabled:opacity-40">{t('estimate.save')}</button>
-          <div className="flex gap-2">
-            <button type="button" onClick={holdBill} className="min-h-12 shrink-0 rounded-2xl border-2 border-teal-700 px-4 font-bold text-teal-800">{t('hold.button')}</button>
-            <Button className="flex-1" id="bill-save" onClick={save} disabled={!canSave}>
+          <button type="button" onClick={() => void saveEstimate()} disabled={cart.length === 0 || !!fromEstimate} className="flex min-h-10 items-center gap-1.5 self-start rounded-full border border-dashed border-teal-700/40 px-3.5 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-40"><span aria-hidden>📝</span>{t('estimate.save')}</button>
+          <div className="flex gap-2 border-t border-line pt-4">
+            <button type="button" onClick={holdBill} className="flex min-h-14 shrink-0 items-center gap-1.5 rounded-2xl border-2 border-teal-700 px-4 font-bold text-teal-800 hover:bg-teal-50"><span aria-hidden>⏸</span>{t('hold.button')}</button>
+            <Button className="h-14 flex-1 text-lg shadow-md shadow-teal-900/15" id="bill-save" onClick={save} disabled={!canSave}>
               {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(total) }) : `${t('saveBill')} · ${formatRupees(total)}`}
             </Button>
           </div>
@@ -984,7 +995,7 @@ function QuantityInput({ value, onChange, label }: { value: number; onChange: (q
       onChange={(e) => { const next = e.target.value.replace(/[^\d.]/g, ''); setText(next); if (Number(next) > 0) onChange(Number(next)) }}
       inputMode="decimal"
       aria-label={label}
-      className="h-11 w-16 rounded-lg border border-line text-center"
+      className="h-10 w-14 rounded-lg bg-transparent text-center text-lg font-bold outline-none focus:bg-white focus:ring-2 focus:ring-teal-600/30 lg:h-8"
     />
   )
 }

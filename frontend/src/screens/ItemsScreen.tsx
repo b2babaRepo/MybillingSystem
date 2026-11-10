@@ -73,7 +73,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
     <div className="flex flex-col gap-3 p-4 pb-28">
       <div className={`grid gap-2 ${actions.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
         {actions.map((a) => (
-          <button key={a.to} onClick={() => navigate(a.to)} className={`flex min-h-[84px] flex-col items-center justify-center gap-1 rounded-2xl border border-line ${a.tint} px-1 py-2 text-center active:scale-95`}>
+          <button key={a.to} onClick={() => navigate(a.to)} className={`flex min-h-[88px] flex-col items-center justify-center gap-1.5 rounded-2xl ${a.tint} px-1 py-2 text-center shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95`}>
             <span aria-hidden className="text-[28px] leading-none">{a.icon}</span>
             <span className="text-[13px] leading-tight font-semibold">{a.label}</span>
           </button>
@@ -87,12 +87,12 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('items2.search', { count: products.length })}
           aria-label={t('search')}
-          className="h-12 w-full rounded-[14px] border border-line bg-white pr-10 pl-11 text-[17px] outline-none focus:border-teal-600"
+          className="h-12 w-full rounded-2xl border border-line bg-white pr-10 pl-11 text-[17px] shadow-sm outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
         />
         {search && <button onClick={() => setSearch('')} aria-label={t('cancel')} className="absolute top-1/2 right-2 h-9 w-9 -translate-y-1/2 rounded-full text-muted">✕</button>}
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Chip selected={filter === 'all' && category === null} onClick={() => { setFilter('all'); setCategory(null) }}>{t('stock.all')} · {products.length}</Chip>
         {lowCount > 0 && <Chip selected={filter === 'low'} onClick={() => setFilter(filter === 'low' ? 'all' : 'low')} tone="warn">⚠ {t('stock.low')} · {lowCount}</Chip>}
         {isOwner && suggested.length > 0 && <Chip selected={filter === 'suggested'} onClick={() => setFilter(filter === 'suggested' ? 'all' : 'suggested')} tone="warn">✨ {t('items2.suggested')} · {suggested.length}</Chip>}
@@ -103,7 +103,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
       </div>
 
       {isOwner && lowCount + outCount > 0 && (
-        <button onClick={() => navigate('/reorder')} className="flex min-h-12 items-center justify-between rounded-2xl border border-amber-300 bg-amber-50 px-4 text-left font-bold text-amber-900">
+        <button onClick={() => navigate('/reorder')} className="flex min-h-14 items-center justify-between rounded-2xl bg-amber-50 px-4 text-left font-bold text-amber-900 shadow-sm ring-1 ring-amber-200">
           <span>📦 {t('reorder.linkAll', { count: lowCount + outCount })}</span><span aria-hidden>›</span>
         </button>
       )}
@@ -142,7 +142,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
         </div>
       )}
       {isOwner && filter === 'out' && <button onClick={() => void stopCounting()} className="min-h-11 rounded-xl border border-line bg-white px-3 text-left text-sm font-semibold text-teal-800">{t('stock.stopCountingEmpty')}</button>}
-      <ul className={`divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white ${filter === 'suggested' ? 'hidden' : ''}`}>
+      <ul className={`divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white shadow-sm ${filter === 'suggested' ? 'hidden' : ''}`}>
         {shown.length > 0 && (
           <li aria-hidden className="hidden items-center gap-3 bg-[#f6faf9] px-3 py-2 text-[13px] font-semibold text-muted lg:flex">
             <span className="w-[52px] shrink-0" />
@@ -204,6 +204,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
                 </span>
                 <span className="hidden w-44 shrink-0 truncate text-[14px] text-muted lg:block">{p.category ?? '—'}</span>
                 <span className="flex shrink-0 justify-end lg:w-28"><StockPill product={p} /></span>
+                <span aria-hidden className="text-muted lg:hidden">›</span>
               </button>
             </li>
           )
@@ -261,7 +262,7 @@ export function StockBadge({ product, large = false }: { product: Product; large
 }
 
 function Chip({ selected, onClick, children, tone = 'plain' }: { selected: boolean; onClick: () => void; children: ReactNode; tone?: 'plain' | 'warn' | 'due' }) {
-  const on = tone === 'warn' ? 'bg-udhaar text-white' : tone === 'due' ? 'bg-due text-white' : 'bg-ink text-white'
+  const on = tone === 'warn' ? 'bg-udhaar text-white' : tone === 'due' ? 'bg-due text-white' : 'bg-teal-700 text-white shadow-sm'
   return (
     <button onClick={onClick} aria-pressed={selected} className={`h-11 shrink-0 rounded-full px-4 text-[15px] font-semibold ${selected ? on : 'border border-line bg-white text-ink'}`}>
       {children}

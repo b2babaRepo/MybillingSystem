@@ -3,6 +3,7 @@ import type { Texts } from './en'
 // Gujarati text. Loaded on demand: a phone downloads only the language it shows.
 export const gu: Texts = {
   appName: 'ગ્રોસરી ખાતા',
+  authTagline: 'તમારી દુકાનનાં બિલ, ખાતું અને સ્ટોક, એક જ એપમાં',
   signIn: 'સાઇન ઇન',
   signUp: 'નવી દુકાન ખોલો',
   phone: 'મોબાઇલ નંબર',

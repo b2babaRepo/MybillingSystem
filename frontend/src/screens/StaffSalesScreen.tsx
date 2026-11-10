@@ -28,7 +28,7 @@ export function StaffSalesScreen({ shopId }: { shopId: string }) {
   const totalCommission = (rows ?? []).reduce((n, r) => n + r.commission, 0)
   return (
     <div className="flex flex-col gap-3 p-4 pb-24">
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm print:shadow-none">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{label}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= now} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>

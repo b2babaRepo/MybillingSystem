@@ -276,6 +276,7 @@ export const guMoreA = {
     recount: 'ફરી ગણો',
   },
   trade: {
+    detailsTitle: 'બિલની વિગત', notAdded: 'ઉમેર્યું નથી',
     stateSet: 'ગ્રાહકનું રાજ્ય', stateSaved: 'રાજ્ય સેવ થયું. નવાં બિલ તે વાપરશે.',
     addressSet: 'ગ્રાહકનું સરનામું', addressAsk: 'બિલ માટે ગ્રાહકનું સરનામું (કાઢવા ખાલી રાખો)', addressSaved: 'સરનામું સેવ થયું. બિલ પર દેખાશે.',
     gstinSet: 'ખરીદનારનો GSTIN', gstinAsk: 'ગ્રાહકનો GSTIN (કાઢવા ખાલી રાખો)', gstinSaved: 'GSTIN સેવ થયો. નવાં બિલ પર દેખાશે.',

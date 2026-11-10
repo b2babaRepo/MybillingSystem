@@ -78,7 +78,7 @@ export function KharchaMonth({ shopId, shopName }: { shopId: string; shopName: s
 
   return (
     <>
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{monthLabel(month)}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= thisMonth()} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -101,7 +101,7 @@ export function KharchaMonth({ shopId, shopName }: { shopId: string; shopName: s
 
         {m.count > 0 && <>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => navigate(`/print/kharcha/${m.month}`)} className="min-h-12 rounded-xl border border-line bg-white font-bold">{t('kharchaMonth.pdf')}</button>
+            <button onClick={() => navigate(`/print/kharcha/${m.month}`)} className="min-h-12 rounded-xl border border-line bg-white font-bold transition hover:bg-[#f6faf9]">{t('kharchaMonth.pdf')}</button>
             <a href={whatsAppLink(null, shareText(m, shopName, t))} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-center rounded-xl bg-[#15803d] font-bold text-white">{t('kharchaMonth.share')}</a>
           </div>
 

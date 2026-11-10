@@ -246,7 +246,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
   return (
     <div className="flex flex-col gap-3 p-4 lg:mx-auto lg:max-w-3xl">
       {viewSwitch}
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{isToday ? t('expense.today') : label}</span>
         <button onClick={() => setDay(shiftDay(day, 1))} disabled={isToday} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -291,7 +291,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
             <p className="text-sm text-muted">{t('expense.consentKeep')}</p>
             <div className="grid grid-cols-2 gap-2">
               <button disabled={busy} onClick={() => void agree()} className="h-12 rounded-xl bg-teal-700 font-bold text-white">{t('expense.consentYes')}</button>
-              <button onClick={() => setAskConsent(null)} className="h-12 rounded-xl border border-line font-semibold">{t('expense.consentNo')}</button>
+              <button onClick={() => setAskConsent(null)} className="h-12 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">{t('expense.consentNo')}</button>
             </div>
           </div>
         )}
@@ -313,7 +313,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
               <div className="flex items-center gap-2">
                 <label className="sr-only" htmlFor={`cat-${g.key}`}>{t('expense.heading')}</label>
                 <select id={`cat-${g.key}`} value={g.category} onChange={(e) => update(g.key, { category: e.target.value as ExpenseCategory, headingLater: false })}
-                  className="h-11 flex-1 rounded-xl border border-line bg-white px-2">
+                  className="h-11 flex-1 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
                   {ALL.map((c) => <option key={c} value={c}>{ICONS[c]} {t(`expense.cat.${c}`)}</option>)}
                 </select>
                 <label className="sr-only" htmlFor={`amt-${g.key}`}>{t('expense.amount')}</label>
@@ -323,10 +323,10 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
               <div className="flex items-center gap-2">
                 <label className="sr-only" htmlFor={`note-${g.key}`}>{t('expense.note')}</label>
                 <input id={`note-${g.key}`} value={g.note} onChange={(e) => update(g.key, { note: e.target.value })} maxLength={120}
-                  className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3" />
+                  className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
                 {(['cash', 'upi'] as const).map((m) => (
                   <button key={m} onClick={() => update(g.key, { mode: m })} aria-pressed={g.mode === m}
-                    className={`h-11 rounded-xl px-3 text-sm font-semibold ${g.mode === m ? 'bg-ink text-white' : 'border border-line bg-white'}`}>{t(m)}</button>
+                    className={`h-11 rounded-xl px-3 text-sm font-semibold ${g.mode === m ? 'bg-teal-700 text-white shadow-sm' : 'border border-line bg-white'}`}>{t(m)}</button>
                 ))}
                 <button onClick={() => setGuesses(guesses.filter((x) => x.key !== g.key))} aria-label={t('expense.remove')} className="h-11 w-11 rounded-xl text-xl text-muted">×</button>
               </div>

@@ -44,7 +44,7 @@ export function MyStoreScreen({ shopName, slug }: { shopName: string; slug: stri
       </div>
       <Button tone="plain" className="print:hidden" onClick={() => window.print()}>{t('myStore.printQr')}</Button>
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 print:hidden">
+      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 print:hidden shadow-sm">
         <h2 className="text-base font-bold">{t('myStore.alerts')}</h2>
         <p className="text-sm text-muted">{t('myStore.alertsHint')}</p>
         {alerts ? (

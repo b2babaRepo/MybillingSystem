@@ -186,7 +186,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
       {!open ? (
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => { setExchange(true); setReason(t('exchange.reason')); setOpen(true) }} className="h-11 rounded-xl bg-teal-700 font-semibold text-white">{t('exchange.start')}</button>
-          <button onClick={() => { setExchange(false); setOpen(true) }} className="h-11 rounded-xl border border-line font-semibold">{t('creditNote.start')}</button>
+          <button onClick={() => { setExchange(false); setOpen(true) }} className="h-11 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">{t('creditNote.start')}</button>
         </div>
       ) : (
         <div className="flex flex-col gap-2 rounded-xl border border-line p-3">

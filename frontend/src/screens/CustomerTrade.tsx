@@ -21,6 +21,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
   const queryClient = useQueryClient()
   const sites = useQuery({ queryKey: [shopId, 'sites', customer.id], queryFn: () => api<SiteTotal[]>(`/v1/customers/${customer.id}/sites`) }).data ?? []
   const challans = useQuery({ queryKey: [shopId, 'challans', customer.id], queryFn: () => api<Challan[]>(`/v1/challans?customerId=${customer.id}`) }).data ?? []
+  const details = useQuery({ queryKey: [shopId, 'bill-details', customer.id], queryFn: () => api<{ gstin: string | null; address: string | null; state: string | null }>(`/v1/customers/${customer.id}/bill-details`) }).data
   const [limit, setLimit] = useState<string | null>(null)
   const [picked, setPicked] = useState<string[]>([])
   const [paid, setPaid] = useState('0')
@@ -82,20 +83,50 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
   })
 
   const over = customer.creditLimit ? customer.balance > customer.creditLimit : false
+  const used = customer.creditLimit ? Math.min(100, Math.max(0, (customer.balance / customer.creditLimit) * 100)) : 0
+  // One row of bill details: icon, label, what is saved (or "Not added"), and a chevron when the owner can change it.
+  const row = (icon: string, label: string, value: string | null | undefined, onClick: () => void) => {
+    const body = (
+      <>
+        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#edf2f1] text-lg">{icon}</span>
+        <span className="flex min-w-0 flex-1 flex-col text-left">
+          <span className="text-sm text-muted">{label}</span>
+          <span className={`truncate font-semibold ${value ? '' : 'text-muted/70 font-normal italic'}`}>{value || t('trade.notAdded')}</span>
+        </span>
+        {isOwner && <span aria-hidden className="text-xl text-muted">›</span>}
+      </>
+    )
+    return isOwner
+      ? <button key={label} onClick={onClick} className="flex min-h-16 w-full items-center gap-3 px-3 py-2 hover:bg-[#f6faf9] active:bg-[#edf2f1]">{body}</button>
+      : <div key={label} className="flex min-h-16 items-center gap-3 px-3 py-2">{body}</div>
+  }
 
   return (
     <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
-      {/* Credit limit */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex flex-col">
-          <span className="text-sm text-muted">{t('trade.creditLimit')}</span>
-          <span className={`text-lg font-bold ${over ? 'text-due' : ''}`}>
-            {customer.creditLimit ? formatRupees(customer.creditLimit) : t('trade.noLimit')}{over ? ` · ${t('trade.crossed')}` : ''}
+      {/* Credit limit, with how much of it is used */}
+      <div className={`flex flex-col gap-2 rounded-2xl border p-3 ${over ? 'border-red-200 bg-red-50/60' : 'border-line'}`}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-3">
+            <span aria-hidden className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-lg">🛡️</span>
+            <span className="flex flex-col">
+              <span className="text-sm text-muted">{t('trade.creditLimit')}</span>
+              <span className={`text-lg font-bold ${over ? 'text-due' : ''}`}>
+                {customer.creditLimit ? formatRupees(customer.creditLimit) : t('trade.noLimit')}{over ? ` · ${t('trade.crossed')}` : ''}
+              </span>
+            </span>
           </span>
-        </span>
-        {isOwner && limit === null && (
-          <button onClick={() => setLimit(customer.creditLimit ? String(customer.creditLimit) : '')} className="min-h-11 px-2 text-sm text-teal-700 underline">{t('trade.setLimit')}</button>
-        )}
+          {isOwner && limit === null && (
+            <button onClick={() => setLimit(customer.creditLimit ? String(customer.creditLimit) : '')} className="min-h-10 rounded-full border border-teal-700/30 bg-teal-50/60 px-4 text-sm font-semibold text-teal-800 hover:bg-teal-50">{t('trade.setLimit')}</button>
+          )}
+        </div>
+        {customer.creditLimit ? (
+          <div className="flex flex-col gap-1">
+            <div className="h-2 overflow-hidden rounded-full bg-[#edf2f1]" role="meter" aria-valuemin={0} aria-valuemax={customer.creditLimit} aria-valuenow={Math.max(0, customer.balance)} aria-label={t('trade.creditLimit')}>
+              <div className={`h-full rounded-full ${over ? 'bg-due' : used > 80 ? 'bg-amber-500' : 'bg-teal-600'}`} style={{ width: `${over ? 100 : used}%` }} />
+            </div>
+            <span className="text-xs text-muted">{formatRupees(Math.max(0, customer.balance))} / {formatRupees(customer.creditLimit)}</span>
+          </div>
+        ) : null}
       </div>
       {limit !== null && (
         <div className="flex gap-2">
@@ -106,11 +137,17 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
         </div>
       )}
 
-      {isOwner && <button onClick={() => void setGstin()} className="min-h-11 self-start text-sm text-teal-700 underline">{t('trade.gstinSet')}</button>}
-      {isOwner && <button onClick={() => void setAddress()} className="min-h-11 self-start text-sm text-teal-700 underline">{t('trade.addressSet')}</button>}
-      {isOwner && stateCode === null && <button onClick={() => void openState()} className="min-h-11 self-start text-sm text-teal-700 underline">{t('trade.stateSet')}</button>}
+      {/* Bill details: what prints on this customer's GST bills */}
+      <div className="flex flex-col">
+        <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-muted">{t('trade.detailsTitle')}</h2>
+        <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
+          {row('🧾', t('trade.gstinSet'), details?.gstin, () => void setGstin())}
+          {row('📍', t('trade.addressSet'), details?.address, () => void setAddress())}
+          {stateCode === null && row('🗺️', t('trade.stateSet'), details?.state ? GST_STATES[details.state] ?? details.state : null, () => void openState())}
+        </div>
+      </div>
       {stateCode !== null && (
-        <select aria-label={t('trade.stateSet')} value={stateCode} disabled={busy} onChange={(e) => void saveState(e.target.value)} className="h-11 self-start rounded-xl border border-line bg-white px-2">
+        <select aria-label={t('trade.stateSet')} value={stateCode} disabled={busy} onChange={(e) => void saveState(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-2">
           <option value="">{t('trade.noPainter')}</option>
           {Object.entries(GST_STATES).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
         </select>
@@ -154,7 +191,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
               </div>
               <div className="flex gap-2 text-sm">
                 {(['cash', 'upi'] as const).map((m) => (
-                  <button key={m} onClick={() => setMode(m)} className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-ink text-white' : 'border border-line bg-white'}`}>{t(m)}</button>
+                  <button key={m} onClick={() => setMode(m)} className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-teal-700 text-white shadow-sm' : 'border border-line bg-white'}`}>{t(m)}</button>
                 ))}
               </div>
               <button disabled={busy} onClick={() => void invoice()} className="h-12 rounded-2xl bg-teal-700 font-bold text-white">

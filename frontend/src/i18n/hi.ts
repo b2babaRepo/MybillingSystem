@@ -3,6 +3,7 @@ import type { Texts } from './en'
 // Hindi text. Loaded on demand: a phone downloads only the language it shows.
 export const hi: Texts = {
   appName: 'ग्रोसरी खाता',
+  authTagline: 'आपकी दुकान का बिल, खाता और स्टॉक, एक ऐप में',
   signIn: 'साइन इन',
   signUp: 'नई दुकान खोलें',
   phone: 'मोबाइल नंबर',

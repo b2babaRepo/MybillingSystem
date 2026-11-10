@@ -165,7 +165,7 @@ function Catalogue({ slug }: { slug: string }) {
           ‹ {t('store.allAisles')}
         </button>
       ) : (
-        <div className="mx-4 mt-3 rounded-[18px] bg-white p-3">
+        <div className="mx-4 mt-3 rounded-[18px] bg-white p-3 shadow-sm">
           <AisleTiles available={stocked} onPick={(a) => setCategory(a.code)} />
           {stocked.has('other') && (
             <button onClick={() => setCategory('other')} className="mt-3 min-h-11 w-full rounded-xl bg-[#edf2f1] font-semibold">{t('store.otherItems')}</button>
@@ -302,7 +302,7 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
         </div>
         {form.fulfilment === 'delivery' && (
           <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.address')}</span>
-            <textarea value={form.address} onChange={set('address')} required rows={2} maxLength={300} autoComplete="street-address" className="w-full rounded-[14px] border-[1.5px] border-line bg-white p-3 text-lg" /></label>
+            <textarea value={form.address} onChange={set('address')} required rows={2} maxLength={300} autoComplete="street-address" className="w-full rounded-[14px] border-[1.5px] border-line bg-white p-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
         )}
         <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.when')}</span>
           <input value={form.slot} onChange={set('slot')} maxLength={80} placeholder={t('plan.whenPlaceholder')} className={input} /></label>
@@ -358,7 +358,7 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
           <p className="text-sm text-muted">{t('store.keepLink')}</p>
         </section>
 
-        <ul className="rounded-[18px] bg-white px-4">
+        <ul className="rounded-[18px] bg-white px-4 shadow-sm">
           {order.lines.map((l) => (
             <li key={l.id} className={`flex justify-between gap-2 border-b border-[#edf2f1] py-2.5 last:border-0 ${l.removed ? 'text-due line-through' : ''}`}>
               <span className="flex flex-col">
@@ -370,7 +370,7 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
           ))}
         </ul>
 
-        <p className="flex justify-between rounded-[18px] bg-white p-4 text-xl font-extrabold">
+        <p className="flex justify-between rounded-[18px] bg-white p-4 text-xl font-extrabold shadow-sm">
           <span>{order.finalAmount === null ? t('store.estimate') : t('plan.finalAmount')}</span>
           <span>{formatRupees(amount)}</span>
         </p>

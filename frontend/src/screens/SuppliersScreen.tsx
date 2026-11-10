@@ -61,7 +61,7 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
   return (
     <ListDetail hasDetail={!!openId} detail={openId && <SupplierPage shopId={shopId} shopName={shopName} id={openId} onBack={() => setOpenId(null)} />} placeholder={t('suppliers.pick')} list={
     <div className="flex flex-col gap-3 p-4">
-      <section className="rounded-[18px] bg-white p-4">
+      <section className="rounded-[18px] bg-white p-4 shadow-sm">
         <span className="text-sm font-semibold text-muted">{t('suppliers.totalDue')}</span>
         <p className="text-2xl font-extrabold text-due">{formatRupees(due)}</p>
         {due > 0 && (
@@ -72,25 +72,30 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
           </div>
         )}
       </section>
-      <input type="search" aria-label={t('supplier2.search')} placeholder={t('supplier2.search')} value={search} onChange={(e) => setSearch(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3" />
+      <span className="relative block">
+        <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">🔍</span>
+        <input type="search" aria-label={t('supplier2.search')} placeholder={t('supplier2.search')} value={search} onChange={(e) => setSearch(e.target.value)} className="h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-3 shadow-sm outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+      </span>
       {anyOff && <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} className="h-5 w-5" />{t('supplier2.showOff')}</label>}
       <ul className="flex flex-col gap-2">
         {ordered.map((s) => (
           <li key={s.id}>
-            <button onClick={() => setOpenId(s.id)} aria-current={openId === s.id ? 'true' : undefined} className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-[18px] bg-white px-4 py-2 text-left lg:hover:shadow-md ${openId === s.id ? 'lg:ring-2 lg:ring-teal-700' : ''}`}>
-              <span className="flex min-w-0 flex-col">
+            <button onClick={() => setOpenId(s.id)} aria-current={openId === s.id ? 'true' : undefined} className={`flex min-h-16 w-full items-center gap-3 rounded-[18px] bg-white px-3 py-2 text-left shadow-sm transition hover:bg-[#f6faf9] lg:hover:shadow-md ${openId === s.id ? 'lg:ring-2 lg:ring-teal-700' : ''}`}>
+              <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.due > 0 ? 'bg-red-50 text-due' : 'bg-[#edf2f1] text-muted'}`}>{s.name.split(/s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}</span>
+              <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate font-bold">{s.name}{s.isActive === false ? ` · ${t('supplier2.off')}` : ''}</span>
                 {s.due > 0 && (s.oldestDays ?? 0) > 0 && (
                   <span className={`text-[13px] font-semibold ${(s.oldestDays ?? 0) > 30 ? 'text-due' : (s.oldestDays ?? 0) > 15 ? 'text-udhaar' : 'text-muted'}`}>{t('suppliers.oldest', { days: s.oldestDays })}</span>
                 )}
               </span>
               <span className={`shrink-0 text-right font-bold ${s.due > 0 ? 'text-due' : 'text-muted'}`}>{formatRupees(Math.abs(s.due))}{s.due !== 0 && <span className="block text-xs font-normal text-muted">{t(s.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>
+              <span aria-hidden className="text-muted">›</span>
             </button>
           </li>
         ))}
       </ul>
       <SupplierImport shopId={shopId} />
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
         <h2 className="font-bold">{t('suppliers.add')}</h2>
         <Field label={t('suppliers.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={120} />
         <Field label={t('suppliers.phone')} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} inputMode="tel" />
@@ -258,14 +263,14 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
   return (
     <div className="flex flex-col gap-3 p-4">
       <button onClick={onBack} className="min-h-11 self-start font-semibold text-teal-700">← {t('suppliers.all')}</button>
-      <section className="flex items-center justify-between rounded-[18px] bg-white p-4">
+      <section className="flex items-center justify-between rounded-[18px] bg-white p-4 shadow-sm">
         <span className="flex min-w-0 flex-col"><span className="truncate text-lg font-bold">{s?.name}</span>
           <span className="flex gap-3 text-sm"><button onClick={startEdit} className="min-h-11 font-semibold text-teal-700 underline">{t('supplier2.edit')}</button>
           <button onClick={() => navigate(`/print/supplier/${id}`)} className="min-h-11 font-semibold text-teal-700 underline">{t('supplier2.statement')}</button></span></span><span className="text-right text-xl font-extrabold text-due">{s ? formatRupees(Math.abs(s.due)) : '–'}{s && s.due !== 0 && <span className="block text-xs font-normal text-muted">{t(s.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>
       </section>
 
       {editing && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
           <Field label={t('suppliers.name')} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} maxLength={120} />
           <Field label={t('suppliers.phone')} value={editing.phone} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} inputMode="tel" />
           <Field label={t('supplier2.gstin')} value={editing.gstin} onChange={(e) => setEditing({ ...editing, gstin: e.target.value })} maxLength={15} autoCapitalize="characters" />
@@ -280,7 +285,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       )}
 
       {detail.data && !detail.data.entries.some((e) => e.kind === 'opening') && (
-        <details className="rounded-[18px] bg-white p-4">
+        <details className="rounded-[18px] bg-white p-4 shadow-sm">
           <summary className="min-h-11 cursor-pointer font-bold">{t('supplier2.opening')}</summary>
           <p className="mb-2 text-sm text-muted">{t('supplier2.openingHint')}</p>
           <div className="grid grid-cols-2 gap-2">
@@ -294,12 +299,12 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
         </details>
       )}
 
-      <label className="flex flex-col gap-1 rounded-[18px] bg-white p-4"><span className="text-sm font-medium text-muted">{t('suppliers.mode')}</span>
+      <label className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm"><span className="text-sm font-medium text-muted">{t('suppliers.mode')}</span>
         <select value={mode} onChange={(e) => setMode(e.target.value as 'cash' | 'upi' | 'bank')} className={input}>
           <option value="cash">{t('cash')}</option><option value="upi">{t('upi')}</option><option value="bank">{t('bank')}</option>
         </select></label>
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
         <h2 className="font-bold">{t('suppliers.pay')}</h2>
         <div className="flex gap-2">
           <input aria-label={t('suppliers.pay')} value={pay} onChange={(e) => setPay(e.target.value)} inputMode="decimal" className={`${input} flex-1`} />
@@ -312,7 +317,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       {s && <OrdersPanel shopId={shopId} shopName={shopName} supplierId={id} phone={s.phone} products={products} onGoodsCame={goodsCame} />}
       {s && <ReceiptsPanel shopId={shopId} supplierId={id} products={products} onBill={billFor} />}
 
-      <section id="supplier-bill" className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <section id="supplier-bill" className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
         <h2 className="font-bold">{t('suppliers.bill')}</h2>
         {fromReceipts.length > 0 && (
           <p className="flex items-start justify-between gap-2 rounded-xl bg-teal-50 p-2 text-sm text-teal-900">
@@ -385,9 +390,9 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
 
       <ReturnsPanel shopId={shopId} supplierId={id} products={products} />
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
         <div className="flex gap-2">
-          {(['all', 'bills', 'payments'] as const).map((v) => <button key={v} onClick={() => setView(v)} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${view === v ? 'bg-ink text-white' : 'border border-line'}`}>{t(`supplier2.${v}`)}</button>)}
+          {(['all', 'bills', 'payments'] as const).map((v) => <button key={v} onClick={() => setView(v)} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${view === v ? 'bg-teal-700 text-white shadow-sm' : 'border border-line'}`}>{t(`supplier2.${v}`)}</button>)}
         </div>
         {shown.length === 0 && <p className="text-sm text-muted">{t('supplier2.noLines')}</p>}
         <ul className="flex flex-col">

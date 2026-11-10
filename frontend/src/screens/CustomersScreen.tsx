@@ -25,28 +25,46 @@ export function CustomersScreen({ shopId, selectedId, isOwner = false }: { shopI
   return (
     <div className="p-4">
       <OpenDisputesBanner />
-      <Button className="mb-3 hidden w-full lg:block" onClick={() => setAdding(true)}>+ {t('addCustomer')}</Button>
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t('search')}
-        aria-label={t('search')}
-        className="mb-3 h-12 w-full rounded-[14px] border border-line bg-white px-4 text-[17px] outline-none focus:border-teal-600"
-      />
-      <div className="mb-3 flex gap-2">
-        {(['due', 'old', 'az'] as const).map((key) => (
-          <button
-            key={key}
-            onClick={() => setSort(key)}
-            className={`h-11 rounded-full px-4 text-[15px] font-semibold ${sort === key ? 'bg-ink text-white' : 'border border-line bg-white text-ink'}`}
-          >
-            {t(`sort.${key}`)}
+      <Button className="mb-3 hidden h-14 w-full text-lg shadow-md shadow-teal-900/15 lg:block" onClick={() => setAdding(true)}>+ {t('addCustomer')}</Button>
+      <div className="mb-3 flex flex-col gap-3 rounded-[18px] bg-white p-3 shadow-sm">
+        <span className="relative block">
+          <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">🔍</span>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('search')}
+            aria-label={t('search')}
+            className="h-12 w-full rounded-2xl border border-line bg-[#f6faf9] pl-11 pr-4 text-[17px] outline-none transition focus:border-teal-600 focus:bg-white focus:ring-4 focus:ring-teal-600/10"
+          />
+        </span>
+        {/* Sort: one segmented control. */}
+        <div className="grid grid-cols-3 gap-1 rounded-2xl bg-[#edf2f1] p-1">
+          {(['due', 'old', 'az'] as const).map((key) => (
+            <button
+              key={key}
+              onClick={() => setSort(key)}
+              aria-pressed={sort === key}
+              className={`h-10 rounded-xl text-[15px] font-semibold transition ${sort === key ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted hover:text-ink'}`}
+            >
+              {t(`sort.${key}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {/* Shortcuts as cards, not bare links. */}
+      <div className={`mb-3 grid gap-2 ${isOwner ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <button onClick={() => navigate('/receipts')} className="flex min-h-14 items-center gap-2.5 rounded-2xl bg-white p-3 text-left text-sm font-semibold shadow-sm hover:bg-[#f6faf9]">
+          <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-50 text-lg">💰</span>
+          <span className="min-w-0 flex-1">{t('receipts.link')}</span><span aria-hidden className="text-muted">›</span>
+        </button>
+        {isOwner && (
+          <button onClick={() => navigate('/khata/import')} className="flex min-h-14 items-center gap-2.5 rounded-2xl bg-white p-3 text-left text-sm font-semibold shadow-sm hover:bg-[#f6faf9]">
+            <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-lg">📥</span>
+            <span className="min-w-0 flex-1 leading-snug">{t('partyImport.link')}</span><span aria-hidden className="text-muted">›</span>
           </button>
-        ))}
+        )}
       </div>
       {!isLoading && customers.length === 0 && <p className="py-8 text-center text-muted">{t('noCustomers')}</p>}
-      <button onClick={() => navigate('/receipts')} className="mb-2 mr-4 min-h-11 text-sm font-semibold text-teal-700 underline">{t('receipts.link')}</button>
-      {isOwner && <button onClick={() => navigate('/khata/import')} className="mb-2 min-h-11 text-sm font-semibold text-teal-700 underline">{t('partyImport.link')}</button>}
       <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
         {shown.map((c) => (
           <li key={c.id}>
