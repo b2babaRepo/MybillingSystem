@@ -99,6 +99,32 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // An estimate the customer agreed to: its lines come into this bill (read once), and saving the bill marks it billed.
   const [fromEstimate, setFromEstimate] = useState<{ id: string; number: number } | null>(null)
   const [estimateSaved, setEstimateSaved] = useState<{ id: string; number: number } | null>(null)
+  // A sale order being delivered: what it still has to go fills the cart (change it for a part delivery).
+  const [fromOrder, setFromOrder] = useState<{ id: string; number: number } | null>(null)
+  const [orderSaved, setOrderSaved] = useState<number | null>(null)
+  useEffect(() => {
+    let raw: string | null = null
+    try { raw = sessionStorage.getItem('gk-sale-order'); sessionStorage.removeItem('gk-sale-order') } catch { /* no storage */ }
+    if (!raw) return
+    const o = JSON.parse(raw) as { id: string; number: number; customerId: string | null; lines: { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number }[] }
+    startedAt.current = 0
+    setCart(o.lines.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })))
+    setCustomerId(o.customerId ?? '')
+    setFromOrder({ id: o.id, number: o.number })
+  }, [])
+  async function saveOrder() {
+    if (cart.length === 0 || !customerId) return
+    try {
+      const o = await api<{ number: number }>('/v1/sale-orders', 'POST', {
+        id: crypto.randomUUID(), customerId,
+        lines: cart.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })),
+      })
+      setOrderSaved(o.number)
+      setCart([]); setCustomerId(''); setPaid(null); setSaved(null); setFromEstimate(null)
+    } catch (err) {
+      await ask(err instanceof Error ? err.message : String(err))
+    }
+  }
   useEffect(() => {
     let raw: string | null = null
     try { raw = sessionStorage.getItem('gk-estimate'); sessionStorage.removeItem('gk-estimate') } catch { /* no storage */ }
@@ -360,6 +386,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       setFromEstimate(null)
     }
     setEstimateSaved(null)
+    if (fromOrder) {
+      await enqueue({ id: `${fromOrder.id}:${result.id}`, shopId, kind: 'saleOrderDelivered', path: `/v1/sale-orders/${fromOrder.id}/delivered`, body: { billId: result.id }, label: t('saleOrder.number', { number: fromOrder.number }) })
+      setFromOrder(null)
+    }
+    setOrderSaved(null)
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
     if (exchange) { endExchange(); setExchangeState(null) }
@@ -862,7 +893,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
           {needsBuyerAddress && <p className="text-sm font-semibold text-due">{t('print.bigBillAddress')}</p>}
           {fromEstimate && <p className="rounded-xl bg-teal-50 p-2 text-sm text-teal-900">{t('estimate.fromEstimate', { number: fromEstimate.number })}</p>}
+          {fromOrder && <p className="rounded-xl bg-teal-50 p-2 text-sm text-teal-900">🚚 {t('saleOrder.fromOrder', { number: fromOrder.number })}</p>}
+          {orderSaved !== null && <p className="rounded-xl bg-emerald-50 p-2 text-sm font-semibold text-emerald-800">{t('saleOrder.saved', { number: orderSaved })} <button onClick={() => navigate('/sale-orders')} className="underline">{t('saleOrder.open')}</button></p>}
           <button type="button" onClick={() => void saveEstimate()} disabled={cart.length === 0 || !!fromEstimate} className="flex min-h-10 items-center gap-1.5 self-start rounded-full border border-dashed border-teal-700/40 px-3.5 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-40"><span aria-hidden>📝</span>{t('estimate.save')}</button>
+          <button type="button" onClick={() => void saveOrder()} disabled={cart.length === 0 || !customerId || !!fromOrder || !!fromEstimate} title={!customerId ? t('saleOrder.needCustomer') : undefined} className="flex min-h-10 items-center gap-1.5 self-start rounded-full border border-dashed border-teal-700/40 px-3.5 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-40"><span aria-hidden>📦</span>{t('saleOrder.save')}</button>
           <div className="flex gap-2 border-t border-line pt-4">
             <button type="button" onClick={holdBill} className="flex min-h-14 shrink-0 items-center gap-1.5 rounded-2xl border-2 border-teal-700 px-4 font-bold text-teal-800 hover:bg-teal-50"><span aria-hidden>⏸</span>{t('hold.button')}</button>
             <Button className="h-14 flex-1 text-lg shadow-md shadow-teal-900/15" id="bill-save" onClick={save} disabled={!canSave}>

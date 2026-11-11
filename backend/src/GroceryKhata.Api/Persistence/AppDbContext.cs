@@ -95,6 +95,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
 
     public DbSet<Estimate> Estimates => Set<Estimate>();
+    public DbSet<SaleOrder> SaleOrders => Set<SaleOrder>();
 
     public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
 
@@ -607,6 +608,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Name).HasMaxLength(120);
             b.Property(p => p.Phone).HasMaxLength(16);
             b.Property(p => p.CommissionPercent).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<SaleOrder>(b =>
+        {
+            b.ToTable("sale_orders");
+            b.HasTenantKey();
+            b.Property(o => o.Lines).HasColumnType("jsonb");
+            b.Property(o => o.BillIds).HasColumnType("jsonb");
+            b.Property(o => o.PartyName).HasMaxLength(80);
+            b.Property(o => o.Note).HasMaxLength(300);
+            b.Property(o => o.Total).HasPrecision(14, 2);
+            b.HasIndex(o => new { o.ShopId, o.Number }).IsUnique();
         });
 
         modelBuilder.Entity<Estimate>(b =>

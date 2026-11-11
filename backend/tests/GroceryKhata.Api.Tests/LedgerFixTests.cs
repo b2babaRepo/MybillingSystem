@@ -1412,4 +1412,37 @@ public sealed class LedgerFixTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/push/subscribe", new { endpoint = "http://push.example/abc", p256dh = "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth = "tBHItJI5svbpez7KI4CCXg" })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await shop.PostJsonAsync("/api/v1/push/subscribe", new { endpoint = "https://push.example/abc", p256dh = "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth = "tBHItJI5svbpez7KI4CCXg" })).StatusCode);
     }
+    [Fact]
+    public async Task Sale_orders_hold_stock_show_who_is_short_and_count_down_as_bills_deliver()
+    {
+        var shop = await ShopAsync("building_materials");
+        var cement = await ItemAsync(shop, "Cement OPC 53", 400m, 100m);
+        var contractor = await KhataTests.CreateCustomerAsync(shop, "Verma Builders");
+        object Order(Guid id, decimal qty, string? party = null) => new
+        {
+            id, customerId = party is null ? contractor : (Guid?)null, partyName = party, lines = new[] { new { productId = cement.Id, quantity = qty, unitPrice = 380m } },
+        };
+
+        // 80 bags booked first, then 60 by someone else: 100 on the shelf, so the second order is 40 short.
+        var first = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/sale-orders", Order(first, 80m))).EnsureSuccessStatusCode();
+        var second = await (await shop.PostJsonAsync("/api/v1/sale-orders", Order(Guid.CreateVersion7(), 60m, "Site 4 Mukesh"))).ReadAsync<SaleOrderDto>();
+        Assert.Equal((60m, 40m), (second.Lines[0].Pending, second.Lines[0].ShortBy));
+        Assert.Equal(140m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).Promised);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/sale-orders", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = cement.Id, quantity = 1m, unitPrice = 1m } } })).StatusCode);
+
+        // 30 bags delivered on a bill: the first order has 50 to go; the same bill twice counts once.
+        var bill = await (await Bill(shop, contractor, cement.Id, 30m, 380m, 0m)).ReadAsync<BillDto>();
+        var after = await (await shop.PostJsonAsync($"/api/v1/sale-orders/{first}/delivered", new { billId = bill.Id })).ReadAsync<SaleOrderDto>();
+        Assert.Equal(("part", 50m, 30m), (after.State, after.Lines[0].Pending, after.Lines[0].Delivered));
+        after = await (await shop.PostJsonAsync($"/api/v1/sale-orders/{first}/delivered", new { billId = bill.Id })).ReadAsync<SaleOrderDto>();
+        Assert.Equal(50m, after.Lines[0].Pending);
+        // Partly delivered can't be cancelled, only closed short; then it holds nothing.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/sale-orders/{first}/cancel", new { })).StatusCode);
+        Assert.Equal("closed", (await (await shop.PostJsonAsync($"/api/v1/sale-orders/{first}/close", new { })).ReadAsync<SaleOrderDto>()).State);
+        var open = await shop.GetJsonAsync<List<SaleOrderDto>>("/api/v1/sale-orders?open=true");
+        var left = Assert.Single(open);
+        Assert.Equal((second.Id, 0m), (left.Id, left.Lines[0].ShortBy));
+        Assert.Equal(60m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).Promised);
+    }
 }

@@ -121,6 +121,8 @@ public static class PharmacyAssist
             .GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => { var x = g.OrderByDescending(y => y.OccurredAt).First(); return (x.SupplierId, x.UnitCost); });
         var lead = await LeadDaysAsync(db, ct);
         var pending = await PurchaseOrders.PendingAsync(db, ct);
+        // Stock promised on open sale orders isn't free to sell: it counts as already gone.
+        var promised = await SaleOrders.PromisedAsync(db, ct);
 
         var lines = new List<ReorderLineDto>();
         foreach (var p in products)
@@ -130,7 +132,8 @@ public static class PharmacyAssist
             var leadDays = last.TryGetValue(p.Id, out var from) && lead.TryGetValue(from.SupplierId, out var days) ? days : DefaultLeadDays;
             decimal? point = daily > 0 ? Math.Ceiling((daily * leadDays) + Math.Max(daily * 2, daily * leadDays / 2)) : null;
             var onOrder = pending.GetValueOrDefault(p.Id);
-            var due = p.Stock <= 0 || (p.ReorderLevel is { } level && p.Stock <= level) || (point is { } rop && p.Stock + onOrder <= rop);
+            var free = p.Stock - promised.GetValueOrDefault(p.Id);
+            var due = free <= 0 || (p.ReorderLevel is { } level && p.Stock <= level) || (point is { } rop && free + onOrder <= rop);
             if (!due)
             {
                 continue;
@@ -139,7 +142,7 @@ public static class PharmacyAssist
             // Cover a month and the wait, less the shelf and what's coming; at least the reorder level.
             var target = Math.Max((daily * (30 + leadDays)) + (point is { } r ? r - (daily * leadDays) : 0), p.ReorderLevel ?? 0);
             // Out of stock: at least one, even with no sales yet to go by.
-            var suggested = Math.Max(p.Stock <= 0 && onOrder <= 0 ? 1 : 0, Math.Ceiling(target - Math.Max(0, p.Stock) - onOrder));
+            var suggested = Math.Max(free <= 0 && onOrder <= 0 ? 1 : 0, Math.Ceiling(target - Math.Max(0, free) - onOrder));
             if (suggested <= 0)
             {
                 continue;

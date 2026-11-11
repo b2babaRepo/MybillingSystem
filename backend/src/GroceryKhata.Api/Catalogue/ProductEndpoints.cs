@@ -79,7 +79,9 @@ public sealed record ProductDto(
     decimal? DailySales = null,
     // Kept in bags of this size; Bags is how many sealed bags are on hand.
     decimal? BagSize = null,
-    decimal Bags = 0);
+    decimal Bags = 0,
+    // Promised on open sale orders and not yet delivered: Stock − Reserved − Promised is free to sell.
+    decimal Promised = 0);
 
 public sealed record OutTodayRequest(bool Out);
 

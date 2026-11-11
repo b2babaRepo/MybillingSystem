@@ -172,6 +172,7 @@ app.MapCashCounts();
 app.MapMeterReadings();
 app.MapGoodsReceipts();
 app.MapEstimates();
+app.MapSaleOrders();
 app.MapSalesInsights();
 app.MapDayReport();
 app.MapCheques();

@@ -61,6 +61,8 @@ export interface Product {
   /** Kept in bags of this much of its unit (50 = a 50 kg bag); bags is the sealed bags on hand. */
   bagSize?: number | null
   bags?: number
+  /** Promised on open sale orders, not yet delivered. */
+  promised?: number
   /** Out of stock, or at/below the reorder level. */
   isLow: boolean
   /** The shop doesn't count this item: never out or low. */

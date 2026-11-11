@@ -50,7 +50,14 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
             </span>
           })()}
         </span>
-        <StockBadge product={product} large />
+        <span className="flex flex-col items-end gap-1">
+          <StockBadge product={product} large />
+          {(product.promised ?? 0) > 0 && (
+            <button onClick={() => navigate('/sale-orders')} className="text-right text-xs font-semibold text-amber-800 underline">
+              {t('saleOrder.promised', { qty: product.promised })} · {(() => { const free = Math.round((product.stock - (product.reserved ?? 0) - product.promised!) * 1000) / 1000; return free >= 0 ? t('saleOrder.free', { qty: free }) : <span className="text-due">{t('saleOrder.short', { qty: -free })}</span> })()}
+            </button>
+          )}
+        </span>
       </section>
 
       {product.bagSize ? <BagCard shopId={shopId} product={product} /> : null}

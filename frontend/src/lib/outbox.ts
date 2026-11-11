@@ -2,7 +2,7 @@ import { NetworkError, problemMessage, readProblem, request } from './api'
 import { getSession } from './session'
 import { db } from './db'
 
-export type OutboxKind = 'customer' | 'product' | 'khata' | 'bill' | 'reverse' | 'listItem' | 'listItemDelete' | 'order' | 'stock' | 'expense' | 'expenseStrike' | 'orderAction' | 'supplier' | 'estimateBilled'
+export type OutboxKind = 'customer' | 'product' | 'khata' | 'bill' | 'reverse' | 'listItem' | 'listItemDelete' | 'order' | 'stock' | 'expense' | 'expenseStrike' | 'orderAction' | 'supplier' | 'estimateBilled' | 'saleOrderDelivered'
 
 /**
  * One write waiting to reach the server. Every write in the app goes through here, online or not:

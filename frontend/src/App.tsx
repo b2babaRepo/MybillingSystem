@@ -85,6 +85,7 @@ const RoomsScreen = lazy(() => import('./screens/RoomsScreen').then((module) => 
 const TableBookingsScreen = lazy(() => import('./screens/TableBookingsScreen').then((module) => ({ default: module.TableBookingsScreen })))
 const BookingsScreen = lazy(() => import('./screens/BookingsScreen').then((module) => ({ default: module.BookingsScreen })))
 const JobsScreen = lazy(() => import('./screens/JobsScreen').then((module) => ({ default: module.JobsScreen })))
+const SaleOrdersScreen = lazy(() => import('./screens/SaleOrdersScreen').then((module) => ({ default: module.SaleOrdersScreen })))
 const EstimatesScreen = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatesScreen })))
 const EstimatePrint = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatePrint })))
 const OffersScreen = lazy(() => import('./screens/OffersScreen').then((module) => ({ default: module.OffersScreen })))
@@ -262,6 +263,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const sideGroups: { key: string; title: string; add?: { path: string; label: string }; links: { path: string; label: string }[] }[] = [
     { key: 'sell', title: t('menu.sell'), add: { path: '/bill', label: t('menu.addBill') }, links: [
       { path: '/estimates', label: t('estimate.link') },
+      { path: '/sale-orders', label: t('saleOrder.link') },
       { path: '/reports/day', label: t('menu.dayBook') },
       ...(isOwner ? [{ path: '/offers', label: t('offers.link') }] : []),
     ] },
@@ -463,6 +465,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <JobsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/estimates' ? (
           <EstimatesScreen shopId={shopId} />
+        ) : path === '/sale-orders' ? (
+          <SaleOrdersScreen />
         ) : path === '/offers' && isOwner ? (
           <OffersScreen shopId={shopId} />
         ) : path === '/suppliers' ? (
