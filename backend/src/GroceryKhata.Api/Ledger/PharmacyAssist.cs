@@ -10,7 +10,9 @@ public sealed record RefillDto(Guid CustomerId, string CustomerName, string? Pho
 
 /// <summary>One medicine to order: sold <see cref="SoldLast30Days"/> in a month, <see cref="Stock"/> left, so <see cref="Suggested"/> covers a month.</summary>
 /// <summary><see cref="OnOrder"/>: still to come on open orders, already taken off <see cref="Suggested"/>.</summary>
-public sealed record ReorderLineDto(Guid ProductId, string Medicine, decimal Stock, decimal SoldLast30Days, decimal Suggested, decimal? LastRate, decimal OnOrder = 0);
+public sealed record ReorderLineDto(Guid ProductId, string Medicine, decimal Stock, decimal SoldLast30Days, decimal Suggested, decimal? LastRate, decimal OnOrder = 0,
+    // Days the stock lasts at the 30-day sale rate; the supplier's delivery days; and the level at which to order.
+    decimal? DaysLeft = null, int LeadDays = 0, decimal? ReorderPoint = null);
 
 public sealed record ReorderGroupDto(Guid? SupplierId, string? SupplierName, string? Phone, IReadOnlyList<ReorderLineDto> Lines);
 
@@ -81,11 +83,28 @@ public static class PharmacyAssist
             .OrderByDescending(d => d.DaysLate).ThenBy(d => d.CustomerName).ToList();
     }
 
+    /// <summary>The supplier's usual delivery time when nothing is known yet, in days.</summary>
+    public const int DefaultLeadDays = 3;
+
     /// <summary>
-    /// What to order: anything at or under its reorder level, or with less than two weeks of sales left. The suggestion
-    /// covers a month of sales (whole packs), less what's on the shelf. Grouped by the distributor it last came from.
+    /// What to order: anything out, at or under its reorder level, or whose stock won't last until a new order arrives.
+    /// The reorder point is the 30-day average daily sale × the supplier's delivery days (measured from past orders),
+    /// plus a safety margin of half that again (at least 2 days of sales). The suggestion covers a month of sales and
+    /// the delivery time, less what's on the shelf and on its way. Grouped by the supplier it last came from.
     /// </summary>
     private static async Task<IReadOnlyList<ReorderGroupDto>> ReorderAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var (lines, last) = await NeedsAsync(db, clock, ct);
+        var suppliers = await db.Suppliers.AsNoTracking().ToDictionaryAsync(s => s.Id, s => new { s.Name, s.Phone }, ct);
+        return lines
+            .GroupBy(n => last.TryGetValue(n.ProductId, out var from) ? from.SupplierId : (Guid?)null)
+            .Select(g => new ReorderGroupDto(g.Key, g.Key is { } s ? suppliers.GetValueOrDefault(s)?.Name : null, g.Key is { } p ? suppliers.GetValueOrDefault(p)?.Phone : null,
+                g.OrderBy(l => l.Medicine).ToList()))
+            .OrderBy(g => g.SupplierName == null).ThenBy(g => g.SupplierName).ToList();
+    }
+
+    /// <summary>Every item to order now (the current shop), with its days left, delivery days and reorder point.</summary>
+    internal static async Task<(List<ReorderLineDto> Lines, Dictionary<Guid, (Guid SupplierId, decimal UnitCost)> Last)> NeedsAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var since = clock.GetUtcNow().AddDays(-30);
         var sold = await (from l in db.BillLines.AsNoTracking()
@@ -94,26 +113,63 @@ public static class PharmacyAssist
                           group l by l.ProductId into g
                           select new { ProductId = g.Key!.Value, Quantity = g.Sum(l => l.Quantity) }).ToDictionaryAsync(x => x.ProductId, x => x.Quantity, ct);
         var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService && !p.Uncounted).Select(p => new { p.Id, p.Name, p.Stock, p.ReorderLevel }).ToListAsync(ct);
-        var needed = products
-            .Select(p => (p.Id, p.Name, p.Stock, p.ReorderLevel, Sold: sold.GetValueOrDefault(p.Id)))
-            .Where(p => p.Stock <= 0 || (p.ReorderLevel is { } level && p.Stock <= level) || (p.Sold > 0 && p.Stock < p.Sold / 2))
-            .Select(p => (p.Id, p.Name, p.Stock, p.Sold, Suggested: Math.Max(1, Math.Ceiling(Math.Max(p.Sold, p.ReorderLevel ?? 0) - Math.Max(0, p.Stock)))))
-            .ToList();
-        // What is already on its way isn't ordered again; an item whose need it covers drops off the list.
-        var pending = await PurchaseOrders.PendingAsync(db, ct);
-        needed = needed.Select(n => n with { Suggested = n.Suggested - pending.GetValueOrDefault(n.Id) }).Where(n => n.Suggested > 0).ToList();
-        var ids = needed.Select(n => n.Id).ToList();
-        // The distributor and rate each one last came in at.
+        // The supplier and rate each item last came in at.
         var last = (await (from l in db.PurchaseLines.AsNoTracking()
                            join pu in db.Purchases.AsNoTracking() on l.PurchaseId equals pu.Id
-                           where ids.Contains(l.ProductId) && pu.CancelledAt == null
+                           where pu.CancelledAt == null
                            select new { l.ProductId, pu.SupplierId, l.UnitCost, pu.OccurredAt }).ToListAsync(ct))
-            .GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.OccurredAt).First());
-        var suppliers = await db.Suppliers.AsNoTracking().ToDictionaryAsync(s => s.Id, s => new { s.Name, s.Phone }, ct);
-        return needed
-            .GroupBy(n => last.GetValueOrDefault(n.Id)?.SupplierId)
-            .Select(g => new ReorderGroupDto(g.Key, g.Key is { } s ? suppliers.GetValueOrDefault(s)?.Name : null, g.Key is { } p ? suppliers.GetValueOrDefault(p)?.Phone : null,
-                g.Select(n => new ReorderLineDto(n.Id, n.Name, n.Stock, n.Sold, n.Suggested, last.GetValueOrDefault(n.Id)?.UnitCost, pending.GetValueOrDefault(n.Id))).OrderBy(l => l.Medicine).ToList()))
-            .OrderBy(g => g.SupplierName == null).ThenBy(g => g.SupplierName).ToList();
+            .GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => { var x = g.OrderByDescending(y => y.OccurredAt).First(); return (x.SupplierId, x.UnitCost); });
+        var lead = await LeadDaysAsync(db, ct);
+        var pending = await PurchaseOrders.PendingAsync(db, ct);
+
+        var lines = new List<ReorderLineDto>();
+        foreach (var p in products)
+        {
+            var soldMonth = sold.GetValueOrDefault(p.Id);
+            var daily = soldMonth / 30m;
+            var leadDays = last.TryGetValue(p.Id, out var from) && lead.TryGetValue(from.SupplierId, out var days) ? days : DefaultLeadDays;
+            decimal? point = daily > 0 ? Math.Ceiling((daily * leadDays) + Math.Max(daily * 2, daily * leadDays / 2)) : null;
+            var onOrder = pending.GetValueOrDefault(p.Id);
+            var due = p.Stock <= 0 || (p.ReorderLevel is { } level && p.Stock <= level) || (point is { } rop && p.Stock + onOrder <= rop);
+            if (!due)
+            {
+                continue;
+            }
+
+            // Cover a month and the wait, less the shelf and what's coming; at least the reorder level.
+            var target = Math.Max((daily * (30 + leadDays)) + (point is { } r ? r - (daily * leadDays) : 0), p.ReorderLevel ?? 0);
+            // Out of stock: at least one, even with no sales yet to go by.
+            var suggested = Math.Max(p.Stock <= 0 && onOrder <= 0 ? 1 : 0, Math.Ceiling(target - Math.Max(0, p.Stock) - onOrder));
+            if (suggested <= 0)
+            {
+                continue;
+            }
+
+            lines.Add(new ReorderLineDto(p.Id, p.Name, p.Stock, soldMonth, suggested, last.TryGetValue(p.Id, out var l) ? l.UnitCost : null, onOrder,
+                daily > 0 ? decimal.Round(Math.Max(0, p.Stock) / daily, 1) : null, leadDays, point));
+        }
+
+        return (lines, last);
+    }
+
+    /// <summary>
+    /// Each supplier's delivery time: days from a purchase order to the first goods received against it (a receipt or
+    /// a bill), averaged over their last ten orders, between 1 and 30 days.
+    /// </summary>
+    internal static async Task<Dictionary<Guid, int>> LeadDaysAsync(AppDbContext db, CancellationToken ct)
+    {
+        var orders = await db.PurchaseOrders.AsNoTracking().Select(o => new { o.Id, o.SupplierId, o.CreatedAt }).ToListAsync(ct);
+        var receipts = await db.GoodsReceipts.AsNoTracking().Where(r => r.PurchaseOrderId != null && r.CancelledAt == null)
+            .Select(r => new { OrderId = r.PurchaseOrderId!.Value, At = r.ReceivedAt }).ToListAsync(ct);
+        var bills = await db.Purchases.AsNoTracking().Where(x => x.PurchaseOrderId != null && x.CancelledAt == null)
+            .Select(x => new { OrderId = x.PurchaseOrderId!.Value, At = x.OccurredAt }).ToListAsync(ct);
+        var firstIn = receipts.Concat(bills).GroupBy(x => x.OrderId).ToDictionary(g => g.Key, g => g.Min(x => x.At));
+        return orders.Where(o => firstIn.ContainsKey(o.Id))
+            .GroupBy(o => o.SupplierId)
+            .ToDictionary(g => g.Key, g =>
+            {
+                var recent = g.OrderByDescending(o => o.CreatedAt).Take(10).Select(o => (firstIn[o.Id] - o.CreatedAt).TotalDays).ToList();
+                return (int)Math.Clamp(Math.Round(recent.Average()), 1, 30);
+            });
     }
 }

@@ -38,6 +38,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
+        // The morning stock reminder: shown from a push, and opens "What to order" when tapped.
+        importScripts: ['push-sw.js'],
         // The Mukta font, kept after the first visit so text looks the same offline.
         runtimeCaching: [
           {

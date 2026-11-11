@@ -1244,11 +1244,12 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal(6m, bill.Total);
         Assert.Equal(4.7m, (await Item(shop, para.Id)).Stock);
 
-        // 4.4 more strips sold this month: with 0.3 left, a month's worth is due from Shree Pharma at the last rate.
+        // 4.4 more strips sold this month: with 0.3 left, an order is due from Shree Pharma at the last rate.
         (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = para.Id, quantity = 4.4m, unitPrice = 20m } }, paidAmount = 88m, paymentMode = "cash" })).EnsureSuccessStatusCode();
         var group = Assert.Single(await shop.GetJsonAsync<List<ReorderGroupDto>>("/api/v1/pharmacy/reorder"), g => g.SupplierId == supplier);
         var line = Assert.Single(group.Lines);
-        Assert.Equal((4.7m, 5m, 14m), (line.SoldLast30Days, line.Suggested, line.LastRate!.Value));
+        // A month and the supplier's delivery days (3 until measured), with a safety margin: 6 strips.
+        Assert.Equal((4.7m, 6m, 14m), (line.SoldLast30Days, line.Suggested, line.LastRate!.Value));
         Assert.Equal("9829935486", group.Phone);
 
         // A prescription photo stays with the bill, for the shop only.

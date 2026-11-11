@@ -1385,4 +1385,31 @@ public sealed class LedgerFixTests(ApiFactory api)
         var statement = await shop.GetJsonAsync<StockStatement>("/api/v1/reports/stock");
         Assert.Equal(47m, statement.Items.Single(i => i.ProductId == rice).ClosingBags);
     }
+    [Fact]
+    public async Task Order_today_comes_from_sales_and_the_suppliers_delivery_time_and_phones_can_ask_for_it()
+    {
+        var shop = await ShopAsync("kirana");
+        var atta = await ItemAsync(shop, "Atta 10 kg", 400m, 0m);
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Agarwal Flour" })).EnsureSuccessStatusCode();
+        // Ordered and received: the supplier's delivery time is measured from this (at least a day).
+        var orderId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers/orders", new { id = orderId, supplierId = supplier, lines = new[] { new { productId = atta.Id, quantity = 10m } } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = Guid.CreateVersion7(), supplierId = supplier, orderId, lines = new[] { new { productId = atta.Id, quantity = 10m } } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = Guid.CreateVersion7(), supplierId = supplier, lines = new[] { new { productId = atta.Id, quantity = 0.001m, unitCost = 300m } }, paidAmount = 0m })).EnsureSuccessStatusCode();
+        Assert.Equal(0, (await shop.GetJsonAsync<OrderTodayDto>("/api/v1/stock/order-today")).Count);
+
+        // Nine sold this month: 0.3 a day, so one left won't last until a new order comes.
+        (await Bill(shop, null, atta.Id, 9.001m, 400m, 3600.40m)).EnsureSuccessStatusCode();
+        var today = await shop.GetJsonAsync<OrderTodayDto>("/api/v1/stock/order-today");
+        var line = Assert.Single(today.Items);
+        Assert.Equal((atta.Id, 1, 3.3m), (line.ProductId, line.LeadDays, line.DaysLeft));
+        Assert.True(line.Suggested >= 9);
+
+        // A phone asks for the morning reminder: the server's key, then its push address (https only).
+        var key = await shop.GetJsonAsync<System.Text.Json.JsonElement>("/api/v1/push/key");
+        Assert.True(key.GetProperty("key").GetString()!.Length > 40);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/push/subscribe", new { endpoint = "http://push.example/abc", p256dh = "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth = "tBHItJI5svbpez7KI4CCXg" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await shop.PostJsonAsync("/api/v1/push/subscribe", new { endpoint = "https://push.example/abc", p256dh = "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth = "tBHItJI5svbpez7KI4CCXg" })).StatusCode);
+    }
 }

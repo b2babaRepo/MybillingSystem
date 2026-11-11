@@ -217,6 +217,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Ledger.CashMove> CashMoves => Set<Ledger.CashMove>();
     public DbSet<Catalogue.Stocktake> Stocktakes => Set<Catalogue.Stocktake>();
+    public DbSet<Ledger.PushDevice> PushDevices => Set<Ledger.PushDevice>();
+    public DbSet<Ledger.PushKey> PushKeys => Set<Ledger.PushKey>();
 
     public DbSet<Challan> Challans => Set<Challan>();
 
@@ -1177,6 +1179,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(e => e.Amount).HasPrecision(12, 2);
             b.Property(e => e.Quantity).HasPrecision(12, 3);
             b.HasIndex(e => new { e.ShopId, e.JobId });
+        });
+
+        modelBuilder.Entity<Ledger.PushDevice>(b =>
+        {
+            b.ToTable("push_devices");
+            b.HasTenantKey();
+            b.Property(d => d.Endpoint).HasMaxLength(1000);
+            b.Property(d => d.P256dh).HasMaxLength(200);
+            b.Property(d => d.Auth).HasMaxLength(100);
+            b.HasIndex(d => d.Endpoint).IsUnique();
+        });
+
+        modelBuilder.Entity<Ledger.PushKey>(b =>
+        {
+            b.ToTable("push_keys");
+            b.Property(k => k.Id).ValueGeneratedNever();
         });
 
         modelBuilder.Entity<Catalogue.Stocktake>(b =>

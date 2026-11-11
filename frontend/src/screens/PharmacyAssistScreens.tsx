@@ -6,7 +6,7 @@ import { formatRupees, whatsAppLink } from '../lib/format'
 import { shrinkPhoto } from '../lib/images'
 
 interface Refill { customerId: string; customerName: string; phone: string | null; productId: string; medicine: string; lastQuantity: number; lastBought: string; everyDays: number; dueOn: string; daysLate: number }
-interface ReorderGroup { supplierId: string | null; supplierName: string | null; phone: string | null; lines: { productId: string; medicine: string; stock: number; soldLast30Days: number; suggested: number; lastRate: number | null }[] }
+interface ReorderGroup { supplierId: string | null; supplierName: string | null; phone: string | null; lines: { productId: string; medicine: string; stock: number; soldLast30Days: number; suggested: number; lastRate: number | null; daysLeft?: number | null; leadDays?: number }[] }
 
 const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 
@@ -63,7 +63,7 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
             <h3 className="font-bold">{g.supplierName ?? t(general ? 'reorder.noSupplierAll' : 'reorder.noSupplier')}</h3>
             {g.lines.map((l) => (
               <div key={l.productId} className="grid grid-cols-[1fr_5rem] items-center gap-2 text-sm">
-                <span><b>{l.medicine}</b><span className="block text-xs text-muted">{t('reorder.line', { stock: l.stock, sold: l.soldLast30Days })}{l.lastRate != null ? ` · ${formatRupees(l.lastRate)}` : ''}</span></span>
+                <span><b>{l.medicine}</b><span className="block text-xs text-muted">{t('reorder.line', { stock: l.stock, sold: l.soldLast30Days })}{l.lastRate != null ? ` · ${formatRupees(l.lastRate)}` : ''}{l.daysLeft != null ? ` · ${t('orderToday.daysLeft', { count: Math.floor(l.daysLeft) })}` : ''}{l.leadDays ? ` · ${t('orderToday.lead', { count: l.leadDays })}` : ''}</span></span>
                 <input aria-label={`${t('reorder.qty')}: ${l.medicine}`} value={qty[l.productId] ?? String(l.suggested)} inputMode="decimal"
                   onChange={(e) => setQty({ ...qty, [l.productId]: e.target.value })} className="h-11 rounded-lg border border-line px-2" />
               </div>
