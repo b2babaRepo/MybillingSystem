@@ -420,6 +420,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                             OfferName = offer?.Name,
                             SalespersonId = line.SalespersonId is { } seller && sellers.Contains(seller) ? seller : userId,
                             UnitCost = product?.CostPrice,
+                            Bags = line.Bags is > 0 and <= 100_000 && product?.BagSize != null ? line.Bags : null,
                             Amount = Money.LineAmount(line.Quantity, line.UnitPrice),
                             // Clothes: 5% or 18% by the piece price (GarmentGst); a bill re-made from a snapshot keeps its rates.
                             GstRate = taxSnapshot is null ? GarmentGst.RateFor(product?.HsnCode, product?.GstRate, line.UnitPrice) : taxSnapshot[i].GstRate,
@@ -617,15 +618,16 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     .Where(p => lineProductIds.Contains(p.Id) && p.IsService).Select(p => p.Id).ToListAsync(cancellationToken);
                 var sold = lines.Where(l => l.ProductId is not null && !stockAlreadyOut && !services.Contains(l.ProductId.Value))
                     .GroupBy(l => l.ProductId!.Value)
-                    .Select(g => (ProductId: g.Key, Quantity: g.Sum(l => l.Quantity)))
+                    .Select(g => (ProductId: g.Key, Quantity: g.Sum(l => l.Quantity), Bags: g.Sum(l => l.Bags ?? 0)))
                     .ToList();
-                foreach (var (productId, quantity) in sold)
+                foreach (var (productId, quantity, bagsSold) in sold)
                 {
                     db.StockMovements.Add(new StockMovement
                     {
                         ProductId = productId,
                         Kind = StockMovementKind.Sale,
                         Quantity = -quantity,
+                        Bags = bagsSold > 0 ? -bagsSold : null,
                         BillId = bill.Id,
                         OccurredAt = occurredAt,
                         CreatedByUserId = userId,
@@ -681,7 +683,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 await transaction.CommitAsync(cancellationToken);
                 return LedgerResult<BillDto>.Created(new BillDto(
                     bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount - bill.ExchangeCredit, bill.PaymentMode, bill.OccurredAt,
-                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName)).ToList(),
+                    lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName, l.Bags)).ToList(),
                     balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, BuyerGstin: bill.BuyerGstin, BillOfSupply: bill.BillOfSupply,
                     Prescription: prescription is null ? null : new PrescriptionRequest(prescription.DoctorName, prescription.DoctorAddress, prescription.DoctorRegNo, prescription.PatientName, prescription.PatientAddress, prescription.PrescribedOn),
                     ExchangeCredit: bill.ExchangeCredit, ExchangeNoteNo: exchange?.NoteNo, PlaceOfSupply: bill.PlaceOfSupply, Payments: bill.Parts(), Counter: bill.Counter));
@@ -738,12 +740,12 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         db.LedgerEntries.AddRange(reversals);
 
         var sold = (await db.StockMovements.AsNoTracking().Where(m => m.BillId == id && m.Kind == StockMovementKind.Sale).ToListAsync(cancellationToken))
-            .GroupBy(m => m.ProductId).Select(g => (ProductId: g.Key, Quantity: -g.Sum(m => m.Quantity))).OrderBy(x => x.ProductId).ToList();
-        foreach (var (productId, quantity) in sold)
+            .GroupBy(m => m.ProductId).Select(g => (ProductId: g.Key, Quantity: -g.Sum(m => m.Quantity), Bags: -g.Sum(m => m.Bags ?? 0))).OrderBy(x => x.ProductId).ToList();
+        foreach (var (productId, quantity, bagsBack) in sold)
         {
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = productId, Kind = StockMovementKind.Adjustment, Quantity = quantity, BillId = id, OccurredAt = now,
+                ProductId = productId, Kind = StockMovementKind.Adjustment, Quantity = quantity, Bags = bagsBack > 0 ? bagsBack : null, BillId = id, OccurredAt = now,
                 CreatedByUserId = userId, Note = "Bill cancelled",
             });
         }
@@ -932,7 +934,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         return new BillDto(
             bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount - bill.ExchangeCredit, bill.PaymentMode, bill.OccurredAt,
             bill.Lines.OrderBy(l => l.LineNo)
-                .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName)).ToList(),
+                .Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName, l.Bags)).ToList(),
             balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, bill.CancelledAt, bill.CancelReason, bill.BuyerGstin, bill.BillOfSupply,
             await db.BillPrescriptions.AsNoTracking().Where(r => r.BillId == id)
                 .Select(r => new PrescriptionRequest(r.DoctorName, r.DoctorAddress, r.DoctorRegNo, r.PatientName, r.PatientAddress, r.PrescribedOn)).SingleOrDefaultAsync(cancellationToken),

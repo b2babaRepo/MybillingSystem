@@ -23,6 +23,13 @@ public sealed class Product : Entity, ITenantOwned
     /// </summary>
     public decimal? PackSize { get; set; }
 
+    /// <summary>
+    /// Bought and sold in bags (bori, katta) of about this much of the item's unit (50 for a 50 kg bag). Stock stays
+    /// in the unit; the bags are counted beside it on every movement, so the shop knows both "how many kg" and
+    /// "how many sealed bags". Null: not kept in bags.
+    /// </summary>
+    public decimal? BagSize { get; set; }
+
     public Unit? PackUnit { get; set; }
 
     /// <summary>
@@ -195,6 +202,9 @@ public sealed class StockMovement : Entity, ITenantOwned
     /// <summary>For purchases: what the shop paid per unit this time.</summary>
     public decimal? CostPrice { get; set; }
 
+    /// <summary>Sealed bags in (+) or out (−) with this movement, beside the weight; null when not counted in bags.</summary>
+    public decimal? Bags { get; set; }
+
     /// <summary>The document behind it, besides a bill: "purchase", "receipt", "challan", "supplier_return", "credit_note", "job", "karigar", "stocktake".</summary>
     public string? RefType { get; set; }
 
@@ -232,6 +242,9 @@ public enum StockMovementKind
 
     /// <summary>Back from the karigar.</summary>
     BackFromKarigar,
+
+    /// <summary>A sealed bag opened to sell loose: the bags go down, the weight stays.</summary>
+    OpenBag,
 }
 
 public enum StockReason
@@ -249,4 +262,7 @@ public enum StockReason
     WrittenOff,
     Gift,
     FreeSample,
+
+    /// <summary>Weight lost in storage or handling (moisture, spillage): stock found lighter than the books.</summary>
+    WeightLoss,
 }

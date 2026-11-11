@@ -292,6 +292,9 @@ public sealed class BillLine : Entity, ITenantOwned
     /// <summary>The item's cost when sold, so a later cost change doesn't rewrite past profit. Null: not known.</summary>
     public decimal? UnitCost { get; set; }
 
+    /// <summary>Sealed bags sold on this line (a 50 kg bag sold whole), beside the weight.</summary>
+    public decimal? Bags { get; set; }
+
     /// <summary>The batches it came from, for medicines: "B123 exp 05/27". Printed on the bill, as the drug rules ask.</summary>
     public string? Batch { get; set; }
 

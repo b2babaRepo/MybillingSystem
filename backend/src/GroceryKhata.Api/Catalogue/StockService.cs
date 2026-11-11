@@ -52,7 +52,10 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var since = clock.GetUtcNow().AddDays(-30);
         var sold = await db.StockMovements.AsNoTracking().Where(m => m.Kind == StockMovementKind.Sale && m.OccurredAt >= since)
             .GroupBy(m => m.ProductId).Select(g => new { g.Key, Sold = -g.Sum(m => m.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Sold, ct);
-        return list.Select(p => sold.TryGetValue(p.Id, out var q) && q > 0 ? p with { DailySales = decimal.Round(q / 30m, 3) } : p).ToList();
+        var bagged = list.Where(p => p.BagSize != null).Select(p => p.Id).ToList();
+        var bags = bagged.Count == 0 ? [] : await db.StockMovements.AsNoTracking().Where(m => m.Bags != null && bagged.Contains(m.ProductId))
+            .GroupBy(m => m.ProductId).Select(g => new { g.Key, Bags = g.Sum(m => m.Bags!.Value) }).ToDictionaryAsync(x => x.Key, x => x.Bags, ct);
+        return list.Select(p => (sold.TryGetValue(p.Id, out var q) && q > 0 ? p with { DailySales = decimal.Round(q / 30m, 3) } : p) with { Bags = bags.GetValueOrDefault(p.Id) }).ToList();
     }
 
     /// <summary>Items made before products remembered their common-list item still get one, from their name.</summary>
@@ -63,7 +66,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             .Select(p => p.Category!).Distinct().OrderBy(c => c).ToListAsync(ct);
 
     public async Task<ProductDto?> FindAsync(Guid id, CancellationToken ct) =>
-        await db.Products.AsNoTracking().Where(p => p.Id == id).Select(AsDto).SingleOrDefaultAsync(ct) is { } found ? Linked(found) : null;
+        await db.Products.AsNoTracking().Where(p => p.Id == id).Select(AsDto).SingleOrDefaultAsync(ct) is { } found ? (await WithDailySalesAsync([Linked(found)], ct))[0] : null;
 
     public async Task<IReadOnlyList<StockMovementDto>> MovementsAsync(Guid productId, CancellationToken ct) =>
         await db.StockMovements.AsNoTracking().Where(m => m.ProductId == productId)
@@ -124,6 +127,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.BillName = BillNames.Clean(request.BillName);
         (product.StyleName, product.Size, product.Colour) = (Short(request.StyleName, 120), Short(request.Size, 20), Short(request.Colour, 30));
         product.Barcode = barcode.Length > 0 ? barcode : null;
+        product.BagSize = request.BagSize is > 0 and <= 100_000 && !request.IsService ? request.BagSize : null;
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)
@@ -191,6 +195,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.StyleName = request.StyleName is null ? product.StyleName : Short(request.StyleName, 120);
         product.Size = request.Size is null ? product.Size : Short(request.Size, 20);
         product.Colour = request.Colour is null ? product.Colour : Short(request.Colour, 30);
+        product.BagSize = request.BagSize is { } bag ? (bag is > 0 and <= 100_000 && !product.IsService ? bag : null) : product.BagSize;
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
@@ -239,6 +244,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             errors[nameof(request.Note)] = ["Keep the note under 200 characters."];
         }
 
+        if (request.Bags is { } bagCount && (Math.Abs(bagCount) > 100_000 || decimal.Round(bagCount, 3) != bagCount || (bagCount != 0 && Math.Sign(bagCount) != Math.Sign(request.Quantity))))
+        {
+            errors["Bags"] = ["Bags go the same way as the weight: in with goods in, out with a reduction."];
+        }
+
         if (errors.Count > 0)
         {
             return (null, errors, false);
@@ -261,6 +271,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             var movement = await RecordAsync(request.Id, request.ProductId, request.Kind!.Value, request.Quantity,
                 request.Kind == StockMovementKind.Adjustment ? request.Reason : null, request.CostPrice, request.Note, userId, ct);
+            if (request.Bags is { } bagsMoved and not 0)
+            {
+                movement.Bags = bagsMoved;
+                await db.SaveChangesAsync(ct);
+            }
             if (request.Kind == StockMovementKind.Purchase && request.CostPrice is { } latest)
             {
                 // Weighted average with what was already on the shelf, the same rule supplier bills keep.
@@ -431,6 +446,34 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     }
 
     /// <summary>Saves a movement and moves the product's stock with it. The caller owns the transaction.</summary>
+    /// <summary>Opens sealed bags to sell loose. Refused when that many sealed bags aren't on hand.</summary>
+    public async Task<string?> OpenBagAsync(Guid productId, OpenBagRequest request, Guid userId, CancellationToken ct)
+    {
+        if (request.Id == Guid.Empty || request.Bags is <= 0 or > 10_000 || decimal.Round(request.Bags, 0) != request.Bags)
+        {
+            return "Open one or more whole bags.";
+        }
+
+        if (await db.StockMovements.AnyAsync(m => m.Id == request.Id, ct))
+        {
+            return null;
+        }
+
+        var sealedBags = await db.StockMovements.Where(m => m.ProductId == productId && m.Bags != null).SumAsync(m => (decimal?)m.Bags, ct) ?? 0;
+        if (sealedBags < request.Bags)
+        {
+            return $"Only {sealedBags:0.##} sealed bags are on hand.";
+        }
+
+        db.StockMovements.Add(new StockMovement
+        {
+            Id = request.Id, ProductId = productId, Kind = StockMovementKind.OpenBag, Quantity = 0, Bags = -request.Bags,
+            Note = "Opened to sell loose", OccurredAt = clock.GetUtcNow(), CreatedByUserId = userId,
+        });
+        await db.SaveChangesAsync(ct);
+        return null;
+    }
+
     private Task<decimal> WriteOffLimitAsync(CancellationToken ct) =>
         db.Shops.AsNoTracking().Select(s => s.StaffMaxWriteOff).FirstAsync(ct);
 
@@ -567,7 +610,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null),
         p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp, p.Barcode,
         p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? MasterPhotos.Representative : null,
-        p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn);
+        p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn, null, p.BagSize);
 
     /// <summary>An MRP below the selling price is a typing slip. At the price it stays: it's what stops a bill going above it.</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>

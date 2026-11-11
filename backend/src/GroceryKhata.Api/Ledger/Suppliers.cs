@@ -88,6 +88,9 @@ public sealed class PurchaseLine : Entity, ITenantOwned
 
     /// <summary>Units of this line already counted in on a goods receipt: the bill added no stock for them.</summary>
     public decimal FromReceipt { get; set; }
+
+    /// <summary>Bags on this line (paid and free together), when the goods come in bags.</summary>
+    public decimal? Bags { get; set; }
 }
 
 /// <summary>What a line of a supplier's khata is. Other: lines from before kinds were kept, whose kind can't be told.</summary>
@@ -158,7 +161,7 @@ public sealed record SupplierDetail(SupplierDto Supplier, IReadOnlyList<Supplier
 /// </summary>
 public sealed record PurchaseLineRequest(
     Guid ProductId, decimal Quantity, decimal UnitCost, decimal FreeQuantity = 0, decimal DiscountPercent = 0, string? BatchNo = null, string? ExpiryMonth = null, decimal? Mrp = null,
-    decimal? GstRate = null);
+    decimal? GstRate = null, decimal? Bags = null);
 
 /// <summary><see cref="Id"/> is made by the app, so a repeated tap saves once.</summary>
 public sealed record PurchaseRequest(Guid Id, Guid SupplierId, string? BillNo, IReadOnlyList<PurchaseLineRequest>? Lines, decimal PaidAmount, PaymentMode? PaymentMode, DateOnly? BillDate = null, decimal Extra = 0, Guid? OrderId = null,
@@ -444,12 +447,15 @@ public static class SupplierEndpoints
             {
                 ProductId = line.ProductId, Quantity = line.Quantity, UnitCost = line.UnitCost, FreeQuantity = line.FreeQuantity, DiscountPercent = line.DiscountPercent, BatchId = batch?.Id,
                 GstRate = line.GstRate, Taxable = Taxable(line), Gst = LineTotal(line) - Taxable(line), FromReceipt = fromReceipt,
+                Bags = line.Bags is > 0 and <= 100_000 ? line.Bags : null,
             });
             if (units - fromReceipt > 0)
             {
                 db.StockMovements.Add(new StockMovement
                 {
                     RefType = "purchase", RefId = purchase.Id, ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = units - fromReceipt, CostPrice = unitCost,
+                    // Bags already counted in on a receipt aren't counted again: only the share that came with this bill.
+                    Bags = line.Bags is > 0 and <= 100_000 ? decimal.Round(line.Bags.Value * (units - fromReceipt) / units, 3) : null,
                     OccurredAt = now, CreatedByUserId = userId, Note = batch is null ? "Supplier bill" : $"Supplier bill · batch {batch.BatchNo}",
                 });
             }
@@ -541,6 +547,7 @@ public static class SupplierEndpoints
             db.StockMovements.Add(new StockMovement
             {
                 RefType = "purchase", RefId = id, ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -(line.Quantity + line.FreeQuantity - line.FromReceipt), OccurredAt = now,
+                Bags = line.Bags is { } b && line.Quantity + line.FreeQuantity > 0 ? -decimal.Round(b * (line.Quantity + line.FreeQuantity - line.FromReceipt) / (line.Quantity + line.FreeQuantity), 3) : null,
                 CreatedByUserId = userId, Note = "Supplier bill cancelled",
             });
             if (line.BatchId is { } batchId)

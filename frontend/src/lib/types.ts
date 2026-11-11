@@ -58,6 +58,9 @@ export interface Product {
   reorderLevel: number | null
   /** Average sold a day over the last 30 days; stock over it is the days of stock left. */
   dailySales?: number | null
+  /** Kept in bags of this much of its unit (50 = a 50 kg bag); bags is the sealed bags on hand. */
+  bagSize?: number | null
+  bags?: number
   /** Out of stock, or at/below the reorder level. */
   isLow: boolean
   /** The shop doesn't count this item: never out or low. */
@@ -101,7 +104,7 @@ export interface Product {
 }
 
 export type StockMovementKind = 'opening' | 'purchase' | 'sale' | 'adjustment'
-export type StockReason = 'damage' | 'wastage' | 'count_correction' | 'return' | 'other' | 'lost' | 'stolen' | 'destroyed' | 'written_off' | 'gift' | 'free_sample'
+export type StockReason = 'damage' | 'wastage' | 'count_correction' | 'return' | 'other' | 'lost' | 'stolen' | 'destroyed' | 'written_off' | 'gift' | 'free_sample' | 'weight_loss'
 
 export interface StockMovement {
   id: string
@@ -227,6 +230,8 @@ export interface BillLineView {
   listPrice?: number | null
   /** What the customer's bill shows instead of the name ("Innerwear"). */
   printName?: string | null
+  /** Whole bags sold on this line. */
+  bags?: number | null
 }
 
 export type DrugSchedule = 'g' | 'h' | 'h1' | 'x'

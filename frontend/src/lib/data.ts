@@ -199,6 +199,8 @@ export interface CartLine {
   /** The planned offer applied to this line, and its name for the tag. */
   offerId?: string | null
   offerName?: string | null
+  /** Sold as whole sealed bags (quantity is their weight). */
+  bags?: number | null
 }
 
 export async function saveBill(
@@ -263,6 +265,7 @@ export async function addStockMovement(
   reason: StockReason | null,
   costPrice: number | null,
   note: string | null,
+  bags: number | null = null,
 ) {
   const id = uuidv7()
   await enqueue({
@@ -270,7 +273,7 @@ export async function addStockMovement(
     shopId,
     kind: 'stock',
     path: '/v1/stock-movements',
-    body: { id, productId: product.id, kind, quantity, reason, costPrice, note },
+    body: { id, productId: product.id, kind, quantity, reason, costPrice, note, bags },
     label: `${product.name} ${quantity > 0 ? '+' : ''}${quantity}`,
   })
 }

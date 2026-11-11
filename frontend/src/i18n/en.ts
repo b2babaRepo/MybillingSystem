@@ -205,7 +205,7 @@ export const en = {
     quantityIn: 'How many came in?',
     quantityOut: 'How many to take off?',
     reason: 'Why?',
-    reasons: { lost: 'Lost', stolen: 'Stolen', destroyed: 'Destroyed', written_off: 'Written off', gift: 'Given as gift', free_sample: 'Free sample', damage: 'Damaged', wastage: 'Wasted', count_correction: 'Count fix', return: 'Returned', other: 'Other' },
+    reasons: { weight_loss: 'Weight lost (moisture, spill)', lost: 'Lost', stolen: 'Stolen', destroyed: 'Destroyed', written_off: 'Written off', gift: 'Given as gift', free_sample: 'Free sample', damage: 'Damaged', wastage: 'Wasted', count_correction: 'Count fix', return: 'Returned', other: 'Other' },
     history: 'Stock history',
     kinds: { opening: 'Opening stock', purchase: 'Goods in', sale: 'Sold', adjustment: 'Adjusted' },
     saveDetails: 'Save details',

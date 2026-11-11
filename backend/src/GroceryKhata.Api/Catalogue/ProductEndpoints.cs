@@ -29,12 +29,15 @@ public sealed record ProductRequest(
     string? StyleName = null,
     string? Size = null,
     string? Colour = null,
-    string? Barcode = null);
+    string? Barcode = null,
+    decimal? BagSize = null);
 
 /// <summary><see cref="GstRate"/> and <see cref="HsnCode"/>: null keeps what the item has (older apps don't send them), unless <see cref="ReplaceTax"/> says null means clear it.</summary>
 public sealed record ProductUpdate(
     string? Name, Unit? Unit, decimal SellingPrice, decimal? CostPrice, string? Category, decimal? ReorderLevel, bool? IsActive,
-    decimal? GstRate = null, string? HsnCode = null, bool ReplaceTax = false, bool? IsService = null, int? DurationMinutes = null, DrugSchedule? Schedule = null, bool ReplaceSchedule = false, int? UnitsPerPack = null, bool? TracksSerials = null, int? WarrantyMonths = null, decimal? Mrp = null, string? BillName = null, string? StyleName = null, string? Size = null, string? Colour = null, bool? Uncounted = null);
+    decimal? GstRate = null, string? HsnCode = null, bool ReplaceTax = false, bool? IsService = null, int? DurationMinutes = null, DrugSchedule? Schedule = null, bool ReplaceSchedule = false, int? UnitsPerPack = null, bool? TracksSerials = null, int? WarrantyMonths = null, decimal? Mrp = null, string? BillName = null, string? StyleName = null, string? Size = null, string? Colour = null, bool? Uncounted = null,
+    // Null keeps it; 0 clears it (no longer kept in bags).
+    decimal? BagSize = null);
 
 /// <summary><see cref="IsLow"/>: out of stock, or at/below the reorder level.</summary>
 public sealed record ProductDto(
@@ -73,12 +76,18 @@ public sealed record ProductDto(
     bool Uncounted = false,
     DateOnly? OutOn = null,
     // Average sold a day over the last 30 days (null: none sold): stock over this is the days of stock left.
-    decimal? DailySales = null);
+    decimal? DailySales = null,
+    // Kept in bags of this size; Bags is how many sealed bags are on hand.
+    decimal? BagSize = null,
+    decimal Bags = 0);
 
 public sealed record OutTodayRequest(bool Out);
 
+/// <summary>Open sealed bags to sell loose: the bag count goes down, the weight doesn't change.</summary>
+public sealed record OpenBagRequest(Guid Id, decimal Bags);
+
 /// <summary>A purchase (positive) or an adjustment (signed, with a reason).</summary>
-public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note);
+public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note, decimal? Bags = null);
 
 public sealed record StockMovementDto(
     Guid Id,
@@ -337,6 +346,9 @@ public static class ProductEndpoints
                 { Movement: { } movement } => Results.Ok(movement),
                 _ => Results.BadRequest(),
             });
+
+        stockGroup.MapPost("/products/{id:guid}/open-bag", async (Guid id, OpenBagRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
+            await stock.OpenBagAsync(id, request, user.UserId()!.Value, ct) is { } problem ? Results.ValidationProblem(new Dictionary<string, string[]> { ["Bags"] = [problem] }) : Results.NoContent());
 
         stockGroup.MapPost("/stocktakes", async (StocktakeRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
             await stock.StocktakeAsync(request, user.UserId()!.Value, ct, user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))) switch

@@ -39,7 +39,7 @@ public enum KhataEntryType
 public sealed record ReverseRequest(Guid Id, string? Note);
 
 /// <summary><see cref="OfferId"/>: the planned offer the counter applied to this line, if any.</summary>
-public sealed record BillLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice, Guid? SalespersonId = null, Guid? OfferId = null);
+public sealed record BillLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice, Guid? SalespersonId = null, Guid? OfferId = null, decimal? Bags = null);
 
 public sealed record BillRequest(
     Guid Id,
@@ -86,7 +86,7 @@ public sealed record LedgerEntryDto(
 public sealed record KhataEntryResponse(LedgerEntryDto Entry, decimal CustomerBalance);
 
 public sealed record BillLineDto(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Amount, decimal? GstRate = null, string? HsnCode = null,
-    decimal? TaxableValue = null, decimal? Cgst = null, decimal? Sgst = null, decimal? Igst = null, string? Batch = null, decimal? ListPrice = null, string? PrintName = null);
+    decimal? TaxableValue = null, decimal? Cgst = null, decimal? Sgst = null, decimal? Igst = null, string? Batch = null, decimal? ListPrice = null, string? PrintName = null, decimal? Bags = null);
 
 public sealed record BillDto(
     Guid Id,

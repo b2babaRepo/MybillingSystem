@@ -781,8 +781,12 @@ export const enMore = {
     takes: 'Past stock counts', take: 'Count #{{number}}', takeLine: '{{date}} · by {{by}} · {{items}} items · {{diffs}} differed', noTakes: 'No counts saved yet.', books: 'Books', counted: 'Counted', difference: 'Difference',
     salesBy: 'Sales by category, supplier or customer', salesByShort: 'Sales by category', byWhat: { category: 'Category', supplier: 'Supplier', customer: 'Customer' }, sales: 'Sales', share: 'Share', profit: 'Profit', bills: 'Bills', billsCount_one: '{{count}} bill', billsCount_other: '{{count}} bills', walkIn: 'Walk-in', unknown: 'Not set',
     writeOff: 'Most a helper can write off at cost (₹)', writeOffHint: 'Damage, loss or a stock count beyond this needs the owner.',
-    kinds: { used_on_job: 'Used on a job', used_in_service: 'Used in a service', sent_to_karigar: 'Sent to karigar', back_from_karigar: 'Back from karigar' },
+    kinds: { used_on_job: 'Used on a job', used_in_service: 'Used in a service', sent_to_karigar: 'Sent to karigar', back_from_karigar: 'Back from karigar', open_bag: 'Bag opened for loose sale' },
     docs: { bill: 'Bill', purchase: 'Supplier bill', receipt: 'Goods receipt', challan: 'Delivery challan', supplier_return: 'Return to supplier', credit_note: 'Credit note', job: 'Job', karigar: 'Karigar challan', stocktake: 'Stock count' } },
+  bag: { sizeLabel: 'Kept in bags of', sizeHint: 'Stock stays in {{unit}}; sealed bags are counted beside it on every purchase, sale and receipt.', bags: 'Bags', bagsOf: 'bags of {{size}} {{unit}}', sealed_one: '{{count}} sealed bag', sealed_other: '{{count}} sealed bags', loose: '{{qty}} {{unit}} loose', open: 'Open a bag', openAsk: 'How many bags to open for loose sale?',
+    inBags_one: '{{count}} bag', inBags_other: '{{count}} bags', perBag: '{{avg}} {{unit}} a bag', short: '{{diff}} {{unit}} short a bag, {{total}} {{unit}} in all', over: '{{diff}} {{unit}} over a bag',
+    transport: 'Truck and weighbridge (optional)', vehicle: 'Vehicle no.', bilty: 'Bilty / LR no.', transporter: 'Transporter', gross: 'Loaded vehicle (kg)', tare: 'Empty vehicle (kg)', net: 'Weighbridge: {{net}} kg of goods', netDiffers: 'items add up to {{lines}} kg, {{diff}} kg different',
+    rateBasis: 'Rate per', perUnit: 'Rate per {{unit}}', perQuintal: 'Rate per quintal', ratePerBag: 'Rate per bag', wholeBags: 'Sell whole bags', wholeAsk: 'How many bags of {{size}} {{unit}}?' },
   pos: { byGstin: "Buyer's GSTIN is from {{state}}: this bill charges IGST.", followsGstin: "The tax state comes from the buyer's GSTIN: {{state}}.", label: 'Delivered to', here: '{{state}} (this state)', igst: 'Going to {{state}}: this bill charges IGST.', print: 'Place of supply' },
 }
 

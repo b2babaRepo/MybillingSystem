@@ -31,6 +31,19 @@ public sealed class GoodsReceipt : Entity, ITenantOwned
 
     public string? Note { get; set; }
 
+    /// <summary>The truck or tempo that brought it.</summary>
+    public string? VehicleNo { get; set; }
+
+    /// <summary>The transporter's receipt (bilty / LR) number, and who carried it.</summary>
+    public string? Bilty { get; set; }
+
+    public string? Transporter { get; set; }
+
+    /// <summary>Weighbridge slip: loaded and empty vehicle weight, in kg. Their difference is the goods' weight.</summary>
+    public decimal? GrossWeight { get; set; }
+
+    public decimal? TareWeight { get; set; }
+
     /// <summary>The supplier bill these goods were billed on. Null: still waiting for the bill.</summary>
     public Guid? PurchaseId { get; set; }
 
@@ -39,14 +52,17 @@ public sealed class GoodsReceipt : Entity, ITenantOwned
     public Guid CreatedByUserId { get; set; }
 }
 
-public sealed record ReceiptLine(Guid ProductId, string Name, decimal Quantity);
+/// <summary>One item that came: its weight (or count) as received, and how many bags, when it comes in bags.</summary>
+public sealed record ReceiptLine(Guid ProductId, string Name, decimal Quantity, decimal? Bags = null, decimal? BagSize = null);
 
-public sealed record ReceiptLineRequest(Guid ProductId, decimal Quantity);
+public sealed record ReceiptLineRequest(Guid ProductId, decimal Quantity, decimal? Bags = null);
 
-public sealed record GoodsReceiptRequest(Guid Id, Guid SupplierId, IReadOnlyList<ReceiptLineRequest>? Lines, Guid? OrderId = null, string? Note = null);
+public sealed record GoodsReceiptRequest(Guid Id, Guid SupplierId, IReadOnlyList<ReceiptLineRequest>? Lines, Guid? OrderId = null, string? Note = null,
+    string? VehicleNo = null, string? Bilty = null, string? Transporter = null, decimal? GrossWeight = null, decimal? TareWeight = null);
 
 public sealed record GoodsReceiptDto(
-    Guid Id, int Number, Guid SupplierId, Guid? PurchaseOrderId, DateTimeOffset ReceivedAt, IReadOnlyList<ReceiptLine> Lines, string? Note, Guid? PurchaseId, DateTimeOffset? CancelledAt, string? By);
+    Guid Id, int Number, Guid SupplierId, Guid? PurchaseOrderId, DateTimeOffset ReceivedAt, IReadOnlyList<ReceiptLine> Lines, string? Note, Guid? PurchaseId, DateTimeOffset? CancelledAt, string? By,
+    string? VehicleNo = null, string? Bilty = null, string? Transporter = null, decimal? GrossWeight = null, decimal? TareWeight = null);
 
 public static class GoodsReceipts
 {
@@ -77,7 +93,7 @@ public static class GoodsReceipts
     }
 
     private static GoodsReceiptDto ToDto(GoodsReceipt r, string? by) =>
-        new(r.Id, r.Number, r.SupplierId, r.PurchaseOrderId, r.ReceivedAt, LinesOf(r), r.Note, r.PurchaseId, r.CancelledAt, by);
+        new(r.Id, r.Number, r.SupplierId, r.PurchaseOrderId, r.ReceivedAt, LinesOf(r), r.Note, r.PurchaseId, r.CancelledAt, by, r.VehicleNo, r.Bilty, r.Transporter, r.GrossWeight, r.TareWeight);
 
     private static async Task<IResult> AddAsync(GoodsReceiptRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
@@ -100,6 +116,18 @@ public static class GoodsReceipts
             return Invalid("Note", "Keep the note under 200 letters.");
         }
 
+        if (lines.Any(l => l.Bags is { } b && (b < 0 || b > 100_000 || decimal.Round(b, 3) != b)))
+        {
+            return Invalid("Lines", "Enter the number of bags, or leave it empty.");
+        }
+
+        if (request.GrossWeight is { } gross && (gross <= 0 || gross > 200_000 || request.TareWeight is not { } tare || tare < 0 || tare >= gross))
+        {
+            return Invalid("GrossWeight", "Enter the loaded and empty vehicle weights from the weighbridge slip (loaded more than empty).");
+        }
+
+        static string? Short(string? text, int max) => string.IsNullOrWhiteSpace(text) ? null : text.Trim()[..Math.Min(max, text.Trim().Length)];
+
         var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         if (request.OrderId is { } orderId
@@ -115,7 +143,9 @@ public static class GoodsReceipts
             Id = request.Id, SupplierId = request.SupplierId, PurchaseOrderId = request.OrderId, ReceivedAt = now, CreatedByUserId = userId,
             Number = (await db.GoodsReceipts.MaxAsync(r => (int?)r.Number, ct) ?? 0) + 1,
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
-            Lines = JsonSerializer.Serialize(lines.Select(l => new ReceiptLine(l.ProductId, products[l.ProductId].Name, l.Quantity)).ToList(), Json),
+            Lines = JsonSerializer.Serialize(lines.Select(l => new ReceiptLine(l.ProductId, products[l.ProductId].Name, l.Quantity, l.Bags is > 0 ? l.Bags : null, products[l.ProductId].BagSize)).ToList(), Json),
+            VehicleNo = Short(request.VehicleNo, 20)?.ToUpperInvariant(), Bilty = Short(request.Bilty, 40), Transporter = Short(request.Transporter, 80),
+            GrossWeight = request.GrossWeight, TareWeight = request.GrossWeight is null ? null : request.TareWeight,
         };
         db.GoodsReceipts.Add(receipt);
         foreach (var line in lines)
@@ -123,7 +153,7 @@ public static class GoodsReceipts
             // The cost isn't known until the bill: the item keeps its cost price until then.
             db.StockMovements.Add(new StockMovement
             {
-                RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = line.Quantity, OccurredAt = now, CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number}",
+                RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = line.Quantity, Bags = line.Bags is > 0 ? line.Bags : null, OccurredAt = now, CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number}",
             });
         }
 
@@ -166,7 +196,7 @@ public static class GoodsReceipts
         {
             db.StockMovements.Add(new StockMovement
             {
-                RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -line.Quantity, OccurredAt = now,
+                RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -line.Quantity, Bags = line.Bags is > 0 ? -line.Bags : null, OccurredAt = now,
                 CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number} cancelled",
             });
         }

@@ -316,7 +316,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }
 
   function setQuantity(index: number, quantity: number) {
-    setCart((current) => (quantity <= 0 ? current.filter((_, i) => i !== index) : current.map((l, i) => (i === index ? { ...l, quantity } : l))))
+    // A typed weight is no longer whole bags.
+    setCart((current) => (quantity <= 0 ? current.filter((_, i) => i !== index) : current.map((l, i) => (i === index ? { ...l, quantity, bags: null } : l))))
   }
 
   /** A medicine sold loose: so many tablets of a strip, as that fraction of the strip at the strip's price. */
@@ -642,6 +643,17 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               {(() => { const per = products.find((p) => p.id === l.productId)?.unitsPerPack; return per ? (
                 <button onClick={() => sellLoose(i, per)} className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('loose.button')}</button>
               ) : null })()}
+              {(() => {
+                const bagSize = products.find((p) => p.id === l.productId)?.bagSize
+                if (!bagSize) return null
+                return (
+                  <span className="flex flex-wrap items-center gap-2">
+                    {l.bags ? <span className="rounded-full bg-amber-50 px-2 text-xs font-semibold text-amber-800">🛍️ {t('bag.inBags', { count: l.bags })}</span> : null}
+                    <button onClick={async () => { const n = Math.round(Number(await ask(t('bag.wholeAsk', { size: bagSize, unit: t(`units.${l.unit}`) }))) || 0); if (n > 0) setCart((c) => c.map((x, k) => (k === i ? { ...x, quantity: n * bagSize, bags: n } : x))) }}
+                      className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('bag.wholeBags')}</button>
+                  </span>
+                )
+              })()}
               {hasScale && (l.unit === 'kg' || l.unit === 'g') && (
                 <span className="flex gap-3">
                   <button disabled={weighing !== null} onClick={() => void weigh(i, l.unit)} className="min-h-11 text-xs font-semibold text-teal-700 underline disabled:opacity-50">{weighing === i ? t('scale.reading') : t('scale.button')}</button>

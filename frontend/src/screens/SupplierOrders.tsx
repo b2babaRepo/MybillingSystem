@@ -1,3 +1,4 @@
+import { BagCheck } from './ProductScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,14 +14,15 @@ export interface OrderLine { productId: string; name: string; quantity: number; 
 export interface PurchaseOrder { id: string; number: number; supplierId: string; supplierName: string; status: 'open' | 'closed' | 'cancelled'; note: string | null; createdAt: string; pending: number; lines: OrderLine[] }
 interface ReturnLine { productName: string; batchNo: string; quantity: number; value: number }
 interface SupplierReturn { id: string; number: number; value: number; daysOpen: number; settledAt: string | null; lines: ReturnLine[] }
-interface Pick { text: string; productId: string; quantity: string; rate: string }
-export interface GoodsReceipt { id: string; number: number; supplierId: string; receivedAt: string; lines: { productId: string; name: string; quantity: number }[]; note: string | null; purchaseId: string | null; by: string | null }
+interface Pick { text: string; productId: string; quantity: string; rate: string; bags?: string }
+export interface GoodsReceipt { id: string; number: number; supplierId: string; receivedAt: string; lines: { productId: string; name: string; quantity: number; bags?: number | null; bagSize?: number | null }[]; note: string | null; purchaseId: string | null; by: string | null
+  vehicleNo?: string | null; bilty?: string | null; transporter?: string | null; grossWeight?: number | null; tareWeight?: number | null }
 
 const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
 const blank: Pick = { text: '', productId: '', quantity: '', rate: '' }
 
 /** Rows of item + quantity (+ rate), found by typing. Only an exact name picks an item. */
-function PickRows({ products, rows, onChange, withRate, listId }: { products: Product[]; rows: Pick[]; onChange: (rows: Pick[]) => void; withRate: boolean; listId: string }) {
+function PickRows({ products, rows, onChange, withRate, listId, withBags = false }: { products: Product[]; rows: Pick[]; onChange: (rows: Pick[]) => void; withRate: boolean; listId: string; withBags?: boolean }) {
   const { t } = useTranslation()
   const choosable = products.filter((p) => !p.isService)
   const set = (i: number, next: Partial<Pick>) => onChange(rows.map((r, x) => (x === i ? { ...r, ...next } : r)))
@@ -33,6 +35,17 @@ function PickRows({ products, rows, onChange, withRate, listId }: { products: Pr
             onPick={(p) => set(i, { text: p.name, productId: p.id })} />
           <input aria-label={t('suppliers.qty')} placeholder={t('suppliers.qty')} value={r.quantity} onChange={(e) => set(i, { quantity: e.target.value })} inputMode="decimal" className={input} />
           {withRate && <input aria-label={t('supplier2.rate')} placeholder={t('supplier2.rate')} value={r.rate} onChange={(e) => set(i, { rate: e.target.value })} inputMode="decimal" className={input} />}
+          {withBags && (() => {
+            const p = choosable.find((x) => x.id === r.productId)
+            if (!p?.bagSize) return null
+            const avg = Number(r.bags) > 0 && Number(r.quantity) > 0 ? Number(r.quantity) / Number(r.bags) : null
+            return (
+              <div className="col-span-full flex flex-col gap-1">
+                <input aria-label={t('bag.bags')} placeholder={`${t('bag.bags')} (${t('bag.bagsOf', { size: p.bagSize, unit: t(`units.${p.unit}`) })})`} value={r.bags ?? ''} onChange={(e) => set(i, { bags: e.target.value })} inputMode="numeric" className={input} />
+                {avg !== null && <BagCheck avg={avg} size={p.bagSize} bags={Number(r.bags)} unit={t(`units.${p.unit}`)} />}
+              </div>
+            )
+          })()}
         </div>
       ))}
       <button onClick={() => onChange([...rows, blank])} className="min-h-11 font-semibold text-teal-700">+ {t('suppliers.addRow')}</button>
@@ -195,7 +208,10 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
   const open = useQuery({ queryKey: [shopId, 'suppliers', 'receipts', supplierId], queryFn: () => api<GoodsReceipt[]>(`/v1/goods-receipts?supplierId=${supplierId}&open=true`) }).data ?? []
   const [rows, setRows] = useState<Pick[] | null>(null)
   const [message, setMessage] = useState('')
+  const [trip, setTrip] = useState({ vehicleNo: '', bilty: '', transporter: '', gross: '', tare: '' })
   const valid = (rows ?? []).filter((r) => r.productId && Number(r.quantity) > 0)
+  const net = Number(trip.gross) > 0 && Number(trip.tare) >= 0 && Number(trip.gross) > Number(trip.tare) ? Number(trip.gross) - Number(trip.tare) : null
+  const linesKg = valid.reduce((sum, r) => sum + (products.find((p) => p.id === r.productId)?.unit === 'kg' ? Number(r.quantity) : 0), 0)
 
   async function run(action: () => Promise<unknown>) {
     setMessage('')
@@ -209,8 +225,13 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
   }
 
   const save = () => run(async () => {
-    await api('/v1/goods-receipts', 'POST', { id: crypto.randomUUID(), supplierId, lines: valid.map((r) => ({ productId: r.productId, quantity: Number(r.quantity) })) })
+    await api('/v1/goods-receipts', 'POST', {
+      id: crypto.randomUUID(), supplierId, lines: valid.map((r) => ({ productId: r.productId, quantity: Number(r.quantity), bags: Number(r.bags) > 0 ? Number(r.bags) : null })),
+      vehicleNo: trip.vehicleNo || null, bilty: trip.bilty || null, transporter: trip.transporter || null,
+      grossWeight: net !== null ? Number(trip.gross) : null, tareWeight: net !== null ? Number(trip.tare) : null,
+    })
     setRows(null)
+    setTrip({ vehicleNo: '', bilty: '', transporter: '', gross: '', tare: '' })
   })
   const cancel = async (r: GoodsReceipt) => { if (await confirmAsk(t('receipt.cancelConfirm', { number: r.number }))) void run(() => api(`/v1/goods-receipts/${r.id}/cancel`, 'POST', {})) }
 
@@ -224,7 +245,9 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
       {open.map((r) => (
         <div key={r.id} className="flex flex-col gap-1 rounded-xl border border-line p-3 text-sm">
           <p className="font-semibold">{t('receipt.number', { number: r.number, date: new Date(r.receivedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) })}{r.by ? ` · ${t('receipt.by', { name: r.by })}` : ''}</p>
-          {r.lines.map((l) => <p key={l.productId} className="text-xs">{l.name} × {l.quantity}</p>)}
+          {r.lines.map((l) => <p key={l.productId} className="text-xs">{l.name} × {l.quantity}{l.bags ? ` · ${t('bag.inBags', { count: l.bags })}` : ''}</p>)}
+          {(r.vehicleNo || r.bilty) && <p className="text-xs text-muted">🚚 {[r.vehicleNo, r.bilty && `${t('bag.bilty')} ${r.bilty}`, r.transporter].filter(Boolean).join(' · ')}</p>}
+          {r.grossWeight != null && r.tareWeight != null && <p className="text-xs text-muted">⚖ {t('bag.net', { net: r.grossWeight - r.tareWeight })}</p>}
           <div className="flex flex-wrap gap-3">
             <button onClick={() => onBill(r)} className="min-h-11 font-semibold text-teal-700">{t('receipt.makeBill')}</button>
             <button onClick={() => void cancel(r)} className="min-h-11 text-due">{t('receipt.cancel')}</button>
@@ -234,7 +257,18 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
       {rows && (
         <div className="flex flex-col gap-2 rounded-xl bg-[#f1f5f4] p-3">
           <p className="text-xs text-muted">{t('receipt.hint')}</p>
-          <PickRows products={products} rows={rows} onChange={setRows} withRate={false} listId="receipt-items" />
+          <PickRows products={products} rows={rows} onChange={setRows} withRate={false} listId="receipt-items" withBags />
+          <details className="rounded-xl bg-white p-3 text-sm">
+            <summary className="cursor-pointer font-semibold">🚚 {t('bag.transport')}</summary>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <input aria-label={t('bag.vehicle')} placeholder={t('bag.vehicle')} value={trip.vehicleNo} onChange={(e) => setTrip({ ...trip, vehicleNo: e.target.value })} className={input} />
+              <input aria-label={t('bag.bilty')} placeholder={t('bag.bilty')} value={trip.bilty} onChange={(e) => setTrip({ ...trip, bilty: e.target.value })} className={input} />
+              <input aria-label={t('bag.transporter')} placeholder={t('bag.transporter')} value={trip.transporter} onChange={(e) => setTrip({ ...trip, transporter: e.target.value })} className={`${input} col-span-2`} />
+              <input aria-label={t('bag.gross')} placeholder={t('bag.gross')} value={trip.gross} onChange={(e) => setTrip({ ...trip, gross: e.target.value })} inputMode="decimal" className={input} />
+              <input aria-label={t('bag.tare')} placeholder={t('bag.tare')} value={trip.tare} onChange={(e) => setTrip({ ...trip, tare: e.target.value })} inputMode="decimal" className={input} />
+            </div>
+            {net !== null && <p className="mt-2 font-semibold">⚖ {t('bag.net', { net })}{linesKg > 0 && Math.abs(linesKg - net) >= 1 ? <span className="text-due"> · {t('bag.netDiffers', { lines: linesKg, diff: Math.round(Math.abs(linesKg - net) * 100) / 100 })}</span> : null}</p>}
+          </details>
           <div className="grid grid-cols-2 gap-2">
             <Button disabled={valid.length === 0} onClick={() => void save()}>{t('receipt.save')}</Button>
             <button onClick={() => setRows(null)} className="min-h-12 rounded-2xl border border-line font-semibold">{t('cancel')}</button>

@@ -1,3 +1,4 @@
+import { BagCheck } from './ProductScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ItemPicker } from '../components/ItemPicker'
 import { ListDetail } from '../components/ListDetail'
@@ -20,7 +21,7 @@ interface Entry { id: string; amount: number; purchaseId: string | null; note: s
 interface Detail { supplier: Supplier; entries: Entry[] }
 interface BillDetail { billNo: string | null; total: number; extra: number; lines: { name: string; quantity: number; freeQuantity: number; unitCost: number; discountPercent: number; gstRate: number | null; taxable: number; gst: number }[] }
 /** Medicines also carry batch, expiry month (yyyy-mm), MRP, free units (scheme) and trade discount %. */
-interface Row { text?: string; productId: string; quantity: string; unitCost: string; batchNo: string; expiry: string; mrp: string; free: string; discount: string; gst: string; read?: string; problems?: string[] }
+interface Row { text?: string; productId: string; quantity: string; unitCost: string; bags?: string; basis?: 'unit' | 'quintal' | 'bag'; batchNo: string; expiry: string; mrp: string; free: string; discount: string; gst: string; read?: string; problems?: string[] }
 
 /** What the AI read off a distributor's bill photo, matched and checked by the server. Nothing is saved from it directly. */
 interface InvoiceDraft {
@@ -174,7 +175,12 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
   }
   const valid = rows.filter((r) => r.productId && Number(r.quantity) > 0 && r.unitCost !== '' && (!medical || !r.batchNo.trim() || (r.expiry && Number(r.mrp) > 0)))
   // Before GST (after trade discount), then with the GST the distributor charged on top.
-  const taxable = (r: Row) => Math.round(Number(r.quantity) * Number(r.unitCost) * (100 - (Number(r.discount) || 0))) / 100
+  const costEach = (r: Row) => {
+    const p = products.find((x) => x.id === r.productId)
+    const rate = Number(r.unitCost)
+    return r.basis === 'quintal' ? rate / 100 : r.basis === 'bag' && p?.bagSize ? rate / p.bagSize : rate
+  }
+  const taxable = (r: Row) => Math.round(Number(r.quantity) * costEach(r) * (100 - (Number(r.discount) || 0))) / 100
   const lineTotal = (r: Row) => taxable(r) + Math.round(taxable(r) * (Number(r.gst) || 0)) / 100
   const total = valid.reduce((sum, r) => sum + lineTotal(r), 0) + (Number(extra) || 0)
 
@@ -218,8 +224,8 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
     const saved = await send('/v1/suppliers/purchases', {
       id: crypto.randomUUID(), supplierId: id, billNo: billNo.trim() || null, paidAmount: Number(paid) || 0, paymentMode: mode, billDate: billDate || null, extra: Number(extra) || 0, orderId: against?.id ?? null, receiptIds: fromReceipts.length > 0 ? fromReceipts.map((r) => r.id) : null,
       lines: valid.map((r) => ({
-        productId: r.productId, quantity: Number(r.quantity), unitCost: Number(r.unitCost), freeQuantity: Number(r.free) || 0, discountPercent: Number(r.discount) || 0,
-        gstRate: r.gst === '' ? null : Number(r.gst),
+        productId: r.productId, quantity: Number(r.quantity), unitCost: Math.round(costEach(r) * 10000) / 10000, freeQuantity: Number(r.free) || 0, discountPercent: Number(r.discount) || 0,
+        gstRate: r.gst === '' ? null : Number(r.gst), bags: Number(r.bags) > 0 ? Number(r.bags) : null,
         // Only medicines keep batches. A batch read off a paint bill isn't on the screen, so it can't be asked about.
         ...(medical && r.batchNo.trim() ? { batchNo: r.batchNo.trim(), expiryMonth: r.expiry, mrp: Number(r.mrp) } : {}),
       })),
@@ -366,6 +372,22 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
             <ItemPicker products={choosable} text={nameOf(r)} placeholder={t('supplier2.itemSearch')} onText={(text) => pickItem(i, text)} onPick={(p) => pickItem(i, p.name)} className="col-span-2" />
             <input aria-label={t('suppliers.qty')} placeholder={t('suppliers.qty')} value={r.quantity} onChange={(e) => set(i, 'quantity', e.target.value)} inputMode="decimal" className={input} />
             <input aria-label={t('suppliers.cost')} placeholder={t('suppliers.cost')} value={r.unitCost} onChange={(e) => set(i, 'unitCost', e.target.value)} inputMode="decimal" className={input} />
+            {(() => {
+              const p = products.find((x) => x.id === r.productId)
+              if (!p || (p.unit !== 'kg' && !p.bagSize)) return null
+              const unit = t(`units.${p.unit}`)
+              return (
+                <>
+                  <select aria-label={t('bag.rateBasis')} value={r.basis ?? 'unit'} onChange={(e) => set(i, 'basis', e.target.value)} className={input}>
+                    <option value="unit">{t('bag.perUnit', { unit })}</option>
+                    {p.unit === 'kg' && <option value="quintal">{t('bag.perQuintal')}</option>}
+                    {p.bagSize ? <option value="bag">{t('bag.ratePerBag')}</option> : null}
+                  </select>
+                  {p.bagSize ? <input aria-label={t('bag.bags')} placeholder={t('bag.bags')} value={r.bags ?? ''} onChange={(e) => { set(i, 'bags', e.target.value) }} inputMode="numeric" className={input} /> : <span />}
+                  {p.bagSize && Number(r.bags) > 0 && Number(r.quantity) > 0 ? <div className="col-span-2"><BagCheck avg={Number(r.quantity) / Number(r.bags)} size={p.bagSize} bags={Number(r.bags)} unit={unit} /></div> : null}
+                </>
+              )
+            })()}
             {medical && (
               <>
                 <input aria-label={t('batches.batchNo')} placeholder={t('batches.batchNo')} value={r.batchNo} onChange={(e) => set(i, 'batchNo', e.target.value)} className={input} />

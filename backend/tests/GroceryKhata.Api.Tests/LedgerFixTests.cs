@@ -1343,4 +1343,46 @@ public sealed class LedgerFixTests(ApiFactory api)
         Assert.Equal(2000m, by.Total);
         Assert.True((await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Id == item.Id).DailySales > 0);
     }
+    [Fact]
+    public async Task Bags_and_weight_travel_together_through_receipts_bills_and_sales()
+    {
+        var shop = await ShopAsync("kirana");
+        var rice = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = rice, name = "Sona Masoori rice", unit = "kg", sellingPrice = 60m, bagSize = 50m })).EnsureSuccessStatusCode();
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Mandi Traders" })).EnsureSuccessStatusCode();
+
+        // 40 bags came, weighing 1,985 kg (not the 2,000 the bags say), on a truck with a weighbridge slip.
+        var receipt = await (await shop.PostJsonAsync("/api/v1/goods-receipts", new
+        {
+            id = Guid.CreateVersion7(), supplierId = supplier, lines = new[] { new { productId = rice, quantity = 1985m, bags = 40m } },
+            vehicleNo = "rj14 ga 1234", bilty = "LR-5521", transporter = "Shree Logistics", grossWeight = 9985m, tareWeight = 8000m,
+        })).ReadAsync<GoodsReceiptDto>();
+        Assert.Equal(("RJ14 GA 1234", 40m), (receipt.VehicleNo, receipt.Lines[0].Bags));
+        var item = await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{rice}");
+        Assert.Equal((1985m, 40m, 50m), (item.Stock, item.Bags, item.BagSize));
+
+        // Two bags sold whole, then one bag opened to sell loose.
+        (await shop.PostJsonAsync("/api/v1/bills", new
+        {
+            id = Guid.CreateVersion7(), customerId = (Guid?)null, lines = new[] { new { productId = rice, quantity = 100m, unitPrice = 60m, bags = 2m } }, paidAmount = 6000m, paymentMode = "cash",
+        })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.NoContent, (await shop.PostJsonAsync($"/api/v1/products/{rice}/open-bag", new { id = Guid.CreateVersion7(), bags = 1m })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/products/{rice}/open-bag", new { id = Guid.CreateVersion7(), bags = 99m })).StatusCode);
+
+        // A supplier bill straight to stock, with its bags; weight lost in storage.
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new
+        {
+            id = Guid.CreateVersion7(), supplierId = supplier, billNo = "M-9", lines = new[] { new { productId = rice, quantity = 500m, unitCost = 40m, bags = 10m } }, paidAmount = 0m,
+        })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/stock-movements", new { id = Guid.CreateVersion7(), productId = rice, kind = "adjustment", quantity = -5m, reason = "weight_loss" })).EnsureSuccessStatusCode();
+
+        item = await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{rice}");
+        Assert.Equal((2380m, 47m), (item.Stock, item.Bags));
+        var ledger = await shop.GetJsonAsync<ItemLedger>($"/api/v1/products/{rice}/ledger");
+        Assert.Equal((50m, 47m), (ledger.BagSize, ledger.ClosingBags));
+        Assert.Contains(ledger.Lines, l => l.Kind == StockMovementKind.OpenBag && l.Bags == -1m && l.Out == 0);
+        var statement = await shop.GetJsonAsync<StockStatement>("/api/v1/reports/stock");
+        Assert.Equal(47m, statement.Items.Single(i => i.ProductId == rice).ClosingBags);
+    }
 }

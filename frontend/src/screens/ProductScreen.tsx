@@ -22,7 +22,7 @@ import { cameraPossible } from '../lib/barcode'
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
 
 // The losses GST rule 56 asks the stock account to show, then the everyday ones.
-const REASONS: StockReason[] = ['damage', 'wastage', 'lost', 'stolen', 'destroyed', 'written_off', 'gift', 'free_sample', 'return', 'count_correction', 'other']
+const REASONS: StockReason[] = ['damage', 'wastage', 'lost', 'stolen', 'destroyed', 'written_off', 'gift', 'free_sample', 'weight_loss', 'return', 'count_correction', 'other']
 const ItemLedger = lazy(() => import('../components/ItemLedger').then((module) => ({ default: module.ItemLedger })))
 
 /** One item: shelf count with "goods in" and "reduce", its details, and every stock change. */
@@ -53,6 +53,8 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
         <StockBadge product={product} large />
       </section>
 
+      {product.bagSize ? <BagCard shopId={shopId} product={product} /> : null}
+
       <PhotoCard shopId={shopId} product={product} />
 
       <div className="grid grid-cols-2 gap-2">
@@ -80,7 +82,10 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
   const [cost, setCost] = useState('')
   const [reason, setReason] = useState<StockReason>('damage')
   const [note, setNote] = useState('')
+  const [bags, setBags] = useState('')
   const value = Number(quantity)
+  const unitName = t(`units.${product.unit}`)
+  const avg = Number(bags) > 0 && value > 0 ? value / Number(bags) : null
 
   async function save() {
     await addStockMovement(
@@ -91,6 +96,7 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
       kind === 'adjustment' ? reason : null,
       kind === 'purchase' && cost ? Number(cost) : null,
       note.trim() || null,
+      Number(bags) > 0 ? (kind === 'purchase' ? Number(bags) : -Number(bags)) : null,
     )
     onClose()
   }
@@ -105,6 +111,12 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
           inputMode="decimal"
           autoFocus
         />
+        {product.bagSize ? (
+          <div className="flex flex-col gap-1">
+            <Field label={t('bag.bags')} value={bags} onChange={(e) => { setBags(e.target.value); if (!quantity && Number(e.target.value) > 0) setQuantity(String(Number(e.target.value) * product.bagSize!)) }} inputMode="numeric" />
+            {avg !== null && <BagCheck avg={avg} size={product.bagSize} bags={Number(bags)} unit={unitName} />}
+          </div>
+        ) : null}
         {kind === 'purchase' && <Field label={`${t('stock.costPrice')} / ${t(`units.${product.unit}`)}`} value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" />}
         {kind === 'adjustment' && (
           <div>
@@ -173,6 +185,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     size: product.size ?? '',
     colour: product.colour ?? '',
     uncounted: !!product.uncounted,
+    bagSize: product.bagSize ? String(product.bagSize) : '',
   })
   const types = shopTypes(useShopSettings(shopId).data)
   const medical = types.includes('medical')
@@ -196,6 +209,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     size: form.size.trim(),
     colour: form.colour.trim(),
     uncounted: form.uncounted,
+    bagSize: Number(form.bagSize) || 0,
     ...(medical ? { schedule: form.schedule || null, replaceSchedule: true, unitsPerPack: Number(form.perPack) || 0 } : {}),
     ...(service ? { tracksSerials: form.serials, warrantyMonths: Number(form.warranty) || 0 } : {}),
     isActive,
@@ -259,6 +273,13 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         <Field label={t('stock.reorderLevel')} value={form.reorder} onChange={set('reorder')} inputMode="decimal" />
       </div>
       <Field label={t('stock.category')} value={form.category} onChange={set('category')} />
+      {!product.isService && (
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-muted">🛍️ {t('bag.sizeLabel')}</span>
+          <input value={form.bagSize} onChange={set('bagSize')} inputMode="decimal" placeholder="50" className="h-12 w-32 rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /> {t(`units.${form.unit}`)}
+          <span className="mt-1 block text-xs text-muted">{t('bag.sizeHint', { unit: t(`units.${form.unit}`) })}</span>
+        </label>
+      )}
       {medical && !product.isService && (
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-muted">{t('rx.schedule')}</span>
@@ -402,5 +423,51 @@ function BarcodeRow({ product }: { product: Product }) {
         </Suspense>
       )}
     </div>
+  )
+}
+
+/** Average weight a bag against its size: short bags are a supplier or handling question. */
+export function BagCheck({ avg, size, bags, unit }: { avg: number; size: number; bags: number; unit: string }) {
+  const { t } = useTranslation()
+  const diff = Math.round((avg - size) * 100) / 100
+  const total = Math.round((size - avg) * bags * 100) / 100
+  const tone = Math.abs(diff) < size * 0.005 ? 'bg-emerald-50 text-emerald-800' : diff < 0 ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'
+  return (
+    <p className={`rounded-xl px-3 py-2 text-sm font-semibold ${tone}`}>
+      ⚖ {t('bag.perBag', { avg: Math.round(avg * 100) / 100, unit })}
+      {diff < 0 && ` · ${t('bag.short', { diff: -diff, unit, total })}`}
+      {diff > 0 && ` · ${t('bag.over', { diff, unit })}`}
+    </p>
+  )
+}
+
+/** Sealed bags and loose weight, and opening a bag to sell loose. */
+function BagCard({ shopId, product }: { shopId: string; product: Product }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const bags = product.bags ?? 0
+  const loose = Math.round((product.stock - bags * product.bagSize!) * 1000) / 1000
+  const average = bags > 0 ? Math.round((product.stock / bags) * 100) / 100 : null
+  const unit = t(`units.${product.unit}`)
+  async function open() {
+    const n = Number(await ask(t('bag.openAsk'), '1'))
+    if (!(n > 0)) return
+    try {
+      await api(`/v1/products/${product.id}/open-bag`, 'POST', { id: crypto.randomUUID(), bags: n })
+      await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+      void queryClient.invalidateQueries({ queryKey: ['item-ledger', product.id] })
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : t('error'))
+    }
+  }
+  return (
+    <section className="flex flex-wrap items-center gap-3 rounded-[18px] bg-white p-4 shadow-sm">
+      <span aria-hidden className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-2xl">🛍️</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <b className="text-lg">{t('bag.sealed', { count: bags })}</b>
+        <span className="text-sm text-muted">{t('bag.bagsOf', { size: product.bagSize, unit })} · {loose >= 0 ? t('bag.loose', { qty: loose, unit }) : t('bag.perBag', { avg: average, unit })}</span>
+      </span>
+      <button onClick={() => void open()} disabled={bags <= 0} className="h-11 rounded-xl border-2 border-teal-700 px-4 font-bold text-teal-800 hover:bg-teal-50 disabled:opacity-40">✂ {t('bag.open')}</button>
+    </section>
   )
 }

@@ -37,14 +37,15 @@ public sealed record StocktakeView(StocktakeSummary Summary, IReadOnlyList<Stock
 /// <summary>One line of an item's stock account: what came in or went out, the balance after it, who did it, and why.</summary>
 public sealed record LedgerLine(
     Guid Id, DateTimeOffset OccurredAt, StockMovementKind Kind, StockReason? Reason, decimal In, decimal Out, decimal Balance,
-    decimal? CostPrice, string? Note, string By, string? DocType, Guid? DocId, string? DocLabel);
+    decimal? CostPrice, string? Note, string By, string? DocType, Guid? DocId, string? DocLabel, decimal? Bags = null, decimal BagBalance = 0);
 
-public sealed record ItemLedger(Guid ProductId, string Name, Unit Unit, DateOnly From, DateOnly To, decimal Opening, decimal In, decimal Out, decimal Closing, IReadOnlyList<LedgerLine> Lines);
+public sealed record ItemLedger(Guid ProductId, string Name, Unit Unit, DateOnly From, DateOnly To, decimal Opening, decimal In, decimal Out, decimal Closing, IReadOnlyList<LedgerLine> Lines,
+    decimal? BagSize = null, decimal OpeningBags = 0, decimal ClosingBags = 0);
 
 /// <summary>One item in the stock statement: opening, in, out, closing, and the closing value at average cost.</summary>
 public sealed record StockStatementLine(
     Guid ProductId, string Name, string? Category, Unit Unit, decimal Opening, decimal Purchased, decimal Sold, decimal OtherIn, decimal OtherOut,
-    decimal Closing, decimal? CostPrice, decimal? Value, decimal Lost);
+    decimal Closing, decimal? CostPrice, decimal? Value, decimal Lost, decimal? BagSize = null, decimal? ClosingBags = null);
 
 public sealed record StockStatement(DateOnly From, DateOnly To, decimal Value, int Unvalued, decimal LostValue, IReadOnlyList<StockStatementLine> Items);
 
@@ -110,7 +111,7 @@ public static class StockLedger
         return cost is { } c ? decimal.Round(c, 2) : null;
     }
 
-    private static readonly StockReason[] Losses = [StockReason.Damage, StockReason.Wastage, StockReason.Lost, StockReason.Stolen, StockReason.Destroyed, StockReason.WrittenOff, StockReason.Gift, StockReason.FreeSample];
+    private static readonly StockReason[] Losses = [StockReason.Damage, StockReason.Wastage, StockReason.Lost, StockReason.Stolen, StockReason.Destroyed, StockReason.WrittenOff, StockReason.Gift, StockReason.FreeSample, StockReason.WeightLoss];
 
     private static (DateOnly From, DateOnly To, DateTimeOffset Start, DateTimeOffset End)? Period(DateOnly? from, DateOnly? to, TimeProvider clock)
     {
@@ -141,13 +142,14 @@ public static class StockLedger
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["From"] = [$"Pick dates in order, at most {MaxDays} days apart."] });
         }
 
-        var product = await db.Products.AsNoTracking().Where(x => x.Id == id).Select(x => new { x.Name, x.Unit }).SingleOrDefaultAsync(ct);
+        var product = await db.Products.AsNoTracking().Where(x => x.Id == id).Select(x => new { x.Name, x.Unit, x.BagSize }).SingleOrDefaultAsync(ct);
         if (product is null)
         {
             return Results.NotFound();
         }
 
         var opening = await db.StockMovements.Where(m => m.ProductId == id && m.OccurredAt < p.Start).SumAsync(m => (decimal?)m.Quantity, ct) ?? 0m;
+        var openingBags = await db.StockMovements.Where(m => m.ProductId == id && m.OccurredAt < p.Start && m.Bags != null).SumAsync(m => (decimal?)m.Bags, ct) ?? 0m;
         var moves = await db.StockMovements.AsNoTracking().Where(m => m.ProductId == id && m.OccurredAt >= p.Start && m.OccurredAt < p.End)
             .OrderBy(m => m.OccurredAt).ThenBy(m => m.CreatedAt).Take(MaxLines).ToListAsync(ct);
         var names = await NamesAsync(db, moves.Select(m => m.CreatedByUserId), ct);
@@ -160,20 +162,22 @@ public static class StockLedger
                                select new { x.Id, x.BillNo, s.Name }).ToDictionaryAsync(x => x.Id, ct);
 
         var balance = opening;
+        var bagBalance = openingBags;
         var lines = new List<LedgerLine>(moves.Count);
         foreach (var m in moves)
         {
             balance += m.Quantity;
+            bagBalance += m.Bags ?? 0;
             var (docType, docId, label) = m.BillId is { } bill
                 ? ("bill", (Guid?)bill, billNos.GetValueOrDefault(bill) is { } no ? $"Bill {no}" : "Bill")
                 : m.RefType == "purchase" && m.RefId is { } pid && purchases.TryGetValue(pid, out var pur)
                     ? ("purchase", pid, $"{pur.Name}{(pur.BillNo is { } pno ? $" · {pno}" : "")}")
                     : (m.RefType, m.RefId, (string?)null);
             lines.Add(new LedgerLine(m.Id, m.OccurredAt, m.Kind, m.Reason, Math.Max(0, m.Quantity), Math.Max(0, -m.Quantity), balance,
-                m.CostPrice, m.Note, names.GetValueOrDefault(m.CreatedByUserId, "—"), docType, docId, label));
+                m.CostPrice, m.Note, names.GetValueOrDefault(m.CreatedByUserId, "—"), docType, docId, label, m.Bags, bagBalance));
         }
 
-        return Results.Ok(new ItemLedger(id, product.Name, product.Unit, p.From, p.To, opening, lines.Sum(l => l.In), lines.Sum(l => l.Out), balance, lines));
+        return Results.Ok(new ItemLedger(id, product.Name, product.Unit, p.From, p.To, opening, lines.Sum(l => l.In), lines.Sum(l => l.Out), balance, lines, product.BagSize, openingBags, bagBalance));
     }
 
     private static async Task<IResult> StatementAsync(DateOnly? from, DateOnly? to, AppDbContext db, TimeProvider clock, CancellationToken ct)
@@ -184,9 +188,9 @@ public static class StockLedger
         }
 
         var moves = await db.StockMovements.AsNoTracking().Where(m => m.OccurredAt < p.End)
-            .Select(m => new { m.ProductId, m.Kind, m.Reason, m.Quantity, m.CostPrice, m.OccurredAt }).ToListAsync(ct);
+            .Select(m => new { m.ProductId, m.Kind, m.Reason, m.Quantity, m.CostPrice, m.OccurredAt, m.Bags }).ToListAsync(ct);
         var products = await db.Products.AsNoTracking().Where(x => !x.IsService)
-            .Select(x => new { x.Id, x.Name, x.Category, x.Unit, x.CostPrice, x.IsActive }).ToListAsync(ct);
+            .Select(x => new { x.Id, x.Name, x.Category, x.Unit, x.CostPrice, x.IsActive, x.BagSize }).ToListAsync(ct);
         var byProduct = moves.ToLookup(m => m.ProductId);
 
         var items = new List<StockStatementLine>();
@@ -209,7 +213,7 @@ public static class StockLedger
             var closing = before + within.Sum(m => m.Quantity);
             var cost = AverageCost(all.Select(m => (m.Kind, m.Quantity, m.CostPrice, m.OccurredAt))) ?? x.CostPrice;
             items.Add(new StockStatementLine(x.Id, x.Name, x.Category, x.Unit, before, purchased, sold, otherIn, otherOut, closing, cost,
-                cost is { } c && closing > 0 ? decimal.Round(closing * c, 2) : null, lost));
+                cost is { } c && closing > 0 ? decimal.Round(closing * c, 2) : null, lost, x.BagSize, x.BagSize is null ? null : all.Sum(m => m.Bags ?? 0)));
         }
 
         items = items.OrderBy(i => i.Category ?? "~").ThenBy(i => i.Name).ToList();

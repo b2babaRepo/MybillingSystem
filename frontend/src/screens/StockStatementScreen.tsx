@@ -7,7 +7,7 @@ import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import type { Unit } from '../lib/types'
 
-interface Line { productId: string; name: string; category: string | null; unit: Unit; opening: number; purchased: number; sold: number; otherIn: number; otherOut: number; closing: number; costPrice: number | null; value: number | null; lost: number }
+interface Line { productId: string; name: string; category: string | null; unit: Unit; opening: number; purchased: number; sold: number; otherIn: number; otherOut: number; closing: number; costPrice: number | null; value: number | null; lost: number; bagSize?: number | null; closingBags?: number | null }
 interface Statement { value: number; unvalued: number; lostValue: number; items: Line[] }
 
 /**
@@ -76,7 +76,7 @@ export function StockStatementScreen() {
                   <td className="px-2 text-jama">{i.purchased || ''}</td>
                   <td className="px-2 text-udhaar">{i.sold || ''}</td>
                   <td className="px-2 text-due">{i.lost || ''}</td>
-                  <td className={`px-2 font-bold ${i.closing < 0 ? 'text-due' : ''}`}>{i.closing}</td>
+                  <td className={`px-2 font-bold ${i.closing < 0 ? 'text-due' : ''}`}>{i.closing}{i.closingBags != null && <span className="block text-xs font-normal text-muted">{t('bag.inBags', { count: i.closingBags })}</span>}</td>
                   <td className="px-3 font-semibold">{i.value !== null ? formatRupees(i.value) : '—'}</td>
                 </tr>
               ))}

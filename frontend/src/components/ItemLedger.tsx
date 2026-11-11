@@ -10,8 +10,9 @@ import type { Unit } from '../lib/types'
 interface LedgerLine {
   id: string; occurredAt: string; kind: string; reason: string | null; in: number; out: number; balance: number
   costPrice: number | null; note: string | null; by: string; docType: string | null; docId: string | null; docLabel: string | null
+  bags?: number | null; bagBalance?: number
 }
-interface ItemLedgerData { name: string; unit: Unit; opening: number; in: number; out: number; closing: number; lines: LedgerLine[] }
+interface ItemLedgerData { name: string; unit: Unit; opening: number; in: number; out: number; closing: number; lines: LedgerLine[]; bagSize?: number | null; openingBags?: number; closingBags?: number }
 
 /**
  * One item's stock account for chosen dates: opening, every change with the balance after it, who made it and the
@@ -34,7 +35,7 @@ export function ItemLedger({ productId }: { productId: string }) {
     saveCsv(`stock-${d.name}-${range.from}-to-${range.to}.csv`, [
       [t('sl.date'), t('sl.what'), t('sl.doc'), t('sl.in'), t('sl.out'), t('sl.balance'), t('sl.by'), 'Note'],
       ['', t('sl.opening'), '', '', '', d.opening, '', ''],
-      ...d.lines.map((l) => [formatDateTime(l.occurredAt), what(l), doc(l), l.in || '', l.out || '', l.balance, l.by, l.note]),
+      ...d.lines.map((l) => [formatDateTime(l.occurredAt), what(l), doc(l), l.in || '', l.out || '', l.balance, l.by, [l.note, l.bags ? t('bag.inBags', { count: l.bags }) : null].filter(Boolean).join(' · ')]),
       ['', t('sl.closing'), '', d.in, d.out, d.closing, '', ''],
     ])
   }
@@ -53,7 +54,8 @@ export function ItemLedger({ productId }: { productId: string }) {
       {d && (
         <div className="grid grid-cols-4 gap-1.5 text-center text-sm">
           {([['opening', d.opening, 'bg-[#edf2f1]'], ['in', d.in, 'bg-emerald-50 text-emerald-800'], ['out', d.out, 'bg-orange-50 text-orange-800'], ['closing', d.closing, 'bg-teal-50 text-teal-900']] as const).map(([k, v, tone]) => (
-            <span key={k} className={`flex flex-col rounded-xl px-1 py-2 ${tone}`}><span className="text-xs">{t(`sl.${k}`)}</span><b className="text-base">{v}</b></span>
+            <span key={k} className={`flex flex-col rounded-xl px-1 py-2 ${tone}`}><span className="text-xs">{t(`sl.${k}`)}</span><b className="text-base">{v}</b>
+              {d.bagSize && (k === 'opening' || k === 'closing') ? <span className="text-[11px]">{t('bag.inBags', { count: k === 'opening' ? d.openingBags ?? 0 : d.closingBags ?? 0 })}</span> : null}</span>
           ))}
         </div>
       )}
@@ -76,8 +78,9 @@ export function ItemLedger({ productId }: { productId: string }) {
                 {l.note && !l.docLabel && <span className="text-xs text-muted">{l.note}</span>}
               </span>
               <span className="flex shrink-0 flex-col items-end">
-                <b className={l.in > 0 ? 'text-jama' : 'text-udhaar'}>{l.in > 0 ? `+${l.in}` : `−${l.out}`} {unit}</b>
-                <span className="text-xs text-muted">{t('sl.balance')} {l.balance}</span>
+                {(l.in > 0 || l.out > 0) && <b className={l.in > 0 ? 'text-jama' : 'text-udhaar'}>{l.in > 0 ? `+${l.in}` : `−${l.out}`} {unit}</b>}
+                {l.bags ? <span className={`text-sm font-semibold ${l.bags > 0 ? 'text-jama' : 'text-udhaar'}`}>{l.bags > 0 ? '+' : '−'}{t('bag.inBags', { count: Math.abs(l.bags) })}</span> : null}
+                <span className="text-xs text-muted">{t('sl.balance')} {l.balance}{d.bagSize ? ` · ${t('bag.inBags', { count: l.bagBalance ?? 0 })}` : ''}</span>
               </span>
             </li>
           ))}

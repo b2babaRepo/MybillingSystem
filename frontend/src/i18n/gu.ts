@@ -207,7 +207,7 @@ export const gu: Texts = {
     quantityIn: 'કેટલું આવ્યું?',
     quantityOut: 'કેટલું ઓછું કરવું?',
     reason: 'શા માટે?',
-    reasons: { lost: 'ખોવાયું', stolen: 'ચોરી', destroyed: 'નાશ પામ્યું', written_off: 'માંડી વાળ્યું', gift: 'ભેટમાં આપ્યું', free_sample: 'મફત નમૂનો', damage: 'ખરાબ થયું', wastage: 'બગડ્યું', count_correction: 'ગણતરી સુધારો', return: 'પાછું આવ્યું', other: 'બીજું' },
+    reasons: { weight_loss: 'વજન ઘટ્યું (ભેજ, ઢોળાવું)', lost: 'ખોવાયું', stolen: 'ચોરી', destroyed: 'નાશ પામ્યું', written_off: 'માંડી વાળ્યું', gift: 'ભેટમાં આપ્યું', free_sample: 'મફત નમૂનો', damage: 'ખરાબ થયું', wastage: 'બગડ્યું', count_correction: 'ગણતરી સુધારો', return: 'પાછું આવ્યું', other: 'બીજું' },
     history: 'સ્ટોક ઇતિહાસ',
     kinds: { opening: 'શરૂઆતનો સ્ટોક', purchase: 'માલ આવ્યો', sale: 'વેચાયું', adjustment: 'સુધાર્યું' },
     saveDetails: 'વિગત સેવ કરો',
