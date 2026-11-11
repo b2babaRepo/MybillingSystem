@@ -112,6 +112,7 @@ app.MapCashBook();
 app.MapBankBook();
 app.MapCashLimits();
 app.MapCustomerMove();
+app.MapStockLedger();
 app.MapCashMoves();
 app.MapAudit();
 app.MapPlanner();

@@ -216,6 +216,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<CashCount> CashCounts => Set<CashCount>();
 
     public DbSet<Ledger.CashMove> CashMoves => Set<Ledger.CashMove>();
+    public DbSet<Catalogue.Stocktake> Stocktakes => Set<Catalogue.Stocktake>();
 
     public DbSet<Challan> Challans => Set<Challan>();
 
@@ -1176,6 +1177,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(e => e.Amount).HasPrecision(12, 2);
             b.Property(e => e.Quantity).HasPrecision(12, 3);
             b.HasIndex(e => new { e.ShopId, e.JobId });
+        });
+
+        modelBuilder.Entity<Catalogue.Stocktake>(b =>
+        {
+            b.ToTable("stocktakes");
+            b.HasTenantKey();
+            b.Property(t => t.Lines).HasColumnType("jsonb");
+            b.Property(t => t.ValueDifference).HasPrecision(14, 2);
+            b.HasIndex(t => new { t.ShopId, t.Number }).IsUnique();
         });
 
         modelBuilder.Entity<Ledger.CashMove>(b =>

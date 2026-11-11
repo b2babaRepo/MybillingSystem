@@ -56,6 +56,8 @@ export interface Product {
   costPrice: number | null
   stock: number
   reorderLevel: number | null
+  /** Average sold a day over the last 30 days; stock over it is the days of stock left. */
+  dailySales?: number | null
   /** Out of stock, or at/below the reorder level. */
   isLow: boolean
   /** The shop doesn't count this item: never out or low. */
@@ -99,7 +101,7 @@ export interface Product {
 }
 
 export type StockMovementKind = 'opening' | 'purchase' | 'sale' | 'adjustment'
-export type StockReason = 'damage' | 'wastage' | 'count_correction' | 'return' | 'other'
+export type StockReason = 'damage' | 'wastage' | 'count_correction' | 'return' | 'other' | 'lost' | 'stolen' | 'destroyed' | 'written_off' | 'gift' | 'free_sample'
 
 export interface StockMovement {
   id: string

@@ -1,5 +1,13 @@
 // Gujarati text no first screen needs, first half (see guMore.ts).
 export const guMoreA = {
+  sl: { ledger: 'સ્ટોક ખાતું', ledgerHint: 'આ માલનો દરેક ફેરફાર: શું આવ્યું, શું ગયું, પછી બાકી, કોણે કર્યું અને શા માટે.', from: 'થી', to: 'સુધી', opening: 'શરૂઆત', in: 'આવ્યું', out: 'ગયું', closing: 'અંત', balance: 'બાકી', by: 'કોણે', byName: '{{name}} એ', doc: 'કાગળ', what: 'શું', date: 'તારીખ', csv: 'ડાઉનલોડ (CSV)', none: 'આ તારીખોમાં કંઈ નથી.',
+    statement: 'સ્ટોક પત્રક', statementHint: 'દરેક માલ: શરૂઆત, ખરીદ્યો, વેચ્યો, ગુમાવ્યો અને અંતનો સ્ટોક, સરેરાશ ખર્ચે કિંમત. GST જે સ્ટોક ખાતું રાખવા કહે છે.', bought: 'ખરીદ્યું', sold: 'વેચ્યું', lost: 'ગુમાવ્યું', otherIn: 'બીજું આવ્યું', otherOut: 'બીજું ગયું', value: 'કિંમત', totalValue: 'ખર્ચે સ્ટોકની કિંમત', lostValue: 'ગુમાવ્યું કે માંડી વાળ્યું (ખર્ચે)', unvalued_one: 'સ્ટોકના {{count}} માલનો ખર્ચ નથી, તેથી કિંમતમાં નથી.', unvalued_other: 'સ્ટોકના {{count}} માલનો ખર્ચ નથી, તેથી કિંમતમાં નથી.', search: 'માલ શોધો', noCategory: 'વિભાગ વગર',
+    daysLeft_one: 'આશરે {{count}} દિવસનો સ્ટોક બાકી', daysLeft_other: 'આશરે {{count}} દિવસનો સ્ટોક બાકી', perDay: 'રોજ આશરે {{qty}} {{unit}} વેચાય છે',
+    takes: 'જૂની સ્ટોક ગણતરીઓ', take: 'ગણતરી #{{number}}', takeLine: '{{date}} · {{by}} એ · {{items}} માલ · {{diffs}} માં ફરક', noTakes: 'હજી કોઈ ગણતરી સેવ નથી.', books: 'ચોપડે', counted: 'ગણ્યું', difference: 'ફરક',
+    salesBy: 'વિભાગ, સપ્લાયર કે ગ્રાહક પ્રમાણે વેચાણ', salesByShort: 'વિભાગ પ્રમાણે વેચાણ', byWhat: { category: 'વિભાગ', supplier: 'સપ્લાયર', customer: 'ગ્રાહક' }, sales: 'વેચાણ', share: 'હિસ્સો', profit: 'નફો', bills: 'બિલ', billsCount_one: '{{count}} બિલ', billsCount_other: '{{count}} બિલ', walkIn: 'સીધું વેચાણ', unknown: 'નક્કી નથી',
+    writeOff: 'સહાયક ખર્ચે વધુમાં વધુ કેટલું માંડી વાળી શકે (₹)', writeOffHint: 'આથી વધુ નુકસાન, ખોવાયેલું કે ગણતરીનો ફરક માલિક કરે.',
+    kinds: { used_on_job: 'કામમાં વપરાયું', used_in_service: 'સેવામાં વપરાયું', sent_to_karigar: 'કારીગરને મોકલ્યું', back_from_karigar: 'કારીગર પાસેથી પાછું' },
+    docs: { bill: 'બિલ', purchase: 'સપ્લાયર બિલ', receipt: 'માલ આવ્યો', challan: 'ડિલિવરી ચલણ', supplier_return: 'સપ્લાયરને પરત', credit_note: 'ક્રેડિટ નોટ', job: 'કામ', karigar: 'કારીગર ચલણ', stocktake: 'સ્ટોક ગણતરી' } },
   billLink: { gone: 'આ બિલ લિંક સાચી નથી. દુકાનને ફરી મોકલવા કહો.', madeWith: 'ગ્રોસરી ખાતાથી બનેલું બિલ' },
   reminders: { title: 'આજની યાદ', hint: 'સંદેશ તૈયાર રાખીને WhatsApp ખોલવા ટેપ કરો. ફક્ત સંમતિ આપનાર ગ્રાહકો, અઠવાડિયામાં વધુમાં વધુ એક વાર, અને હમણાં ચૂકવ્યું હોય એવું ન લાગે તે જ દેખાય છે.',
     none: 'આજે કોઈને યાદ કરાવવાનું નથી.', send: 'WhatsApp પર મોકલો', stop: 'ગ્રાહકે બંધ કરવા કહ્યું', agreed: 'ગ્રાહક સંમત',

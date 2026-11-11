@@ -449,7 +449,7 @@ public static class SupplierEndpoints
             {
                 db.StockMovements.Add(new StockMovement
                 {
-                    ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = units - fromReceipt, CostPrice = unitCost,
+                    RefType = "purchase", RefId = purchase.Id, ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = units - fromReceipt, CostPrice = unitCost,
                     OccurredAt = now, CreatedByUserId = userId, Note = batch is null ? "Supplier bill" : $"Supplier bill · batch {batch.BatchNo}",
                 });
             }
@@ -540,7 +540,7 @@ public static class SupplierEndpoints
         {
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -(line.Quantity + line.FreeQuantity - line.FromReceipt), OccurredAt = now,
+                RefType = "purchase", RefId = id, ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -(line.Quantity + line.FreeQuantity - line.FromReceipt), OccurredAt = now,
                 CreatedByUserId = userId, Note = "Supplier bill cancelled",
             });
             if (line.BatchId is { } batchId)

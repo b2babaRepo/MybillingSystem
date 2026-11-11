@@ -1300,4 +1300,47 @@ public sealed class LedgerFixTests(ApiFactory api)
         Assert.Equal("Counter 2", counted.Counter);
         Assert.Equal("Counter 2", (await shop.GetJsonAsync<BillView>($"/api/v1/bills/{counted.Id}")).Bill.Counter);
     }
+    [Fact]
+    public async Task The_stock_account_shows_every_movement_values_stock_and_keeps_counts()
+    {
+        var shop = await ShopAsync("hardware");
+        var item = await ItemAsync(shop, "Cement", 400m, 10m);
+        // Two purchases at different prices: the cost averages in, it is not overwritten.
+        (await shop.PostJsonAsync("/api/v1/stock-movements", new { id = Guid.CreateVersion7(), productId = item.Id, kind = "purchase", quantity = 10m, costPrice = 300m })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/stock-movements", new { id = Guid.CreateVersion7(), productId = item.Id, kind = "purchase", quantity = 10m, costPrice = 360m })).EnsureSuccessStatusCode();
+        Assert.Equal(320m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{item.Id}")).CostPrice);
+        (await Bill(shop, null, item.Id, 5m, 400m, 2000m)).EnsureSuccessStatusCode();
+        // A loss the GST stock account asks for.
+        (await shop.PostJsonAsync("/api/v1/stock-movements", new { id = Guid.CreateVersion7(), productId = item.Id, kind = "adjustment", quantity = -1m, reason = "stolen" })).EnsureSuccessStatusCode();
+
+        var ledger = await shop.GetJsonAsync<ItemLedger>($"/api/v1/products/{item.Id}/ledger");
+        Assert.Equal((0m, 30m, 6m, 24m), (ledger.Opening, ledger.In, ledger.Out, ledger.Closing));
+        Assert.Equal(24m, ledger.Lines[^1].Balance);
+        Assert.Contains(ledger.Lines, l => l.DocType == "bill" && l.DocLabel!.StartsWith("Bill"));
+        Assert.All(ledger.Lines, l => Assert.NotEqual("—", l.By));
+
+        var statement = await shop.GetJsonAsync<StockStatement>("/api/v1/reports/stock");
+        var line = Assert.Single(statement.Items, i => i.ProductId == item.Id);
+        Assert.Equal((20m, 5m, 1m, 24m), (line.Purchased - 10m, line.Sold, line.Lost, line.Closing));
+        Assert.Equal(24m * 320m, line.Value);
+
+        // A helper can't write off more than the limit at cost; the owner can.
+        var helper = await HelperOfAsync(shop);
+        var big = new { id = Guid.CreateVersion7(), productId = item.Id, kind = "adjustment", quantity = -10m, reason = "damage" };
+        Assert.Equal(HttpStatusCode.BadRequest, (await helper.PostJsonAsync("/api/v1/stock-movements", big)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await shop.PostJsonAsync("/api/v1/stock-movements", big)).StatusCode);
+
+        // A count is kept, with what it found.
+        var takeId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/stocktakes", new { id = takeId, counts = new[] { new { productId = item.Id, counted = 12m } } })).EnsureSuccessStatusCode();
+        var takes = await shop.GetJsonAsync<List<StocktakeSummary>>("/api/v1/stocktakes");
+        Assert.Equal((1, 1, -640m), (takes[0].Number, takes[0].Differences, takes[0].ValueDifference));
+        var view = await shop.GetJsonAsync<StocktakeView>($"/api/v1/stocktakes/{takeId}");
+        Assert.Equal((14m, 12m), (view.Lines[0].Books, view.Lines[0].Counted));
+
+        // Sales by category; days of stock left come from the average daily sale.
+        var by = await shop.GetJsonAsync<SalesBy>("/api/v1/reports/sales-by?by=category");
+        Assert.Equal(2000m, by.Total);
+        Assert.True((await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Id == item.Id).DailySales > 0);
+    }
 }

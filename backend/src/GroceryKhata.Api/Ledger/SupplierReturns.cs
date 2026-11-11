@@ -146,7 +146,7 @@ public static class SupplierReturns
                 record.Lines.Add(new SupplierReturnLine { ProductId = productId, Quantity = line.Quantity, UnitCost = each });
                 db.StockMovements.Add(new StockMovement
                 {
-                    ProductId = productId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Return, Quantity = -line.Quantity, CostPrice = each,
+                    RefType = "supplier_return", RefId = record.Id, ProductId = productId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Return, Quantity = -line.Quantity, CostPrice = each,
                     Note = "Returned to supplier", OccurredAt = now, CreatedByUserId = userId,
                 });
                 continue;
@@ -167,7 +167,7 @@ public static class SupplierReturns
             record.Lines.Add(new SupplierReturnLine { ProductId = batch.ProductId, BatchId = batch.Id, Quantity = line.Quantity, UnitCost = cost });
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = batch.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Return, Quantity = -line.Quantity, CostPrice = cost,
+                RefType = "supplier_return", RefId = record.Id, ProductId = batch.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Return, Quantity = -line.Quantity, CostPrice = cost,
                 Note = $"Returned to distributor · batch {batch.BatchNo} exp {batch.Expiry:MM/yy}", OccurredAt = now, CreatedByUserId = userId,
             });
         }

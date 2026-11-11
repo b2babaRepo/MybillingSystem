@@ -200,7 +200,7 @@ public static class CreditNotes
             {
                 db.StockMovements.Add(new StockMovement
                 {
-                    ProductId = line.ProductId!.Value, Kind = StockMovementKind.Adjustment, Reason = StockReason.Return, Quantity = ask.Quantity, BillId = billId,
+                    RefType = "credit_note", RefId = note.Id, ProductId = line.ProductId!.Value, Kind = StockMovementKind.Adjustment, Reason = StockReason.Return, Quantity = ask.Quantity, BillId = billId,
                     OccurredAt = now, CreatedByUserId = userId, Note = note.NoteNo,
                 });
             }

@@ -207,7 +207,7 @@ export const hi: Texts = {
     quantityIn: 'कितना आया?',
     quantityOut: 'कितना घटाना है?',
     reason: 'क्यों?',
-    reasons: { damage: 'खराब', wastage: 'बर्बाद', count_correction: 'गिनती सुधार', return: 'वापसी', other: 'और' },
+    reasons: { lost: 'खो गया', stolen: 'चोरी', destroyed: 'नष्ट', written_off: 'बट्टे खाते', gift: 'उपहार में दिया', free_sample: 'मुफ़्त नमूना', damage: 'खराब', wastage: 'बर्बाद', count_correction: 'गिनती सुधार', return: 'वापसी', other: 'और' },
     history: 'स्टॉक का हिसाब',
     kinds: { opening: 'शुरुआती स्टॉक', purchase: 'माल आया', sale: 'बिका', adjustment: 'सुधार' },
     saveDetails: 'जानकारी सेव करें',

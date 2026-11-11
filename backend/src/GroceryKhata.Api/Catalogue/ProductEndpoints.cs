@@ -71,7 +71,9 @@ public sealed record ProductDto(
     string? Size = null,
     string? Colour = null,
     bool Uncounted = false,
-    DateOnly? OutOn = null);
+    DateOnly? OutOn = null,
+    // Average sold a day over the last 30 days (null: none sold): stock over this is the days of stock left.
+    decimal? DailySales = null);
 
 public sealed record OutTodayRequest(bool Out);
 
@@ -328,7 +330,7 @@ public static class ProductEndpoints
         var stockGroup = app.MapGroup("/api/v1").WithTags("Stock").RequireAuthorization(AppPolicies.ShopMember);
 
         stockGroup.MapPost("/stock-movements", async (StockMovementRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
-            await stock.AddMovementAsync(request, user.UserId()!.Value, ct) switch
+            await stock.AddMovementAsync(request, user.UserId()!.Value, ct, user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))) switch
             {
                 { Errors: { } errors } => Results.ValidationProblem(errors),
                 { NotFound: true } => Results.ValidationProblem(new Dictionary<string, string[]> { ["ProductId"] = ["Product not found."] }),
@@ -337,7 +339,7 @@ public static class ProductEndpoints
             });
 
         stockGroup.MapPost("/stocktakes", async (StocktakeRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
-            await stock.StocktakeAsync(request, user.UserId()!.Value, ct) switch
+            await stock.StocktakeAsync(request, user.UserId()!.Value, ct, user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))) switch
             {
                 { Errors: { } errors } => Results.ValidationProblem(errors),
                 { Result: { } result } => Results.Ok(result),

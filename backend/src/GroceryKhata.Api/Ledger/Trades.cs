@@ -217,7 +217,7 @@ public static class TradeEndpoints
         {
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = productId, Kind = StockMovementKind.Sale, Quantity = -quantity, OccurredAt = challan.OccurredAt,
+                RefType = "challan", RefId = challan.Id, ProductId = productId, Kind = StockMovementKind.Sale, Quantity = -quantity, OccurredAt = challan.OccurredAt,
                 CreatedByUserId = challan.CreatedByUserId, Note = "Delivery challan",
             });
         }

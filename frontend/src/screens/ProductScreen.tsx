@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { isOutToday } from '../lib/local'
 import { billNameFor } from '../lib/billNames'
 import { useState } from 'react'
@@ -9,8 +9,8 @@ import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { ask } from '../components/Ask'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { GST_RATES } from '../lib/gst'
-import { formatDateTime, formatRupees } from '../lib/format'
-import type { Product, StockMovement, StockReason, Unit } from '../lib/types'
+import { formatRupees } from '../lib/format'
+import type { Product, StockReason, Unit } from '../lib/types'
 import { UnitSelect } from './BillScreen'
 import { StockBadge } from './ItemsScreen'
 import { ItemCard } from '../components/ItemCard'
@@ -21,18 +21,15 @@ import { lazy, Suspense } from 'react'
 import { cameraPossible } from '../lib/barcode'
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
 
-const REASONS: StockReason[] = ['damage', 'wastage', 'return', 'count_correction', 'other']
+// The losses GST rule 56 asks the stock account to show, then the everyday ones.
+const REASONS: StockReason[] = ['damage', 'wastage', 'lost', 'stolen', 'destroyed', 'written_off', 'gift', 'free_sample', 'return', 'count_correction', 'other']
+const ItemLedger = lazy(() => import('../components/ItemLedger').then((module) => ({ default: module.ItemLedger })))
 
 /** One item: shelf count with "goods in" and "reduce", its details, and every stock change. */
 export function ProductScreen({ shopId, productId }: { shopId: string; productId: string }) {
   const { t } = useTranslation()
   const { products } = useProducts(shopId)
   const product = products.find((p) => p.id === productId)
-  const history = useQuery({
-    queryKey: [shopId, 'movements', productId],
-    queryFn: () => api<StockMovement[]>(`/v1/products/${productId}/movements`),
-    enabled: !!product && !product.pending,
-  })
   const [moving, setMoving] = useState<'purchase' | 'adjustment' | null>(null)
 
   if (!product) return <p className="p-4 text-muted">…</p>
@@ -46,6 +43,12 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
             {product.sellingPrice > 0 ? `${formatRupees(product.sellingPrice)}/${t(`units.${product.unit}`)}` : t('stock.noPrice')}
             {product.category && ` · ${product.category}`}
           </span>
+          {(product.dailySales ?? 0) > 0 && !product.isService && product.stock > 0 && (() => {
+            const days = Math.floor(product.stock / product.dailySales!)
+            return <span className={`mt-1 w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${days <= 3 ? 'bg-red-50 text-due' : days <= 10 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
+              ⏳ {t('sl.daysLeft', { count: days })} · {t('sl.perDay', { qty: Math.round(product.dailySales! * 10) / 10, unit: t(`units.${product.unit}`) })}
+            </span>
+          })()}
         </span>
         <StockBadge product={product} large />
       </section>
@@ -64,29 +67,7 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
         product={product}
       />
 
-      <section className="rounded-[18px] bg-white px-4 py-3">
-        <h2 className="pb-1 text-base font-bold">{t('stock.history')}</h2>
-        <ul className="divide-y divide-[#edf2f1]">
-          {history.data?.map((m) => (
-            <li key={m.id} className="flex items-center justify-between gap-2 py-2.5">
-              <span className="flex flex-col">
-                <span className="font-semibold">
-                  {t(`stock.kinds.${m.kind}`)}
-                  {m.reason && ` · ${t(`stock.reasons.${m.reason}`)}`}
-                </span>
-                <span className="text-xs text-muted">
-                  {formatDateTime(m.occurredAt)}
-                  {m.costPrice !== null && ` · ${formatRupees(m.costPrice)}`}
-                  {m.note && ` · ${m.note}`}
-                </span>
-              </span>
-              <span className={`font-bold ${m.quantity > 0 ? 'text-jama' : 'text-udhaar'}`}>
-                {m.quantity > 0 ? '+' : ''}{m.quantity} {t(`units.${product.unit}`)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {!product.pending && <Suspense fallback={null}><ItemLedger productId={product.id} /></Suspense>}
 
       {moving && <MoveSheet shopId={shopId} product={product} kind={moving} onClose={() => setMoving(null)} />}
     </div>

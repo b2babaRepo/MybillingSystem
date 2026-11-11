@@ -46,6 +46,9 @@ public sealed class Shop : Entity
     /// <summary>The most a helper (not the owner) may take off an item's regular price on a bill, in percent.</summary>
     public decimal StaffMaxDiscountPercent { get; set; } = 10m;
 
+    /// <summary>The most a helper may write off (damage, loss, a count) at cost in one go; more needs the owner.</summary>
+    public decimal StaffMaxWriteOff { get; set; } = 1000m;
+
     /// <summary>False when the shop is closed; its members can no longer sign in to it.</summary>
     public bool IsActive { get; set; } = true;
 

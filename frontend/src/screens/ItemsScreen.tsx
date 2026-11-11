@@ -80,6 +80,11 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
         ))}
       </div>
 
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={() => navigate('/stock-statement')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">📊</span>{t('sl.statement')}</button>
+        <button onClick={() => navigate('/sales-by')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">🏷️</span>{t('sl.salesByShort')}</button>
+      </div>
+
       <div className="relative">
         <span aria-hidden className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-lg text-muted">🔍</span>
         <input
@@ -193,6 +198,9 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
                     <span className="truncate">{p.name}</span>
                     {p.pending && <PendingDot />}
                   </span>
+                  {(p.dailySales ?? 0) > 0 && p.stock > 0 && p.stock / p.dailySales! <= 10 && !p.isService && (
+                    <span className={`w-fit rounded-full px-2 text-[11px] font-semibold ${p.stock / p.dailySales! <= 3 ? 'bg-red-50 text-due' : 'bg-amber-50 text-amber-800'}`}>⏳ {t('sl.daysLeft', { count: Math.floor(p.stock / p.dailySales!) })}</span>
+                  )}
                   <span className="truncate text-[13px] text-muted lg:hidden">
                     {p.sellingPrice > 0 ? <b className="font-bold text-ink">{formatRupees(p.sellingPrice)}</b> : <span className="font-semibold text-udhaar">{t('stock.noPrice')}</span>}
                     {p.sellingPrice > 0 && `/${t(`units.${p.unit}`)}`}

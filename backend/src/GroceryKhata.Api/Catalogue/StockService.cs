@@ -42,7 +42,17 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
                 .Select(AsDto).ToListAsync(ct)).Select(Linked).ToList();
         }
 
-        return (await query.OrderBy(p => p.Category).ThenBy(p => p.Name).Select(AsDto).ToListAsync(ct)).Select(Linked).ToList();
+        var list = (await query.OrderBy(p => p.Category).ThenBy(p => p.Name).Select(AsDto).ToListAsync(ct)).Select(Linked).ToList();
+        return await WithDailySalesAsync(list, ct);
+    }
+
+    /// <summary>Each item's average sold a day over the last 30 days, from its sale movements, in one query.</summary>
+    private async Task<IReadOnlyList<ProductDto>> WithDailySalesAsync(List<ProductDto> list, CancellationToken ct)
+    {
+        var since = clock.GetUtcNow().AddDays(-30);
+        var sold = await db.StockMovements.AsNoTracking().Where(m => m.Kind == StockMovementKind.Sale && m.OccurredAt >= since)
+            .GroupBy(m => m.ProductId).Select(g => new { g.Key, Sold = -g.Sum(m => m.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Sold, ct);
+        return list.Select(p => sold.TryGetValue(p.Id, out var q) && q > 0 ? p with { DailySales = decimal.Round(q / 30m, 3) } : p).ToList();
     }
 
     /// <summary>Items made before products remembered their common-list item still get one, from their name.</summary>
@@ -187,7 +197,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
     /// <summary>A purchase (+) or an adjustment (±, with a reason). Idempotent on the app's ID.</summary>
     public async Task<(StockMovementDto? Movement, Dictionary<string, string[]>? Errors, bool NotFound)> AddMovementAsync(
-        StockMovementRequest request, Guid userId, CancellationToken ct)
+        StockMovementRequest request, Guid userId, CancellationToken ct, bool isOwner = true)
     {
         if (await db.StockMovements.AsNoTracking().SingleOrDefaultAsync(m => m.Id == request.Id, ct) is { } existing)
         {
@@ -216,7 +226,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         if (request.Kind == StockMovementKind.Adjustment && request.Reason is null)
         {
-            errors[nameof(request.Reason)] = ["Say why: damage, wastage, count correction, return or other."];
+            errors[nameof(request.Reason)] = ["Say why: damage, wastage, lost, stolen, destroyed, written off, gift, free sample, count correction, return or other."];
         }
 
         if (request.CostPrice is { } cost && !Money.IsValidAmount(cost))
@@ -234,9 +244,16 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             return (null, errors, false);
         }
 
-        if (!await db.Products.AnyAsync(p => p.Id == request.ProductId, ct))
+        if (await db.Products.AsNoTracking().Where(p => p.Id == request.ProductId).Select(p => new { p.CostPrice }).SingleOrDefaultAsync(ct) is not { } item)
         {
             return (null, null, true);
+        }
+
+        // A helper may write off only so much at cost; more needs the owner.
+        if (!isOwner && request.Kind == StockMovementKind.Adjustment && request.Quantity < 0
+            && Math.Abs(request.Quantity) * (item.CostPrice ?? 0) > await WriteOffLimitAsync(ct))
+        {
+            return (null, new() { ["Quantity"] = [$"Writing off more than ₹{await WriteOffLimitAsync(ct):0.##} at cost needs the shop owner."] }, false);
         }
 
         try
@@ -246,8 +263,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
                 request.Kind == StockMovementKind.Adjustment ? request.Reason : null, request.CostPrice, request.Note, userId, ct);
             if (request.Kind == StockMovementKind.Purchase && request.CostPrice is { } latest)
             {
-                // The latest purchase price becomes the product's cost, for profit estimates.
-                await db.Products.Where(p => p.Id == request.ProductId).ExecuteUpdateAsync(s => s.SetProperty(p => p.CostPrice, latest), ct);
+                // Weighted average with what was already on the shelf, the same rule supplier bills keep.
+                var before = await db.Products.AsNoTracking().Where(p => p.Id == request.ProductId).Select(p => new { p.Stock, p.CostPrice }).SingleAsync(ct);
+                var held = before.Stock - request.Quantity;
+                var averaged = before.CostPrice is { } old && held > 0 ? decimal.Round(((held * old) + (request.Quantity * latest)) / (held + request.Quantity), 2) : latest;
+                await db.Products.Where(p => p.Id == request.ProductId).ExecuteUpdateAsync(s => s.SetProperty(p => p.CostPrice, averaged), ct);
             }
 
             await transaction.CommitAsync(ct);
@@ -265,7 +285,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     /// A stocktake: for each counted item that differs from the books, a count-correction adjustment. Each
     /// adjustment's ID is derived from the stocktake's ID and the product, so sending the same count twice is a no-op.
     /// </summary>
-    public async Task<(StocktakeResult? Result, Dictionary<string, string[]>? Errors)> StocktakeAsync(StocktakeRequest request, Guid userId, CancellationToken ct)
+    public async Task<(StocktakeResult? Result, Dictionary<string, string[]>? Errors)> StocktakeAsync(StocktakeRequest request, Guid userId, CancellationToken ct, bool isOwner = true)
     {
         if (request.Id == Guid.Empty || request.Counts is not { Count: > 0 and <= MaxImportRows })
         {
@@ -281,8 +301,26 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var products = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var adjusted = 0;
         var unchanged = 0;
+        if (await db.Stocktakes.AnyAsync(t => t.Id == request.Id, ct))
+        {
+            return (new StocktakeResult(0, request.Counts.Count), null);
+        }
+
+        var lines = request.Counts.DistinctBy(c => c.ProductId).Where(c => products.ContainsKey(c.ProductId))
+            .Select(c => { var p = products[c.ProductId]; return new StocktakeLine(p.Id, p.Name, p.Stock, c.Counted, c.Counted - p.Stock, p.CostPrice); }).ToList();
+        var lossAtCost = -lines.Where(l => l.Difference < 0).Sum(l => l.Difference * (l.CostPrice ?? 0));
+        if (!isOwner && lossAtCost > await WriteOffLimitAsync(ct))
+        {
+            return (null, new() { ["Counts"] = [$"This count writes off ₹{lossAtCost:0.##} at cost, more than a helper may (₹{await WriteOffLimitAsync(ct):0.##}). Ask the shop owner to save it."] });
+        }
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        db.Stocktakes.Add(new Stocktake
+        {
+            Id = request.Id, Number = (await db.Stocktakes.MaxAsync(t => (int?)t.Number, ct) ?? 0) + 1, TakenAt = clock.GetUtcNow(), CreatedByUserId = userId,
+            Lines = System.Text.Json.JsonSerializer.Serialize(lines), Items = lines.Count, Differences = lines.Count(l => l.Difference != 0),
+            ValueDifference = decimal.Round(lines.Sum(l => l.Difference * (l.CostPrice ?? 0)), 2),
+        });
         foreach (var count in request.Counts.DistinctBy(c => c.ProductId))
         {
             if (!products.TryGetValue(count.ProductId, out var product))
@@ -297,11 +335,13 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
                 continue;
             }
 
-            await RecordAsync(movementId, product.Id, StockMovementKind.Adjustment, count.Counted - product.Stock,
+            var correction = await RecordAsync(movementId, product.Id, StockMovementKind.Adjustment, count.Counted - product.Stock,
                 StockReason.CountCorrection, null, "Stocktake", userId, ct);
+            (correction.RefType, correction.RefId) = ("stocktake", request.Id);
             adjusted++;
         }
 
+        await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return (new StocktakeResult(adjusted, unchanged), null);
     }
@@ -391,6 +431,9 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     }
 
     /// <summary>Saves a movement and moves the product's stock with it. The caller owns the transaction.</summary>
+    private Task<decimal> WriteOffLimitAsync(CancellationToken ct) =>
+        db.Shops.AsNoTracking().Select(s => s.StaffMaxWriteOff).FirstAsync(ct);
+
     private async Task<StockMovement> RecordAsync(
         Guid id, Guid productId, StockMovementKind kind, decimal quantity, StockReason? reason, decimal? costPrice, string? note,
         Guid userId, CancellationToken ct)

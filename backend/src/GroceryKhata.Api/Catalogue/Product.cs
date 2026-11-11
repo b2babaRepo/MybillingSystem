@@ -195,6 +195,11 @@ public sealed class StockMovement : Entity, ITenantOwned
     /// <summary>For purchases: what the shop paid per unit this time.</summary>
     public decimal? CostPrice { get; set; }
 
+    /// <summary>The document behind it, besides a bill: "purchase", "receipt", "challan", "supplier_return", "credit_note", "job", "karigar", "stocktake".</summary>
+    public string? RefType { get; set; }
+
+    public Guid? RefId { get; set; }
+
     public string? Note { get; set; }
 
     public DateTimeOffset OccurredAt { get; set; }
@@ -236,4 +241,12 @@ public enum StockReason
     CountCorrection,
     Return,
     Other,
+
+    // The losses GST rule 56 asks to show in the stock account.
+    Lost,
+    Stolen,
+    Destroyed,
+    WrittenOff,
+    Gift,
+    FreeSample,
 }

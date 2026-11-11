@@ -534,8 +534,8 @@ public static class ReportEndpoints
     }
 
     /// <summary>
-    /// Stock at cost just before a moment: each item's count from its movements, at the last purchase cost by then,
-    /// else its cost today. Items held with no cost are counted, not valued.
+    /// Stock at cost just before a moment: each item's count from its movements, at its weighted average purchase cost
+    /// by then (the same rule supplier bills keep), else its cost today. Items held with no cost are counted, not valued.
     /// </summary>
     private static async Task<(decimal Value, int Missing)> StockValueAtAsync(AppDbContext db, DateTimeOffset at, CancellationToken ct)
     {
@@ -551,7 +551,7 @@ public static class ReportEndpoints
                 continue;
             }
 
-            var cost = item.Where(m => m.Kind == StockMovementKind.Purchase && m.CostPrice != null).OrderBy(m => m.OccurredAt).LastOrDefault()?.CostPrice ?? today.GetValueOrDefault(item.Key);
+            var cost = Catalogue.StockLedger.AverageCost(item.Select(m => (m.Kind, m.Quantity, m.CostPrice, m.OccurredAt))) ?? today.GetValueOrDefault(item.Key);
             if (cost is { } known)
             {
                 value += decimal.Round(held * known, 2);

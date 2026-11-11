@@ -1,4 +1,5 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { formatRupees } from '../lib/format'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../components/ui'
@@ -69,6 +70,44 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
           {t('stock.saveCount', { count: counted.length })}
         </Button>
       </div>
+      <StocktakeHistory />
     </div>
   )
 }
+
+interface TakeSummary { id: string; number: number; takenAt: string; by: string; items: number; differences: number; valueDifference: number }
+interface TakeLine { productId: string; name: string; books: number; counted: number; difference: number; costPrice: number | null }
+
+/** Every saved count: when, who, how many items differed and what the difference was worth; tap one for its lines. */
+function StocktakeHistory() {
+  const { t } = useTranslation()
+  const takes = useQuery({ queryKey: ['stocktakes'], queryFn: () => api<TakeSummary[]>('/v1/stocktakes') }).data
+  const [open, setOpen] = useState<string | null>(null)
+  const lines = useQuery({ queryKey: ['stocktake', open], queryFn: () => api<{ lines: TakeLine[] }>(`/v1/stocktakes/${open}`), enabled: !!open }).data
+  return (
+    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <h2 className="font-bold">🗂️ {t('sl.takes')}</h2>
+      {takes && takes.length === 0 && <p className="text-sm text-muted">{t('sl.noTakes')}</p>}
+      {takes?.map((k) => (
+        <div key={k.id} className="rounded-xl ring-1 ring-line">
+          <button onClick={() => setOpen(open === k.id ? null : k.id)} className="flex w-full items-center justify-between gap-2 p-3 text-left">
+            <span className="flex flex-col">
+              <b>{t('sl.take', { number: k.number })}</b>
+              <span className="text-xs text-muted">{t('sl.takeLine', { date: new Date(k.takenAt).toLocaleDateString(), by: k.by, items: k.items, diffs: k.differences })}</span>
+            </span>
+            <b className={k.valueDifference < 0 ? 'text-due' : k.valueDifference > 0 ? 'text-jama' : 'text-muted'}>{k.valueDifference > 0 ? '+' : ''}{formatRupees(k.valueDifference)}</b>
+          </button>
+          {open === k.id && lines && (
+            <table className="w-full border-t border-line text-sm">
+              <thead><tr className="text-right text-xs text-muted"><th className="px-3 py-1 text-left">{t('items2.colName')}</th><th className="px-2">{t('sl.books')}</th><th className="px-2">{t('sl.counted')}</th><th className="px-3">{t('sl.difference')}</th></tr></thead>
+              <tbody>{lines.lines.filter((l) => l.difference !== 0).map((l) => (
+                <tr key={l.productId} className="border-t border-[#edf2f1] text-right"><td className="px-3 py-1.5 text-left">{l.name}</td><td className="px-2">{l.books}</td><td className="px-2">{l.counted}</td><td className={`px-3 font-bold ${l.difference < 0 ? 'text-due' : 'text-jama'}`}>{l.difference > 0 ? '+' : ''}{l.difference}</td></tr>
+              ))}</tbody>
+            </table>
+          )}
+        </div>
+      ))}
+    </section>
+  )
+}
+

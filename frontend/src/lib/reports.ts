@@ -83,6 +83,8 @@ export interface ShopSettings {
   gstComposition?: boolean
   /** The most a helper may take off an item's regular price, in percent. */
   staffMaxDiscountPercent?: number
+  /** The most a helper may write off at cost in one go (₹). */
+  staffMaxWriteOff?: number
   /** Bills offer delivery. Null: not chosen yet, the trade decides. */
   deliversGoods?: boolean | null
   extraTypes?: ShopType[] | null

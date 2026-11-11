@@ -123,7 +123,7 @@ public static class GoodsReceipts
             // The cost isn't known until the bill: the item keeps its cost price until then.
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = line.Quantity, OccurredAt = now, CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number}",
+                RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = line.Quantity, OccurredAt = now, CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number}",
             });
         }
 
@@ -166,7 +166,7 @@ public static class GoodsReceipts
         {
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -line.Quantity, OccurredAt = now,
+                RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -line.Quantity, OccurredAt = now,
                 CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number} cancelled",
             });
         }
