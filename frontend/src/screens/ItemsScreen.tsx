@@ -83,6 +83,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
       <div className="grid grid-cols-2 gap-2">
         <button onClick={() => navigate('/stock-statement')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">📊</span>{t('sl.statement')}</button>
         <button onClick={() => navigate('/sales-by')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">🏷️</span>{t('sl.salesByShort')}</button>
+        <button onClick={() => navigate('/stock-health')} className="col-span-2 flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">🩺</span>{t('sh.title')}</button>
       </div>
 
       <div className="relative">

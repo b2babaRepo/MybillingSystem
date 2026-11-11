@@ -1445,4 +1445,30 @@ public sealed class LedgerFixTests(ApiFactory api)
         Assert.Equal((second.Id, 0m), (left.Id, left.Lines[0].ShortBy));
         Assert.Equal(60m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).Promised);
     }
+    [Fact]
+    public async Task Stock_health_ranks_items_and_shows_where_the_money_sits()
+    {
+        var shop = await ShopAsync("kirana");
+        var oil = await ItemAsync(shop, "Mustard oil", 200m, 0m);
+        var soap = await ItemAsync(shop, "Soap", 40m, 0m);
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Gupta Agency" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new
+        {
+            id = Guid.CreateVersion7(), supplierId = supplier, paidAmount = 0m,
+            lines = new object[] { new { productId = oil.Id, quantity = 50m, unitCost = 150m }, new { productId = soap.Id, quantity = 100m, unitCost = 30m } },
+        })).EnsureSuccessStatusCode();
+        // Oil sells; soap sits.
+        (await Bill(shop, null, oil.Id, 40m, 200m, 8000m)).EnsureSuccessStatusCode();
+
+        var health = await shop.GetJsonAsync<StockHealthDto>("/api/v1/reports/stock-health");
+        var oilLine = health.Items.Single(i => i.ProductId == oil.Id);
+        var soapLine = health.Items.Single(i => i.ProductId == soap.Id);
+        Assert.Equal(("A", "fast", 1500m), (oilLine.Rank, oilLine.Movement, oilLine.Value));
+        // Just bought and not sold yet: new, not dead, until it has sat a month.
+        Assert.Equal(("C", "new", 3000m), (soapLine.Rank, soapLine.Movement, soapLine.Value));
+        Assert.Equal(4500m, health.Value);
+        Assert.Equal(4500m, health.Ageing.Single(a => a.Label == "0-30").Value);
+        Assert.True(health.Turnover > 0);
+    }
 }

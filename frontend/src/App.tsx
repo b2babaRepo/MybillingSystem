@@ -41,6 +41,7 @@ const ImportScreen = lazy(() => import('./screens/ImportScreen').then((module) =
 const PrintScreen = lazy(() => import('./screens/PrintScreen').then((module) => ({ default: module.PrintScreen })))
 const OrderScreen = lazy(() => import('./screens/OrderScreen').then((module) => ({ default: module.OrderScreen })))
 const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module) => ({ default: module.ProductScreen })))
+const StockHealthScreen = lazy(() => import('./screens/StockHealthScreen').then((module) => ({ default: module.StockHealthScreen })))
 const StockStatementScreen = lazy(() => import('./screens/StockStatementScreen').then((module) => ({ default: module.StockStatementScreen })))
 const SalesByScreen = lazy(() => import('./screens/SalesByScreen').then((module) => ({ default: module.SalesByScreen })))
 const StocktakeScreen = lazy(() => import('./screens/StocktakeScreen').then((module) => ({ default: module.StocktakeScreen })))
@@ -249,7 +250,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const productMatch = path.match(/^\/p\/([0-9a-f-]+)$/)
   const tagsMatch = path.match(/^\/tags\/([0-9a-f,-]+)$/)
   const printMatch = path.match(/^\/print\/(statement|bill|supplier)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
-  const isItemsPage = !!productMatch || path === '/items/pick' || path === '/stocktake' || path === '/stock-statement' || path === '/import' || path === '/items/common'
+  const isItemsPage = !!productMatch || path === '/items/pick' || path === '/stocktake' || path === '/stock-statement' || path === '/stock-health' || path === '/import' || path === '/items/common'
   const tabs: { path: string; label: string; icon: ReactNode; badge?: number }[] = [
     { path: '/', label: t('home'), icon: <HomeIcon size={22} /> },
     { path: '/khata', label: t('khata'), icon: <KhataIcon size={22} /> },
@@ -287,6 +288,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     { key: 'stock', title: t('menu.stock'), add: { path: '/stocktake', label: t('menu.addCount') }, links: [
       { path: '/stocktake', label: t('side.stocktake') },
       { path: '/stock-statement', label: t('sl.statement') },
+      { path: '/stock-health', label: t('sh.title') },
     ] },
     { key: 'reports', title: t('menu.reports'), links: [
       { path: '/reports', label: t('side.reports') },
@@ -487,6 +489,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <StocktakeScreen shopId={shopId} />
         ) : path === '/stock-statement' ? (
           <StockStatementScreen />
+        ) : path === '/stock-health' ? (
+          <StockHealthScreen />
         ) : path === '/sales-by' ? (
           <SalesByScreen />
         ) : path === '/items/common' ? (
