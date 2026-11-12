@@ -34,7 +34,8 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const suppliers = useQuery({ queryKey: [shopId, 'suppliers'], queryFn: () => api<Supplier[]>('/v1/suppliers') })
-  const [openId, setOpenId] = useState<string | null>(null)
+  // Orders placed opens one supplier here, once.
+  const [openId, setOpenId] = useState<string | null>(() => { try { const v = sessionStorage.getItem('gk-open-supplier'); sessionStorage.removeItem('gk-open-supplier'); return v } catch { return null } })
   const [draft, setDraft] = useState({ name: '', phone: '' })
   const [message, setMessage] = useState('')
   const [search, setSearch] = useState('')
@@ -132,8 +133,9 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
   const [against, setAgainst] = useState<PurchaseOrder | null>(null)
   // Goods counted in earlier on receipts: this bill is for them, so their stock isn't added again.
   const [fromReceipts, setFromReceipts] = useState<GoodsReceipt[]>([])
-  const billFor = (receipt: GoodsReceipt) => {
-    setAgainst(null)
+  // A bill for goods that came against an order stays against it, so the order counts down.
+  const billFor = (receipt: GoodsReceipt, order: PurchaseOrder | null) => {
+    setAgainst(order)
     setFromReceipts([receipt])
     setRows(receipt.lines.map((l) => ({ ...empty, productId: l.productId, quantity: String(l.quantity) })))
     document.getElementById('supplier-bill')?.scrollIntoView({ behavior: 'smooth', block: 'start' })

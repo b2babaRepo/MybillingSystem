@@ -196,7 +196,7 @@ public static class GoodsReceipts
         {
             db.StockMovements.Add(new StockMovement
             {
-                RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -line.Quantity, Bags = line.Bags is > 0 ? -line.Bags : null, OccurredAt = now,
+                RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = -line.Quantity, Bags = line.Bags is > 0 ? -line.Bags : null, OccurredAt = now,
                 CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number} cancelled",
             });
         }

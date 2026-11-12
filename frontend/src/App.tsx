@@ -41,6 +41,7 @@ const ImportScreen = lazy(() => import('./screens/ImportScreen').then((module) =
 const PrintScreen = lazy(() => import('./screens/PrintScreen').then((module) => ({ default: module.PrintScreen })))
 const OrderScreen = lazy(() => import('./screens/OrderScreen').then((module) => ({ default: module.OrderScreen })))
 const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module) => ({ default: module.ProductScreen })))
+const OrdersPlacedScreen = lazy(() => import('./screens/OrdersPlacedScreen').then((module) => ({ default: module.OrdersPlacedScreen })))
 const StockHealthScreen = lazy(() => import('./screens/StockHealthScreen').then((module) => ({ default: module.StockHealthScreen })))
 const StockStatementScreen = lazy(() => import('./screens/StockStatementScreen').then((module) => ({ default: module.StockStatementScreen })))
 const SalesByScreen = lazy(() => import('./screens/SalesByScreen').then((module) => ({ default: module.SalesByScreen })))
@@ -277,6 +278,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     ...(isOwner ? [{ key: 'buy', title: t('menu.buy'), add: { path: '/suppliers', label: t('menu.addPurchase') }, links: [
       { path: '/suppliers', label: t('side.suppliers') },
       { path: '/reorder', label: t('reorder.link') },
+      { path: '/orders-placed', label: t('po.link') },
     ] }] : []),
     { key: 'money', title: t('menu.money'), add: { path: '/expenses', label: t('menu.addExpense') }, links: [
       { path: '/cashbook', label: t('side.cashbook') },
@@ -489,6 +491,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <StocktakeScreen shopId={shopId} />
         ) : path === '/stock-statement' ? (
           <StockStatementScreen />
+        ) : path === '/orders-placed' ? (
+          <OrdersPlacedScreen shopId={shopId} />
         ) : path === '/stock-health' ? (
           <StockHealthScreen />
         ) : path === '/sales-by' ? (

@@ -106,13 +106,8 @@ public static class PharmacyAssist
     /// <summary>Every item to order now (the current shop), with its days left, delivery days and reorder point.</summary>
     internal static async Task<(List<ReorderLineDto> Lines, Dictionary<Guid, (Guid SupplierId, decimal UnitCost)> Last)> NeedsAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var since = clock.GetUtcNow().AddDays(-30);
-        var sold = await (from l in db.BillLines.AsNoTracking()
-                          join b in db.Bills.AsNoTracking() on l.BillId equals b.Id
-                          where l.ProductId != null && b.CancelledAt == null && b.OccurredAt >= since
-                          group l by l.ProductId into g
-                          select new { ProductId = g.Key!.Value, Quantity = g.Sum(l => l.Quantity) }).ToDictionaryAsync(x => x.ProductId, x => x.Quantity, ct);
-        var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService && !p.Uncounted).Select(p => new { p.Id, p.Name, p.Stock, p.ReorderLevel }).ToListAsync(ct);
+        var sold = await Catalogue.Cover.SoldAsync(db, clock, ct);
+        var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService && !p.Uncounted).Select(p => new { p.Id, p.Name, p.Stock, p.Reserved, p.ReorderLevel }).ToListAsync(ct);
         // The supplier and rate each item last came in at.
         var last = (await (from l in db.PurchaseLines.AsNoTracking()
                            join pu in db.Purchases.AsNoTracking() on l.PurchaseId equals pu.Id
@@ -128,11 +123,12 @@ public static class PharmacyAssist
         foreach (var p in products)
         {
             var soldMonth = sold.GetValueOrDefault(p.Id);
-            var daily = soldMonth / 30m;
+            var daily = soldMonth / Catalogue.Cover.Days;
             var leadDays = last.TryGetValue(p.Id, out var from) && lead.TryGetValue(from.SupplierId, out var days) ? days : DefaultLeadDays;
             decimal? point = daily > 0 ? Math.Ceiling((daily * leadDays) + Math.Max(daily * 2, daily * leadDays / 2)) : null;
             var onOrder = pending.GetValueOrDefault(p.Id);
-            var free = p.Stock - promised.GetValueOrDefault(p.Id);
+            // Held for online orders (Reserved) and promised on sale orders: neither is free to sell.
+            var free = p.Stock - p.Reserved - promised.GetValueOrDefault(p.Id);
             var due = free <= 0 || (p.ReorderLevel is { } level && p.Stock <= level) || (point is { } rop && free + onOrder <= rop);
             if (!due)
             {

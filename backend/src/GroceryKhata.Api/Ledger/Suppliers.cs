@@ -464,10 +464,15 @@ public static class SupplierEndpoints
         }
 
         // Goods against an order: what came counts off what is still to come.
-        if (request.OrderId is { } orderId && receipts.Count == 0
-            && await PurchaseOrders.ReceiveAsync(db, orderId, request.SupplierId, lines.Select(l => (l.ProductId, l.Quantity + l.FreeQuantity)), 1, clock, ct) is { } orderProblem)
+        // Receipts already counted against this order are not counted twice; the bill adds only what is more.
+        if (request.OrderId is { } orderId)
         {
-            return Invalid("OrderId", orderProblem);
+            var counted = receipts.Where(r => r.PurchaseOrderId == orderId).SelectMany(GoodsReceipts.LinesOf).GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+            var goods = lines.GroupBy(l => l.ProductId).Select(g => (ProductId: g.Key, Units: Math.Max(0, g.Sum(l => l.Quantity + l.FreeQuantity) - counted.GetValueOrDefault(g.Key)))).Where(g => g.Units > 0).ToList();
+            if (goods.Count > 0 && await PurchaseOrders.ReceiveAsync(db, orderId, request.SupplierId, goods, 1, clock, ct) is { } orderProblem)
+            {
+                return Invalid("OrderId", orderProblem);
+            }
         }
 
         if (request.PaidAmount > 0)
@@ -537,7 +542,11 @@ public static class SupplierEndpoints
 
         if (purchase.PurchaseOrderId is { } orderId)
         {
-            await PurchaseOrders.ReceiveAsync(db, orderId, purchase.SupplierId, purchase.Lines.Select(l => (l.ProductId, l.Quantity + l.FreeQuantity)), -1, clock, ct);
+            // Receipts stay counted on the order (they are still in stock); only the bill's own share goes back.
+            var onReceipts = (await db.GoodsReceipts.AsNoTracking().Where(r => r.PurchaseId == id && r.PurchaseOrderId == orderId).ToListAsync(ct))
+                .SelectMany(GoodsReceipts.LinesOf).GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+            var back = purchase.Lines.GroupBy(l => l.ProductId).Select(g => (g.Key, Math.Max(0, g.Sum(l => l.Quantity + l.FreeQuantity) - onReceipts.GetValueOrDefault(g.Key)))).ToList();
+            await PurchaseOrders.ReceiveAsync(db, orderId, purchase.SupplierId, back, -1, clock, ct);
         }
 
         await db.GoodsReceipts.Where(r => r.PurchaseId == id).ExecuteUpdateAsync(s => s.SetProperty(r => r.PurchaseId, (Guid?)null), ct);
@@ -546,7 +555,7 @@ public static class SupplierEndpoints
         {
             db.StockMovements.Add(new StockMovement
             {
-                RefType = "purchase", RefId = id, ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Other, Quantity = -(line.Quantity + line.FreeQuantity - line.FromReceipt), OccurredAt = now,
+                RefType = "purchase", RefId = id, ProductId = line.ProductId, Kind = StockMovementKind.Purchase, CostPrice = line.UnitCost, Quantity = -(line.Quantity + line.FreeQuantity - line.FromReceipt), OccurredAt = now,
                 Bags = line.Bags is { } b && line.Quantity + line.FreeQuantity > 0 ? -decimal.Round(b * (line.Quantity + line.FreeQuantity - line.FromReceipt) / (line.Quantity + line.FreeQuantity), 3) : null,
                 CreatedByUserId = userId, Note = "Supplier bill cancelled",
             });

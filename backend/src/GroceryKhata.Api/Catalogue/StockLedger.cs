@@ -161,6 +161,11 @@ public static class StockLedger
                                where purchaseIds.Contains(x.Id)
                                select new { x.Id, x.BillNo, s.Name }).ToDictionaryAsync(x => x.Id, ct);
 
+        var receiptIds = moves.Where(m => m.RefType == "receipt" && m.RefId != null).Select(m => m.RefId!.Value).Distinct().ToList();
+        var receipts = await (from r in db.GoodsReceipts.AsNoTracking()
+                              join s in db.Suppliers.AsNoTracking() on r.SupplierId equals s.Id
+                              where receiptIds.Contains(r.Id)
+                              select new { r.Id, r.Number, s.Name }).ToDictionaryAsync(x => x.Id, ct);
         var balance = opening;
         var bagBalance = openingBags;
         var lines = new List<LedgerLine>(moves.Count);
@@ -172,7 +177,9 @@ public static class StockLedger
                 ? ("bill", (Guid?)bill, billNos.GetValueOrDefault(bill) is { } no ? $"Bill {no}" : "Bill")
                 : m.RefType == "purchase" && m.RefId is { } pid && purchases.TryGetValue(pid, out var pur)
                     ? ("purchase", pid, $"{pur.Name}{(pur.BillNo is { } pno ? $" · {pno}" : "")}")
-                    : (m.RefType, m.RefId, (string?)null);
+                    : m.RefType == "receipt" && m.RefId is { } rid && receipts.TryGetValue(rid, out var rec)
+                        ? ("receipt", rid, $"{rec.Name} · receipt #{rec.Number}")
+                        : (m.RefType, m.RefId, (string?)null);
             lines.Add(new LedgerLine(m.Id, m.OccurredAt, m.Kind, m.Reason, Math.Max(0, m.Quantity), Math.Max(0, -m.Quantity), balance,
                 m.CostPrice, m.Note, names.GetValueOrDefault(m.CreatedByUserId, "—"), docType, docId, label, m.Bags, bagBalance));
         }
@@ -204,7 +211,8 @@ public static class StockLedger
                 continue;
             }
 
-            var purchased = within.Where(m => m.Kind is StockMovementKind.Purchase or StockMovementKind.Opening && m.Quantity > 0).Sum(m => m.Quantity);
+            // Net of cancelled bills and receipts (negative purchases).
+            var purchased = within.Where(m => m.Kind == StockMovementKind.Purchase || (m.Kind == StockMovementKind.Opening && m.Quantity > 0)).Sum(m => m.Quantity);
             var sold = -within.Where(m => m.Kind == StockMovementKind.Sale).Sum(m => m.Quantity);
             var lost = -within.Where(m => m.Kind == StockMovementKind.Adjustment && m.Reason is { } r && Losses.Contains(r) && m.Quantity < 0).Sum(m => m.Quantity);
             var rest = within.Where(m => m.Kind is not (StockMovementKind.Purchase or StockMovementKind.Opening or StockMovementKind.Sale)).ToList();

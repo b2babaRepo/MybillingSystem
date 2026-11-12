@@ -1471,4 +1471,56 @@ public sealed class LedgerFixTests(ApiFactory api)
         Assert.Equal(4500m, health.Ageing.Single(a => a.Label == "0-30").Value);
         Assert.True(health.Turnover > 0);
     }
+    [Fact]
+    public async Task Goods_receipt_against_an_order_counts_it_down_once_through_the_bill()
+    {
+        var shop = await ShopAsync("kirana");
+        var sugar = await ItemAsync(shop, "Sugar", 45m, 0m);
+        var supplierId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplierId, name = "Agarwal Traders" })).EnsureSuccessStatusCode();
+        var orderId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers/orders", new { id = orderId, supplierId, lines = new[] { new { productId = sugar.Id, quantity = 50m } }, expectedOn = "2030-01-05", note = "Tuesday truck" })).EnsureSuccessStatusCode();
+
+        var receiptId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = receiptId, supplierId, orderId, lines = new[] { new { productId = sugar.Id, quantity = 30m } } })).EnsureSuccessStatusCode();
+        async Task<PurchaseOrderDto> Order() => (await shop.GetJsonAsync<List<PurchaseOrderDto>>($"/api/v1/suppliers/orders?supplierId={supplierId}&all=true")).Single();
+        var afterReceipt = await Order();
+        Assert.Equal((30m, 20m, "Tuesday truck"), (afterReceipt.Lines[0].Received, afterReceipt.Pending, afterReceipt.Note));
+        Assert.Equal(new DateOnly(2030, 1, 5), afterReceipt.ExpectedOn);
+
+        // The bill for those goods plus 5 more that came with it: only the 5 count again.
+        var billId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new
+        {
+            id = billId, supplierId, orderId, receiptIds = new[] { receiptId }, paidAmount = 0m,
+            lines = new[] { new { productId = sugar.Id, quantity = 35m, unitCost = 40m } },
+        })).EnsureSuccessStatusCode();
+        Assert.Equal(35m, (await Order()).Lines[0].Received);
+
+        // Cancelling the bill takes back only its own 5: the receipt's 30 are still on the shelf.
+        (await shop.PostJsonAsync($"/api/v1/suppliers/purchases/{billId}/cancel", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(30m, (await Order()).Lines[0].Received);
+    }
+
+    [Fact]
+    public async Task Cancelled_supplier_bill_comes_off_purchased_in_the_stock_statement()
+    {
+        var shop = await ShopAsync("kirana");
+        var dal = await ItemAsync(shop, "Toor dal", 140m, 0m);
+        var supplierId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplierId, name = "Shree Wholesale" })).EnsureSuccessStatusCode();
+        async Task<Guid> Bill(decimal qty)
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id, supplierId, paidAmount = 0m, lines = new[] { new { productId = dal.Id, quantity = qty, unitCost = 120m } } })).EnsureSuccessStatusCode();
+            return id;
+        }
+
+        await Bill(20m);
+        var mistake = await Bill(10m);
+        (await shop.PostJsonAsync($"/api/v1/suppliers/purchases/{mistake}/cancel", new { })).EnsureSuccessStatusCode();
+
+        var line = (await shop.GetJsonAsync<StockStatement>("/api/v1/reports/stock")).Items.Single(i => i.ProductId == dal.Id);
+        Assert.Equal((20m, 0m, 20m), (line.Purchased, line.OtherOut, line.Closing));
+    }
 }
