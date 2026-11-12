@@ -102,6 +102,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<StockHold> StockHolds => Set<StockHold>();
 
+    public DbSet<Godown> Godowns => Set<Godown>();
+
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+
+    public DbSet<StockTransferLine> StockTransferLines => Set<StockTransferLine>();
+
     public DbSet<OrderShipment> OrderShipments => Set<OrderShipment>();
 
     public DbSet<OrderFollowUp> OrderFollowUps => Set<OrderFollowUp>();
@@ -849,6 +855,32 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(f => f.Note).HasMaxLength(300);
             b.HasIndex(f => new { f.ShopId, f.OrderId, f.At });
+        });
+
+        modelBuilder.Entity<Godown>(b =>
+        {
+            b.ToTable("godowns");
+            b.HasTenantKey();
+            b.Property(g => g.Name).HasMaxLength(60);
+            b.Property(g => g.Address).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<StockTransfer>(b =>
+        {
+            b.ToTable("stock_transfers");
+            b.HasTenantKey();
+            b.Property(t => t.Note).HasMaxLength(200);
+            b.HasIndex(t => new { t.ShopId, t.Number }).IsUnique();
+            b.HasMany(t => t.Lines).WithOne().HasForeignKey(l => l.TransferId);
+        });
+
+        modelBuilder.Entity<StockTransferLine>(b =>
+        {
+            b.ToTable("stock_transfer_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Quantity).HasPrecision(12, 3);
+            b.Property(l => l.Bags).HasPrecision(12, 3);
+            b.HasIndex(l => new { l.ShopId, l.ProductId });
         });
 
         modelBuilder.Entity<StockHold>(b =>

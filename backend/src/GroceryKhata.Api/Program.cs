@@ -119,6 +119,7 @@ app.MapArrivals();
 app.MapCategories();
 app.MapSupplierItems();
 app.MapStockHolds();
+app.MapGodowns();
 app.MapGoodsTracking();
 app.MapStockAlerts();
 app.MapCashMoves();
