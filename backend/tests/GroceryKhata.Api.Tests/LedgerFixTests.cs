@@ -1523,4 +1523,82 @@ public sealed class LedgerFixTests(ApiFactory api)
         var line = (await shop.GetJsonAsync<StockStatement>("/api/v1/reports/stock")).Items.Single(i => i.ProductId == dal.Id);
         Assert.Equal((20m, 0m, 20m), (line.Purchased, line.OtherOut, line.Closing));
     }
+    [Fact]
+    public async Task Checking_goods_in_records_damaged_extra_and_short_closed_lines()
+    {
+        var shop = await ShopAsync("kirana");
+        var sugar = await ItemAsync(shop, "Sugar 50 kg", 2200m, 0m);
+        var dal = await ItemAsync(shop, "Toor dal", 140m, 0m);
+        var salt = await ItemAsync(shop, "Salt", 25m, 0m);
+        var supplierId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplierId, name = "Agarwal Traders" })).EnsureSuccessStatusCode();
+        var orderId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers/orders", new
+        {
+            id = orderId, supplierId,
+            lines = new[] { new { productId = sugar.Id, quantity = 10m, rate = (decimal?)2000m }, new { productId = dal.Id, quantity = 20m, rate = (decimal?)120m } },
+        })).EnsureSuccessStatusCode();
+
+        // The helper unloading the truck sees what to expect, without rates.
+        var helper = await HelperOfAsync(shop);
+        var check = (await helper.GetJsonAsync<List<CheckOrder>>($"/api/v1/goods-in/orders?supplierId={supplierId}")).Single();
+        Assert.Equal(30m, check.Lines.Sum(l => l.Pending));
+        Assert.DoesNotContain("rate", await (await helper.GetAsync($"/api/v1/goods-in/orders?supplierId={supplierId}")).Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+        // 10 sugar (1 burst), 12 dal, and 5 salt nobody ordered.
+        (await helper.PostJsonAsync("/api/v1/goods-receipts", new
+        {
+            id = Guid.CreateVersion7(), supplierId, orderId,
+            lines = new object[] { new { productId = sugar.Id, quantity = 10m, damaged = 1m }, new { productId = dal.Id, quantity = 12m }, new { productId = salt.Id, quantity = 5m } },
+        })).EnsureSuccessStatusCode();
+        Assert.Equal(9m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{sugar.Id}")).Stock);
+
+        var arrivals = await shop.GetJsonAsync<List<ArrivalDto>>($"/api/v1/goods-in/arrivals?orderId={orderId}");
+        Assert.Equal(3, arrivals.Count);
+        Assert.Equal((1m, false), (arrivals.Single(a => a.ProductId == sugar.Id).Damaged, arrivals.Single(a => a.ProductId == sugar.Id).Extra));
+        Assert.True(arrivals.Single(a => a.ProductId == salt.Id).Extra);
+
+        // 8 dal still to come: the supplier says they're out, so the owner closes it short and the order closes.
+        (await shop.PostJsonAsync($"/api/v1/suppliers/orders/{orderId}/close-short", new { productId = dal.Id, reason = "out_of_stock" })).EnsureSuccessStatusCode();
+        var order = (await shop.GetJsonAsync<List<PurchaseOrderDto>>($"/api/v1/suppliers/orders?supplierId={supplierId}&all=true")).Single();
+        var dalLine = order.Lines.Single(l => l.ProductId == dal.Id);
+        Assert.Equal((PurchaseOrderStatus.Closed, 8m, ShortReason.OutOfStock), (order.Status, dalLine.ShortClosed, dalLine.ShortReason));
+        Assert.Empty(await helper.GetJsonAsync<List<CheckOrder>>($"/api/v1/goods-in/orders?supplierId={supplierId}"));
+    }
+
+    [Fact]
+    public async Task Every_arrival_row_adds_up_to_the_purchases_in_the_stock_ledger()
+    {
+        var shop = await ShopAsync("kirana");
+        var oil = await ItemAsync(shop, "Mustard oil", 180m, 0m);
+        var supplierId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplierId, name = "Gupta & Sons" })).EnsureSuccessStatusCode();
+        async Task<Guid> Receipt(decimal qty)
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id, supplierId, lines = new[] { new { productId = oil.Id, quantity = qty } } })).EnsureSuccessStatusCode();
+            return id;
+        }
+
+        async Task<Guid> Bill(decimal qty, Guid[]? receiptIds = null)
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id, supplierId, receiptIds, paidAmount = 0m, lines = new[] { new { productId = oil.Id, quantity = qty, unitCost = 150m } } })).EnsureSuccessStatusCode();
+            return id;
+        }
+
+        var first = await Receipt(20m);
+        await Bill(25m, [first]);                         // 20 from the receipt, 5 more on the bill
+        await Bill(10m);                                  // straight on a bill
+        var mistake = await Bill(7m);
+        (await shop.PostJsonAsync($"/api/v1/suppliers/purchases/{mistake}/cancel", new { })).EnsureSuccessStatusCode();
+        var wrong = await Receipt(3m);
+        (await shop.PostJsonAsync($"/api/v1/goods-receipts/{wrong}/cancel", new { })).EnsureSuccessStatusCode();
+        await Receipt(4m);                                // still waiting for its bill
+
+        var arrived = (await shop.GetJsonAsync<List<ArrivalDto>>($"/api/v1/goods-in/arrivals?productId={oil.Id}")).Sum(a => a.Received);
+        var purchased = (await shop.GetJsonAsync<StockStatement>("/api/v1/reports/stock")).Items.Single(i => i.ProductId == oil.Id).Purchased;
+        Assert.Equal((39m, 39m), (arrived, purchased));
+        Assert.All(await shop.GetJsonAsync<List<ArrivalDto>>($"/api/v1/goods-in/arrivals?productId={oil.Id}"), a => Assert.Equal(a.ReceiptNo is null || a.PurchaseId is not null ? 150m : null, a.Rate));
+    }
 }

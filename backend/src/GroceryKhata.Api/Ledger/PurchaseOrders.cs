@@ -61,13 +61,18 @@ public sealed class PurchaseOrderLine : Entity, ITenantOwned
 
     /// <summary>Units that came in on bills matched to this order (paid and free).</summary>
     public decimal Received { get; set; }
+
+    /// <summary>Units the shopkeeper said will never come (closed short), with why.</summary>
+    public decimal ShortClosed { get; set; }
+
+    public ShortReason? ShortReason { get; set; }
 }
 
 public sealed record OrderLineRequest(Guid ProductId, decimal Quantity, decimal? Rate = null);
 
 public sealed record PurchaseOrderRequest(Guid Id, Guid SupplierId, IReadOnlyList<OrderLineRequest>? Lines, string? Note = null, DateOnly? ExpectedOn = null);
 
-public sealed record OrderLineDto(Guid ProductId, string Name, decimal Quantity, decimal? Rate, decimal Received);
+public sealed record OrderLineDto(Guid ProductId, string Name, decimal Quantity, decimal? Rate, decimal Received, decimal ShortClosed = 0, ShortReason? ShortReason = null);
 
 /// <summary><see cref="Pending"/>: units still to come on the open lines.</summary>
 public sealed record PurchaseOrderDto(
@@ -112,9 +117,12 @@ public static class PurchaseOrders
         var supplierIds = orders.Select(o => o.SupplierId).Distinct().ToList();
         var suppliers = await db.Suppliers.AsNoTracking().Where(s => supplierIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         return orders.Select(o => new PurchaseOrderDto(o.Id, o.Number, o.SupplierId, suppliers.GetValueOrDefault(o.SupplierId) ?? "", o.Status, o.Note, o.ExpectedOn, o.CreatedAt, o.ClosedAt,
-            o.Status == PurchaseOrderStatus.Open ? o.Lines.Sum(l => Math.Max(0, l.Quantity - l.Received)) : 0,
-            o.Lines.Select(l => new OrderLineDto(l.ProductId, names.GetValueOrDefault(l.ProductId) ?? "", l.Quantity, l.Rate, l.Received)).ToList())).ToList();
+            o.Status == PurchaseOrderStatus.Open ? o.Lines.Sum(PendingOf) : 0,
+            o.Lines.Select(l => new OrderLineDto(l.ProductId, names.GetValueOrDefault(l.ProductId) ?? "", l.Quantity, l.Rate, l.Received, l.ShortClosed, l.ShortReason)).ToList())).ToList();
     }
+
+    /// <summary>Still to come on a line: ordered less what came and what was closed short, never below zero.</summary>
+    internal static decimal PendingOf(PurchaseOrderLine l) => Math.Max(0, l.Quantity - l.Received - l.ShortClosed);
 
     private static async Task<IResult> CreateAsync(PurchaseOrderRequest request, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
     {
@@ -202,7 +210,7 @@ public static class PurchaseOrders
             }
         }
 
-        var allIn = order.Lines.All(l => l.Received >= l.Quantity);
+        var allIn = order.Lines.All(l => PendingOf(l) <= 0);
         if (sign > 0 && allIn)
         {
             (order.Status, order.ClosedAt) = (PurchaseOrderStatus.Closed, clock.GetUtcNow());
@@ -218,8 +226,8 @@ public static class PurchaseOrders
     /// <summary>Units still to come, per item, on open orders: "What to order" leaves them out so nothing is ordered twice.</summary>
     internal static async Task<Dictionary<Guid, decimal>> PendingAsync(AppDbContext db, CancellationToken ct) =>
         (await db.PurchaseOrderLines.AsNoTracking()
-            .Where(l => db.PurchaseOrders.Any(o => o.Id == l.OrderId && o.Status == PurchaseOrderStatus.Open) && l.Received < l.Quantity)
-            .Select(l => new { l.ProductId, Left = l.Quantity - l.Received }).ToListAsync(ct))
+            .Where(l => db.PurchaseOrders.Any(o => o.Id == l.OrderId && o.Status == PurchaseOrderStatus.Open) && l.Received + l.ShortClosed < l.Quantity)
+            .Select(l => new { l.ProductId, Left = l.Quantity - l.Received - l.ShortClosed }).ToListAsync(ct))
         .GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Left));
 
     /// <summary>

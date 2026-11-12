@@ -41,6 +41,7 @@ const ImportScreen = lazy(() => import('./screens/ImportScreen').then((module) =
 const PrintScreen = lazy(() => import('./screens/PrintScreen').then((module) => ({ default: module.PrintScreen })))
 const OrderScreen = lazy(() => import('./screens/OrderScreen').then((module) => ({ default: module.OrderScreen })))
 const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module) => ({ default: module.ProductScreen })))
+const GoodsInScreen = lazy(() => import('./screens/GoodsInScreen').then((module) => ({ default: module.GoodsInScreen })))
 const OrdersPlacedScreen = lazy(() => import('./screens/OrdersPlacedScreen').then((module) => ({ default: module.OrdersPlacedScreen })))
 const StockHealthScreen = lazy(() => import('./screens/StockHealthScreen').then((module) => ({ default: module.StockHealthScreen })))
 const StockStatementScreen = lazy(() => import('./screens/StockStatementScreen').then((module) => ({ default: module.StockStatementScreen })))
@@ -279,6 +280,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
       { path: '/suppliers', label: t('side.suppliers') },
       { path: '/reorder', label: t('reorder.link') },
       { path: '/orders-placed', label: t('po.link') },
+      { path: '/goods-in', label: t('gi.link') },
     ] }] : []),
     { key: 'money', title: t('menu.money'), add: { path: '/expenses', label: t('menu.addExpense') }, links: [
       { path: '/cashbook', label: t('side.cashbook') },
@@ -291,6 +293,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
       { path: '/stocktake', label: t('side.stocktake') },
       { path: '/stock-statement', label: t('sl.statement') },
       { path: '/stock-health', label: t('sh.title') },
+      { path: '/goods-in', label: t('gi.link') },
     ] },
     { key: 'reports', title: t('menu.reports'), links: [
       { path: '/reports', label: t('side.reports') },
@@ -491,6 +494,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <StocktakeScreen shopId={shopId} />
         ) : path === '/stock-statement' ? (
           <StockStatementScreen />
+        ) : path === '/goods-in' ? (
+          <GoodsInScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
         ) : path === '/orders-placed' ? (
           <OrdersPlacedScreen shopId={shopId} />
         ) : path === '/stock-health' ? (

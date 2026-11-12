@@ -15,7 +15,7 @@ export interface PurchaseOrder { id: string; number: number; supplierId: string;
 interface ReturnLine { productName: string; batchNo: string; quantity: number; value: number }
 interface SupplierReturn { id: string; number: number; value: number; daysOpen: number; settledAt: string | null; lines: ReturnLine[] }
 interface Pick { text: string; productId: string; quantity: string; rate: string; bags?: string }
-export interface GoodsReceipt { id: string; number: number; supplierId: string; purchaseOrderId?: string | null; receivedAt: string; lines: { productId: string; name: string; quantity: number; bags?: number | null; bagSize?: number | null }[]; note: string | null; purchaseId: string | null; by: string | null
+export interface GoodsReceipt { id: string; number: number; supplierId: string; purchaseOrderId?: string | null; receivedAt: string; lines: { productId: string; name: string; quantity: number; bags?: number | null; bagSize?: number | null; damaged?: number }[]; note: string | null; purchaseId: string | null; by: string | null
   vehicleNo?: string | null; bilty?: string | null; transporter?: string | null; grossWeight?: number | null; tareWeight?: number | null }
 
 const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'

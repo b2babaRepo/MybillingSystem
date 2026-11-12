@@ -53,9 +53,10 @@ public sealed class GoodsReceipt : Entity, ITenantOwned
 }
 
 /// <summary>One item that came: its weight (or count) as received, and how many bags, when it comes in bags.</summary>
-public sealed record ReceiptLine(Guid ProductId, string Name, decimal Quantity, decimal? Bags = null, decimal? BagSize = null);
+public sealed record ReceiptLine(Guid ProductId, string Name, decimal Quantity, decimal? Bags = null, decimal? BagSize = null, decimal Damaged = 0);
 
-public sealed record ReceiptLineRequest(Guid ProductId, decimal Quantity, decimal? Bags = null);
+/// <summary><see cref="Damaged"/>: of the units counted in, how many came broken or spoilt (they go out again as damage).</summary>
+public sealed record ReceiptLineRequest(Guid ProductId, decimal Quantity, decimal? Bags = null, decimal? Damaged = null);
 
 public sealed record GoodsReceiptRequest(Guid Id, Guid SupplierId, IReadOnlyList<ReceiptLineRequest>? Lines, Guid? OrderId = null, string? Note = null,
     string? VehicleNo = null, string? Bilty = null, string? Transporter = null, decimal? GrossWeight = null, decimal? TareWeight = null);
@@ -111,6 +112,11 @@ public static class GoodsReceipts
             return Invalid("Lines", "Choose the supplier and the items that came, with how many of each.");
         }
 
+        if (lines.Any(l => l.Damaged is < 0 || l.Damaged > l.Quantity))
+        {
+            return Invalid("Lines", "Damaged can't be more than what came.");
+        }
+
         if (request.Note?.Trim().Length > 200)
         {
             return Invalid("Note", "Keep the note under 200 letters.");
@@ -143,7 +149,7 @@ public static class GoodsReceipts
             Id = request.Id, SupplierId = request.SupplierId, PurchaseOrderId = request.OrderId, ReceivedAt = now, CreatedByUserId = userId,
             Number = (await db.GoodsReceipts.MaxAsync(r => (int?)r.Number, ct) ?? 0) + 1,
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
-            Lines = JsonSerializer.Serialize(lines.Select(l => new ReceiptLine(l.ProductId, products[l.ProductId].Name, l.Quantity, l.Bags is > 0 ? l.Bags : null, products[l.ProductId].BagSize)).ToList(), Json),
+            Lines = JsonSerializer.Serialize(lines.Select(l => new ReceiptLine(l.ProductId, products[l.ProductId].Name, l.Quantity, l.Bags is > 0 ? l.Bags : null, products[l.ProductId].BagSize, l.Damaged ?? 0)).ToList(), Json),
             VehicleNo = Short(request.VehicleNo, 20)?.ToUpperInvariant(), Bilty = Short(request.Bilty, 40), Transporter = Short(request.Transporter, 80),
             GrossWeight = request.GrossWeight, TareWeight = request.GrossWeight is null ? null : request.TareWeight,
         };
@@ -155,11 +161,21 @@ public static class GoodsReceipts
             {
                 RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = line.Quantity, Bags = line.Bags is > 0 ? line.Bags : null, OccurredAt = now, CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number}",
             });
+            if (line.Damaged is > 0 and var damaged)
+            {
+                // Counted in, then straight out as damage: the ledger shows both, and the units can go back to the supplier.
+                db.StockMovements.Add(new StockMovement
+                {
+                    RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Damage, Quantity = -damaged,
+                    OccurredAt = now, CreatedByUserId = userId, Note = $"Came damaged · goods receipt #{receipt.Number}",
+                });
+            }
         }
 
+        await Arrivals.AddAsync(db, request.SupplierId, receipt.Id, null, request.OrderId, lines.Select(l => (l.ProductId, l.Quantity, l.Damaged ?? 0, l.Bags is > 0 ? l.Bags : null, (decimal?)null)), now, ct);
         await db.SaveChangesAsync(ct);
         var ids = lines.Select(l => l.ProductId).Order().ToArray();
-        var quantities = ids.Select(i => lines.Single(l => l.ProductId == i).Quantity).ToArray();
+        var quantities = ids.Select(i => lines.Single(l => l.ProductId == i)).Select(l => l.Quantity - (l.Damaged ?? 0)).ToArray();
         await db.Database.ExecuteSqlAsync($"UPDATE products AS p SET stock = p.stock + v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", ct);
         await transaction.CommitAsync(ct);
         return TypedResults.Created($"/api/v1/goods-receipts/{receipt.Id}", ToDto(receipt, null));
@@ -199,11 +215,21 @@ public static class GoodsReceipts
                 RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Purchase, Quantity = -line.Quantity, Bags = line.Bags is > 0 ? -line.Bags : null, OccurredAt = now,
                 CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number} cancelled",
             });
+            if (line.Damaged > 0)
+            {
+                // The damage write-off is undone too: those units were never really the shop's.
+                db.StockMovements.Add(new StockMovement
+                {
+                    RefType = "receipt", RefId = receipt.Id, ProductId = line.ProductId, Kind = StockMovementKind.Adjustment, Reason = StockReason.Damage, Quantity = line.Damaged,
+                    OccurredAt = now, CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number} cancelled",
+                });
+            }
         }
 
+        await db.ArrivalLines.Where(a => a.ReceiptId == id).ExecuteUpdateAsync(s => s.SetProperty(a => a.CancelledAt, now), ct);
         await db.SaveChangesAsync(ct);
         var ids = lines.Select(l => l.ProductId).Order().ToArray();
-        var quantities = ids.Select(i => lines.Single(l => l.ProductId == i).Quantity).ToArray();
+        var quantities = ids.Select(i => lines.Single(l => l.ProductId == i)).Select(l => l.Quantity - l.Damaged).ToArray();
         await db.Database.ExecuteSqlAsync($"UPDATE products AS p SET stock = p.stock - v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", ct);
         await transaction.CommitAsync(ct);
         return TypedResults.NoContent();

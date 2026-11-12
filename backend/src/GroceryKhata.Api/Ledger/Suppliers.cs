@@ -464,6 +464,25 @@ public static class SupplierEndpoints
         }
 
         // Goods against an order: what came counts off what is still to come.
+        // Every arrival is one row: the bill's own share (beyond its receipts) arrives now; receipt rows get billed.
+        await Arrivals.AddAsync(db, request.SupplierId, null, request.Id, request.OrderId,
+            lines.GroupBy(l => l.ProductId).Select(g =>
+            {
+                var units = g.Sum(l => l.Quantity + l.FreeQuantity);
+                var own = Math.Max(0, added.GetValueOrDefault(g.Key));
+                var bags = g.Sum(l => l.Bags ?? 0);
+                return (g.Key, own, 0m, bags > 0 && units > 0 ? decimal.Round(bags * own / units, 3) : (decimal?)null, (decimal?)g.First().UnitCost);
+            }), now, ct);
+        if (receipts.Count > 0)
+        {
+            var rates = lines.GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.First().UnitCost);
+            var rows = await db.ArrivalLines.Where(a => a.ReceiptId != null && receiptIds.Contains(a.ReceiptId.Value)).ToListAsync(ct);
+            foreach (var row in rows)
+            {
+                (row.PurchaseId, row.Rate) = (request.Id, rates.TryGetValue(row.ProductId, out var rate) ? rate : null);
+            }
+        }
+
         // Receipts already counted against this order are not counted twice; the bill adds only what is more.
         if (request.OrderId is { } orderId)
         {
@@ -549,7 +568,10 @@ public static class SupplierEndpoints
             await PurchaseOrders.ReceiveAsync(db, orderId, purchase.SupplierId, back, -1, clock, ct);
         }
 
-        await db.GoodsReceipts.Where(r => r.PurchaseId == id).ExecuteUpdateAsync(s => s.SetProperty(r => r.PurchaseId, (Guid?)null), ct);
+await db.GoodsReceipts.Where(r => r.PurchaseId == id).ExecuteUpdateAsync(s => s.SetProperty(r => r.PurchaseId, (Guid?)null), ct);
+        // The bill's own arrivals are undone; goods that came on receipts are still here, waiting for a bill again.
+        await db.ArrivalLines.Where(a => a.PurchaseId == id && a.ReceiptId == null).ExecuteUpdateAsync(s => s.SetProperty(a => a.CancelledAt, now), ct);
+        await db.ArrivalLines.Where(a => a.PurchaseId == id && a.ReceiptId != null).ExecuteUpdateAsync(s => s.SetProperty(a => a.PurchaseId, (Guid?)null).SetProperty(a => a.Rate, (decimal?)null), ct);
         db.SupplierEntries.Add(new SupplierEntry { SupplierId = purchase.SupplierId, Kind = SupplierEntryKind.BillCancelled, Amount = -purchase.Total, PurchaseId = id, Note = "Bill cancelled", OccurredAt = now, CreatedByUserId = userId });
         foreach (var line in purchase.Lines)
         {

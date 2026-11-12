@@ -94,6 +94,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
 
+    public DbSet<ArrivalLine> ArrivalLines => Set<ArrivalLine>();
+
     public DbSet<Estimate> Estimates => Set<Estimate>();
     public DbSet<SaleOrder> SaleOrders => Set<SaleOrder>();
 
@@ -816,7 +818,23 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(l => l.Quantity).HasPrecision(12, 3);
             b.Property(l => l.Received).HasPrecision(12, 3);
+            b.Property(l => l.ShortClosed).HasPrecision(12, 3);
             b.Property(l => l.Rate).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<ArrivalLine>(b =>
+        {
+            b.ToTable("goods_receipt_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Received).HasPrecision(12, 3);
+            b.Property(l => l.Damaged).HasPrecision(12, 3);
+            b.Property(l => l.Bags).HasPrecision(12, 3);
+            b.Property(l => l.Rate).HasPrecision(12, 2);
+            b.HasIndex(l => new { l.ShopId, l.ProductId, l.OccurredAt });
+            b.HasIndex(l => new { l.ShopId, l.SupplierId, l.OccurredAt });
+            b.HasIndex(l => new { l.ShopId, l.OrderId });
+            b.HasIndex(l => new { l.ShopId, l.ReceiptId });
+            b.HasIndex(l => new { l.ShopId, l.PurchaseId });
         });
 
         modelBuilder.Entity<SupplierEntry>(b =>

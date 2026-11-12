@@ -115,6 +115,7 @@ app.MapCashLimits();
 app.MapCustomerMove();
 app.MapStockLedger();
 app.MapStockHealth();
+app.MapArrivals();
 app.MapStockAlerts();
 app.MapCashMoves();
 app.MapAudit();

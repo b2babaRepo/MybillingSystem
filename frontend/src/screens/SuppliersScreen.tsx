@@ -371,6 +371,10 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
               const ordered = against.lines.find((l) => l.productId === r.productId)
               return ordered && <p className="col-span-2 text-xs text-muted">{t('supplier2.ordered', { qty: ordered.quantity - ordered.received })}{ordered.rate != null && r.unitCost !== '' && Number(r.unitCost) !== ordered.rate ? <b className="text-due"> · {t('supplier2.rateDiffers', { rate: formatRupees(ordered.rate) })}</b> : null}</p>
             })()}
+            {fromReceipts.length > 0 && r.productId && (() => {
+              const good = fromReceipts.flatMap((x) => x.lines).filter((l) => l.productId === r.productId).reduce((s, l) => s + l.quantity - (l.damaged ?? 0), 0)
+              return good > 0 && Number(r.quantity) > good ? <p className="col-span-2 text-xs font-semibold text-due">⚠ {t('gi.billedMore', { billed: Number(r.quantity), good })}</p> : null
+            })()}
             <ItemPicker products={choosable} text={nameOf(r)} placeholder={t('supplier2.itemSearch')} onText={(text) => pickItem(i, text)} onPick={(p) => pickItem(i, p.name)} className="col-span-2" />
             <input aria-label={t('suppliers.qty')} placeholder={t('suppliers.qty')} value={r.quantity} onChange={(e) => set(i, 'quantity', e.target.value)} inputMode="decimal" className={input} />
             <input aria-label={t('suppliers.cost')} placeholder={t('suppliers.cost')} value={r.unitCost} onChange={(e) => set(i, 'unitCost', e.target.value)} inputMode="decimal" className={input} />
