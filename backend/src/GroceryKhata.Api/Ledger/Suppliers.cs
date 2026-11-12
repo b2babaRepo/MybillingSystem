@@ -43,6 +43,15 @@ public sealed class Purchase : Entity, ITenantOwned
     /// <summary>Freight and round-off on the printed bill (minus for a round-down), in the total but on no item.</summary>
     public decimal ExtraCharges { get; set; }
 
+    /// <summary>How the lot's charges were spread over its items; null when there were none to spread.</summary>
+    public CostSplit? CostSplit { get; set; }
+
+    /// <summary>The bill's own extra (freight on the bill) was spread into the items' cost.</summary>
+    public bool ExtraInCost { get; set; }
+
+    /// <summary>Charges paid to others to bring this lot in (transporter, hamali, commission), spread into cost.</summary>
+    public List<PurchaseCharge> Charges { get; set; } = [];
+
     /// <summary>The date printed on the supplier's bill, not the day it was entered.</summary>
     public DateTimeOffset OccurredAt { get; set; }
 
@@ -88,6 +97,9 @@ public sealed class PurchaseLine : Entity, ITenantOwned
 
     /// <summary>Units of this line already counted in on a goods receipt: the bill added no stock for them.</summary>
     public decimal FromReceipt { get; set; }
+
+    /// <summary>What one unit really cost on the shelf: the bill rate before GST plus its share of the lot's charges.</summary>
+    public decimal? LandedUnitCost { get; set; }
 
     /// <summary>Bags on this line (paid and free together), when the goods come in bags.</summary>
     public decimal? Bags { get; set; }
@@ -165,7 +177,44 @@ public sealed record PurchaseLineRequest(
 
 /// <summary><see cref="Id"/> is made by the app, so a repeated tap saves once.</summary>
 public sealed record PurchaseRequest(Guid Id, Guid SupplierId, string? BillNo, IReadOnlyList<PurchaseLineRequest>? Lines, decimal PaidAmount, PaymentMode? PaymentMode, DateOnly? BillDate = null, decimal Extra = 0, Guid? OrderId = null,
-    IReadOnlyList<Guid>? ReceiptIds = null);
+    IReadOnlyList<Guid>? ReceiptIds = null, IReadOnlyList<LandedChargeRequest>? Charges = null, bool ExtraInCost = false, CostSplit Split = CostSplit.Value);
+
+/// <summary>How a lot's charges are shared over its items: by value (default), by units, or by bags.</summary>
+public enum CostSplit
+{
+    Value,
+    Quantity,
+    Bags,
+}
+
+/// <summary>
+/// A charge to bring the goods in that isn't on the supplier's bill: lorry freight, hamali (loading), mandi commission.
+/// <see cref="PaidBy"/> cash or UPI writes it in the kharcha as stock bought (out of profit, since it is in the goods' cost);
+/// null when it is paid some other way or later.
+/// </summary>
+public sealed record LandedChargeRequest(string? Label, decimal Amount, PaymentMode? PaidBy = null);
+
+public sealed class PurchaseCharge : Entity, ITenantOwned
+{
+    public Guid ShopId { get; set; }
+
+    public Guid PurchaseId { get; set; }
+
+    public required string Label { get; set; }
+
+    public decimal Amount { get; set; }
+
+    /// <summary>The kharcha line it was paid from, struck if the bill is cancelled.</summary>
+    public Guid? ExpenseId { get; set; }
+}
+
+public sealed record LotLineDto(Guid ProductId, string Name, decimal Units, decimal BillRate, decimal ChargePerUnit, decimal LandedCost, decimal? SellingPrice, decimal? MarginPerUnit, decimal? MarginPercent, decimal? LotMargin);
+
+/// <summary>One supplier bill seen as a lot: what its goods really cost landed, and the margin at today's selling prices.</summary>
+public sealed record LotDto(Guid Id, string? BillNo, Guid SupplierId, string Supplier, DateTimeOffset OccurredAt, bool Cancelled, CostSplit? Split, decimal GoodsValue,
+    decimal Charges, IReadOnlyList<LandedChargeDto> ChargeLines, decimal LandedTotal, decimal? ExpectedMargin, IReadOnlyList<LotLineDto> Lines);
+
+public sealed record LandedChargeDto(string Label, decimal Amount, bool Paid);
 
 public sealed record SupplierPaymentRequest(Guid Id, decimal Amount, PaymentMode? PaymentMode, string? Reference = null, DateOnly? PaidOn = null);
 
@@ -185,6 +234,8 @@ public static class SupplierEndpoints
         group.MapPost("/{id:guid}/opening", OpeningAsync);
         group.MapPost("/purchases", PurchaseAsync);
         group.MapGet("/purchases/{id:guid}", GetPurchaseAsync);
+        group.MapGet("/purchases/{id:guid}/landed", LotAsync);
+        group.MapGet("/lots", LotsAsync);
         group.MapPut("/{id:guid}", ChangeAsync);
         group.MapPost("/purchases/{id:guid}/cancel", CancelPurchaseAsync);
         return app;
@@ -283,6 +334,49 @@ public static class SupplierEndpoints
         var names = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         return TypedResults.Ok(new PurchaseDetailDto(purchase.Id, purchase.BillNo, purchase.Total, purchase.ExtraCharges, purchase.OccurredAt, purchase.CancelledAt is not null,
             purchase.Lines.Select(l => new PurchaseLineDto(names.GetValueOrDefault(l.ProductId) ?? "", l.Quantity, l.FreeQuantity, l.UnitCost, l.DiscountPercent, l.GstRate, l.Taxable, l.Gst)).ToList()));
+    }
+
+    /// <summary>One bill as a lot: each item's bill rate, its share of the charges, what it landed at, and the margin at today's price.</summary>
+    private static async Task<IResult> LotAsync(Guid id, AppDbContext db, CancellationToken ct) =>
+        (await LotsOfAsync(db, db.Purchases.AsNoTracking().Where(p => p.Id == id), ct)).SingleOrDefault() is { } lot ? TypedResults.Ok(lot) : TypedResults.NotFound();
+
+    /// <summary>Recent lots, newest first, for one item or supplier or all: to compare what goods really cost landed.</summary>
+    private static async Task<IReadOnlyList<LotDto>> LotsAsync(Guid? productId, Guid? supplierId, AppDbContext db, CancellationToken ct) =>
+        await LotsOfAsync(db, db.Purchases.AsNoTracking()
+            .Where(p => p.CancelledAt == null && (supplierId == null || p.SupplierId == supplierId) && (productId == null || p.Lines.Any(l => l.ProductId == productId)))
+            .OrderByDescending(p => p.OccurredAt).Take(50), ct, productId);
+
+    private static async Task<List<LotDto>> LotsOfAsync(AppDbContext db, IQueryable<Purchase> query, CancellationToken ct, Guid? onlyProduct = null)
+    {
+        var purchases = await query.Include(p => p.Lines).Include(p => p.Charges).ToListAsync(ct);
+        var ids = purchases.SelectMany(p => p.Lines).Select(l => l.ProductId).Distinct().ToList();
+        var products = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Name, p.SellingPrice }, ct);
+        var supplierIds = purchases.Select(p => p.SupplierId).Distinct().ToList();
+        var suppliers = await db.Suppliers.AsNoTracking().Where(s => supplierIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+        return purchases.OrderByDescending(p => p.OccurredAt).Select(p =>
+        {
+            var lines = p.Lines.Where(l => onlyProduct == null || l.ProductId == onlyProduct).Select(l =>
+            {
+                var units = l.Quantity + l.FreeQuantity;
+                var billRate = units > 0 ? decimal.Round(l.Taxable / units, 2) : 0;
+                var landed = l.LandedUnitCost ?? billRate;
+                var item = products.GetValueOrDefault(l.ProductId);
+                decimal? price = item?.SellingPrice is > 0 ? item.SellingPrice : null;
+                decimal? margin = price is { } sp ? sp - landed : null;
+                return new LotLineDto(l.ProductId, item?.Name ?? "", units, billRate, landed - billRate, landed, price, margin,
+                    margin is { } m && price is { } s2 ? decimal.Round(m * 100 / s2, 1) : null, margin is { } m2 ? decimal.Round(m2 * units, 2) : null);
+            }).ToList();
+            var charges = p.Charges.Sum(c => c.Amount) + (p.ExtraInCost ? p.ExtraCharges : 0);
+            var chargeLines = p.Charges.Select(c => new LandedChargeDto(c.Label, c.Amount, c.ExpenseId != null)).ToList();
+            if (p.ExtraInCost)
+            {
+                chargeLines.Insert(0, new LandedChargeDto("On the bill", p.ExtraCharges, false));
+            }
+
+            return new LotDto(p.Id, p.BillNo, p.SupplierId, suppliers.GetValueOrDefault(p.SupplierId) ?? "", p.OccurredAt, p.CancelledAt != null, p.CostSplit,
+                p.Lines.Sum(l => l.Taxable), charges, chargeLines, decimal.Round(lines.Sum(l => l.LandedCost * l.Units), 2),
+                lines.All(l => l.LotMargin is not null) ? lines.Sum(l => l.LotMargin!.Value) : null, lines);
+        }).ToList();
     }
 
     /// <summary>What was owed when the shop started using the app: a line of its own, never a bill, so purchases and stock stay true. Once per supplier.</summary>
@@ -393,14 +487,49 @@ public static class SupplierEndpoints
             return Invalid("BillDate", "The bill date can't be in the future.");
         }
 
+        var charges = request.Charges ?? [];
+        if (charges.Count > 10 || charges.Any(c => c.Amount <= 0 || c.Amount > Money.MaxAmount || decimal.Round(c.Amount, 2) != c.Amount || string.IsNullOrWhiteSpace(c.Label)
+            || c.PaidBy is not (null or PaymentMode.Cash or PaymentMode.Upi)) || !Enum.IsDefined(request.Split))
+        {
+            return Invalid("Charges", "Give each charge a name and an amount, paid by cash, UPI or not yet.");
+        }
+
+        // The lot's charges, spread over its items: by value, units or bags (bags falls back to value when no line has bags).
+        var pool = charges.Sum(c => c.Amount) + (request.ExtraInCost ? request.Extra : 0);
+        decimal Weight(PurchaseLineRequest l) => request.Split switch
+        {
+            CostSplit.Quantity => l.Quantity + l.FreeQuantity,
+            CostSplit.Bags when lines.Any(x => x.Bags > 0) => l.Bags ?? 0,
+            _ => Taxable(l),
+        };
+        var weights = lines.Sum(Weight);
+        decimal ShareOf(PurchaseLineRequest l) => pool == 0 || weights <= 0 ? 0 : pool * Weight(l) / weights;
+
         var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var billNo = request.BillNo?.Trim();
         db.Purchases.Add(new Purchase
         {
-            Id = request.Id, SupplierId = request.SupplierId, BillNo = string.IsNullOrEmpty(billNo) ? null : billNo[..Math.Min(billNo.Length, 40)], Total = total, ExtraCharges = request.Extra, OccurredAt = billDate, CreatedByUserId = userId,
-            PurchaseOrderId = request.OrderId,
+            Id = request.Id, SupplierId = request.SupplierId, BillNo = string.IsNullOrEmpty(billNo) ? null : billNo[..Math.Min(billNo.Length, 40)], Total = total,             ExtraCharges = request.Extra, OccurredAt = billDate, CreatedByUserId = userId,
+            PurchaseOrderId = request.OrderId, CostSplit = pool == 0 ? null : request.Split, ExtraInCost = request.ExtraInCost && request.Extra != 0,
         });
+        foreach (var charge in charges)
+        {
+            var label = charge.Label!.Trim()[..Math.Min(60, charge.Label.Trim().Length)];
+            Guid? expenseId = null;
+            if (charge.PaidBy is { } mode)
+            {
+                // Paid now: out of the drawer as stock bought, which the profit report leaves out (it is in the goods' cost).
+                expenseId = Guid.CreateVersion7();
+                db.Expenses.Add(new Expense
+                {
+                    Id = expenseId.Value, Amount = charge.Amount, Category = ExpenseCategory.Purchase, Mode = mode, OccurredAt = now, CreatedByUserId = userId,
+                    Note = string.IsNullOrEmpty(billNo) ? label : $"{label} · bill {billNo[..Math.Min(billNo.Length, 40)]}",
+                });
+            }
+
+            db.PurchaseCharges.Add(new PurchaseCharge { PurchaseId = request.Id, Label = label, Amount = charge.Amount, ExpenseId = expenseId });
+        }
         db.SupplierEntries.Add(new SupplierEntry { SupplierId = request.SupplierId, Kind = SupplierEntryKind.Bill, Amount = total, PurchaseId = request.Id, Note = billNo?[..Math.Min(billNo.Length, 40)], OccurredAt = billDate, CreatedByUserId = userId });
         var purchase = db.Purchases.Local.Single(p => p.Id == request.Id);
         var added = new Dictionary<Guid, decimal>();
@@ -431,7 +560,7 @@ public static class SupplierEndpoints
             var fromReceipt = Math.Min(units, alreadyIn.GetValueOrDefault(line.ProductId));
             alreadyIn[line.ProductId] = alreadyIn.GetValueOrDefault(line.ProductId) - fromReceipt;
             // What one unit really cost: the line's value before GST (the GST comes back as input credit) over paid and free units together.
-            var unitCost = decimal.Round(Taxable(line) / units, 2, MidpointRounding.AwayFromZero);
+            var unitCost = decimal.Round((Taxable(line) + ShareOf(line)) / units, 2, MidpointRounding.AwayFromZero);
             // Units from a receipt are already on the shelf but weren't costed: they take this bill's cost, not the old one.
             var held = Math.Max(0, product.Stock + added.GetValueOrDefault(line.ProductId) - fromReceipt - alreadyIn.GetValueOrDefault(line.ProductId));
             product.CostPrice = product.CostPrice is { } cost && held > 0
@@ -447,7 +576,7 @@ public static class SupplierEndpoints
             purchase.Lines.Add(new PurchaseLine
             {
                 ProductId = line.ProductId, Quantity = line.Quantity, UnitCost = line.UnitCost, FreeQuantity = line.FreeQuantity, DiscountPercent = line.DiscountPercent, BatchId = batch?.Id,
-                GstRate = line.GstRate, Taxable = Taxable(line), Gst = LineTotal(line) - Taxable(line), FromReceipt = fromReceipt,
+                GstRate = line.GstRate, Taxable = Taxable(line), Gst = LineTotal(line) - Taxable(line), FromReceipt = fromReceipt, LandedUnitCost = unitCost,
                 Bags = line.Bags is > 0 and <= 100_000 ? line.Bags : null,
             });
             if (units - fromReceipt > 0)
@@ -573,6 +702,10 @@ await db.GoodsReceipts.Where(r => r.PurchaseId == id).ExecuteUpdateAsync(s => s.
         // The bill's own arrivals are undone; goods that came on receipts are still here, waiting for a bill again.
         await db.ArrivalLines.Where(a => a.PurchaseId == id && a.ReceiptId == null).ExecuteUpdateAsync(s => s.SetProperty(a => a.CancelledAt, now), ct);
         await db.ArrivalLines.Where(a => a.PurchaseId == id && a.ReceiptId != null).ExecuteUpdateAsync(s => s.SetProperty(a => a.PurchaseId, (Guid?)null).SetProperty(a => a.Rate, (decimal?)null), ct);
+        // Charges paid from the drawer for this lot come off the kharcha too.
+        var paidCharges = await db.PurchaseCharges.Where(c => c.PurchaseId == id && c.ExpenseId != null).Select(c => c.ExpenseId!.Value).ToListAsync(ct);
+        await db.Expenses.Where(e => paidCharges.Contains(e.Id) && e.StruckAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.StruckAt, now).SetProperty(e => e.StruckByUserId, userId), ct);
         db.SupplierEntries.Add(new SupplierEntry { SupplierId = purchase.SupplierId, Kind = SupplierEntryKind.BillCancelled, Amount = -purchase.Total, PurchaseId = id, Note = "Bill cancelled", OccurredAt = now, CreatedByUserId = userId });
         foreach (var line in purchase.Lines)
         {

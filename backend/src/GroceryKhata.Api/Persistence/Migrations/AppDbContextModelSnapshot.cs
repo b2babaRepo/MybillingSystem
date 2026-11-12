@@ -6553,6 +6553,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cancelled_at");
 
+                    b.Property<string>("CostSplit")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("cost_split");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -6565,6 +6570,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("extra_charges");
+
+                    b.Property<bool>("ExtraInCost")
+                        .HasColumnType("boolean")
+                        .HasColumnName("extra_in_cost");
 
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone")
@@ -6596,6 +6605,55 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasAlternateKey("ShopId", "Id");
 
                     b.ToTable("purchases", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.PurchaseCharge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("ExpenseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("expense_id");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("label");
+
+                    b.Property<Guid>("PurchaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("purchase_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("PurchaseId");
+
+                    b.HasIndex("ShopId", "PurchaseId");
+
+                    b.ToTable("purchase_charges", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.PurchaseLine", b =>
@@ -6642,6 +6700,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)")
                         .HasColumnName("gst_rate");
+
+                    b.Property<decimal?>("LandedUnitCost")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("landed_unit_cost");
 
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid")
@@ -9797,6 +9860,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.PurchaseCharge", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Ledger.Purchase", null)
+                        .WithMany("Charges")
+                        .HasForeignKey("PurchaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.PurchaseLine", b =>
                 {
                     b.HasOne("GroceryKhata.Api.Ledger.Purchase", null)
@@ -10044,6 +10116,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Purchase", b =>
                 {
+                    b.Navigation("Charges");
+
                     b.Navigation("Lines");
                 });
 

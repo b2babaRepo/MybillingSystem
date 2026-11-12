@@ -1,4 +1,5 @@
 import { SupplierItemsCard } from '../components/SupplierPanels'
+import { ChargesEditor, LotView, chargesBody, noCharges, type Charges } from '../components/LandedCost'
 import { BagCheck } from './ProductScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ItemPicker } from '../components/ItemPicker'
@@ -126,6 +127,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
   const [paidOn, setPaidOn] = useState('')
   const [billDate, setBillDate] = useState('')
   const [extra, setExtra] = useState('')
+  const [charges, setCharges] = useState<Charges>(noCharges)
   const [editing, setEditing] = useState<{ name: string; phone: string; gstin: string; address: string; days: string; active: boolean } | null>(null)
   const [opening, setOpening] = useState({ amount: '', owed: true, asOf: '' })
   const [view, setView] = useState<'all' | 'bills' | 'payments'>('all')
@@ -225,7 +227,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
   }
   const writeBill = () => run(async () => {
     const saved = await send('/v1/suppliers/purchases', {
-      id: crypto.randomUUID(), supplierId: id, billNo: billNo.trim() || null, paidAmount: Number(paid) || 0, paymentMode: mode, billDate: billDate || null, extra: Number(extra) || 0, orderId: against?.id ?? null, receiptIds: fromReceipts.length > 0 ? fromReceipts.map((r) => r.id) : null,
+      id: crypto.randomUUID(), supplierId: id, billNo: billNo.trim() || null, paidAmount: Number(paid) || 0, paymentMode: mode, billDate: billDate || null, extra: Number(extra) || 0, ...chargesBody(charges), orderId: against?.id ?? null, receiptIds: fromReceipts.length > 0 ? fromReceipts.map((r) => r.id) : null,
       lines: valid.map((r) => ({
         productId: r.productId, quantity: Number(r.quantity), unitCost: Math.round(costEach(r) * 10000) / 10000, freeQuantity: Number(r.free) || 0, discountPercent: Number(r.discount) || 0,
         gstRate: r.gst === '' ? null : Number(r.gst), bags: Number(r.bags) > 0 ? Number(r.bags) : null,
@@ -240,6 +242,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
     setPaid('')
     setBillDate('')
     setExtra('')
+    setCharges(noCharges)
     setAgainst(null)
     setPhotoNote(null)
   })
@@ -412,6 +415,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
         ))}
         <button onClick={() => setRows([...rows, empty])} className="min-h-11 font-semibold text-teal-700">+ {t('suppliers.addRow')}</button>
         <Field label={t('supplier2.extra')} value={extra} onChange={(e) => setExtra(e.target.value)} inputMode="text" />
+        <ChargesEditor value={charges} onChange={setCharges} hasExtra={Number(extra) > 0} />
         <p className="flex justify-between font-bold"><span>{t('print.total')}</span><span>{formatRupees(total)}</span></p>
         <Field label={t('suppliers.paidNow')} value={paid} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
         <Button disabled={valid.length === 0} onClick={() => void saveBill()}>{t('suppliers.saveBill')}</Button>
@@ -448,6 +452,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
                     <p key={i} className="flex justify-between gap-2"><span>{l.name} × {l.quantity}{l.freeQuantity > 0 ? ` + ${t('supplier2.free', { qty: l.freeQuantity })}` : ''}{l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}</span><span>{formatRupees(l.taxable + l.gst)}</span></p>
                   ))}
                   {bill.extra !== 0 && <p className="flex justify-between gap-2"><span>{t('supplier2.extraLine')}</span><span>{formatRupees(bill.extra)}</span></p>}
+                  <LotView shopId={shopId} purchaseId={e.purchaseId!} />
                 </div>
               )}
             </li>

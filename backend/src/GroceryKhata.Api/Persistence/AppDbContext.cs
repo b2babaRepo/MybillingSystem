@@ -106,6 +106,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<BagType> BagTypes => Set<BagType>();
 
+    public DbSet<PurchaseCharge> PurchaseCharges => Set<PurchaseCharge>();
+
     public DbSet<BagMove> BagMoves => Set<BagMove>();
 
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
@@ -725,6 +727,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Total).HasPrecision(12, 2);
             b.Property(p => p.ExtraCharges).HasPrecision(12, 2);
             b.HasMany(p => p.Lines).WithOne().HasForeignKey(l => l.PurchaseId).OnDelete(DeleteBehavior.Cascade);
+            b.HasMany(p => p.Charges).WithOne().HasForeignKey(c => c.PurchaseId).OnDelete(DeleteBehavior.Cascade);
+            b.Property(p => p.CostSplit).HasMaxLength(20);
         });
 
         modelBuilder.Entity<PurchaseLine>(b =>
@@ -734,6 +738,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(l => l.Quantity).HasPrecision(12, 3);
             b.Property(l => l.UnitCost).HasPrecision(12, 2);
             b.Property(l => l.FreeQuantity).HasPrecision(12, 3);
+            b.Property(l => l.LandedUnitCost).HasPrecision(12, 2);
             b.Property(l => l.DiscountPercent).HasPrecision(5, 2);
             b.Property(l => l.GstRate).HasPrecision(5, 2);
             b.Property(l => l.Taxable).HasPrecision(12, 2);
@@ -859,6 +864,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(f => f.Note).HasMaxLength(300);
             b.HasIndex(f => new { f.ShopId, f.OrderId, f.At });
+        });
+
+        modelBuilder.Entity<PurchaseCharge>(b =>
+        {
+            b.ToTable("purchase_charges");
+            b.HasTenantKey();
+            b.Property(c => c.Label).HasMaxLength(60);
+            b.Property(c => c.Amount).HasPrecision(14, 2);
+            b.HasIndex(c => new { c.ShopId, c.PurchaseId });
         });
 
         modelBuilder.Entity<BagType>(b =>
