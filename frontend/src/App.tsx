@@ -41,6 +41,9 @@ const ImportScreen = lazy(() => import('./screens/ImportScreen').then((module) =
 const PrintScreen = lazy(() => import('./screens/PrintScreen').then((module) => ({ default: module.PrintScreen })))
 const OrderScreen = lazy(() => import('./screens/OrderScreen').then((module) => ({ default: module.OrderScreen })))
 const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module) => ({ default: module.ProductScreen })))
+const HoldsScreen = lazy(() => import('./screens/HoldsScreen').then((module) => ({ default: module.HoldsScreen })))
+const ReceivedBySupplierScreen = lazy(() => import('./screens/ReceivedBySupplierScreen').then((module) => ({ default: module.ReceivedBySupplierScreen })))
+const CategoriesScreen = lazy(() => import('./screens/CategoriesScreen').then((module) => ({ default: module.CategoriesScreen })))
 const GoodsInScreen = lazy(() => import('./screens/GoodsInScreen').then((module) => ({ default: module.GoodsInScreen })))
 const OrdersPlacedScreen = lazy(() => import('./screens/OrdersPlacedScreen').then((module) => ({ default: module.OrdersPlacedScreen })))
 const StockHealthScreen = lazy(() => import('./screens/StockHealthScreen').then((module) => ({ default: module.StockHealthScreen })))
@@ -252,7 +255,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const productMatch = path.match(/^\/p\/([0-9a-f-]+)$/)
   const tagsMatch = path.match(/^\/tags\/([0-9a-f,-]+)$/)
   const printMatch = path.match(/^\/print\/(statement|bill|supplier)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
-  const isItemsPage = !!productMatch || path === '/items/pick' || path === '/stocktake' || path === '/stock-statement' || path === '/stock-health' || path === '/import' || path === '/items/common'
+  const isItemsPage = !!productMatch || path === '/items/pick' || path === '/stocktake' || path === '/stock-statement' || path === '/stock-health' || path === '/categories' || path === '/import' || path === '/items/common'
   const tabs: { path: string; label: string; icon: ReactNode; badge?: number }[] = [
     { path: '/', label: t('home'), icon: <HomeIcon size={22} /> },
     { path: '/khata', label: t('khata'), icon: <KhataIcon size={22} /> },
@@ -267,6 +270,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     { key: 'sell', title: t('menu.sell'), add: { path: '/bill', label: t('menu.addBill') }, links: [
       { path: '/estimates', label: t('estimate.link') },
       { path: '/sale-orders', label: t('saleOrder.link') },
+      { path: '/holds', label: t('holds.link') },
       { path: '/reports/day', label: t('menu.dayBook') },
       ...(isOwner ? [{ path: '/offers', label: t('offers.link') }] : []),
     ] },
@@ -281,6 +285,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
       { path: '/reorder', label: t('reorder.link') },
       { path: '/orders-placed', label: t('po.link') },
       { path: '/goods-in', label: t('gi.link') },
+      { path: '/received-by-supplier', label: t('rs.link') },
     ] }] : []),
     { key: 'money', title: t('menu.money'), add: { path: '/expenses', label: t('menu.addExpense') }, links: [
       { path: '/cashbook', label: t('side.cashbook') },
@@ -294,6 +299,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
       { path: '/stock-statement', label: t('sl.statement') },
       { path: '/stock-health', label: t('sh.title') },
       { path: '/goods-in', label: t('gi.link') },
+      ...(isOwner ? [{ path: '/categories', label: t('cat.title') }] : []),
     ] },
     { key: 'reports', title: t('menu.reports'), links: [
       { path: '/reports', label: t('side.reports') },
@@ -493,13 +499,19 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
         ) : path === '/stocktake' ? (
           <StocktakeScreen shopId={shopId} />
         ) : path === '/stock-statement' ? (
-          <StockStatementScreen />
+          <StockStatementScreen shopId={shopId} />
+        ) : path === '/holds' ? (
+          <HoldsScreen shopId={shopId} />
+        ) : path === '/received-by-supplier' && isOwner ? (
+          <ReceivedBySupplierScreen shopId={shopId} />
+        ) : path === '/categories' ? (
+          <CategoriesScreen shopId={shopId} />
         ) : path === '/goods-in' ? (
           <GoodsInScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
         ) : path === '/orders-placed' ? (
           <OrdersPlacedScreen shopId={shopId} />
         ) : path === '/stock-health' ? (
-          <StockHealthScreen />
+          <StockHealthScreen shopId={shopId} />
         ) : path === '/sales-by' ? (
           <SalesByScreen />
         ) : path === '/items/common' ? (

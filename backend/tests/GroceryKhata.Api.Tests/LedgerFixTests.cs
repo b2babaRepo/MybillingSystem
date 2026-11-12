@@ -1601,4 +1601,115 @@ public sealed class LedgerFixTests(ApiFactory api)
         Assert.Equal((39m, 39m), (arrived, purchased));
         Assert.All(await shop.GetJsonAsync<List<ArrivalDto>>($"/api/v1/goods-in/arrivals?productId={oil.Id}"), a => Assert.Equal(a.ReceiptNo is null || a.PurchaseId is not null ? 150m : null, a.Rate));
     }
+    [Fact]
+    public async Task One_category_per_name_with_rename_merge_and_defaults()
+    {
+        var shop = await ShopAsync("kirana");
+        async Task<ProductDto> Item(string name, string? category, object? tax = null)
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/products", new { id, name, unit = "piece", sellingPrice = 50m, category })).EnsureSuccessStatusCode();
+            return await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{id}");
+        }
+
+        // Typed three ways, one category: the first spelling is kept.
+        var dal = await Item("Toor dal", "Pulses");
+        var moong = await Item("Moong dal", "  pulses ");
+        await Item("Chana dal", "PULSES");
+        var oil = await Item("Mustard oil", "Oil");
+        var cats = await shop.GetJsonAsync<List<CategoryDto>>("/api/v1/categories");
+        Assert.Equal(["Pulses", "Oil"], cats.Select(c => c.Name));
+        Assert.Equal(3, cats.Single(c => c.Name == "Pulses").Items);
+        Assert.Equal("Pulses", moong.Category);
+
+        // Rename: every item follows.
+        var pulses = cats.Single(c => c.Name == "Pulses");
+        (await shop.PutAsJsonAsync($"/api/v1/categories/{pulses.Id}", new { name = "Dal & pulses", defaultGstRate = 5m, defaultHsn = "0713" })).EnsureSuccessStatusCode();
+        Assert.Equal("Dal & pulses", (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{dal.Id}")).Category);
+
+        // A new item in it takes its GST and HSN.
+        var urad = await Item("Urad dal", "dal & PULSES");
+        Assert.Equal(("Dal & pulses", 5m, "0713"), (urad.Category, urad.GstRate, urad.HsnCode));
+
+        // Renaming onto another name is refused: merge instead. Merging moves every item and leaves a pointer.
+        var oilCat = cats.Single(c => c.Name == "Oil");
+        Assert.Equal(HttpStatusCode.Conflict, (await shop.PutAsJsonAsync($"/api/v1/categories/{oilCat.Id}", new { name = "dal & pulses" })).StatusCode);
+        (await shop.PostJsonAsync($"/api/v1/categories/{oilCat.Id}/merge", new { intoId = pulses.Id })).EnsureSuccessStatusCode();
+        Assert.Equal("Dal & pulses", (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{oil.Id}")).Category);
+        var after = await shop.GetJsonAsync<List<CategoryDto>>("/api/v1/categories");
+        Assert.Equal((1, 5), (after.Count, after.Single().Items));
+        // Typing the merged name again lands in the one it went into.
+        Assert.Equal("Dal & pulses", (await Item("Groundnut oil", "oil")).Category);
+    }
+    [Fact]
+    public async Task Item_by_supplier_scorecard_and_preferred_supplier_for_reorder()
+    {
+        var shop = await ShopAsync("kirana");
+        var sugar = await ItemAsync(shop, "Sugar", 45m, 0m);
+        async Task<Guid> Supplier(string name)
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/suppliers", new { id, name })).EnsureSuccessStatusCode();
+            return id;
+        }
+
+        var agarwal = await Supplier("Agarwal Traders");
+        var shree = await Supplier("Shree Wholesale");
+        // Agarwal: ordered 40, all came on the bill at 40. Shree: ordered 30, 25 came at 38, 1 of them damaged.
+        var o1 = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers/orders", new { id = o1, supplierId = agarwal, lines = new[] { new { productId = sugar.Id, quantity = 40m, rate = (decimal?)40m } } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = Guid.CreateVersion7(), supplierId = agarwal, orderId = o1, paidAmount = 0m, lines = new[] { new { productId = sugar.Id, quantity = 40m, unitCost = 40m } } })).EnsureSuccessStatusCode();
+        var o2 = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers/orders", new { id = o2, supplierId = shree, lines = new[] { new { productId = sugar.Id, quantity = 30m, rate = (decimal?)36m } } })).EnsureSuccessStatusCode();
+        var receipt = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = receipt, supplierId = shree, orderId = o2, lines = new[] { new { productId = sugar.Id, quantity = 25m, damaged = 1m } } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = Guid.CreateVersion7(), supplierId = shree, orderId = o2, receiptIds = new[] { receipt }, paidAmount = 0m, lines = new[] { new { productId = sugar.Id, quantity = 25m, unitCost = 38m } } })).EnsureSuccessStatusCode();
+
+        var grid = await shop.GetJsonAsync<ReceivedBySupplier>("/api/v1/reports/received-by-supplier");
+        var row = grid.Rows.Single(r => r.ProductId == sugar.Id);
+        Assert.Equal((65m, 5m), (row.Received, row.Pending));
+        Assert.Equal((30m, 25m), (row.Cells.Single(c => c.SupplierId == shree).Ordered, row.Cells.Single(c => c.SupplierId == shree).Received));
+
+        // Shree has the lower rate, so it is the best rate and the default to order from, until Agarwal is preferred.
+        var of = await shop.GetJsonAsync<List<ItemSupplierDto>>($"/api/v1/products/{sugar.Id}/suppliers");
+        Assert.True(of.Single(s => s.SupplierId == shree).BestRate);
+        Assert.Equal((5m, 38m), (of.Single(s => s.SupplierId == shree).Pending, of.Single(s => s.SupplierId == shree).LastRate!.Value));
+
+        var score = (await shop.GetJsonAsync<List<ScorecardDto>>("/api/v1/reports/supplier-scorecard")).ToDictionary(s => s.SupplierId);
+        Assert.Equal((1m, 0.833m), (score[agarwal].FillRate!.Value, score[shree].FillRate!.Value));
+        Assert.Equal(0.04m, score[shree].DamageRate);
+        Assert.Equal(0.056m, score[shree].RateChange);   // (38 − 36) ÷ 36
+        Assert.Equal(0m, score[agarwal].RateChange);
+
+        (await shop.PutAsJsonAsync($"/api/v1/products/{sugar.Id}/suppliers/{agarwal}/preferred", new { preferred = true })).EnsureSuccessStatusCode();
+        Assert.True((await shop.GetJsonAsync<List<ItemSupplierDto>>($"/api/v1/products/{sugar.Id}/suppliers")).Single(s => s.SupplierId == agarwal).Preferred);
+        Assert.Single(await shop.GetJsonAsync<List<SupplierProductDto>>($"/api/v1/suppliers/{agarwal}/items"));
+    }
+    [Fact]
+    public async Task Holds_and_orders_show_in_one_stock_picture()
+    {
+        var shop = await ShopAsync("kirana");
+        var rice = await ItemAsync(shop, "Basmati rice", 120m, 10m);
+        // Kept aside at the counter: 4 for Sharmaji; then a sale order promises 9 more.
+        var hold = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/holds", new { id = hold, productId = rice.Id, quantity = 4m, partyName = "Sharmaji", until = "2030-01-01" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/sale-orders", new { id = Guid.CreateVersion7(), partyName = "Hotel Annapurna", lines = new[] { new { productId = rice.Id, name = "Basmati rice", quantity = 9m, unit = "piece", unitPrice = 110m } } })).EnsureSuccessStatusCode();
+        // 20 on order from a supplier.
+        var supplierId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplierId, name = "Agarwal Traders" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/suppliers/orders", new { id = Guid.CreateVersion7(), supplierId, lines = new[] { new { productId = rice.Id, quantity = 20m } } })).EnsureSuccessStatusCode();
+
+        // Oldest first: Sharmaji is covered, the hotel is 3 short.
+        var holds = await shop.GetJsonAsync<List<HoldDto>>($"/api/v1/holds?productId={rice.Id}");
+        Assert.Equal([("counter", 0m), ("sale_order", 3m)], holds.Select(h => (h.Source, h.ShortBy)));
+        Assert.Equal(13m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{rice.Id}")).Promised);
+
+        var line = (await shop.GetJsonAsync<StockStatement>("/api/v1/reports/stock")).Items.Single(i => i.ProductId == rice.Id);
+        Assert.Equal((10m, 13m, 20m), (line.InShop, line.Promised, line.Coming));
+
+        // Sharmaji took it: the hold ends and no longer counts.
+        (await shop.PostJsonAsync($"/api/v1/holds/{hold}/done", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(9m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{rice.Id}")).Promised);
+        Assert.Single(await shop.GetJsonAsync<List<HoldDto>>($"/api/v1/holds?productId={rice.Id}"));
+    }
 }

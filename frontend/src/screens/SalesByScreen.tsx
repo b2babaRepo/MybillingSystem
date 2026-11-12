@@ -31,6 +31,7 @@ export function SalesByScreen() {
             <button key={k} onClick={() => setBy(k)} aria-pressed={by === k} className={`h-10 rounded-xl font-semibold transition ${by === k ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted hover:text-ink'}`}>{t(`sl.byWhat.${k}`)}</button>
           ))}
         </div>
+        {by === 'supplier' && <p className="text-xs text-muted">{t('rs.salesShare')}</p>}
         <div className="flex flex-wrap gap-2 text-sm">
           <label className="flex items-center gap-1.5">{t('sl.from')}<input type="date" value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ ...range, from: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-teal-600" /></label>
           <label className="flex items-center gap-1.5">{t('sl.to')}<input type="date" value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ ...range, to: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-teal-600" /></label>

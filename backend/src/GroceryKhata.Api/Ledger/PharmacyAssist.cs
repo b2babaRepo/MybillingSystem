@@ -12,7 +12,10 @@ public sealed record RefillDto(Guid CustomerId, string CustomerName, string? Pho
 /// <summary><see cref="OnOrder"/>: still to come on open orders, already taken off <see cref="Suggested"/>.</summary>
 public sealed record ReorderLineDto(Guid ProductId, string Medicine, decimal Stock, decimal SoldLast30Days, decimal Suggested, decimal? LastRate, decimal OnOrder = 0,
     // Days the stock lasts at the 30-day sale rate; the supplier's delivery days; and the level at which to order.
-    decimal? DaysLeft = null, int LeadDays = 0, decimal? ReorderPoint = null);
+    decimal? DaysLeft = null, int LeadDays = 0, decimal? ReorderPoint = null, IReadOnlyList<ReorderOption>? Options = null);
+
+/// <summary>A supplier who has delivered the item: their last rate, delivery days and 90-day fill rate, to split an order.</summary>
+public sealed record ReorderOption(Guid SupplierId, string Name, string? Phone, decimal? LastRate, int? LeadDays, decimal? FillRate, bool Preferred);
 
 public sealed record ReorderGroupDto(Guid? SupplierId, string? SupplierName, string? Phone, IReadOnlyList<ReorderLineDto> Lines);
 
@@ -94,8 +97,24 @@ public static class PharmacyAssist
     /// </summary>
     private static async Task<IReadOnlyList<ReorderGroupDto>> ReorderAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var (lines, last) = await NeedsAsync(db, clock, ct);
+        var (needs, last) = await NeedsAsync(db, clock, ct);
         var suppliers = await db.Suppliers.AsNoTracking().ToDictionaryAsync(s => s.Id, s => new { s.Name, s.Phone }, ct);
+        // Everyone who has delivered each item, with what helps choose between them.
+        var productIds = needs.Select(n => n.ProductId).ToList();
+        var delivered = (await db.ArrivalLines.AsNoTracking().Where(a => a.CancelledAt == null && productIds.Contains(a.ProductId))
+            .Select(a => new { a.ProductId, a.SupplierId, a.Rate, a.OccurredAt }).ToListAsync(ct))
+            .GroupBy(a => (a.ProductId, a.SupplierId)).ToDictionary(g => g.Key, g => g.Where(a => a.Rate != null).OrderByDescending(a => a.OccurredAt).FirstOrDefault()?.Rate);
+        var preferred = await db.SupplierItems.AsNoTracking().Where(s => s.IsPreferred && productIds.Contains(s.ProductId)).ToDictionaryAsync(s => s.ProductId, s => s.SupplierId, ct);
+        var lead = await LeadDaysAsync(db, ct);
+        var fill = await SupplierItems.FillRatesAsync(db, clock, ct);
+        var lines = needs.Select(n => n with
+        {
+            Options = delivered.Keys.Where(k => k.ProductId == n.ProductId).Select(k => k.SupplierId).Concat(preferred.TryGetValue(n.ProductId, out var pr) ? [pr] : []).Distinct()
+                .Where(suppliers.ContainsKey)
+                .Select(s => new ReorderOption(s, suppliers[s].Name, suppliers[s].Phone, delivered.GetValueOrDefault((n.ProductId, s)), lead.TryGetValue(s, out var d) ? d : null,
+                    fill.TryGetValue(s, out var f) ? f : null, preferred.GetValueOrDefault(n.ProductId) == s))
+                .OrderByDescending(o => o.Preferred).ThenBy(o => o.LastRate ?? decimal.MaxValue).ToList(),
+        }).ToList();
         return lines
             .GroupBy(n => last.TryGetValue(n.ProductId, out var from) ? from.SupplierId : (Guid?)null)
             .Select(g => new ReorderGroupDto(g.Key, g.Key is { } s ? suppliers.GetValueOrDefault(s)?.Name : null, g.Key is { } p ? suppliers.GetValueOrDefault(p)?.Phone : null,
@@ -104,16 +123,12 @@ public static class PharmacyAssist
     }
 
     /// <summary>Every item to order now (the current shop), with its days left, delivery days and reorder point.</summary>
-    internal static async Task<(List<ReorderLineDto> Lines, Dictionary<Guid, (Guid SupplierId, decimal UnitCost)> Last)> NeedsAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
+    internal static async Task<(List<ReorderLineDto> Lines, Dictionary<Guid, (Guid SupplierId, decimal? UnitCost)> Last)> NeedsAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var sold = await Catalogue.Cover.SoldAsync(db, clock, ct);
         var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService && !p.Uncounted).Select(p => new { p.Id, p.Name, p.Stock, p.Reserved, p.ReorderLevel }).ToListAsync(ct);
-        // The supplier and rate each item last came in at.
-        var last = (await (from l in db.PurchaseLines.AsNoTracking()
-                           join pu in db.Purchases.AsNoTracking() on l.PurchaseId equals pu.Id
-                           where pu.CancelledAt == null
-                           select new { l.ProductId, pu.SupplierId, l.UnitCost, pu.OccurredAt }).ToListAsync(ct))
-            .GroupBy(x => x.ProductId).ToDictionary(g => g.Key, g => { var x = g.OrderByDescending(y => y.OccurredAt).First(); return (x.SupplierId, x.UnitCost); });
+        // Who to order each item from: the preferred supplier, else the best recent rate (see SupplierItems.DefaultsAsync).
+        var last = await SupplierItems.DefaultsAsync(db, clock, ct);
         var lead = await LeadDaysAsync(db, ct);
         var pending = await PurchaseOrders.PendingAsync(db, ct);
         // Stock promised on open sale orders isn't free to sell: it counts as already gone.

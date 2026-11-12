@@ -1,3 +1,4 @@
+import { orderedNames, useCategories } from '../lib/categories'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +22,7 @@ export function OffersScreen({ shopId }: { shopId: string }) {
   const queryClient = useQueryClient()
   const offers = useOffers(shopId).data ?? []
   const { products } = useProducts(shopId)
-  const categories = [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))].sort()
+  const categories = orderedNames(useCategories(shopId).data, products.map((p) => p.category))
   const blank = { name: '', kind: 'percent' as SaleOffer['kind'], value: '', startsOn: today(), endsOn: today(), scope: 'all' as SaleOffer['scope'], category: '', items: [] as string[], itemText: '' }
   const [draft, setDraft] = useState<typeof blank | null>(null)
   const [message, setMessage] = useState('')

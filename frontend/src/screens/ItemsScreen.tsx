@@ -1,3 +1,5 @@
+import { CategoryInput } from '../components/CategoryInput'
+import { orderedNames, useCategories } from '../lib/categories'
 import { useShopSettings } from '../lib/reports'
 import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { useState, type FormEvent, type ReactNode } from 'react'
@@ -39,7 +41,8 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
     setFilter('all')
   }
 
-  const categories = [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))].sort()
+  const categoryRows = useCategories(shopId).data
+  const categories = orderedNames(categoryRows, products.map((p) => p.category))
   const query = search.trim().toLowerCase()
   const isOut = (p: Product) => !p.isService && !p.uncounted && p.stock <= 0
   const shown = products.filter((p) =>
@@ -83,6 +86,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
       <div className="grid grid-cols-2 gap-2">
         <button onClick={() => navigate('/stock-statement')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">📊</span>{t('sl.statement')}</button>
         <button onClick={() => navigate('/sales-by')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">🏷️</span>{t('sl.salesByShort')}</button>
+        {isOwner && <button onClick={() => navigate('/categories')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">🗂️</span>{t('cat.title')}</button>}
         <button onClick={() => navigate('/stock-health')} className="col-span-2 flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">🩺</span>{t('sh.title')}</button>
       </div>
 
@@ -222,7 +226,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
       <Button className="fixed right-[max(1rem,calc(50vw-17rem))] bottom-24 h-14 lg:hidden rounded-full! px-6 shadow-[0_6px_16px_rgba(15,118,110,0.35)]" onClick={() => setAdding(true)}>
         + {t('addItem')}
       </Button>
-      {adding && <AddProductSheet shopId={shopId} categories={categories} onClose={() => setAdding(false)} />}
+      {adding && <AddProductSheet shopId={shopId} onClose={() => setAdding(false)} />}
       {receiving && <ReceiveSizesSheet shopId={shopId} styleName={receiving} items={sortVariants(products.filter((p) => p.styleName?.trim() === receiving))} onClose={() => setReceiving(null)} />}
       {zoom && (
         <div role="dialog" aria-modal="true" aria-label={zoom.name} onClick={() => setZoom(null)} onKeyDown={(e) => e.key === 'Escape' && setZoom(null)} tabIndex={-1} ref={(el) => el?.focus()}
@@ -279,7 +283,7 @@ function Chip({ selected, onClick, children, tone = 'plain' }: { selected: boole
   )
 }
 
-function AddProductSheet({ shopId, categories, onClose }: { shopId: string; categories: string[]; onClose: () => void }) {
+function AddProductSheet({ shopId, onClose }: { shopId: string; onClose: () => void }) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [unit, setUnit] = useState<Unit>('piece')
@@ -325,8 +329,12 @@ function AddProductSheet({ shopId, categories, onClose }: { shopId: string; cate
           <Field label={t('stock.sellingPrice')} value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" required />
         </div>
         <Field label={t('stock.buyingCost')} value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" />
-        <Field label={t('stock.category')} value={category} onChange={(e) => setCategory(e.target.value)} list="item-categories" />
-        <datalist id="item-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+        <CategoryInput shopId={shopId} value={category} onChange={setCategory} onPick={(c) => {
+          // The category's defaults fill what is still empty.
+          if (c.defaultUnit && !name) setUnit(c.defaultUnit)
+          if (c.defaultGstRate != null && gst === '') setGst(String(c.defaultGstRate))
+          if (c.defaultHsn && hsn === '') setHsn(c.defaultHsn)
+        }} />
         <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={service} onChange={(e) => setService(e.target.checked)} className="h-5 w-5" />{t('salon.isService')}</label>
         {service && <Field label={t('salon.min')} value={minutes} onChange={(e) => setMinutes(e.target.value)} inputMode="numeric" />}
         {!service && <div className="grid grid-cols-2 gap-2">

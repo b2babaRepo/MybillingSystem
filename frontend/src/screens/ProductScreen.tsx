@@ -1,3 +1,6 @@
+import { coverText } from '../lib/cover'
+import { ItemSuppliersCard } from '../components/SupplierPanels'
+import { CategoryInput } from '../components/CategoryInput'
 import { useQueryClient } from '@tanstack/react-query'
 import { isOutToday } from '../lib/local'
 import { billNameFor } from '../lib/billNames'
@@ -46,14 +49,14 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
           {(product.dailySales ?? 0) > 0 && !product.isService && product.stock > 0 && (() => {
             const days = Math.floor(product.stock / product.dailySales!)
             return <span className={`mt-1 w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${days <= 3 ? 'bg-red-50 text-due' : days <= 10 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
-              ⏳ {t('sl.daysLeft', { count: days })} · {t('sl.perDay', { qty: Math.round(product.dailySales! * 10) / 10, unit: t(`units.${product.unit}`) })}
+              ⏳ {coverText(t, product.stock / product.dailySales!)} · {t('sl.perDay', { qty: Math.round(product.dailySales! * 10) / 10, unit: t(`units.${product.unit}`) })}
             </span>
           })()}
         </span>
         <span className="flex flex-col items-end gap-1">
           <StockBadge product={product} large />
           {(product.promised ?? 0) > 0 && (
-            <button onClick={() => navigate('/sale-orders')} className="text-right text-xs font-semibold text-amber-800 underline">
+            <button onClick={() => navigate('/holds')} className="text-right text-xs font-semibold text-amber-800 underline">
               {t('saleOrder.promised', { qty: product.promised })} · {(() => { const free = Math.round((product.stock - (product.reserved ?? 0) - product.promised!) * 1000) / 1000; return free >= 0 ? t('saleOrder.free', { qty: free }) : <span className="text-due">{t('saleOrder.short', { qty: -free })}</span> })()}
             </button>
           )}
@@ -75,6 +78,8 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
         shopId={shopId}
         product={product}
       />
+
+      {!product.pending && !product.isService && <ItemSuppliersCard shopId={shopId} productId={product.id} unit={product.unit} />}
 
       {!product.pending && <Suspense fallback={null}><ItemLedger productId={product.id} /></Suspense>}
 
@@ -279,7 +284,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         <Field label={t('stock.buyingCostShort')} value={form.cost} onChange={set('cost')} inputMode="decimal" />
         <Field label={t('stock.reorderLevel')} value={form.reorder} onChange={set('reorder')} inputMode="decimal" />
       </div>
-      <Field label={t('stock.category')} value={form.category} onChange={set('category')} />
+      <CategoryInput shopId={shopId} value={form.category} onChange={(category) => setForm((f) => ({ ...f, category }))} />
       {!product.isService && (
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-muted">🛍️ {t('bag.sizeLabel')}</span>

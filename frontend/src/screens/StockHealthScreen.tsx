@@ -1,3 +1,4 @@
+import { orderedNames, useCategories } from '../lib/categories'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -12,12 +13,14 @@ interface Health { value: number; deadValue: number; deadItems: number; slowValu
 const TONE: Record<Movement, string> = { dead: 'bg-red-50 text-due', slow: 'bg-amber-50 text-amber-800', new: 'bg-sky-50 text-sky-800', fast: 'bg-emerald-50 text-emerald-800', none: 'bg-slate-100 text-muted' }
 
 /** Where the shop's money sits: dead and slow stock, how old the stock is, and A/B/C items by sales. */
-export function StockHealthScreen() {
+export function StockHealthScreen({ shopId }: { shopId: string }) {
   const { t } = useTranslation()
+  const [category, setCategory] = useState('')
+  const categoryRows = useCategories(shopId).data
   const health = useQuery({ queryKey: ['stock-health'], queryFn: () => api<Health>('/v1/reports/stock-health') })
   const [filter, setFilter] = useState<'all' | 'stuck' | 'A' | 'B' | 'C'>('stuck')
   const h = health.data
-  const items = (h?.items ?? []).filter((i) => i.movement !== 'none' && (filter === 'all' || (filter === 'stuck' ? i.movement === 'dead' || i.movement === 'slow' : i.rank === filter)))
+  const items = (h?.items ?? []).filter((i) => i.movement !== 'none' && (!category || i.category === category) && (filter === 'all' || (filter === 'stuck' ? i.movement === 'dead' || i.movement === 'slow' : i.rank === filter)))
   const max = Math.max(1, ...(h?.ageing ?? []).map((a) => a.value))
 
   return (
@@ -48,6 +51,10 @@ export function StockHealthScreen() {
         </section>
       )}
       <div className="flex flex-wrap gap-1">
+        <select aria-label={t('stock.category')} value={category} onChange={(e) => setCategory(e.target.value)} className="h-9 rounded-full border border-line bg-white px-3 text-sm">
+          <option value="">{t('cat.allCategories')}</option>
+          {orderedNames(categoryRows, (h?.items ?? []).map((i) => i.category)).map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
         {(['stuck', 'all', 'A', 'B', 'C'] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f} className={`h-9 rounded-full px-3 text-sm font-semibold ${filter === f ? 'bg-teal-700 text-white' : 'bg-white text-muted ring-1 ring-black/5'}`}>{t(`sh.f.${f}`)}</button>
         ))}

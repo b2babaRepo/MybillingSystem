@@ -60,9 +60,10 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     /// <summary>Items made before products remembered their common-list item still get one, from their name.</summary>
     private static ProductDto Linked(ProductDto p) => p.CatalogueItemId is null ? p with { CatalogueItemId = CommonCatalogue.Match(p.Name) } : p;
 
+    /// <summary>Names of the categories that hold active items, in the shop's own order.</summary>
     public async Task<IReadOnlyList<string>> CategoriesAsync(CancellationToken ct) =>
-        await db.Products.AsNoTracking().Where(p => p.IsActive && p.Category != null)
-            .Select(p => p.Category!).Distinct().OrderBy(c => c).ToListAsync(ct);
+        await db.Categories.AsNoTracking().Where(c => c.MergedIntoId == null && c.IsActive && db.Products.Any(p => p.IsActive && p.CategoryId == c.Id))
+            .OrderBy(c => c.SortOrder).ThenBy(c => c.Name).Select(c => c.Name).ToListAsync(ct);
 
     public async Task<ProductDto?> FindAsync(Guid id, CancellationToken ct) =>
         await db.Products.AsNoTracking().Where(p => p.Id == id).Select(AsDto).SingleOrDefaultAsync(ct) is { } found ? (await WithDailySalesAsync([Linked(found)], ct))[0] : null;
@@ -116,8 +117,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var product = NewProduct(request.Id, request.Name!, request.Category, request.Unit!.Value, request.SellingPrice, request.CostPrice, request.ReorderLevel);
-        product.GstRate = request.GstRate;
-        product.HsnCode = Clean(request.HsnCode);
+        await Categories.LinkAsync(db, product, ct);
+        // The category's defaults fill what the item doesn't say.
+        var defaults = product.CategoryId is { } cid ? await db.Categories.AsNoTracking().SingleAsync(c => c.Id == cid, ct) : null;
+        product.GstRate = request.GstRate ?? defaults?.DefaultGstRate;
+        product.HsnCode = Clean(request.HsnCode) ?? defaults?.DefaultHsn;
         (product.IsService, product.DurationMinutes) = (request.IsService, request.DurationMinutes is > 0 and <= 1440 ? request.DurationMinutes : null);
         product.Schedule = request.IsService ? null : request.Schedule;
         product.UnitsPerPack = request.IsService ? null : request.UnitsPerPack is > 1 and <= 1000 ? request.UnitsPerPack : null;
@@ -164,6 +168,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         // A renamed option keeps its common-list item unless the new name says another one.
         product.CatalogueItemId = CommonCatalogue.Match(product.Name) ?? product.CatalogueItemId;
         product.Category = Clean(request.Category);
+        await Categories.LinkAsync(db, product, ct);
         product.Unit = request.Unit!.Value;
         product.SellingPrice = request.SellingPrice;
         product.CostPrice = request.CostPrice;
@@ -404,6 +409,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var openings = new List<(Guid ProductId, decimal Quantity)>();
+        var categoryCache = new Dictionary<string, Category?>();
         foreach (var row in request.Rows)
         {
             if (!existing.Add(row.Name!.Trim().ToLowerInvariant()))
@@ -413,6 +419,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             }
 
             var product = NewProduct(Guid.CreateVersion7(), row.Name, row.Category, row.Unit!.Value, row.SellingPrice ?? 0, row.CostPrice, row.ReorderLevel);
+            await Categories.LinkAsync(db, product, ct, categoryCache);
             product.CatalogueItemId = row.CatalogueItemId ?? product.CatalogueItemId;
             product.MasterItemId = row.MasterItemId;
             (product.StyleName, product.Size) = (Short(row.StyleName, 120), Short(row.Size, 20));

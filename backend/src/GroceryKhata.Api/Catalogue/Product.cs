@@ -8,8 +8,11 @@ public sealed class Product : Entity, ITenantOwned
 
     public required string Name { get; set; }
 
-    /// <summary>Free text the shop chooses ("Atta & rice", "Oil & ghee"); used to group and filter.</summary>
+    /// <summary>The category's name, copied from <see cref="CategoryId"/> so screens can group by it; kept in step on rename and merge.</summary>
     public string? Category { get; set; }
+
+    /// <summary>The shop's category this item is in (see <see cref="Catalogue.Category"/>).</summary>
+    public Guid? CategoryId { get; set; }
 
     /// <summary>
     /// The common catalogue item this is: set when the shop adds it from the common list, or matched from its name

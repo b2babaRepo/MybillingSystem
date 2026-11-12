@@ -86,12 +86,19 @@ public static class SaleOrders
     private static bool IsOpen(SaleOrder o) => o.ClosedAt == null && o.CancelledAt == null;
 
     /// <summary>What open sale orders still hold of each item: kept apart from the shelf as "promised".</summary>
+    /// <summary>Promised per item: still to deliver on open sale orders, plus counter holds (see <see cref="StockHolds"/>).</summary>
     internal static async Task<Dictionary<Guid, decimal>> PromisedAsync(AppDbContext db, CancellationToken ct)
     {
         var open = await db.SaleOrders.AsNoTracking().Where(o => o.ClosedAt == null && o.CancelledAt == null).Select(o => o.Lines).ToListAsync(ct);
-        return open.SelectMany(l => JsonSerializer.Deserialize<List<SaleOrderLine>>(l, Json) ?? [])
+        var promised = open.SelectMany(l => JsonSerializer.Deserialize<List<SaleOrderLine>>(l, Json) ?? [])
             .Where(l => l.ProductId is not null && l.Pending > 0)
             .GroupBy(l => l.ProductId!.Value).ToDictionary(g => g.Key, g => g.Sum(l => l.Pending));
+        foreach (var (id, q) in await StockHolds.HeldAsync(db, ct))
+        {
+            promised[id] = promised.GetValueOrDefault(id) + q;
+        }
+
+        return promised;
     }
 
     private static string StateOf(SaleOrder o, List<SaleOrderLine> lines) =>

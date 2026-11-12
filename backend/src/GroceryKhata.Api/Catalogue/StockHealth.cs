@@ -38,7 +38,7 @@ public static class StockHealth
         var now = clock.GetUtcNow();
         var since = now.AddDays(-90);
         var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService)
-            .Select(p => new { p.Id, p.Name, p.Category, p.Unit, p.Stock, p.CostPrice, p.CreatedAt }).ToListAsync(ct);
+            .Select(p => new { p.Id, p.Name, p.Category, p.Unit, p.Stock, p.CostPrice, p.CreatedAt, SlowAfter = db.Categories.Where(c => c.Id == p.CategoryId).Select(c => c.SlowAfterDays).FirstOrDefault() }).ToListAsync(ct);
         var sales = await (from l in db.BillLines.AsNoTracking()
                            join b in db.Bills.AsNoTracking() on l.BillId equals b.Id
                            where l.ProductId != null && b.CancelledAt == null && b.OccurredAt >= since
@@ -72,7 +72,7 @@ public static class StockHealth
             var cover = Cover.DaysLeft(held, recent.GetValueOrDefault(p.Id));
             var slow90 = held > 0 && (s?.Sold ?? 0) > 0 && held / ((s?.Sold ?? 0) / 90m) > 90;
             var movement = held <= 0 ? "none"
-                : (s?.Sold ?? 0) <= 0 ? (sinceIn is > 30 ? "dead" : "new")
+                : (s?.Sold ?? 0) <= 0 ? (sinceIn > (p.SlowAfter ?? Categories.DefaultSlowAfterDays) ? "dead" : "new")
                 : slow90 ? "slow" : "fast";
             return new StockHealthItem(p.Id, p.Name, p.Category, p.Unit, p.Stock, value, s?.Sales ?? 0, s?.Sold ?? 0,
                 Days(lastSale.TryGetValue(p.Id, out var ls) ? ls : null), sinceIn, movement, rank.GetValueOrDefault(p.Id, "C"), cover);

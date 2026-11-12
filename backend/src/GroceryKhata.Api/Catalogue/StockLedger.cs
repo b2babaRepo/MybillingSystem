@@ -45,7 +45,11 @@ public sealed record ItemLedger(Guid ProductId, string Name, Unit Unit, DateOnly
 /// <summary>One item in the stock statement: opening, in, out, closing, and the closing value at average cost.</summary>
 public sealed record StockStatementLine(
     Guid ProductId, string Name, string? Category, Unit Unit, decimal Opening, decimal Purchased, decimal Sold, decimal OtherIn, decimal OtherOut,
-    decimal Closing, decimal? CostPrice, decimal? Value, decimal Lost, decimal? BagSize = null, decimal? ClosingBags = null);
+    decimal Closing, decimal? CostPrice, decimal? Value, decimal Lost, decimal? BagSize = null, decimal? ClosingBags = null,
+    // Today's picture, whatever the dates: in the shop now, held for online orders, promised (sale orders and counter
+    // holds), coming on open orders, the shared 30-day sale rate, and what to search and filter by.
+    decimal InShop = 0, decimal Reserved = 0, decimal Promised = 0, decimal Coming = 0, decimal DailySales = 0, bool LateOrder = false,
+    string? Barcode = null, string? Hsn = null, IReadOnlyList<Guid>? Suppliers = null);
 
 public sealed record StockStatement(DateOnly From, DateOnly To, decimal Value, int Unvalued, decimal LostValue, IReadOnlyList<StockStatementLine> Items);
 
@@ -197,7 +201,17 @@ public static class StockLedger
         var moves = await db.StockMovements.AsNoTracking().Where(m => m.OccurredAt < p.End)
             .Select(m => new { m.ProductId, m.Kind, m.Reason, m.Quantity, m.CostPrice, m.OccurredAt, m.Bags }).ToListAsync(ct);
         var products = await db.Products.AsNoTracking().Where(x => !x.IsService)
-            .Select(x => new { x.Id, x.Name, x.Category, x.Unit, x.CostPrice, x.IsActive, x.BagSize }).ToListAsync(ct);
+            .Select(x => new { x.Id, x.Name, x.Category, x.Unit, x.CostPrice, x.IsActive, x.BagSize, x.Stock, x.Reserved, x.Barcode, x.HsnCode }).ToListAsync(ct);
+        var promised = await Ledger.SaleOrders.PromisedAsync(db, ct);
+        var coming = await Ledger.PurchaseOrders.PendingAsync(db, ct);
+        var sold30 = await Cover.SoldAsync(db, clock, ct);
+        var today = IndiaTime.Today(clock);
+        var late = (await (from l in db.PurchaseOrderLines.AsNoTracking()
+                           join o in db.PurchaseOrders.AsNoTracking() on l.OrderId equals o.Id
+                           where o.Status == Ledger.PurchaseOrderStatus.Open && o.ExpectedOn != null && o.ExpectedOn < today && l.Received + l.ShortClosed < l.Quantity
+                           select l.ProductId).ToListAsync(ct)).ToHashSet();
+        var supplied = (await db.ArrivalLines.AsNoTracking().Where(a => a.CancelledAt == null).Select(a => new { a.ProductId, a.SupplierId }).Distinct().ToListAsync(ct))
+            .GroupBy(a => a.ProductId).ToDictionary(g => g.Key, g => (IReadOnlyList<Guid>)g.Select(a => a.SupplierId).ToList());
         var byProduct = moves.ToLookup(m => m.ProductId);
 
         var items = new List<StockStatementLine>();
@@ -221,7 +235,9 @@ public static class StockLedger
             var closing = before + within.Sum(m => m.Quantity);
             var cost = AverageCost(all.Select(m => (m.Kind, m.Quantity, m.CostPrice, m.OccurredAt))) ?? x.CostPrice;
             items.Add(new StockStatementLine(x.Id, x.Name, x.Category, x.Unit, before, purchased, sold, otherIn, otherOut, closing, cost,
-                cost is { } c && closing > 0 ? decimal.Round(closing * c, 2) : null, lost, x.BagSize, x.BagSize is null ? null : all.Sum(m => m.Bags ?? 0)));
+                cost is { } c && closing > 0 ? decimal.Round(closing * c, 2) : null, lost, x.BagSize, x.BagSize is null ? null : all.Sum(m => m.Bags ?? 0),
+                x.Stock, x.Reserved, promised.GetValueOrDefault(x.Id), coming.GetValueOrDefault(x.Id), decimal.Round(sold30.GetValueOrDefault(x.Id) / Cover.Days, 3), late.Contains(x.Id),
+                x.Barcode, x.HsnCode, supplied.GetValueOrDefault(x.Id) ?? []));
         }
 
         items = items.OrderBy(i => i.Category ?? "~").ThenBy(i => i.Name).ToList();
@@ -252,14 +268,21 @@ public static class StockLedger
         }
         else if (by == "supplier")
         {
-            // The supplier an item was last bought from: who to talk to about what sells.
-            var last = await (from pl in db.PurchaseLines.AsNoTracking()
-                              join x in db.Purchases.AsNoTracking() on pl.PurchaseId equals x.Id
-                              where x.CancelledAt == null
-                              select new { pl.ProductId, x.SupplierId, x.OccurredAt }).ToListAsync(ct);
-            var supplierOf = last.GroupBy(r => r.ProductId).ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.OccurredAt).First().SupplierId.ToString());
-            pick = (product, _) => product is { } id && supplierOf.GetValueOrDefault(id) is { } s ? s : "";
+            // Stock on the shelf is one pile, so a sale can't say whose goods it was. Each supplier gets the item's sales in
+            // proportion to what they delivered of it in the period (or ever, when nothing came in the period).
+            var came = await db.ArrivalLines.AsNoTracking().Where(a => a.CancelledAt == null)
+                .Select(a => new { a.ProductId, a.SupplierId, a.Received, In = a.OccurredAt >= p.Start && a.OccurredAt < p.End }).ToListAsync(ct);
+            var shares = came.GroupBy(a => a.ProductId).ToDictionary(g => g.Key, g =>
+            {
+                var rows = g.Any(a => a.In) ? g.Where(a => a.In).ToList() : g.ToList();
+                var sum = rows.Sum(a => a.Received);
+                return rows.GroupBy(a => a.SupplierId).Select(s => (Id: s.Key.ToString(), Share: sum > 0 ? s.Sum(a => a.Received) / sum : 0)).ToList();
+            });
             keyOf = await db.Suppliers.AsNoTracking().ToDictionaryAsync(s => s.Id.ToString(), s => (s.Id.ToString(), s.Name), ct);
+            var split = lines.SelectMany(l => l.ProductId is { } id && shares.TryGetValue(id, out var sh) && sh.Count > 0
+                ? sh.Select(x => (Key: x.Id, l.BillId, Amount: decimal.Round(l.Amount * x.Share, 2), Quantity: l.Quantity * x.Share, Cost: l.UnitCost is { } c ? (decimal?)(c * l.Quantity * x.Share) : null))
+                : [(Key: "", l.BillId, l.Amount, l.Quantity, Cost: l.UnitCost is { } c2 ? (decimal?)(c2 * l.Quantity) : null)]).ToList();
+            return Results.Ok(SupplierShares(by, p, split, keyOf));
         }
         else
         {
@@ -277,5 +300,21 @@ public static class StockLedger
                 total > 0 ? decimal.Round(g.Sum(l => l.Amount) * 100 / total, 1) : 0);
         }).OrderByDescending(g => g.Sales).Take(200).ToList();
         return Results.Ok(new SalesBy(by, p.From, p.To, total, groups));
+    }
+
+    /// <summary>Sales split by supplier share: each part of a sale line goes to a supplier by their share of the item's deliveries.</summary>
+    private static SalesBy SupplierShares(string by, (DateOnly From, DateOnly To, DateTimeOffset Start, DateTimeOffset End) p,
+        List<(string Key, Guid BillId, decimal Amount, decimal Quantity, decimal? Cost)> split, Dictionary<string, (string Key, string Name)> keyOf)
+    {
+        var total = split.Sum(l => l.Amount);
+        var groups = split.GroupBy(l => l.Key).Select(g =>
+        {
+            var costed = g.All(l => l.Cost != null);
+            var name = g.Key.Length == 0 ? "" : keyOf.TryGetValue(g.Key, out var k) ? k.Name : g.Key;
+            return new SalesGroup(g.Key, name, g.Sum(l => l.Amount), decimal.Round(g.Sum(l => l.Quantity), 3), g.Select(l => l.BillId).Distinct().Count(),
+                costed ? decimal.Round(g.Sum(l => l.Amount - l.Cost!.Value), 2) : null,
+                total > 0 ? decimal.Round(g.Sum(l => l.Amount) * 100 / total, 1) : 0);
+        }).OrderByDescending(g => g.Sales).Take(200).ToList();
+        return new SalesBy(by, p.From, p.To, total, groups);
     }
 }

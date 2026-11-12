@@ -96,6 +96,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<ArrivalLine> ArrivalLines => Set<ArrivalLine>();
 
+    public DbSet<Category> Categories => Set<Category>();
+
+    public DbSet<SupplierItem> SupplierItems => Set<SupplierItem>();
+
+    public DbSet<StockHold> StockHolds => Set<StockHold>();
+
     public DbSet<Estimate> Estimates => Set<Estimate>();
     public DbSet<SaleOrder> SaleOrders => Set<SaleOrder>();
 
@@ -820,6 +826,35 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(l => l.Received).HasPrecision(12, 3);
             b.Property(l => l.ShortClosed).HasPrecision(12, 3);
             b.Property(l => l.Rate).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<StockHold>(b =>
+        {
+            b.ToTable("stock_holds");
+            b.HasTenantKey();
+            b.Property(h => h.Quantity).HasPrecision(12, 3);
+            b.Property(h => h.PartyName).HasMaxLength(80);
+            b.Property(h => h.Note).HasMaxLength(200);
+            b.HasIndex(h => new { h.ShopId, h.Status, h.ProductId });
+        });
+
+        modelBuilder.Entity<SupplierItem>(b =>
+        {
+            b.ToTable("supplier_items");
+            b.HasTenantKey();
+            b.Property(s => s.SupplierCode).HasMaxLength(40);
+            b.HasIndex(s => new { s.ShopId, s.ProductId, s.SupplierId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Category>(b =>
+        {
+            b.ToTable("categories");
+            b.HasTenantKey();
+            b.Property(c => c.Name).HasMaxLength(60);
+            b.Property(c => c.NormalisedName).HasMaxLength(60);
+            b.Property(c => c.DefaultHsn).HasMaxLength(8);
+            b.Property(c => c.DefaultGstRate).HasPrecision(5, 2);
+            b.HasIndex(c => new { c.ShopId, c.NormalisedName }).IsUnique().HasFilter("merged_into_id IS NULL");
         });
 
         modelBuilder.Entity<ArrivalLine>(b =>

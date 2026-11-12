@@ -1,3 +1,4 @@
+import { SupplierItemsCard } from '../components/SupplierPanels'
 import { BagCheck } from './ProductScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ItemPicker } from '../components/ItemPicker'
@@ -324,6 +325,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
 
       {s && <OrdersPanel shopId={shopId} shopName={shopName} supplierId={id} phone={s.phone} products={products} onGoodsCame={goodsCame} />}
       {s && <ReceiptsPanel shopId={shopId} supplierId={id} products={products} onBill={billFor} />}
+      {s && <SupplierItemsCard shopId={shopId} supplierId={id} />}
 
       <section id="supplier-bill" className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
         <h2 className="font-bold">{t('suppliers.bill')}</h2>
