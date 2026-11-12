@@ -42,6 +42,7 @@ const PrintScreen = lazy(() => import('./screens/PrintScreen').then((module) => 
 const OrderScreen = lazy(() => import('./screens/OrderScreen').then((module) => ({ default: module.OrderScreen })))
 const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module) => ({ default: module.ProductScreen })))
 const GoodsToComeScreen = lazy(() => import('./screens/GoodsToComeScreen').then((module) => ({ default: module.GoodsToComeScreen })))
+const DiscountsScreen = lazy(() => import('./screens/DiscountsScreen').then((module) => ({ default: module.DiscountsScreen })))
 const LotsScreen = lazy(() => import('./screens/LotsScreen').then((module) => ({ default: module.LotsScreen })))
 const FestivalsScreen = lazy(() => import('./screens/FestivalsScreen').then((module) => ({ default: module.FestivalsScreen })))
 const BardanaScreen = lazy(() => import('./screens/BardanaScreen').then((module) => ({ default: module.BardanaScreen })))
@@ -314,7 +315,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     { key: 'reports', title: t('menu.reports'), links: [
       { path: '/reports', label: t('side.reports') },
       { path: '/sales-by', label: t('sl.salesByShort') },
-      ...(isOwner ? [{ path: '/pnl', label: t('side.pnl') }, { path: '/gst', label: 'GST' }] : []),
+      ...(isOwner ? [{ path: '/pnl', label: t('side.pnl') }, { path: '/gst', label: 'GST' }, { path: '/discounts', label: t('disc.title') }] : []),
     ] },
     { key: 'more', title: t('menu.more'), links: [
       ...(isOwner ? [{ path: '/store', label: t('menu.store') }] : []),
@@ -434,6 +435,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <SalesWeekScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
         ) : path === '/reports/customers' && isOwner ? (
           <CustomerPatternsScreen shopId={shopId} shopName={shopName} />
+        ) : path === '/discounts' && isOwner ? (
+          <DiscountsScreen />
         ) : path === '/reports/items' && isOwner ? (
           <ItemMarginScreen shopId={shopId} />
         ) : path === '/pnl' && isOwner ? (

@@ -11,7 +11,7 @@ namespace GroceryKhata.Api.Ledger;
 /// <summary>One bill in the day's register: what it was for, how it was paid, and what went on khata.</summary>
 public sealed record DayBill(
     Guid Id, string? BillNo, DateTimeOffset At, Guid? CustomerId, string? Customer, int Items, string ItemsText, decimal Total, decimal Paid,
-    PaymentMode? Mode, decimal OnKhata, string? By, DateTimeOffset? CancelledAt, string? CancelReason, IReadOnlyList<BillPaymentPart>? Parts = null);
+    PaymentMode? Mode, decimal OnKhata, string? By, DateTimeOffset? CancelledAt, string? CancelReason, IReadOnlyList<BillPaymentPart>? Parts = null, string? Counter = null);
 
 /// <summary>Today's money by how it came: cash, UPI, bank, and what was left on khata.</summary>
 public sealed record DayTotals(decimal Sales, int Bills, decimal Cash, decimal Upi, decimal Bank, decimal OnKhata, decimal KhataCollected, decimal Spent, decimal Card = 0);
@@ -22,7 +22,10 @@ public sealed record DayTotals(decimal Sales, int Bills, decimal Cash, decimal U
 /// </summary>
 public sealed record DayReportDto(
     DateOnly Date, DayTotals Totals, DayTotals Yesterday, IReadOnlyList<DayBill> Bills, IReadOnlyList<DayBill> Cancelled,
-    IReadOnlyList<RangeItem> Items, CashCountDto? Galla);
+    IReadOnlyList<RangeItem> Items, CashCountDto? Galla, IReadOnlyList<TillDto>? Tills = null);
+
+/// <summary>One counter and cashier's day: bills, sales and the money by how it came, and what they cancelled.</summary>
+public sealed record TillDto(string? Counter, string? By, int Bills, decimal Sales, decimal Cash, decimal Upi, decimal Card, decimal Bank, decimal OnKhata, int Cancelled, decimal CancelledValue);
 
 public static class DayReport
 {
@@ -51,7 +54,16 @@ public static class DayReport
         var yesterday = await TotalsAsync(db, day.AddDays(-1), (await BillsAsync(db, day.AddDays(-1), ct)).Bills, ct);
         var items = (await SalesInsights.BuildRangeAsync(db, day, day, ct)).Items;
         var galla = await CashCountEndpoints.SummaryForAsync(db, day, ct);
-        return TypedResults.Ok(new DayReportDto(day, await TotalsAsync(db, day, bills, ct), yesterday, bills, cancelled, items, galla));
+        // Each counter (the device it was billed on) and cashier apart, so two phones billing at once can close separately.
+        var tills = bills.Concat(cancelled).GroupBy(b => (b.Counter, b.By)).Select(g =>
+        {
+            var live = g.Where(b => b.CancelledAt is null).ToList();
+            decimal Paid(PaymentMode mode) => live.Sum(b => (b.Parts ?? []).Where(p => p.Mode == mode).Sum(p => p.Amount));
+            var gone = g.Where(b => b.CancelledAt is not null).ToList();
+            return new TillDto(g.Key.Counter, g.Key.By, live.Count, live.Sum(b => b.Total), Paid(PaymentMode.Cash), Paid(PaymentMode.Upi), Paid(PaymentMode.Card), Paid(PaymentMode.Bank),
+                live.Sum(b => b.OnKhata), gone.Count, gone.Sum(b => b.Total));
+        }).OrderByDescending(t => t.Sales).ToList();
+        return TypedResults.Ok(new DayReportDto(day, await TotalsAsync(db, day, bills, ct), yesterday, bills, cancelled, items, galla, tills));
     }
 
     /// <summary>The day's bills, newest first: those that stand, and those cancelled since (kept on the day they were made).</summary>
@@ -70,7 +82,7 @@ public static class DayReport
             r.b.Id, r.b.BillNo, r.b.OccurredAt, r.b.CustomerId, r.Customer, r.b.Lines.Count,
             string.Join(", ", r.b.Lines.OrderBy(l => l.LineNo).Take(4).Select(l => $"{l.Name} × {l.Quantity.ToString("0.###", CultureInfo.InvariantCulture)}")) + (r.b.Lines.Count > 4 ? $" +{r.b.Lines.Count - 4}" : ""),
             r.b.Total, r.b.PaidAmount, r.b.PaymentMode, r.b.CustomerId is null ? 0 : Math.Max(0, r.b.Total - r.b.PaidAmount - r.b.ExchangeCredit), r.By,
-            r.b.CancelledAt, r.b.CancelReason, r.b.Parts())).ToList();
+            r.b.CancelledAt, r.b.CancelReason, r.b.Parts(), r.b.Counter)).ToList();
         return (list.Where(b => b.CancelledAt is null).ToList(), list.Where(b => b.CancelledAt is not null).ToList());
     }
 

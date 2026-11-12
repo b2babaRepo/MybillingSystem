@@ -16,6 +16,7 @@ interface DayReport {
   date: string; totals: DayTotals; yesterday: DayTotals; bills: DayBill[]; cancelled: DayBill[]
   items: { productId: string | null; name: string; unit: Unit; quantity: number; sales: number }[]
   galla: { opening: number; expected: number; counted: number | null; difference: number | null } | null
+  tills?: { counter: string | null; by: string | null; bills: number; sales: number; cash: number; upi: number; card: number; bank: number; onKhata: number; cancelled: number; cancelledValue: number }[]
 }
 
 const shift = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
@@ -89,6 +90,24 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
             ))}
           </ul>
         </section>
+
+        {(r.tills?.length ?? 0) > 1 && (
+          <section className="overflow-x-auto rounded-[18px] bg-white p-4 text-sm shadow-sm">
+            <h2 className="mb-1 font-bold">{t('day.tills')}</h2>
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-muted"><th className="py-1">{t('day.till')}</th><th className="text-right">{t('day.tillBills')}</th><th className="text-right">{t('day.tillSales')}</th><th className="text-right">{t('day.tillCash')}</th><th className="text-right">UPI</th><th className="text-right">{t('day.tillKhata')}</th></tr></thead>
+              <tbody>
+                {r.tills!.map((x, i) => (
+                  <tr key={i} className="border-t border-line">
+                    <td className="py-1.5">{x.counter ?? t('day.noCounter')}<span className="block text-xs text-muted">{x.by ?? ''}{x.cancelled > 0 ? ` · ${t('day.tillCancelled', { count: x.cancelled, amount: formatRupees(x.cancelledValue) })}` : ''}</span></td>
+                    <td className="text-right tabular-nums">{x.bills}</td><td className="text-right tabular-nums">{formatRupees(x.sales)}</td>
+                    <td className="text-right tabular-nums">{formatRupees(x.cash)}</td><td className="text-right tabular-nums">{formatRupees(x.upi)}</td><td className="text-right tabular-nums">{formatRupees(x.onKhata)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
 
         {r.cancelled.length > 0 && (
           <section className="rounded-[18px] bg-white p-4 text-sm shadow-sm">

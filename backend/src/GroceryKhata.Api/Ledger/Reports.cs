@@ -61,6 +61,14 @@ public sealed record ItemMargin(Guid? ProductId, string Name, decimal Quantity, 
 /// <summary>One person's month: lines and bills they sold, the sales (with GST, as billed), and their commission on it.</summary>
 public sealed record StaffSales(Guid UserId, string Name, int Bills, int Lines, decimal Sales, decimal? CommissionPercent, decimal Commission);
 
+/// <summary>One line sold below its list price: who, when, which bill, by how much, and whether an offer did it.</summary>
+public sealed record DiscountLine(DateTimeOffset At, string? BillNo, string Item, decimal Quantity, decimal ListPrice, decimal SoldAt, decimal Discount, string? By, string? Offer);
+
+/// <summary>A cashier's month of price cuts: by hand (their own) apart from planned offers.</summary>
+public sealed record CashierDiscounts(Guid UserId, string Name, int Bills, decimal Sales, decimal ByHand, int ByHandLines, decimal ByOffer, decimal ByHandPercent);
+
+public sealed record DiscountReport(string Month, decimal ByHand, decimal ByOffer, IReadOnlyList<CashierDiscounts> Cashiers, IReadOnlyList<DiscountLine> Lines);
+
 public sealed record ItemMarginReport(string Month, decimal Sales, decimal Profit, decimal ProfitCoverage, IReadOnlyList<ItemMargin> Items);
 
 /// <summary>
@@ -202,6 +210,7 @@ public static class ReportEndpoints
         group.MapGet("/reports/year.csv", YearCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/month.csv", MonthCsvAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/staff", StaffSalesAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
+        group.MapGet("/reports/discounts", DiscountsAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/items", ItemMarginsAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         return app;
     }
@@ -399,6 +408,42 @@ public static class ReportEndpoints
                 percent is { } p ? decimal.Round(sales * p / 100, 2) : 0);
         }).OrderByDescending(r => r.Sales).ToList();
         return TypedResults.Ok(rows);
+    }
+
+    /// <summary>
+    /// Every line sold below its list price in a month (cancelled bills left out), by cashier: the salesperson named on
+    /// the line, else who made the bill. Price cuts by hand are kept apart from planned offers, so a cashier who gives
+    /// away more than others stands out.
+    /// </summary>
+    private static async Task<IResult> DiscountsAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (ParseOrThisMonth(month, clock) is not { } period)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
+        }
+
+        var (start, end) = IndiaTime.Month(period.Year, period.Month);
+        var lines = await (from l in db.BillLines.AsNoTracking()
+                           join b in db.Bills.AsNoTracking() on l.BillId equals b.Id
+                           where b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null
+                           select new { b.Id, b.BillNo, b.OccurredAt, Seller = l.SalespersonId ?? b.CreatedByUserId, l.Name, l.Quantity, l.UnitPrice, l.ListPrice, l.Amount, l.OfferName, l.OfferId })
+            .ToListAsync(ct);
+        var sellerIds = lines.Select(l => l.Seller).Distinct().ToList();
+        var names = await db.Users.AsNoTracking().Where(u => sellerIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName, ct);
+        var cut = lines.Where(l => l.ListPrice is { } list && list > l.UnitPrice)
+            .Select(l => new { l, Discount = Money.LineAmount(l.Quantity, l.ListPrice!.Value - l.UnitPrice) }).ToList();
+        var cashiers = lines.GroupBy(l => l.Seller).Select(g =>
+        {
+            var mine = cut.Where(c => c.l.Seller == g.Key).ToList();
+            var byHand = mine.Where(c => c.l.OfferId == null).ToList();
+            var sales = g.Sum(l => l.Amount);
+            return new CashierDiscounts(g.Key, names.GetValueOrDefault(g.Key) ?? "—", g.Select(l => l.Id).Distinct().Count(), sales,
+                byHand.Sum(c => c.Discount), byHand.Count, mine.Where(c => c.l.OfferId != null).Sum(c => c.Discount),
+                sales + byHand.Sum(c => c.Discount) == 0 ? 0 : decimal.Round(byHand.Sum(c => c.Discount) * 100 / (sales + byHand.Sum(c => c.Discount)), 1));
+        }).OrderByDescending(c => c.ByHand).ToList();
+        var detail = cut.OrderByDescending(c => c.l.OfferId == null).ThenByDescending(c => c.Discount).Take(300)
+            .Select(c => new DiscountLine(c.l.OccurredAt, c.l.BillNo, c.l.Name, c.l.Quantity, c.l.ListPrice!.Value, c.l.UnitPrice, c.Discount, names.GetValueOrDefault(c.l.Seller), c.l.OfferName)).ToList();
+        return TypedResults.Ok(new DiscountReport($"{period.Year:D4}-{period.Month:D2}", cashiers.Sum(c => c.ByHand), cashiers.Sum(c => c.ByOffer), cashiers, detail));
     }
 
     private static async Task<IResult> ItemMarginsAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct)

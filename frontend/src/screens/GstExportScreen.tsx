@@ -15,6 +15,8 @@ interface GstMonth {
   creditNotes?: number; creditNoteValue?: number; creditNoteTax?: number
   receipts?: number; receiptValue?: number
   purchaseBills?: number; inputTaxable?: number; inputGst?: number
+  payable?: { outputCgst: number; outputSgst: number; outputIgst: number; inputCgst: number; inputSgst: number; inputIgst: number; payCgst: number; paySgst: number; payIgst: number
+    carryCgst: number; carrySgst: number; carryIgst: number; compositionTurnover: number | null; compositionTax: number | null }
 }
 
 const FIX: Record<string, string> = { noRate: '/items', noHsn: '/items', badBuyerGstin: '/khata', noGstin: '/plan' }
@@ -135,8 +137,31 @@ export function GstExportScreen() {
           {!!data.receipts && row(t('gstExport.receipts', { count: data.receipts }), formatRupees(data.receiptValue ?? 0))}
           {!!data.creditNotes && row(t('gstExport.creditNotes', { count: data.creditNotes }), `−${formatRupees(data.creditNoteValue ?? 0)} (${t('gstExport.tax')} ${formatRupees(data.creditNoteTax ?? 0)})`)}
         </section>
+        {data.payable && (
+          <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+            <h2 className="font-bold">{t(data.composition ? 'gstExport.cmp08' : 'gstExport.gstr3b')}</h2>
+            {data.composition ? <>
+              {row(t('gstExport.turnover'), formatRupees(data.payable.compositionTurnover ?? 0))}
+              {row(t('gstExport.compositionTax'), formatRupees(data.payable.compositionTax ?? 0))}
+            </> : (
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-xs text-muted"><th /><th className="text-right">CGST</th><th className="text-right">SGST</th><th className="text-right">IGST</th></tr></thead>
+                <tbody>
+                  {([['taxOnSales', 'output'], ['inputClaimable', 'input'], ['toPay', 'pay'], ['carry', 'carry']] as const).map(([label, key]) => (
+                    <tr key={key} className={`border-t border-line ${key === 'pay' ? 'font-bold' : ''}`}>
+                      <td className="py-1">{t(`gstExport.${label}`)}</td>
+                      {(['Cgst', 'Sgst', 'Igst'] as const).map((h) => <td key={h} className="text-right tabular-nums">{formatRupees(data.payable![`${key}${h}`])}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="text-xs text-muted">{t('gstExport.payableHint')}</p>
+          </section>
+        )}
         {data.canDownload
           ? <>
+              <Button tone="plain" className="lg:self-end lg:px-10" onClick={() => void downloadCsv(`/v1/gst/sales-register.csv?month=${month}`, `sales-register-${month}.csv`)}>{t('gstExport.salesRegister')}</Button>
               <Button className="lg:self-end lg:px-10" disabled={data.bills + data.cancelled === 0} onClick={() => void send()}>{t('gstExport.send')}</Button>
               <Button tone="plain" className="lg:self-end lg:px-10" onClick={() => void downloadCsv(`/v1/suppliers/register?month=${month}`, `purchase-register-${month}.csv`)}>{t('supplier2.register')}</Button>
             </>
