@@ -26,8 +26,6 @@ public sealed class GoodsReceipt : Entity, ITenantOwned
 
     public DateTimeOffset ReceivedAt { get; set; }
 
-    /// <summary>The lines (JSON): product, name and units counted in.</summary>
-    public required string Lines { get; set; }
 
     public string? Note { get; set; }
 
@@ -79,7 +77,22 @@ public static class GoodsReceipts
         return app;
     }
 
-    internal static List<ReceiptLine> LinesOf(GoodsReceipt r) => JsonSerializer.Deserialize<List<ReceiptLine>>(r.Lines, Json) ?? [];
+    /// <summary>What came on each receipt, from its delivery lines (cancelled ones too, so a cancelled receipt still shows its goods).</summary>
+    internal static async Task<ILookup<Guid, ReceiptLine>> LinesAsync(AppDbContext db, IReadOnlyCollection<Guid> receiptIds, CancellationToken ct)
+    {
+        if (receiptIds.Count == 0)
+        {
+            return Array.Empty<ReceiptLine>().ToLookup(_ => Guid.Empty);
+        }
+
+        var rows = await (from a in db.ArrivalLines.AsNoTracking()
+                          where a.ReceiptId != null && receiptIds.Contains(a.ReceiptId.Value)
+                          join p in db.Products.AsNoTracking() on a.ProductId equals p.Id into ps
+                          from p in ps.DefaultIfEmpty()
+                          orderby a.CreatedAt, a.Id
+                          select new { ReceiptId = a.ReceiptId!.Value, a.ProductId, Name = p == null ? "" : p.Name, a.Received, a.Bags, BagSize = p == null ? null : p.BagSize, a.Damaged }).ToListAsync(ct);
+        return rows.ToLookup(r => r.ReceiptId, r => new ReceiptLine(r.ProductId, r.Name, r.Received, r.Bags, r.BagSize, r.Damaged));
+    }
 
     /// <summary>A supplier's receipts (or the shop's), newest first; <paramref name="open"/>: only those still waiting for a bill.</summary>
     private static async Task<IReadOnlyList<GoodsReceiptDto>> ListAsync(Guid? supplierId, bool? open, AppDbContext db, CancellationToken ct)
@@ -90,17 +103,20 @@ public static class GoodsReceipts
                           from u in users.DefaultIfEmpty()
                           orderby r.ReceivedAt descending
                           select new { r, By = u == null ? null : u.FullName }).Take(100).ToListAsync(ct);
-        return rows.Select(x => ToDto(x.r, x.By)).ToList();
+        var lines = await LinesAsync(db, rows.Select(x => x.r.Id).ToList(), ct);
+        return rows.Select(x => ToDto(x.r, x.By, lines[x.r.Id].ToList())).ToList();
     }
 
-    private static GoodsReceiptDto ToDto(GoodsReceipt r, string? by) =>
-        new(r.Id, r.Number, r.SupplierId, r.PurchaseOrderId, r.ReceivedAt, LinesOf(r), r.Note, r.PurchaseId, r.CancelledAt, by, r.VehicleNo, r.Bilty, r.Transporter, r.GrossWeight, r.TareWeight);
+    private static async Task<GoodsReceiptDto> ToDtoAsync(AppDbContext db, GoodsReceipt r, CancellationToken ct) => ToDto(r, null, (await LinesAsync(db, [r.Id], ct))[r.Id].ToList());
+
+    private static GoodsReceiptDto ToDto(GoodsReceipt r, string? by, IReadOnlyList<ReceiptLine> lines) =>
+        new(r.Id, r.Number, r.SupplierId, r.PurchaseOrderId, r.ReceivedAt, lines, r.Note, r.PurchaseId, r.CancelledAt, by, r.VehicleNo, r.Bilty, r.Transporter, r.GrossWeight, r.TareWeight);
 
     private static async Task<IResult> AddAsync(GoodsReceiptRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         if (await db.GoodsReceipts.AsNoTracking().SingleOrDefaultAsync(r => r.Id == request.Id, ct) is { } existing)
         {
-            return TypedResults.Ok(ToDto(existing, null));
+            return TypedResults.Ok(await ToDtoAsync(db, existing, ct));
         }
 
         var lines = request.Lines ?? [];
@@ -149,7 +165,6 @@ public static class GoodsReceipts
             Id = request.Id, SupplierId = request.SupplierId, PurchaseOrderId = request.OrderId, ReceivedAt = now, CreatedByUserId = userId,
             Number = (await db.GoodsReceipts.MaxAsync(r => (int?)r.Number, ct) ?? 0) + 1,
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
-            Lines = JsonSerializer.Serialize(lines.Select(l => new ReceiptLine(l.ProductId, products[l.ProductId].Name, l.Quantity, l.Bags is > 0 ? l.Bags : null, products[l.ProductId].BagSize, l.Damaged ?? 0)).ToList(), Json),
             VehicleNo = Short(request.VehicleNo, 20)?.ToUpperInvariant(), Bilty = Short(request.Bilty, 40), Transporter = Short(request.Transporter, 80),
             GrossWeight = request.GrossWeight, TareWeight = request.GrossWeight is null ? null : request.TareWeight,
         };
@@ -183,7 +198,7 @@ public static class GoodsReceipts
         var quantities = ids.Select(i => lines.Single(l => l.ProductId == i)).Select(l => l.Quantity - (l.Damaged ?? 0)).ToArray();
         await db.Database.ExecuteSqlAsync($"UPDATE products AS p SET stock = p.stock + v.q FROM unnest({ids}, {quantities}) AS v(id, q) WHERE p.id = v.id", ct);
         await transaction.CommitAsync(ct);
-        return TypedResults.Created($"/api/v1/goods-receipts/{receipt.Id}", ToDto(receipt, null));
+        return TypedResults.Created($"/api/v1/goods-receipts/{receipt.Id}", await ToDtoAsync(db, receipt, ct));
     }
 
     /// <summary>A receipt made by mistake, before its bill: the goods come off the shelf again and off the order.</summary>
@@ -207,7 +222,7 @@ public static class GoodsReceipts
             return TypedResults.NoContent();
         }
 
-        var lines = LinesOf(receipt);
+        var lines = (await LinesAsync(db, [receipt.Id], ct))[receipt.Id].ToList();
         if (receipt.PurchaseOrderId is { } orderId)
         {
             await PurchaseOrders.ReceiveAsync(db, orderId, receipt.SupplierId, lines.Select(l => (l.ProductId, l.Quantity)), -1, clock, ct);

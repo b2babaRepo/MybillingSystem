@@ -61,8 +61,15 @@ public sealed class OrderShipment : Entity, ITenantOwned
     /// <summary>The goods receipt this lot came in on, once it arrived.</summary>
     public Guid? ReceiptId { get; set; }
 
+    /// <summary>A photo of the bilty / LR (the transporter's receipt), shrunk on the phone; under 150 KB.</summary>
+    public byte[]? Photo { get; set; }
+
+    public string? PhotoType { get; set; }
+
     public Guid CreatedByUserId { get; set; }
 }
+
+public sealed record ShipmentPhotoRequest(string? PhotoDataUrl);
 
 /// <summary>A chase-up with the supplier: a call, a WhatsApp or a visit, what they said, and any new date they promised.</summary>
 public sealed class OrderFollowUp : Entity, ITenantOwned
@@ -92,7 +99,7 @@ public sealed record FollowUpRequest(Guid Id, ContactChannel Channel, string? No
 public sealed record SnoozeRequest(DateOnly? Until);
 
 public sealed record ShipmentDto(Guid Id, DateOnly? DispatchedOn, DateOnly? ExpectedOn, string? Transporter, string? LrNo, string? VehicleNo, string? EwayBillNo,
-    DateOnly? EwayValidUntil, decimal? Freight, FreightPaidBy? FreightPaidBy, bool Arrived);
+    DateOnly? EwayValidUntil, decimal? Freight, FreightPaidBy? FreightPaidBy, bool Arrived, bool HasPhoto = false);
 
 public sealed record FollowUpDto(DateTimeOffset At, ContactChannel Channel, string? Note, DateOnly? NewPromisedDate, string? By);
 
@@ -111,11 +118,57 @@ public static class GoodsTracking
         var group = app.MapGroup("/api/v1/suppliers/orders").WithTags("Suppliers").RequireAuthorization(AppPolicies.ShopOwner);
         group.MapPost("/{id:guid}/stage", StageAsync);
         group.MapPost("/{id:guid}/shipments", ShipAsync);
+        group.MapPost("/{id:guid}/shipments/{shipmentId:guid}/photo", AddPhotoAsync);
+        group.MapGet("/{id:guid}/shipments/{shipmentId:guid}/photo", PhotoAsync);
         group.MapPost("/{id:guid}/follow-ups", FollowUpAsync);
         group.MapPost("/{id:guid}/snooze", SnoozeAsync);
         app.MapGet("/api/v1/goods-to-come", ComingAsync).WithTags("Suppliers").RequireAuthorization(AppPolicies.ShopOwner);
         return app;
     }
+
+    /// <summary>Keeps a photo of the bilty on a lot; a new photo replaces the old one, an empty one takes it off.</summary>
+    private static async Task<IResult> AddPhotoAsync(Guid id, Guid shipmentId, ShipmentPhotoRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var lot = await db.OrderShipments.SingleOrDefaultAsync(s => s.Id == shipmentId && s.OrderId == id, ct);
+        if (lot is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (string.IsNullOrEmpty(request.PhotoDataUrl))
+        {
+            (lot.Photo, lot.PhotoType) = (null, null);
+        }
+        else
+        {
+            var parts = request.PhotoDataUrl.Split(',', 2);
+            var type = parts is [var head, _] && head.StartsWith("data:", StringComparison.Ordinal) && head.EndsWith(";base64", StringComparison.Ordinal) ? head[5..^7] : null;
+            byte[]? photo = null;
+            try
+            {
+                photo = type is "image/webp" or "image/jpeg" or "image/png" ? Convert.FromBase64String(parts[1]) : null;
+            }
+            catch (FormatException)
+            {
+            }
+
+            if (photo is not { Length: > 0 and <= 150_000 })
+            {
+                return Invalid("PhotoDataUrl", "Send the bilty photo as WebP, JPEG or PNG under 150 KB.");
+            }
+
+            (lot.Photo, lot.PhotoType) = (photo, type);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
+    }
+
+    private static async Task<IResult> PhotoAsync(Guid id, Guid shipmentId, AppDbContext db, CancellationToken ct) =>
+        await db.OrderShipments.AsNoTracking().Where(s => s.Id == shipmentId && s.OrderId == id && s.Photo != null)
+            .Select(s => new { s.Photo, s.PhotoType }).SingleOrDefaultAsync(ct) is { } p
+            ? TypedResults.File(p.Photo!, p.PhotoType ?? "image/webp")
+            : TypedResults.NotFound();
 
     private static string? Short(string? text, int max) => string.IsNullOrWhiteSpace(text) ? null : text.Trim()[..Math.Min(max, text.Trim().Length)];
 
@@ -272,7 +325,7 @@ public static class GoodsTracking
                 StageOf(o), o.ExpectedOn, o.ExpectedOn is { } e ? Math.Max(0, today.DayNumber - e.DayNumber) : null, o.PromiseMoves,
                 o.Lines.Sum(PurchaseOrders.PendingOf), o.Lines.Count(l => PurchaseOrders.PendingOf(l) > 0), o.Lines.Sum(l => PurchaseOrders.PendingOf(l) * (l.Rate ?? 0)),
                 o.SnoozedUntil, o.CreatedAt, o.Note,
-                shipments[o.Id].Select(s => new ShipmentDto(s.Id, s.DispatchedOn, s.ExpectedOn, s.Transporter, s.LrNo, s.VehicleNo, s.EwayBillNo, s.EwayValidUntil, s.Freight, s.FreightPaidBy, s.ReceiptId != null)).ToList(),
+                shipments[o.Id].Select(s => new ShipmentDto(s.Id, s.DispatchedOn, s.ExpectedOn, s.Transporter, s.LrNo, s.VehicleNo, s.EwayBillNo, s.EwayValidUntil, s.Freight, s.FreightPaidBy, s.ReceiptId != null, s.Photo != null)).ToList(),
                 follows[o.Id].Take(10).Select(x => new FollowUpDto(x.f.At, x.f.Channel, x.f.Note, x.f.NewPromisedDate, x.By)).ToList()))
             .OrderByDescending(o => o.ExpectedOn is { } e && e < today ? 1 : 0).ThenByDescending(o => o.DaysLate ?? -1).ThenBy(o => o.ExpectedOn ?? DateOnly.MaxValue).ThenBy(o => o.Number)
             .ToList();

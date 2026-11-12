@@ -1746,4 +1746,73 @@ public sealed class LedgerFixTests(ApiFactory api)
         coming = (await shop.GetJsonAsync<List<ComingOrderDto>>("/api/v1/goods-to-come")).Single();
         Assert.Equal(("part", 20m, true), (coming.Stage, coming.Pending, coming.Shipments.Single().Arrived));
     }
+
+    [Fact]
+    public async Task A_draft_order_is_kept_editable_and_counts_as_on_order_only_once_placed()
+    {
+        var shop = await ShopAsync("hardware");
+        var pipe = await ItemAsync(shop, "Pipe", 300m, 0m);
+        var tap = await ItemAsync(shop, "Tap", 150m, 0m);
+        var supplierId = await SupplierAsync(shop);
+        var orderId = Guid.CreateVersion7();
+        var draft = await (await shop.PostJsonAsync("/api/v1/suppliers/orders", new { id = orderId, supplierId, draft = true, lines = new[] { new { productId = pipe.Id, quantity = 10m } } })).ReadAsync<PurchaseOrderDto>();
+        Assert.Equal(PurchaseOrderStatus.Draft, draft.Status);
+
+        // Not on order yet: no goods can come against it and it isn't waited for.
+        Assert.Empty(await shop.GetJsonAsync<List<ComingOrderDto>>("/api/v1/goods-to-come"));
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = Guid.CreateVersion7(), supplierId, orderId, lines = new[] { new { productId = pipe.Id, quantity = 1m, unitCost = 200m } }, paidAmount = 0m })).StatusCode);
+
+        // Edited, then placed; a placed order can't be edited.
+        var edited = await (await shop.PutJsonAsync($"/api/v1/suppliers/orders/{orderId}", new { id = orderId, supplierId, note = "Tuesday truck", lines = new object[] { new { productId = pipe.Id, quantity = 8m }, new { productId = tap.Id, quantity = 4m } } })).ReadAsync<PurchaseOrderDto>();
+        Assert.Equal((2, "Tuesday truck", draft.Number), (edited.Lines.Count, edited.Note, edited.Number));
+        var placed = await (await shop.PostJsonAsync($"/api/v1/suppliers/orders/{orderId}/place", new { })).ReadAsync<PurchaseOrderDto>();
+        Assert.Equal((PurchaseOrderStatus.Open, 12m), (placed.Status, placed.Pending));
+        Assert.Single(await shop.GetJsonAsync<List<ComingOrderDto>>("/api/v1/goods-to-come"));
+        Assert.Equal(HttpStatusCode.Conflict, (await shop.PutJsonAsync($"/api/v1/suppliers/orders/{orderId}", new { id = orderId, supplierId, lines = new[] { new { productId = pipe.Id, quantity = 1m } } })).StatusCode);
+
+        // A second draft is simply thrown away.
+        var other = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers/orders", new { id = other, supplierId, draft = true, lines = new[] { new { productId = tap.Id, quantity = 2m } } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/suppliers/orders/{other}/cancel", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(PurchaseOrderStatus.Cancelled, (await shop.GetJsonAsync<List<PurchaseOrderDto>>($"/api/v1/suppliers/orders?supplierId={supplierId}&all=true")).Single(o => o.Id == other).Status);
+    }
+
+    [Fact]
+    public async Task A_lot_keeps_a_photo_of_its_bilty()
+    {
+        var shop = await ShopAsync("hardware");
+        var pipe = await ItemAsync(shop, "Pipe", 300m, 0m);
+        var supplierId = await SupplierAsync(shop);
+        var orderId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers/orders", new { id = orderId, supplierId, lines = new[] { new { productId = pipe.Id, quantity = 10m } } })).EnsureSuccessStatusCode();
+        var lot = Guid.CreateVersion7();
+        (await shop.PostJsonAsync($"/api/v1/suppliers/orders/{orderId}/shipments", new { id = lot, lrNo = "LR-881" })).EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/suppliers/orders/{orderId}/shipments/{lot}/photo", new { photoDataUrl = "data:text/plain;base64,aGk=" })).StatusCode);
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 1, 2, 3];
+        (await shop.PostJsonAsync($"/api/v1/suppliers/orders/{orderId}/shipments/{lot}/photo", new { photoDataUrl = "data:image/png;base64," + Convert.ToBase64String(png) })).EnsureSuccessStatusCode();
+        Assert.True((await shop.GetJsonAsync<List<ComingOrderDto>>("/api/v1/goods-to-come")).Single().Shipments.Single().HasPhoto);
+        var photo = await shop.GetAsync($"/api/v1/suppliers/orders/{orderId}/shipments/{lot}/photo");
+        Assert.Equal("image/png", photo.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(png, await photo.Content.ReadAsByteArrayAsync());
+
+        // Another shop can't see it.
+        Assert.Equal(HttpStatusCode.NotFound, (await (await ShopAsync("hardware")).GetAsync($"/api/v1/suppliers/orders/{orderId}/shipments/{lot}/photo")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_receipt_shows_its_goods_from_the_delivery_lines_even_once_cancelled()
+    {
+        var shop = await ShopAsync("hardware");
+        var pipe = await ItemAsync(shop, "Pipe", 300m, 0m);
+        var supplierId = await SupplierAsync(shop);
+        var receipt = await (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = Guid.CreateVersion7(), supplierId, lines = new[] { new { productId = pipe.Id, quantity = 10m, damaged = 2m } } })).ReadAsync<GoodsReceiptDto>();
+        Assert.Equal(("Pipe", 10m, 2m), (receipt.Lines.Single().Name, receipt.Lines.Single().Quantity, receipt.Lines.Single().Damaged));
+        Assert.Equal(8m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{pipe.Id}")).Stock);
+
+        (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt.Id}/cancel", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(0m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{pipe.Id}")).Stock);
+        var listed = (await shop.GetJsonAsync<List<GoodsReceiptDto>>($"/api/v1/goods-receipts?supplierId={supplierId}")).Single();
+        Assert.Equal((10m, true), (listed.Lines.Single().Quantity, listed.CancelledAt != null));
+    }
 }

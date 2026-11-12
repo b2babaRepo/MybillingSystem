@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api } from '../lib/api'
+import { api, request } from '../lib/api'
+import { shrinkPhoto } from '../lib/images'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { OPEN_SUPPLIER_KEY } from './OrdersPlacedScreen'
 import { navigate } from '../router'
 
 type Channel = 'call' | 'whatsapp' | 'visit'
-interface Shipment { id: string; dispatchedOn: string | null; expectedOn: string | null; transporter: string | null; lrNo: string | null; vehicleNo: string | null; ewayBillNo: string | null; ewayValidUntil: string | null; freight: number | null; freightPaidBy: 'shop' | 'supplier' | null; arrived: boolean }
+interface Shipment { id: string; dispatchedOn: string | null; expectedOn: string | null; transporter: string | null; lrNo: string | null; vehicleNo: string | null; ewayBillNo: string | null; ewayValidUntil: string | null; freight: number | null; freightPaidBy: 'shop' | 'supplier' | null; arrived: boolean; hasPhoto?: boolean }
 interface FollowUp { at: string; channel: Channel; note: string | null; newPromisedDate: string | null; by: string | null }
 interface Coming {
   id: string; number: number; supplierId: string; supplier: string; phone: string | null; stage: string; expectedOn: string | null; daysLate: number | null; promiseMoves: number
@@ -51,6 +52,13 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
     }
   }
 
+  const addPhoto = (orderId: string, lotId: string, file: File) => run(async () => api(`/v1/suppliers/orders/${orderId}/shipments/${lotId}/photo`, 'POST', { photoDataUrl: await shrinkPhoto(file, 1400, 140_000, false) }))
+  const openPhoto = async (orderId: string, lotId: string) => {
+    const tab = window.open('', '_blank')
+    const r = await request(`/v1/suppliers/orders/${orderId}/shipments/${lotId}/photo`)
+    if (r.ok && tab) tab.location.href = URL.createObjectURL(await r.blob())
+    else tab?.close()
+  }
   const logContact = (o: Coming, channel: Channel) => void run(() => api(`/v1/suppliers/orders/${o.id}/follow-ups`, 'POST', { id: crypto.randomUUID(), channel, note: null, newPromisedDate: null }))
   const chase = (o: Coming) => t('gtc.chaseMessage', { shop: shopName, number: o.number, items: o.items, date: o.expectedOn ? day(o.expectedOn) : '—' })
 
@@ -113,6 +121,12 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
                     {s.dispatchedOn && ` · ${t('gtc.left', { date: day(s.dispatchedOn) })}`}{s.expectedOn && ` · ${t('po.expected', { date: day(s.expectedOn) })}`}
                     {s.freight != null && ` · ${t('gtc.freight')} ${formatRupees(s.freight)}${s.freightPaidBy ? ` (${t(`gtc.paidBy.${s.freightPaidBy}`)})` : ''}`}
                     {s.ewayValidUntil && !s.arrived && s.ewayValidUntil < todayIso() && <b className="text-due"> · {t('gtc.ewayExpired')}</b>}
+                    <span className="ml-1 inline-flex gap-2 no-underline">
+                      {s.hasPhoto && <button onClick={() => void openPhoto(o.id, s.id)} className="font-semibold text-teal-700">📄 {t('gtc.seeBilty')}</button>}
+                      <label className="cursor-pointer font-semibold text-teal-700">📷 {t(s.hasPhoto ? 'gtc.newBilty' : 'gtc.addBilty')}
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void addPhoto(o.id, s.id, f) }} />
+                      </label>
+                    </span>
                   </li>
                 ))}
               </ul>

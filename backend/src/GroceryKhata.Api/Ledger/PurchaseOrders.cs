@@ -19,6 +19,9 @@ public enum PurchaseOrderStatus
     Closed,
 
     Cancelled,
+
+    /// <summary>Being written: not sent, not counted as on order, and still editable. Placing it makes it Open.</summary>
+    Draft,
 }
 
 /// <summary>
@@ -85,7 +88,7 @@ public sealed class PurchaseOrderLine : Entity, ITenantOwned
 
 public sealed record OrderLineRequest(Guid ProductId, decimal Quantity, decimal? Rate = null);
 
-public sealed record PurchaseOrderRequest(Guid Id, Guid SupplierId, IReadOnlyList<OrderLineRequest>? Lines, string? Note = null, DateOnly? ExpectedOn = null);
+public sealed record PurchaseOrderRequest(Guid Id, Guid SupplierId, IReadOnlyList<OrderLineRequest>? Lines, string? Note = null, DateOnly? ExpectedOn = null, bool Draft = false);
 
 public sealed record OrderLineDto(Guid ProductId, string Name, decimal Quantity, decimal? Rate, decimal Received, decimal ShortClosed = 0, ShortReason? ShortReason = null);
 
@@ -109,6 +112,8 @@ public static class PurchaseOrders
         var group = app.MapGroup("/api/v1/suppliers").WithTags("Suppliers").RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("/orders", ListAsync);
         group.MapPost("/orders", CreateAsync);
+        group.MapPut("/orders/{id:guid}", UpdateAsync);
+        group.MapPost("/orders/{id:guid}/place", PlaceAsync);
         group.MapPost("/orders/{id:guid}/close", (Guid id, AppDbContext db, TimeProvider clock, CancellationToken ct) => FinishAsync(id, PurchaseOrderStatus.Closed, db, clock, ct));
         group.MapPost("/orders/{id:guid}/cancel", (Guid id, AppDbContext db, TimeProvider clock, CancellationToken ct) => FinishAsync(id, PurchaseOrderStatus.Cancelled, db, clock, ct));
         group.MapPost("/import", ImportAsync);
@@ -120,7 +125,7 @@ public static class PurchaseOrders
     private static async Task<IReadOnlyList<PurchaseOrderDto>> ListAsync(Guid? supplierId, bool? all, AppDbContext db, CancellationToken ct)
     {
         var query = db.PurchaseOrders.AsNoTracking().Include(o => o.Lines).Where(o => supplierId == null || o.SupplierId == supplierId);
-        query = all == true ? query : query.Where(o => o.Status == PurchaseOrderStatus.Open);
+        query = all == true ? query : query.Where(o => o.Status == PurchaseOrderStatus.Open || o.Status == PurchaseOrderStatus.Draft);
         var orders = await query.OrderByDescending(o => o.Number).Take(200).ToListAsync(ct);
         return await ToDtosAsync(db, orders, ct);
     }
@@ -146,8 +151,82 @@ public static class PurchaseOrders
             return TypedResults.Ok((await ToDtosAsync(db, [saved], ct))[0]);
         }
 
+        if (request.Id == Guid.Empty)
+        {
+            return Invalid("Lines", "Choose the items, each once, with how many to order.");
+        }
+
+        if (await CheckAsync(request, db, ct) is { } problem)
+        {
+            return problem;
+        }
+
+        var lines = request.Lines!;
+        var note = request.Note?.Trim();
+        var order = new PurchaseOrder
+        {
+            Id = request.Id, SupplierId = request.SupplierId, Number = (await db.PurchaseOrders.MaxAsync(o => (int?)o.Number, ct) ?? 0) + 1,
+            Status = request.Draft ? PurchaseOrderStatus.Draft : PurchaseOrderStatus.Open,
+            Note = string.IsNullOrEmpty(note) ? null : note[..Math.Min(note.Length, 200)], ExpectedOn = request.ExpectedOn, CreatedByUserId = user.UserId()!.Value,
+            Lines = lines.Select(l => new PurchaseOrderLine { ProductId = l.ProductId, Quantity = l.Quantity, Rate = l.Rate }).ToList(),
+        };
+        db.PurchaseOrders.Add(order);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok((await ToDtosAsync(db, [order], ct))[0]);
+    }
+
+    /// <summary>Rewrites a draft: supplier, items, note and expected date. Placed orders can't be edited.</summary>
+    private static async Task<IResult> UpdateAsync(Guid id, PurchaseOrderRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var order = await db.PurchaseOrders.Include(o => o.Lines).SingleOrDefaultAsync(o => o.Id == id, ct);
+        if (order is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (order.Status != PurchaseOrderStatus.Draft)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This order is already placed and can't be changed.");
+        }
+
+        if (await CheckAsync(request, db, ct) is { } problem)
+        {
+            return problem;
+        }
+
+        var note = request.Note?.Trim();
+        order.SupplierId = request.SupplierId;
+        order.Note = string.IsNullOrEmpty(note) ? null : note[..Math.Min(note.Length, 200)];
+        order.ExpectedOn = request.ExpectedOn;
+        db.PurchaseOrderLines.RemoveRange(order.Lines);
+        order.Lines = request.Lines!.Select(l => new PurchaseOrderLine { OrderId = order.Id, ProductId = l.ProductId, Quantity = l.Quantity, Rate = l.Rate }).ToList();
+        db.PurchaseOrderLines.AddRange(order.Lines);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok((await ToDtosAsync(db, [order], ct))[0]);
+    }
+
+    /// <summary>Places a draft: from now it counts as on order. Placing twice is harmless.</summary>
+    private static async Task<IResult> PlaceAsync(Guid id, AppDbContext db, CancellationToken ct)
+    {
+        var order = await db.PurchaseOrders.Include(o => o.Lines).SingleOrDefaultAsync(o => o.Id == id, ct);
+        if (order is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (order.Status == PurchaseOrderStatus.Draft)
+        {
+            order.Status = PurchaseOrderStatus.Open;
+            await db.SaveChangesAsync(ct);
+        }
+
+        return TypedResults.Ok((await ToDtosAsync(db, [order], ct))[0]);
+    }
+
+    private static async Task<IResult?> CheckAsync(PurchaseOrderRequest request, AppDbContext db, CancellationToken ct)
+    {
         var lines = request.Lines ?? [];
-        if (request.Id == Guid.Empty || lines.Count is 0 or > 200 || lines.Select(l => l.ProductId).Distinct().Count() != lines.Count
+        if (lines.Count is 0 or > 200 || lines.Select(l => l.ProductId).Distinct().Count() != lines.Count
             || lines.Any(l => !Money.IsValidQuantity(l.Quantity) || l.Rate is < 0 || (l.Rate is { } r && (r > Money.MaxAmount || decimal.Round(r, 2) != r))))
         {
             return Invalid("Lines", "Choose the items, each once, with how many to order.");
@@ -164,16 +243,7 @@ public static class PurchaseOrders
             return Invalid("Lines", "An item wasn't found.");
         }
 
-        var note = request.Note?.Trim();
-        var order = new PurchaseOrder
-        {
-            Id = request.Id, SupplierId = request.SupplierId, Number = (await db.PurchaseOrders.MaxAsync(o => (int?)o.Number, ct) ?? 0) + 1,
-            Note = string.IsNullOrEmpty(note) ? null : note[..Math.Min(note.Length, 200)], ExpectedOn = request.ExpectedOn, CreatedByUserId = user.UserId()!.Value,
-            Lines = lines.Select(l => new PurchaseOrderLine { ProductId = l.ProductId, Quantity = l.Quantity, Rate = l.Rate }).ToList(),
-        };
-        db.PurchaseOrders.Add(order);
-        await db.SaveChangesAsync(ct);
-        return TypedResults.Ok((await ToDtosAsync(db, [order], ct))[0]);
+        return null;
     }
 
     /// <summary>Closed short (the rest won't come) or cancelled (nothing came). Either way it stops counting as on order.</summary>
@@ -183,6 +253,13 @@ public static class PurchaseOrders
         if (order is null)
         {
             return TypedResults.NotFound();
+        }
+
+        if (order.Status == PurchaseOrderStatus.Draft && to == PurchaseOrderStatus.Cancelled)
+        {
+            (order.Status, order.ClosedAt) = (to, clock.GetUtcNow());
+            await db.SaveChangesAsync(ct);
+            return TypedResults.NoContent();
         }
 
         if (order.Status != PurchaseOrderStatus.Open)

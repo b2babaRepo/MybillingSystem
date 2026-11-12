@@ -15,7 +15,7 @@ const value = (o: PurchaseOrder) => o.lines.reduce((s, l) => s + (l.rate ?? 0) *
 const state = (o: PurchaseOrder) => o.status === 'open' ? (o.lines.some((l) => l.received > 0) ? 'part' : 'open') : o.status
 // Where an open order has got to, from Goods to come (placed, sent, confirmed, dispatched).
 const stageLabel = (o: PurchaseOrder) => (o.status === 'open' && o.stage && !['placed', 'part'].includes(o.stage) ? o.stage : null)
-const TONE: Record<string, string> = { open: 'bg-teal-50 text-teal-800', part: 'bg-amber-50 text-amber-800', closed: 'bg-slate-100 text-muted', cancelled: 'bg-red-50 text-due' }
+const TONE: Record<string, string> = { open: 'bg-teal-50 text-teal-800', part: 'bg-amber-50 text-amber-800', closed: 'bg-slate-100 text-muted', cancelled: 'bg-red-50 text-due', draft: 'bg-amber-100 text-amber-800' }
 
 /**
  * Every order to every supplier in one list: what came of each, what is still to come and what is late.
@@ -31,7 +31,7 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
   const late = open.filter(isLate)
   const q = search.trim().toLowerCase()
   const shown = all
-    .filter((o) => filter === 'all' || (filter === 'open' ? o.status === 'open' : filter === 'late' ? isLate(o) : o.status !== 'open'))
+    .filter((o) => filter === 'all' || (filter === 'open' ? o.status === 'open' : filter === 'late' ? isLate(o) : o.status !== 'open' && o.status !== 'draft'))
     .filter((o) => !q || o.lines.some((l) => l.name.toLowerCase().includes(q)) || o.supplierName.toLowerCase().includes(q))
     .sort((a, b) => Number(isLate(b)) - Number(isLate(a)) || b.createdAt.localeCompare(a.createdAt))
 

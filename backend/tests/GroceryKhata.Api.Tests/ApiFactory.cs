@@ -101,6 +101,9 @@ public static class HttpExtensions
     public static Task<HttpResponseMessage> PostJsonAsync(this HttpClient client, string url, object body) =>
         client.PostAsJsonAsync(url, body, ApiFactory.Json);
 
+    public static Task<HttpResponseMessage> PutJsonAsync(this HttpClient client, string url, object body) =>
+        client.PutAsJsonAsync(url, body, ApiFactory.Json);
+
     public static async Task<T> ReadAsync<T>(this HttpResponseMessage response)
     {
         if (!response.IsSuccessStatusCode)

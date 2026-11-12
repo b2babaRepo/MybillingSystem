@@ -115,6 +115,41 @@ public static class StockLedger
         return cost is { } c ? decimal.Round(c, 2) : null;
     }
 
+    private sealed record CostRow(Guid ProductId, decimal Quantity, decimal Paid, decimal HeldBefore);
+
+    /// <summary>
+    /// Each item's weighted average cost up to <paramref name="end"/>, as <see cref="AverageCost"/> works it out, without
+    /// loading the ledger: the database returns only the purchases (with what was held just before each), and the
+    /// running average is folded over those few rows.
+    /// </summary>
+    private static async Task<Dictionary<Guid, decimal?>> AverageCostsAsync(AppDbContext db, Guid shopId, DateTimeOffset end, CancellationToken ct)
+    {
+        var rows = await db.Database.SqlQuery<CostRow>($"""
+            SELECT product_id AS "ProductId", quantity AS "Quantity", cost_price AS "Paid", held_before AS "HeldBefore"
+            FROM (
+                SELECT product_id, kind, quantity, cost_price, occurred_at, id,
+                       COALESCE(SUM(quantity) OVER (PARTITION BY product_id ORDER BY occurred_at, id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS held_before
+                FROM stock_movements
+                WHERE shop_id = {shopId} AND occurred_at < {end}
+            ) m
+            WHERE kind = 'Purchase' AND cost_price IS NOT NULL AND quantity > 0
+            ORDER BY product_id, occurred_at, id
+            """).ToListAsync(ct);
+        var result = new Dictionary<Guid, decimal?>();
+        foreach (var g in rows.GroupBy(r => r.ProductId))
+        {
+            decimal? cost = null;
+            foreach (var r in g)
+            {
+                cost = cost is { } old && r.HeldBefore > 0 ? ((r.HeldBefore * old) + (r.Quantity * r.Paid)) / (r.HeldBefore + r.Quantity) : r.Paid;
+            }
+
+            result[g.Key] = cost is { } c ? decimal.Round(c, 2) : null;
+        }
+
+        return result;
+    }
+
     private static readonly StockReason[] Losses = [StockReason.Damage, StockReason.Wastage, StockReason.Lost, StockReason.Stolen, StockReason.Destroyed, StockReason.WrittenOff, StockReason.Gift, StockReason.FreeSample, StockReason.WeightLoss];
 
     private static (DateOnly From, DateOnly To, DateTimeOffset Start, DateTimeOffset End)? Period(DateOnly? from, DateOnly? to, TimeProvider clock)
@@ -191,15 +226,30 @@ public static class StockLedger
         return Results.Ok(new ItemLedger(id, product.Name, product.Unit, p.From, p.To, opening, lines.Sum(l => l.In), lines.Sum(l => l.Out), balance, lines, product.BagSize, openingBags, bagBalance));
     }
 
-    private static async Task<IResult> StatementAsync(DateOnly? from, DateOnly? to, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> StatementAsync(DateOnly? from, DateOnly? to, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         if (Period(from, to, clock) is not { } p)
         {
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["From"] = [$"Pick dates in order, at most {MaxDays} days apart."] });
         }
 
-        var moves = await db.StockMovements.AsNoTracking().Where(m => m.OccurredAt < p.End)
-            .Select(m => new { m.ProductId, m.Kind, m.Reason, m.Quantity, m.CostPrice, m.OccurredAt, m.Bags }).ToListAsync(ct);
+        // The database adds up each item's movements (one row per item, however many years of history), so the
+        // statement stays quick as a shop's ledger grows. Losses are the write-off reasons; Opening counts as bought.
+        var start = p.Start;
+        var totals = await db.StockMovements.AsNoTracking().Where(m => m.OccurredAt < p.End).GroupBy(m => m.ProductId).Select(g => new
+        {
+            ProductId = g.Key,
+            Before = g.Sum(m => m.OccurredAt < start ? m.Quantity : 0),
+            Moves = g.Count(m => m.OccurredAt >= start),
+            Purchased = g.Sum(m => m.OccurredAt >= start && (m.Kind == StockMovementKind.Purchase || (m.Kind == StockMovementKind.Opening && m.Quantity > 0)) ? m.Quantity : 0),
+            Sold = -g.Sum(m => m.OccurredAt >= start && m.Kind == StockMovementKind.Sale ? m.Quantity : 0),
+            Lost = -g.Sum(m => m.OccurredAt >= start && m.Kind == StockMovementKind.Adjustment && m.Reason != null && Losses.Contains(m.Reason.Value) && m.Quantity < 0 ? m.Quantity : 0),
+            OtherIn = g.Sum(m => m.OccurredAt >= start && m.Kind != StockMovementKind.Purchase && m.Kind != StockMovementKind.Opening && m.Kind != StockMovementKind.Sale && m.Quantity > 0 ? m.Quantity : 0),
+            OtherOut = -g.Sum(m => m.OccurredAt >= start && m.Kind != StockMovementKind.Purchase && m.Kind != StockMovementKind.Opening && m.Kind != StockMovementKind.Sale && m.Quantity < 0 ? m.Quantity : 0),
+            Closing = g.Sum(m => m.Quantity),
+            Bags = g.Sum(m => m.Bags ?? 0),
+        }).ToDictionaryAsync(t => t.ProductId, ct);
+        var costs = await AverageCostsAsync(db, tenant.ShopId, p.End, ct);
         var products = await db.Products.AsNoTracking().Where(x => !x.IsService)
             .Select(x => new { x.Id, x.Name, x.Category, x.Unit, x.CostPrice, x.IsActive, x.BagSize, x.Stock, x.Reserved, x.Barcode, x.HsnCode }).ToListAsync(ct);
         var promised = await Ledger.SaleOrders.PromisedAsync(db, ct);
@@ -212,30 +262,21 @@ public static class StockLedger
                            select l.ProductId).ToListAsync(ct)).ToHashSet();
         var supplied = (await db.ArrivalLines.AsNoTracking().Where(a => a.CancelledAt == null).Select(a => new { a.ProductId, a.SupplierId }).Distinct().ToListAsync(ct))
             .GroupBy(a => a.ProductId).ToDictionary(g => g.Key, g => (IReadOnlyList<Guid>)g.Select(a => a.SupplierId).ToList());
-        var byProduct = moves.ToLookup(m => m.ProductId);
 
         var items = new List<StockStatementLine>();
         foreach (var x in products)
         {
-            var all = byProduct[x.Id].ToList();
-            var before = all.Where(m => m.OccurredAt < p.Start).Sum(m => m.Quantity);
-            var within = all.Where(m => m.OccurredAt >= p.Start).ToList();
-            if (within.Count == 0 && before == 0 && !x.IsActive)
+            var t = totals.GetValueOrDefault(x.Id);
+            var (before, closing) = (t?.Before ?? 0, t?.Closing ?? 0);
+            if ((t?.Moves ?? 0) == 0 && before == 0 && !x.IsActive)
             {
                 continue;
             }
 
             // Net of cancelled bills and receipts (negative purchases).
-            var purchased = within.Where(m => m.Kind == StockMovementKind.Purchase || (m.Kind == StockMovementKind.Opening && m.Quantity > 0)).Sum(m => m.Quantity);
-            var sold = -within.Where(m => m.Kind == StockMovementKind.Sale).Sum(m => m.Quantity);
-            var lost = -within.Where(m => m.Kind == StockMovementKind.Adjustment && m.Reason is { } r && Losses.Contains(r) && m.Quantity < 0).Sum(m => m.Quantity);
-            var rest = within.Where(m => m.Kind is not (StockMovementKind.Purchase or StockMovementKind.Opening or StockMovementKind.Sale)).ToList();
-            var otherIn = rest.Where(m => m.Quantity > 0).Sum(m => m.Quantity);
-            var otherOut = -rest.Where(m => m.Quantity < 0).Sum(m => m.Quantity);
-            var closing = before + within.Sum(m => m.Quantity);
-            var cost = AverageCost(all.Select(m => (m.Kind, m.Quantity, m.CostPrice, m.OccurredAt))) ?? x.CostPrice;
-            items.Add(new StockStatementLine(x.Id, x.Name, x.Category, x.Unit, before, purchased, sold, otherIn, otherOut, closing, cost,
-                cost is { } c && closing > 0 ? decimal.Round(closing * c, 2) : null, lost, x.BagSize, x.BagSize is null ? null : all.Sum(m => m.Bags ?? 0),
+            var cost = costs.GetValueOrDefault(x.Id) ?? x.CostPrice;
+            items.Add(new StockStatementLine(x.Id, x.Name, x.Category, x.Unit, before, t?.Purchased ?? 0, t?.Sold ?? 0, t?.OtherIn ?? 0, t?.OtherOut ?? 0, closing, cost,
+                cost is { } c && closing > 0 ? decimal.Round(closing * c, 2) : null, t?.Lost ?? 0, x.BagSize, x.BagSize is null ? null : t?.Bags ?? 0,
                 x.Stock, x.Reserved, promised.GetValueOrDefault(x.Id), coming.GetValueOrDefault(x.Id), decimal.Round(sold30.GetValueOrDefault(x.Id) / Cover.Days, 3), late.Contains(x.Id),
                 x.Barcode, x.HsnCode, supplied.GetValueOrDefault(x.Id) ?? []));
         }

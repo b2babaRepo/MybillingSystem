@@ -412,11 +412,12 @@ public static class SupplierEndpoints
             return Invalid("ReceiptIds", "Those goods receipts aren't this supplier's open ones.");
         }
 
-        var alreadyIn = receipts.SelectMany(GoodsReceipts.LinesOf).GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+        var receiptLines = await GoodsReceipts.LinesAsync(db, receiptIds, ct);
+        var alreadyIn = receipts.SelectMany(r => receiptLines[r.Id]).GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
         // A receipt closes with its bill, so every item on it must be on the bill: otherwise those goods would never be costed.
         if (alreadyIn.Keys.FirstOrDefault(p => lines.All(l => l.ProductId != p)) is { } missing && missing != Guid.Empty)
         {
-            var name = receipts.SelectMany(GoodsReceipts.LinesOf).First(l => l.ProductId == missing).Name;
+            var name = receipts.SelectMany(r => receiptLines[r.Id]).First(l => l.ProductId == missing).Name;
             return Invalid("ReceiptIds", $"{name} came on the goods receipt but isn't on this bill. Add it, or bill it on its own receipt.");
         }
         foreach (var receipt in receipts)
@@ -486,7 +487,7 @@ public static class SupplierEndpoints
         // Receipts already counted against this order are not counted twice; the bill adds only what is more.
         if (request.OrderId is { } orderId)
         {
-            var counted = receipts.Where(r => r.PurchaseOrderId == orderId).SelectMany(GoodsReceipts.LinesOf).GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+            var counted = receipts.Where(r => r.PurchaseOrderId == orderId).SelectMany(r => receiptLines[r.Id]).GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
             var goods = lines.GroupBy(l => l.ProductId).Select(g => (ProductId: g.Key, Units: Math.Max(0, g.Sum(l => l.Quantity + l.FreeQuantity) - counted.GetValueOrDefault(g.Key)))).Where(g => g.Units > 0).ToList();
             if (goods.Count > 0 && await PurchaseOrders.ReceiveAsync(db, orderId, request.SupplierId, goods, 1, clock, ct) is { } orderProblem)
             {
@@ -562,8 +563,8 @@ public static class SupplierEndpoints
         if (purchase.PurchaseOrderId is { } orderId)
         {
             // Receipts stay counted on the order (they are still in stock); only the bill's own share goes back.
-            var onReceipts = (await db.GoodsReceipts.AsNoTracking().Where(r => r.PurchaseId == id && r.PurchaseOrderId == orderId).ToListAsync(ct))
-                .SelectMany(GoodsReceipts.LinesOf).GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+            var onReceiptIds = await db.GoodsReceipts.AsNoTracking().Where(r => r.PurchaseId == id && r.PurchaseOrderId == orderId).Select(r => r.Id).ToListAsync(ct);
+            var onReceipts = (await GoodsReceipts.LinesAsync(db, onReceiptIds, ct)).SelectMany(g => g).GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
             var back = purchase.Lines.GroupBy(l => l.ProductId).Select(g => (g.Key, Math.Max(0, g.Sum(l => l.Quantity + l.FreeQuantity) - onReceipts.GetValueOrDefault(g.Key)))).ToList();
             await PurchaseOrders.ReceiveAsync(db, orderId, purchase.SupplierId, back, -1, clock, ct);
         }

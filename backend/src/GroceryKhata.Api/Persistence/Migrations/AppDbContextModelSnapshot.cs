@@ -5171,11 +5171,6 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("gross_weight");
 
-                    b.Property<string>("Lines")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("lines");
-
                     b.Property<string>("Note")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -6089,6 +6084,14 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid")
                         .HasColumnName("order_id");
+
+                    b.Property<byte[]>("Photo")
+                        .HasColumnType("bytea")
+                        .HasColumnName("photo");
+
+                    b.Property<string>("PhotoType")
+                        .HasColumnType("text")
+                        .HasColumnName("photo_type");
 
                     b.Property<Guid?>("ReceiptId")
                         .HasColumnType("uuid")

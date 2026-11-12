@@ -10,8 +10,8 @@ import { formatRupees, whatsAppLink } from '../lib/format'
 import { parseSuppliers } from '../lib/supplierImport'
 import type { Product } from '../lib/types'
 
-export interface OrderLine { productId: string; name: string; quantity: number; rate: number | null; received: number }
-export interface PurchaseOrder { id: string; number: number; supplierId: string; supplierName: string; status: 'open' | 'closed' | 'cancelled'; note: string | null; expectedOn: string | null; createdAt: string; closedAt?: string | null; stage?: string; promiseMoves?: number; pending: number; lines: OrderLine[] }
+export interface OrderLine { productId: string; name: string; quantity: number; rate: number | null; received: number; shortClosed?: number; shortReason?: string | null }
+export interface PurchaseOrder { id: string; number: number; supplierId: string; supplierName: string; status: 'open' | 'closed' | 'cancelled' | 'draft'; note: string | null; expectedOn: string | null; createdAt: string; closedAt?: string | null; stage?: string; promiseMoves?: number; pending: number; lines: OrderLine[] }
 interface ReturnLine { productName: string; batchNo: string; quantity: number; value: number }
 interface SupplierReturn { id: string; number: number; value: number; daysOpen: number; settledAt: string | null; lines: ReturnLine[] }
 interface Pick { text: string; productId: string; quantity: string; rate: string; bags?: string }
@@ -76,6 +76,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
   const [expectedOn, setExpectedOn] = useState('')
   const [note, setNote] = useState('')
   const [message, setMessage] = useState('')
+  const [editing, setEditing] = useState<string | null>(null)
   const valid = (rows ?? []).filter((r) => r.productId && Number(r.quantity) > 0)
   const refresh = () => queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
 
@@ -89,12 +90,24 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
     }
   }
 
-  const save = () => run(async () => {
-    await api('/v1/suppliers/orders', 'POST', { id: crypto.randomUUID(), supplierId, lines: valid.map((r) => ({ productId: r.productId, quantity: Number(r.quantity), rate: r.rate === '' ? null : Number(r.rate) })), expectedOn: expectedOn || null, note: note.trim() || null })
-    setRows(null)
-    setExpectedOn('')
-    setNote('')
+  const close = () => { setRows(null); setEditing(null); setExpectedOn(''); setNote('') }
+  // A draft is kept but not counted as on order; "Save order" places it straight away.
+  const save = (draft: boolean) => run(async () => {
+    const body = { id: editing ?? crypto.randomUUID(), supplierId, lines: valid.map((r) => ({ productId: r.productId, quantity: Number(r.quantity), rate: r.rate === '' ? null : Number(r.rate) })), expectedOn: expectedOn || null, note: note.trim() || null, draft }
+    if (editing) {
+      await api(`/v1/suppliers/orders/${editing}`, 'PUT', body)
+      if (!draft) await api(`/v1/suppliers/orders/${editing}/place`, 'POST', {})
+    } else {
+      await api('/v1/suppliers/orders', 'POST', body)
+    }
+    close()
   })
+  const edit = (o: PurchaseOrder) => {
+    setEditing(o.id)
+    setRows(o.lines.map((l) => ({ text: l.name, productId: l.productId, quantity: String(l.quantity), rate: l.rate == null ? '' : String(l.rate) })))
+    setExpectedOn(o.expectedOn ?? '')
+    setNote(o.note ?? '')
+  }
   const finish = async (order: PurchaseOrder, how: 'close' | 'cancel') => {
     if (await confirmAsk(t(how === 'close' ? 'supplier2.closeConfirm' : 'supplier2.cancelConfirm', { number: order.number }))) void run(() => api(`/v1/suppliers/orders/${order.id}/${how}`, 'POST', {}))
   }
@@ -107,17 +120,26 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
       </div>
       {orders.length === 0 && !rows && <p className="text-sm text-muted">{t('supplier2.noOrders')}</p>}
       {orders.map((o) => {
-        const left = o.lines.filter((l) => l.received < l.quantity)
+        const left = o.lines.filter((l) => l.received + (l.shortClosed ?? 0) < l.quantity)
+        const draft = o.status === 'draft'
         return (
           <div key={o.id} className="flex flex-col gap-1 rounded-xl border border-line p-3 text-sm">
-            <p className="flex justify-between font-semibold"><span>{t('supplier2.orderNo', { number: o.number })} · {new Date(o.createdAt).toLocaleDateString('en-IN')}</span><span>{t('supplier2.stillToCome', { qty: o.pending })}</span></p>
+            <p className="flex justify-between font-semibold"><span>{t('supplier2.orderNo', { number: o.number })} · {new Date(o.createdAt).toLocaleDateString('en-IN')}</span>{draft ? <span className="rounded-full bg-amber-100 px-2 text-xs text-amber-800">{t('supplier2.draft')}</span> : <span>{t('supplier2.stillToCome', { qty: o.pending })}</span>}</p>
             {(o.expectedOn || o.note) && <p className={`text-xs ${isLate(o) ? 'font-semibold text-due' : 'text-muted'}`}>{o.expectedOn && t(isLate(o) ? 'po.late' : 'po.expected', { date: new Date(o.expectedOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) })}{o.expectedOn && o.note ? ' · ' : ''}{o.note}</p>}
             {o.lines.map((l) => (
               <p key={l.productId} className={`flex justify-between gap-2 ${l.received >= l.quantity ? 'text-muted' : ''}`}>
                 <span>{l.name}{l.rate != null ? ` · ${formatRupees(l.rate)}` : ''}</span>
-                <span>{t('supplier2.cameOf', { came: l.received, ordered: l.quantity })}</span>
+                <span className="text-right">{draft ? l.quantity : t('supplier2.cameOf', { came: l.received, ordered: l.quantity })}
+                  {(l.shortClosed ?? 0) > 0 && <span className="block text-xs text-due">{t('supplier2.shortClosed', { qty: l.shortClosed })}{l.shortReason ? ` · ${t(`gi.reason.${l.shortReason}`)}` : ''}</span>}</span>
               </p>
             ))}
+            {draft ? (
+            <div className="mt-1 flex flex-wrap gap-2">
+              <Button className="flex-1" onClick={() => void run(() => api(`/v1/suppliers/orders/${o.id}/place`, 'POST', {}))}>{t('supplier2.placeOrder')}</Button>
+              <button onClick={() => edit(o)} className="min-h-12 rounded-2xl border border-line px-3 font-semibold">{t('supplier2.editOrder')}</button>
+              <button onClick={() => void finish(o, 'cancel')} className="min-h-12 px-2 text-xs font-semibold text-due">{t('supplier2.cancelOrder')}</button>
+            </div>
+            ) : (
             <div className="mt-1 flex flex-wrap gap-2">
               <Button className="flex-1" onClick={() => onGoodsCame(o)}>{t('supplier2.goodsCame')}</Button>
               {phone && <a href={whatsAppLink(phone, orderText(t, shopName, o.number, left.map((l) => ({ name: l.name, quantity: l.quantity - l.received }))))} target="_blank" rel="noreferrer"
@@ -127,6 +149,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
                 {t(o.lines.some((l) => l.received > 0) ? 'supplier2.closeShort' : 'supplier2.cancelOrder')}
               </button>
             </div>
+            )}
           </div>
         )
       })}
@@ -138,8 +161,9 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
             <label className="flex flex-col gap-1 text-xs text-muted">{t('po.note')}<input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder={t('po.notePlaceholder')} className={input} /></label>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button disabled={valid.length === 0} onClick={() => void save()}>{t('supplier2.saveOrder')}</Button>
-            <button onClick={() => setRows(null)} className="min-h-12 rounded-2xl border border-line font-semibold">{t('cancel')}</button>
+            <Button disabled={valid.length === 0} onClick={() => void save(false)}>{t('supplier2.saveOrder')}</Button>
+            <button disabled={valid.length === 0} onClick={() => void save(true)} className="min-h-12 rounded-2xl border border-line font-semibold disabled:opacity-50">{t('supplier2.saveDraft')}</button>
+            <button onClick={close} className="col-span-2 min-h-11 text-sm font-semibold text-muted">{t('cancel')}</button>
           </div>
         </div>
       )}
