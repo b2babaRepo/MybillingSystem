@@ -1,3 +1,4 @@
+import { GodownPicker } from '../components/GodownPicker'
 import { lazy, Suspense, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -35,6 +36,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
   const [scan, setScan] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [godown, setGodown] = useState('')
   const [message, setMessage] = useState('')
   // After saving: the short lines, each to wait for or close short.
   const [shorts, setShorts] = useState<{ order: CheckOrder; lines: { line: CheckLine; short: number; reason: string; closed: boolean }[] } | null>(null)
@@ -86,7 +88,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
     setBusy(true)
     setMessage('')
     try {
-      await api('/v1/goods-receipts', 'POST', { id: crypto.randomUUID(), supplierId: order.supplierId, orderId: order.id, lines })
+      await api('/v1/goods-receipts', 'POST', { id: crypto.randomUUID(), supplierId: order.supplierId, orderId: order.id, lines, godownId: godown || null })
       const short = order.lines.map((l) => ({ line: l, short: round(l.pending - num(countOf(l).came)), reason: 'out_of_stock', closed: false })).filter((x) => x.short > 0)
       setShorts(short.length > 0 ? { order, lines: short } : null)
       setMessage(t('gi.saved', { number: order.number }))
@@ -231,6 +233,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
       </section>
       {message && <p className="text-sm text-due">{message}</p>}
       <div className="sticky bottom-2 z-10 rounded-2xl bg-white/95 p-2 shadow-lg ring-1 ring-black/5 backdrop-blur">
+        <GodownPicker shopId={shopId} value={godown} onChange={setGodown} label="in" />
         <button disabled={busy} onClick={() => void save()} className="h-12 w-full rounded-xl bg-teal-700 font-bold text-white shadow-sm hover:bg-teal-800 disabled:opacity-60">{t('gi.save')}</button>
       </div>
       {scan && <Suspense fallback={null}><ScanSheet continuous onCode={onCode} onClose={() => setScan(false)} /></Suspense>}

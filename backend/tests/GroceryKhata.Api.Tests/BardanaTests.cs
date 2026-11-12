@@ -75,4 +75,24 @@ public sealed class BardanaTests(ApiFactory api)
         Assert.Empty((await other.GetJsonAsync<BardanaDto>("/api/v1/bardana")).Types);
         Assert.Equal(HttpStatusCode.BadRequest, (await MoveAsync(other, plastic, "used", 1m)).StatusCode);
     }
+
+    [Fact]
+    public async Task Bags_on_goods_that_come_in_are_counted_on_their_own_and_go_if_the_receipt_is_cancelled()
+    {
+        var shop = await ShopAsync();
+        var jute = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/bardana/types", new { id = jute, name = "Jute 50 kg", fromGoods = true })).EnsureSuccessStatusCode();
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jain Traders" })).EnsureSuccessStatusCode();
+        var rice = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = rice, name = "Rice", unit = "kg", sellingPrice = 50m, openingStock = 0m })).EnsureSuccessStatusCode();
+
+        var receipt = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = receipt, supplierId = supplier, lines = new[] { new { productId = rice, quantity = 500m, bags = 10m } } })).EnsureSuccessStatusCode();
+        var summary = await shop.GetJsonAsync<BardanaDto>("/api/v1/bardana");
+        Assert.Equal((10m, true, 10m), (summary.Types.Single().OnHand, summary.Types.Single().FromGoods, summary.Suppliers.Single().Came));
+
+        (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/cancel", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(0m, (await shop.GetJsonAsync<BardanaDto>("/api/v1/bardana")).Types.Single().OnHand);
+    }
 }

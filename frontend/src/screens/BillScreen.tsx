@@ -1,3 +1,4 @@
+import { GodownPicker } from '../components/GodownPicker'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { CashChange, CustomerFinder } from '../components/CustomerFinder'
 import { CashLimitNote } from '../components/CashLimitNote'
@@ -369,7 +370,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
       exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
       payments: split ? [{ mode: 'cash', amount: cashPaid }, { mode: splitWith, amount: upiPaid, reference: splitWith === 'upi' ? reference : null }]
-        : reference ? [{ mode: 'upi', amount: paidAmount, reference }] : undefined, placeOfSupply: (picksState && deliveredTo) || null, entrySeconds: billSeconds(startedAt.current, Date.now()), withoutGst: picksState && withoutGst,
+        : reference ? [{ mode: 'upi', amount: paidAmount, reference }] : undefined, placeOfSupply: (picksState && deliveredTo) || null, entrySeconds: billSeconds(startedAt.current, Date.now()), withoutGst: picksState && withoutGst, godownId: fromGodown || null,
       prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
     })
     setRx({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
@@ -412,6 +413,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // What this bill will be, shown before it's saved: the server decides, and the screen must say the same.
   // A registered shop picks the kind of bill: a GST bill (the usual), or a bill without GST. Every new bill starts as a GST bill.
   const [withoutGst, setWithoutGst] = useState(false)
+  const [fromGodown, setFromGodown] = useState('')
   const taxInvoice = picksState && !withoutGst
   const taxState = buyerState ?? (deliveredTo || shopState)
   const tax = useMemo(() => billTax(cart.map((l) => {
@@ -758,6 +760,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 </label>
               )}
               {picksState && withoutGst && <p className="mb-1 rounded-xl bg-amber-50 p-2 text-xs text-amber-900">{t('gstLine.noGstHint')}</p>}
+              <GodownPicker shopId={shopId} value={fromGodown} onChange={setFromGodown} label="out" />
               <p className="font-semibold text-muted">
                 {t(taxInvoice ? 'gstLine.invoice' : picksState && withoutGst ? 'gstLine.withoutGst' : shopState ? 'gstLine.supply' : 'gstLine.plain')}
                 {!shopState && isOwner && <button type="button" onClick={() => navigate('/settings')} className="ml-2 min-h-11 font-semibold text-teal-700 underline">{t('gstLine.addGstin')}</button>}

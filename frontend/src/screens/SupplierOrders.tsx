@@ -1,3 +1,4 @@
+import { GodownPicker } from '../components/GodownPicker'
 import { BagCheck } from './ProductScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -247,6 +248,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
   const [rows, setRows] = useState<Pick[] | null>(null)
   const [message, setMessage] = useState('')
   const [trip, setTrip] = useState({ vehicleNo: '', bilty: '', transporter: '', gross: '', tare: '' })
+  const [godown, setGodown] = useState('')
   // Staff can't read orders (owner only), so the picker simply doesn't show for them.
   const orders = useQuery({ queryKey: [shopId, 'suppliers', 'orders', supplierId], queryFn: () => api<PurchaseOrder[]>(`/v1/suppliers/orders?supplierId=${supplierId}`), retry: false }).data ?? []
   const [orderId, setOrderId] = useState('')
@@ -283,7 +285,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
     await api('/v1/goods-receipts', 'POST', {
       id: crypto.randomUUID(), supplierId, orderId: order?.id ?? null, lines: valid.map((r) => ({ productId: r.productId, quantity: Number(r.quantity), bags: Number(r.bags) > 0 ? Number(r.bags) : null })),
       vehicleNo: trip.vehicleNo || null, bilty: trip.bilty || null, transporter: trip.transporter || null,
-      grossWeight: net !== null ? Number(trip.gross) : null, tareWeight: net !== null ? Number(trip.tare) : null,
+      grossWeight: net !== null ? Number(trip.gross) : null, tareWeight: net !== null ? Number(trip.tare) : null, godownId: godown || null,
     })
     setRows(null)
     setOrderId('')
@@ -335,6 +337,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
             {net !== null && <p className="mt-2 font-semibold">⚖ {t('bag.net', { net })}{linesKg > 0 && Math.abs(linesKg - net) >= 1 ? <span className="text-due"> · {t('bag.netDiffers', { lines: linesKg, diff: Math.round(Math.abs(linesKg - net) * 100) / 100 })}</span> : null}</p>}
           </details>
           <div className="grid grid-cols-2 gap-2">
+            <div className="col-span-full"><GodownPicker shopId={shopId} value={godown} onChange={setGodown} label="in" /></div>
             <Button disabled={valid.length === 0} onClick={() => void save()}>{t('receipt.save')}</Button>
             <button onClick={() => setRows(null)} className="min-h-12 rounded-2xl border border-line font-semibold">{t('cancel')}</button>
           </div>

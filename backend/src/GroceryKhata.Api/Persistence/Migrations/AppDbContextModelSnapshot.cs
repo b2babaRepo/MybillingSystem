@@ -3492,6 +3492,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("rate");
 
+                    b.Property<Guid?>("RefId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ref_id");
+
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
@@ -3529,6 +3533,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<bool>("FromGoods")
+                        .HasColumnType("boolean")
+                        .HasColumnName("from_goods");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")

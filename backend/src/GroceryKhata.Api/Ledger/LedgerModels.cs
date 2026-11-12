@@ -62,7 +62,9 @@ public sealed record BillRequest(
     // Paid more than one way: each part's mode and amount. They add up to PaidAmount; none: one way, by PaymentMode.
     IReadOnlyList<BillPaymentRequest>? Payments = null,
     // The counter (device) it was made on, as named on that device.
-    string? Counter = null);
+    string? Counter = null,
+    // Handed out from this godown rather than the shop shelf: the goods move out of the godown with the bill.
+    Guid? GodownId = null);
 
 /// <summary>For Schedule H, H1 and X medicines: who prescribed them and for whom, as the drug rules ask.</summary>
 public sealed record PrescriptionRequest(string? DoctorName, string? DoctorAddress, string? DoctorRegNo, string? PatientName, string? PatientAddress, DateOnly? PrescribedOn);

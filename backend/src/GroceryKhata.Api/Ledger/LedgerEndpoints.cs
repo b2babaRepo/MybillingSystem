@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
+using GroceryKhata.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -37,8 +39,23 @@ public static class LedgerEndpoints
             async (Guid id, ReverseRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
                 (await ledger.ReverseAsync(id, request, user.UserId()!.Value, IsOwner(user), ct)).ToHttp($"/api/v1/ledger-entries/{request.Id}"));
 
-        group.MapPost("/bills", async (BillRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
-            (await ledger.CreateBillAsync(request, user.UserId()!.Value, ct, isOwner: IsOwner(user))).ToHttp($"/api/v1/bills/{request.Id}"));
+        group.MapPost("/bills", async (BillRequest request, ClaimsPrincipal user, LedgerService ledger, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        {
+            var result = await ledger.CreateBillAsync(request, user.UserId()!.Value, ct, isOwner: IsOwner(user));
+            if (result.Value is not null && request.GodownId is { } godown && await Catalogue.Godowns.IsActiveAsync(db, godown, ct))
+            {
+                // Sold from a godown: what the bill took leaves the godown (as much as it holds), not the shelf. Same
+                // id as the bill, so a retried bill moves nothing twice.
+                var sold = await db.StockMovements.AsNoTracking().Where(m => m.BillId == request.Id && m.Kind == Catalogue.StockMovementKind.Sale)
+                    .Select(m => new { m.ProductId, m.Quantity }).ToListAsync(ct);
+                await using var transaction = await db.Database.BeginTransactionAsync(ct);
+                await Catalogue.Godowns.MoveForAsync(db, request.Id, godown, null, sold.Select(m => (m.ProductId, -m.Quantity)), "Sold from the godown on a bill", user.UserId()!.Value, clock.GetUtcNow(), ct);
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
+
+            return result.ToHttp($"/api/v1/bills/{request.Id}");
+        });
 
         group.MapPost("/bills/{id:guid}/attach-customer", async (Guid id, AttachCustomerRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
             (await ledger.AttachCustomerAsync(id, request, user.UserId()!.Value, IsOwner(user), ct)).ToHttp($"/api/v1/bills/{id}"));

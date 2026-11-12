@@ -18,6 +18,12 @@ public sealed class BagType : Entity, ITenantOwned
     public decimal? SaleRate { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// The bag that goods come in: bags on a goods receipt or supplier bill are added to it on their own, as
+    /// "came with goods" from that supplier. At most one bag type is this.
+    /// </summary>
+    public bool FromGoods { get; set; }
 }
 
 public enum BagMoveKind
@@ -78,9 +84,12 @@ public sealed class BagMove : Entity, ITenantOwned
     public DateTimeOffset? StruckAt { get; set; }
 
     public Guid CreatedByUserId { get; set; }
+
+    /// <summary>The goods receipt or supplier bill these bags came on (added on their own), struck if it is cancelled.</summary>
+    public Guid? RefId { get; set; }
 }
 
-public sealed record BagTypeRequest(Guid Id, string? Name, decimal? SaleRate = null, bool IsActive = true);
+public sealed record BagTypeRequest(Guid Id, string? Name, decimal? SaleRate = null, bool IsActive = true, bool FromGoods = false);
 
 /// <summary>
 /// For <see cref="BagMoveKind.Counted"/>, <see cref="Quantity"/> is how many were counted; for every other kind, how many
@@ -89,7 +98,7 @@ public sealed record BagTypeRequest(Guid Id, string? Name, decimal? SaleRate = n
 public sealed record BagMoveRequest(Guid Id, Guid BagTypeId, BagMoveKind Kind, decimal Quantity, decimal? Rate = null, PaymentMode? Mode = null,
     Guid? SupplierId = null, string? Party = null, string? Note = null);
 
-public sealed record BagTypeDto(Guid Id, string Name, decimal? SaleRate, bool IsActive, decimal OnHand, decimal? Value);
+public sealed record BagTypeDto(Guid Id, string Name, decimal? SaleRate, bool IsActive, decimal OnHand, decimal? Value, bool FromGoods = false);
 
 /// <summary>A supplier's bags: how many came with their goods, how many went back, and how many of theirs the shop still holds.</summary>
 public sealed record SupplierBagsDto(Guid SupplierId, string Supplier, decimal Came, decimal Returned, decimal Holding);
@@ -142,7 +151,7 @@ public static class Bardana
             .GroupBy(m => m.Kind).Select(g => new { g.Key, Sum = g.Sum(m => m.Amount!.Value) }).ToListAsync(ct);
         return new BardanaDto(
             types.Select(t => new BagTypeDto(t.Id, t.Name, t.SaleRate, t.IsActive, onHand.GetValueOrDefault(t.Id),
-                t.SaleRate is { } r ? decimal.Round(r * Math.Max(0, onHand.GetValueOrDefault(t.Id)), 2) : null)).ToList(),
+                t.SaleRate is { } r ? decimal.Round(r * Math.Max(0, onHand.GetValueOrDefault(t.Id)), 2) : null, t.FromGoods)).ToList(),
             suppliers, money.Where(m => m.Key == BagMoveKind.Sold).Sum(m => m.Sum), money.Where(m => m.Key == BagMoveKind.Bought).Sum(m => m.Sum));
     }
 
@@ -172,6 +181,12 @@ public static class Bardana
         }
 
         (type.Name, type.SaleRate, type.IsActive) = (name, request.SaleRate, request.IsActive);
+        type.FromGoods = request.FromGoods && request.IsActive;
+        if (type.FromGoods)
+        {
+            // Only one bag type takes the bags that come with goods.
+            await db.BagTypes.Where(t => t.Id != type.Id && t.FromGoods).ExecuteUpdateAsync(s => s.SetProperty(t => t.FromGoods, false), ct);
+        }
         await db.SaveChangesAsync(ct);
         return TypedResults.NoContent();
     }
@@ -255,6 +270,30 @@ public static class Bardana
         await transaction.CommitAsync(ct);
         return TypedResults.NoContent();
     }
+
+    /// <summary>
+    /// Bags that came with goods (a goods receipt or supplier bill), added to the shop's "from goods" bag type, if it
+    /// has one. Joins the caller's transaction; the caller saves.
+    /// </summary>
+    internal static async Task CameWithGoodsAsync(AppDbContext db, Guid refId, Guid supplierId, decimal bags, Guid userId, DateTimeOffset now, CancellationToken ct)
+    {
+        var whole = Math.Round(bags, 0, MidpointRounding.AwayFromZero);
+        if (whole <= 0 || await db.BagTypes.AsNoTracking().FirstOrDefaultAsync(t => t.FromGoods && t.IsActive, ct) is not { } type
+            || await db.BagMoves.AnyAsync(m => m.RefId == refId, ct))
+        {
+            return;
+        }
+
+        db.BagMoves.Add(new BagMove
+        {
+            BagTypeId = type.Id, Kind = BagMoveKind.CameWithGoods, Quantity = whole, SupplierId = supplierId, RefId = refId, OccurredAt = now, CreatedByUserId = userId,
+            Note = "With goods",
+        });
+    }
+
+    /// <summary>The bags a cancelled receipt or bill brought stop counting.</summary>
+    internal static Task<int> StrikeForAsync(AppDbContext db, Guid refId, DateTimeOffset now, CancellationToken ct) =>
+        db.BagMoves.Where(m => m.RefId == refId && m.StruckAt == null).ExecuteUpdateAsync(s => s.SetProperty(m => m.StruckAt, now), ct);
 
     /// <summary>Strikes a wrong entry: it stays on the list, crossed out, and stops counting (its money leaves the cash book).</summary>
     private static async Task<IResult> StrikeAsync(Guid id, AppDbContext db, TimeProvider clock, CancellationToken ct)

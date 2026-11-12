@@ -177,7 +177,7 @@ public sealed record PurchaseLineRequest(
 
 /// <summary><see cref="Id"/> is made by the app, so a repeated tap saves once.</summary>
 public sealed record PurchaseRequest(Guid Id, Guid SupplierId, string? BillNo, IReadOnlyList<PurchaseLineRequest>? Lines, decimal PaidAmount, PaymentMode? PaymentMode, DateOnly? BillDate = null, decimal Extra = 0, Guid? OrderId = null,
-    IReadOnlyList<Guid>? ReceiptIds = null, IReadOnlyList<LandedChargeRequest>? Charges = null, bool ExtraInCost = false, CostSplit Split = CostSplit.Value);
+    IReadOnlyList<Guid>? ReceiptIds = null, IReadOnlyList<LandedChargeRequest>? Charges = null, bool ExtraInCost = false, CostSplit Split = CostSplit.Value, Guid? GodownId = null);
 
 /// <summary>How a lot's charges are shared over its items: by value (default), by units, or by bags.</summary>
 public enum CostSplit
@@ -208,13 +208,22 @@ public sealed class PurchaseCharge : Entity, ITenantOwned
     public Guid? ExpenseId { get; set; }
 }
 
-public sealed record LotLineDto(Guid ProductId, string Name, decimal Units, decimal BillRate, decimal ChargePerUnit, decimal LandedCost, decimal? SellingPrice, decimal? MarginPerUnit, decimal? MarginPercent, decimal? LotMargin);
+/// <summary>
+/// <see cref="Sold"/>, <see cref="Revenue"/> and <see cref="Profit"/>: what of this lot has really sold (first in, first
+/// out), what it fetched before GST, and that less its landed cost. <see cref="Left"/>: units of it not yet gone.
+/// </summary>
+public sealed record LotLineDto(Guid ProductId, string Name, decimal Units, decimal BillRate, decimal ChargePerUnit, decimal LandedCost, decimal? SellingPrice, decimal? MarginPerUnit, decimal? MarginPercent, decimal? LotMargin,
+    decimal Sold = 0, decimal Revenue = 0, decimal Profit = 0, decimal Left = 0);
 
 /// <summary>One supplier bill seen as a lot: what its goods really cost landed, and the margin at today's selling prices.</summary>
 public sealed record LotDto(Guid Id, string? BillNo, Guid SupplierId, string Supplier, DateTimeOffset OccurredAt, bool Cancelled, CostSplit? Split, decimal GoodsValue,
-    decimal Charges, IReadOnlyList<LandedChargeDto> ChargeLines, decimal LandedTotal, decimal? ExpectedMargin, IReadOnlyList<LotLineDto> Lines);
+    decimal Charges, IReadOnlyList<LandedChargeDto> ChargeLines, decimal LandedTotal, decimal? ExpectedMargin, IReadOnlyList<LotLineDto> Lines,
+    decimal Revenue = 0, decimal Profit = 0);
 
 public sealed record LandedChargeDto(string Label, decimal Amount, bool Paid);
+
+/// <summary>Charges that came to light after the bill was saved (the transporter's bill came later): added to the lot's cost.</summary>
+public sealed record AddChargesRequest(IReadOnlyList<LandedChargeRequest>? Charges, CostSplit Split = CostSplit.Value);
 
 public sealed record SupplierPaymentRequest(Guid Id, decimal Amount, PaymentMode? PaymentMode, string? Reference = null, DateOnly? PaidOn = null);
 
@@ -235,6 +244,7 @@ public static class SupplierEndpoints
         group.MapPost("/purchases", PurchaseAsync);
         group.MapGet("/purchases/{id:guid}", GetPurchaseAsync);
         group.MapGet("/purchases/{id:guid}/landed", LotAsync);
+        group.MapPost("/purchases/{id:guid}/charges", AddChargesAsync);
         group.MapGet("/lots", LotsAsync);
         group.MapPut("/{id:guid}", ChangeAsync);
         group.MapPost("/purchases/{id:guid}/cancel", CancelPurchaseAsync);
@@ -336,6 +346,89 @@ public static class SupplierEndpoints
             purchase.Lines.Select(l => new PurchaseLineDto(names.GetValueOrDefault(l.ProductId) ?? "", l.Quantity, l.FreeQuantity, l.UnitCost, l.DiscountPercent, l.GstRate, l.Taxable, l.Gst)).ToList()));
     }
 
+    /// <summary>
+    /// Adds charges to a saved bill (an older one too). Each item's landed cost goes up by its share, and so does the cost
+    /// of what is still in stock: its average cost rises by the share on the units still held.
+    /// </summary>
+    private static async Task<IResult> AddChargesAsync(Guid id, AddChargesRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var charges = request.Charges ?? [];
+        if (charges.Count is 0 or > 10 || charges.Any(c => c.Amount <= 0 || c.Amount > Money.MaxAmount || decimal.Round(c.Amount, 2) != c.Amount || string.IsNullOrWhiteSpace(c.Label)
+            || c.PaidBy is not (null or PaymentMode.Cash or PaymentMode.Upi)) || !Enum.IsDefined(request.Split))
+        {
+            return Invalid("Charges", "Give each charge a name and an amount, paid by cash, UPI or not yet.");
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var purchase = await db.Purchases.FromSql($"SELECT * FROM purchases WHERE id = {id} FOR UPDATE").Include(p => p.Lines).SingleOrDefaultAsync(ct);
+        if (purchase is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (purchase.CancelledAt is not null)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This bill is cancelled.");
+        }
+
+        var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
+        var pool = charges.Sum(c => c.Amount);
+        decimal Units(PurchaseLine l) => l.Quantity + l.FreeQuantity;
+        decimal Weight(PurchaseLine l) => request.Split switch
+        {
+            CostSplit.Quantity => Units(l),
+            CostSplit.Bags when purchase.Lines.Any(x => x.Bags > 0) => l.Bags ?? 0,
+            _ => l.Taxable,
+        };
+        var weights = purchase.Lines.Sum(Weight);
+        if (weights <= 0)
+        {
+            return Invalid("Split", "Nothing on this bill to share the charges over that way.");
+        }
+
+        var ids = purchase.Lines.Select(l => l.ProductId).Distinct().ToList();
+        var products = await db.Products.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var moves = await db.StockMovements.Where(m => m.RefType == "purchase" && m.RefId == id && m.Quantity > 0).ToListAsync(ct);
+        foreach (var line in purchase.Lines.Where(l => Units(l) > 0))
+        {
+            var perUnit = pool * Weight(line) / weights / Units(line);
+            line.LandedUnitCost = decimal.Round((line.LandedUnitCost ?? line.Taxable / Units(line)) + perUnit, 2);
+            foreach (var move in moves.Where(m => m.ProductId == line.ProductId))
+            {
+                move.CostPrice = line.LandedUnitCost;
+            }
+
+            // Only the units still on hand carry the extra into today's cost; what was sold already went at the old cost.
+            var product = products[line.ProductId];
+            if (product.CostPrice is { } cost && product.Stock > 0)
+            {
+                product.CostPrice = decimal.Round(cost + (perUnit * Math.Min(product.Stock, Units(line)) / product.Stock), 2);
+            }
+        }
+
+        purchase.CostSplit ??= request.Split;
+        foreach (var charge in charges)
+        {
+            var label = charge.Label!.Trim()[..Math.Min(60, charge.Label.Trim().Length)];
+            Guid? expenseId = null;
+            if (charge.PaidBy is { } mode)
+            {
+                expenseId = Guid.CreateVersion7();
+                db.Expenses.Add(new Expense
+                {
+                    Id = expenseId.Value, Amount = charge.Amount, Category = ExpenseCategory.Purchase, Mode = mode, OccurredAt = now, CreatedByUserId = userId,
+                    Note = purchase.BillNo is { } no ? $"{label} · bill {no}" : label,
+                });
+            }
+
+            db.PurchaseCharges.Add(new PurchaseCharge { PurchaseId = id, Label = label, Amount = charge.Amount, ExpenseId = expenseId });
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return TypedResults.NoContent();
+    }
+
     /// <summary>One bill as a lot: each item's bill rate, its share of the charges, what it landed at, and the margin at today's price.</summary>
     private static async Task<IResult> LotAsync(Guid id, AppDbContext db, CancellationToken ct) =>
         (await LotsOfAsync(db, db.Purchases.AsNoTracking().Where(p => p.Id == id), ct)).SingleOrDefault() is { } lot ? TypedResults.Ok(lot) : TypedResults.NotFound();
@@ -353,6 +446,7 @@ public static class SupplierEndpoints
         var products = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Name, p.SellingPrice }, ct);
         var supplierIds = purchases.Select(p => p.SupplierId).Distinct().ToList();
         var suppliers = await db.Suppliers.AsNoTracking().Where(s => supplierIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+        var fifo = await FifoAsync(db, ids, ct);
         return purchases.OrderByDescending(p => p.OccurredAt).Select(p =>
         {
             var lines = p.Lines.Where(l => onlyProduct == null || l.ProductId == onlyProduct).Select(l =>
@@ -363,8 +457,14 @@ public static class SupplierEndpoints
                 var item = products.GetValueOrDefault(l.ProductId);
                 decimal? price = item?.SellingPrice is > 0 ? item.SellingPrice : null;
                 decimal? margin = price is { } sp ? sp - landed : null;
+                // A product twice on one bill (two batches) shares the lot's figures by units.
+                var lotUnits = p.Lines.Where(x => x.ProductId == l.ProductId).Sum(x => x.Quantity + x.FreeQuantity);
+                var part = lotUnits > 0 ? units / lotUnits : 0;
+                var used = fifo.GetValueOrDefault((p.Id, l.ProductId));
+                var (sold, revenue) = (decimal.Round(used.Sold * part, 3), decimal.Round(used.Revenue * part, 2));
                 return new LotLineDto(l.ProductId, item?.Name ?? "", units, billRate, landed - billRate, landed, price, margin,
-                    margin is { } m && price is { } s2 ? decimal.Round(m * 100 / s2, 1) : null, margin is { } m2 ? decimal.Round(m2 * units, 2) : null);
+                    margin is { } m && price is { } s2 ? decimal.Round(m * 100 / s2, 1) : null, margin is { } m2 ? decimal.Round(m2 * units, 2) : null,
+                    sold, revenue, decimal.Round(revenue - (landed * sold), 2), p.CancelledAt is null ? Math.Max(0, decimal.Round(units - (used.Gone * part), 3)) : 0);
             }).ToList();
             var charges = p.Charges.Sum(c => c.Amount) + (p.ExtraInCost ? p.ExtraCharges : 0);
             var chargeLines = p.Charges.Select(c => new LandedChargeDto(c.Label, c.Amount, c.ExpenseId != null)).ToList();
@@ -375,8 +475,70 @@ public static class SupplierEndpoints
 
             return new LotDto(p.Id, p.BillNo, p.SupplierId, suppliers.GetValueOrDefault(p.SupplierId) ?? "", p.OccurredAt, p.CancelledAt != null, p.CostSplit,
                 p.Lines.Sum(l => l.Taxable), charges, chargeLines, decimal.Round(lines.Sum(l => l.LandedCost * l.Units), 2),
-                lines.All(l => l.LotMargin is not null) ? lines.Sum(l => l.LotMargin!.Value) : null, lines);
+                lines.All(l => l.LotMargin is not null) ? lines.Sum(l => l.LotMargin!.Value) : null, lines, lines.Sum(l => l.Revenue), lines.Sum(l => l.Profit));
         }).ToList();
+    }
+
+    /// <summary>
+    /// Matches what left each item to the lots it came in, oldest first (first in, first out). A lot is a supplier bill
+    /// (goods counted in on a receipt belong to the bill that took the receipt); opening stock and stock found are lots
+    /// of their own. Sales bring their bill's price before GST; damage and other losses use up stock and bring nothing.
+    /// </summary>
+    private static async Task<Dictionary<(Guid Purchase, Guid Product), (decimal Sold, decimal Revenue, decimal Gone)>> FifoAsync(AppDbContext db, List<Guid> productIds, CancellationToken ct)
+    {
+        var moves = await db.StockMovements.AsNoTracking().Where(m => productIds.Contains(m.ProductId))
+            .Select(m => new { m.Id, m.ProductId, m.Kind, m.Quantity, m.RefType, m.RefId, m.BillId, m.OccurredAt }).ToListAsync(ct);
+        var receiptIds = moves.Where(m => m.RefType == "receipt" && m.RefId != null).Select(m => m.RefId!.Value).Distinct().ToList();
+        var billedOn = await db.GoodsReceipts.AsNoTracking().Where(r => receiptIds.Contains(r.Id) && r.PurchaseId != null).ToDictionaryAsync(r => r.Id, r => r.PurchaseId!.Value, ct);
+        var billIds = moves.Where(m => m.BillId != null && m.Kind == StockMovementKind.Sale).Select(m => m.BillId!.Value).Distinct().ToList();
+        var takings = (await db.BillLines.AsNoTracking().Where(l => billIds.Contains(l.BillId) && l.ProductId != null && productIds.Contains(l.ProductId!.Value))
+                .Select(l => new { l.BillId, l.ProductId, Value = l.TaxableValue ?? l.Amount }).ToListAsync(ct))
+            .GroupBy(l => (l.BillId, l.ProductId!.Value)).ToDictionary(g => g.Key, g => g.Sum(l => l.Value));
+
+        var result = new Dictionary<(Guid, Guid), (decimal Sold, decimal Revenue, decimal Gone)>();
+        foreach (var item in moves.GroupBy(m => m.ProductId))
+        {
+            // Lots in: each bill's net units (a cancelled bill nets to nothing), at its first arrival.
+            Guid? LotOf(string? refType, Guid? refId) => refType == "purchase" ? refId : refType == "receipt" && refId is { } r && billedOn.TryGetValue(r, out var bill) ? bill : null;
+            var ins = item.Where(m => m.Kind == StockMovementKind.Purchase).GroupBy(m => LotOf(m.RefType, m.RefId) ?? m.RefId ?? m.Id)
+                .Select(g => (Lot: (Guid?)(LotOf(g.First().RefType, g.First().RefId)), Units: g.Sum(m => m.Quantity), At: g.Min(m => m.OccurredAt)))
+                .Concat(item.Where(m => m.Kind != StockMovementKind.Purchase && m.Kind != StockMovementKind.Sale && m.Quantity > 0).Select(m => (Lot: (Guid?)null, Units: m.Quantity, At: m.OccurredAt)))
+                .Where(x => x.Units > 0).OrderBy(x => x.At).ToList();
+            // Out: each bill's net sale (returns and cancels net off), and every other loss.
+            var outs = item.Where(m => m.Kind == StockMovementKind.Sale && m.BillId != null).GroupBy(m => m.BillId!.Value)
+                .Select(g => (Bill: (Guid?)g.Key, Units: -g.Sum(m => m.Quantity), At: g.Min(m => m.OccurredAt)))
+                .Concat(item.Where(m => m.Kind != StockMovementKind.Purchase && m.Quantity < 0 && !(m.Kind == StockMovementKind.Sale && m.BillId != null)).Select(m => (Bill: (Guid?)null, Units: -m.Quantity, At: m.OccurredAt)))
+                .Where(x => x.Units > 0).OrderBy(x => x.At).ToList();
+            var queue = new Queue<(Guid? Lot, decimal Left)>(ins.Select(x => (x.Lot, x.Units)));
+            var head = queue.Count > 0 ? queue.Dequeue() : ((Guid?)null, 0m);
+            foreach (var o in outs)
+            {
+                var need = o.Units;
+                var price = o.Bill is { } b ? takings.GetValueOrDefault((b, item.Key)) / o.Units : 0;
+                while (need > 0 && (head.Item2 > 0 || queue.Count > 0))
+                {
+                    if (head.Item2 <= 0)
+                    {
+                        head = queue.Dequeue();
+                        continue;
+                    }
+
+                    var take = Math.Min(need, head.Item2);
+                    if (head.Item1 is { } lot)
+                    {
+                        var was = result.GetValueOrDefault((lot, item.Key));
+                        result[(lot, item.Key)] = o.Bill is null
+                            ? (was.Sold, was.Revenue, was.Gone + take)
+                            : (was.Sold + take, was.Revenue + (take * price), was.Gone + take);
+                    }
+
+                    head = (head.Item1, head.Item2 - take);
+                    need -= take;
+                }
+            }
+        }
+
+        return result;
     }
 
     /// <summary>What was owed when the shop started using the app: a line of its own, never a bill, so purchases and stock stay true. Once per supplier.</summary>
@@ -629,6 +791,19 @@ public static class SupplierEndpoints
             AddPayment(db, request.SupplierId, request.PaidAmount, request.PaymentMode ?? PaymentMode.Cash, null, request.Id, now, userId, Guid.CreateVersion7());
         }
 
+        if (request.GodownId is { } godown)
+        {
+            // The bill's own goods (not those already counted in on receipts) were unloaded at the godown.
+            if (!await Godowns.IsActiveAsync(db, godown, ct))
+            {
+                return Invalid("GodownId", "That godown wasn't found.");
+            }
+
+            await Godowns.MoveForAsync(db, request.Id, null, godown, added.Select(a => (a.Key, a.Value)), $"Supplier bill {billNo}".Trim(), userId, now, ct);
+        }
+
+        await Bardana.CameWithGoodsAsync(db, request.Id, request.SupplierId,
+            db.StockMovements.Local.Where(m => m.RefId == request.Id && m.Kind == StockMovementKind.Purchase).Sum(m => m.Bags ?? 0), userId, now, ct);
         await db.SaveChangesAsync(ct);
         var ids = added.Keys.Order().ToArray();
         var quantities = ids.Select(i => added[i]).ToArray();
@@ -702,6 +877,8 @@ await db.GoodsReceipts.Where(r => r.PurchaseId == id).ExecuteUpdateAsync(s => s.
         // The bill's own arrivals are undone; goods that came on receipts are still here, waiting for a bill again.
         await db.ArrivalLines.Where(a => a.PurchaseId == id && a.ReceiptId == null).ExecuteUpdateAsync(s => s.SetProperty(a => a.CancelledAt, now), ct);
         await db.ArrivalLines.Where(a => a.PurchaseId == id && a.ReceiptId != null).ExecuteUpdateAsync(s => s.SetProperty(a => a.PurchaseId, (Guid?)null).SetProperty(a => a.Rate, (decimal?)null), ct);
+        await Godowns.CancelForAsync(db, id, now, ct);
+        await Bardana.StrikeForAsync(db, id, now, ct);
         // Charges paid from the drawer for this lot come off the kharcha too.
         var paidCharges = await db.PurchaseCharges.Where(c => c.PurchaseId == id && c.ExpenseId != null).Select(c => c.ExpenseId!.Value).ToListAsync(ct);
         await db.Expenses.Where(e => paidCharges.Contains(e.Id) && e.StruckAt == null)

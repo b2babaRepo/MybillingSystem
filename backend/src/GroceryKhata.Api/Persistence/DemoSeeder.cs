@@ -45,6 +45,7 @@ public static class DemoSeeder
         await SeedKhataBillsAsync(services, seed.Shop.Phone);
         await SeedHouseholdKhataAsync(services, seed.Shop.Phone, seed.Household.FullName, seed.Household.Phone);
         await SeedOptionsAsync(services, seed.Shop.Phone);
+        await SeedBuyingAsync(services, seed.Shop.Phone);
         if (seed.Staff is { } staff)
         {
             await SeedStaffAsync(services, seed.Shop.Phone, staff);
@@ -95,6 +96,81 @@ public static class DemoSeeder
         {
             await sp.GetRequiredService<StockService>().ImportAsync(new ImportRequest(rows), shopId.UserId, CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// The buying side, so its screens show something: two suppliers who both sell one item, an order already late, a
+    /// draft order, stock kept aside at the counter, a godown holding some goods, and empty bags. Skipped once the shop
+    /// has a godown.
+    /// </summary>
+    private static async Task SeedBuyingAsync(IServiceProvider services, string phone)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<AppDbContext>();
+        var normalized = PhoneNumber.Normalize(phone);
+        var owner = await db.Memberships.AsNoTracking().Where(m => db.Users.Any(u => u.Id == m.UserId && u.Phone == normalized))
+            .OrderBy(m => m.CreatedAt).Select(m => new { m.ShopId, m.UserId }).FirstOrDefaultAsync();
+        if (owner is null)
+        {
+            return;
+        }
+
+        var tenant = sp.GetRequiredService<TenantContext>();
+        tenant.SetShop(owner.ShopId);
+        tenant.SetUser(owner.UserId);
+        if (await db.Godowns.AnyAsync())
+        {
+            return;
+        }
+
+        var items = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService && p.SellingPrice > 0 && p.Stock > 5).OrderBy(p => p.CreatedAt).Take(4).ToListAsync();
+        if (items.Count < 4)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var today = IndiaTime.Today(TimeProvider.System);
+        var suppliers = await db.Suppliers.OrderBy(x => x.CreatedAt).Take(2).ToListAsync();
+        foreach (var name in new[] { "Agarwal Wholesale", "Gupta Distributors" }.Skip(suppliers.Count))
+        {
+            var supplier = new Supplier { Name = name, Phone = name.StartsWith('A') ? "9000000101" : "9000000102", PaymentDays = 15 };
+            db.Suppliers.Add(supplier);
+            suppliers.Add(supplier);
+        }
+
+        var number = await db.PurchaseOrders.MaxAsync(o => (int?)o.Number) ?? 0;
+        PurchaseOrder Order(Supplier supplier, PurchaseOrderStatus status, DateOnly? expected, string? note, params (Product Item, decimal Quantity)[] lines) => new()
+        {
+            Number = ++number, SupplierId = supplier.Id, Status = status, ExpectedOn = expected, Note = note, CreatedByUserId = owner.UserId,
+            Lines = lines.Select(l => new PurchaseOrderLine { ProductId = l.Item.Id, Quantity = l.Quantity, Rate = decimal.Round(l.Item.SellingPrice * 0.8m, 0) }).ToList(),
+        };
+        // Both suppliers have the first item on order: the order is split, and one of them is three days late.
+        db.PurchaseOrders.AddRange(
+            Order(suppliers[0], PurchaseOrderStatus.Open, today.AddDays(-3), null, (items[0], 10), (items[1], 6)),
+            Order(suppliers[1], PurchaseOrderStatus.Open, today.AddDays(2), null, (items[0], 6)),
+            Order(suppliers[0], PurchaseOrderStatus.Draft, null, "Festival stock", (items[2], 20)));
+        db.StockHolds.Add(new StockHold
+        {
+            ProductId = items[3].Id, Quantity = 2, PartyName = "Mohan Lal", Until = today.AddDays(1), Note = "Will collect tomorrow", Status = HoldStatus.Active,
+            CreatedByUserId = owner.UserId,
+        });
+
+        var godown = new Godown { Name = "Back room" };
+        db.Godowns.Add(godown);
+        db.StockTransfers.Add(new StockTransfer
+        {
+            Number = 1, ToGodownId = godown.Id, Note = "Extra stock kept at the back", OccurredAt = now, CreatedByUserId = owner.UserId,
+            Lines = items.Take(2).Select(i => new StockTransferLine { ProductId = i.Id, Quantity = Math.Floor(i.Stock / 2) }).ToList(),
+        });
+
+        var jute = new BagType { Name = "Jute 50 kg", SaleRate = 12, FromGoods = true };
+        db.BagTypes.Add(jute);
+        db.BagMoves.AddRange(
+            new BagMove { BagTypeId = jute.Id, Kind = BagMoveKind.CameWithGoods, Quantity = 40, SupplierId = suppliers[0].Id, OccurredAt = now.AddDays(-6), CreatedByUserId = owner.UserId },
+            new BagMove { BagTypeId = jute.Id, Kind = BagMoveKind.ReturnedToSupplier, Quantity = -10, SupplierId = suppliers[0].Id, OccurredAt = now.AddDays(-2), CreatedByUserId = owner.UserId });
+        await db.SaveChangesAsync();
     }
 
     /// <summary>

@@ -92,4 +92,32 @@ public sealed class GodownTests(ApiFactory api)
         await GodownAsync(shop, "Back room");
         Assert.Empty(await (await ShopAsync()).GetJsonAsync<List<GodownDto>>("/api/v1/godowns"));
     }
+
+    [Fact]
+    public async Task Goods_can_be_unloaded_at_a_godown_and_a_bill_can_hand_them_out_from_there()
+    {
+        var shop = await ShopAsync();
+        var sugar = await ItemAsync(shop, "Sugar", 0m);
+        var back = await GodownAsync(shop, "Back room");
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jain Traders" })).EnsureSuccessStatusCode();
+
+        var receipt = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = receipt, supplierId = supplier, godownId = back, lines = new[] { new { productId = sugar, quantity = 50m, damaged = 2m } } })).EnsureSuccessStatusCode();
+        var where = await WhereAsync(shop, sugar);
+        Assert.Equal((48m, 0m, 48m), (where.Total, where.Shelf, where.Godowns[back]));
+
+        // A bill handed out from the godown takes it from there, not the shelf; a retry moves nothing twice.
+        var bill = new { id = Guid.CreateVersion7(), godownId = back, lines = new[] { new { productId = sugar, name = "Sugar", quantity = 5m, unitPrice = 50m } }, paidAmount = 250m, paymentMode = "cash" };
+        (await shop.PostJsonAsync("/api/v1/bills", bill)).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/bills", bill)).EnsureSuccessStatusCode();
+        where = await WhereAsync(shop, sugar);
+        Assert.Equal((43m, 0m, 43m), (where.Total, where.Shelf, where.Godowns[back]));
+
+        // Cancelling the receipt takes its goods out of the godown too.
+        (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/cancel", new { })).EnsureSuccessStatusCode();
+        where = await WhereAsync(shop, sugar);
+        // The 48 that came are gone again; the 5 already sold from the godown stay sold from it.
+        Assert.Equal((-5m, -5m, 0m), (where.Total, where.Godowns[back], where.Shelf));
+    }
 }

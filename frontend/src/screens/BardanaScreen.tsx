@@ -6,7 +6,7 @@ import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 
 type Kind = 'opening' | 'came_with_goods' | 'bought' | 'sold' | 'returned_to_supplier' | 'used' | 'damaged' | 'counted'
-interface BagType { id: string; name: string; saleRate: number | null; isActive: boolean; onHand: number; value: number | null }
+interface BagType { id: string; name: string; saleRate: number | null; isActive: boolean; onHand: number; value: number | null; fromGoods?: boolean }
 interface SupplierBags { supplierId: string; supplier: string; came: number; returned: number; holding: number }
 interface Summary { types: BagType[]; suppliers: SupplierBags[]; soldThisMonth: number; boughtThisMonth: number }
 interface Move { id: string; bagType: string; kind: Kind; quantity: number; rate: number | null; amount: number | null; mode: string | null; supplier: string | null; party: string | null; note: string | null; occurredAt: string; struck: boolean; by: string | null }
@@ -81,6 +81,13 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
         {types.map((x) => (
           <div key={x.id} className="flex flex-col gap-1 rounded-[18px] bg-white p-3 shadow-sm">
             <p className="flex justify-between font-bold"><span>👜 {x.name}</span><span className="tabular-nums">{x.onHand}</span></p>
+            {isOwner && (
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={!!x.fromGoods} className="h-4 w-4"
+                  onChange={(e) => void run(() => api('/v1/bardana/types', 'POST', { id: x.id, name: x.name, saleRate: x.saleRate, isActive: true, fromGoods: e.target.checked }))} />
+                {t('bardana.fromGoods')}
+              </label>
+            )}
             <p className="text-xs text-muted">{x.saleRate != null ? t('bardana.rateEach', { rate: formatRupees(x.saleRate) }) : t('bardana.noRate')}{x.value != null ? ` · ${t('bardana.worth', { value: formatRupees(x.value) })}` : ''}</p>
             <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold">
               <button onClick={() => open(x, 'came_with_goods')} className="min-h-9 rounded-xl border border-line px-2">+ {t('bardana.kind.came_with_goods')}</button>

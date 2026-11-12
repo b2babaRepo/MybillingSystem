@@ -84,4 +84,33 @@ public sealed class LandedCostTests(ApiFactory api)
         Assert.Equal((CostSplit.Quantity, 12m, 2m), (lots.Single().Split, lots.Single().Lines.Single().LandedCost, lots.Single().Lines.Single().ChargePerUnit));
         Assert.Equal(0m, (await shop.GetJsonAsync<CashBookDto>("/api/v1/cash-book")).SpentCash);
     }
+
+    [Fact]
+    public async Task Each_lot_shows_what_really_sold_from_it_oldest_first_and_freight_can_be_added_later()
+    {
+        var shop = await ShopAsync();
+        var oil = await ItemAsync(shop, "Oil", 50m);
+        var supplier = await SupplierAsync(shop);
+        var first = Guid.CreateVersion7();
+        var second = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = first, supplierId = supplier, paidAmount = 0m, lines = new[] { new { productId = oil, quantity = 10m, unitCost = 30m } } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = second, supplierId = supplier, paidAmount = 0m, lines = new[] { new { productId = oil, quantity = 10m, unitCost = 40m } } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = oil, name = "Oil", quantity = 15m, unitPrice = 50m } }, paidAmount = 750m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+
+        // The older lot sold out first: 10 at 50 on a 30 cost; then 5 of the newer one on a 40 cost.
+        var lots = await shop.GetJsonAsync<List<LotDto>>($"/api/v1/suppliers/lots?productId={oil}");
+        var old = lots.Single(l => l.Id == first).Lines.Single();
+        var fresh = lots.Single(l => l.Id == second).Lines.Single();
+        Assert.Equal((10m, 500m, 200m, 0m), (old.Sold, old.Revenue, old.Profit, old.Left));
+        Assert.Equal((5m, 250m, 50m, 5m), (fresh.Sold, fresh.Revenue, fresh.Profit, fresh.Left));
+
+        // The transporter's bill comes later: ₹20 over the newer lot's 10 units raises its landed cost by 2, and the 5
+        // still on hand (all from it) carry it into today's cost.
+        var before = (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{oil}")).CostPrice!.Value;
+        (await shop.PostJsonAsync($"/api/v1/suppliers/purchases/{second}/charges", new { charges = new[] { new { label = "Lorry freight", amount = 20m, paidBy = "cash" } } })).EnsureSuccessStatusCode();
+        var lot = await shop.GetJsonAsync<LotDto>($"/api/v1/suppliers/purchases/{second}/landed");
+        Assert.Equal((42m, 20m, 40m), (lot.Lines.Single().LandedCost, lot.Charges, lot.Lines.Single().Profit));
+        Assert.Equal(before + 2m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{oil}")).CostPrice);
+        Assert.Equal(20m, (await shop.GetJsonAsync<CashBookDto>("/api/v1/cash-book")).SpentCash);
+    }
 }

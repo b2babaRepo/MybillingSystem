@@ -267,6 +267,45 @@ public static class Godowns
         return TypedResults.Ok((await ToDtosAsync(db, [transfer], ct))[0]);
     }
 
+    /// <summary>
+    /// A move made by something else (goods in to a godown, a bill sold from one), with the same id as what made it so a
+    /// retry adds nothing. From a godown, takes only what is there. Joins the caller's transaction; the caller saves.
+    /// Returns what was moved.
+    /// </summary>
+    internal static async Task<decimal> MoveForAsync(AppDbContext db, Guid id, Guid? from, Guid? to, IEnumerable<(Guid ProductId, decimal Quantity)> goods, string note,
+        Guid userId, DateTimeOffset now, CancellationToken ct)
+    {
+        if (await db.StockTransfers.AnyAsync(t => t.Id == id, ct) || db.StockTransfers.Local.Any(t => t.Id == id))
+        {
+            return 0;
+        }
+
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext('stock_transfers'))", ct);
+        var held = from is { } g ? await HeldAsync(db, ct) : null;
+        var lines = goods.GroupBy(x => x.ProductId).Select(x => (ProductId: x.Key, Quantity: x.Sum(y => y.Quantity)))
+            .Select(x => (x.ProductId, Quantity: held is null ? x.Quantity : Math.Min(x.Quantity, held.GetValueOrDefault((from!.Value, x.ProductId)))))
+            .Where(x => x.Quantity > 0).ToList();
+        if (lines.Count == 0)
+        {
+            return 0;
+        }
+
+        db.StockTransfers.Add(new StockTransfer
+        {
+            Id = id, Number = (await db.StockTransfers.MaxAsync(t => (int?)t.Number, ct) ?? 0) + 1, FromGodownId = from, ToGodownId = to, Note = note[..Math.Min(200, note.Length)],
+            OccurredAt = now, CreatedByUserId = userId,
+            Lines = lines.Select(l => new StockTransferLine { ProductId = l.ProductId, Quantity = l.Quantity }).ToList(),
+        });
+        return lines.Sum(l => l.Quantity);
+    }
+
+    /// <summary>Takes back a move made for something now cancelled (a receipt or supplier bill), whatever happened since.</summary>
+    internal static Task<int> CancelForAsync(AppDbContext db, Guid id, DateTimeOffset now, CancellationToken ct) =>
+        db.StockTransfers.Where(t => t.Id == id && t.CancelledAt == null).ExecuteUpdateAsync(s => s.SetProperty(t => t.CancelledAt, now), ct);
+
+    /// <summary>A godown of this shop that is in use.</summary>
+    internal static Task<bool> IsActiveAsync(AppDbContext db, Guid id, CancellationToken ct) => db.Godowns.AnyAsync(g => g.Id == id && g.IsActive, ct);
+
     /// <summary>Undoes a move, if the goods are still where it put them.</summary>
     private static async Task<IResult> CancelAsync(Guid id, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {

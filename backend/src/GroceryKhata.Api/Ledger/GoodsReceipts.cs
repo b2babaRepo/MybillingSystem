@@ -57,7 +57,7 @@ public sealed record ReceiptLine(Guid ProductId, string Name, decimal Quantity, 
 public sealed record ReceiptLineRequest(Guid ProductId, decimal Quantity, decimal? Bags = null, decimal? Damaged = null);
 
 public sealed record GoodsReceiptRequest(Guid Id, Guid SupplierId, IReadOnlyList<ReceiptLineRequest>? Lines, Guid? OrderId = null, string? Note = null,
-    string? VehicleNo = null, string? Bilty = null, string? Transporter = null, decimal? GrossWeight = null, decimal? TareWeight = null);
+    string? VehicleNo = null, string? Bilty = null, string? Transporter = null, decimal? GrossWeight = null, decimal? TareWeight = null, Guid? GodownId = null);
 
 public sealed record GoodsReceiptDto(
     Guid Id, int Number, Guid SupplierId, Guid? PurchaseOrderId, DateTimeOffset ReceivedAt, IReadOnlyList<ReceiptLine> Lines, string? Note, Guid? PurchaseId, DateTimeOffset? CancelledAt, string? By,
@@ -193,6 +193,18 @@ public static class GoodsReceipts
         }
 
         await Arrivals.AddAsync(db, request.SupplierId, receipt.Id, null, request.OrderId, lines.Select(l => (l.ProductId, l.Quantity, l.Damaged ?? 0, l.Bags is > 0 ? l.Bags : null, (decimal?)null)), now, ct);
+        if (request.GodownId is { } godown)
+        {
+            // Unloaded straight at the godown: the good units go there, not on the shop shelf.
+            if (!await Godowns.IsActiveAsync(db, godown, ct))
+            {
+                return Invalid("GodownId", "That godown wasn't found.");
+            }
+
+            await Godowns.MoveForAsync(db, receipt.Id, null, godown, lines.Select(l => (l.ProductId, l.Quantity - (l.Damaged ?? 0))), $"Goods receipt #{receipt.Number}", userId, now, ct);
+        }
+
+        await Bardana.CameWithGoodsAsync(db, receipt.Id, request.SupplierId, lines.Sum(l => l.Bags is > 0 ? l.Bags.Value : 0), userId, now, ct);
         await db.SaveChangesAsync(ct);
         var ids = lines.Select(l => l.ProductId).Order().ToArray();
         var quantities = ids.Select(i => lines.Single(l => l.ProductId == i)).Select(l => l.Quantity - (l.Damaged ?? 0)).ToArray();
@@ -247,6 +259,8 @@ public static class GoodsReceipts
         }
 
         await db.ArrivalLines.Where(a => a.ReceiptId == id).ExecuteUpdateAsync(s => s.SetProperty(a => a.CancelledAt, now), ct);
+        await Godowns.CancelForAsync(db, id, now, ct);
+        await Bardana.StrikeForAsync(db, id, now, ct);
         await db.SaveChangesAsync(ct);
         var ids = lines.Select(l => l.ProductId).Order().ToArray();
         var quantities = ids.Select(i => lines.Single(l => l.ProductId == i)).Select(l => l.Quantity - l.Damaged).ToArray();
