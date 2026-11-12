@@ -104,6 +104,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Godown> Godowns => Set<Godown>();
 
+    public DbSet<BagType> BagTypes => Set<BagType>();
+
+    public DbSet<BagMove> BagMoves => Set<BagMove>();
+
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
 
     public DbSet<StockTransferLine> StockTransferLines => Set<StockTransferLine>();
@@ -855,6 +859,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(f => f.Note).HasMaxLength(300);
             b.HasIndex(f => new { f.ShopId, f.OrderId, f.At });
+        });
+
+        modelBuilder.Entity<BagType>(b =>
+        {
+            b.ToTable("bag_types");
+            b.HasTenantKey();
+            b.Property(t => t.Name).HasMaxLength(60);
+            b.Property(t => t.SaleRate).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<BagMove>(b =>
+        {
+            b.ToTable("bag_moves");
+            b.HasTenantKey();
+            b.Property(m => m.Quantity).HasPrecision(12, 3);
+            b.Property(m => m.Rate).HasPrecision(12, 2);
+            b.Property(m => m.Amount).HasPrecision(14, 2);
+            b.Property(m => m.Party).HasMaxLength(80);
+            b.Property(m => m.Note).HasMaxLength(200);
+            b.HasIndex(m => new { m.ShopId, m.BagTypeId });
+            b.HasIndex(m => new { m.ShopId, m.OccurredAt });
         });
 
         modelBuilder.Entity<Godown>(b =>

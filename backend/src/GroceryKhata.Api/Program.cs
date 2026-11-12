@@ -120,6 +120,7 @@ app.MapCategories();
 app.MapSupplierItems();
 app.MapStockHolds();
 app.MapGodowns();
+app.MapBardana();
 app.MapGoodsTracking();
 app.MapStockAlerts();
 app.MapCashMoves();

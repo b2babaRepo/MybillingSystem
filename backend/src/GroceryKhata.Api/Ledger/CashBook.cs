@@ -39,6 +39,10 @@ public enum CashBookSource
     /// <summary>Cash paid into the bank (out of the drawer) or drawn from it (into the drawer).</summary>
     ToBank,
     FromBank,
+
+    /// <summary>Empty bags sold to the bardana dealer (in), or bought (out).</summary>
+    BagsSold,
+    BagsBought,
 }
 
 /// <summary>
@@ -123,10 +127,16 @@ public static class CashBookEndpoints
                 CashMoveKind.Added => CashBookSource.CashAdded, CashMoveKind.Removed => CashBookSource.CashRemoved,
                 CashMoveKind.ToBank => CashBookSource.ToBank, _ => CashBookSource.FromBank,
             }, m.Note ?? "", PaymentMode.Cash, m.CashEffect, null, m.Id)));
+        // Empty bags: sold to the bardana dealer, or bought.
+        lines.AddRange(await (from m in db.BagMoves.AsNoTracking()
+                              where m.OccurredAt >= start && m.OccurredAt < end && m.StruckAt == null && m.Amount != null && m.Mode != null
+                              join t in db.BagTypes.AsNoTracking() on m.BagTypeId equals t.Id
+                              select new CashBookLine(m.OccurredAt, m.Kind == BagMoveKind.Sold ? CashBookSource.BagsSold : CashBookSource.BagsBought,
+                                  m.Party ?? t.Name, m.Mode!.Value, m.Kind == BagMoveKind.Sold ? m.Amount!.Value : -m.Amount!.Value, null)).ToListAsync(ct));
         lines.Sort((a, b) => a.OccurredAt.CompareTo(b.OccurredAt));
 
         // Money out of the drawer that isn't a refund of money in: kharcha, cash taken out, cash put in the bank.
-        static bool Out(CashBookSource s) => s is CashBookSource.Expense or CashBookSource.CashRemoved or CashBookSource.ToBank;
+        static bool Out(CashBookSource s) => s is CashBookSource.Expense or CashBookSource.CashRemoved or CashBookSource.ToBank or CashBookSource.BagsBought;
         var money = lines.Where(l => !Out(l.Source)).ToList();
         var cash = money.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount);
         var upi = money.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount);
