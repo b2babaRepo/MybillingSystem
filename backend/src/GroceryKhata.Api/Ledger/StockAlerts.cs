@@ -153,7 +153,9 @@ public static class StockAlerts
             dueToday > 0 ? $"{dueToday} due today" : null,
             dueTomorrow > 0 ? $"{dueTomorrow} due tomorrow" : null,
         }.Where(x => x is not null));
-        if (today.Count == 0 && overdue == 0 && goods.Length == 0 && !always)
+        // A festival within three weeks with items to stock up on: worth a morning note of its own.
+        var festival = await Catalogue.Festivals.PromptAsync(db, clock, 21, ct);
+        if (today.Count == 0 && overdue == 0 && goods.Length == 0 && festival is null && !always)
         {
             return 0;
         }
@@ -164,8 +166,10 @@ public static class StockAlerts
             title = today.Count == 0 ? "Stock is fine today" : $"Order today: {today.Count} item{(today.Count == 1 ? "" : "s")}",
             body = (today.Count == 0 ? "Nothing is running out." : names + (today.Count > 4 ? $" and {today.Count - 4} more" : ""))
                 + (overdue > 0 ? $" · {overdue} held item{(overdue == 1 ? "" : "s")} past the date" : "")
-                + (goods.Length > 0 ? $" · Goods: {goods}" : ""),
-            url = "/#/reorder",
+                + (goods.Length > 0 ? $" · Goods: {goods}" : "")
+                + (festival is { } f ? $" · {f.Name} {(f.DaysLeft == 0 ? "today" : f.DaysLeft == 1 ? "tomorrow" : $"in {f.DaysLeft} days")}: stock up {f.Items} item{(f.Items == 1 ? "" : "s")}" : ""),
+            // Only the festival to tell about: open its list instead of What to order.
+            url = today.Count == 0 && overdue == 0 && goods.Length == 0 && festival is not null ? "/#/festivals" : "/#/reorder",
         });
         var keys = await KeysAsync(db, ct);
         var vapid = new VapidDetails("mailto:support@groceryKhata.app", keys.PublicKey, keys.PrivateKey);

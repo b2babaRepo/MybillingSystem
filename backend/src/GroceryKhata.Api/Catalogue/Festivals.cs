@@ -103,7 +103,18 @@ public static class Festivals
     /// Festivals in the next <see cref="LeadDays"/> days with what to stock. With last year's sales, the items that sold
     /// clearly more than usual in the run-up; otherwise the shop's items that festival usually needs.
     /// </summary>
-    private static async Task<IReadOnlyList<FestivalDto>> UpcomingAsync(bool? all, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    private static Task<IReadOnlyList<FestivalDto>> UpcomingAsync(bool? all, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        ListAsync(db, clock, all == true, ct);
+
+    /// <summary>
+    /// For the 8 am phone note: the nearest festival within <paramref name="withinDays"/> that has items to stock up on,
+    /// with how many. Null when there is none.
+    /// </summary>
+    internal static async Task<(string Name, int DaysLeft, int Items)?> PromptAsync(AppDbContext db, TimeProvider clock, int withinDays, CancellationToken ct) =>
+        (await ListAsync(db, clock, false, ct)).Where(f => f.DaysLeft <= withinDays).Select(f => (f.Name, f.DaysLeft, Items: f.Items.Count(i => i.Suggest > 0)))
+            .FirstOrDefault(f => f.Items > 0) is { Name: not null } next ? next : null;
+
+    internal static async Task<IReadOnlyList<FestivalDto>> ListAsync(AppDbContext db, TimeProvider clock, bool all, CancellationToken ct)
     {
         var today = IndiaTime.Today(clock);
         var settings = await db.FestivalSettings.AsNoTracking().ToListAsync(ct);
@@ -115,7 +126,7 @@ public static class Festivals
 
         var upcoming = Calendar.SelectMany(f => new[] { today.Year, today.Year + 1 }.Select(y => (f, y, Date: DateOf(f, y))))
             .Where(x => x.Date is { } d && d >= today && d.DayNumber - today.DayNumber <= LeadDays)
-            .Where(x => all == true || !settings.Any(s => s.Key == x.f.Key && s.Year == x.y && s.Off))
+            .Where(x => all || !settings.Any(s => s.Key == x.f.Key && s.Year == x.y && s.Off))
             .OrderBy(x => x.Date).ToList();
         if (upcoming.Count == 0)
         {
