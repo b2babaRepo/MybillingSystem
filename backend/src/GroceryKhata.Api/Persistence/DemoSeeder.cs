@@ -100,8 +100,8 @@ public static class DemoSeeder
 
     /// <summary>
     /// The buying side, so its screens show something: two suppliers who both sell one item, an order already late, a
-    /// draft order, stock kept aside at the counter, a godown holding some goods, and empty bags. Skipped once the shop
-    /// has a godown.
+    /// draft order, stock kept aside at the counter, a godown holding some goods, and empty bags. Each piece is added only
+    /// when the shop has none of it yet, so it tops up a shop that was already tried out by hand.
     /// </summary>
     private static async Task SeedBuyingAsync(IServiceProvider services, string phone)
     {
@@ -119,11 +119,6 @@ public static class DemoSeeder
         var tenant = sp.GetRequiredService<TenantContext>();
         tenant.SetShop(owner.ShopId);
         tenant.SetUser(owner.UserId);
-        if (await db.Godowns.AnyAsync())
-        {
-            return;
-        }
-
         var items = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService && p.SellingPrice > 0 && p.Stock > 5).OrderBy(p => p.CreatedAt).Take(4).ToListAsync();
         if (items.Count < 4)
         {
@@ -141,27 +136,46 @@ public static class DemoSeeder
         }
 
         var number = await db.PurchaseOrders.MaxAsync(o => (int?)o.Number) ?? 0;
+        var late = await db.PurchaseOrders.AnyAsync(o => o.Status == PurchaseOrderStatus.Open && o.ExpectedOn < today);
+        var drafted = await db.PurchaseOrders.AnyAsync(o => o.Status == PurchaseOrderStatus.Draft);
         PurchaseOrder Order(Supplier supplier, PurchaseOrderStatus status, DateOnly? expected, string? note, params (Product Item, decimal Quantity)[] lines) => new()
         {
             Number = ++number, SupplierId = supplier.Id, Status = status, ExpectedOn = expected, Note = note, CreatedByUserId = owner.UserId,
             Lines = lines.Select(l => new PurchaseOrderLine { ProductId = l.Item.Id, Quantity = l.Quantity, Rate = decimal.Round(l.Item.SellingPrice * 0.8m, 0) }).ToList(),
         };
         // Both suppliers have the first item on order: the order is split, and one of them is three days late.
-        db.PurchaseOrders.AddRange(
-            Order(suppliers[0], PurchaseOrderStatus.Open, today.AddDays(-3), null, (items[0], 10), (items[1], 6)),
-            Order(suppliers[1], PurchaseOrderStatus.Open, today.AddDays(2), null, (items[0], 6)),
-            Order(suppliers[0], PurchaseOrderStatus.Draft, null, "Festival stock", (items[2], 20)));
-        db.StockHolds.Add(new StockHold
+        if (!late)
         {
-            ProductId = items[3].Id, Quantity = 2, PartyName = "Mohan Lal", Until = today.AddDays(1), Note = "Will collect tomorrow", Status = HoldStatus.Active,
-            CreatedByUserId = owner.UserId,
-        });
+            db.PurchaseOrders.AddRange(
+                Order(suppliers[0], PurchaseOrderStatus.Open, today.AddDays(-3), null, (items[0], 10), (items[1], 6)),
+                Order(suppliers[1], PurchaseOrderStatus.Open, today.AddDays(2), null, (items[0], 6)));
+        }
+
+        if (!drafted)
+        {
+            db.PurchaseOrders.Add(Order(suppliers[0], PurchaseOrderStatus.Draft, null, "Festival stock", (items[2], 20)));
+        }
+
+        if (!await db.StockHolds.AnyAsync(h => h.Status == HoldStatus.Active))
+        {
+            db.StockHolds.Add(new StockHold
+            {
+                ProductId = items[3].Id, Quantity = 2, PartyName = "Mohan Lal", Until = today.AddDays(1), Note = "Will collect tomorrow", Status = HoldStatus.Active,
+                CreatedByUserId = owner.UserId,
+            });
+        }
+
+        if (await db.Godowns.AnyAsync())
+        {
+            await db.SaveChangesAsync();
+            return;
+        }
 
         var godown = new Godown { Name = "Back room" };
         db.Godowns.Add(godown);
         db.StockTransfers.Add(new StockTransfer
         {
-            Number = 1, ToGodownId = godown.Id, Note = "Extra stock kept at the back", OccurredAt = now, CreatedByUserId = owner.UserId,
+            Number = (await db.StockTransfers.MaxAsync(t => (int?)t.Number) ?? 0) + 1, ToGodownId = godown.Id, Note = "Extra stock kept at the back", OccurredAt = now, CreatedByUserId = owner.UserId,
             Lines = items.Take(2).Select(i => new StockTransferLine { ProductId = i.Id, Quantity = Math.Floor(i.Stock / 2) }).ToList(),
         });
 
