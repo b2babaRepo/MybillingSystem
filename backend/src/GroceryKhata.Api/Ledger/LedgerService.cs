@@ -714,6 +714,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
             return LedgerResult<BillDto>.Conflicted("Items on this bill were returned, so it can't be cancelled as a whole.");
         }
 
+        // A bill in a closed month stays as filed: a credit note in the open month undoes it instead.
+        await Books.EnsureOpenAsync(db, tenant, bill.OccurredAt, cancellationToken);
         var now = clock.GetUtcNow();
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         // One update decides who cancels: a second attempt changes no row and gets the saved bill back.

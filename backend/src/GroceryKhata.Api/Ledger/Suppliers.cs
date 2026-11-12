@@ -348,9 +348,10 @@ public static class SupplierEndpoints
 
     /// <summary>
     /// Adds charges to a saved bill (an older one too). Each item's landed cost goes up by its share, and so does the cost
-    /// of what is still in stock: its average cost rises by the share on the units still held.
+    /// of what is still in stock: its average cost rises by the share on the units still held. The stock ledger is
+    /// append-only and is left as it was; both changes are kept in the audit log.
     /// </summary>
-    private static async Task<IResult> AddChargesAsync(Guid id, AddChargesRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> AddChargesAsync(Guid id, AddChargesRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         var charges = request.Charges ?? [];
         if (charges.Count is 0 or > 10 || charges.Any(c => c.Amount <= 0 || c.Amount > Money.MaxAmount || decimal.Round(c.Amount, 2) != c.Amount || string.IsNullOrWhiteSpace(c.Label)
@@ -371,6 +372,9 @@ public static class SupplierEndpoints
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This bill is cancelled.");
         }
 
+        // A bill in a closed month keeps its cost as filed: a late charge for it goes in the kharcha of the open month.
+        await Books.EnsureOpenAsync(db, tenant, purchase.OccurredAt, ct);
+
         var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
         var pool = charges.Sum(c => c.Amount);
         decimal Units(PurchaseLine l) => l.Quantity + l.FreeQuantity;
@@ -388,16 +392,10 @@ public static class SupplierEndpoints
 
         var ids = purchase.Lines.Select(l => l.ProductId).Distinct().ToList();
         var products = await db.Products.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        var moves = await db.StockMovements.Where(m => m.RefType == "purchase" && m.RefId == id && m.Quantity > 0).ToListAsync(ct);
         foreach (var line in purchase.Lines.Where(l => Units(l) > 0))
         {
             var perUnit = pool * Weight(line) / weights / Units(line);
             line.LandedUnitCost = decimal.Round((line.LandedUnitCost ?? line.Taxable / Units(line)) + perUnit, 2);
-            foreach (var move in moves.Where(m => m.ProductId == line.ProductId))
-            {
-                move.CostPrice = line.LandedUnitCost;
-            }
-
             // Only the units still on hand carry the extra into today's cost; what was sold already went at the old cost.
             var product = products[line.ProductId];
             if (product.CostPrice is { } cost && product.Stock > 0)
@@ -849,13 +847,16 @@ public static class SupplierEndpoints
     /// Takes back a bill entered by mistake: its stock goes out again and the amount owed comes off. Money already paid
     /// stays paid (the supplier owes it back, shown as a credit). Item costs keep their average. Safe to repeat.
     /// </summary>
-    private static async Task<IResult> CancelPurchaseAsync(Guid id, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> CancelPurchaseAsync(Guid id, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         var purchase = await db.Purchases.AsNoTracking().Include(p => p.Lines).SingleOrDefaultAsync(p => p.Id == id, ct);
         if (purchase is null)
         {
             return TypedResults.NotFound();
         }
+
+        // A supplier bill in a closed month stays as filed: a supplier credit note in the open month puts it right.
+        await Books.EnsureOpenAsync(db, tenant, purchase.OccurredAt, ct);
 
         var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);

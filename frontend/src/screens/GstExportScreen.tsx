@@ -7,6 +7,7 @@ import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import { downloadCsv } from '../lib/reports'
 import { daysUntil, ReportShell, useReportView } from '../components/ReportShell'
+import { BooksCard } from '../components/BooksCard'
 
 interface GstMonth {
   month: string; composition: boolean; bills: number; cancelled: number; firstBillNo: string | null; lastBillNo: string | null
@@ -141,6 +142,7 @@ export function GstExportScreen() {
             </>
           : <Button tone="plain" className="lg:self-end lg:px-10" onClick={() => navigate('/plan')}>{t('gstExport.upgrade')}</Button>}
         <p className="text-xs text-muted">{t('gstExport.hint')}</p>
+        <BooksCard month={month} />
       </>}
       {error && <p className="text-sm text-due">{error}</p>}
     </ReportShell>

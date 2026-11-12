@@ -4269,8 +4269,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
                     b.HasAlternateKey("ShopId", "Id");
 
-                    b.HasIndex("ShopId", "Day")
-                        .IsUnique();
+                    b.HasIndex("ShopId", "Day");
 
                     b.ToTable("cash_counts", (string)null);
                 });
@@ -9155,6 +9154,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<string>("BlockedReason")
                         .HasColumnType("text")
                         .HasColumnName("blocked_reason");
+
+                    b.Property<DateOnly?>("BooksClosedUntil")
+                        .HasColumnType("date")
+                        .HasColumnName("books_closed_until");
 
                     b.Property<string>("City")
                         .HasMaxLength(80)

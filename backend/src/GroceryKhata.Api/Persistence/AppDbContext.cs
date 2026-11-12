@@ -680,7 +680,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("cash_counts");
             b.HasTenantKey();
             b.Property(c => c.Note).HasMaxLength(200);
-            b.HasIndex(c => new { c.ShopId, c.Day }).IsUnique();
+            b.HasIndex(c => new { c.ShopId, c.Day });
         });
 
         modelBuilder.Entity<CreditNote>(b =>

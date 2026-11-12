@@ -17,6 +17,7 @@ builder.AddHardening();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GroceryKhata.Api.Ledger.BooksClosedHandler>();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower)));
 builder.Services.AddPersistence();
@@ -122,6 +123,7 @@ app.MapStockHolds();
 app.MapGodowns();
 app.MapBardana();
 app.MapFestivals();
+app.MapBooks();
 app.MapGoodsTracking();
 app.MapStockAlerts();
 app.MapCashMoves();

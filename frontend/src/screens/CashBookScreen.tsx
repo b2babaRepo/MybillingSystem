@@ -103,6 +103,8 @@ interface CashCount {
   note: string | null
   countedBy: string | null
   countedAt: string | null
+  history?: { at: string; by: string | null; expected: number; counted: number; difference: number; note: string | null }[]
+  expectedAtCount?: number | null
 }
 
 /**
@@ -169,7 +171,8 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
       )}
       {row(`+ ${t('galla.cashIn')}`, formatRupees(c.cashIn))}
       {row(`− ${t('galla.cashOut')}`, formatRupees(c.cashOut))}
-      {row(`= ${t('galla.shouldBe')}`, formatRupees(done ? c.expected : expected), 'border-t border-line pt-2 text-base')}
+      {row(`= ${t('galla.shouldBe')}`, formatRupees(done ? c.expectedAtCount ?? c.expected : expected), 'border-t border-line pt-2 text-base')}
+      {done && c.expectedAtCount != null && c.expectedAtCount !== c.expected && <p className="text-xs text-amber-800">{t('galla.changedSince', { amount: formatRupees(c.expected) })}</p>}
 
       {done ? (
         <div className={`flex flex-col gap-1 rounded-xl p-3 ${c.difference === 0 ? 'bg-emerald-50 text-emerald-900' : 'bg-red-50 text-red-900'}`}>
@@ -184,6 +187,16 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
           {c.note && <span className="text-sm">{c.note}</span>}
           <span className="text-xs opacity-80">{c.countedBy} · {c.countedAt && new Date(c.countedAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>
           <button onClick={() => { setEditing(true); setCounted(String(c.counted ?? '')) }} className="min-h-11 self-start text-sm underline">{t('galla.recount')}</button>
+          {(c.history?.length ?? 0) > 1 && (
+            <details className="text-xs">
+              <summary className="cursor-pointer font-semibold">{t('galla.history', { count: c.history!.length })}</summary>
+              <ul className="mt-1 flex flex-col gap-1">
+                {c.history!.map((h, i) => (
+                  <li key={i}>{new Date(h.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · {h.by ?? ''} · {formatRupees(h.counted)} ({h.difference === 0 ? t('galla.matches') : h.difference < 0 ? t('galla.short', { amount: formatRupees(-h.difference) }) : t('galla.extra', { amount: formatRupees(h.difference) })}){h.note ? ` · ${h.note}` : ''}</li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       ) : (
         <>

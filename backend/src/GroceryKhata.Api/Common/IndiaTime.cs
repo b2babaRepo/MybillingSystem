@@ -9,6 +9,9 @@ public static class IndiaTime
 
     public static DateOnly Today(TimeProvider clock) => DateOnly.FromDateTime(clock.GetUtcNow().ToOffset(Offset).DateTime);
 
+    /// <summary>The shop day (India) a moment falls on.</summary>
+    public static DateOnly DayOf(DateTimeOffset at) => DateOnly.FromDateTime(at.ToOffset(Offset).DateTime);
+
     /// <summary>The UTC instants a shop day starts and ends (end exclusive).</summary>
     public static (DateTimeOffset Start, DateTimeOffset End) Day(DateOnly date)
     {

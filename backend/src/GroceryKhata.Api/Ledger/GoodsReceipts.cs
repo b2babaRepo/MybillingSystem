@@ -214,13 +214,15 @@ public static class GoodsReceipts
     }
 
     /// <summary>A receipt made by mistake, before its bill: the goods come off the shelf again and off the order.</summary>
-    private static async Task<IResult> CancelAsync(Guid id, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> CancelAsync(Guid id, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         var receipt = await db.GoodsReceipts.AsNoTracking().SingleOrDefaultAsync(r => r.Id == id, ct);
         if (receipt is null)
         {
             return TypedResults.NotFound();
         }
+
+        await Books.EnsureOpenAsync(db, tenant, receipt.ReceivedAt, ct);
 
         if (receipt.PurchaseId is not null)
         {

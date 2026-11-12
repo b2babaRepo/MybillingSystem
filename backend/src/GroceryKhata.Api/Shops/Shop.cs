@@ -82,6 +82,9 @@ public sealed class Shop : Entity
     /// <summary>On the composition scheme: bills are bills of supply, with no tax collected.</summary>
     public bool GstComposition { get; set; }
 
+    /// <summary>The books are closed up to this day: nothing dated on or before it can be added, changed or cancelled.</summary>
+    public DateOnly? BooksClosedUntil { get; set; }
+
     /// <summary>The shop sends goods out, so its bills offer delivery. Null: not chosen yet, its trade decides.</summary>
     public bool? DeliversGoods { get; set; }
 
