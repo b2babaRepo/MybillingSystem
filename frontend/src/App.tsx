@@ -41,6 +41,7 @@ const ImportScreen = lazy(() => import('./screens/ImportScreen').then((module) =
 const PrintScreen = lazy(() => import('./screens/PrintScreen').then((module) => ({ default: module.PrintScreen })))
 const OrderScreen = lazy(() => import('./screens/OrderScreen').then((module) => ({ default: module.OrderScreen })))
 const ProductScreen = lazy(() => import('./screens/ProductScreen').then((module) => ({ default: module.ProductScreen })))
+const GoodsToComeScreen = lazy(() => import('./screens/GoodsToComeScreen').then((module) => ({ default: module.GoodsToComeScreen })))
 const HoldsScreen = lazy(() => import('./screens/HoldsScreen').then((module) => ({ default: module.HoldsScreen })))
 const ReceivedBySupplierScreen = lazy(() => import('./screens/ReceivedBySupplierScreen').then((module) => ({ default: module.ReceivedBySupplierScreen })))
 const CategoriesScreen = lazy(() => import('./screens/CategoriesScreen').then((module) => ({ default: module.CategoriesScreen })))
@@ -284,6 +285,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
       { path: '/suppliers', label: t('side.suppliers') },
       { path: '/reorder', label: t('reorder.link') },
       { path: '/orders-placed', label: t('po.link') },
+      { path: '/goods-to-come', label: t('gtc.link') },
       { path: '/goods-in', label: t('gi.link') },
       { path: '/received-by-supplier', label: t('rs.link') },
     ] }] : []),
@@ -500,6 +502,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <StocktakeScreen shopId={shopId} />
         ) : path === '/stock-statement' ? (
           <StockStatementScreen shopId={shopId} />
+        ) : path === '/goods-to-come' && isOwner ? (
+          <GoodsToComeScreen shopId={shopId} shopName={shopName} />
         ) : path === '/holds' ? (
           <HoldsScreen shopId={shopId} />
         ) : path === '/received-by-supplier' && isOwner ? (

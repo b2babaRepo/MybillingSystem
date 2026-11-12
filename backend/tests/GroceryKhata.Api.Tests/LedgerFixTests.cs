@@ -1712,4 +1712,38 @@ public sealed class LedgerFixTests(ApiFactory api)
         Assert.Equal(9m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{rice.Id}")).Promised);
         Assert.Single(await shop.GetJsonAsync<List<HoldDto>>($"/api/v1/holds?productId={rice.Id}"));
     }
+    [Fact]
+    public async Task Goods_to_come_tracks_stages_lots_and_moved_promises()
+    {
+        var shop = await ShopAsync("kirana");
+        var sugar = await ItemAsync(shop, "Sugar", 45m, 0m);
+        var supplierId = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplierId, name = "Agarwal Traders", phone = "9876543210" })).EnsureSuccessStatusCode();
+        var orderId = Guid.CreateVersion7();
+        var late = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5)).AddDays(-3);
+        (await shop.PostJsonAsync("/api/v1/suppliers/orders", new { id = orderId, supplierId, expectedOn = late.ToString("yyyy-MM-dd"), lines = new[] { new { productId = sugar.Id, quantity = 50m, rate = (decimal?)40m } } })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/suppliers/orders/{orderId}/stage", new { stage = "sent", via = "whatsapp" })).EnsureSuccessStatusCode();
+
+        var coming = (await shop.GetJsonAsync<List<ComingOrderDto>>("/api/v1/goods-to-come")).Single();
+        Assert.Equal(("sent", 3, 0, 2000m), (coming.Stage, coming.DaysLate!.Value, coming.PromiseMoves, coming.Value));
+
+        // The supplier says next week: the date moves and that counts. Then the truck leaves with a bilty and e-way bill.
+        var next = late.AddDays(10);
+        (await shop.PostJsonAsync($"/api/v1/suppliers/orders/{orderId}/follow-ups", new { id = Guid.CreateVersion7(), channel = "call", note = "Truck on Monday", newPromisedDate = next.ToString("yyyy-MM-dd") })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/suppliers/orders/{orderId}/shipments", new { id = Guid.CreateVersion7(), ewayBillNo = "123" })).StatusCode);
+        (await shop.PostJsonAsync($"/api/v1/suppliers/orders/{orderId}/shipments", new
+        {
+            id = Guid.CreateVersion7(), dispatchedOn = late.AddDays(1).ToString("yyyy-MM-dd"), expectedOn = next.AddDays(1).ToString("yyyy-MM-dd"),
+            transporter = "Shree Roadways", lrNo = "LR-4471", vehicleNo = "rj14 ab 1234", ewayBillNo = "331234567890", freight = 600m, freightPaidBy = "shop",
+        })).EnsureSuccessStatusCode();
+        coming = (await shop.GetJsonAsync<List<ComingOrderDto>>("/api/v1/goods-to-come")).Single();
+        Assert.Equal(("dispatched", 2, next.AddDays(1), 0), (coming.Stage, coming.PromiseMoves, coming.ExpectedOn!.Value, coming.DaysLate!.Value));
+        Assert.Equal(("RJ14 AB 1234", false), (coming.Shipments.Single().VehicleNo, coming.Shipments.Single().Arrived));
+        Assert.Equal("Truck on Monday", coming.FollowUps.Single().Note);
+
+        // The goods come against the order: the lot is marked arrived and the order shows part received.
+        (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = Guid.CreateVersion7(), supplierId, orderId, lines = new[] { new { productId = sugar.Id, quantity = 30m } } })).EnsureSuccessStatusCode();
+        coming = (await shop.GetJsonAsync<List<ComingOrderDto>>("/api/v1/goods-to-come")).Single();
+        Assert.Equal(("part", 20m, true), (coming.Stage, coming.Pending, coming.Shipments.Single().Arrived));
+    }
 }

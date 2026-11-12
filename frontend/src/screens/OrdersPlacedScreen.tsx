@@ -13,6 +13,8 @@ type Filter = 'open' | 'late' | 'closed' | 'all'
 
 const value = (o: PurchaseOrder) => o.lines.reduce((s, l) => s + (l.rate ?? 0) * l.quantity, 0)
 const state = (o: PurchaseOrder) => o.status === 'open' ? (o.lines.some((l) => l.received > 0) ? 'part' : 'open') : o.status
+// Where an open order has got to, from Goods to come (placed, sent, confirmed, dispatched).
+const stageLabel = (o: PurchaseOrder) => (o.status === 'open' && o.stage && !['placed', 'part'].includes(o.stage) ? o.stage : null)
 const TONE: Record<string, string> = { open: 'bg-teal-50 text-teal-800', part: 'bg-amber-50 text-amber-800', closed: 'bg-slate-100 text-muted', cancelled: 'bg-red-50 text-due' }
 
 /**
@@ -49,6 +51,7 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
             {late.length > 0 && <span className="text-due"> · {t('po.lateCount', { count: late.length })}</span>}
           </p>
         )}
+        {late.length > 0 && <button onClick={() => navigate('/goods-to-come')} className="self-start text-sm font-semibold text-due underline">⏳ {t('gtc.chaseLate', { count: late.length })}</button>}
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('po.search')} aria-label={t('po.search')} className="h-12 rounded-xl border border-line bg-white px-3" />
         <div className="flex flex-wrap gap-1">
           {(['open', 'late', 'closed', 'all'] as const).map((f) => (
@@ -75,7 +78,10 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
                   {` · ${t('po.types', { count: o.lines.length })}`}{value(o) > 0 && ` · ${formatRupees(value(o))}`}
                 </span>
               </span>
-              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${TONE[s]}`}>{t(`po.state.${s}`)}</span>
+              <span className="flex shrink-0 flex-col items-end gap-1">
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${TONE[s]}`}>{t(`po.state.${s}`)}</span>
+                {stageLabel(o) && <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-800">{t(`gtc.stage.${stageLabel(o)}`)}</span>}
+              </span>
             </span>
             <span className="h-2 w-full overflow-hidden rounded-full bg-[#edf2f1]"><span className="block h-full rounded-full bg-teal-600" style={{ width: `${ordered > 0 ? (came / ordered) * 100 : 0}%` }} /></span>
             <span className="text-xs text-muted">{t('po.progress', { came, ordered })}{o.pending > 0 && o.status === 'open' ? ` · ${t('supplier2.stillToCome', { qty: o.pending })}` : ''}</span>

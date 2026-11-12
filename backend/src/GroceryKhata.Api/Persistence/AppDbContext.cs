@@ -102,6 +102,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<StockHold> StockHolds => Set<StockHold>();
 
+    public DbSet<OrderShipment> OrderShipments => Set<OrderShipment>();
+
+    public DbSet<OrderFollowUp> OrderFollowUps => Set<OrderFollowUp>();
+
     public DbSet<Estimate> Estimates => Set<Estimate>();
     public DbSet<SaleOrder> SaleOrders => Set<SaleOrder>();
 
@@ -826,6 +830,26 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(l => l.Received).HasPrecision(12, 3);
             b.Property(l => l.ShortClosed).HasPrecision(12, 3);
             b.Property(l => l.Rate).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<OrderShipment>(b =>
+        {
+            b.ToTable("order_shipments");
+            b.HasTenantKey();
+            b.Property(s => s.Transporter).HasMaxLength(80);
+            b.Property(s => s.LrNo).HasMaxLength(40);
+            b.Property(s => s.VehicleNo).HasMaxLength(20);
+            b.Property(s => s.EwayBillNo).HasMaxLength(12);
+            b.Property(s => s.Freight).HasPrecision(12, 2);
+            b.HasIndex(s => new { s.ShopId, s.OrderId });
+        });
+
+        modelBuilder.Entity<OrderFollowUp>(b =>
+        {
+            b.ToTable("order_follow_ups");
+            b.HasTenantKey();
+            b.Property(f => f.Note).HasMaxLength(300);
+            b.HasIndex(f => new { f.ShopId, f.OrderId, f.At });
         });
 
         modelBuilder.Entity<StockHold>(b =>

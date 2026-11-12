@@ -39,6 +39,21 @@ public sealed class PurchaseOrder : Entity, ITenantOwned
 
     public DateOnly? ExpectedOn { get; set; }
 
+    /// <summary>Where it has got to, as last heard (see <see cref="OrderStage"/>), and when it was sent and confirmed.</summary>
+    public OrderStage Stage { get; set; }
+
+    public DateTimeOffset? SentAt { get; set; }
+
+    public ContactChannel? SentVia { get; set; }
+
+    public DateTimeOffset? ConfirmedAt { get; set; }
+
+    /// <summary>How many times the promised date was moved.</summary>
+    public int PromiseMoves { get; set; }
+
+    /// <summary>No morning reminders until this date.</summary>
+    public DateOnly? SnoozedUntil { get; set; }
+
     public DateTimeOffset? ClosedAt { get; set; }
 
     public Guid CreatedByUserId { get; set; }
@@ -77,7 +92,7 @@ public sealed record OrderLineDto(Guid ProductId, string Name, decimal Quantity,
 /// <summary><see cref="Pending"/>: units still to come on the open lines.</summary>
 public sealed record PurchaseOrderDto(
     Guid Id, int Number, Guid SupplierId, string SupplierName, PurchaseOrderStatus Status, string? Note, DateOnly? ExpectedOn, DateTimeOffset CreatedAt,
-    DateTimeOffset? ClosedAt, decimal Pending, IReadOnlyList<OrderLineDto> Lines);
+    DateTimeOffset? ClosedAt, decimal Pending, IReadOnlyList<OrderLineDto> Lines, string Stage = "placed", int PromiseMoves = 0);
 
 /// <summary>A supplier to bring in from another app or a notebook. <see cref="Balance"/>: what the shop owes them now; minus when they owe the shop.</summary>
 public sealed record SupplierImportRow(string? Name, string? Phone, string? Gstin, decimal Balance);
@@ -118,7 +133,7 @@ public static class PurchaseOrders
         var suppliers = await db.Suppliers.AsNoTracking().Where(s => supplierIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         return orders.Select(o => new PurchaseOrderDto(o.Id, o.Number, o.SupplierId, suppliers.GetValueOrDefault(o.SupplierId) ?? "", o.Status, o.Note, o.ExpectedOn, o.CreatedAt, o.ClosedAt,
             o.Status == PurchaseOrderStatus.Open ? o.Lines.Sum(PendingOf) : 0,
-            o.Lines.Select(l => new OrderLineDto(l.ProductId, names.GetValueOrDefault(l.ProductId) ?? "", l.Quantity, l.Rate, l.Received, l.ShortClosed, l.ShortReason)).ToList())).ToList();
+            o.Lines.Select(l => new OrderLineDto(l.ProductId, names.GetValueOrDefault(l.ProductId) ?? "", l.Quantity, l.Rate, l.Received, l.ShortClosed, l.ShortReason)).ToList(), GoodsTracking.StageOf(o), o.PromiseMoves)).ToList();
     }
 
     /// <summary>Still to come on a line: ordered less what came and what was closed short, never below zero.</summary>

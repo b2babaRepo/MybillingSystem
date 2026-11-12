@@ -146,7 +146,14 @@ public static class StockAlerts
         var today = await OrderTodayAsync(db, clock, ct);
         // Holds past their date stay held (the owner decides), so the morning note says how many are waiting.
         var overdue = (await StockHolds.AllAsync(db, clock, ct)).Count(h => h.Overdue);
-        if (today.Count == 0 && overdue == 0 && !always)
+        var (dueTomorrow, dueToday, late) = await GoodsTracking.RemindersAsync(db, clock, ct);
+        var goods = string.Join(", ", new[]
+        {
+            late > 0 ? $"{late} order{(late == 1 ? "" : "s")} late" : null,
+            dueToday > 0 ? $"{dueToday} due today" : null,
+            dueTomorrow > 0 ? $"{dueTomorrow} due tomorrow" : null,
+        }.Where(x => x is not null));
+        if (today.Count == 0 && overdue == 0 && goods.Length == 0 && !always)
         {
             return 0;
         }
@@ -156,7 +163,8 @@ public static class StockAlerts
         {
             title = today.Count == 0 ? "Stock is fine today" : $"Order today: {today.Count} item{(today.Count == 1 ? "" : "s")}",
             body = (today.Count == 0 ? "Nothing is running out." : names + (today.Count > 4 ? $" and {today.Count - 4} more" : ""))
-                + (overdue > 0 ? $" · {overdue} held item{(overdue == 1 ? "" : "s")} past the date" : ""),
+                + (overdue > 0 ? $" · {overdue} held item{(overdue == 1 ? "" : "s")} past the date" : "")
+                + (goods.Length > 0 ? $" · Goods: {goods}" : ""),
             url = "/#/reorder",
         });
         var keys = await KeysAsync(db, ct);

@@ -11,7 +11,7 @@ import { parseSuppliers } from '../lib/supplierImport'
 import type { Product } from '../lib/types'
 
 export interface OrderLine { productId: string; name: string; quantity: number; rate: number | null; received: number }
-export interface PurchaseOrder { id: string; number: number; supplierId: string; supplierName: string; status: 'open' | 'closed' | 'cancelled'; note: string | null; expectedOn: string | null; createdAt: string; closedAt?: string | null; pending: number; lines: OrderLine[] }
+export interface PurchaseOrder { id: string; number: number; supplierId: string; supplierName: string; status: 'open' | 'closed' | 'cancelled'; note: string | null; expectedOn: string | null; createdAt: string; closedAt?: string | null; stage?: string; promiseMoves?: number; pending: number; lines: OrderLine[] }
 interface ReturnLine { productName: string; batchNo: string; quantity: number; value: number }
 interface SupplierReturn { id: string; number: number; value: number; daysOpen: number; settledAt: string | null; lines: ReturnLine[] }
 interface Pick { text: string; productId: string; quantity: string; rate: string; bags?: string }
@@ -121,6 +121,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
             <div className="mt-1 flex flex-wrap gap-2">
               <Button className="flex-1" onClick={() => onGoodsCame(o)}>{t('supplier2.goodsCame')}</Button>
               {phone && <a href={whatsAppLink(phone, orderText(t, shopName, o.number, left.map((l) => ({ name: l.name, quantity: l.quantity - l.received }))))} target="_blank" rel="noreferrer"
+                onClick={() => { if (!o.stage || o.stage === 'placed') void api(`/v1/suppliers/orders/${o.id}/stage`, 'POST', { stage: 'sent', via: 'whatsapp' }).then(refresh).catch(() => undefined) }}
                 className="flex min-h-12 items-center rounded-2xl border border-line px-3 font-semibold">{t('supplier2.sendOrder')}</a>}
               <button onClick={() => void finish(o, o.lines.some((l) => l.received > 0) ? 'close' : 'cancel')} className="min-h-12 px-2 text-xs font-semibold text-due">
                 {t(o.lines.some((l) => l.received > 0) ? 'supplier2.closeShort' : 'supplier2.cancelOrder')}

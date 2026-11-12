@@ -172,6 +172,11 @@ public static class GoodsReceipts
             }
         }
 
+        if (request.OrderId is { } arrivedOn)
+        {
+            await GoodsTracking.ArrivedAsync(db, arrivedOn, receipt.Id, ct);
+        }
+
         await Arrivals.AddAsync(db, request.SupplierId, receipt.Id, null, request.OrderId, lines.Select(l => (l.ProductId, l.Quantity, l.Damaged ?? 0, l.Bags is > 0 ? l.Bags : null, (decimal?)null)), now, ct);
         await db.SaveChangesAsync(ct);
         var ids = lines.Select(l => l.ProductId).Order().ToArray();
