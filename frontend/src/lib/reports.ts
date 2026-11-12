@@ -66,6 +66,8 @@ export interface MonthStatement {
   running: { category: string; amount: number }[]
   expenses: number
   netProfit: number
+  bagsSold?: number
+  bagsBought?: number
   notInProfit: { category: string; amount: number }[]
 }
 

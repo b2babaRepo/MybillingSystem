@@ -7,7 +7,7 @@ import { formatRupees } from '../lib/format'
 import { change, Delta, ReportShell, useReportView, Waterfall } from '../components/ReportShell'
 
 interface ProfitLoss {
-  financialYear: string; sales: number; turnover: number; gst: number; goodsProfit: number; returns: number; stockLoss: number; expenses: number; netProfit: number
+  financialYear: string; sales: number; turnover: number; gst: number; goodsProfit: number; returns: number; stockLoss: number; expenses: number; netProfit: number; bagsSold?: number; bagsBought?: number
   takenHome: number; purchases: number; openingStock: number; closingStock: number; closingDate: string; supplierDue: number; customerDue: number; itemsWithoutCost: number; profitCoverage: number; workInProgress?: number; machineWear?: number; finishedGoods?: number
   expenseLines?: { category: string; amount: number }[] | null; notInProfit?: { category: string; amount: number }[] | null
   cashReceipts?: number; digitalReceipts?: number; presumedProfit?: number; turnoverAlerts?: { key: string; limit: number; turnover: number; crossed: boolean }[] | null
@@ -98,6 +98,8 @@ export function ProfitLossScreen() {
             <Line label={t('rv.grossCd')} value={r.goodsProfit - r.returns - r.stockLoss} strong />
             {(r.expenseLines ?? []).length ? (r.expenseLines ?? []).map((x) => <Line key={x.category} label={t(`expense.cat.${x.category}`)} value={x.amount} />) : <Line label={t('pnl.expenses')} value={r.expenses} />}
             {(r.machineWear ?? 0) > 0 && <Line label={t('pnl.wear')} value={r.machineWear ?? 0} />}
+            {!!r.bagsSold && <Line label={t('statement.bagsSold')} value={r.bagsSold} />}
+            {!!r.bagsBought && <Line label={t('statement.bagsBought')} value={r.bagsBought} />}
             <Line label={t('pnl.net')} value={r.netProfit} strong tone={r.netProfit >= 0 ? 'text-teal-800' : 'text-orange-800'} />
           </div>
           <div className="flex flex-col">

@@ -396,22 +396,43 @@ public static class PurchaseOrders
         var suppliers = await db.Suppliers.AsNoTracking().Where(s => supplierIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => new { s.Name, s.Gstin }, ct);
         static string Cell(string? text) => text is null ? "" : text.Contains(',') || text.Contains('"') ? $"\"{text.Replace("\"", "\"\"")}\"" : text;
         static string Num(decimal n) => n.ToString("0.00", CultureInfo.InvariantCulture);
-        var csv = new StringBuilder("Date,Bill no,Supplier,Supplier GSTIN,Supplier state,GST rate %,Taxable value,GST,Freight and round-off,Bill total,Status\n");
+        var composition = await db.Shops.AsNoTracking().Select(s => s.GstComposition).FirstOrDefaultAsync(ct);
+        var shopGstin = await db.Shops.AsNoTracking().Select(s => s.Gstin).FirstOrDefaultAsync(ct);
+        var csv = new StringBuilder("Date,Bill no,Supplier,Supplier GSTIN,Supplier state,GST rate %,Taxable value,CGST,SGST,IGST,Input tax claimable,Freight and round-off,Bill total,Status\n");
+        decimal tTaxable = 0, tCgst = 0, tSgst = 0, tIgst = 0, tExtra = 0, tTotal = 0;
         foreach (var bill in bills)
         {
             var supplier = suppliers.GetValueOrDefault(bill.SupplierId);
             var state = supplier?.Gstin is { Length: 15 } g && GstExport.States.TryGetValue(g[..2], out var name) ? name : "";
             var date = bill.OccurredAt.ToOffset(IndiaTime.Offset).ToString("dd-MM-yyyy", CultureInfo.InvariantCulture);
+            // Input tax only for a regular shop, on a bill from a supplier with a valid GSTIN; another state's supplier charges IGST.
+            var claimable = !composition && supplier?.Gstin is { } sg && GstExport.IsValidGstin(sg);
+            var interState = supplier?.Gstin is { Length: 15 } sg2 && shopGstin is { Length: 15 } && sg2[..2] != shopGstin[..2];
+            var live = bill.CancelledAt is null;
             var byRate = bill.Lines.GroupBy(l => l.GstRate).OrderBy(g => g.Key ?? -1).ToList();
             for (var i = 0; i < byRate.Count; i++)
             {
                 var rate = byRate[i];
+                var taxable = rate.Sum(l => l.Taxable);
+                var gst = rate.Sum(l => l.Gst);
+                var (cgst, sgst, igst) = interState ? (0m, 0m, gst) : (decimal.Round(gst / 2, 2), gst - decimal.Round(gst / 2, 2), 0m);
+                if (live)
+                {
+                    (tTaxable, tCgst, tSgst, tIgst) = (tTaxable + taxable, tCgst + cgst, tSgst + sgst, tIgst + igst);
+                }
+
                 csv.AppendJoin(',', date, Cell(bill.BillNo), Cell(supplier?.Name), supplier?.Gstin ?? "", Cell(state), rate.Key is { } r ? Num(r) : "",
-                    Num(rate.Sum(l => l.Taxable)), Num(rate.Sum(l => l.Gst)), i == 0 ? Num(bill.ExtraCharges) : "", i == 0 ? Num(bill.Total) : "",
-                    bill.CancelledAt is null ? "" : "Cancelled").Append('\n');
+                    Num(taxable), Num(cgst), Num(sgst), Num(igst), claimable ? "Yes" : "No", i == 0 ? Num(bill.ExtraCharges) : "", i == 0 ? Num(bill.Total) : "",
+                    live ? "" : "Cancelled").Append('\n');
+            }
+
+            if (live)
+            {
+                (tExtra, tTotal) = (tExtra + bill.ExtraCharges, tTotal + bill.Total);
             }
         }
 
+        csv.AppendJoin(',', "Total (cancelled bills left out)", "", "", "", "", "", Num(tTaxable), Num(tCgst), Num(tSgst), Num(tIgst), "", Num(tExtra), Num(tTotal), "").Append('\n');
         csv.Append("\nNote: a bill with more than one GST rate has one row per rate; Freight and round-off and Bill total are on its first row only.\n");
         return TypedResults.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv", $"purchase-register-{year:D4}-{m:D2}.csv");
     }

@@ -29,6 +29,8 @@ export function MonthStatementCard({ st }: { st: MonthStatement }) {
       {st.running.map((x) => <Row key={x.category} label={t(`expense.cat.${x.category}`)} amount={x.amount} minus />)}
       {st.running.length === 0 && <p className="py-1 text-xs text-muted">{t('statement.noKharcha')}</p>}
       {st.running.length > 0 && <Row label={t('statement.expenses')} amount={st.expenses} minus />}
+      {!!st.bagsSold && <Row label={t('statement.bagsSold')} amount={st.bagsSold} />}
+      {!!st.bagsBought && <Row label={t('statement.bagsBought')} amount={st.bagsBought} minus />}
       <div className={`mt-1 flex justify-between gap-2 border-t-2 border-black pt-2 text-base font-extrabold ${st.netProfit < 0 ? 'text-due' : 'text-jama'}`}>
         <span>{st.netProfit < 0 ? t('statement.netLoss') : t('statement.net')}</span>
         <span>{formatRupees(Math.abs(st.netProfit))}</span>

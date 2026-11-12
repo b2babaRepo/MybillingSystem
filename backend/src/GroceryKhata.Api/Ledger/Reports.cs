@@ -27,7 +27,7 @@ public sealed record ProfitLossReport(
     decimal TakenHome, decimal Purchases, decimal OpeningStock, decimal ClosingStock, DateOnly ClosingDate, decimal SupplierDue, decimal CustomerDue, int ItemsWithoutCost, decimal ProfitCoverage,
     decimal WorkInProgress = 0, decimal MachineWear = 0, decimal FinishedGoods = 0,
     decimal CashReceipts = 0, decimal DigitalReceipts = 0, decimal PresumedProfit = 0, decimal LastYearTurnover = 0, IReadOnlyList<TurnoverAlert>? TurnoverAlerts = null,
-    IReadOnlyList<KharchaLine>? ExpenseLines = null, IReadOnlyList<KharchaLine>? NotInProfit = null);
+    IReadOnlyList<KharchaLine>? ExpenseLines = null, IReadOnlyList<KharchaLine>? NotInProfit = null, decimal BagsSold = 0, decimal BagsBought = 0);
 
 /// <summary>A turnover limit the shop has crossed or is near: <see cref="ReportEndpoints.TurnoverLimits"/>.</summary>
 public sealed record TurnoverAlert(string Key, decimal Limit, decimal Turnover, bool Crossed);
@@ -89,10 +89,15 @@ public sealed record MonthReport(
     decimal SupplierDue = 0,
     MonthStatement? Statement = null,
     decimal Card = 0,
-    decimal Cheque = 0)
+    decimal Cheque = 0,
+    decimal BagsSold = 0,
+    decimal BagsBought = 0)
 {
-    /// <summary>Estimated profit less running costs. Stock bought isn't taken off (sales already count goods at cost); money taken home isn't a cost.</summary>
-    public decimal NetProfit => EstimatedProfit - Expenses;
+    /// <summary>
+    /// Estimated profit less running costs, plus what empty bags fetched less what bags cost. Stock bought isn't taken
+    /// off (sales already count goods at cost); money taken home isn't a cost.
+    /// </summary>
+    public decimal NetProfit => EstimatedProfit - Expenses + BagsSold - BagsBought;
 }
 
 /// <summary>One heading's money in the month statement.</summary>
@@ -116,7 +121,9 @@ public sealed record MonthStatement(
     IReadOnlyList<KharchaLine> Running,
     decimal Expenses,
     decimal NetProfit,
-    IReadOnlyList<KharchaLine> NotInProfit);
+    IReadOnlyList<KharchaLine> NotInProfit,
+    decimal BagsSold = 0,
+    decimal BagsBought = 0);
 
 /// <summary>
 /// Ageing by first-in, first-out: every payment (and every reversal of udhaar) pays off the oldest udhaar first,
@@ -271,10 +278,17 @@ public static class ReportEndpoints
         var costs = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id) && p.CostPrice != null)
             .ToDictionaryAsync(p => p.Id, p => p.CostPrice!.Value, ct);
 
-        // Money in, the cash-book way: bills paid at the counter plus khata payments (and their reversals) not tied to a bill.
+        // Empty bags sold to the bardana dealer (money in, other income) and bags bought (a cost), as in the cash book.
+        var bagMoney = await db.BagMoves.AsNoTracking().Where(m => m.OccurredAt >= start && m.OccurredAt < end && m.StruckAt == null && m.Amount != null && m.Mode != null)
+            .Select(m => new { m.Kind, m.Mode, Amount = m.Amount!.Value }).ToListAsync(ct);
+        var bagsSold = bagMoney.Where(m => m.Kind == BagMoveKind.Sold).Sum(m => m.Amount);
+        var bagsBought = bagMoney.Where(m => m.Kind == BagMoveKind.Bought).Sum(m => m.Amount);
+
+        // Money in, the cash-book way: bills paid at the counter, khata payments (and their reversals) not tied to a bill, and bags sold.
         decimal Received(PaymentMode mode) =>
             bills.Sum(b => b.PaidBy(mode))
-            - entries.Where(e => e.PaymentMode == mode && e.BillId == null).Sum(e => e.Amount);
+            - entries.Where(e => e.PaymentMode == mode && e.BillId == null).Sum(e => e.Amount)
+            + bagMoney.Where(m => m.Kind == BagMoveKind.Sold && m.Mode == mode).Sum(m => m.Amount);
         var khataCollected = -entries.Where(e => e.PaymentMode != null && e.BillId == null).Sum(e => e.Amount);
         var udhaar = entries.Where(e => e.PaymentMode == null && e.Kind != LedgerEntryKind.Opening).Sum(e => e.Amount)
             + entries.Where(e => e.PaymentMode != null && e.BillId != null).Sum(e => e.Amount);
@@ -283,9 +297,11 @@ public static class ReportEndpoints
         // The cost when sold; bills from before that was kept use today's. Lines with neither aren't counted.
         decimal? Cost(BillLine l) => l.UnitCost ?? (l.ProductId is { } id && costs.TryGetValue(id, out var cost) ? cost : null);
         var costed = lines.Where(l => Cost(l) is not null).ToList();
-        var taxed = bills.Where(b => b.Gstin != null).Select(b => b.Id).ToHashSet();
+        var taxed = bills.Where(b => b.Gstin != null && !b.BillOfSupply).Select(b => b.Id).ToHashSet();
         // GST inside the price belongs to the government, not the shop.
-        decimal WithoutGst(BillLine l) => taxed.Contains(l.BillId) && l.GstRate is > 0 ? decimal.Round(l.Amount / (1 + (l.GstRate.Value / 100)), 2) : l.Amount;
+        // The value without GST as stored when billed; older bills work it out from the rate. A composition shop's bill of
+        // supply carries no GST, so its whole amount is the shop's.
+        decimal WithoutGst(BillLine l) => !taxed.Contains(l.BillId) ? l.Amount : l.TaxableValue ?? (l.GstRate is > 0 ? decimal.Round(l.Amount / (1 + (l.GstRate.Value / 100)), 2) : l.Amount);
         // Returns without a credit note (order disputes): goods never reached the customer, so the whole refund is lost.
         var returns = -await db.LedgerEntries.AsNoTracking().Where(e => e.Kind == LedgerEntryKind.Return && e.OccurredAt >= start && e.OccurredAt < end
             && (e.Note == null || !e.Note.StartsWith("CN/"))).SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
@@ -339,7 +355,7 @@ public static class ReportEndpoints
         var statement = new MonthStatement(
             sales, sales - linesTotal, linesTotal - salesWithoutGst, salesWithoutGst,
             salesWithoutGst - costed.Sum(WithoutGst), costed.Sum(l => Money.LineAmount(l.Quantity, Cost(l)!.Value)),
-            returns, stockLoss, profit, running, expenses, profit - expenses, notInProfit);
+            returns, stockLoss, profit, running, expenses, profit - expenses + bagsSold - bagsBought, notInProfit, bagsSold, bagsBought);
         // Today's figures, whichever month is open: stock at cost (items with a count and a cost) and what suppliers are owed.
         var stockValue = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.Uncounted && p.Stock > 0 && p.CostPrice != null).SumAsync(p => (decimal?)(p.Stock * p.CostPrice!.Value), ct) ?? 0m;
         var supplierDue = await db.SupplierEntries.AsNoTracking().SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
@@ -347,7 +363,7 @@ public static class ReportEndpoints
             $"{period.Year:D4}-{period.Month:D2}", sales, bills.Count, Received(PaymentMode.Cash), Received(PaymentMode.Upi), udhaar, khataCollected,
             outstanding, profit, sales == 0 ? 0 : decimal.Round(costed.Sum(l => l.Amount) / sales, 2), top, days,
             expenses, Spent(ExpenseCategory.Purchase), Spent(ExpenseCategory.Home), returns, stockLoss, stockValue, supplierDue, statement,
-            Received(PaymentMode.Card), Received(PaymentMode.Cheque));
+            Received(PaymentMode.Card), Received(PaymentMode.Cheque), bagsSold, bagsBought);
     }
 
     /// <summary>
@@ -401,8 +417,10 @@ public static class ReportEndpoints
         var costs = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id) && p.CostPrice != null)
             .ToDictionaryAsync(p => p.Id, p => p.CostPrice!.Value, ct);
         decimal? Cost(BillLine l) => l.UnitCost ?? (l.ProductId is { } id && costs.TryGetValue(id, out var cost) ? cost : null);
-        var taxed = bills.Where(b => b.Gstin != null).Select(b => b.Id).ToHashSet();
-        decimal WithoutGst(BillLine l) => taxed.Contains(l.BillId) && l.GstRate is > 0 ? decimal.Round(l.Amount / (1 + (l.GstRate.Value / 100)), 2) : l.Amount;
+        var taxed = bills.Where(b => b.Gstin != null && !b.BillOfSupply).Select(b => b.Id).ToHashSet();
+        // The value without GST as stored when billed; older bills work it out from the rate. A composition shop's bill of
+        // supply carries no GST, so its whole amount is the shop's.
+        decimal WithoutGst(BillLine l) => !taxed.Contains(l.BillId) ? l.Amount : l.TaxableValue ?? (l.GstRate is > 0 ? decimal.Round(l.Amount / (1 + (l.GstRate.Value / 100)), 2) : l.Amount);
 
         var items = lines.GroupBy(l => (Key: l.ProductId?.ToString() ?? l.Name.Trim().ToLowerInvariant(), l.Unit))
             .Select(g =>
@@ -521,7 +539,7 @@ public static class ReportEndpoints
         var expenseLines = ByHeading(months.SelectMany(m => m.Statement?.Running ?? []));
         var notInProfit = ByHeading(months.SelectMany(m => m.Statement?.NotInProfit ?? []));
         return new ProfitLossReport(
-            year.FinancialYear, year.Total.Sales, year.Total.Turnover, year.Total.Gst, profit + returns + loss, returns, loss, expenses, profit - expenses - wear,
+            year.FinancialYear, year.Total.Sales, year.Total.Turnover, year.Total.Gst, profit + returns + loss, returns, loss, expenses, profit - expenses - wear + months.Sum(m => m.BagsSold - m.BagsBought),
             months.Sum(m => m.TakenHome),
             await db.Purchases.AsNoTracking().Where(p => p.OccurredAt >= start && p.OccurredAt < end && p.CancelledAt == null).SumAsync(p => (decimal?)p.Total, ct) ?? 0m,
             opening, closing, DateOnly.FromDateTime(closeAt.AddTicks(-1).ToOffset(IndiaTime.Offset).DateTime),
@@ -530,7 +548,7 @@ public static class ReportEndpoints
             missing, year.Total.Sales == 0 ? 0 : decimal.Round(coveredSales / year.Total.Sales, 2),
             await Jobs.WorkInProgressAsync(db, ct), wear, await Jobs.FinishedGoodsAsync(db, ct),
             year.Total.Cash, year.Total.Digital, PresumedProfit(year.Total.Cash, year.Total.Digital), lastYear.Total.Turnover,
-            TurnoverAlerts(year.Total.Turnover, lastYear.Total.Turnover), expenseLines, notInProfit);
+            TurnoverAlerts(year.Total.Turnover, lastYear.Total.Turnover), expenseLines, notInProfit, months.Sum(m => m.BagsSold), months.Sum(m => m.BagsBought));
     }
 
     /// <summary>
@@ -605,7 +623,7 @@ public static class ReportEndpoints
             var own = bills.Where(b => b.OccurredAt >= from && b.OccurredAt < to).ToList();
             var ownKhata = khata.Where(e => e.OccurredAt >= from && e.OccurredAt < to).ToList();
             // GST exists only on bills of a registered shop; prices include it.
-            var gstLines = own.Where(b => b.Gstin != null).SelectMany(b => b.Lines).ToList();
+            var gstLines = own.Where(b => b.Gstin != null && !b.BillOfSupply).SelectMany(b => b.Lines).ToList();
             // The tax kept on each bill since it was stored; older bills work it out from the rates.
             var gst = gstLines.Where(l => l.TaxableValue != null).Sum(l => (l.Cgst ?? 0) + (l.Sgst ?? 0) + (l.Igst ?? 0))
                 + gstLines.Where(l => l.TaxableValue == null && l.GstRate is > 0).GroupBy(l => l.GstRate!.Value)

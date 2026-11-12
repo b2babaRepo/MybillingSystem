@@ -625,8 +625,10 @@ public sealed class LedgerFixTests(ApiFactory api)
         var csv = await (await shop.GetAsync($"/api/v1/suppliers/register?month={month}")).Content.ReadAsStringAsync();
         var lines = csv.TrimStart('﻿').Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.StartsWith("Date,Bill no,Supplier,Supplier GSTIN", lines[0]);
-        Assert.Contains("J-1,\"Jain, Traders\",08ABCDE1234F1Z0,Rajasthan,5.00,100.00,5.00,10.00,351.00,", lines[1]);
-        Assert.Contains(",18.00,200.00,36.00,,,", lines[2]);
+        // Tax split into CGST and SGST (same state), input tax claimable from a supplier with a valid GSTIN.
+        Assert.Contains("J-1,\"Jain, Traders\",08ABCDE1234F1Z0,Rajasthan,5.00,100.00,2.50,2.50,0.00,Yes,10.00,351.00,", lines[1]);
+        Assert.Contains(",18.00,200.00,18.00,18.00,0.00,Yes,,,", lines[2]);
+        Assert.StartsWith("Total (cancelled bills left out),,,,,,300.00,20.50,20.50,0.00,,10.00,351.00", lines.Single(l => l.StartsWith("Total")));
     }
 
     private static object OfferBill(Guid product, decimal price, Guid? offerId) => new
