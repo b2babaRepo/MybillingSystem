@@ -121,6 +121,7 @@ app.MapSupplierItems();
 app.MapStockHolds();
 app.MapGodowns();
 app.MapBardana();
+app.MapFestivals();
 app.MapGoodsTracking();
 app.MapStockAlerts();
 app.MapCashMoves();

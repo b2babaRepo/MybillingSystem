@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 // Below the fold and owner-only: kept out of the first load.
 const OrderToday = lazy(() => import('../components/OrderToday').then((m) => ({ default: m.OrderToday })))
+const FestivalCard = lazy(() => import('./FestivalsScreen').then((m) => ({ default: m.FestivalCard })))
 const TodaySummary = lazy(() => import('../components/TodaySummary').then((m) => ({ default: m.TodaySummary })))
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -82,6 +83,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
       {isOwner && <PlanBanner shopId={shopId} />}
       {isOwner && <BalanceAlert />}
       {isOwner && <Suspense fallback={null}><TodaySummary today={today} shopName={settings?.name ?? ''} lowCount={lowCount} /></Suspense>}
+      {isOwner && <Suspense fallback={null}><FestivalCard shopId={shopId} /></Suspense>}
       {isOwner && <Suspense fallback={null}><OrderToday /></Suspense>}
       {isOwner && <Digest />}
       {isOwner && [1, 2].includes(new Date(Date.now() + 5.5 * 3_600_000).getUTCDay()) && <Suspense fallback={null}><WeekSummaryCard shopId={shopId} shopName={settings?.name ?? ''} /></Suspense>}

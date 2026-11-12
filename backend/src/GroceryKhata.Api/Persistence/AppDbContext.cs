@@ -108,6 +108,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<PurchaseCharge> PurchaseCharges => Set<PurchaseCharge>();
 
+    public DbSet<FestivalSetting> FestivalSettings => Set<FestivalSetting>();
+
     public DbSet<BagMove> BagMoves => Set<BagMove>();
 
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
@@ -864,6 +866,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(f => f.Note).HasMaxLength(300);
             b.HasIndex(f => new { f.ShopId, f.OrderId, f.At });
+        });
+
+        modelBuilder.Entity<FestivalSetting>(b =>
+        {
+            b.ToTable("festival_settings");
+            b.HasTenantKey();
+            b.Property(s => s.Key).HasMaxLength(30);
+            b.HasIndex(s => new { s.ShopId, s.Key, s.Year }).IsUnique();
         });
 
         modelBuilder.Entity<PurchaseCharge>(b =>

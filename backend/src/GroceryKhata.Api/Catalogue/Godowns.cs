@@ -73,7 +73,7 @@ public sealed record TransferDto(Guid Id, int Number, Guid? FromGodownId, string
     string? Note, bool Cancelled, string? By, IReadOnlyList<TransferLineDto> Lines);
 
 /// <summary>Where an item's stock is: <see cref="Shelf"/> in the shop, and each godown's share.</summary>
-public sealed record PlaceStockDto(Guid ProductId, string Name, string Category, Unit Unit, decimal Total, decimal Shelf, IReadOnlyDictionary<Guid, decimal> Godowns);
+public sealed record PlaceStockDto(Guid ProductId, string Name, string? Category, Unit Unit, decimal Total, decimal Shelf, IReadOnlyDictionary<Guid, decimal> Godowns);
 
 public static class Godowns
 {

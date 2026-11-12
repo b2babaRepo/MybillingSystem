@@ -348,7 +348,7 @@ public static class SupplierEndpoints
 
     private static async Task<List<LotDto>> LotsOfAsync(AppDbContext db, IQueryable<Purchase> query, CancellationToken ct, Guid? onlyProduct = null)
     {
-        var purchases = await query.Include(p => p.Lines).Include(p => p.Charges).ToListAsync(ct);
+        var purchases = await query.Include(p => p.Lines).Include(p => p.Charges).AsSplitQuery().ToListAsync(ct);
         var ids = purchases.SelectMany(p => p.Lines).Select(l => l.ProductId).Distinct().ToList();
         var products = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Name, p.SellingPrice }, ct);
         var supplierIds = purchases.Select(p => p.SupplierId).Distinct().ToList();
