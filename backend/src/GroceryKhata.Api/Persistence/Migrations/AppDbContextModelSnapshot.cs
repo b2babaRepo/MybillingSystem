@@ -5539,6 +5539,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
 
+                    b.Property<Guid?>("ShortEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("short_entry_id");
+
+                    b.Property<decimal?>("ShortKg")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("short_kg");
+
                     b.Property<Guid>("SupplierId")
                         .HasColumnType("uuid")
                         .HasColumnName("supplier_id");

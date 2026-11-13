@@ -42,6 +42,14 @@ public sealed class GoodsReceipt : Entity, ITenantOwned
 
     public decimal? TareWeight { get; set; }
 
+    /// <summary>
+    /// A weighbridge shortfall claimed from the supplier: the kilograms short and the entry that took the money off what
+    /// the shop owes them. Claimed once; cancelling the receipt puts the money back.
+    /// </summary>
+    public decimal? ShortKg { get; set; }
+
+    public Guid? ShortEntryId { get; set; }
+
     /// <summary>The supplier bill these goods were billed on. Null: still waiting for the bill.</summary>
     public Guid? PurchaseId { get; set; }
 
@@ -59,9 +67,13 @@ public sealed record ReceiptLineRequest(Guid ProductId, decimal Quantity, decima
 public sealed record GoodsReceiptRequest(Guid Id, Guid SupplierId, IReadOnlyList<ReceiptLineRequest>? Lines, Guid? OrderId = null, string? Note = null,
     string? VehicleNo = null, string? Bilty = null, string? Transporter = null, decimal? GrossWeight = null, decimal? TareWeight = null, Guid? GodownId = null);
 
+/// <summary>The supplier's rate per kg for the missing goods: the claim is the kilograms short times this.</summary>
+public sealed record ShortClaimRequest(decimal RatePerKg);
+
 public sealed record GoodsReceiptDto(
     Guid Id, int Number, Guid SupplierId, Guid? PurchaseOrderId, DateTimeOffset ReceivedAt, IReadOnlyList<ReceiptLine> Lines, string? Note, Guid? PurchaseId, DateTimeOffset? CancelledAt, string? By,
-    string? VehicleNo = null, string? Bilty = null, string? Transporter = null, decimal? GrossWeight = null, decimal? TareWeight = null);
+    string? VehicleNo = null, string? Bilty = null, string? Transporter = null, decimal? GrossWeight = null, decimal? TareWeight = null,
+    decimal? ShortKg = null, decimal? ShortClaim = null);
 
 public static class GoodsReceipts
 {
@@ -74,6 +86,7 @@ public static class GoodsReceipts
         group.MapGet("", ListAsync);
         group.MapPost("", AddAsync);
         group.MapPost("/{id:guid}/cancel", CancelAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapPost("/{id:guid}/short-claim", ClaimShortAsync).RequireAuthorization(AppPolicies.ShopOwner);
         return app;
     }
 
@@ -104,13 +117,68 @@ public static class GoodsReceipts
                           orderby r.ReceivedAt descending
                           select new { r, By = u == null ? null : u.FullName }).Take(100).ToListAsync(ct);
         var lines = await LinesAsync(db, rows.Select(x => x.r.Id).ToList(), ct);
-        return rows.Select(x => ToDto(x.r, x.By, lines[x.r.Id].ToList())).ToList();
+        var claimIds = rows.Select(x => x.r.ShortEntryId).OfType<Guid>().ToList();
+        var claims = await db.SupplierEntries.AsNoTracking().Where(e => claimIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => -e.Amount, ct);
+        return rows.Select(x => ToDto(x.r, x.By, lines[x.r.Id].ToList(), x.r.ShortEntryId is { } c ? claims.GetValueOrDefault(c) : null)).ToList();
     }
 
     private static async Task<GoodsReceiptDto> ToDtoAsync(AppDbContext db, GoodsReceipt r, CancellationToken ct) => ToDto(r, null, (await LinesAsync(db, [r.Id], ct))[r.Id].ToList());
 
-    private static GoodsReceiptDto ToDto(GoodsReceipt r, string? by, IReadOnlyList<ReceiptLine> lines) =>
-        new(r.Id, r.Number, r.SupplierId, r.PurchaseOrderId, r.ReceivedAt, lines, r.Note, r.PurchaseId, r.CancelledAt, by, r.VehicleNo, r.Bilty, r.Transporter, r.GrossWeight, r.TareWeight);
+    private static GoodsReceiptDto ToDto(GoodsReceipt r, string? by, IReadOnlyList<ReceiptLine> lines, decimal? claim = null) =>
+        new(r.Id, r.Number, r.SupplierId, r.PurchaseOrderId, r.ReceivedAt, lines, r.Note, r.PurchaseId, r.CancelledAt, by, r.VehicleNo, r.Bilty, r.Transporter, r.GrossWeight, r.TareWeight,
+            r.ShortEntryId is null ? null : r.ShortKg, claim);
+
+    /// <summary>
+    /// Claims a weighbridge shortfall from the supplier: what the items add up to, less what the weighbridge says came,
+    /// times their rate per kg, comes off what the shop owes them as an adjustment in their khata. Only lines whose weight is
+    /// known count, so pieces are never taken for kilograms. Stock is left as counted; correct it from the item if needed.
+    /// </summary>
+    private static async Task<IResult> ClaimShortAsync(Guid id, ShortClaimRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
+    {
+        var receipt = await db.GoodsReceipts.SingleOrDefaultAsync(r => r.Id == id, ct);
+        if (receipt is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (receipt.CancelledAt is not null || receipt.ShortEntryId is not null)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: receipt.CancelledAt is null ? "The shortfall on this receipt is already claimed." : "This receipt is cancelled.");
+        }
+
+        if (request.RatePerKg <= 0 || request.RatePerKg > Money.MaxAmount || decimal.Round(request.RatePerKg, 2) != request.RatePerKg)
+        {
+            return Invalid("RatePerKg", "Enter the rate per kg the supplier charged.");
+        }
+
+        if (receipt.GrossWeight is not { } gross || receipt.TareWeight is not { } tare)
+        {
+            return Invalid("Id", "This receipt has no weighbridge weights.");
+        }
+
+        var lines = (await LinesAsync(db, [receipt.Id], ct))[receipt.Id].ToList();
+        var ids = lines.Select(l => l.ProductId).Distinct().ToList();
+        var kinds = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Unit, p.WeightKg }, ct);
+        var expected = lines.Sum(l => kinds.GetValueOrDefault(l.ProductId) is { } k ? Units.Kg(k.Unit, k.WeightKg, l.Quantity) ?? 0 : 0);
+        var shortKg = decimal.Round(expected - (gross - tare), 3);
+        if (shortKg < 1)
+        {
+            return Invalid("Id", "The weighbridge shows no shortfall on what these items add up to.");
+        }
+
+        var now = clock.GetUtcNow();
+        await Books.EnsureOpenAsync(db, tenant, now, ct);
+        var amount = decimal.Round(shortKg * request.RatePerKg, 2);
+        var entry = new SupplierEntry
+        {
+            Id = Guid.CreateVersion7(), SupplierId = receipt.SupplierId, Kind = SupplierEntryKind.Other, Amount = -amount, OccurredAt = now, CreatedByUserId = user.UserId()!.Value,
+            Note = $"Weighbridge short {shortKg:0.###} kg, GR #{receipt.Number}", Reference = $"@ {request.RatePerKg:0.##}/kg",
+        };
+        db.SupplierEntries.Add(entry);
+        (receipt.ShortKg, receipt.ShortEntryId) = (shortKg, entry.Id);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(ToDto(receipt, null, lines, amount));
+    }
 
     private static async Task<IResult> AddAsync(GoodsReceiptRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
@@ -258,6 +326,16 @@ public static class GoodsReceipts
                     OccurredAt = now, CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number} cancelled",
                 });
             }
+        }
+
+        // A shortfall claimed on goods that never came stands no more: the money goes back on what the shop owes.
+        if (receipt.ShortEntryId is { } claimId && await db.SupplierEntries.AsNoTracking().SingleOrDefaultAsync(e => e.Id == claimId, ct) is { } claim)
+        {
+            db.SupplierEntries.Add(new SupplierEntry
+            {
+                SupplierId = receipt.SupplierId, Kind = SupplierEntryKind.Other, Amount = -claim.Amount, OccurredAt = now, CreatedByUserId = userId,
+                Note = $"Short claim undone, GR #{receipt.Number}",
+            });
         }
 
         await db.ArrivalLines.Where(a => a.ReceiptId == id).ExecuteUpdateAsync(s => s.SetProperty(a => a.CancelledAt, now), ct);

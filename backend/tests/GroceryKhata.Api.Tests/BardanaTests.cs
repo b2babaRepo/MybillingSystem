@@ -95,4 +95,28 @@ public sealed class BardanaTests(ApiFactory api)
         (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/cancel", new { })).EnsureSuccessStatusCode();
         Assert.Equal(0m, (await shop.GetJsonAsync<BardanaDto>("/api/v1/bardana")).Types.Single().OnHand);
     }
+
+    [Fact]
+    public async Task A_weighbridge_shortfall_is_claimed_once_off_what_the_shop_owes_and_undone_with_the_receipt()
+    {
+        var shop = await ShopAsync();
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jain Traders" })).EnsureSuccessStatusCode();
+        var rice = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = rice, name = "Rice", unit = "kg", sellingPrice = 50m, openingStock = 0m })).EnsureSuccessStatusCode();
+
+        // 500 kg on the receipt, 490 kg on the weighbridge: 10 kg short.
+        var receipt = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = receipt, supplierId = supplier, grossWeight = 3490m, tareWeight = 3000m, lines = new[] { new { productId = rice, quantity = 500m } } })).EnsureSuccessStatusCode();
+        var claimed = await (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/short-claim", new { ratePerKg = 40m })).ReadAsync<GoodsReceiptDto>();
+        Assert.Equal(((decimal?)10m, (decimal?)400m), (claimed.ShortKg, claimed.ShortClaim));
+        Assert.Equal(-400m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
+
+        // Only once.
+        Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/short-claim", new { ratePerKg = 40m })).StatusCode);
+
+        // Goods that never came carry no claim: cancelling the receipt puts the 400 back.
+        (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/cancel", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(0m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
+    }
 }

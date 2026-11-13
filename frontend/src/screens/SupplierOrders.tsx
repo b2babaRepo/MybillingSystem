@@ -17,7 +17,7 @@ interface ReturnLine { productName: string; batchNo: string; quantity: number; v
 interface SupplierReturn { id: string; number: number; value: number; daysOpen: number; settledAt: string | null; lines: ReturnLine[] }
 interface Pick { text: string; productId: string; quantity: string; rate: string; bags?: string }
 export interface GoodsReceipt { id: string; number: number; supplierId: string; purchaseOrderId?: string | null; receivedAt: string; lines: { productId: string; name: string; quantity: number; bags?: number | null; bagSize?: number | null; damaged?: number }[]; note: string | null; purchaseId: string | null; by: string | null
-  vehicleNo?: string | null; bilty?: string | null; transporter?: string | null; grossWeight?: number | null; tareWeight?: number | null }
+  vehicleNo?: string | null; bilty?: string | null; transporter?: string | null; grossWeight?: number | null; tareWeight?: number | null; shortKg?: number | null; shortClaim?: number | null }
 
 const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
 
@@ -328,7 +328,17 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
             const net = r.grossWeight - r.tareWeight
             const expected = Math.round(r.lines.reduce((s, l) => s + (kgOf(products.find((p) => p.id === l.productId), l.quantity) ?? 0), 0) * 100) / 100
             const short = Math.round((expected - net) * 100) / 100
-            return <p className={`text-xs ${short >= 1 ? 'font-semibold text-due' : 'text-muted'}`}>⚖ {t('bag.net', { net })}{expected > 0 ? ` · ${t('weigh.expected', { kg: expected })}` : ''}{short >= 1 ? ` · ${t('weigh.short', { kg: short })}` : ''}</p>
+            const claim = async () => {
+              const rate = window.prompt(t('weigh.ratePrompt', { kg: short }))
+              if (rate && Number(rate) > 0) void run(() => api(`/v1/goods-receipts/${r.id}/short-claim`, 'POST', { ratePerKg: Math.round(Number(rate) * 100) / 100 }))
+            }
+            return (
+              <>
+                <p className={`text-xs ${short >= 1 && !r.shortClaim ? 'font-semibold text-due' : 'text-muted'}`}>⚖ {t('bag.net', { net })}{expected > 0 ? ` · ${t('weigh.expected', { kg: expected })}` : ''}{short >= 1 && !r.shortClaim ? ` · ${t('weigh.short', { kg: short })}` : ''}</p>
+                {r.shortClaim ? <p className="text-xs font-semibold text-teal-700">{t('weigh.claimed', { kg: r.shortKg, amount: formatRupees(r.shortClaim) })}</p>
+                  : short >= 1 ? <button onClick={() => void claim()} className="min-h-11 self-start text-sm font-semibold text-due underline">{t('weigh.claim', { kg: short })}</button> : null}
+              </>
+            )
           })()}
           <div className="flex flex-wrap gap-3">
             <button onClick={() => onBill(r, orders.find((o) => o.id === r.purchaseOrderId) ?? null)} className="min-h-11 font-semibold text-teal-700">{t('receipt.makeBill')}</button>
