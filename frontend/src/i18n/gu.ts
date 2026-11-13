@@ -368,7 +368,7 @@ export const gu: Texts = {
     sales: 'વેચાણ',
     udhaarGiven: 'ઉધાર આપ્યું',
     walkIn: 'સીધું વેચાણ',
-    sources: { bags_sold: 'ખાલી કોથળા વેચ્યા', bags_bought: 'ખાલી કોથળા ખરીદ્યા', cash_added: 'રોકડ ઉમેરી', cash_removed: 'રોકડ કાઢી', to_bank: 'બેંકમાં મૂક્યા', from_bank: 'બેંકમાંથી ઉપાડ્યા', bill: 'બિલ', khata_payment: 'ખાતાની ચુકવણી', reversal: 'ચુકવણી પાછી', expense: 'ખર્ચ', technician: 'ટેકનિશિયનની ટ્રીપની રોકડ', bill_cancelled: 'બિલ રદ (પૈસા પાછા)' },
+    sources: { refund: 'પરત (ક્રેડિટ નોટ)', bags_sold: 'ખાલી કોથળા વેચ્યા', bags_bought: 'ખાલી કોથળા ખરીદ્યા', cash_added: 'રોકડ ઉમેરી', cash_removed: 'રોકડ કાઢી', to_bank: 'બેંકમાં મૂક્યા', from_bank: 'બેંકમાંથી ઉપાડ્યા', bill: 'બિલ', khata_payment: 'ખાતાની ચુકવણી', reversal: 'ચુકવણી પાછી', expense: 'ખર્ચ', technician: 'ટેકનિશિયનની ટ્રીપની રોકડ', bill_cancelled: 'બિલ રદ (પૈસા પાછા)' },
     spent: '{{cash}} રોકડ, {{upi}} UPI ખર્ચ્યા',
     netCash: 'બાકી રોકડ',
     empty: 'આ દિવસે કંઈ મળ્યું નથી.',

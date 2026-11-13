@@ -367,7 +367,7 @@ export const hi: Texts = {
     sales: 'बिक्री',
     udhaarGiven: 'उधार दिया',
     walkIn: 'नकद बिक्री',
-    sources: { bags_sold: 'ख़ाली बोरे बेचे', bags_bought: 'ख़ाली बोरे ख़रीदे', cash_added: 'नकद डाला', cash_removed: 'नकद निकाला', to_bank: 'बैंक में जमा', from_bank: 'बैंक से निकाला', bill: 'बिल', khata_payment: 'खाते में जमा', reversal: 'जमा वापस', expense: 'खर्चा', technician: 'मिस्त्री दौरे का कैश', bill_cancelled: 'बिल रद्द (पैसे वापस)' },
+    sources: { refund: 'वापसी (क्रेडिट नोट)', bags_sold: 'ख़ाली बोरे बेचे', bags_bought: 'ख़ाली बोरे ख़रीदे', cash_added: 'नकद डाला', cash_removed: 'नकद निकाला', to_bank: 'बैंक में जमा', from_bank: 'बैंक से निकाला', bill: 'बिल', khata_payment: 'खाते में जमा', reversal: 'जमा वापस', expense: 'खर्चा', technician: 'मिस्त्री दौरे का कैश', bill_cancelled: 'बिल रद्द (पैसे वापस)' },
     spent: 'खर्च {{cash}} नकद, {{upi}} UPI',
     netCash: 'बचा नकद',
     empty: 'इस दिन कुछ नहीं आया।',

@@ -172,7 +172,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
                 <span className="truncate text-[16px] font-semibold">{entry.name}</span>
                 <span className="shrink-0 text-[13px] text-muted">{t('styles.total', { count: entry.items.reduce((n, x) => n + Math.max(0, x.stock), 0) })}</span>
                 {isOwner && <button onClick={() => navigate(`/tags/${entry.items.map((x) => x.id).join(',')}`)} className="min-h-9 shrink-0 rounded-lg border border-line px-2 text-[13px] font-semibold">{t('tags.short')}</button>}
-                {isOwner && <button onClick={() => setReceiving(entry.name)} className="min-h-9 shrink-0 rounded-lg bg-teal-700 px-2.5 text-[13px] font-bold text-white">{t('styles.receive')}</button>}
+                {isOwner && <button onClick={() => setReceiving(entry.name)} className="min-h-9 shrink-0 rounded-lg bg-teal-700 px-2.5 text-[13px] font-bold text-white">{products.some((p) => p.styleName?.trim() === entry.name && p.sellingPrice <= 0) ? t('styles.setPrice') : t('styles.receive')}</button>}
               </span>
               <span className="flex flex-wrap gap-1.5">
                 {entry.items.map((x) => (
@@ -368,10 +368,27 @@ function ReceiveSizesSheet({ shopId, styleName, items, onClose }: { shopId: stri
   const { t } = useTranslation()
   const [qty, setQty] = useState<Record<string, string>>({})
   const [cost, setCost] = useState('')
+  // One selling price for every size (sizes from the suggested list come in with none).
+  const [price, setPrice] = useState(items.every((p) => p.sellingPrice === items[0]?.sellingPrice) && (items[0]?.sellingPrice ?? 0) > 0 ? String(items[0].sellingPrice) : '')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const queryClient = useQueryClient()
   const total = Object.values(qty).reduce((n, v) => n + (Number(v) || 0), 0)
+  const priceChanged = Number(price) > 0 && items.some((p) => p.sellingPrice !== Number(price))
   async function save() {
     setBusy(true)
+    setError('')
+    if (priceChanged) {
+      try {
+        await api('/v1/products/style-price', 'POST', { styleName, sellingPrice: Number(price) })
+        await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t('error'))
+        setBusy(false)
+        return
+      }
+    }
+
     for (const p of items) {
       const n = Number(qty[p.id]) || 0
       if (n > 0) await addStockMovement(shopId, { id: p.id, name: p.name }, 'purchase', n, null, Number(cost) > 0 ? Number(cost) : null, null)
@@ -391,13 +408,20 @@ function ReceiveSizesSheet({ shopId, styleName, items, onClose }: { shopId: stri
           </label>
         ))}
       </div>
-      <label className="mt-3 block">
-        <span className="mb-1 block text-sm font-semibold text-muted">{t('styles.costEach')}</span>
-        <input value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" className="h-12 w-40 rounded-xl border border-line px-3 text-lg" />
-      </label>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-muted">{t('styles.priceAll')}</span>
+          <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" placeholder="₹" className="h-12 w-40 rounded-xl border border-line px-3 text-lg" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-muted">{t('styles.costEach')}</span>
+          <input value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" className="h-12 w-40 rounded-xl border border-line px-3 text-lg" />
+        </label>
+      </div>
+      {error && <p className="mt-2 text-sm text-due">{error}</p>}
       <div className="mt-4 grid grid-cols-[1fr_2fr] gap-2">
         <Button type="button" tone="plain" onClick={onClose}>{t('cancel')}</Button>
-        <Button type="button" onClick={() => void save()} disabled={busy || total <= 0}>{t('styles.receiveSave', { count: total })}</Button>
+        <Button type="button" onClick={() => void save()} disabled={busy || (total <= 0 && !priceChanged)}>{total > 0 ? t('styles.receiveSave', { count: total }) : t('styles.savePrice')}</Button>
       </div>
     </Sheet>
   )

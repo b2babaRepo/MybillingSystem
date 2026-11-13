@@ -366,7 +366,7 @@ export const en = {
     sales: 'Sales',
     udhaarGiven: 'Udhaar given',
     walkIn: 'Walk-in sale',
-    sources: { bags_sold: 'Empty bags sold', bags_bought: 'Empty bags bought', cash_added: 'Cash added', cash_removed: 'Cash taken out', to_bank: 'Put in the bank', from_bank: 'Drawn from the bank', bill: 'Bill', khata_payment: 'Khata payment', reversal: 'Payment reversed', expense: 'Kharcha', technician: 'Technician trip cash', bill_cancelled: 'Bill cancelled (money back)' },
+    sources: { refund: 'Refund (credit note)', bags_sold: 'Empty bags sold', bags_bought: 'Empty bags bought', cash_added: 'Cash added', cash_removed: 'Cash taken out', to_bank: 'Put in the bank', from_bank: 'Drawn from the bank', bill: 'Bill', khata_payment: 'Khata payment', reversal: 'Payment reversed', expense: 'Kharcha', technician: 'Technician trip cash', bill_cancelled: 'Bill cancelled (money back)' },
     spent: 'Spent {{cash}} cash, {{upi}} UPI',
     netCash: 'Cash left',
     empty: 'Nothing received this day.',

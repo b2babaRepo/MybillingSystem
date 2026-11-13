@@ -43,6 +43,9 @@ public enum CashBookSource
     /// <summary>Empty bags sold to the bardana dealer (in), or bought (out).</summary>
     BagsSold,
     BagsBought,
+
+    /// <summary>Money handed back to a walk-in customer on a credit note (negative). Not kharcha.</summary>
+    Refund,
 }
 
 /// <summary>
@@ -111,7 +114,7 @@ public static class CashBookEndpoints
         // Money out: the day's kharcha (struck lines don't count).
         lines.AddRange(await db.Expenses.AsNoTracking()
             .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && e.TripId == null)
-            .Select(e => new CashBookLine(e.OccurredAt, CashBookSource.Expense, e.Note ?? e.Category.ToString(), e.Mode, -e.Amount, null))
+            .Select(e => new CashBookLine(e.OccurredAt, e.Note != null && e.Note.StartsWith("Refund CN/") ? CashBookSource.Refund : CashBookSource.Expense, e.Note ?? e.Category.ToString(), e.Mode, -e.Amount, null))
             .ToListAsync(ct));
         // Technicians' trip cash: the advance leaves the drawer the day it is given; what they hand back comes in at settlement.
         lines.AddRange(await (from e in db.TripEntries.AsNoTracking()
@@ -136,7 +139,7 @@ public static class CashBookEndpoints
         lines.Sort((a, b) => a.OccurredAt.CompareTo(b.OccurredAt));
 
         // Money out of the drawer that isn't a refund of money in: kharcha, cash taken out, cash put in the bank.
-        static bool Out(CashBookSource s) => s is CashBookSource.Expense or CashBookSource.CashRemoved or CashBookSource.ToBank or CashBookSource.BagsBought;
+        static bool Out(CashBookSource s) => s is CashBookSource.Expense or CashBookSource.CashRemoved or CashBookSource.ToBank or CashBookSource.BagsBought or CashBookSource.Refund;
         var money = lines.Where(l => !Out(l.Source)).ToList();
         var cash = money.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount);
         var upi = money.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount);

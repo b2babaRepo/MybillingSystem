@@ -228,4 +228,30 @@ public sealed class TestingFixesTests(ApiFactory api)
         var bad = await shop.PostAsync("/api/v1/products", new StringContent("{\"id\":\"\",\"name\":\"X\"}", System.Text.Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
     }
+
+    [Fact]
+    public async Task One_price_sets_every_size_and_a_refund_is_its_own_line_not_kharcha()
+    {
+        var (shop, helper) = await ShopAsync();
+        foreach (var size in new[] { "30", "32" })
+        {
+            (await shop.PostJsonAsync("/api/v1/products", new { id = Guid.CreateVersion7(), name = $"Men jeans {size}", unit = "piece", sellingPrice = 1m, openingStock = 5m, styleName = "Men jeans", size }))
+                .EnsureSuccessStatusCode();
+        }
+
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, (await helper.PostJsonAsync("/api/v1/products/style-price", new { styleName = "Men jeans", sellingPrice = 999m })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/products/style-price", new { styleName = "Men jeans", sellingPrice = 999m })).EnsureSuccessStatusCode();
+        var jeans = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Where(p => p.Name.StartsWith("Men jeans")).ToList();
+        Assert.Equal(2, jeans.Count);
+        Assert.All(jeans, p => Assert.Equal(999m, p.SellingPrice));
+
+        var bill = await (await SellAsync(shop, jeans[0].Id, 1m, 999m)).ReadAsync<BillDto>();
+        (await shop.PostJsonAsync($"/api/v1/bills/{bill.Id}/credit-notes", new { id = Guid.CreateVersion7(), reason = "Size", refundMode = "cash", lines = new[] { new { lineNo = 1, quantity = 1m } } }))
+            .EnsureSuccessStatusCode();
+        var book = await shop.GetJsonAsync<CashBookDto>("/api/v1/cash-book");
+        Assert.Contains(book.Lines, l => l.Source == CashBookSource.Refund && l.Amount == -999m);
+        Assert.Equal(999m, book.SpentCash);
+        var page = await shop.GetJsonAsync<ExpensePageDto>("/api/v1/expenses");
+        Assert.DoesNotContain(page.Lines, l => l.Note != null && l.Note.StartsWith("Refund CN/"));
+    }
 }

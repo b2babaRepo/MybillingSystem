@@ -19,12 +19,13 @@ function shiftDay(day: string, by: number) {
 
 /** The day book: money received by cash and UPI, line by line, so closing the drawer is a check, not a guess. */
 export function CashBookScreen({ shopId, isOwner = false }: { shopId: string; isOwner?: boolean }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const today = indiaToday()
   const [day, setDay] = useState(today)
   const book = useQuery({ queryKey: [shopId, 'cash-book', day], queryFn: () => api<CashBook>(`/v1/cash-book?date=${day}`) })
   const data = book.data
-  const label = new Date(`${day}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+  // The day in the app's language: "शुक्र, 13 नव॰" in Hindi.
+  const label = new Date(`${day}T00:00:00Z`).toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : i18n.language === 'gu' ? 'gu-IN' : 'en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 
   return (
     <div className="flex flex-col gap-3 p-4">
@@ -157,7 +158,7 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
       {askOpening && !done ? (
         <label className="flex items-center justify-between gap-2">
           <span className="text-muted">{t('galla.opening')}</span>
-          <input value={openingValue} onChange={(e) => setOpening(money(e.target.value))} inputMode="decimal"
+          <input value={openingValue} onChange={(e) => setOpening(money(e.target.value))} inputMode="decimal" aria-label={t('galla.opening')}
             className="h-11 w-32 rounded-xl border border-line px-3 text-right font-bold" />
         </label>
       ) : (
@@ -186,7 +187,7 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
           </span>
           {c.note && <span className="text-sm">{c.note}</span>}
           <span className="text-xs opacity-80">{c.countedBy} · {c.countedAt && new Date(c.countedAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>
-          <button onClick={() => { setEditing(true); setCounted(String(c.counted ?? '')) }} className="min-h-11 self-start text-sm underline">{t('galla.recount')}</button>
+          <button onClick={() => { setEditing(true); setCounted(''); setNote('') }} className="min-h-11 self-start text-sm underline">{t('galla.recount')}</button>
           {(c.history?.length ?? 0) > 1 && (
             <details className="text-xs">
               <summary className="cursor-pointer font-semibold">{t('galla.history', { count: c.history!.length })}</summary>
@@ -202,7 +203,7 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
         <>
           <label className="flex items-center justify-between gap-2">
             <span className="font-semibold">{t('galla.countedLabel')}</span>
-            <input value={counted} onChange={(e) => setCounted(money(e.target.value))} inputMode="decimal" placeholder="₹"
+            <input value={counted} onChange={(e) => setCounted(money(e.target.value))} inputMode="decimal" placeholder="₹" aria-label={t('galla.countedLabel')}
               className="h-12 w-36 rounded-xl border-2 border-teal-700 px-3 text-right text-lg font-bold" />
           </label>
           {counted !== '' && Number(counted) !== expected && (

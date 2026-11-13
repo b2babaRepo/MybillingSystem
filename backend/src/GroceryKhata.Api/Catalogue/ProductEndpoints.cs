@@ -110,6 +110,9 @@ public sealed record StocktakeResult(int Adjusted, int Unchanged);
 
 public sealed record BarcodeRequest(string? Barcode);
 
+/// <summary>One selling price for all sizes of <see cref="StyleName"/>.</summary>
+public sealed record StylePriceRequest(string? StyleName, decimal? SellingPrice);
+
 public sealed record ImportRow(
     string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel,
     int? CatalogueItemId = null, decimal? PackSize = null, Unit? PackUnit = null, decimal? GstRate = null, string? HsnCode = null,
@@ -339,6 +342,30 @@ public static class ProductEndpoints
         });
 
         var stockGroup = app.MapGroup("/api/v1").WithTags("Stock").RequireAuthorization(AppPolicies.ShopMember);
+
+        // One selling price for every size of a style ("Men jeans" 28 to 42): sizes come in from the master list with no price.
+        stockGroup.MapPost("/products/style-price", async (StylePriceRequest request, AppDbContext db, CancellationToken ct) =>
+        {
+            var name = request.StyleName?.Trim();
+            if (string.IsNullOrEmpty(name) || request.SellingPrice is not > 0 || !Money.IsValidAmount(request.SellingPrice.Value))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["SellingPrice"] = ["Enter the style and a selling price above 0."] });
+            }
+
+            var sizes = await db.Products.Where(p => p.StyleName == name && !p.IsService).ToListAsync(ct);
+            if (sizes.Count == 0)
+            {
+                return Results.NotFound();
+            }
+
+            foreach (var p in sizes)
+            {
+                p.SellingPrice = request.SellingPrice.Value;
+            }
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { Updated = sizes.Count });
+        }).RequireAuthorization(AppPolicies.ShopOwner);
 
         stockGroup.MapPost("/stock-movements", async (StockMovementRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
             await stock.AddMovementAsync(request, user.UserId()!.Value, ct, user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))) switch

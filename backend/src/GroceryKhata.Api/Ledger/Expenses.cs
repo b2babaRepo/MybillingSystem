@@ -191,7 +191,8 @@ public static class ExpenseEndpoints
     {
         var (start, end) = IndiaTime.Day(day);
         var lines = await (from e in db.Expenses.AsNoTracking()
-                           where e.OccurredAt >= start && e.OccurredAt < end
+                           // A refund on a credit note isn't kharcha: it shows in the cash book as a refund, not on this page.
+                           where e.OccurredAt >= start && e.OccurredAt < end && (e.Note == null || !e.Note.StartsWith("Refund CN/"))
                            join u in db.Users.AsNoTracking() on e.CreatedByUserId equals u.Id into users
                            from u in users.DefaultIfEmpty()
                            orderby e.OccurredAt, e.CreatedAt
@@ -260,6 +261,11 @@ public static class ExpenseEndpoints
         if (expense is null)
         {
             return TypedResults.NotFound();
+        }
+
+        if (Kharcha.IsReturnRefund(expense.Note))
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This is a refund on a credit note, not kharcha: it can't be struck out here.");
         }
 
         var now = clock.GetUtcNow();
