@@ -38,6 +38,7 @@ function PickRows({ products, rows, onChange, withRate, listId, withBags = false
           <ItemPicker products={choosable} text={r.text} placeholder={t('supplier2.itemSearch')} key={`${listId}-${i}`}
             onText={(text) => set(i, { text, productId: choosable.find((p) => p.name.toLowerCase() === text.trim().toLowerCase())?.id ?? '' })}
             onPick={(p) => set(i, { text: p.name, productId: p.id })} />
+          {r.text.trim() && !r.productId && <p className="col-span-full -mt-1 text-xs font-semibold text-due">{t('supplier2.pickFromList')}</p>}
           <input aria-label={t('suppliers.qty')} placeholder={t('suppliers.qty')} value={r.quantity} onChange={(e) => set(i, { quantity: e.target.value })} inputMode="decimal" className={input} />
           {withRate && <input aria-label={t('supplier2.rate')} placeholder={t('supplier2.rate')} value={r.rate} onChange={(e) => set(i, { rate: e.target.value })} inputMode="decimal" className={input} />}
           {withBags && (() => {
@@ -73,7 +74,8 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const orders = useQuery({ queryKey: [shopId, 'suppliers', 'orders', supplierId], queryFn: () => api<PurchaseOrder[]>(`/v1/suppliers/orders?supplierId=${supplierId}`) }).data ?? []
-  const [rows, setRows] = useState<Pick[] | null>(null)
+  // Opened from "+ New order" on Orders placed: start with an empty order to fill.
+  const [rows, setRows] = useState<Pick[] | null>(() => { try { const v = sessionStorage.getItem('gk-new-order'); sessionStorage.removeItem('gk-new-order'); return v ? [blank] : null } catch { return null } })
   const [expectedOn, setExpectedOn] = useState('')
   const [note, setNote] = useState('')
   const [message, setMessage] = useState('')
@@ -156,6 +158,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
       })}
       {rows && (
         <div className="flex flex-col gap-2 rounded-xl bg-[#f1f5f4] p-3">
+          <div ref={(el) => el?.scrollIntoView({ block: 'nearest' })} />
           <PickRows products={products} rows={rows} onChange={setRows} withRate listId="order-items" />
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col gap-1 text-xs text-muted">{t('po.expectedOn')}<input type="date" value={expectedOn} min={todayIso()} onChange={(e) => setExpectedOn(e.target.value)} className={input} /></label>

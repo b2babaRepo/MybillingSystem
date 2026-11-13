@@ -8,6 +8,8 @@ import { isLate, type PurchaseOrder } from './SupplierOrders'
 
 /** The suppliers screen opens this supplier once, when it is set. */
 export const OPEN_SUPPLIER_KEY = 'gk-open-supplier'
+/** Set with OPEN_SUPPLIER_KEY: the supplier page opens with a new order ready to fill. */
+export const NEW_ORDER_KEY = 'gk-new-order'
 
 type Filter = 'open' | 'late' | 'closed' | 'all'
 
@@ -35,6 +37,13 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
     .filter((o) => !q || o.lines.some((l) => l.name.toLowerCase().includes(q)) || o.supplierName.toLowerCase().includes(q))
     .sort((a, b) => Number(isLate(b)) - Number(isLate(a)) || b.createdAt.localeCompare(a.createdAt))
 
+  const suppliers = (useQuery({ queryKey: [shopId, 'suppliers'], queryFn: () => api<{ id: string; name: string; isActive?: boolean }[]>('/v1/suppliers') }).data ?? []).filter((s) => s.isActive !== false)
+  const [choosing, setChoosing] = useState(false)
+  function newOrder(id: string) {
+    try { sessionStorage.setItem(NEW_ORDER_KEY, '1') } catch { /* no storage */ }
+    openSupplier(id)
+  }
+
   function openSupplier(id: string) {
     try { sessionStorage.setItem(OPEN_SUPPLIER_KEY, id) } catch { /* no storage */ }
     navigate('/suppliers')
@@ -43,7 +52,18 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3 p-4">
       <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
-        <h1 className="text-xl font-bold">🧾 {t('po.title')}</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-xl font-bold">🧾 {t('po.title')}</h1>
+          <button onClick={() => (suppliers.length === 0 ? navigate('/suppliers') : setChoosing(!choosing))} className="min-h-11 rounded-xl bg-teal-700 px-3 font-semibold text-white">+ {t('supplier2.newOrder')}</button>
+        </div>
+        {choosing && (
+          <label className="flex flex-col gap-1 text-sm">{t('po.pickSupplier')}
+            <select defaultValue="" onChange={(e) => e.target.value && newOrder(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3">
+              <option value="" disabled>{t('po.pickSupplier')}</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </label>
+        )}
         <p className="text-sm text-muted">{t('po.hint')}</p>
         {open.length > 0 && (
           <p className="text-sm font-semibold">
