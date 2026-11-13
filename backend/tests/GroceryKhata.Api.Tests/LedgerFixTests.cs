@@ -566,6 +566,27 @@ public sealed class LedgerFixTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task An_order_line_keeps_its_bags_and_the_order_totals_each_unit_apart()
+    {
+        var shop = await ShopAsync("hardware");
+        var pipe = await ItemAsync(shop, "Pipe", 300m, 0m);
+        var tap = await ItemAsync(shop, "Tap", 150m, 0m);
+        var supplierId = await SupplierAsync(shop);
+        var order = await (await shop.PostJsonAsync("/api/v1/suppliers/orders", new
+        {
+            id = Guid.CreateVersion7(), supplierId, lines = new object[] { new { productId = pipe.Id, quantity = 24m, bags = 2 }, new { productId = tap.Id, quantity = 6m } },
+        })).ReadAsync<PurchaseOrderDto>();
+        Assert.Equal((2, (int?)2), (order.Bags, order.Lines.Single(l => l.ProductId == pipe.Id).Bags));
+        Assert.Equal(30m, order.Totals!.Single(t => t.Unit == pipe.Unit).Quantity);
+
+        // Zero bags is not a count.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/suppliers/orders", new
+        {
+            id = Guid.CreateVersion7(), supplierId, lines = new[] { new { productId = pipe.Id, quantity = 1m, bags = 0 } },
+        })).StatusCode);
+    }
+
+    [Fact]
     public async Task Suppliers_come_in_from_a_file_once_with_their_opening_balance()
     {
         var shop = await ShopAsync("hardware");

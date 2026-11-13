@@ -77,6 +77,9 @@ public sealed class PurchaseOrderLine : Entity, ITenantOwned
     /// <summary>The rate agreed when ordering, to check the bill against. Null: not agreed.</summary>
     public decimal? Rate { get; set; }
 
+    /// <summary>Bags, cartons or boxes the quantity comes in, as told to the supplier. Null: not said.</summary>
+    public int? Bags { get; set; }
+
     /// <summary>Units that came in on bills matched to this order (paid and free).</summary>
     public decimal Received { get; set; }
 
@@ -86,16 +89,21 @@ public sealed class PurchaseOrderLine : Entity, ITenantOwned
     public ShortReason? ShortReason { get; set; }
 }
 
-public sealed record OrderLineRequest(Guid ProductId, decimal Quantity, decimal? Rate = null);
+public sealed record OrderLineRequest(Guid ProductId, decimal Quantity, decimal? Rate = null, int? Bags = null);
 
 public sealed record PurchaseOrderRequest(Guid Id, Guid SupplierId, IReadOnlyList<OrderLineRequest>? Lines, string? Note = null, DateOnly? ExpectedOn = null, bool Draft = false);
 
-public sealed record OrderLineDto(Guid ProductId, string Name, decimal Quantity, decimal? Rate, decimal Received, decimal ShortClosed = 0, ShortReason? ShortReason = null);
+public sealed record OrderLineDto(Guid ProductId, string Name, decimal Quantity, decimal? Rate, decimal Received, decimal ShortClosed = 0, ShortReason? ShortReason = null,
+    Catalogue.Unit Unit = Catalogue.Unit.Piece, int? Bags = null);
+
+/// <summary>An order's quantity added up within one unit only: kg is never added to pieces.</summary>
+public sealed record UnitTotal(Catalogue.Unit Unit, decimal Quantity);
 
 /// <summary><see cref="Pending"/>: units still to come on the open lines.</summary>
 public sealed record PurchaseOrderDto(
     Guid Id, int Number, Guid SupplierId, string SupplierName, PurchaseOrderStatus Status, string? Note, DateOnly? ExpectedOn, DateTimeOffset CreatedAt,
-    DateTimeOffset? ClosedAt, decimal Pending, IReadOnlyList<OrderLineDto> Lines, string Stage = "placed", int PromiseMoves = 0);
+    DateTimeOffset? ClosedAt, decimal Pending, IReadOnlyList<OrderLineDto> Lines, string Stage = "placed", int PromiseMoves = 0,
+    IReadOnlyList<UnitTotal>? Totals = null, int Bags = 0);
 
 /// <summary>A supplier to bring in from another app or a notebook. <see cref="Balance"/>: what the shop owes them now; minus when they owe the shop.</summary>
 public sealed record SupplierImportRow(string? Name, string? Phone, string? Gstin, decimal Balance);
@@ -133,12 +141,15 @@ public static class PurchaseOrders
     private static async Task<IReadOnlyList<PurchaseOrderDto>> ToDtosAsync(AppDbContext db, IReadOnlyList<PurchaseOrder> orders, CancellationToken ct)
     {
         var productIds = orders.SelectMany(o => o.Lines).Select(l => l.ProductId).Distinct().ToList();
-        var names = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+        var names = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Name, p.Unit }, ct);
         var supplierIds = orders.Select(o => o.SupplierId).Distinct().ToList();
         var suppliers = await db.Suppliers.AsNoTracking().Where(s => supplierIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         return orders.Select(o => new PurchaseOrderDto(o.Id, o.Number, o.SupplierId, suppliers.GetValueOrDefault(o.SupplierId) ?? "", o.Status, o.Note, o.ExpectedOn, o.CreatedAt, o.ClosedAt,
             o.Status == PurchaseOrderStatus.Open ? o.Lines.Sum(PendingOf) : 0,
-            o.Lines.Select(l => new OrderLineDto(l.ProductId, names.GetValueOrDefault(l.ProductId) ?? "", l.Quantity, l.Rate, l.Received, l.ShortClosed, l.ShortReason)).ToList(), GoodsTracking.StageOf(o), o.PromiseMoves)).ToList();
+            o.Lines.Select(l => new OrderLineDto(l.ProductId, names.GetValueOrDefault(l.ProductId)?.Name ?? "", l.Quantity, l.Rate, l.Received, l.ShortClosed, l.ShortReason,
+                names.GetValueOrDefault(l.ProductId)?.Unit ?? Catalogue.Unit.Piece, l.Bags)).ToList(), GoodsTracking.StageOf(o), o.PromiseMoves,
+            o.Lines.GroupBy(l => names.GetValueOrDefault(l.ProductId)?.Unit ?? Catalogue.Unit.Piece).OrderBy(g => g.Key).Select(g => new UnitTotal(g.Key, g.Sum(l => l.Quantity))).ToList(),
+            o.Lines.Sum(l => l.Bags ?? 0))).ToList();
     }
 
     /// <summary>Still to come on a line: ordered less what came and what was closed short, never below zero.</summary>
@@ -168,7 +179,7 @@ public static class PurchaseOrders
             Id = request.Id, SupplierId = request.SupplierId, Number = (await db.PurchaseOrders.MaxAsync(o => (int?)o.Number, ct) ?? 0) + 1,
             Status = request.Draft ? PurchaseOrderStatus.Draft : PurchaseOrderStatus.Open,
             Note = string.IsNullOrEmpty(note) ? null : note[..Math.Min(note.Length, 200)], ExpectedOn = request.ExpectedOn, CreatedByUserId = user.UserId()!.Value,
-            Lines = lines.Select(l => new PurchaseOrderLine { ProductId = l.ProductId, Quantity = l.Quantity, Rate = l.Rate }).ToList(),
+            Lines = lines.Select(l => new PurchaseOrderLine { ProductId = l.ProductId, Quantity = l.Quantity, Rate = l.Rate, Bags = l.Bags }).ToList(),
         };
         db.PurchaseOrders.Add(order);
         await db.SaveChangesAsync(ct);
@@ -199,7 +210,7 @@ public static class PurchaseOrders
         order.Note = string.IsNullOrEmpty(note) ? null : note[..Math.Min(note.Length, 200)];
         order.ExpectedOn = request.ExpectedOn;
         db.PurchaseOrderLines.RemoveRange(order.Lines);
-        order.Lines = request.Lines!.Select(l => new PurchaseOrderLine { OrderId = order.Id, ProductId = l.ProductId, Quantity = l.Quantity, Rate = l.Rate }).ToList();
+        order.Lines = request.Lines!.Select(l => new PurchaseOrderLine { OrderId = order.Id, ProductId = l.ProductId, Quantity = l.Quantity, Rate = l.Rate, Bags = l.Bags }).ToList();
         db.PurchaseOrderLines.AddRange(order.Lines);
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok((await ToDtosAsync(db, [order], ct))[0]);
@@ -227,7 +238,7 @@ public static class PurchaseOrders
     {
         var lines = request.Lines ?? [];
         if (lines.Count is 0 or > 200 || lines.Select(l => l.ProductId).Distinct().Count() != lines.Count
-            || lines.Any(l => !Money.IsValidQuantity(l.Quantity) || l.Rate is < 0 || (l.Rate is { } r && (r > Money.MaxAmount || decimal.Round(r, 2) != r))))
+            || lines.Any(l => !Money.IsValidQuantity(l.Quantity) || l.Bags is <= 0 or > 100_000 || l.Rate is < 0 || (l.Rate is { } r && (r > Money.MaxAmount || decimal.Round(r, 2) != r))))
         {
             return Invalid("Lines", "Choose the items, each once, with how many to order.");
         }
