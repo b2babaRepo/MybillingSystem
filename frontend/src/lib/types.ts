@@ -4,7 +4,7 @@ export type ShopRole = 'owner' | 'staff'
 /** A platform admin's role: super (everything), approver (approve and block shops), support (notes, unlocking). */
 export type AdminRole = 'super' | 'approver' | 'support' | 'billing' | 'agent_manager'
 
-export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'pair' | 'dozen' | 'box' | 'jar' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre' | 'sq_ft' | 'running_ft'
+export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'pair' | 'dozen' | 'box' | 'jar' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre' | 'sq_ft' | 'running_ft' | 'quintal' | 'carton' | 'bottle' | 'set' | 'strip'
 /** Card and cheque reach the bank, not the drawer. A cheque is for khata payments, and counts once cleared. */
 export type PaymentMode = 'cash' | 'upi' | 'card' | 'cheque'
 export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return' | 'opening'
@@ -60,6 +60,8 @@ export interface Product {
   dailySales?: number | null
   /** Kept in bags of this much of its unit (50 = a 50 kg bag); bags is the sealed bags on hand. */
   bagSize?: number | null
+  /** What bagSize counts when buying (carton, strip); null: a bag. */
+  purchaseUnit?: Unit | null
   bags?: number
   /** Promised on open sale orders, not yet delivered. */
   promised?: number

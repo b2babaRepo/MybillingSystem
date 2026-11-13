@@ -579,6 +579,20 @@ public sealed class LedgerFixTests(ApiFactory api)
         Assert.Equal((2, (int?)2), (order.Bags, order.Lines.Single(l => l.ProductId == pipe.Id).Bags));
         Assert.Equal(30m, order.Totals!.Single(t => t.Unit == pipe.Unit).Quantity);
 
+        // Bought by the carton of 12: the line says so.
+        (await shop.PutJsonAsync($"/api/v1/products/{tap.Id}", new { name = "Tap", unit = "piece", sellingPrice = 150m, bagSize = 12m, purchaseUnit = "carton" })).EnsureSuccessStatusCode();
+        var cartons = await (await shop.PostJsonAsync("/api/v1/suppliers/orders", new
+        {
+            id = Guid.CreateVersion7(), supplierId, lines = new[] { new { productId = tap.Id, quantity = 24m, bags = 2 } },
+        })).ReadAsync<PurchaseOrderDto>();
+        Assert.Equal(Unit.Carton, cartons.Lines.Single().PackUnit);
+
+        // Pieces come whole.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/suppliers/orders", new
+        {
+            id = Guid.CreateVersion7(), supplierId, lines = new[] { new { productId = tap.Id, quantity = 2.5m } },
+        })).StatusCode);
+
         // Zero bags is not a count.
         Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/suppliers/orders", new
         {

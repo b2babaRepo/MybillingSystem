@@ -2285,6 +2285,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("photo_reports");
 
+                    b.Property<string>("PurchaseUnit")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("purchase_unit");
+
                     b.Property<decimal?>("ReorderLevel")
                         .HasPrecision(12, 3)
                         .HasColumnType("numeric(12,3)")

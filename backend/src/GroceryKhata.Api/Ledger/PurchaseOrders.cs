@@ -94,7 +94,7 @@ public sealed record OrderLineRequest(Guid ProductId, decimal Quantity, decimal?
 public sealed record PurchaseOrderRequest(Guid Id, Guid SupplierId, IReadOnlyList<OrderLineRequest>? Lines, string? Note = null, DateOnly? ExpectedOn = null, bool Draft = false);
 
 public sealed record OrderLineDto(Guid ProductId, string Name, decimal Quantity, decimal? Rate, decimal Received, decimal ShortClosed = 0, ShortReason? ShortReason = null,
-    Catalogue.Unit Unit = Catalogue.Unit.Piece, int? Bags = null);
+    Catalogue.Unit Unit = Catalogue.Unit.Piece, int? Bags = null, Catalogue.Unit? PackUnit = null);
 
 /// <summary>An order's quantity added up within one unit only: kg is never added to pieces.</summary>
 public sealed record UnitTotal(Catalogue.Unit Unit, decimal Quantity);
@@ -141,13 +141,13 @@ public static class PurchaseOrders
     private static async Task<IReadOnlyList<PurchaseOrderDto>> ToDtosAsync(AppDbContext db, IReadOnlyList<PurchaseOrder> orders, CancellationToken ct)
     {
         var productIds = orders.SelectMany(o => o.Lines).Select(l => l.ProductId).Distinct().ToList();
-        var names = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Name, p.Unit }, ct);
+        var names = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Name, p.Unit, PackUnit = p.BagSize == null ? (Catalogue.Unit?)null : p.PurchaseUnit ?? Catalogue.Unit.Bag }, ct);
         var supplierIds = orders.Select(o => o.SupplierId).Distinct().ToList();
         var suppliers = await db.Suppliers.AsNoTracking().Where(s => supplierIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         return orders.Select(o => new PurchaseOrderDto(o.Id, o.Number, o.SupplierId, suppliers.GetValueOrDefault(o.SupplierId) ?? "", o.Status, o.Note, o.ExpectedOn, o.CreatedAt, o.ClosedAt,
             o.Status == PurchaseOrderStatus.Open ? o.Lines.Sum(PendingOf) : 0,
             o.Lines.Select(l => new OrderLineDto(l.ProductId, names.GetValueOrDefault(l.ProductId)?.Name ?? "", l.Quantity, l.Rate, l.Received, l.ShortClosed, l.ShortReason,
-                names.GetValueOrDefault(l.ProductId)?.Unit ?? Catalogue.Unit.Piece, l.Bags)).ToList(), GoodsTracking.StageOf(o), o.PromiseMoves,
+                names.GetValueOrDefault(l.ProductId)?.Unit ?? Catalogue.Unit.Piece, l.Bags, names.GetValueOrDefault(l.ProductId)?.PackUnit)).ToList(), GoodsTracking.StageOf(o), o.PromiseMoves,
             o.Lines.GroupBy(l => names.GetValueOrDefault(l.ProductId)?.Unit ?? Catalogue.Unit.Piece).OrderBy(g => g.Key).Select(g => new UnitTotal(g.Key, g.Sum(l => l.Quantity))).ToList(),
             o.Lines.Sum(l => l.Bags ?? 0))).ToList();
     }
@@ -249,9 +249,15 @@ public static class PurchaseOrders
         }
 
         var ids = lines.Select(l => l.ProductId).ToList();
-        if (await db.Products.CountAsync(p => ids.Contains(p.Id) && !p.IsService, ct) != ids.Count)
+        var units = await db.Products.Where(p => ids.Contains(p.Id) && !p.IsService).ToDictionaryAsync(p => p.Id, p => p.Unit, ct);
+        if (units.Count != ids.Count)
         {
             return Invalid("Lines", "An item wasn't found.");
+        }
+
+        if (lines.Any(l => Catalogue.Units.IsWhole(units[l.ProductId]) && l.Quantity != decimal.Truncate(l.Quantity)))
+        {
+            return Invalid("Lines", "Pieces, cartons, strips and the like are ordered in whole numbers.");
         }
 
         return null;

@@ -131,6 +131,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         (product.StyleName, product.Size, product.Colour) = (Short(request.StyleName, 120), Short(request.Size, 20), Short(request.Colour, 30));
         product.Barcode = barcode.Length > 0 ? barcode : null;
         product.BagSize = request.BagSize is > 0 and <= 100_000 && !request.IsService ? request.BagSize : null;
+        product.PurchaseUnit = product.BagSize is null || request.PurchaseUnit == product.Unit ? null : request.PurchaseUnit;
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)
@@ -200,6 +201,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.Size = request.Size is null ? product.Size : Short(request.Size, 20);
         product.Colour = request.Colour is null ? product.Colour : Short(request.Colour, 30);
         product.BagSize = request.BagSize is { } bag ? (bag is > 0 and <= 100_000 && !product.IsService ? bag : null) : product.BagSize;
+        product.PurchaseUnit = product.BagSize is null ? null : request.PurchaseUnit is { } pu ? (pu == product.Unit || pu == Unit.Bag ? null : pu) : product.PurchaseUnit;
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
@@ -625,7 +627,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null),
         p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp, p.Barcode,
         p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? MasterPhotos.Representative : null,
-        p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn, null, p.BagSize);
+        p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn, null, p.BagSize, 0, 0, p.PurchaseUnit);
 
     /// <summary>An MRP below the selling price is a typing slip. At the price it stays: it's what stops a bill going above it.</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>

@@ -30,14 +30,16 @@ public sealed record ProductRequest(
     string? Size = null,
     string? Colour = null,
     string? Barcode = null,
-    decimal? BagSize = null);
+    decimal? BagSize = null,
+    Unit? PurchaseUnit = null);
 
 /// <summary><see cref="GstRate"/> and <see cref="HsnCode"/>: null keeps what the item has (older apps don't send them), unless <see cref="ReplaceTax"/> says null means clear it.</summary>
 public sealed record ProductUpdate(
     string? Name, Unit? Unit, decimal SellingPrice, decimal? CostPrice, string? Category, decimal? ReorderLevel, bool? IsActive,
     decimal? GstRate = null, string? HsnCode = null, bool ReplaceTax = false, bool? IsService = null, int? DurationMinutes = null, DrugSchedule? Schedule = null, bool ReplaceSchedule = false, int? UnitsPerPack = null, bool? TracksSerials = null, int? WarrantyMonths = null, decimal? Mrp = null, string? BillName = null, string? StyleName = null, string? Size = null, string? Colour = null, bool? Uncounted = null,
     // Null keeps it; 0 clears it (no longer kept in bags).
-    decimal? BagSize = null);
+    decimal? BagSize = null,
+    Unit? PurchaseUnit = null);
 
 /// <summary><see cref="IsLow"/>: out of stock, or at/below the reorder level.</summary>
 public sealed record ProductDto(
@@ -81,7 +83,9 @@ public sealed record ProductDto(
     decimal? BagSize = null,
     decimal Bags = 0,
     // Promised on open sale orders and not yet delivered: Stock − Reserved − Promised is free to sell.
-    decimal Promised = 0);
+    decimal Promised = 0,
+    // What the bag size counts when buying (carton, strip); null: a bag.
+    Unit? PurchaseUnit = null);
 
 public sealed record OutTodayRequest(bool Out);
 

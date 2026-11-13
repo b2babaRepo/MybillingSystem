@@ -11,7 +11,7 @@ import { formatRupees, whatsAppLink } from '../lib/format'
 import { parseSuppliers } from '../lib/supplierImport'
 import type { Product } from '../lib/types'
 
-export interface OrderLine { productId: string; name: string; quantity: number; rate: number | null; received: number; shortClosed?: number; shortReason?: string | null; unit?: string; bags?: number | null }
+export interface OrderLine { productId: string; name: string; quantity: number; rate: number | null; received: number; shortClosed?: number; shortReason?: string | null; unit?: string; bags?: number | null; packUnit?: string | null }
 export interface PurchaseOrder { id: string; number: number; supplierId: string; supplierName: string; status: 'open' | 'closed' | 'cancelled' | 'draft'; note: string | null; expectedOn: string | null; createdAt: string; closedAt?: string | null; stage?: string; promiseMoves?: number; pending: number; lines: OrderLine[]; totals?: { unit: string; quantity: number }[]; bags?: number }
 interface ReturnLine { productName: string; batchNo: string; quantity: number; value: number }
 interface SupplierReturn { id: string; number: number; value: number; daysOpen: number; settledAt: string | null; lines: ReturnLine[] }
@@ -47,7 +47,12 @@ function PickRows({ products, rows, onChange, withRate, listId, withBags = false
             const avg = Number(r.bags) > 0 && Number(r.quantity) > 0 ? Number(r.quantity) / Number(r.bags) : null
             return (
               <div className="col-span-full flex flex-col gap-1">
-                <input aria-label={t('bag.bags')} placeholder={`${t('bag.bags')} (${t('bag.bagsOf', { size: p.bagSize, unit: t(`units.${p.unit}`) })})`} value={r.bags ?? ''} onChange={(e) => set(i, { bags: e.target.value })} inputMode="numeric" className={input} />
+                <input aria-label={t('bag.bags')} placeholder={`${t(`units.${p.purchaseUnit ?? 'bag'}`)} × ${p.bagSize} ${t(`units.${p.unit}`)}`} value={r.bags ?? ''} onChange={(e) => {
+                  // Typing the cartons or bags fills the quantity, unless the quantity was typed by hand (a carton of other than the usual count).
+                  const n = Number(e.target.value)
+                  const auto = !r.quantity || Number(r.quantity) === Number(r.bags) * p.bagSize!
+                  set(i, { bags: e.target.value, ...(auto && n > 0 ? { quantity: String(Math.round(n * p.bagSize! * 1000) / 1000) } : {}) })
+                }} inputMode="numeric" className={input} />
                 {avg !== null && <BagCheck avg={avg} size={p.bagSize} bags={Number(r.bags)} unit={t(`units.${p.unit}`)} />}
               </div>
             )
@@ -60,8 +65,8 @@ function PickRows({ products, rows, onChange, withRate, listId, withBags = false
 }
 
 /** The message a supplier gets: the shop's order, item by item. */
-export function orderText(t: (key: string, values?: Record<string, unknown>) => string, shopName: string, number: number, lines: { name: string; quantity: number; unit?: string; bags?: number | null }[]) {
-  return t('supplier2.orderMessage', { shop: shopName, number, lines: lines.map((l) => `${l.name} × ${l.quantity}${l.unit ? ` ${t(`units.${l.unit}`)}` : ''}${l.bags ? ` (${t('bag.inBags', { count: l.bags })})` : ''}`).join('\n') })
+export function orderText(t: (key: string, values?: Record<string, unknown>) => string, shopName: string, number: number, lines: { name: string; quantity: number; unit?: string; bags?: number | null; packUnit?: string | null }[]) {
+  return t('supplier2.orderMessage', { shop: shopName, number, lines: lines.map((l) => `${l.name} × ${l.quantity}${l.unit ? ` ${t(`units.${l.unit}`)}` : ''}${l.bags ? ` (${l.packUnit && l.packUnit !== 'bag' ? `${l.bags} ${t(`units.${l.packUnit}`)}` : t('bag.inBags', { count: l.bags })})` : ''}`).join('\n') })
 }
 
 /**
@@ -93,6 +98,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
     }
   }
 
+  const packs = (n: number, u?: string | null) => (u && u !== 'bag' ? `${n} ${t(`units.${u}`)}` : t('bag.inBags', { count: n }))
   const close = () => { setRows(null); setEditing(null); setExpectedOn(''); setNote('') }
   // A draft is kept but not counted as on order; "Save order" places it straight away.
   const save = (draft: boolean) => run(async () => {
@@ -132,11 +138,11 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
             {o.lines.map((l) => (
               <p key={l.productId} className={`flex justify-between gap-2 ${l.received >= l.quantity ? 'text-muted' : ''}`}>
                 <span>{l.name}{l.rate != null ? ` · ${formatRupees(l.rate)}` : ''}</span>
-                <span className="text-right">{draft ? l.quantity : t('supplier2.cameOf', { came: l.received, ordered: l.quantity })}{l.unit ? ` ${t(`units.${l.unit}`)}` : ''}{l.bags ? ` · ${t('bag.inBags', { count: l.bags })}` : ''}
+                <span className="text-right">{draft ? l.quantity : t('supplier2.cameOf', { came: l.received, ordered: l.quantity })}{l.unit ? ` ${t(`units.${l.unit}`)}` : ''}{l.bags ? ` · ${packs(l.bags, l.packUnit)}` : ''}
                   {(l.shortClosed ?? 0) > 0 && <span className="block text-xs text-due">{t('supplier2.shortClosed', { qty: l.shortClosed })}{l.shortReason ? ` · ${t(`gi.reason.${l.shortReason}`)}` : ''}</span>}</span>
               </p>
             ))}
-            {(o.totals?.length ?? 0) > 0 && <p className="border-t border-line pt-1 text-xs font-semibold">{t('po.total')}: {o.totals!.map((u) => `${u.quantity} ${t(`units.${u.unit}`)}`).join(' · ')}{o.bags ? ` · ${t('bag.inBags', { count: o.bags })}` : ''}</p>}
+            {(o.totals?.length ?? 0) > 0 && <p className="border-t border-line pt-1 text-xs font-semibold">{t('po.total')}: {o.totals!.map((u) => `${u.quantity} ${t(`units.${u.unit}`)}`).join(' · ')}{Object.entries(o.lines.reduce<Record<string, number>>((m, l) => (l.bags ? { ...m, [l.packUnit ?? 'bag']: (m[l.packUnit ?? 'bag'] ?? 0) + l.bags } : m), {})).map(([u, n]) => ` · ${packs(n, u)}`).join('')}</p>}
             {draft ? (
             <div className="mt-1 flex flex-wrap gap-2">
               <Button className="flex-1" onClick={() => void run(() => api(`/v1/suppliers/orders/${o.id}/place`, 'POST', {}))}>{t('supplier2.placeOrder')}</Button>
@@ -146,7 +152,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
             ) : (
             <div className="mt-1 flex flex-wrap gap-2">
               <Button className="flex-1" onClick={() => onGoodsCame(o)}>{t('supplier2.goodsCame')}</Button>
-              {phone && <a href={whatsAppLink(phone, orderText(t, shopName, o.number, left.map((l) => ({ name: l.name, quantity: l.quantity - l.received, unit: l.unit, bags: l.received > 0 ? null : l.bags }))))} target="_blank" rel="noreferrer"
+              {phone && <a href={whatsAppLink(phone, orderText(t, shopName, o.number, left.map((l) => ({ name: l.name, quantity: l.quantity - l.received, unit: l.unit, bags: l.received > 0 ? null : l.bags, packUnit: l.packUnit }))))} target="_blank" rel="noreferrer"
                 onClick={() => { if (!o.stage || o.stage === 'placed') void api(`/v1/suppliers/orders/${o.id}/stage`, 'POST', { stage: 'sent', via: 'whatsapp' }).then(refresh).catch(() => undefined) }}
                 className="flex min-h-12 items-center rounded-2xl border border-line px-3 font-semibold">{t('supplier2.sendOrder')}</a>}
               <button onClick={() => void finish(o, o.lines.some((l) => l.received > 0) ? 'close' : 'cancel')} className="min-h-12 px-2 text-xs font-semibold text-due">

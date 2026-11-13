@@ -540,7 +540,7 @@ export const enMore = {
     cancel: 'Cancel order',
     cancelConfirm: 'Cancel this order?',
   },
-  units: { pair: 'pair', dozen: 'dozen', box: 'box', jar: 'jar', piece: 'pc', kg: 'kg', g: 'g', litre: 'L', ml: 'ml', packet: 'pkt', bag: 'bag', tonne: 'tonne', brass: 'brass', cft: 'cft', metre: 'm', sq_ft: 'sq ft', running_ft: 'rft' },
+  units: { quintal: 'qtl', carton: 'carton', bottle: 'bottle', set: 'set', strip: 'strip', pair: 'pair', dozen: 'dozen', box: 'box', jar: 'jar', piece: 'pc', kg: 'kg', g: 'g', litre: 'L', ml: 'ml', packet: 'pkt', bag: 'bag', tonne: 'tonne', brass: 'brass', cft: 'cft', metre: 'm', sq_ft: 'sq ft', running_ft: 'rft' },
   upiPay: { scan: 'Customer scans to pay {{amount}}', qrAlt: 'UPI QR code for {{amount}}', check: 'Save the bill once the money shows in your UPI app.', note: 'Bill at {{shop}}', noId: 'Add your UPI ID in Shop settings to show a pay QR here', save: 'Payment received · save bill {{amount}}', paidUpi: 'Paid {{amount}} by UPI', paidCash: 'Paid {{amount}} in cash' },
   billReceipt: {
     send: 'Send bill on WhatsApp',
@@ -799,7 +799,7 @@ export const enMore = {
     writeOff: 'Most a helper can write off at cost (₹)', writeOffHint: 'Damage, loss or a stock count beyond this needs the owner.',
     kinds: { used_on_job: 'Used on a job', used_in_service: 'Used in a service', sent_to_karigar: 'Sent to karigar', back_from_karigar: 'Back from karigar', open_bag: 'Bag opened for loose sale' },
     docs: { bill: 'Bill', purchase: 'Supplier bill', receipt: 'Goods receipt', challan: 'Delivery challan', supplier_return: 'Return to supplier', credit_note: 'Credit note', job: 'Job', karigar: 'Karigar challan', stocktake: 'Stock count' } },
-  bag: { sizeLabel: 'Kept in bags of', sizeHint: 'Stock stays in {{unit}}; sealed bags are counted beside it on every purchase, sale and receipt.', bags: 'Bags', bagsOf: 'bags of {{size}} {{unit}}', sealed_one: '{{count}} sealed bag', sealed_other: '{{count}} sealed bags', loose: '{{qty}} {{unit}} loose', open: 'Open a bag', openAsk: 'How many bags to open for loose sale?',
+  bag: { buyIn: 'Bought in', sizeLabel: 'Kept in bags of', sizeHint: 'Stock stays in {{unit}}; sealed bags are counted beside it on every purchase, sale and receipt.', bags: 'Bags', bagsOf: 'bags of {{size}} {{unit}}', sealed_one: '{{count}} sealed bag', sealed_other: '{{count}} sealed bags', loose: '{{qty}} {{unit}} loose', open: 'Open a bag', openAsk: 'How many bags to open for loose sale?',
     inBags_one: '{{count}} bag', inBags_other: '{{count}} bags', perBag: '{{avg}} {{unit}} a bag', short: '{{diff}} {{unit}} short a bag, {{total}} {{unit}} in all', over: '{{diff}} {{unit}} over a bag',
     transport: 'Truck and weighbridge (optional)', vehicle: 'Vehicle no.', bilty: 'Bilty / LR no.', transporter: 'Transporter', gross: 'Loaded vehicle (kg)', tare: 'Empty vehicle (kg)', net: 'Weighbridge: {{net}} kg of goods', netDiffers: 'items add up to {{lines}} kg, {{diff}} kg different',
     rateBasis: 'Rate per', perUnit: 'Rate per {{unit}}', perQuintal: 'Rate per quintal', ratePerBag: 'Rate per bag', wholeBags: 'Sell whole bags', wholeAsk: 'How many bags of {{size}} {{unit}}?' },

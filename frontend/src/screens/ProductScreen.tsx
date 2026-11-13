@@ -198,6 +198,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     colour: product.colour ?? '',
     uncounted: !!product.uncounted,
     bagSize: product.bagSize ? String(product.bagSize) : '',
+    purchaseUnit: product.purchaseUnit ?? 'bag',
   })
   const types = shopTypes(useShopSettings(shopId).data)
   const medical = types.includes('medical')
@@ -222,6 +223,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     colour: form.colour.trim(),
     uncounted: form.uncounted,
     bagSize: Number(form.bagSize) || 0,
+    purchaseUnit: form.purchaseUnit,
     ...(medical ? { schedule: form.schedule || null, replaceSchedule: true, unitsPerPack: Number(form.perPack) || 0 } : {}),
     ...(service ? { tracksSerials: form.serials, warrantyMonths: Number(form.warranty) || 0 } : {}),
     isActive,
@@ -288,6 +290,9 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
       {!product.isService && (
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-muted">🛍️ {t('bag.sizeLabel')}</span>
+          <select aria-label={t('bag.buyIn')} value={form.purchaseUnit} onChange={set('purchaseUnit')} className="mr-2 h-12 rounded-2xl border-[1.5px] border-line bg-white px-2">
+            {(['bag', 'carton', 'box', 'strip', 'bottle', 'packet', 'jar', 'set', 'dozen', 'quintal'] as const).map((u) => <option key={u} value={u}>{t(`units.${u}`)}</option>)}
+          </select>
           <input value={form.bagSize} onChange={set('bagSize')} inputMode="decimal" placeholder="50" className="h-12 w-32 rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /> {t(`units.${form.unit}`)}
           <span className="mt-1 block text-xs text-muted">{t('bag.sizeHint', { unit: t(`units.${form.unit}`) })}</span>
         </label>

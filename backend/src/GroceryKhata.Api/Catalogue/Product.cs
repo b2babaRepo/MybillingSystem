@@ -33,6 +33,9 @@ public sealed class Product : Entity, ITenantOwned
     /// </summary>
     public decimal? BagSize { get; set; }
 
+    /// <summary>What <see cref="BagSize"/> is a count of when buying: a carton of 24, a strip of 10. Null: a bag.</summary>
+    public Unit? PurchaseUnit { get; set; }
+
     public Unit? PackUnit { get; set; }
 
     /// <summary>
@@ -180,6 +183,20 @@ public enum Unit
     SqFt,
     /// <summary>Running feet: beading, patti and edge band.</summary>
     RunningFt,
+    /// <summary>100 kg.</summary>
+    Quintal,
+    Carton,
+    Bottle,
+    Set,
+    /// <summary>A strip of tablets or capsules.</summary>
+    Strip,
+}
+
+public static class Units
+{
+    /// <summary>Units that only come whole: half a carton or 2.5 pieces is a typing slip.</summary>
+    public static bool IsWhole(Unit unit) => unit is Unit.Piece or Unit.Packet or Unit.Bag or Unit.Pair or Unit.Box or Unit.Jar
+        or Unit.Carton or Unit.Bottle or Unit.Set or Unit.Strip;
 }
 
 /// <summary>

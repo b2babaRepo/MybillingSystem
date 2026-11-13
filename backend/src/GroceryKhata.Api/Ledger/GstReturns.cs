@@ -35,6 +35,10 @@ public static class GstReturns
         Unit.Jar => "JAR",
         Unit.Piece => "PCS",
         Unit.Cft => "CBM",
+        Unit.Quintal => "QTL",
+        Unit.Carton => "CTN",
+        Unit.Bottle => "BTL",
+        Unit.Set => "SET",
         _ => "OTH",
     };
 

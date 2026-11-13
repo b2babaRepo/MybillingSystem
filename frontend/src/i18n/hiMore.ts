@@ -542,7 +542,7 @@ export const hiMore: TextsMore = {
     cancel: 'ऑर्डर रद्द करें',
     cancelConfirm: 'यह ऑर्डर रद्द करें?',
   },
-  units: { pair: 'जोड़ी', dozen: 'दर्जन', box: 'डिब्बा', jar: 'जार', piece: 'पीस', kg: 'किलो', g: 'ग्राम', litre: 'लीटर', ml: 'ml', packet: 'पैकेट', bag: 'बोरी', tonne: 'टन', brass: 'ब्रास', cft: 'घन फुट', metre: 'मीटर', sq_ft: 'वर्ग फुट', running_ft: 'रनिंग फुट' },
+  units: { quintal: 'क्विंटल', carton: 'कार्टन', bottle: 'बोतल', set: 'सेट', strip: 'स्ट्रिप', pair: 'जोड़ी', dozen: 'दर्जन', box: 'डिब्बा', jar: 'जार', piece: 'पीस', kg: 'किलो', g: 'ग्राम', litre: 'लीटर', ml: 'ml', packet: 'पैकेट', bag: 'बोरी', tonne: 'टन', brass: 'ब्रास', cft: 'घन फुट', metre: 'मीटर', sq_ft: 'वर्ग फुट', running_ft: 'रनिंग फुट' },
   upiPay: { scan: 'ग्राहक स्कैन करके {{amount}} दे', qrAlt: '{{amount}} का UPI QR कोड', check: 'UPI ऐप में पैसा आने के बाद बिल सेव करें।', note: '{{shop}} का बिल', noId: 'यहाँ QR दिखाने के लिए दुकान सेटिंग में UPI ID डालें', save: 'पैसा मिल गया · बिल सेव करें {{amount}}', paidUpi: '{{amount}} UPI से मिले', paidCash: '{{amount}} नकद मिले' },
   billReceipt: {
     send: 'बिल WhatsApp पर भेजें',
@@ -801,7 +801,7 @@ export const hiMore: TextsMore = {
     writeOff: 'सहायक लागत पर ज़्यादा से ज़्यादा कितना घटा सकता है (₹)', writeOffHint: 'इससे ज़्यादा नुकसान, खोया या गिनती का फ़र्क मालिक करेगा।',
     kinds: { used_on_job: 'काम में लगा', used_in_service: 'सेवा में लगा', sent_to_karigar: 'कारीगर को भेजा', back_from_karigar: 'कारीगर से वापस', open_bag: 'खुला बेचने को बोरी खोली' },
     docs: { bill: 'बिल', purchase: 'सप्लायर बिल', receipt: 'माल आया', challan: 'डिलीवरी चालान', supplier_return: 'सप्लायर को वापस', credit_note: 'क्रेडिट नोट', job: 'काम', karigar: 'कारीगर चालान', stocktake: 'स्टॉक गिनती' } },
-  bag: { sizeLabel: 'बोरी/बैग का वज़न', sizeHint: 'स्टॉक {{unit}} में रहता है; हर ख़रीद, बिक्री और माल आने पर बंद बोरियाँ साथ में गिनी जाती हैं।', bags: 'बोरी', bagsOf: '{{size}} {{unit}} की बोरी', sealed_one: '{{count}} बंद बोरी', sealed_other: '{{count}} बंद बोरियाँ', loose: '{{qty}} {{unit}} खुला', open: 'बोरी खोलें', openAsk: 'खुला बेचने के लिए कितनी बोरियाँ खोलें?',
+  bag: { buyIn: 'ख़रीद की इकाई', sizeLabel: 'बोरी/बैग का वज़न', sizeHint: 'स्टॉक {{unit}} में रहता है; हर ख़रीद, बिक्री और माल आने पर बंद बोरियाँ साथ में गिनी जाती हैं।', bags: 'बोरी', bagsOf: '{{size}} {{unit}} की बोरी', sealed_one: '{{count}} बंद बोरी', sealed_other: '{{count}} बंद बोरियाँ', loose: '{{qty}} {{unit}} खुला', open: 'बोरी खोलें', openAsk: 'खुला बेचने के लिए कितनी बोरियाँ खोलें?',
     inBags_one: '{{count}} बोरी', inBags_other: '{{count}} बोरियाँ', perBag: 'एक बोरी {{avg}} {{unit}}', short: 'हर बोरी {{diff}} {{unit}} कम, कुल {{total}} {{unit}}', over: 'हर बोरी {{diff}} {{unit}} ज़्यादा',
     transport: 'गाड़ी और धर्मकांटा (वैकल्पिक)', vehicle: 'गाड़ी नंबर', bilty: 'बिल्टी / LR नंबर', transporter: 'ट्रांसपोर्ट', gross: 'भरी गाड़ी (किलो)', tare: 'खाली गाड़ी (किलो)', net: 'धर्मकांटा: {{net}} किलो माल', netDiffers: 'सामान का जोड़ {{lines}} किलो, {{diff}} किलो फ़र्क',
     rateBasis: 'भाव', perUnit: 'भाव प्रति {{unit}}', perQuintal: 'भाव प्रति क्विंटल', ratePerBag: 'भाव प्रति बोरी', wholeBags: 'पूरी बोरी बेचें', wholeAsk: '{{size}} {{unit}} की कितनी बोरियाँ?' },

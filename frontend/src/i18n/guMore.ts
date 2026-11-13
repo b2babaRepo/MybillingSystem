@@ -201,7 +201,7 @@ const guMoreB = {
     cancel: 'ઓર્ડર રદ કરો',
     cancelConfirm: 'આ ઓર્ડર રદ કરવો છે?',
   },
-  units: { pair: 'જોડ', dozen: 'ડઝન', box: 'બૉક્સ', jar: 'જાર', piece: 'નંગ', kg: 'કિલો', g: 'ગ્રામ', litre: 'લિ.', ml: 'મિલિ', packet: 'પેકેટ', bag: 'થેલી', tonne: 'ટન', brass: 'બ્રાસ', cft: 'ઘનફૂટ', metre: 'મી.', sq_ft: 'ચો.ફૂટ', running_ft: 'રનિંગ ફૂટ' },
+  units: { quintal: 'ક્વિન્ટલ', carton: 'કાર્ટન', bottle: 'બોટલ', set: 'સેટ', strip: 'સ્ટ્રિપ', pair: 'જોડ', dozen: 'ડઝન', box: 'બૉક્સ', jar: 'જાર', piece: 'નંગ', kg: 'કિલો', g: 'ગ્રામ', litre: 'લિ.', ml: 'મિલિ', packet: 'પેકેટ', bag: 'થેલી', tonne: 'ટન', brass: 'બ્રાસ', cft: 'ઘનફૂટ', metre: 'મી.', sq_ft: 'ચો.ફૂટ', running_ft: 'રનિંગ ફૂટ' },
   upiPay: { scan: '{{amount}} ચૂકવવા ગ્રાહક સ્કેન કરે', qrAlt: '{{amount}} માટે UPI QR કોડ', check: 'તમારી UPI એપમાં પૈસા દેખાય પછી બિલ સેવ કરો.', note: '{{shop}} નું બિલ', noId: 'અહીં ચુકવણી QR બતાવવા દુકાનનાં સેટિંગ્સમાં તમારો UPI ID ઉમેરો', save: 'ચુકવણી મળી · બિલ સેવ કરો {{amount}}', paidUpi: 'UPI થી {{amount}} ચૂકવ્યા', paidCash: 'રોકડમાં {{amount}} ચૂકવ્યા' },
   billReceipt: {
     send: 'WhatsApp પર બિલ મોકલો',
