@@ -158,7 +158,7 @@ public static class GoodsReceipts
 
         var lines = (await LinesAsync(db, [receipt.Id], ct))[receipt.Id].ToList();
         var ids = lines.Select(l => l.ProductId).Distinct().ToList();
-        var kinds = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Unit, p.WeightKg }, ct);
+        var kinds = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Unit, p.WeightKg, p.GstRate }, ct);
         var expected = lines.Sum(l => kinds.GetValueOrDefault(l.ProductId) is { } k ? Units.Kg(k.Unit, k.WeightKg, l.Quantity) ?? 0 : 0);
         var shortKg = decimal.Round(expected - (gross - tare), 3);
         if (shortKg < 1)
@@ -168,11 +168,20 @@ public static class GoodsReceipts
 
         var now = clock.GetUtcNow();
         await Books.EnsureOpenAsync(db, tenant, now, ct);
-        var amount = decimal.Round(shortKg * request.RatePerKg, 2);
+        // A debit note to the supplier: the goods short at their rate (before tax), plus the GST on them when the shop took
+        // input tax on the bill (a regular shop, a supplier with a valid GSTIN), at the items' rates weighted by their kilograms.
+        // It goes in as a supplier credit note, so the GST export reverses that input tax and Tally gets a Debit Note.
+        var taxable = decimal.Round(shortKg * request.RatePerKg, 2);
+        var composition = await db.Shops.AsNoTracking().Select(s => s.GstComposition).FirstOrDefaultAsync(ct);
+        var supplierGstin = await db.Suppliers.AsNoTracking().Where(s => s.Id == receipt.SupplierId).Select(s => s.Gstin).FirstOrDefaultAsync(ct);
+        var weighed = lines.Select(l => (Kg: kinds.GetValueOrDefault(l.ProductId) is { } k ? Units.Kg(k.Unit, k.WeightKg, l.Quantity) ?? 0 : 0, Rate: kinds.GetValueOrDefault(l.ProductId)?.GstRate ?? 0)).ToList();
+        var gstRate = !composition && GstExport.IsValidGstin(supplierGstin) && expected > 0 ? weighed.Sum(w => w.Kg * w.Rate) / expected : 0;
+        var gst = decimal.Round(taxable * gstRate / 100, 2);
+        var amount = taxable + gst;
         var entry = new SupplierEntry
         {
-            Id = Guid.CreateVersion7(), SupplierId = receipt.SupplierId, Kind = SupplierEntryKind.Other, Amount = -amount, OccurredAt = now, CreatedByUserId = user.UserId()!.Value,
-            Note = $"Weighbridge short {shortKg:0.###} kg, GR #{receipt.Number}", Reference = $"@ {request.RatePerKg:0.##}/kg",
+            Id = Guid.CreateVersion7(), SupplierId = receipt.SupplierId, Kind = SupplierEntryKind.CreditNote, Amount = -amount, Gst = gst, OccurredAt = now, CreatedByUserId = user.UserId()!.Value,
+            Note = $"Debit note: short {shortKg:0.###} kg, GR #{receipt.Number}"[..Math.Min(40, $"Debit note: short {shortKg:0.###} kg, GR #{receipt.Number}".Length)], Reference = $"@ {request.RatePerKg:0.##}/kg + GST",
         };
         db.SupplierEntries.Add(entry);
         (receipt.ShortKg, receipt.ShortEntryId) = (shortKg, entry.Id);
@@ -333,7 +342,7 @@ public static class GoodsReceipts
         {
             db.SupplierEntries.Add(new SupplierEntry
             {
-                SupplierId = receipt.SupplierId, Kind = SupplierEntryKind.Other, Amount = -claim.Amount, OccurredAt = now, CreatedByUserId = userId,
+                SupplierId = receipt.SupplierId, Kind = claim.Kind, Amount = -claim.Amount, Gst = claim.Gst is { } g ? -g : null, OccurredAt = now, CreatedByUserId = userId,
                 Note = $"Short claim undone, GR #{receipt.Number}",
             });
         }

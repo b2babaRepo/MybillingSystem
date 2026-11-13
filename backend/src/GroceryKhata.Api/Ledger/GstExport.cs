@@ -495,7 +495,7 @@ public static class GstExport
         var shopState = d.ShopGstin is { Length: 15 } sg ? sg[..2] : null;
         decimal c = 0, s = 0, i = 0;
         // Supplier credit notes take back the input tax on what went back.
-        foreach (var e in d.SupplierCredits.Where(e => e.Gst is > 0 && ClaimableFrom(e.SupplierId, d)))
+        foreach (var e in d.SupplierCredits.Where(e => e.Gst is { } g && g != 0 && ClaimableFrom(e.SupplierId, d)))
         {
             var gstin = d.Suppliers[e.SupplierId].Gstin!;
             if (shopState is not null && gstin[..2] != shopState)
@@ -684,26 +684,28 @@ public static class GstExport
         // Supplier credit notes as Debit Notes: the supplier is debited (owed less), purchases credited.
         foreach (var e in d.SupplierCredits)
         {
+            // A note undone (its goods receipt cancelled) has the opposite sign: the same voucher with every side turned over.
+            var undo = e.Amount > 0;
             var name = d.Suppliers.GetValueOrDefault(e.SupplierId, ("Supplier", null)).Name;
             var note = string.Join(" · ", new[] { e.Note, e.Reference }.Where(x => !string.IsNullOrWhiteSpace(x)));
-            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"Debit Note\" ACTION=\"Create\"><GUID>gk-{e.Id}</GUID><DATE>{Day(e.OccurredAt)}</DATE><VOUCHERTYPENAME>Debit Note</VOUCHERTYPENAME>")
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"{(undo ? "Credit Note" : "Debit Note")}\" ACTION=\"Create\"><GUID>gk-{e.Id}</GUID><DATE>{Day(e.OccurredAt)}</DATE><VOUCHERTYPENAME>{(undo ? "Credit Note" : "Debit Note")}</VOUCHERTYPENAME>")
                 .Append($"<PARTYLEDGERNAME>{X(name)}</PARTYLEDGERNAME>{(note.Length > 0 ? $"<NARRATION>{X(note)}</NARRATION>" : "")}<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
-            Entry(name, Math.Abs(e.Amount), debit: true);
+            Entry(name, Math.Abs(e.Amount), debit: !undo);
             // The GST in it reverses the input tax taken on those goods (only where it was claimable).
-            var back = e.Gst is > 0 && ClaimableFrom(e.SupplierId, d) ? e.Gst.Value : 0;
-            Entry(d.Names["purchases"], Math.Abs(e.Amount) - back, debit: false);
+            var back = e.Gst is { } g && g != 0 && ClaimableFrom(e.SupplierId, d) ? Math.Abs(g) : 0;
+            Entry(d.Names["purchases"], Math.Abs(e.Amount) - back, debit: undo);
             if (back > 0)
             {
                 var sGstin = d.Suppliers[e.SupplierId].Gstin!;
                 if (shopState is not null && sGstin[..2] != shopState)
                 {
-                    Entry(d.Names["inputIgst"], back, debit: false);
+                    Entry(d.Names["inputIgst"], back, debit: undo);
                 }
                 else
                 {
                     var half = decimal.Round(back / 2, 2);
-                    Entry(d.Names["inputCgst"], half, debit: false);
-                    Entry(d.Names["inputSgst"], back - half, debit: false);
+                    Entry(d.Names["inputCgst"], half, debit: undo);
+                    Entry(d.Names["inputSgst"], back - half, debit: undo);
                 }
             }
             body.Append("</VOUCHER></TALLYMESSAGE>\n");

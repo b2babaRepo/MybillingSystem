@@ -101,21 +101,23 @@ public sealed class BardanaTests(ApiFactory api)
     {
         var shop = await ShopAsync();
         var supplier = Guid.CreateVersion7();
-        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jain Traders" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jain Traders", gstin = "08ABCDE1234F1Z0" })).EnsureSuccessStatusCode();
         var rice = Guid.CreateVersion7();
-        (await shop.PostJsonAsync("/api/v1/products", new { id = rice, name = "Rice", unit = "kg", sellingPrice = 50m, openingStock = 0m })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = rice, name = "Rice", unit = "kg", sellingPrice = 50m, openingStock = 0m, gstRate = 5m })).EnsureSuccessStatusCode();
 
         // 500 kg on the receipt, 490 kg on the weighbridge: 10 kg short.
         var receipt = Guid.CreateVersion7();
         (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = receipt, supplierId = supplier, grossWeight = 3490m, tareWeight = 3000m, lines = new[] { new { productId = rice, quantity = 500m } } })).EnsureSuccessStatusCode();
         var claimed = await (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/short-claim", new { ratePerKg = 40m })).ReadAsync<GoodsReceiptDto>();
-        Assert.Equal(((decimal?)10m, (decimal?)400m), (claimed.ShortKg, claimed.ShortClaim));
-        Assert.Equal(-400m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
+        // A debit note: 10 kg at 40 is 400, plus 5% GST from a registered supplier, 420 off what the shop owes.
+        Assert.Equal(((decimal?)10m, (decimal?)420m), (claimed.ShortKg, claimed.ShortClaim));
+        var detail = await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}");
+        Assert.Equal((-420m, SupplierEntryKind.CreditNote), (detail.Supplier.Due, detail.Entries.Single().Kind));
 
         // Only once.
         Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/short-claim", new { ratePerKg = 40m })).StatusCode);
 
-        // Goods that never came carry no claim: cancelling the receipt puts the 400 back.
+        // Goods that never came carry no claim: cancelling the receipt puts the 420 back.
         (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/cancel", new { })).EnsureSuccessStatusCode();
         Assert.Equal(0m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
     }
