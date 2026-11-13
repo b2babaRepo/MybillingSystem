@@ -681,6 +681,7 @@ public sealed class LedgerFixTests(ApiFactory api)
         var tap = await ItemAsync(shop, "Tap", 150m, 0m);
         var supplierId = await SupplierAsync(shop, "Jain, Traders");
         (await shop.PutAsJsonAsync($"/api/v1/suppliers/{supplierId}", new { id = supplierId, name = "Jain, Traders", gstin = "08ABCDE1234F1Z0" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        (await shop.PutJsonAsync($"/api/v1/products/{pipe.Id}", new { name = "Pipe", unit = "piece", sellingPrice = 300m, weightKg = 2m })).EnsureSuccessStatusCode();
         (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new
         {
             id = Guid.CreateVersion7(), supplierId, billNo = "J-1", paidAmount = 0m, extra = 10m,
@@ -695,6 +696,12 @@ public sealed class LedgerFixTests(ApiFactory api)
         Assert.Contains("J-1,\"Jain, Traders\",08ABCDE1234F1Z0,Rajasthan,5.00,100.00,2.50,2.50,0.00,Yes,10.00,351.00,", lines[1]);
         Assert.Contains(",18.00,200.00,18.00,18.00,0.00,Yes,,,", lines[2]);
         Assert.StartsWith("Total (cancelled bills left out),,,,,,300.00,20.50,20.50,0.00,,10.00,351.00", lines.Single(l => l.StartsWith("Total")));
+
+        // Weight: the two 2 kg pipes weigh 4 kg; the tap's weight isn't known, so its row is blank, not counted as kg.
+        Assert.EndsWith(",Status,Weight (kg)", lines[0]);
+        Assert.EndsWith(",351.00,,", lines[1]);
+        Assert.EndsWith(",,,,4", lines[2]);
+        Assert.EndsWith(",,4", lines.Single(l => l.StartsWith("Total")));
     }
 
     private static object OfferBill(Guid product, decimal price, Guid? offerId) => new

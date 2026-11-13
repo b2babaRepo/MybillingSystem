@@ -416,10 +416,14 @@ public static class PurchaseOrders
         var suppliers = await db.Suppliers.AsNoTracking().Where(s => supplierIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => new { s.Name, s.Gstin }, ct);
         static string Cell(string? text) => text is null ? "" : text.Contains(',') || text.Contains('"') ? $"\"{text.Replace("\"", "\"\"")}\"" : text;
         static string Num(decimal n) => n.ToString("0.00", CultureInfo.InvariantCulture);
+        var lineItems = bills.SelectMany(b => b.Lines).Select(l => l.ProductId).Distinct().ToList();
+        var kinds = await db.Products.AsNoTracking().Where(p => lineItems.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Unit, p.WeightKg }, ct);
+        // Kilograms of the lines whose weight is known (paid and free units); blank when none is, never pieces counted as kg.
+        decimal? Kg(IEnumerable<PurchaseLine> lines) => lines.Select(l => kinds.GetValueOrDefault(l.ProductId) is { } k ? Catalogue.Units.Kg(k.Unit, k.WeightKg, l.Quantity + l.FreeQuantity) : null).Sum() is > 0 and var kg ? decimal.Round(kg, 3) : null;
         var composition = await db.Shops.AsNoTracking().Select(s => s.GstComposition).FirstOrDefaultAsync(ct);
         var shopGstin = await db.Shops.AsNoTracking().Select(s => s.Gstin).FirstOrDefaultAsync(ct);
-        var csv = new StringBuilder("Date,Bill no,Supplier,Supplier GSTIN,Supplier state,GST rate %,Taxable value,CGST,SGST,IGST,Input tax claimable,Freight and round-off,Bill total,Status\n");
-        decimal tTaxable = 0, tCgst = 0, tSgst = 0, tIgst = 0, tExtra = 0, tTotal = 0;
+        var csv = new StringBuilder("Date,Bill no,Supplier,Supplier GSTIN,Supplier state,GST rate %,Taxable value,CGST,SGST,IGST,Input tax claimable,Freight and round-off,Bill total,Status,Weight (kg)\n");
+        decimal tTaxable = 0, tCgst = 0, tSgst = 0, tIgst = 0, tExtra = 0, tTotal = 0, tKg = 0;
         foreach (var bill in bills)
         {
             var supplier = suppliers.GetValueOrDefault(bill.SupplierId);
@@ -438,12 +442,12 @@ public static class PurchaseOrders
                 var (cgst, sgst, igst) = interState ? (0m, 0m, gst) : (decimal.Round(gst / 2, 2), gst - decimal.Round(gst / 2, 2), 0m);
                 if (live)
                 {
-                    (tTaxable, tCgst, tSgst, tIgst) = (tTaxable + taxable, tCgst + cgst, tSgst + sgst, tIgst + igst);
+                    (tTaxable, tCgst, tSgst, tIgst, tKg) = (tTaxable + taxable, tCgst + cgst, tSgst + sgst, tIgst + igst, tKg + (Kg(rate) ?? 0));
                 }
 
                 csv.AppendJoin(',', date, Cell(bill.BillNo), Cell(supplier?.Name), supplier?.Gstin ?? "", Cell(state), rate.Key is { } r ? Num(r) : "",
                     Num(taxable), Num(cgst), Num(sgst), Num(igst), claimable ? "Yes" : "No", i == 0 ? Num(bill.ExtraCharges) : "", i == 0 ? Num(bill.Total) : "",
-                    live ? "" : "Cancelled").Append('\n');
+                    live ? "" : "Cancelled", Kg(rate) is { } kg ? kg.ToString("0.###", CultureInfo.InvariantCulture) : "").Append('\n');
             }
 
             if (live)
@@ -452,8 +456,8 @@ public static class PurchaseOrders
             }
         }
 
-        csv.AppendJoin(',', "Total (cancelled bills left out)", "", "", "", "", "", Num(tTaxable), Num(tCgst), Num(tSgst), Num(tIgst), "", Num(tExtra), Num(tTotal), "").Append('\n');
-        csv.Append("\nNote: a bill with more than one GST rate has one row per rate; Freight and round-off and Bill total are on its first row only.\n");
+        csv.AppendJoin(',', "Total (cancelled bills left out)", "", "", "", "", "", Num(tTaxable), Num(tCgst), Num(tSgst), Num(tIgst), "", Num(tExtra), Num(tTotal), "", tKg > 0 ? tKg.ToString("0.###", CultureInfo.InvariantCulture) : "").Append('\n');
+        csv.Append("\nNote: a bill with more than one GST rate has one row per rate; Freight and round-off and Bill total are on its first row only. Weight counts only items whose weight is known (kg, g, quintal, tonne, or a weight per piece set on the item).\n");
         return TypedResults.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv", $"purchase-register-{year:D4}-{m:D2}.csv");
     }
 }
