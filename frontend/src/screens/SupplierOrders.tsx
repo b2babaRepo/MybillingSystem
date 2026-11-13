@@ -21,6 +21,14 @@ export interface GoodsReceipt { id: string; number: number; supplierId: string; 
 
 const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
 
+/** Kilograms in a quantity of an item: exact for weight units, from its weight per unit otherwise, null when not known. */
+export function kgOf(p: Product | undefined, quantity: number): number | null {
+  if (!p) return null
+  const per: Partial<Record<string, number>> = { kg: 1, g: 0.001, quintal: 100, tonne: 1000 }
+  const k = per[p.unit] ?? (p.weightKg && p.weightKg > 0 ? p.weightKg : null)
+  return k == null ? null : quantity * k
+}
+
 /** Today's date as YYYY-MM-DD in the shop's own day, to compare with an order's expected date. */
 export const todayIso = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
 export const isLate = (o: PurchaseOrder) => o.status === 'open' && o.pending > 0 && !!o.expectedOn && o.expectedOn < todayIso()
@@ -278,7 +286,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
     return over > 0 ? t('po.moreThanOrdered', { name, qty: Math.round(over * 1000) / 1000 }) : null
   }).filter((x): x is string => !!x) : []
   const net = Number(trip.gross) > 0 && Number(trip.tare) >= 0 && Number(trip.gross) > Number(trip.tare) ? Number(trip.gross) - Number(trip.tare) : null
-  const linesKg = valid.reduce((sum, r) => sum + (products.find((p) => p.id === r.productId)?.unit === 'kg' ? Number(r.quantity) : 0), 0)
+  const linesKg = valid.reduce((sum, r) => sum + (kgOf(products.find((p) => p.id === r.productId), Number(r.quantity)) ?? 0), 0)
 
   async function run(action: () => Promise<unknown>) {
     setMessage('')
@@ -315,7 +323,13 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
           <p className="font-semibold">{t('receipt.number', { number: r.number, date: new Date(r.receivedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) })}{r.by ? ` · ${t('receipt.by', { name: r.by })}` : ''}{orders.find((o) => o.id === r.purchaseOrderId) ? ` · ${t('supplier2.orderNo', { number: orders.find((o) => o.id === r.purchaseOrderId)!.number })}` : ''}</p>
           {r.lines.map((l) => <p key={l.productId} className="text-xs">{l.name} × {l.quantity}{l.bags ? ` · ${t('bag.inBags', { count: l.bags })}` : ''}</p>)}
           {(r.vehicleNo || r.bilty) && <p className="text-xs text-muted">🚚 {[r.vehicleNo, r.bilty && `${t('bag.bilty')} ${r.bilty}`, r.transporter].filter(Boolean).join(' · ')}</p>}
-          {r.grossWeight != null && r.tareWeight != null && <p className="text-xs text-muted">⚖ {t('bag.net', { net: r.grossWeight - r.tareWeight })}</p>}
+          {r.grossWeight != null && r.tareWeight != null && (() => {
+            // The weighbridge against what the items add up to: less on the bridge is goods short, to take up with the supplier.
+            const net = r.grossWeight - r.tareWeight
+            const expected = Math.round(r.lines.reduce((s, l) => s + (kgOf(products.find((p) => p.id === l.productId), l.quantity) ?? 0), 0) * 100) / 100
+            const short = Math.round((expected - net) * 100) / 100
+            return <p className={`text-xs ${short >= 1 ? 'font-semibold text-due' : 'text-muted'}`}>⚖ {t('bag.net', { net })}{expected > 0 ? ` · ${t('weigh.expected', { kg: expected })}` : ''}{short >= 1 ? ` · ${t('weigh.short', { kg: short })}` : ''}</p>
+          })()}
           <div className="flex flex-wrap gap-3">
             <button onClick={() => onBill(r, orders.find((o) => o.id === r.purchaseOrderId) ?? null)} className="min-h-11 font-semibold text-teal-700">{t('receipt.makeBill')}</button>
             <button onClick={() => void cancel(r)} className="min-h-11 text-due">{t('receipt.cancel')}</button>

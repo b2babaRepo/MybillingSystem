@@ -24,7 +24,7 @@ interface Entry { id: string; amount: number; purchaseId: string | null; note: s
 interface Detail { supplier: Supplier; entries: Entry[] }
 interface BillDetail { billNo: string | null; total: number; extra: number; lines: { name: string; quantity: number; freeQuantity: number; unitCost: number; discountPercent: number; gstRate: number | null; taxable: number; gst: number }[] }
 /** Medicines also carry batch, expiry month (yyyy-mm), MRP, free units (scheme) and trade discount %. */
-interface Row { text?: string; productId: string; quantity: string; unitCost: string; bags?: string; basis?: 'unit' | 'quintal' | 'bag'; batchNo: string; expiry: string; mrp: string; free: string; discount: string; gst: string; read?: string; problems?: string[] }
+interface Row { text?: string; productId: string; quantity: string; unitCost: string; bags?: string; basis?: 'unit' | 'quintal' | 'bag' | 'kg'; batchNo: string; expiry: string; mrp: string; free: string; discount: string; gst: string; read?: string; problems?: string[] }
 
 /** What the AI read off a distributor's bill photo, matched and checked by the server. Nothing is saved from it directly. */
 interface InvoiceDraft {
@@ -185,7 +185,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
   const costEach = (r: Row) => {
     const p = products.find((x) => x.id === r.productId)
     const rate = Number(r.unitCost)
-    return r.basis === 'quintal' ? rate / 100 : r.basis === 'bag' && p?.bagSize ? rate / p.bagSize : rate
+    return r.basis === 'quintal' ? rate / 100 : r.basis === 'bag' && p?.bagSize ? rate / p.bagSize : r.basis === 'kg' && p?.weightKg ? rate * p.weightKg : rate
   }
   const taxable = (r: Row) => Math.round(Number(r.quantity) * costEach(r) * (100 - (Number(r.discount) || 0))) / 100
   const lineTotal = (r: Row) => taxable(r) + Math.round(taxable(r) * (Number(r.gst) || 0)) / 100
@@ -387,16 +387,18 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
             <input aria-label={t('suppliers.cost')} placeholder={t('suppliers.cost')} value={r.unitCost} onChange={(e) => set(i, 'unitCost', e.target.value)} inputMode="decimal" className={input} />
             {(() => {
               const p = products.find((x) => x.id === r.productId)
-              if (!p || (p.unit !== 'kg' && !p.bagSize)) return null
+              if (!p || (p.unit !== 'kg' && !p.bagSize && !p.weightKg)) return null
               const unit = t(`units.${p.unit}`)
+              const pack = t(`units.${p.purchaseUnit ?? 'bag'}`)
               return (
                 <>
                   <select aria-label={t('bag.rateBasis')} value={r.basis ?? 'unit'} onChange={(e) => set(i, 'basis', e.target.value)} className={input}>
                     <option value="unit">{t('bag.perUnit', { unit })}</option>
                     {p.unit === 'kg' && <option value="quintal">{t('bag.perQuintal')}</option>}
-                    {p.bagSize ? <option value="bag">{t('bag.ratePerBag')}</option> : null}
+                    {p.unit !== 'kg' && p.weightKg ? <option value="kg">{t('bag.perUnit', { unit: t('units.kg') })}</option> : null}
+                    {p.bagSize ? <option value="bag">{p.purchaseUnit && p.purchaseUnit !== 'bag' ? t('bag.perUnit', { unit: pack }) : t('bag.ratePerBag')}</option> : null}
                   </select>
-                  {p.bagSize ? <input aria-label={t('bag.bags')} placeholder={t('bag.bags')} value={r.bags ?? ''} onChange={(e) => { set(i, 'bags', e.target.value) }} inputMode="numeric" className={input} /> : <span />}
+                  {p.bagSize ? <input aria-label={pack} placeholder={pack} value={r.bags ?? ''} onChange={(e) => { set(i, 'bags', e.target.value) }} inputMode="numeric" className={input} /> : <span />}
                   {p.bagSize && Number(r.bags) > 0 && Number(r.quantity) > 0 ? <div className="col-span-2"><BagCheck avg={Number(r.quantity) / Number(r.bags)} size={p.bagSize} bags={Number(r.bags)} unit={unit} /></div> : null}
                 </>
               )
