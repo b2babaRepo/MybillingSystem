@@ -185,6 +185,29 @@ public static class GoodsReceipts
         };
         db.SupplierEntries.Add(entry);
         (receipt.ShortKg, receipt.ShortEntryId) = (shortKg, entry.Id);
+
+        // The missing goods never came, so they come off stock too: the kilograms short shared over the weighed lines by
+        // their weight, back in each item's own unit (whole pieces stay whole). Booked as less bought, not as a loss.
+        var userId = user.UserId()!.Value;
+        var shares = lines.GroupBy(l => l.ProductId).Select(g =>
+        {
+            var k = kinds.GetValueOrDefault(g.Key);
+            var kg = k is null ? 0 : g.Sum(l => Units.Kg(k.Unit, k.WeightKg, l.Quantity) ?? 0);
+            var perUnit = k is null ? null : Units.Kg(k.Unit, k.WeightKg, 1);
+            var quantity = kg <= 0 || perUnit is not > 0 ? 0 : shortKg * kg / expected / perUnit.Value;
+            return (ProductId: g.Key, Quantity: k is not null && Units.IsWhole(k.Unit) ? Math.Round(quantity) : decimal.Round(quantity, 3));
+        }).Where(x => x.Quantity > 0).ToList();
+        var shortIds = shares.Select(x => x.ProductId).ToList();
+        var products = await db.Products.Where(p => shortIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        foreach (var (productId, quantity) in shares)
+        {
+            db.StockMovements.Add(new StockMovement
+            {
+                RefType = "receipt-short", RefId = receipt.Id, ProductId = productId, Kind = StockMovementKind.Purchase, Quantity = -quantity, OccurredAt = now,
+                CreatedByUserId = userId, Note = $"Weighbridge short, GR #{receipt.Number}",
+            });
+            products[productId].Stock -= quantity;
+        }
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(ToDto(receipt, null, lines, amount));
     }
@@ -345,6 +368,20 @@ public static class GoodsReceipts
                 SupplierId = receipt.SupplierId, Kind = claim.Kind, Amount = -claim.Amount, Gst = claim.Gst is { } g ? -g : null, OccurredAt = now, CreatedByUserId = userId,
                 Note = $"Short claim undone, GR #{receipt.Number}",
             });
+        }
+
+        // What came off stock for the shortfall goes back on first, since the receipt's whole quantity comes off below.
+        var shorts = await db.StockMovements.AsNoTracking().Where(m => m.RefType == "receipt-short" && m.RefId == id).ToListAsync(ct);
+        var shortItems = shorts.Select(m => m.ProductId).Distinct().ToList();
+        var shortProducts = await db.Products.Where(p => shortItems.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        foreach (var m in shorts)
+        {
+            db.StockMovements.Add(new StockMovement
+            {
+                RefType = "receipt-short", RefId = id, ProductId = m.ProductId, Kind = StockMovementKind.Purchase, Quantity = -m.Quantity, OccurredAt = now,
+                CreatedByUserId = userId, Note = $"Goods receipt #{receipt.Number} cancelled",
+            });
+            shortProducts[m.ProductId].Stock -= m.Quantity;
         }
 
         await db.ArrivalLines.Where(a => a.ReceiptId == id).ExecuteUpdateAsync(s => s.SetProperty(a => a.CancelledAt, now), ct);

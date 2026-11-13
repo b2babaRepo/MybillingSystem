@@ -114,11 +114,15 @@ public sealed class BardanaTests(ApiFactory api)
         var detail = await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}");
         Assert.Equal((-420m, SupplierEntryKind.CreditNote), (detail.Supplier.Due, detail.Entries.Single().Kind));
 
+        // The 10 kg that never came come off stock: 490 kg on the shelf, not 500.
+        Assert.Equal(490m, (await shop.GetJsonAsync<GroceryKhata.Api.Catalogue.ProductDto>($"/api/v1/products/{rice}")).Stock);
+
         // Only once.
         Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/short-claim", new { ratePerKg = 40m })).StatusCode);
 
         // Goods that never came carry no claim: cancelling the receipt puts the 420 back.
         (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/cancel", new { })).EnsureSuccessStatusCode();
         Assert.Equal(0m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
+        Assert.Equal(0m, (await shop.GetJsonAsync<GroceryKhata.Api.Catalogue.ProductDto>($"/api/v1/products/{rice}")).Stock);
     }
 }
