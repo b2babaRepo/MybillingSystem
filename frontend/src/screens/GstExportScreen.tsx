@@ -28,6 +28,8 @@ export function GstExportScreen() {
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
   const [error, setError] = useState('')
   const data = useQuery({ queryKey: ['gst', month], queryFn: () => api<GstMonth>(`/v1/gst/month?month=${month}`), retry: false }).data
+  // Return deadlines and tax to pay mean something only to a shop registered for GST.
+  const registered = !!useQuery({ queryKey: ['gst-shop'], queryFn: () => api<{ gstin: string | null }>('/v1/shop'), staleTime: 300_000 }).data?.gstin
 
   async function send() {
     setError('')
@@ -60,7 +62,7 @@ export function GstExportScreen() {
   const next = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}`
   const dues = [{ key: 'gstr1', date: `${next}-11` }, { key: 'gstr3b', date: `${next}-20` }]
   const inputHalf = Math.round((credit / 2) * 100) / 100
-  const ticks = data && !data.composition ? [
+  const ticks = data && registered && !data.composition ? [
     { label: t('rv.outputGst'), value: formatRupees(output) },
     { label: t('rv.credit'), value: formatRupees(credit) },
     { label: t('rv.toPay'), value: formatRupees(pay), note: t('rv.dueOn', { date: new Date(`${next}-20T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }) }) },
@@ -71,7 +73,7 @@ export function GstExportScreen() {
     <ReportShell page="gst" title={t('rv.gstTitle')} isOwner view={view} onView={setView} ticks={ticks}>
       <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('gstExport.month')}</span>
         <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
-      {data && !data.composition && view === 'chart' && (
+      {data && registered && !data.composition && view === 'chart' && (
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start">
           <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
             <span className="text-[13px] text-muted">{t('rv.toPay')}</span>

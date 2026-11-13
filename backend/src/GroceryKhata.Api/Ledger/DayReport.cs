@@ -95,7 +95,10 @@ public static class DayReport
             .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
         var spent = await db.Expenses.AsNoTracking().Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null)
             .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
-        decimal Paid(PaymentMode mode) => bills.Sum(b => (b.Parts ?? []).Where(p => p.Mode == mode).Sum(p => p.Amount));
+        // Money by mode as the drawer saw it, the cash-book way: a bill's money on the day it was paid, and money handed
+        // back on the day a bill was cancelled. So a later cancel changes the day it happened, not the day already closed.
+        var book = await CashBookEndpoints.DayAsync(db, day, ct);
+        decimal Paid(PaymentMode mode) => book.Lines.Where(l => l.Source is CashBookSource.Bill or CashBookSource.BillCancelled && l.Mode == mode).Sum(l => l.Amount);
         return new DayTotals(bills.Sum(b => b.Total), bills.Count, Paid(PaymentMode.Cash), Paid(PaymentMode.Upi), Paid(PaymentMode.Bank), bills.Sum(b => b.OnKhata), collected, spent, Paid(PaymentMode.Card));
     }
 }

@@ -63,7 +63,7 @@ public static class GstExport
         ["roundOff"] = "Round Off", ["cash"] = "Cash", ["upi"] = "UPI Collections",
         // Buying and spending: supplier bills, payments and the kharcha book.
         ["purchases"] = "Purchase", ["inputCgst"] = "Input CGST", ["inputSgst"] = "Input SGST", ["inputIgst"] = "Input IGST",
-        ["freight"] = "Freight Inward", ["freightPayable"] = "Freight Payable", ["bank"] = "Bank Account",
+        ["freight"] = "Freight Inward", ["freightPayable"] = "Freight Payable", ["bank"] = "Bank Account", ["capital"] = "Capital Account",
         ["tea"] = "Staff Welfare", ["transport"] = "Conveyance", ["rent"] = "Rent", ["electricity"] = "Electricity Charges", ["salary"] = "Salary",
         ["packaging"] = "Packing Material", ["repair"] = "Repairs and Maintenance", ["other"] = "Miscellaneous Expenses",
         ["home"] = "Drawings", ["tax"] = "Taxes Paid", ["loan"] = "Loan Repayment", ["equipment"] = "Furniture and Equipment", ["advance"] = "Staff Advance",
@@ -147,7 +147,7 @@ public static class GstExport
     private sealed record MonthData(List<Bill> Bills, List<Bill> Cancelled, Dictionary<Guid, (string Name, string? Gstin)> Customers, bool Composition, string? ShopGstin, int Returns, List<CreditNote> Notes, List<LedgerEntry> Receipts, Dictionary<string, string> Names,
         List<Purchase> Purchases, List<SupplierEntry> SupplierPayments, Dictionary<Guid, (string Name, string? Gstin)> Suppliers, List<Expense> Expenses,
         List<SupplierEntry> SupplierCredits, HashSet<Guid> FreightExpenses, List<(PurchaseCharge Charge, Purchase Bill)> UnpaidFreight,
-        Dictionary<(Guid Bill, int Line), BillLine> NoteSources, Dictionary<Guid, Bill> NoteBills, Dictionary<Guid, string> Users);
+        Dictionary<(Guid Bill, int Line), BillLine> NoteSources, Dictionary<Guid, Bill> NoteBills, Dictionary<Guid, string> Users, List<CashMove> CashMoves);
 
     private static async Task<MonthData> LoadAsync(AppDbContext db, ITenantContext tenant, (int Year, int Month) period, CancellationToken ct)
     {
@@ -191,7 +191,8 @@ public static class GstExport
             .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && (e.Note == null || (e.Note != "Supplier payment" && !e.Note.StartsWith("Refund CN/"))))
             .OrderBy(e => e.OccurredAt).ToListAsync(ct);
         return new MonthData(all.Where(b => b.CancelledAt == null).ToList(), all.Where(b => b.CancelledAt != null).ToList(), customers, shop.GstComposition, shop.Gstin, returns, notes, receipts, LedgerNames(shop.TallyLedgers),
-            purchases, payments, suppliers, expenses, credits, paidFreight, unpaid, sources, noteBills, users);
+            purchases, payments, suppliers, expenses, credits, paidFreight, unpaid, sources, noteBills, users,
+            await db.CashMoves.AsNoTracking().Where(m => m.OccurredAt >= start && m.OccurredAt < end && m.StruckAt == null).OrderBy(m => m.OccurredAt).ToListAsync(ct));
     }
 
     private static (decimal Taxable, decimal Cgst, decimal Sgst, decimal Igst) Tax(Bill b) =>
@@ -234,6 +235,9 @@ public static class GstExport
             new("oldTax", lines.Count(l => l.GstRate is not null && l.TaxableValue is null)),
             new("badBuyerGstin", d.Bills.Count(b => b.BuyerGstin is not null && !IsValidGstin(b.BuyerGstin))),
             new("returns", d.Returns),
+            // A bill dated earlier than one numbered before it (a backdated bill takes the next number): the CA should know.
+            new("outOfOrder", d.Bills.Concat(d.Cancelled).OrderBy(b => b.FinancialYear).ThenBy(b => b.Number)
+                .Aggregate((Latest: DateTimeOffset.MinValue, Count: 0), (acc, b) => b.OccurredAt < acc.Latest ? (acc.Latest, acc.Count + 1) : (b.OccurredAt, acc.Count)).Count),
         }.Where(c => c.Count > 0).ToList();
         var taxes = d.Bills.Select(Tax).ToList();
         var (saleLines, returnLines) = (SaleLines(d), ReturnLines(d));
@@ -350,7 +354,17 @@ public static class GstExport
             Ledger(n["upi"], "Bank Accounts");
         }
 
-        if (money.Contains(PaymentMode.Bank) || d.Expenses.Any(e => e.Category == ExpenseCategory.Deposit) || d.Receipts.Any(e => e.PaymentMode is PaymentMode.Card or PaymentMode.Cheque)
+        if (d.CashMoves.Any(m => m.Kind == CashMoveKind.Added))
+        {
+            Ledger(n["capital"], "Capital Account");
+        }
+
+        if (d.CashMoves.Any(m => m.Kind == CashMoveKind.Removed) && !d.Expenses.Any(e => e.Category == ExpenseCategory.Home))
+        {
+            Ledger(n["home"], "Capital Account");
+        }
+
+        if (money.Contains(PaymentMode.Bank) || d.Expenses.Any(e => e.Category == ExpenseCategory.Deposit) || d.CashMoves.Any(m => m.Kind is CashMoveKind.ToBank or CashMoveKind.FromBank) || d.Receipts.Any(e => e.PaymentMode is PaymentMode.Card or PaymentMode.Cheque)
             || walkIn.Any(m => m is PaymentMode.Card or PaymentMode.Cheque or PaymentMode.Bank))
         {
             Ledger(n["bank"], "Bank Accounts");
@@ -702,6 +716,23 @@ public static class GstExport
                 .Append($"<NARRATION>{X($"{charge.Label} on supplier bill {bill.BillNo}".Trim())}</NARRATION><PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
             Entry(d.Names["freight"], charge.Amount, debit: true);
             Entry(d.Names["freightPayable"], charge.Amount, debit: false);
+            body.Append("</VOUCHER></TALLYMESSAGE>\n");
+        }
+
+        // Cash moved by hand: into or out of the bank is a Contra; cash brought in is capital, cash taken out drawings.
+        foreach (var m in d.CashMoves)
+        {
+            var (kind, debit, credit) = m.Kind switch
+            {
+                CashMoveKind.ToBank => ("Contra", d.Names["bank"], d.Names["cash"]),
+                CashMoveKind.FromBank => ("Contra", d.Names["cash"], d.Names["bank"]),
+                CashMoveKind.Added => ("Receipt", d.Names["cash"], d.Names["capital"]),
+                _ => ("Payment", d.Names["home"], d.Names["cash"]),
+            };
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"{kind}\" ACTION=\"Create\"><GUID>gk-{m.Id}</GUID><DATE>{Day(m.OccurredAt)}</DATE><VOUCHERTYPENAME>{kind}</VOUCHERTYPENAME>")
+                .Append($"{(string.IsNullOrWhiteSpace(m.Note) ? "" : $"<NARRATION>{X(m.Note)}</NARRATION>")}<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
+            Entry(debit, m.Amount, debit: true);
+            Entry(credit, m.Amount, debit: false);
             body.Append("</VOUCHER></TALLYMESSAGE>\n");
         }
 

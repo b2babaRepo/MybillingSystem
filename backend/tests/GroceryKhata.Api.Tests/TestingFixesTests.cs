@@ -156,4 +156,62 @@ public sealed class TestingFixesTests(ApiFactory api)
         var items = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
         Assert.Contains(items, p => p.Name == withHindi.Name);
     }
+
+    [Fact]
+    public async Task A_later_cancel_moves_money_on_the_day_it_happens_and_the_first_count_needs_an_opening()
+    {
+        var (shop, _) = await ShopAsync();
+        var shirt = await ItemAsync(shop, "Shirt", 500m, 10m);
+        var yesterday = DateTimeOffset.UtcNow.AddDays(-1);
+        var old = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), occurredAt = yesterday, lines = new[] { new { productId = shirt, name = "Shirt", quantity = 1m, unitPrice = 500m } }, paidAmount = 500m, paymentMode = "cash" }))
+            .ReadAsync<BillDto>();
+        (await SellAsync(shop, shirt, 2m, 500m)).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/bills/{old.Id}/cancel", new { reason = "Wrong size" })).EnsureSuccessStatusCode();
+
+        // Today: 1000 taken, 500 handed back for yesterday's bill. Same in the day report and the cash book.
+        var day = await shop.GetJsonAsync<DayReportDto>("/api/v1/reports/day");
+        var book = await shop.GetJsonAsync<CashBookDto>("/api/v1/cash-book");
+        Assert.Equal((500m, book.Cash), (day.Totals.Cash, day.Totals.Cash));
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/cash-count", new { counted = 500m })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/cash-count", new { opening = 0m, counted = 500m })).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task Item_margins_take_off_returns_and_the_gst_month_flags_a_bill_entered_late()
+    {
+        var (shop, _) = await ShopAsync(gst: true);
+        var kurta = await ItemAsync(shop, "Kurta", 1050m, 10m, cost: 600m, gst: 5m);
+        var bill = await (await SellAsync(shop, kurta, 2m, 1050m)).ReadAsync<BillDto>();
+        (await shop.PostJsonAsync($"/api/v1/bills/{bill.Id}/credit-notes", new { id = Guid.CreateVersion7(), reason = "Size", lines = new[] { new { lineNo = 1, quantity = 1m } } })).EnsureSuccessStatusCode();
+        var item = (await shop.GetJsonAsync<ItemMarginReport>("/api/v1/reports/items")).Items.Single();
+        Assert.Equal((1m, 1000m, 600m, 400m), (item.Quantity, item.Sales, item.Cost, item.Profit));
+
+        // A bill dated earlier in the month, entered after this one, takes the next number.
+        var first = new DateTimeOffset(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 6, 0, 0, TimeSpan.Zero);
+        if (first < DateTimeOffset.UtcNow.AddHours(-2))
+        {
+            (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), occurredAt = first, lines = new[] { new { productId = kurta, name = "Kurta", quantity = 1m, unitPrice = 1050m } }, paidAmount = 1050m, paymentMode = "cash" }))
+                .EnsureSuccessStatusCode();
+            Assert.Contains((await shop.GetJsonAsync<GstMonthDto>("/api/v1/gst/month")).Checks, c => c.Code == "outOfOrder" && c.Count == 1);
+        }
+    }
+
+    [Fact]
+    public async Task Cash_moved_by_hand_reaches_the_tally_file()
+    {
+        var (shop, _) = await ShopAsync(gst: true);
+        (await shop.PostJsonAsync("/api/v1/cash-moves", new { id = Guid.CreateVersion7(), kind = "to_bank", amount = 5000m })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/cash-moves", new { id = Guid.CreateVersion7(), kind = "added", amount = 1000m, note = "Change from home" })).EnsureSuccessStatusCode();
+        var kurta = await ItemAsync(shop, "Kurta", 1050m, 10m, gst: 5m);
+        (await SellAsync(shop, kurta, 1m, 1050m)).EnsureSuccessStatusCode();
+
+        var month = DateTime.UtcNow.AddHours(5.5).ToString("yyyy-MM");
+        var zip = await shop.GetAsync($"/api/v1/gst/export.zip?month={month}");
+        zip.EnsureSuccessStatusCode();
+        using var archive = new System.IO.Compression.ZipArchive(await zip.Content.ReadAsStreamAsync());
+        var xml = await new StreamReader(archive.GetEntry("2-vouchers.xml")!.Open()).ReadToEndAsync();
+        Assert.Contains("<LEDGERNAME>Bank Account</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-5000.00</AMOUNT>", xml);
+        Assert.Contains("<LEDGERNAME>Capital Account</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>1000.00</AMOUNT>", xml);
+    }
 }

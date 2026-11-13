@@ -84,6 +84,13 @@ public static class CashCountEndpoints
         }
 
         var summary = await SummaryAsync(db, day, request.Opening, ct);
+        // With no earlier count to start from, the opening cash must be given: taking it as 0 would make every earlier
+        // day's cash look short or extra.
+        if (request.Opening is null && !summary.OpeningFromCount)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Opening"] = ["Enter the cash that was in the box at opening."] });
+        }
+
         // A new count each time: earlier ones stay in the day's history.
         var count = new CashCount { Day = day };
         db.CashCounts.Add(count);

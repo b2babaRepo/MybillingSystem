@@ -481,6 +481,31 @@ public static class ReportEndpoints
             })
             .OrderByDescending(i => i.Profit ?? decimal.MinValue).ThenByDescending(i => i.Sales)
             .ToList();
+        // The month's returns (credit notes) come off each item: its units, its sale without GST and, for goods put back
+        // on the shelf, their cost; goods not put back lose their whole sale. Same rule as the month's profit.
+        var notes = await db.CreditNotes.AsNoTracking().Include(n => n.Lines).Where(n => n.OccurredAt >= start && n.OccurredAt < end).ToListAsync(ct);
+        var noteBillIds = notes.Select(n => n.BillId).Distinct().ToList();
+        var sold = (await db.BillLines.AsNoTracking().Where(l => noteBillIds.Contains(l.BillId)).ToListAsync(ct)).ToDictionary(l => (l.BillId, l.LineNo));
+        var back = notes.SelectMany(n => n.Lines.Select(l => (Note: n, Line: l, Sold: sold.GetValueOrDefault((n.BillId, l.BillLineNo)))))
+            .Where(x => x.Sold is not null)
+            .GroupBy(x => (Key: x.Sold!.ProductId?.ToString() ?? x.Sold.Name.Trim().ToLowerInvariant(), x.Sold.Unit))
+            .ToDictionary(g => g.Key, g => (
+                Quantity: g.Sum(x => x.Line.Quantity),
+                Sales: g.Sum(x => x.Line.TaxableValue),
+                Cost: g.Where(x => x.Note.Restocked && Cost(x.Sold!) is not null).Sum(x => Money.LineAmount(x.Line.Quantity, Cost(x.Sold!)!.Value))));
+        items = items.Select(i =>
+        {
+            var key = (i.ProductId?.ToString() ?? i.Name.Trim().ToLowerInvariant(), i.Unit);
+            if (!back.TryGetValue(key, out var r))
+            {
+                return i;
+            }
+
+            var cost = i.Cost is { } c ? c - r.Cost : (decimal?)null;
+            var profit = i.Profit is { } p ? p - r.Sales + r.Cost : (decimal?)null;
+            var sales = i.Sales - r.Sales;
+            return i with { Quantity = i.Quantity - r.Quantity, Sales = sales, Cost = cost, Profit = profit, MarginPercent = profit is { } pr && sales > 0 ? decimal.Round(pr / sales * 100, 1) : null };
+        }).OrderByDescending(i => i.Profit ?? decimal.MinValue).ThenByDescending(i => i.Sales).ToList();
         var totalSales = items.Sum(i => i.Sales);
         var covered = items.Where(i => i.Profit != null).Sum(i => i.Sales);
         return TypedResults.Ok(new ItemMarginReport($"{period.Year:D4}-{period.Month:D2}", totalSales, items.Sum(i => i.Profit ?? 0),
