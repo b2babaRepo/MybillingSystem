@@ -103,7 +103,7 @@ public sealed record UnitTotal(Catalogue.Unit Unit, decimal Quantity);
 public sealed record PurchaseOrderDto(
     Guid Id, int Number, Guid SupplierId, string SupplierName, PurchaseOrderStatus Status, string? Note, DateOnly? ExpectedOn, DateTimeOffset CreatedAt,
     DateTimeOffset? ClosedAt, decimal Pending, IReadOnlyList<OrderLineDto> Lines, string Stage = "placed", int PromiseMoves = 0,
-    IReadOnlyList<UnitTotal>? Totals = null, int Bags = 0);
+    IReadOnlyList<UnitTotal>? Totals = null, int Bags = 0, decimal? WeightKg = null, int UnweighedLines = 0);
 
 /// <summary>A supplier to bring in from another app or a notebook. <see cref="Balance"/>: what the shop owes them now; minus when they owe the shop.</summary>
 public sealed record SupplierImportRow(string? Name, string? Phone, string? Gstin, decimal Balance);
@@ -141,7 +141,7 @@ public static class PurchaseOrders
     private static async Task<IReadOnlyList<PurchaseOrderDto>> ToDtosAsync(AppDbContext db, IReadOnlyList<PurchaseOrder> orders, CancellationToken ct)
     {
         var productIds = orders.SelectMany(o => o.Lines).Select(l => l.ProductId).Distinct().ToList();
-        var names = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Name, p.Unit, PackUnit = p.BagSize == null ? (Catalogue.Unit?)null : p.PurchaseUnit ?? Catalogue.Unit.Bag }, ct);
+        var names = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Name, p.Unit, p.WeightKg, PackUnit = p.BagSize == null ? (Catalogue.Unit?)null : p.PurchaseUnit ?? Catalogue.Unit.Bag }, ct);
         var supplierIds = orders.Select(o => o.SupplierId).Distinct().ToList();
         var suppliers = await db.Suppliers.AsNoTracking().Where(s => supplierIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         return orders.Select(o => new PurchaseOrderDto(o.Id, o.Number, o.SupplierId, suppliers.GetValueOrDefault(o.SupplierId) ?? "", o.Status, o.Note, o.ExpectedOn, o.CreatedAt, o.ClosedAt,
@@ -149,7 +149,10 @@ public static class PurchaseOrders
             o.Lines.Select(l => new OrderLineDto(l.ProductId, names.GetValueOrDefault(l.ProductId)?.Name ?? "", l.Quantity, l.Rate, l.Received, l.ShortClosed, l.ShortReason,
                 names.GetValueOrDefault(l.ProductId)?.Unit ?? Catalogue.Unit.Piece, l.Bags, names.GetValueOrDefault(l.ProductId)?.PackUnit)).ToList(), GoodsTracking.StageOf(o), o.PromiseMoves,
             o.Lines.GroupBy(l => names.GetValueOrDefault(l.ProductId)?.Unit ?? Catalogue.Unit.Piece).OrderBy(g => g.Key).Select(g => new UnitTotal(g.Key, g.Sum(l => l.Quantity))).ToList(),
-            o.Lines.Sum(l => l.Bags ?? 0))).ToList();
+            o.Lines.Sum(l => l.Bags ?? 0),
+            // The lorry's load: kilograms of the lines whose weight is known, and how many lines it leaves out.
+            o.Lines.Select(l => names.GetValueOrDefault(l.ProductId) is { } n ? Catalogue.Units.Kg(n.Unit, n.WeightKg, l.Quantity) : null).Sum() is var kg and > 0 ? decimal.Round(kg.Value, 1) : null,
+            o.Lines.Count(l => names.GetValueOrDefault(l.ProductId) is not { } n || Catalogue.Units.Kg(n.Unit, n.WeightKg, l.Quantity) is null))).ToList();
     }
 
     /// <summary>Still to come on a line: ordered less what came and what was closed short, never below zero.</summary>

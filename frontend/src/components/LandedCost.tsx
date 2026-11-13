@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 
-export type Split = 'value' | 'quantity' | 'bags'
+export type Split = 'value' | 'quantity' | 'bags' | 'weight'
 export interface Charge { label: string; amount: string; paidBy: '' | 'cash' | 'upi' }
 export interface Charges { rows: Charge[]; split: Split; extraInCost: boolean }
 export const noCharges: Charges = { rows: [], split: 'value', extraInCost: false }
@@ -52,7 +52,7 @@ export function ChargesEditor({ value, onChange, hasExtra, open = false }: { val
         {(pool > 0 || value.extraInCost) && (
           <label className="flex items-center justify-between gap-2 text-sm">{t('landed.split')}
             <select value={value.split} onChange={(e) => onChange({ ...value, split: e.target.value as Split })} className={input}>
-              {(['value', 'quantity', 'bags'] as const).map((s) => <option key={s} value={s}>{t(`landed.by.${s}`)}</option>)}
+              {(['value', 'weight', 'bags', 'quantity'] as const).map((s) => <option key={s} value={s}>{t(`landed.by.${s}`)}</option>)}
             </select>
           </label>
         )}

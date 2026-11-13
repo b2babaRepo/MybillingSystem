@@ -188,6 +188,9 @@ public enum CostSplit
     Value,
     Quantity,
     Bags,
+
+    /// <summary>By kilograms: a 50 kg bag carries twice a 25 kg bag's freight. Lines whose weight isn't known carry none.</summary>
+    Weight,
 }
 
 /// <summary>
@@ -381,9 +384,17 @@ public static class SupplierEndpoints
         var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
         var pool = charges.Sum(c => c.Amount);
         decimal Units(PurchaseLine l) => l.Quantity + l.FreeQuantity;
+        var lineIds = purchase.Lines.Select(l => l.ProductId).Distinct().ToList();
+        var kinds = await db.Products.AsNoTracking().Where(p => lineIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Unit, p.WeightKg }, ct);
+        if (request.Split == CostSplit.Quantity && purchase.Lines.Select(l => kinds[l.ProductId].Unit).Distinct().Count() > 1)
+        {
+            return Invalid("Split", "These items are in different units (kg and pieces): share by weight, bags or value.");
+        }
+
         decimal Weight(PurchaseLine l) => request.Split switch
         {
             CostSplit.Quantity => Units(l),
+            CostSplit.Weight => Catalogue.Units.Kg(kinds[l.ProductId].Unit, kinds[l.ProductId].WeightKg, Units(l)) ?? 0,
             CostSplit.Bags when purchase.Lines.Any(x => x.Bags > 0) => l.Bags ?? 0,
             _ => l.Taxable,
         };
@@ -694,9 +705,15 @@ public static class SupplierEndpoints
 
         // The lot's charges, spread over its items: by value, units or bags (bags falls back to value when no line has bags).
         var pool = charges.Sum(c => c.Amount) + (request.ExtraInCost ? request.Extra : 0);
+        if (request.Split == CostSplit.Quantity && pool > 0 && lines.Select(l => products[l.ProductId].Unit).Distinct().Count() > 1)
+        {
+            return Invalid("Split", "These items are in different units (kg and pieces): share by weight, bags or value.");
+        }
+
         decimal Weight(PurchaseLineRequest l) => request.Split switch
         {
             CostSplit.Quantity => l.Quantity + l.FreeQuantity,
+            CostSplit.Weight => Catalogue.Units.Kg(products[l.ProductId].Unit, products[l.ProductId].WeightKg, l.Quantity + l.FreeQuantity) ?? 0,
             CostSplit.Bags when lines.Any(x => x.Bags > 0) => l.Bags ?? 0,
             _ => Taxable(l),
         };

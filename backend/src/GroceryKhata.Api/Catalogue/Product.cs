@@ -36,6 +36,9 @@ public sealed class Product : Entity, ITenantOwned
     /// <summary>What <see cref="BagSize"/> is a count of when buying: a carton of 24, a strip of 10. Null: a bag.</summary>
     public Unit? PurchaseUnit { get; set; }
 
+    /// <summary>Kilograms in one unit (a piece, a packet, a litre): for the lorry's load and sharing freight by weight. Null: not known.</summary>
+    public decimal? WeightKg { get; set; }
+
     public Unit? PackUnit { get; set; }
 
     /// <summary>
@@ -197,6 +200,19 @@ public static class Units
     /// <summary>Units that only come whole: half a carton or 2.5 pieces is a typing slip.</summary>
     public static bool IsWhole(Unit unit) => unit is Unit.Piece or Unit.Packet or Unit.Bag or Unit.Pair or Unit.Box or Unit.Jar
         or Unit.Carton or Unit.Bottle or Unit.Set or Unit.Strip;
+
+    /// <summary>
+    /// Kilograms in a quantity of the item: exact for weight units, from <paramref name="weightKg"/> (kg in one unit) for
+    /// the rest, and null when the weight isn't known, so a total never quietly counts pieces as kilograms.
+    /// </summary>
+    public static decimal? Kg(Unit unit, decimal? weightKg, decimal quantity) => unit switch
+    {
+        Unit.Kg => quantity,
+        Unit.G => quantity / 1000,
+        Unit.Quintal => quantity * 100,
+        Unit.Tonne => quantity * 1000,
+        _ => weightKg is > 0 ? quantity * weightKg : null,
+    };
 }
 
 /// <summary>

@@ -12,7 +12,7 @@ import { parseSuppliers } from '../lib/supplierImport'
 import type { Product } from '../lib/types'
 
 export interface OrderLine { productId: string; name: string; quantity: number; rate: number | null; received: number; shortClosed?: number; shortReason?: string | null; unit?: string; bags?: number | null; packUnit?: string | null }
-export interface PurchaseOrder { id: string; number: number; supplierId: string; supplierName: string; status: 'open' | 'closed' | 'cancelled' | 'draft'; note: string | null; expectedOn: string | null; createdAt: string; closedAt?: string | null; stage?: string; promiseMoves?: number; pending: number; lines: OrderLine[]; totals?: { unit: string; quantity: number }[]; bags?: number }
+export interface PurchaseOrder { id: string; number: number; supplierId: string; supplierName: string; status: 'open' | 'closed' | 'cancelled' | 'draft'; note: string | null; expectedOn: string | null; createdAt: string; closedAt?: string | null; stage?: string; promiseMoves?: number; pending: number; lines: OrderLine[]; totals?: { unit: string; quantity: number }[]; bags?: number; weightKg?: number | null; unweighedLines?: number }
 interface ReturnLine { productName: string; batchNo: string; quantity: number; value: number }
 interface SupplierReturn { id: string; number: number; value: number; daysOpen: number; settledAt: string | null; lines: ReturnLine[] }
 interface Pick { text: string; productId: string; quantity: string; rate: string; bags?: string }
@@ -142,7 +142,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
                   {(l.shortClosed ?? 0) > 0 && <span className="block text-xs text-due">{t('supplier2.shortClosed', { qty: l.shortClosed })}{l.shortReason ? ` · ${t(`gi.reason.${l.shortReason}`)}` : ''}</span>}</span>
               </p>
             ))}
-            {(o.totals?.length ?? 0) > 0 && <p className="border-t border-line pt-1 text-xs font-semibold">{t('po.total')}: {o.totals!.map((u) => `${u.quantity} ${t(`units.${u.unit}`)}`).join(' · ')}{Object.entries(o.lines.reduce<Record<string, number>>((m, l) => (l.bags ? { ...m, [l.packUnit ?? 'bag']: (m[l.packUnit ?? 'bag'] ?? 0) + l.bags } : m), {})).map(([u, n]) => ` · ${packs(n, u)}`).join('')}</p>}
+            {(o.totals?.length ?? 0) > 0 && <p className="border-t border-line pt-1 text-xs font-semibold">{t('po.total')}: {o.totals!.map((u) => `${u.quantity} ${t(`units.${u.unit}`)}`).join(' · ')}{Object.entries(o.lines.reduce<Record<string, number>>((m, l) => (l.bags ? { ...m, [l.packUnit ?? 'bag']: (m[l.packUnit ?? 'bag'] ?? 0) + l.bags } : m), {})).map(([u, n]) => ` · ${packs(n, u)}`).join('')}{o.weightKg ? ` · ${t('po.load', { kg: o.weightKg })}${o.unweighedLines ? ` ${t('po.loadMissing', { count: o.unweighedLines })}` : ''}` : ''}</p>}
             {draft ? (
             <div className="mt-1 flex flex-wrap gap-2">
               <Button className="flex-1" onClick={() => void run(() => api(`/v1/suppliers/orders/${o.id}/place`, 'POST', {}))}>{t('supplier2.placeOrder')}</Button>

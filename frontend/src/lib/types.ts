@@ -62,6 +62,8 @@ export interface Product {
   bagSize?: number | null
   /** What bagSize counts when buying (carton, strip); null: a bag. */
   purchaseUnit?: Unit | null
+  /** Kilograms in one unit, for load weight and freight by weight. */
+  weightKg?: number | null
   bags?: number
   /** Promised on open sale orders, not yet delivered. */
   promised?: number

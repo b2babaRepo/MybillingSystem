@@ -601,6 +601,37 @@ public sealed class LedgerFixTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task An_order_shows_its_load_and_freight_is_never_shared_over_kg_and_pieces_added_together()
+    {
+        var shop = await ShopAsync("hardware");
+        var pipe = await ItemAsync(shop, "Pipe", 300m, 0m);
+        var cement = await ItemAsync(shop, "Cement", 400m, 0m);
+        var supplierId = await SupplierAsync(shop);
+        (await shop.PutJsonAsync($"/api/v1/products/{pipe.Id}", new { name = "Pipe", unit = "piece", sellingPrice = 300m, weightKg = 2m })).EnsureSuccessStatusCode();
+        (await shop.PutJsonAsync($"/api/v1/products/{cement.Id}", new { name = "Cement", unit = "kg", sellingPrice = 8m })).EnsureSuccessStatusCode();
+        var tap = await ItemAsync(shop, "Tap", 150m, 0m);
+
+        // 10 pipes of 2 kg and 500 kg of cement: a 520 kg load; the tap's weight isn't known, and it says so.
+        var order = await (await shop.PostJsonAsync("/api/v1/suppliers/orders", new
+        {
+            id = Guid.CreateVersion7(), supplierId,
+            lines = new[] { new { productId = pipe.Id, quantity = 10m }, new { productId = cement.Id, quantity = 500m }, new { productId = tap.Id, quantity = 4m } },
+        })).ReadAsync<PurchaseOrderDto>();
+        Assert.Equal(((decimal?)520m, 1), (order.WeightKg, order.UnweighedLines));
+
+        object Bill(string split) => new
+        {
+            id = Guid.CreateVersion7(), supplierId, paidAmount = 0m, split, charges = new[] { new { label = "Lorry", amount = 520m } },
+            lines = new[] { new { productId = pipe.Id, quantity = 10m, unitCost = 200m }, new { productId = cement.Id, quantity = 500m, unitCost = 6m } },
+        };
+
+        // Units would add 10 pieces to 500 kg: refused. By weight, the pipes carry 20 of the 520 kg.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/suppliers/purchases", Bill("quantity"))).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", Bill("weight"))).EnsureSuccessStatusCode();
+        Assert.Equal(202m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{pipe.Id}")).CostPrice);
+    }
+
+    [Fact]
     public async Task Suppliers_come_in_from_a_file_once_with_their_opening_balance()
     {
         var shop = await ShopAsync("hardware");

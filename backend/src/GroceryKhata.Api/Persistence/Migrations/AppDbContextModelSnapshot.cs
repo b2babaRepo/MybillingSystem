@@ -2353,6 +2353,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("warranty_months");
 
+                    b.Property<decimal?>("WeightKg")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("weight_kg");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CatalogueItemId");
