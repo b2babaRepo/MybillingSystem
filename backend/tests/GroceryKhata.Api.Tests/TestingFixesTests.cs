@@ -214,4 +214,18 @@ public sealed class TestingFixesTests(ApiFactory api)
         Assert.Contains("<LEDGERNAME>Bank Account</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-5000.00</AMOUNT>", xml);
         Assert.Contains("<LEDGERNAME>Capital Account</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>1000.00</AMOUNT>", xml);
     }
+
+    [Fact]
+    public async Task Reorder_goes_by_free_stock_and_a_bad_request_body_is_a_400()
+    {
+        var (shop, _) = await ShopAsync();
+        var shirt = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = shirt, name = "Shirt", unit = "piece", sellingPrice = 500m, openingStock = 5m, reorderLevel = 3m })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/holds", new { id = Guid.CreateVersion7(), productId = shirt, quantity = 4m, partyName = "Meena" })).EnsureSuccessStatusCode();
+        // 5 in stock, 4 kept aside: 1 free, below the reorder level of 3.
+        Assert.Contains((await shop.GetJsonAsync<OrderTodayDto>("/api/v1/stock/order-today")).Items, i => i.ProductId == shirt);
+
+        var bad = await shop.PostAsync("/api/v1/products", new StringContent("{\"id\":\"\",\"name\":\"X\"}", System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+    }
 }

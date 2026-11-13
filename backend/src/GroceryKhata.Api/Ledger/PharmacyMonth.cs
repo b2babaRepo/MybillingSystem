@@ -67,7 +67,9 @@ public static class PharmacyMonth
         var counter = bills.SelectMany(b => b.Parts()).GroupBy(p => p.Mode).ToDictionary(g => g.Key, g => g.Sum(p => p.Amount));
         var khata = await db.LedgerEntries.AsNoTracking().Where(e => e.Kind == LedgerEntryKind.Payment && e.BillId == null && (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end))
             .GroupBy(e => e.PaymentMode).Select(g => new { g.Key, Total = -g.Sum(e => e.Amount) }).ToListAsync(ct);
-        decimal Received(PaymentMode mode) => counter.GetValueOrDefault(mode) + khata.Where(k => (k.Key ?? PaymentMode.Cash) == mode).Sum(k => k.Total);
+        // Less money handed back to walk-ins on this month's credit notes, the way it went back.
+        decimal Received(PaymentMode mode) => counter.GetValueOrDefault(mode) + khata.Where(k => (k.Key ?? PaymentMode.Cash) == mode).Sum(k => k.Total)
+            - notes.Where(n => n.RefundMode == mode).Sum(n => n.Total);
 
         return TypedResults.Ok(new PharmacyMonthDto(
             $"{period.Year:D4}-{period.Month:D2}", bills.Sum(b => b.Total) - notes.Sum(n => n.Total), salesTaxable, outputGst, inputGst, payable, Math.Max(0, inputGst - outputGst),

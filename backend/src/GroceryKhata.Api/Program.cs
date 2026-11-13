@@ -18,6 +18,7 @@ builder.AddHardening();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GroceryKhata.Api.Ledger.BooksClosedHandler>();
+builder.Services.AddExceptionHandler<GroceryKhata.Api.Ledger.BadRequestHandler>();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower)));
 builder.Services.AddPersistence();

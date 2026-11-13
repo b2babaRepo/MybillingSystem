@@ -44,7 +44,7 @@ export function BooksCard({ month }: { month: string }) {
       </p>
       <p className="text-xs text-muted">{t('books.hint')}</p>
       {!isClosed && canClose && (
-        <button onClick={() => void run('/v1/books/close', { month })} className="min-h-11 self-start rounded-xl bg-slate-800 px-4 font-semibold text-white">{t('books.close', { month: monthName(month) })}</button>
+        <button onClick={() => { if (window.confirm(t('books.closeConfirm', { month: monthName(month) }))) void run('/v1/books/close', { month }) }} className="min-h-11 self-start rounded-xl bg-slate-800 px-4 font-semibold text-white">{t('books.close', { month: monthName(month) })}</button>
       )}
       {isClosed && !reopening && <button onClick={() => setReopening(true)} className="min-h-11 self-start text-sm font-semibold text-due underline">{t('books.reopen', { month: monthName(month) })}</button>}
       {reopening && (

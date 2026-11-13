@@ -231,7 +231,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     queryFn: () => api<{ shopSlug: string; billId: string; token: string }>(`/v1/bills/${savedId}/link`, 'POST'),
     enabled: !!savedId, staleTime: Infinity, retry: 3, retryDelay: 1500,
   }).data
-  const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; mode: PaymentMode; customer: { name: string; phone: string | null } | null } | null>(null)
+  const [saved, setSaved] = useState<{ id: string; total: number; lines: CartLine[]; paid: number; mode: PaymentMode; customer: { name: string; phone: string | null } | null; split?: boolean } | null>(null)
 
   // On a phone the bill sits below the item grid: a bar above the tabs shows the total until the bill is in view.
   // Shown only while the bill is still below the screen: once scrolled to it, or past it down to the payment and
@@ -392,7 +392,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       setFromOrder(null)
     }
     setOrderSaved(null)
-    setSaved({ ...result, lines: cart, paid: paidAmount, mode, customer: customer && { name: customer.name, phone: customer.phone } })
+    setSaved({ ...result, lines: cart, paid: paidAmount, mode, split, customer: customer && { name: customer.name, phone: customer.phone } })
     setCart([])
     if (exchange) { endExchange(); setExchangeState(null) }
     setPaid(null)
@@ -594,7 +594,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           )}
             {saved && saved.paid > 0 && (
               <p className={`rounded-full px-3 py-1 text-sm font-semibold ${saved.mode === 'upi' ? 'bg-teal-50 text-teal-800' : 'bg-amber-50 text-amber-900'}`}>
-                {t(saved.mode === 'upi' ? 'upiPay.paidUpi' : 'upiPay.paidCash', { amount: formatRupees(saved.paid) })}
+                {saved.split || saved.mode === 'card' ? `${t('print.paid')} ${formatRupees(saved.paid)}${saved.split ? '' : ` (${t('card')})`}`
+                  : t(saved.mode === 'upi' ? 'upiPay.paidUpi' : 'upiPay.paidCash', { amount: formatRupees(saved.paid) })}
               </p>
             )}
             {saved && (

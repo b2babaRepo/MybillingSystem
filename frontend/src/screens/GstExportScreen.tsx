@@ -139,7 +139,7 @@ export function GstExportScreen() {
           {!!data.receipts && row(t('gstExport.receipts', { count: data.receipts }), formatRupees(data.receiptValue ?? 0))}
           {!!data.creditNotes && row(t('gstExport.creditNotes', { count: data.creditNotes }), `−${formatRupees(data.creditNoteValue ?? 0)} (${t('gstExport.tax')} ${formatRupees(data.creditNoteTax ?? 0)})`)}
         </section>
-        {data.payable && (
+        {data.payable && registered && (
           <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
             <h2 className="font-bold">{t(data.composition ? 'gstExport.cmp08' : 'gstExport.gstr3b')}</h2>
             {data.composition ? <>

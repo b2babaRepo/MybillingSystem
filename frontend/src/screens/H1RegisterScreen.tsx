@@ -23,10 +23,10 @@ export function H1RegisterScreen({ shopId, shopName }: { shopId: string; shopNam
       <h2 className="text-lg font-bold">{t('rx.register')}</h2>
       <p className="text-sm text-muted print:hidden">{t('rx.registerHint')}</p>
       <p className="hidden font-semibold print:block">{t('heads.h1Line', { shop: shopName, from: new Date(from).toLocaleDateString('en-IN'), to: new Date(to).toLocaleDateString('en-IN') })}</p>
-      <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 print:hidden">
+      <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[1fr_1fr_auto] print:hidden">
         <Field label={t('rx.from')} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         <Field label={t('rx.to')} type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        <Button tone="plain" className="h-12 px-3" onClick={() => window.print()}>{t('rx.printRegister')}</Button>
+        <Button tone="plain" className="col-span-2 h-12 px-3 sm:col-span-1" onClick={() => window.print()}>{t('rx.printRegister')}</Button>
       </div>
       {rows.length === 0 && <p className="text-sm text-muted">{t('rx.noneRegister')}</p>}
       {rows.map((r, i) => (

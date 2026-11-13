@@ -223,6 +223,29 @@ public sealed class ClosedBooksInterceptor(ITenantContext tenant) : SaveChangesI
     }
 }
 
+/// <summary>
+/// A request whose body can't be read (bad JSON, a wrong value such as an unknown kind or an empty id) is the caller's
+/// mistake: 400 with what was wrong, never a 500.
+/// </summary>
+public sealed class BadRequestHandler : IExceptionHandler
+{
+    public async ValueTask<bool> TryHandleAsync(HttpContext context, Exception exception, CancellationToken ct)
+    {
+        if (exception is not BadHttpRequestException bad)
+        {
+            return false;
+        }
+
+        context.Response.StatusCode = bad.StatusCode;
+        await context.Response.WriteAsJsonAsync(new Microsoft.AspNetCore.Mvc.ProblemDetails
+        {
+            Status = bad.StatusCode,
+            Title = "Something in the request isn't right: check the values and try again.",
+        }, ct);
+        return true;
+    }
+}
+
 /// <summary>Turns <see cref="BooksClosedException"/> into a 409 the screens show as it is.</summary>
 public sealed class BooksClosedHandler : IExceptionHandler
 {

@@ -143,7 +143,9 @@ public static class CashBookEndpoints
         var spent = lines.Where(l => Out(l.Source)).ToList();
         var udhaar = entries.Where(e => e.PaymentMode is null && e.Kind != LedgerEntryKind.Opening).Sum(e => e.Amount)
             + entries.Where(e => e.PaymentMode is not null && e.BillId is not null).Sum(e => e.Amount);
-        return new CashBookDto(day, cash, upi, cash + upi, bills.Where(b => b.CancelledAt == null).Sum(b => b.Total), udhaar, lines,
+        // Money received is every way it came: cash, UPI, and card, cheque or bank transfer.
+        var other = money.Where(l => l.Mode is not (PaymentMode.Cash or PaymentMode.Upi)).Sum(l => l.Amount);
+        return new CashBookDto(day, cash, upi, cash + upi + other, bills.Where(b => b.CancelledAt == null).Sum(b => b.Total), udhaar, lines,
             -spent.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount), -spent.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount));
     }
 }

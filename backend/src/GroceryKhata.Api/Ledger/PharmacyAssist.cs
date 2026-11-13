@@ -144,7 +144,7 @@ public static class PharmacyAssist
             var onOrder = pending.GetValueOrDefault(p.Id);
             // Held for online orders (Reserved) and promised on sale orders: neither is free to sell.
             var free = p.Stock - p.Reserved - promised.GetValueOrDefault(p.Id);
-            var due = free <= 0 || (p.ReorderLevel is { } level && p.Stock <= level) || (point is { } rop && free + onOrder <= rop);
+            var due = free <= 0 || (p.ReorderLevel is { } level && free <= level) || (point is { } rop && free + onOrder <= rop);
             if (!due)
             {
                 continue;
