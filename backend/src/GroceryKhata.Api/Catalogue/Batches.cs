@@ -144,7 +144,10 @@ public static class Batches
         var atMrp = product.SellingPrice <= 0 || product.Mrp is null || product.SellingPrice >= product.Mrp;
         var onShelf = await db.ProductBatches.AsNoTracking().Where(b => b.ProductId == product.Id && b.Quantity > 0 && b.Expiry >= today).MinAsync(b => (decimal?)b.Mrp, ct);
         product.SellingPrice = atMrp ? Math.Min(mrp, onShelf ?? mrp) : Math.Min(product.SellingPrice, mrp);
-        product.Mrp = mrp;
+        // The item's MRP is the ceiling for any pack of it: the highest MRP still printed on stock in hand, so older packs
+        // at a higher MRP can still sell at it. Each batch is still held to its own MRP when sold.
+        var highest = await db.ProductBatches.AsNoTracking().Where(b => b.ProductId == product.Id && b.Quantity > 0 && b.Expiry >= today).MaxAsync(b => (decimal?)b.Mrp, ct);
+        product.Mrp = Math.Max(mrp, highest ?? mrp);
     }
 
     /// <summary>"2027-05" → 31 May 2027 (packs are good to the end of the month), or null when it isn't a month.</summary>

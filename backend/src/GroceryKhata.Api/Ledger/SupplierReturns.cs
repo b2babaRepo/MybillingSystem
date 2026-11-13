@@ -58,7 +58,8 @@ public sealed record ReturnLineRequest(Guid? BatchId, decimal Quantity, Guid? Pr
 
 public sealed record SupplierReturnRequest(Guid Id, Guid SupplierId, IReadOnlyList<ReturnLineRequest>? Lines);
 
-public sealed record ReturnCreditRequest(string? CreditNoteNo, decimal Amount);
+/// <summary><see cref="Gst"/>: the GST shown on the supplier's credit note; left out, it is worked out from the goods' GST rates.</summary>
+public sealed record ReturnCreditRequest(string? CreditNoteNo, decimal Amount, decimal? Gst = null);
 
 public sealed record ReturnLineDto(string ProductName, string BatchNo, DateOnly? Expiry, decimal Quantity, decimal Value);
 
@@ -184,6 +185,17 @@ public static class SupplierReturns
     }
 
     /// <summary>The distributor's credit note arrived: it comes off what the shop owes them, and the return is settled.</summary>
+    /// <summary>The GST inside a credit of <paramref name="amount"/> for a return: each line's share by value, at its item's rate.</summary>
+    private static async Task<decimal> GstInAsync(AppDbContext db, Guid returnId, decimal amount, CancellationToken ct)
+    {
+        var lines = await (from l in db.SupplierReturnLines.AsNoTracking()
+                           where l.ReturnId == returnId
+                           join p in db.Products.AsNoTracking() on l.ProductId equals p.Id
+                           select new { Value = l.Quantity * l.UnitCost, Rate = p.GstRate ?? 0 }).ToListAsync(ct);
+        var total = lines.Sum(l => l.Value);
+        return total <= 0 ? 0 : decimal.Round(lines.Sum(l => amount * (l.Value / total) * l.Rate / (100 + l.Rate)), 2);
+    }
+
     private static async Task<IResult> CreditNoteAsync(Guid id, ReturnCreditRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var record = await db.SupplierReturns.AsNoTracking().SingleOrDefaultAsync(r => r.Id == id, ct);
@@ -217,8 +229,11 @@ public static class SupplierReturns
 
         if (request.Amount > 0)
         {
+            // The GST inside the credit: as shown on the note, else from each returned item's rate, shared by value.
+            var gst = request.Gst is { } given && given >= 0 && given <= request.Amount ? decimal.Round(given, 2) : await GstInAsync(db, id, request.Amount, ct);
             db.SupplierEntries.Add(new SupplierEntry
             {
+                Gst = gst,
                 SupplierId = record.SupplierId, Kind = SupplierEntryKind.CreditNote, Amount = -request.Amount, Note = (noteNo is null ? $"Return #{record.Number}" : $"{noteNo} · return #{record.Number}")[..Math.Min(40, (noteNo is null ? $"Return #{record.Number}" : $"{noteNo} · return #{record.Number}").Length)], OccurredAt = now,
                 CreatedByUserId = user.UserId()!.Value,
             });

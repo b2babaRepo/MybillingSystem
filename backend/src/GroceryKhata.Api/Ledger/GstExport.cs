@@ -246,7 +246,7 @@ public static class GstExport
             d.Bills.Where(b => b.BuyerGstin is not null && IsValidGstin(b.BuyerGstin)).Sum(b => b.Total), checks,
             (await entitlements.ForShopAsync(tenant.ShopId, ct)).Has(Features.GstExport),
             d.Notes.Count, d.Notes.Sum(n => n.Total), d.Notes.Sum(n => n.Lines.Sum(l => l.Cgst + l.Sgst + l.Igst)), d.Receipts.Count, d.Receipts.Sum(e => Math.Abs(e.Amount)),
-            d.Purchases.Count, d.Purchases.Sum(p => p.Lines.Sum(l => l.Taxable)), d.Purchases.Where(p => Claimable(p, d)).Sum(p => p.Lines.Sum(l => l.Gst)), payable, d.Composition ? [] : GstReturns.Hsn(saleLines, returnLines)));
+            d.Purchases.Count, d.Purchases.Sum(p => p.Lines.Sum(l => l.Taxable)), InputTax(d) is var input ? input.Cgst + input.Sgst + input.Igst : 0, payable, d.Composition ? [] : GstReturns.Hsn(saleLines, returnLines)));
     }
 
     private static async Task<IResult> ExportAsync(string? month, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
@@ -316,7 +316,7 @@ public static class GstExport
 
         Ledger(n["roundOff"], "Indirect Expenses");
         Ledger(n["cash"], "Cash-in-Hand");
-        var walkIn = d.Bills.Where(b => b.CustomerId is null).SelectMany(b => b.Parts()).Select(p => p.Mode).ToList();
+        var walkIn = d.Bills.Where(b => b.CustomerId is null).SelectMany(b => b.Parts()).Select(p => p.Mode).Concat(d.Notes.Where(n => n.RefundMode != null).Select(n => n.RefundMode!.Value)).ToList();
         var upiUsed = d.Receipts.Any(e => e.PaymentMode == PaymentMode.Upi) || walkIn.Contains(PaymentMode.Upi);
         if (upiUsed)
         {
@@ -420,7 +420,8 @@ public static class GstExport
         // Credit notes: the sale turned round. The party is credited; sales and tax are debited.
         foreach (var n in d.Notes)
         {
-            var party = n.CustomerId is { } id && d.Customers.TryGetValue(id, out var c) ? c.Name : d.Names["cash"];
+            // A khata customer is credited; a walk-in's refund comes out of the account it went back from.
+            var party = n.CustomerId is { } id && d.Customers.TryGetValue(id, out var c) ? c.Name : n.RefundMode is { } refund ? Into(refund, d) : d.Names["cash"];
             var debits = new List<(string Ledger, decimal Amount)> { (d.Names["sales"], n.Lines.Sum(l => l.TaxableValue)), (d.Names["cgst"], n.Lines.Sum(l => l.Cgst)), (d.Names["sgst"], n.Lines.Sum(l => l.Sgst)), (d.Names["igst"], n.Lines.Sum(l => l.Igst)) };
             var roundOff = n.Total - debits.Sum(x => x.Amount);
             body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"Credit Note\" ACTION=\"Create\"><GUID>gk-{n.Id}</GUID><DATE>{n.OccurredAt.ToOffset(IndiaTime.Offset):yyyyMMdd}</DATE><VOUCHERTYPENAME>Credit Note</VOUCHERTYPENAME>")
@@ -479,6 +480,21 @@ public static class GstExport
     {
         var shopState = d.ShopGstin is { Length: 15 } sg ? sg[..2] : null;
         decimal c = 0, s = 0, i = 0;
+        // Supplier credit notes take back the input tax on what went back.
+        foreach (var e in d.SupplierCredits.Where(e => e.Gst is > 0 && ClaimableFrom(e.SupplierId, d)))
+        {
+            var gstin = d.Suppliers[e.SupplierId].Gstin!;
+            if (shopState is not null && gstin[..2] != shopState)
+            {
+                i -= e.Gst!.Value;
+            }
+            else
+            {
+                var half = decimal.Round(e.Gst!.Value / 2, 2);
+                (c, s) = (c - half, s - (e.Gst.Value - half));
+            }
+        }
+
         foreach (var p in d.Purchases.Where(p => Claimable(p, d)))
         {
             var gst = p.Lines.Sum(l => l.Gst);
@@ -579,8 +595,10 @@ public static class GstExport
     /// Input tax can be claimed only by a regular (not composition) shop, and only on a bill from a supplier with a valid
     /// GSTIN: an unregistered supplier's "GST" is part of the cost.
     /// </summary>
-    private static bool Claimable(Purchase p, MonthData d) =>
-        !d.Composition && d.Suppliers.TryGetValue(p.SupplierId, out var s) && s.Gstin is not null && IsValidGstin(s.Gstin);
+    private static bool Claimable(Purchase p, MonthData d) => ClaimableFrom(p.SupplierId, d);
+
+    private static bool ClaimableFrom(Guid supplierId, MonthData d) =>
+        !d.Composition && d.Suppliers.TryGetValue(supplierId, out var s) && s.Gstin is not null && IsValidGstin(s.Gstin);
 
     /// <summary>Money paid out comes from cash, the UPI account or the bank, as it was paid.</summary>
     private static string PaidFrom(PaymentMode? mode, MonthData d) => mode switch
@@ -657,7 +675,23 @@ public static class GstExport
             body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"Debit Note\" ACTION=\"Create\"><GUID>gk-{e.Id}</GUID><DATE>{Day(e.OccurredAt)}</DATE><VOUCHERTYPENAME>Debit Note</VOUCHERTYPENAME>")
                 .Append($"<PARTYLEDGERNAME>{X(name)}</PARTYLEDGERNAME>{(note.Length > 0 ? $"<NARRATION>{X(note)}</NARRATION>" : "")}<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
             Entry(name, Math.Abs(e.Amount), debit: true);
-            Entry(d.Names["purchases"], Math.Abs(e.Amount), debit: false);
+            // The GST in it reverses the input tax taken on those goods (only where it was claimable).
+            var back = e.Gst is > 0 && ClaimableFrom(e.SupplierId, d) ? e.Gst.Value : 0;
+            Entry(d.Names["purchases"], Math.Abs(e.Amount) - back, debit: false);
+            if (back > 0)
+            {
+                var sGstin = d.Suppliers[e.SupplierId].Gstin!;
+                if (shopState is not null && sGstin[..2] != shopState)
+                {
+                    Entry(d.Names["inputIgst"], back, debit: false);
+                }
+                else
+                {
+                    var half = decimal.Round(back / 2, 2);
+                    Entry(d.Names["inputCgst"], half, debit: false);
+                    Entry(d.Names["inputSgst"], back - half, debit: false);
+                }
+            }
             body.Append("</VOUCHER></TALLYMESSAGE>\n");
         }
 

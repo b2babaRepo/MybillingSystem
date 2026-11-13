@@ -179,6 +179,9 @@ public sealed record BalanceMismatch(Guid CustomerId, string Name, decimal Store
 /// The outcome of a write. <see cref="Replayed"/> means the ID was already saved, so nothing new was
 /// written: the normal result of an offline queue sending the same request twice.
 /// </summary>
+/// <summary>An item whose stock, stock ledger and batches disagree.</summary>
+public sealed record StockMismatch(Guid ProductId, string Name, decimal Stock, decimal Ledger, decimal? Batches);
+
 public sealed record LedgerResult<T>(T? Value, bool Replayed, Dictionary<string, string[]>? Errors, bool NotFound, string? Conflict)
     where T : class
 {

@@ -258,16 +258,17 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             return (null, errors, false);
         }
 
-        if (await db.Products.AsNoTracking().Where(p => p.Id == request.ProductId).Select(p => new { p.CostPrice }).SingleOrDefaultAsync(ct) is not { } item)
+        if (await db.Products.AsNoTracking().Where(p => p.Id == request.ProductId).Select(p => new { p.CostPrice, p.SellingPrice }).SingleOrDefaultAsync(ct) is not { } item)
         {
             return (null, null, true);
         }
 
-        // A helper may write off only so much at cost; more needs the owner.
-        if (!isOwner && request.Kind == StockMovementKind.Adjustment && request.Quantity < 0
-            && Math.Abs(request.Quantity) * (item.CostPrice ?? 0) > await WriteOffLimitAsync(ct))
+        // A helper may change stock by hand only so much either way (valued at cost, or the selling price when no cost
+        // is known); more needs the owner, so stock can't be quietly written off or invented.
+        if (!isOwner && request.Kind == StockMovementKind.Adjustment
+            && Math.Abs(request.Quantity) * (item.CostPrice ?? item.SellingPrice) > await WriteOffLimitAsync(ct))
         {
-            return (null, new() { ["Quantity"] = [$"Writing off more than ₹{await WriteOffLimitAsync(ct):0.##} at cost needs the shop owner."] }, false);
+            return (null, new() { ["Quantity"] = [$"Changing stock by more than ₹{await WriteOffLimitAsync(ct):0.##} needs the shop owner."] }, false);
         }
 
         try
@@ -327,10 +328,18 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         var lines = request.Counts.DistinctBy(c => c.ProductId).Where(c => products.ContainsKey(c.ProductId))
             .Select(c => { var p = products[c.ProductId]; return new StocktakeLine(p.Id, p.Name, p.Stock, c.Counted, c.Counted - p.Stock, p.CostPrice); }).ToList();
-        var lossAtCost = -lines.Where(l => l.Difference < 0).Sum(l => l.Difference * (l.CostPrice ?? 0));
+        // A helper's count may move stock only so much either way (at cost, or the selling price when no cost is known).
+        decimal Worth(StocktakeLine l) => l.CostPrice ?? products[l.ProductId].SellingPrice;
+        var lossAtCost = -lines.Where(l => l.Difference < 0).Sum(l => l.Difference * Worth(l));
+        var gainAtCost = lines.Where(l => l.Difference > 0).Sum(l => l.Difference * Worth(l));
         if (!isOwner && lossAtCost > await WriteOffLimitAsync(ct))
         {
             return (null, new() { ["Counts"] = [$"This count writes off ₹{lossAtCost:0.##} at cost, more than a helper may (₹{await WriteOffLimitAsync(ct):0.##}). Ask the shop owner to save it."] });
+        }
+
+        if (!isOwner && gainAtCost > await WriteOffLimitAsync(ct))
+        {
+            return (null, new() { ["Counts"] = [$"This count adds ₹{gainAtCost:0.##} of stock, more than a helper may (₹{await WriteOffLimitAsync(ct):0.##}). Ask the shop owner to save it."] });
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);

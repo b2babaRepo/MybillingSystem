@@ -1,3 +1,4 @@
+import { shopTypes, useShopSettings } from './lib/reports'
 import { ListDetail } from './components/ListDetail'
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -272,6 +273,9 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const isTab = tabs.some((tab) => tab.path === path)
   // Desktop only: the pages a phone reaches from Home, grouped by the job (sell, people, buy, money, stock, reports).
   // Each group folds, and its + starts the group's most common job.
+  // The shop's trades decide the trade-only pages: batches and the H1 register for a medical shop, empty bags for grocery.
+  const trades = shopTypes(useShopSettings(shopId).data)
+  const medical = trades.includes('medical')
   const sideGroups: { key: string; title: string; add?: { path: string; label: string }; links: { path: string; label: string }[] }[] = [
     { key: 'sell', title: t('menu.sell'), add: { path: '/bill', label: t('menu.addBill') }, links: [
       { path: '/estimates', label: t('estimate.link') },
@@ -293,7 +297,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
       { path: '/goods-to-come', label: t('gtc.link') },
       { path: '/goods-in', label: t('gi.link') },
       { path: '/godowns', label: t('godown.title') },
-      { path: '/bardana', label: t('bardana.title') },
+      ...(trades.includes('kirana') ? [{ path: '/bardana', label: t('bardana.title') }] : []),
       { path: '/festivals', label: t('fest.title') },
       ...(isOwner ? [{ path: '/lots', label: t('landed.compareTitle') }] : []),
       { path: '/received-by-supplier', label: t('rs.link') },
@@ -309,7 +313,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
       { path: '/stocktake', label: t('side.stocktake') },
       { path: '/stock-statement', label: t('sl.statement') },
       { path: '/stock-health', label: t('sh.title') },
-      { path: '/goods-in', label: t('gi.link') },
+      ...(medical ? [{ path: '/medical/stock', label: t('batches.link') }, { path: '/medical/h1', label: t('rx.register') }, { path: '/medical/refills', label: t('refills.link') }] : []),
+      ...(medical && isOwner ? [{ path: '/medical/returns', label: t('returns.link') }, { path: '/medical/month', label: t('pmonth.link') }] : []),
       ...(isOwner ? [{ path: '/categories', label: t('cat.title') }] : []),
     ] },
     { key: 'reports', title: t('menu.reports'), links: [

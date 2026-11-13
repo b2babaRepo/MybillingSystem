@@ -139,6 +139,9 @@ public sealed class SupplierEntry : Entity, ITenantOwned
     public DateTimeOffset OccurredAt { get; set; }
 
     public Guid CreatedByUserId { get; set; }
+
+    /// <summary>On a credit note: the GST inside it, which takes back the input tax claimed on those goods.</summary>
+    public decimal? Gst { get; set; }
 }
 
 /// <summary>On a change, null keeps a detail and an empty value clears it.</summary>
@@ -427,6 +430,33 @@ public static class SupplierEndpoints
         return TypedResults.NoContent();
     }
 
+    /// <summary>The first item on a supplier bill no longer all in stock (or whose batch has been drawn on), or null.</summary>
+    private static async Task<string?> GoneAsync(AppDbContext db, Purchase purchase, CancellationToken ct)
+    {
+        var ids = purchase.Lines.Select(l => l.ProductId).Distinct().ToList();
+        var products = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Name, p.Stock }, ct);
+        foreach (var g in purchase.Lines.GroupBy(l => l.ProductId))
+        {
+            var own = g.Sum(l => l.Quantity + l.FreeQuantity - l.FromReceipt);
+            if (products.TryGetValue(g.Key, out var p) && own > 0 && p.Stock < own)
+            {
+                return p.Name;
+            }
+        }
+
+        var batchIds = purchase.Lines.Where(l => l.BatchId != null).Select(l => l.BatchId!.Value).ToList();
+        var batches = await db.ProductBatches.AsNoTracking().Where(b => batchIds.Contains(b.Id)).ToDictionaryAsync(b => b.Id, b => b.Quantity, ct);
+        foreach (var line in purchase.Lines.Where(l => l.BatchId != null))
+        {
+            if (batches.GetValueOrDefault(line.BatchId!.Value) < line.Quantity + line.FreeQuantity)
+            {
+                return products.GetValueOrDefault(line.ProductId)?.Name ?? "An item";
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>One bill as a lot: each item's bill rate, its share of the charges, what it landed at, and the margin at today's price.</summary>
     private static async Task<IResult> LotAsync(Guid id, AppDbContext db, CancellationToken ct) =>
         (await LotsOfAsync(db, db.Purchases.AsNoTracking().Where(p => p.Id == id), ct)).SingleOrDefault() is { } lot ? TypedResults.Ok(lot) : TypedResults.NotFound();
@@ -634,6 +664,14 @@ public static class SupplierEndpoints
         }
 
         var today = DateOnly.FromDateTime(clock.GetUtcNow().ToOffset(IndiaTime.Offset).DateTime);
+        // An item kept by batch (it has batches already, or is a scheduled medicine) needs its batch on every bill:
+        // stock without a batch could never be sold, since medicines sell from batches.
+        var batchKept = (await db.ProductBatches.AsNoTracking().Where(b => lines.Select(l => l.ProductId).Contains(b.ProductId)).Select(b => b.ProductId).Distinct().ToListAsync(ct)).ToHashSet();
+        if (lines.FirstOrDefault(l => string.IsNullOrWhiteSpace(l.BatchNo) && (batchKept.Contains(l.ProductId) || products[l.ProductId].Schedule is not null)) is { } loose)
+        {
+            return Invalid("Lines", $"{products[loose.ProductId].Name} is kept by batch: enter its batch number, expiry month and MRP.");
+        }
+
         foreach (var l in lines.Where(l => !string.IsNullOrWhiteSpace(l.BatchNo)))
         {
             var name = products[l.ProductId].Name;
@@ -857,6 +895,15 @@ public static class SupplierEndpoints
 
         // A supplier bill in a closed month stays as filed: a supplier credit note in the open month puts it right.
         await Books.EnsureOpenAsync(db, tenant, purchase.OccurredAt, ct);
+
+        // A bill can be cancelled only while all its goods are still here (and, for medicines, each batch whole).
+        // Once some were sold, returned or written off, taking the whole bill off would push stock below zero and
+        // leave the supplier's balance wrong; the goods still here go back with a supplier return and credit note.
+        if (purchase.CancelledAt is null && await GoneAsync(db, purchase, ct) is { } gone)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
+                title: $"{gone} from this bill was already sold, returned or written off, so the bill can't be cancelled. Send back what is left as a supplier return, and record the supplier's credit note.");
+        }
 
         var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);

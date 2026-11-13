@@ -35,6 +35,9 @@ public sealed class CreditNote : Entity, ITenantOwned
     /// <summary>Kept as credit for an exchange: no money goes back; the new bill (<see cref="ExchangeBillId"/>) uses it.</summary>
     public bool ForExchange { get; set; }
 
+    /// <summary>How a walk-in's refund went back: cash, UPI, card or bank. Null for a khata customer or an exchange.</summary>
+    public PaymentMode? RefundMode { get; set; }
+
     public Guid? ExchangeBillId { get; set; }
 
     public DateTimeOffset OccurredAt { get; set; }
@@ -75,7 +78,9 @@ public sealed class CreditNoteLine : Entity, ITenantOwned
 public sealed record CreditNoteLineRequest(int LineNo, decimal Quantity);
 
 /// <summary><see cref="Restock"/>: the goods go back on the shelf (not damaged).</summary>
-public sealed record CreditNoteRequest(Guid Id, string? Reason, IReadOnlyList<CreditNoteLineRequest>? Lines, bool Restock = true, bool Exchange = false, IReadOnlyList<string>? Serials = null);
+/// <summary><see cref="RefundMode"/>: how a walk-in's money went back (cash, UPI, card or bank); default the bill's main mode.</summary>
+public sealed record CreditNoteRequest(Guid Id, string? Reason, IReadOnlyList<CreditNoteLineRequest>? Lines, bool Restock = true, bool Exchange = false, IReadOnlyList<string>? Serials = null,
+    PaymentMode? RefundMode = null);
 
 public sealed record CreditNoteLineDto(int BillLineNo, string Name, decimal Quantity, decimal Amount, decimal TaxableValue, decimal Cgst, decimal Sgst, decimal Igst);
 
@@ -171,10 +176,13 @@ public static class CreditNotes
         var startYear = india.Month >= 4 ? india.Year : india.Year - 1;
         var year = $"{startYear}-{(startYear + 1) % 100:D2}";
         var number = (await db.CreditNotes.Where(n => n.FinancialYear == year).MaxAsync(n => (int?)n.Number, ct) ?? 0) + 1;
+        // How the money went back to a walk-in: as asked, else the way the bill was mostly paid.
+        var refundMode = request.RefundMode is PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Card or PaymentMode.Bank ? request.RefundMode.Value : bill.PaymentMode ?? PaymentMode.Cash;
         var note = new CreditNote
         {
             Id = request.Id, BillId = billId, CustomerId = bill.CustomerId, FinancialYear = year, Number = number, Reason = reason!,
             Total = total, Restocked = request.Restock, OccurredAt = now, CreatedByUserId = userId, Lines = lines, ForExchange = request.Exchange,
+            RefundMode = request.Exchange || bill.CustomerId is not null ? null : refundMode,
         };
         db.CreditNotes.Add(note);
         if (request.Exchange)
@@ -191,7 +199,7 @@ public static class CreditNotes
         else
         {
             // A walk-in sale was paid at the counter: the money goes back out of the drawer.
-            db.Expenses.Add(new Expense { Amount = total, Category = ExpenseCategory.Other, Mode = bill.PaymentMode ?? PaymentMode.Cash, Note = $"Refund {note.NoteNo}", OccurredAt = now, CreatedByUserId = userId });
+            db.Expenses.Add(new Expense { Amount = total, Category = ExpenseCategory.Other, Mode = refundMode, Note = $"Refund {note.NoteNo}", OccurredAt = now, CreatedByUserId = userId });
         }
 
         if (request.Restock)

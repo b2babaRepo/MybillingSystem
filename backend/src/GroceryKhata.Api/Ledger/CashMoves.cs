@@ -113,7 +113,7 @@ public static class CashMoves
         {
             Id = request.Id, Kind = request.Kind!.Value, Amount = request.Amount, Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
             BankAccount = request.Kind is CashMoveKind.ToBank or CashMoveKind.FromBank && !string.IsNullOrWhiteSpace(request.BankAccount) ? request.BankAccount.Trim() : null,
-            OccurredAt = request.OccurredAt ?? now, CreatedByUserId = user.UserId()!.Value,
+            OccurredAt = (request.OccurredAt ?? now).ToUniversalTime(), CreatedByUserId = user.UserId()!.Value,
         };
         db.CashMoves.Add(move);
         await db.SaveChangesAsync(ct);
@@ -154,7 +154,9 @@ public static class CashMoves
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["to"] = ["Pick up to two months, ending on or after the start."] });
         }
 
-        var counts = await db.CashCounts.AsNoTracking().Where(c => c.Day <= end).Select(c => new { c.Day, c.Counted }).ToListAsync(ct);
+        // A day can be counted more than once (every count is kept): the latest count of each day stands.
+        var counts = (await db.CashCounts.AsNoTracking().Where(c => c.Day <= end).Select(c => new { c.Day, c.Counted, c.CountedAt }).ToListAsync(ct))
+            .GroupBy(c => c.Day).Select(g => g.OrderByDescending(c => c.CountedAt).First()).Select(c => new { c.Day, c.Counted }).ToList();
         var countOn = counts.ToDictionary(c => c.Day, c => c.Counted);
         // Opening: the last count before the period, then each day's cash between it and the period (at most a year back).
         var anchor = counts.Where(c => c.Day < start).OrderByDescending(c => c.Day).FirstOrDefault();

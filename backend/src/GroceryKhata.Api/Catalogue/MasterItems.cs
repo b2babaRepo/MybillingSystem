@@ -344,11 +344,15 @@ public static class MasterItems
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Ids"] = ["These items aren't on your trades' lists."] });
         }
 
+        // Items take the name in the owner's language: the Hindi name for a shop run in Hindi, else the English one,
+        // so a search for "jeans" finds the jeans. Either name still finds the item on the master list.
+        var hindi = await db.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => u.PreferredLanguage).SingleOrDefaultAsync(ct) == "hi";
+        string NameOf(MasterItem i) => hindi ? i.NameHi ?? i.Name : i.Name;
         var rows = items.SelectMany(i => i.PackSizes.Count == 0
-            ? [new ImportRow(i.NameHi ?? i.Name, i.Unit, 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id)]
-            : SizesFor(i, sizes).Select(size => new ImportRow($"{i.NameHi ?? i.Name} {size}", PackUnit(i.Unit), 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id,
-                // Clothes sizes make one style: "पुरुष जींस" in 30, 32, 34. Grocery pack sizes stay separate items.
-                StyleName: IsWearSize(i) ? i.NameHi ?? i.Name : null, Size: IsWearSize(i) ? size : null)))
+            ? [new ImportRow(NameOf(i), i.Unit, 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id, Schedule: ScheduleOf(i))]
+            : SizesFor(i, sizes).Select(size => new ImportRow($"{NameOf(i)} {size}", PackUnit(i.Unit), 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id,
+                // Clothes sizes make one style: "Men jeans" in 30, 32, 34. Grocery pack sizes stay separate items.
+                StyleName: IsWearSize(i) ? NameOf(i) : null, Size: IsWearSize(i) ? size : null, Schedule: ScheduleOf(i))))
             .ToList();
         var (result, errors) = await stock.ImportAsync(new ImportRequest(rows), userId, ct);
         return errors is null ? TypedResults.Ok(result) : TypedResults.ValidationProblem(errors);
@@ -441,6 +445,37 @@ public static class MasterItems
             .Where(m => m.CreatedAt >= since && !byName.Where(kv => kv.Value == m).Any(kv => held.Contains(kv.Key)))
             .OrderBy(m => m.Category).ThenBy(m => m.Name).Take(200).ToList();
         return (changed, fresh);
+    }
+
+    /// <summary>Molecules on Schedule H1 (sold only with a prescription, entered in the H1 register).</summary>
+    private static readonly string[] H1Molecules =
+    [
+        "alprazolam", "clonazepam", "diazepam", "lorazepam", "nitrazepam", "zolpidem", "codeine", "tramadol", "buprenorphine", "pentazocine",
+        "cefixime", "cefpodoxime", "ceftriaxone", "cefuroxime", "levofloxacin", "moxifloxacin", "gemifloxacin", "ofloxacin",
+        "isoniazid", "rifampicin", "ethambutol", "pyrazinamide",
+    ];
+
+    /// <summary>Prescription medicine groups: Schedule H unless the molecule is on H1.</summary>
+    private static readonly string[] PrescriptionGroups = ["Antibiotics", "Heart", "Diabetes", "Thyroid", "Brain"];
+
+    /// <summary>
+    /// A medicine's drug schedule when it comes from the master list (which carries none): H1 for the H1 molecules,
+    /// H for prescription groups, else none. A starting point the owner can change on the item.
+    /// </summary>
+    private static DrugSchedule? ScheduleOf(MasterItem i)
+    {
+        if (i.Trade != "medical")
+        {
+            return null;
+        }
+
+        var name = i.Name.ToLowerInvariant();
+        if (H1Molecules.Any(name.Contains))
+        {
+            return DrugSchedule.H1;
+        }
+
+        return PrescriptionGroups.Any(g => i.Category.StartsWith(g, StringComparison.OrdinalIgnoreCase)) ? DrugSchedule.H : null;
     }
 
     /// <summary>Every name picking gives a master item's shop items ("तूर दाल", "Bhujia 1 kg"), to find them again by name.</summary>

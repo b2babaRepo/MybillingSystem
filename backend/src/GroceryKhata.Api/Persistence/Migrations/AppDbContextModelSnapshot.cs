@@ -4525,6 +4525,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("reason");
 
+                    b.Property<string>("RefundMode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("refund_mode");
+
                     b.Property<bool>("Restocked")
                         .HasColumnType("boolean")
                         .HasColumnName("restocked");
@@ -7863,6 +7868,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("created_by_user_id");
+
+                    b.Property<decimal?>("Gst")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("gst");
 
                     b.Property<string>("Kind")
                         .IsRequired()

@@ -226,7 +226,7 @@ public static class StockLedger
         return Results.Ok(new ItemLedger(id, product.Name, product.Unit, p.From, p.To, opening, lines.Sum(l => l.In), lines.Sum(l => l.Out), balance, lines, product.BagSize, openingBags, bagBalance));
     }
 
-    private static async Task<IResult> StatementAsync(DateOnly? from, DateOnly? to, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> StatementAsync(DateOnly? from, DateOnly? to, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         if (Period(from, to, clock) is not { } p)
         {
@@ -283,6 +283,12 @@ public static class StockLedger
 
         items = items.OrderBy(i => i.Category ?? "~").ThenBy(i => i.Name).ToList();
         var lostValue = items.Sum(i => i.Lost * (i.CostPrice ?? 0));
+        // What goods cost is the owner's: a helper sees the units, not the cost or the stock's value.
+        if (!Ledger.LedgerEndpoints.IsOwner(user))
+        {
+            return Results.Ok(new StockStatement(p.From, p.To, 0, 0, 0, items.Select(i => i with { CostPrice = null, Value = null }).ToList()));
+        }
+
         return Results.Ok(new StockStatement(p.From, p.To, items.Sum(i => i.Value ?? 0), items.Count(i => i.Closing > 0 && i.Value is null), decimal.Round(lostValue, 2), items));
     }
 

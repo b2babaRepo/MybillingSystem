@@ -41,6 +41,11 @@ public static class LedgerEndpoints
 
         group.MapPost("/bills", async (BillRequest request, ClaimsPrincipal user, LedgerService ledger, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
         {
+            if (request.GodownId is null && await ShelfShortAsync(request, db, ct) is { } shelfProblem)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = [shelfProblem] });
+            }
+
             var result = await ledger.CreateBillAsync(request, user.UserId()!.Value, ct, isOwner: IsOwner(user));
             if (result.Value is not null && request.GodownId is { } godown && await Catalogue.Godowns.IsActiveAsync(db, godown, ct))
             {
@@ -64,10 +69,62 @@ public static class LedgerEndpoints
             (await ledger.CancelBillAsync(id, request, user.UserId()!.Value, ct)).ToHttp($"/api/v1/bills/{id}"))
             .RequireAuthorization(AppPolicies.ShopOwner);
 
+        group.MapGet("/ledger/reconcile/stock", ReconcileStockAsync).RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("/ledger/reconcile", (LedgerService ledger, CancellationToken ct) => ledger.ReconcileAsync(ct))
             .RequireAuthorization(AppPolicies.ShopOwner);
 
         return app;
+    }
+
+    /// <summary>
+    /// A bill from the shop shelf for more than the shelf has, while the rest of that item sits in a godown: the shelf
+    /// would go below zero. The goods should be brought to the shop first, or the bill made from the godown. A shop
+    /// with no godown stock of the item is not stopped here.
+    /// </summary>
+    private static async Task<string?> ShelfShortAsync(BillRequest request, AppDbContext db, CancellationToken ct)
+    {
+        if (request.Lines is not { Count: > 0 } lines || !await db.Godowns.AnyAsync(ct) || await db.Bills.AnyAsync(b => b.Id == request.Id, ct))
+        {
+            return null;
+        }
+
+        var held = await Catalogue.Godowns.HeldAsync(db, ct);
+        var wanted = lines.Where(l => l.ProductId != null).GroupBy(l => l.ProductId!.Value).ToDictionary(g => g.Key, g => g.ToList());
+        var ids = wanted.Keys.Where(id => held.Any(h => h.Key.Product == id && h.Value > 0)).ToList();
+        if (ids.Count == 0)
+        {
+            return null;
+        }
+
+        var products = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Name, p.Stock, p.Unit }).ToListAsync(ct);
+        foreach (var p in products)
+        {
+            // Lines sold in another unit (grams of a kg item) are left to the bill's own stock rules.
+            var quantity = wanted[p.Id].Where(l => l.Unit is null || l.Unit == p.Unit).Sum(l => l.Quantity);
+            var inGodowns = held.Where(h => h.Key.Product == p.Id).Sum(h => h.Value);
+            var shelf = p.Stock - inGodowns;
+            if (quantity > shelf && inGodowns > 0)
+            {
+                return $"Only {Math.Max(0, shelf):0.###} of {p.Name} is on the shop shelf; {inGodowns:0.###} is in the godown. Bring it to the shop first, or bill it from the godown.";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Items whose stock doesn't add up: the stock figure against the sum of its stock ledger, and for items kept by
+    /// batch, against what their batches hold. Empty when everything ties.
+    /// </summary>
+    private static async Task<IReadOnlyList<StockMismatch>> ReconcileStockAsync(AppDbContext db, CancellationToken ct)
+    {
+        var products = await db.Products.AsNoTracking().Where(p => !p.IsService).Select(p => new { p.Id, p.Name, p.Stock }).ToListAsync(ct);
+        var ledger = await db.StockMovements.AsNoTracking().GroupBy(m => m.ProductId).Select(g => new { g.Key, Sum = g.Sum(m => m.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        var batches = await db.ProductBatches.AsNoTracking().GroupBy(b => b.ProductId).Select(g => new { g.Key, Sum = g.Sum(b => b.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        return products
+            .Select(p => new StockMismatch(p.Id, p.Name, p.Stock, ledger.GetValueOrDefault(p.Id), batches.TryGetValue(p.Id, out var b) ? b : null))
+            .Where(m => m.Stock != m.Ledger || (m.Batches is { } held && held != Math.Max(0, m.Stock)))
+            .ToList();
     }
 
     internal static bool IsOwner(ClaimsPrincipal user) => user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner));

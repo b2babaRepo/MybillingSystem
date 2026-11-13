@@ -159,6 +159,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
   const [restock, setRestock] = useState(true)
   // Exchange: the goods' value stays as credit for a new bill instead of going back as money.
   const [exchange, setExchange] = useState(false)
+  const [refundMode, setRefundMode] = useState<'cash' | 'upi' | 'card' | 'bank'>('cash')
   const [message, setMessage] = useState('')
   if (notes.isError) return null
   const back = (lineNo: number) => (notes.data ?? []).flatMap((n) => n.lines).filter((l) => l.billLineNo === lineNo).reduce((s, l) => s + l.quantity, 0)
@@ -167,7 +168,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
     setMessage('')
     try {
       const note = await api<{ id: string; noteNo: string; total: number }>(`/v1/bills/${billId}/credit-notes`, 'POST', {
-        id: crypto.randomUUID(), reason: reason.trim(), restock, exchange, serials: serials.split(/[\s,]+/).filter(Boolean),
+        id: crypto.randomUUID(), reason: reason.trim(), restock, exchange, refundMode: !customerId && !exchange ? refundMode : undefined, serials: serials.split(/[\s,]+/).filter(Boolean),
         lines: Object.entries(qty).filter(([, q]) => Number(q) > 0).map(([lineNo, q]) => ({ lineNo: Number(lineNo), quantity: Number(q) })),
       })
       setQty({}); setReason(''); setSerials(''); setOpen(false)
@@ -199,6 +200,13 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
           })}
           {lines.some((l) => l.batch?.includes('S/N')) && <input aria-label={t('creditNote.serials')} placeholder={t('creditNote.serials')} value={serials} onChange={(e) => setSerials(e.target.value)} className="h-11 rounded-lg border border-line px-3" />}
           <input aria-label={t('creditNote.reason')} placeholder={t('creditNote.reason')} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} className="h-11 rounded-lg border border-line px-3" />
+          {!customerId && !exchange && (
+            <label className="flex items-center justify-between gap-2 text-sm">{t('creditNote.refundBy')}
+              <select value={refundMode} onChange={(e) => setRefundMode(e.target.value as typeof refundMode)} className="h-11 rounded-lg border border-line bg-white px-2">
+                {(['cash', 'upi', 'card', 'bank'] as const).map((m) => <option key={m} value={m}>{t(m)}</option>)}
+              </select>
+            </label>
+          )}
           <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} className="h-5 w-5" />{t('creditNote.restock')}</label>
           <button disabled={reason.trim().length < 3 || !Object.values(qty).some((q) => Number(q) > 0)} onClick={() => void save()} className="h-11 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-40">{exchange ? t('exchange.next') : t('creditNote.save')}</button>
           {message && <p className="text-sm text-due">{message}</p>}

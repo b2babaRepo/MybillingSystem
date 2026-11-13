@@ -89,7 +89,7 @@ public sealed class TallyAccuracyTests(ApiFactory api)
         (await shop.PostJsonAsync($"/api/v1/suppliers/returns/{back}/credit-note", new { creditNoteNo = "CN-7", amount = 118m })).EnsureSuccessStatusCode();
 
         var gst = await shop.GetJsonAsync<GstMonthDto>("/api/v1/gst/month");
-        Assert.Equal(180m, gst.InputGst); // only the registered supplier's
+        Assert.Equal(180m - 18m, gst.InputGst); // only the registered supplier's, less the 18 GST in its credit note
 
         var xml = await VouchersAsync(shop);
         Assert.Contains("Input CGST", Voucher(xml, withTax.ToString()));

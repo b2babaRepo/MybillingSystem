@@ -115,7 +115,7 @@ public static class StockHolds
     private static async Task<IReadOnlyList<HoldDto>> ListAsync(Guid? productId, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
         (await AllAsync(db, clock, ct)).Where(h => productId == null || h.ProductId == productId).ToList();
 
-    private static async Task<IResult> AddAsync(HoldRequest request, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> AddAsync(HoldRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         if (await db.StockHolds.AsNoTracking().AnyAsync(h => h.Id == request.Id, ct))
         {
@@ -127,6 +127,21 @@ public static class StockHolds
             || !await db.Products.AnyAsync(p => p.Id == request.ProductId && !p.IsService, ct) || request.Note?.Length > 200)
         {
             return Invalid("Quantity", "Pick the item, how many to keep aside, and for whom.");
+        }
+
+        if (request.Until is { } until && until < IndiaTime.Today(clock))
+        {
+            return Invalid("Until", "Keep it aside until today or a later day.");
+        }
+
+        // Only stock that is free can be kept aside: not what is already held, promised on a sale order or reserved
+        // for an online order.
+        var product = await db.Products.AsNoTracking().Where(p => p.Id == request.ProductId).Select(p => new { p.Name, p.Stock, p.Reserved }).SingleAsync(ct);
+        // Promised counts sale orders and the counter holds already made.
+        var free = product.Stock - product.Reserved - (await SaleOrders.PromisedAsync(db, ct)).GetValueOrDefault(request.ProductId);
+        if (request.Quantity > free)
+        {
+            return Invalid("Quantity", $"Only {Math.Max(0, free):0.###} of {product.Name} is free to keep aside; the rest is already held or promised.");
         }
 
         db.StockHolds.Add(new StockHold
