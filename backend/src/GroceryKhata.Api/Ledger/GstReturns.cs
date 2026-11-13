@@ -34,12 +34,26 @@ public static class GstReturns
         Unit.Pair => "PRS",
         Unit.Jar => "JAR",
         Unit.Piece => "PCS",
-        Unit.Cft => "CBM",
+        Unit.Cft or Unit.Brass => "CBM",
+        Unit.SqFt => "SQF",
+        Unit.RunningFt => "MTR",
         Unit.Quintal => "QTL",
         Unit.Carton => "CTN",
         Unit.Bottle => "BTL",
         Unit.Set => "SET",
         _ => "OTH",
+    };
+
+    /// <summary>
+    /// The quantity in the UQC's own measure: GSTR-1 has no cubic or running feet, so they go as cubic metres and metres,
+    /// converted, never as the same number under a bigger unit.
+    /// </summary>
+    public static decimal InUqc(Unit unit, decimal quantity) => unit switch
+    {
+        Unit.Cft => decimal.Round(quantity * 0.0283168m, 3),
+        Unit.Brass => decimal.Round(quantity * 2.83168m, 3),
+        Unit.RunningFt => decimal.Round(quantity * 0.3048m, 3),
+        _ => quantity,
     };
 
     /// <summary>A line on a sale or a credit note, reduced to what the HSN table and the tax summary need.</summary>
@@ -50,7 +64,7 @@ public static class GstReturns
         sales.Concat(returns.Select(r => r with { Quantity = -r.Quantity, Taxable = -r.Taxable, Cgst = -r.Cgst, Sgst = -r.Sgst, Igst = -r.Igst }))
             .GroupBy(l => (l.B2b, Hsn: l.Hsn ?? "", l.Rate, Uqc: Uqc(l.Unit)))
             .Select(g => new HsnRow(g.Key.B2b ? "B2B" : "B2C", g.Key.Hsn.Length == 0 ? "No HSN" : g.Key.Hsn, g.Key.Rate, g.Key.Uqc,
-                g.Sum(l => l.Quantity), g.Sum(l => l.Taxable), g.Sum(l => l.Cgst), g.Sum(l => l.Sgst), g.Sum(l => l.Igst)))
+                g.Sum(l => InUqc(l.Unit, l.Quantity)), g.Sum(l => l.Taxable), g.Sum(l => l.Cgst), g.Sum(l => l.Sgst), g.Sum(l => l.Igst)))
             .OrderBy(r => r.Section).ThenBy(r => r.Hsn).ThenBy(r => r.Rate).ToList();
 
     /// <summary>

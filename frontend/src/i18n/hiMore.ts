@@ -670,7 +670,7 @@ export const hiMore: TextsMore = {
     gridRead: 'चार्ट से {{count}} रेट पढ़े।', gridSummary: 'चार्ट: {{count}} रेट · फ़ैट {{fat}} · SNF {{snf}}',
     fatRate: '₹ प्रति किलो फ़ैट', snfRate: '₹ प्रति किलो SNF', flatRate: '₹ प्रति लीटर', minFat: 'न्यूनतम फ़ैट', minSnf: 'न्यूनतम SNF', savePlan: 'रेट प्लान सेव करें', fromDate: '{{date}} से',
   },
-  loose: { perPack: 'एक पत्ते में गोलियाँ (खुली बेचने के लिए)', button: 'खुली बेचें', ask: 'कितनी गोलियाँ? ({{count}} का पत्ता)' },
+  loose: { inHand: 'स्टॉक: {{strips}} पत्ते + {{tablets}} गोलियाँ', perPack: 'एक पत्ते में गोलियाँ (खुली बेचने के लिए)', button: 'खुली बेचें', ask: 'कितनी गोलियाँ? ({{count}} का पत्ता)' },
   pmonth: {
     link: 'महीना: GST और मुनाफ़ा', month: 'महीना', gst: 'इस महीने का GST', outputGst: 'बिक्री पर GST', inputGst: 'इनपुट क्रेडिट (डिस्ट्रीब्यूटर बिल का GST)', payable: 'भरना है GST',
     carried: 'अगले महीने जाने वाला क्रेडिट', gstHint: 'आपके बिल और GST % वाले डिस्ट्रीब्यूटर बिल से। CA जाँचकर GSTR-3B भरेंगे।',

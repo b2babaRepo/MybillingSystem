@@ -329,7 +329,7 @@ const guMoreB = {
     gridRead: 'ચાર્ટમાંથી {{count}} ભાવ વાંચ્યા.', gridSummary: 'ચાર્ટ: {{count}} ભાવ · ફેટ {{fat}} · SNF {{snf}}',
     fatRate: 'દર કિલો ફેટ ₹', snfRate: 'દર કિલો SNF ₹', flatRate: 'દર લિટર ₹', minFat: 'ઓછામાં ઓછી ફેટ', minSnf: 'ઓછામાં ઓછું SNF', savePlan: 'ભાવ પ્લાન સેવ કરો', fromDate: '{{date}} થી',
   },
-  loose: { perPack: 'પટ્ટીમાં ગોળીઓ (છૂટક વેચવા)', button: 'છૂટક વેચો', ask: 'કેટલી ગોળીઓ? ({{count}} ની પટ્ટી)' },
+  loose: { inHand: 'સ્ટોક: {{strips}} પટ્ટી + {{tablets}} ગોળી', perPack: 'પટ્ટીમાં ગોળીઓ (છૂટક વેચવા)', button: 'છૂટક વેચો', ask: 'કેટલી ગોળીઓ? ({{count}} ની પટ્ટી)' },
   pmonth: {
     link: 'મહિનો: GST અને નફો', month: 'મહિનો', gst: 'આ મહિનાનો GST', outputGst: 'વેચાણ પર GST', inputGst: 'ઇનપુટ ક્રેડિટ (ડિસ્ટ્રિબ્યુટર બિલ પર GST)', payable: 'ભરવાનો GST',
     carried: 'આગલા મહિને લઈ જવાની ક્રેડિટ', gstHint: 'તમારાં બિલ અને GST % સાથે નોંધેલાં ડિસ્ટ્રિબ્યુટર બિલમાંથી. તમારા CA આંકડા તપાસીને GSTR-3B ભરે છે.',

@@ -668,7 +668,7 @@ export const enMore = {
     gridRead: '{{count}} rates read from the chart.', gridSummary: 'Chart: {{count}} rates · fat {{fat}} · SNF {{snf}}',
     fatRate: '₹ per kg fat', snfRate: '₹ per kg SNF', flatRate: '₹ per litre', minFat: 'Min fat', minSnf: 'Min SNF', savePlan: 'Save rate plan', fromDate: 'from {{date}}',
   },
-  loose: { perPack: 'Tablets per strip (to sell loose)', button: 'Sell loose', ask: 'How many tablets? (strip of {{count}})' },
+  loose: { inHand: 'In hand: {{strips}} strips + {{tablets}} tablets', perPack: 'Tablets per strip (to sell loose)', button: 'Sell loose', ask: 'How many tablets? (strip of {{count}})' },
   pmonth: {
     link: 'Month: GST and profit', month: 'Month', gst: 'GST this month', outputGst: 'GST on sales', inputGst: 'Input credit (GST on distributor bills)', payable: 'GST to pay',
     carried: 'Credit carried to next month', gstHint: 'From your bills and distributor bills entered with GST %. Your CA checks the figures and files GSTR-3B.',

@@ -65,6 +65,12 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
 
       {product.bagSize ? <BagCard shopId={shopId} product={product} /> : null}
 
+      {/* Medicines sold loose: stock is in strips, so 9.5 strips of 10 reads as 9 strips and 5 tablets, as a chemist counts it. */}
+      {product.unitsPerPack && product.stock > 0 && (() => {
+        const tablets = Math.round(product.stock * product.unitsPerPack)
+        return <p className="rounded-[18px] bg-white p-4 text-lg font-semibold">💊 {t('loose.inHand', { strips: Math.floor(tablets / product.unitsPerPack), tablets: tablets % product.unitsPerPack })}</p>
+      })()}
+
       <PhotoCard shopId={shopId} product={product} />
 
       <div className="grid grid-cols-2 gap-2">
