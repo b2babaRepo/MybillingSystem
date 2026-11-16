@@ -218,7 +218,7 @@ public static class GstExport
         return (taxable, half, l.Amount - taxable - half, 0);
     }
 
-    private static async Task<IResult> MonthAsync(string? month, AppDbContext db, ITenantContext tenant, Entitlements entitlements, TimeProvider clock, CancellationToken ct)
+    internal static async Task<IResult> MonthAsync(string? month, AppDbContext db, ITenantContext tenant, Entitlements entitlements, TimeProvider clock, CancellationToken ct)
     {
         if (IndiaTime.ParseMonth(month ?? IndiaTime.Today(clock).ToString("yyyy-MM", CultureInfo.InvariantCulture)) is not { } period)
         {

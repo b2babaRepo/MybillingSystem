@@ -104,6 +104,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Godown> Godowns => Set<Godown>();
 
+    public DbSet<Ledger.BalanceItem> BalanceItems => Set<Ledger.BalanceItem>();
+
     public DbSet<BagType> BagTypes => Set<BagType>();
 
     public DbSet<PurchaseCharge> PurchaseCharges => Set<PurchaseCharge>();
@@ -906,6 +908,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(m => m.Note).HasMaxLength(200);
             b.HasIndex(m => new { m.ShopId, m.BagTypeId });
             b.HasIndex(m => new { m.ShopId, m.OccurredAt });
+        });
+
+        modelBuilder.Entity<Ledger.BalanceItem>(b =>
+        {
+            b.ToTable("balance_items");
+            b.HasTenantKey();
+            b.Property(i => i.Name).HasMaxLength(80);
+            b.Property(i => i.Amount).HasPrecision(14, 2);
+            b.Property(i => i.Kind).HasConversion<string>().HasMaxLength(20);
         });
 
         modelBuilder.Entity<Godown>(b =>

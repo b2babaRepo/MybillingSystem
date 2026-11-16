@@ -3623,6 +3623,57 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("balance_checks", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.BalanceItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateOnly>("Since")
+                        .HasColumnType("date")
+                        .HasColumnName("since");
+
+                    b.Property<DateOnly?>("Until")
+                        .HasColumnType("date")
+                        .HasColumnName("until");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.ToTable("balance_items", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Bill", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9704,7 +9755,7 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
             modelBuilder.Entity("GroceryKhata.Api.Catalogue.Product", b =>
                 {
-                    b.HasOne("GroceryKhata.Api.Catalogue.CatalogueItem", null)
+                    b.HasOne("GroceryKhata.Api.Catalogue.CatalogueItem", "CatalogueItem")
                         .WithMany()
                         .HasForeignKey("CatalogueItemId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -9719,6 +9770,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasForeignKey("ShopId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("CatalogueItem");
 
                     b.Navigation("MasterItem");
                 });

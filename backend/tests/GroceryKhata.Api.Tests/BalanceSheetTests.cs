@@ -28,11 +28,48 @@ public sealed class BalanceSheetTests(ApiFactory api)
         Assert.Equal(sheet.SuppliersOwed + sheet.CustomerAdvances, sheet.TotalLiabilities);
         Assert.Equal(sheet.TotalAssets - sheet.TotalLiabilities, sheet.Capital);
 
+        // The 10 kurtis entered as opening stock at 100 are money the owner started with, not unexplained.
+        Assert.Equal(1000m, sheet.CapitalSplit!.StartedWith);
+
         // A customer who paid ahead is owed by the shop: a liability, not a negative asset.
         var ahead = await KhataTests.CreateCustomerAsync(shop, "Ravi");
         (await shop.PostJsonAsync("/api/v1/khata-entries", new { id = Guid.CreateVersion7(), customerId = ahead, type = "payment", amount = 200m, paymentMode = "cash" })).EnsureSuccessStatusCode();
         sheet = await shop.GetJsonAsync<BalanceSheetDto>("/api/v1/reports/balance-sheet");
         Assert.Equal((500m, 200m), (sheet.CustomersOwe, sheet.CustomerAdvances));
+    }
+
+    [Fact]
+    public async Task Furniture_and_loans_go_on_the_sheet_and_the_capital_story_adds_up()
+    {
+        var (shop, _) = await api.SignUpAsync("Balance Store 3");
+        var before = await shop.GetJsonAsync<BalanceSheetDto>("/api/v1/reports/balance-sheet");
+
+        // An almirah worth 20,000 and a 50,000 bank loan.
+        var almirah = Guid.CreateVersion7();
+        (await shop.PutJsonAsync($"/api/v1/balance-items/{almirah}", new { id = almirah, kind = "fixed_asset", name = "Steel almirah", amount = 20000m })).EnsureSuccessStatusCode();
+        var loan = Guid.CreateVersion7();
+        (await shop.PutJsonAsync($"/api/v1/balance-items/{loan}", new { id = loan, kind = "loan", name = "SBI loan", amount = 50000m })).EnsureSuccessStatusCode();
+
+        var sheet = await shop.GetJsonAsync<BalanceSheetDto>("/api/v1/reports/balance-sheet");
+        Assert.Equal((20000m, 50000m, 2), (sheet.FixedAssets, sheet.Loans, sheet.Items!.Count));
+        Assert.Equal(before.TotalAssets + 20000m, sheet.TotalAssets);
+        Assert.Equal(before.TotalLiabilities + 50000m, sheet.TotalLiabilities);
+        Assert.Equal(sheet.TotalAssets - sheet.TotalLiabilities, sheet.Capital);
+
+        // The year's capital story always comes back to the capital, with whatever isn't explained shown.
+        var split = sheet.CapitalSplit!;
+        Assert.Equal(sheet.Capital, split.Opening + split.StartedWith + split.ItemsNet + split.Profit + split.BroughtIn - split.TakenHome + split.Unexplained);
+
+        Assert.Equal(-30000m, split.ItemsNet); // the 20,000 almirah less the 50,000 loan
+
+        // A repaid loan stops counting from the day it ends; a past date carries no year's story.
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5));
+        (await shop.PutJsonAsync($"/api/v1/balance-items/{loan}", new { id = loan, kind = "loan", name = "SBI loan", amount = 50000m, until = today.ToString("yyyy-MM-dd") })).EnsureSuccessStatusCode();
+        Assert.Equal(0m, (await shop.GetJsonAsync<BalanceSheetDto>("/api/v1/reports/balance-sheet")).Loans);
+        Assert.Null((await shop.GetJsonAsync<BalanceSheetDto>($"/api/v1/reports/balance-sheet?on={today.AddDays(-1):yyyy-MM-dd}")).CapitalSplit);
+
+        // A nameless or zero item is refused.
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, (await shop.PutJsonAsync($"/api/v1/balance-items/{Guid.CreateVersion7()}", new { kind = "loan", name = "", amount = 0m })).StatusCode);
     }
 
     [Fact]
