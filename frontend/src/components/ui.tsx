@@ -5,7 +5,7 @@ import { formatRupees } from '../lib/format'
 
 /**
  * How a button looks, apart from its size and place: `solid` for the main action (save, add), `outline` for the one
- * beside it (hold, minus, choose), `link` for small actions in text, `quiet` for minor ones (clear, cancel). Screens
+ * beside it (hold, minus, choose), `link` for small actions in text, `quiet` for minor ones (clear, cancel), `danger` for a link that undoes something. Screens
  * keep their own size and layout classes and add one of these.
  */
 export const btn = {
@@ -13,6 +13,8 @@ export const btn = {
   outline: 'border-2 border-brand bg-white font-bold text-brand-strong hover:bg-brand-soft disabled:opacity-40',
   link: 'font-semibold text-brand underline disabled:opacity-50',
   quiet: 'text-muted underline',
+  /** A link that undoes or warns: reopen, remove, cancel an order. */
+  danger: 'font-semibold text-due underline disabled:opacity-50',
 }
 
 /** A text box or drop-down at counter size; `controlSm` for rows with several boxes side by side. */

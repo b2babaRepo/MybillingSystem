@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -73,7 +74,7 @@ export function BankBookScreen({ shopId }: { shopId: string }) {
             <button key={a.id} onClick={() => setAccount(a.id)} aria-pressed={data.account === a.id}
               className={`h-10 rounded-xl px-4 font-semibold ${data.account === a.id ? 'bg-brand text-white' : 'border border-line bg-white'}`}>{a.name}</button>
           ))}
-          <button onClick={() => setSetupOpen(!setupOpen)} className="h-10 px-2 font-semibold text-brand-strong underline">{t('bankBook.accounts')}</button>
+          <button onClick={() => setSetupOpen(!setupOpen)} className={`h-10 px-2 ${btn.link}`}>{t('bankBook.accounts')}</button>
         </div>
       )}
       {setupOpen && <BankAccountsEditor shopId={shopId} onDone={() => setSetupOpen(false)} />}
@@ -93,7 +94,7 @@ export function BankBookScreen({ shopId }: { shopId: string }) {
           <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4 text-sm">
             <p className="text-muted">
               {data.startingDate ? t('bankBook.startsAt', { amount: formatRupees(data.startingBalance ?? 0), date: data.startingDate }) : t('bankBook.noStart')}
-              {' '}<button className="font-semibold text-brand-strong underline" onClick={() => { setEditing(!editing); setAmount(data.startingBalance?.toString() ?? ''); setDate(data.startingDate ?? today) }}>{t('bankBook.setStart')}</button>
+              {' '}<button className={`${btn.link}`} onClick={() => { setEditing(!editing); setAmount(data.startingBalance?.toString() ?? ''); setDate(data.startingDate ?? today) }}>{t('bankBook.setStart')}</button>
             </p>
             {editing && (
               <div className="flex flex-wrap items-end gap-2">
@@ -170,7 +171,7 @@ function BankAccountsEditor({ shopId, onDone }: { shopId: string; onDone: () => 
         </div>
       ))}
       {setup.accounts.length < 3 && (
-        <button className="self-start font-semibold text-brand-strong underline" onClick={() => setDraft({ ...setup, accounts: [...setup.accounts, { id: '', name: '' }] })}>{t('bankBook.addAccount')}</button>
+        <button className={`self-start ${btn.link}`} onClick={() => setDraft({ ...setup, accounts: [...setup.accounts, { id: '', name: '' }] })}>{t('bankBook.addAccount')}</button>
       )}
       {setup.accounts.length > 1 && KINDS.map((k) => (
         <label key={k} className="flex items-center justify-between gap-2">{t(`bankBook.kinds.${k}`)}

@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable'
 import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -34,20 +35,18 @@ export function DiscountsScreen() {
             <div className="rounded-card bg-white p-3 shadow-sm"><p className="text-xs text-muted">{t('disc.byHand')}</p><p className="text-lg font-bold text-due">{formatRupees(r.byHand)}</p></div>
             <div className="rounded-card bg-white p-3 shadow-sm"><p className="text-xs text-muted">{t('disc.byOffer')}</p><p className="text-lg font-bold">{formatRupees(r.byOffer)}</p></div>
           </section>
-          <section className="overflow-x-auto rounded-card bg-white p-4 shadow-sm">
-            <h2 className="mb-1 font-bold">{t('disc.cashiers')}</h2>
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-muted"><th className="py-1">{t('disc.cashier')}</th><th className="text-right">{t('disc.bills')}</th><th className="text-right">{t('disc.sales')}</th><th className="text-right">{t('disc.byHand')}</th><th className="text-right">%</th><th className="text-right">{t('disc.byOffer')}</th></tr></thead>
-              <tbody>
-                {r.cashiers.map((c) => (
-                  <tr key={c.userId} className="border-t border-line">
-                    <td className="py-1.5">{c.name}</td><td className="text-right tabular-nums">{c.bills}</td><td className="text-right tabular-nums">{formatRupees(c.sales)}</td>
-                    <td className={`text-right tabular-nums ${c.byHand > 0 ? 'font-semibold text-due' : ''}`}>{formatRupees(c.byHand)}{c.byHandLines > 0 && <span className="block text-xs font-normal text-muted">{t('disc.lines', { count: c.byHandLines })}</span>}</td>
-                    <td className="text-right tabular-nums">{c.byHandPercent}%</td><td className="text-right tabular-nums">{formatRupees(c.byOffer)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <section className="flex flex-col gap-2 text-sm">
+            <h2 className="px-1 font-bold">{t('disc.cashiers')}</h2>
+            <DataTable label={t('disc.cashiers')} rows={r.cashiers} rowKey={(c) => c.userId}
+              columns={[
+                { key: 'name', header: t('disc.cashier'), sortValue: (c) => c.name, render: (c) => c.name },
+                { key: 'bills', header: t('disc.bills'), align: 'right', sortValue: (c) => c.bills, render: (c) => c.bills },
+                { key: 'sales', header: t('disc.sales'), align: 'right', sortValue: (c) => c.sales, render: (c) => formatRupees(c.sales) },
+                { key: 'hand', header: t('disc.byHand'), align: 'right', sortValue: (c) => c.byHand,
+                  render: (c) => <span className={c.byHand > 0 ? 'font-semibold text-due' : ''}>{formatRupees(c.byHand)}{c.byHandLines > 0 && <span className="block text-xs font-normal text-muted">{t('disc.lines', { count: c.byHandLines })}</span>}</span> },
+                { key: 'pct', header: '%', align: 'right', sortValue: (c) => c.byHandPercent, render: (c) => `${c.byHandPercent}%` },
+                { key: 'offer', header: t('disc.byOffer'), align: 'right', sortValue: (c) => c.byOffer, render: (c) => formatRupees(c.byOffer) },
+              ]} />
           </section>
           <section className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-2">

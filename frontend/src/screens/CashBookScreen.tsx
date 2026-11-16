@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -168,7 +169,7 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
           <span className="text-muted">{t('galla.opening')}</span>
           <span className="flex items-center gap-2">
             <span className="font-bold">{formatRupees(c.opening)}</span>
-            {!done && <button onClick={() => setOpening(String(c.opening))} className="min-h-11 px-1 text-sm text-brand underline">{t('galla.change')}</button>}
+            {!done && <button onClick={() => setOpening(String(c.opening))} className={`min-h-11 px-1 text-sm ${btn.link}`}>{t('galla.change')}</button>}
           </span>
         </div>
       )}
@@ -189,7 +190,7 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
           </span>
           {c.note && <span className="text-sm">{c.note}</span>}
           <span className="text-xs opacity-80">{c.countedBy} · {c.countedAt && new Date(c.countedAt).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })}</span>
-          <button onClick={() => { setEditing(true); setCounted(''); setNote('') }} className="min-h-11 self-start text-sm underline">{t('galla.recount')}</button>
+          <button onClick={() => { setEditing(true); setCounted(''); setNote('') }} className={`min-h-11 self-start text-sm ${btn.link}`}>{t('galla.recount')}</button>
           {(c.history?.length ?? 0) > 1 && (
             <details className="text-xs">
               <summary className="cursor-pointer font-semibold">{t('galla.history', { count: c.history!.length })}</summary>
@@ -213,7 +214,7 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
               className="h-11 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
           )}
           {error && <p className="text-sm text-due">{error}</p>}
-          <button disabled={busy || counted === ''} onClick={() => void save()} className="h-12 rounded-2xl bg-brand font-bold text-white disabled:opacity-40">
+          <button disabled={busy || counted === ''} onClick={() => void save()} className={`h-12 rounded-2xl ${btn.solid}`}>
             {t('galla.save')}
           </button>
         </>

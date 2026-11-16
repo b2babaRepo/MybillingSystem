@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable'
 import { useItemName } from '../lib/useItemName'
 import { shownLocale } from '../i18n'
 import { navigate } from '../router'
@@ -100,26 +101,36 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
         </div>
       </>}
       {data && view === 'ledger' && (
-        <section className="overflow-x-auto rounded-xl border border-line bg-white">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
-            <caption className="p-3 text-left font-bold">{year ? t('rv.monthsTable', { fy: year.financialYear }) : t('rv.daysTable')}</caption>
-            <thead><tr className="bg-[#f3f6f5] text-right">{(year ? ['rv.month', 'reports.sales', 'rv.billsTick', 'cash', 'rv.digital', 'rv.gstCol', 'rv.change'] : ['rv.day', 'reports.sales', 'rv.received', 'rv.change']).map((k, i) => <th key={k} className={`border-b border-line px-3 py-2 ${i === 0 ? 'text-left' : ''}`}>{t(k)}</th>)}</tr></thead>
-            <tbody className="text-right tabular-nums">
-              {year ? year.months.filter((m) => m.month <= month && (m.sales > 0 || m.month === month)).map((m, i, all) => (
-                <tr key={m.month} className={m.month === month ? 'bg-emerald-50 font-semibold' : i % 2 ? 'bg-[#fafbfb]' : ''}>
-                  <td className="px-3 py-2 text-left">{new Date(`${m.month}-01T00:00:00Z`).toLocaleDateString(shownLocale(), { month: 'short', year: '2-digit', timeZone: 'UTC' })}</td>
-                  <td className="px-3 py-2">{formatRupees(m.sales)}</td><td className="px-3 py-2">{m.bills}</td><td className="px-3 py-2">{formatRupees(m.cash)}</td><td className="px-3 py-2">{formatRupees(m.digital)}</td><td className="px-3 py-2">{formatRupees(m.gst)}</td>
-                  <td className="px-3 py-2"><Delta value={i > 0 ? change(m.sales, all[i - 1].sales) : null} /></td>
-                </tr>
-              )) : data.days.map((d, i) => (
-                <tr key={d.date} className={i % 2 ? 'bg-[#fafbfb]' : ''}>
-                  <td className="px-3 py-2 text-left">{new Date(d.date).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}</td>
-                  <td className="px-3 py-2">{formatRupees(d.sales)}</td><td className="px-3 py-2">{formatRupees(d.received)}</td>
-                  <td className="px-3 py-2"><Delta value={i > 0 ? change(d.sales, data.days[i - 1].sales) : null} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <section className="flex flex-col gap-2">
+          <h2 className="px-1 font-bold">{year ? t('rv.monthsTable', { fy: year.financialYear }) : t('rv.daysTable')}</h2>
+          {year ? (() => {
+            // The change is worked out in month order before sorting, so it stays right whichever column is sorted.
+            const months = year.months.filter((m) => m.month <= month && (m.sales > 0 || m.month === month))
+              .map((m, i, all) => ({ ...m, change: i > 0 ? change(m.sales, all[i - 1].sales) : null }))
+            return (
+              <DataTable label={t('rv.monthsTable', { fy: year.financialYear })} rows={months} rowKey={(m) => m.month} selectedKey={month}
+                columns={[
+                  { key: 'month', header: t('rv.month'), sortValue: (m) => m.month, render: (m) => new Date(`${m.month}-01T00:00:00Z`).toLocaleDateString(shownLocale(), { month: 'short', year: '2-digit', timeZone: 'UTC' }) },
+                  { key: 'sales', header: t('reports.sales'), align: 'right', sortValue: (m) => m.sales, render: (m) => formatRupees(m.sales) },
+                  { key: 'bills', header: t('rv.billsTick'), align: 'right', sortValue: (m) => m.bills, render: (m) => m.bills },
+                  { key: 'cash', header: t('cash'), align: 'right', sortValue: (m) => m.cash, render: (m) => formatRupees(m.cash) },
+                  { key: 'digital', header: t('rv.digital'), align: 'right', sortValue: (m) => m.digital, render: (m) => formatRupees(m.digital) },
+                  { key: 'gst', header: t('rv.gstCol'), align: 'right', sortValue: (m) => m.gst, render: (m) => formatRupees(m.gst) },
+                  { key: 'change', header: t('rv.change'), align: 'right', sortValue: (m) => m.change ?? -1e9, render: (m) => <Delta value={m.change} /> },
+                ]} />
+            )
+          })() : (() => {
+            const days = data.days.map((d, i) => ({ ...d, change: i > 0 ? change(d.sales, data.days[i - 1].sales) : null }))
+            return (
+              <DataTable label={t('rv.daysTable')} rows={days} rowKey={(d) => d.date}
+                columns={[
+                  { key: 'day', header: t('rv.day'), sortValue: (d) => d.date, render: (d) => new Date(d.date).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) },
+                  { key: 'sales', header: t('reports.sales'), align: 'right', sortValue: (d) => d.sales, render: (d) => formatRupees(d.sales) },
+                  { key: 'received', header: t('rv.received'), align: 'right', sortValue: (d) => d.received, render: (d) => formatRupees(d.received) },
+                  { key: 'change', header: t('rv.change'), align: 'right', sortValue: (d) => d.change ?? -1e9, render: (d) => <Delta value={d.change} /> },
+                ]} />
+            )
+          })()}
         </section>
       )}
       {data && (

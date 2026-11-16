@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -55,7 +56,7 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
       <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl font-bold">🧾 {t('po.title')}</h1>
-          <button onClick={() => (suppliers.length === 0 ? navigate('/suppliers') : setChoosing(!choosing))} className="min-h-11 rounded-xl bg-brand px-3 font-semibold text-white">+ {t('supplier2.newOrder')}</button>
+          <button onClick={() => (suppliers.length === 0 ? navigate('/suppliers') : setChoosing(!choosing))} className={`min-h-11 rounded-xl px-3 ${btn.solid}`}>+ {t('supplier2.newOrder')}</button>
         </div>
         {choosing && (
           <label className="flex flex-col gap-1 text-sm">{t('po.pickSupplier')}
@@ -72,7 +73,7 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
             {late.length > 0 && <span className="text-due"> · {t('po.lateCount', { count: late.length })}</span>}
           </p>
         )}
-        {late.length > 0 && <button onClick={() => navigate('/goods-to-come')} className="self-start text-sm font-semibold text-due underline">⏳ {t('gtc.chaseLate', { count: late.length })}</button>}
+        {late.length > 0 && <button onClick={() => navigate('/goods-to-come')} className={`self-start text-sm ${btn.danger}`}>⏳ {t('gtc.chaseLate', { count: late.length })}</button>}
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('po.search')} aria-label={t('po.search')} className="h-12 rounded-xl border border-line bg-white px-3" />
         <div className="flex flex-wrap gap-1">
           {(['open', 'late', 'closed', 'all'] as const).map((f) => (

@@ -1,3 +1,4 @@
+import { btn } from './ui'
 import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -48,7 +49,7 @@ export function BooksCard({ month }: { month: string }) {
       {!isClosed && canClose && (
         <button onClick={async () => { if (await confirmAsk(t('books.closeConfirm', { month: monthName(month) }))) void run('/v1/books/close', { month }) }} className="min-h-11 self-start rounded-xl bg-slate-800 px-4 font-semibold text-white">{t('books.close', { month: monthName(month) })}</button>
       )}
-      {isClosed && !reopening && <button onClick={() => setReopening(true)} className="min-h-11 self-start text-sm font-semibold text-due underline">{t('books.reopen', { month: monthName(month) })}</button>}
+      {isClosed && !reopening && <button onClick={() => setReopening(true)} className={`min-h-11 self-start text-sm ${btn.danger}`}>{t('books.reopen', { month: monthName(month) })}</button>}
       {reopening && (
         <div className="flex flex-col gap-2">
           <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder={t('books.reason')} aria-label={t('books.reason')} className="h-11 rounded-xl border border-line bg-white px-3" />

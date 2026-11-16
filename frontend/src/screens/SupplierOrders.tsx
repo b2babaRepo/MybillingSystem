@@ -4,7 +4,7 @@ import { BagCheck } from './ProductScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, control } from '../components/ui'
+import { Button, control, btn } from '../components/ui'
 import { ask, confirmAsk } from '../components/Ask'
 import { ItemPicker } from '../components/ItemPicker'
 import { api } from '../lib/api'
@@ -337,7 +337,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
               <>
                 <p className={`text-xs ${short >= 1 && !r.shortClaim ? 'font-semibold text-due' : 'text-muted'}`}>⚖ {t('bag.net', { net })}{expected > 0 ? ` · ${t('weigh.expected', { kg: expected })}` : ''}{short >= 1 && !r.shortClaim ? ` · ${t('weigh.short', { kg: short })}` : ''}</p>
                 {r.shortClaim ? <p className="text-xs font-semibold text-brand">{r.debitNoteNo ? `${r.debitNoteNo} · ` : ''}{t('weigh.claimed', { kg: r.shortKg, amount: formatRupees(r.shortClaim) })}{(r.shortStock?.length ?? 0) > 0 ? <span className="block font-normal">{t('weigh.stockOff', { items: r.shortStock!.map((x) => `${x.name} ${x.quantity} ${t(`units.${x.unit}`, { count: x.quantity })}`).join(', ') })}</span> : null}</p>
-                  : short >= 1 ? <button onClick={() => void claim()} className="min-h-11 self-start text-sm font-semibold text-due underline">{t('weigh.claim', { kg: short })}</button> : null}
+                  : short >= 1 ? <button onClick={() => void claim()} className={`min-h-11 self-start text-sm ${btn.danger}`}>{t('weigh.claim', { kg: short })}</button> : null}
               </>
             )
           })()}

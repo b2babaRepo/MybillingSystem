@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable'
 import { useItemName } from '../lib/useItemName'
 import { getSession } from '../lib/session'
 import { shownLocale } from '../i18n'
@@ -96,20 +97,17 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
         </section>
 
         {(r.tills?.length ?? 0) > 1 && (
-          <section className="overflow-x-auto rounded-card bg-white p-4 text-sm shadow-sm">
-            <h2 className="mb-1 font-bold">{t('day.tills')}</h2>
-            <table className="w-full">
-              <thead><tr className="text-left text-xs text-muted"><th className="py-1">{t('day.till')}</th><th className="text-right">{t('day.tillBills')}</th><th className="text-right">{t('day.tillSales')}</th><th className="text-right">{t('day.tillCash')}</th><th className="text-right">UPI</th><th className="text-right">{t('day.tillKhata')}</th></tr></thead>
-              <tbody>
-                {r.tills!.map((x, i) => (
-                  <tr key={i} className="border-t border-line">
-                    <td className="py-1.5">{x.counter ?? t('day.noCounter')}<span className="block text-xs text-muted">{x.by ?? ''}{x.cancelled > 0 ? ` · ${t('day.tillCancelled', { count: x.cancelled, amount: formatRupees(x.cancelledValue) })}` : ''}</span></td>
-                    <td className="text-right tabular-nums">{x.bills}</td><td className="text-right tabular-nums">{formatRupees(x.sales)}</td>
-                    <td className="text-right tabular-nums">{formatRupees(x.cash)}</td><td className="text-right tabular-nums">{formatRupees(x.upi)}</td><td className="text-right tabular-nums">{formatRupees(x.onKhata)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <section className="flex flex-col gap-2 text-sm">
+            <h2 className="px-1 font-bold">{t('day.tills')}</h2>
+            <DataTable label={t('day.tills')} rows={r.tills!} rowKey={(x) => `${x.counter ?? ''}-${x.by ?? ''}`}
+              columns={[
+                { key: 'till', header: t('day.till'), sortValue: (x) => x.counter ?? '', render: (x) => <>{x.counter ?? t('day.noCounter')}<span className="block text-xs text-muted">{x.by ?? ''}{x.cancelled > 0 ? ` · ${t('day.tillCancelled', { count: x.cancelled, amount: formatRupees(x.cancelledValue) })}` : ''}</span></> },
+                { key: 'bills', header: t('day.tillBills'), align: 'right', sortValue: (x) => x.bills, render: (x) => x.bills },
+                { key: 'sales', header: t('day.tillSales'), align: 'right', sortValue: (x) => x.sales, render: (x) => formatRupees(x.sales) },
+                { key: 'cash', header: t('day.tillCash'), align: 'right', sortValue: (x) => x.cash, render: (x) => formatRupees(x.cash) },
+                { key: 'upi', header: 'UPI', align: 'right', sortValue: (x) => x.upi, render: (x) => formatRupees(x.upi) },
+                { key: 'khata', header: t('day.tillKhata'), align: 'right', sortValue: (x) => x.onKhata, render: (x) => formatRupees(x.onKhata) },
+              ]} />
           </section>
         )}
 

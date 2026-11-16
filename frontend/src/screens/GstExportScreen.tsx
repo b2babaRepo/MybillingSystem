@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/ui'
+import { Button, btn } from '../components/ui'
 import { api, ApiError, request } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
@@ -122,7 +122,7 @@ export function GstExportScreen() {
             {data.checks.map((c) => (
               <div key={c.code} className="flex items-center justify-between gap-2 text-sm">
                 <span>{t(`gstExport.check.${c.code}`, { count: c.count })}</span>
-                {FIX[c.code] && <button onClick={() => navigate(FIX[c.code])} className="min-h-11 shrink-0 font-semibold underline">{t('gstExport.fix')}</button>}
+                {FIX[c.code] && <button onClick={() => navigate(FIX[c.code])} className={`min-h-11 shrink-0 ${btn.link}`}>{t('gstExport.fix')}</button>}
               </div>
             ))}
           </section>

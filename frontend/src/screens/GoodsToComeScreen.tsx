@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -158,7 +159,7 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
                       <option value="">{t('gtc.freightBy')}</option><option value="shop">{t('gtc.paidBy.shop')}</option><option value="supplier">{t('gtc.paidBy.supplier')}</option>
                     </select>
                     {o.value > EWAY_ABOVE && !lot.ewayBillNo && <p className="col-span-2 text-xs text-warn">{t('gtc.ewayHint', { amount: formatRupees(EWAY_ABOVE) })}</p>}
-                    <button onClick={() => void saveLot(o)} className="h-11 rounded-xl bg-brand font-semibold text-white">{t('gtc.saveLot')}</button>
+                    <button onClick={() => void saveLot(o)} className={`h-11 rounded-xl ${btn.solid}`}>{t('gtc.saveLot')}</button>
                     <button onClick={() => setLot(null)} className="h-11 rounded-xl border border-line font-semibold">{t('cancel')}</button>
                   </div>
                 )}
@@ -171,7 +172,7 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
                     <label className="flex flex-col gap-1 text-xs text-muted">{t('gtc.newDate')}<input type="date" value={note.date} onChange={(e) => setNote({ ...note, date: e.target.value })} className={input} /></label>
                     <input aria-label={t('gtc.whatSaid')} placeholder={t('gtc.whatSaid')} value={note.text} maxLength={300} onChange={(e) => setNote({ ...note, text: e.target.value })} className={`${input} col-span-2`} />
                   </div>
-                  <button disabled={!note.text.trim() && !note.date} onClick={() => void saveNote(o)} className="h-11 rounded-xl border-2 border-brand font-semibold text-brand-strong disabled:opacity-40">{t('gtc.saveFollowUp')}</button>
+                  <button disabled={!note.text.trim() && !note.date} onClick={() => void saveNote(o)} className={`h-11 rounded-xl ${btn.outline}`}>{t('gtc.saveFollowUp')}</button>
                 </div>
                 {o.followUps.length > 0 && (
                   <ul className="flex flex-col gap-1 text-xs">

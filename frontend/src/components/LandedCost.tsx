@@ -1,4 +1,4 @@
-import { controlSm } from './ui'
+import { controlSm, btn } from './ui'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -98,7 +98,7 @@ export function LotView({ shopId, purchaseId, isOwner = true }: { shopId: string
         <div className="flex flex-col gap-2">
           <ChargesEditor value={later} onChange={setLater} hasExtra={false} open />
           <div className="grid grid-cols-2 gap-2">
-            <button disabled={rows(later.rows).length === 0} onClick={() => void addLater()} className="min-h-11 rounded-xl bg-brand font-semibold text-white disabled:opacity-50">{t('landed.saveLater')}</button>
+            <button disabled={rows(later.rows).length === 0} onClick={() => void addLater()} className={`min-h-11 rounded-xl ${btn.solid}`}>{t('landed.saveLater')}</button>
             <button onClick={() => setLater(null)} className="min-h-11 rounded-xl border border-line font-semibold">{t('cancel')}</button>
           </div>
         </div>

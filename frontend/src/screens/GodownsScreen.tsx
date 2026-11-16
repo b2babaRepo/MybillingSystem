@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable'
 import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -136,24 +137,13 @@ export function GodownsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
         <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <h2 className="font-bold">{t('godown.whereTitle')}</h2>
           <input aria-label={t('godown.search')} placeholder={t('godown.search')} value={search} onChange={(e) => setSearch(e.target.value)} className={input} />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-muted">
-                <th className="py-1 pr-2">{t('godown.item')}</th><th className="px-2 text-right">{t('godown.shop')}</th>
-                {active.map((g) => <th key={g.id} className="px-2 text-right">{g.name}</th>)}<th className="pl-2 text-right">{t('godown.total')}</th>
-              </tr></thead>
-              <tbody>
-                {shown.slice(0, 300).map((s) => (
-                  <tr key={s.productId} className="border-t border-line">
-                    <td className="py-1.5 pr-2">{s.name}</td>
-                    <td className={`px-2 text-right tabular-nums ${s.shelf < 0 ? 'font-semibold text-due' : ''}`}>{s.shelf}</td>
-                    {active.map((g) => <td key={g.id} className="px-2 text-right tabular-nums">{s.godowns[g.id] ?? '–'}</td>)}
-                    <td className="pl-2 text-right font-semibold tabular-nums">{s.total}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable label={t('godown.item')} rows={shown.slice(0, 300)} rowKey={(s) => s.productId}
+            columns={[
+              { key: 'item', header: t('godown.item'), sortValue: (s) => s.name, render: (s) => s.name },
+              { key: 'shop', header: t('godown.shop'), align: 'right', sortValue: (s) => s.shelf, render: (s) => <span className={`tabular-nums ${s.shelf < 0 ? 'font-semibold text-due' : ''}`}>{s.shelf}</span> },
+              ...active.map((g) => ({ key: g.id, header: g.name, align: 'right' as const, sortValue: (s: typeof shown[number]) => s.godowns[g.id] ?? 0, render: (s: typeof shown[number]) => <span className="tabular-nums">{s.godowns[g.id] ?? '–'}</span> })),
+              { key: 'total', header: t('godown.total'), align: 'right', sortValue: (s) => s.total, render: (s) => <span className="font-semibold tabular-nums">{s.total}</span> },
+            ]} />
           {shown.some((s) => s.shelf < 0) && <p className="text-xs text-due">{t('godown.shelfShort')}</p>}
         </section>
       )}

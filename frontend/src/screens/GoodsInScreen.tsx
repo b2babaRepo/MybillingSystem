@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { lazy, Suspense, useState } from 'react'
@@ -235,7 +236,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
       {message && <p className="text-sm text-due">{message}</p>}
       <div className="sticky bottom-2 z-10 rounded-2xl bg-white/95 p-2 shadow-lg ring-1 ring-black/5 backdrop-blur">
         <GodownPicker shopId={shopId} value={godown} onChange={setGodown} label="in" />
-        <button disabled={busy} onClick={() => void save()} className="h-12 w-full rounded-xl bg-brand font-bold text-white shadow-sm hover:bg-brand-strong disabled:opacity-60">{t('gi.save')}</button>
+        <button disabled={busy} onClick={() => void save()} className={`h-12 w-full rounded-xl ${btn.solid}`}>{t('gi.save')}</button>
       </div>
       {scan && <Suspense fallback={null}><ScanSheet continuous onCode={onCode} onClose={() => setScan(false)} /></Suspense>}
     </div>

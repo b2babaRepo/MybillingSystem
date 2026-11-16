@@ -1,3 +1,5 @@
+import { DataTable } from '../components/DataTable'
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -104,7 +106,7 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
                   {accounts!.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select></label>
             )}
-            <button disabled={!ready || busy} onClick={() => void save()} className="h-11 rounded-xl bg-brand px-5 font-semibold text-white disabled:opacity-40">{t('bankBook.save')}</button>
+            <button disabled={!ready || busy} onClick={() => void save()} className={`h-11 rounded-xl px-5 ${btn.solid}`}>{t('bankBook.save')}</button>
           </div>
         )}
         {error && <p className="text-due">{error}</p>}
@@ -129,20 +131,17 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
       ))}
 
       {data && data.days.some((d) => d.counted !== null) && (
-        <section className="overflow-x-auto rounded-xl border border-line bg-white">
-          <table className="w-full min-w-[520px] border-collapse text-sm">
-            <caption className="p-3 text-left font-bold">{t('cashLedger.closes')}</caption>
-            <thead><tr className="bg-[#f3f6f5] text-right"><th className="border-b border-line px-3 py-2 text-left">{t('rv.day')}</th><th className="border-b border-line px-3 py-2">{t('bankBook.in')}</th><th className="border-b border-line px-3 py-2">{t('bankBook.out')}</th><th className="border-b border-line px-3 py-2">{t('cashLedger.inHand')}</th><th className="border-b border-line px-3 py-2">{t('cashLedger.diff')}</th></tr></thead>
-            <tbody className="text-right tabular-nums">
-              {data.days.filter((d) => d.in || d.out || d.counted !== null).map((d) => (
-                <tr key={d.date}>
-                  <td className="px-3 py-2 text-left">{new Date(d.date).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}</td>
-                  <td className="px-3 py-2">{formatRupees(d.in)}</td><td className="px-3 py-2">{formatRupees(d.out)}</td><td className="px-3 py-2">{formatRupees(d.closing)}</td>
-                  <td className={`px-3 py-2 ${(d.difference ?? 0) < 0 ? 'text-orange-700' : ''}`}>{d.counted === null ? '–' : formatRupees(d.difference ?? 0)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <section className="flex flex-col gap-2 text-sm">
+          <h2 className="px-1 font-bold">{t('cashLedger.closes')}</h2>
+          <DataTable label={t('cashLedger.closes')} rows={data.days.filter((d) => d.in || d.out || d.counted !== null)} rowKey={(d) => d.date}
+            columns={[
+              { key: 'day', header: t('rv.day'), sortValue: (d) => d.date, render: (d) => new Date(d.date).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) },
+              { key: 'in', header: t('bankBook.in'), align: 'right', sortValue: (d) => d.in, render: (d) => formatRupees(d.in) },
+              { key: 'out', header: t('bankBook.out'), align: 'right', sortValue: (d) => d.out, render: (d) => formatRupees(d.out) },
+              { key: 'hand', header: t('cashLedger.inHand'), align: 'right', sortValue: (d) => d.closing, render: (d) => formatRupees(d.closing) },
+              { key: 'diff', header: t('cashLedger.diff'), align: 'right', sortValue: (d) => d.difference ?? 0,
+                render: (d) => <span className={(d.difference ?? 0) < 0 ? 'text-orange-700' : ''}>{d.counted === null ? '–' : formatRupees(d.difference ?? 0)}</span> },
+            ]} />
         </section>
       )}
     </div>

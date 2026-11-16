@@ -9,7 +9,7 @@ import { ListDetail } from '../components/ListDetail'
 import { enqueue } from '../lib/outbox'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { NetworkError, api, request } from '../lib/api'
 import { shrinkPhoto } from '../lib/images'
 import { useProducts } from '../lib/data'
@@ -280,8 +280,8 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       <button onClick={onBack} className="min-h-11 self-start font-semibold text-brand">← {t('suppliers.all')}</button>
       <section className="flex items-center justify-between rounded-card bg-white p-4 shadow-sm">
         <span className="flex min-w-0 flex-col"><span className="truncate text-lg font-bold">{s?.name}</span>
-          <span className="flex gap-3 text-sm"><button onClick={startEdit} className="min-h-11 font-semibold text-brand underline">{t('supplier2.edit')}</button>
-          <button onClick={() => navigate(`/print/supplier/${id}`)} className="min-h-11 font-semibold text-brand underline">{t('supplier2.statement')}</button></span></span><span className="text-right text-xl font-extrabold text-due">{s ? formatRupees(Math.abs(s.due)) : '–'}{s && s.due !== 0 && <span className="block text-xs font-normal text-muted">{t(s.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>
+          <span className="flex gap-3 text-sm"><button onClick={startEdit} className={`min-h-11 ${btn.link}`}>{t('supplier2.edit')}</button>
+          <button onClick={() => navigate(`/print/supplier/${id}`)} className={`min-h-11 ${btn.link}`}>{t('supplier2.statement')}</button></span></span><span className="text-right text-xl font-extrabold text-due">{s ? formatRupees(Math.abs(s.due)) : '–'}{s && s.due !== 0 && <span className="block text-xs font-normal text-muted">{t(s.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>
       </section>
 
       {editing && (
@@ -338,13 +338,13 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
         {fromReceipts.length > 0 && (
           <p className="flex items-start justify-between gap-2 rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">
             <span>{t('receipt.onBill', { numbers: fromReceipts.map((r) => r.number).join(', #') })}</span>
-            <button onClick={() => setFromReceipts([])} className="min-h-11 shrink-0 font-semibold underline">{t('receipt.clear')}</button>
+            <button onClick={() => setFromReceipts([])} className={`min-h-11 shrink-0 ${btn.link}`}>{t('receipt.clear')}</button>
           </p>
         )}
         {against && (
           <p className="flex items-start justify-between gap-2 rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">
             <span>{t('supplier2.againstOrder', { number: against.number })}</span>
-            <button onClick={() => setAgainst(null)} className="min-h-11 shrink-0 font-semibold underline">{t('supplier2.clearOrder')}</button>
+            <button onClick={() => setAgainst(null)} className={`min-h-11 shrink-0 ${btn.link}`}>{t('supplier2.clearOrder')}</button>
           </p>
         )}
         {ai?.canReadPhotos && (ai.consentedAt ? (
@@ -354,13 +354,13 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
               onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void readPhoto(file) }} />
           </label>
         ) : (
-          <button onClick={() => setAskConsent(true)} className="min-h-12 rounded-2xl border-2 border-brand font-bold text-brand-strong">📷 {t('invoicePhoto.button')}</button>
+          <button onClick={() => setAskConsent(true)} className={`min-h-12 rounded-2xl ${btn.outline}`}>📷 {t('invoicePhoto.button')}</button>
         ))}
         {askConsent && (
           <div className="flex flex-col gap-2 rounded-2xl bg-warn-soft p-3 text-sm">
             <p className="font-bold">{t('expense.consentTitle')}</p><p>{t('invoicePhoto.consent')}</p>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => void agree()} className="h-11 rounded-xl bg-brand font-bold text-white">{t('expense.consentYes')}</button>
+              <button onClick={() => void agree()} className={`h-11 rounded-xl ${btn.solid}`}>{t('expense.consentYes')}</button>
               <button onClick={() => setAskConsent(false)} className="h-11 rounded-xl border border-line font-semibold">{t('expense.consentNo')}</button>
             </div>
           </div>
@@ -448,7 +448,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
               </div>
               {e.purchaseId && e.amount > 0 && (
                 <div className="flex gap-3">
-                  <button onClick={() => setOpenBill(openBill === e.purchaseId ? null : e.purchaseId)} aria-expanded={openBill === e.purchaseId} className="min-h-11 text-xs font-semibold text-brand underline">{t('suppliers.billLine')} {openBill === e.purchaseId ? '▴' : '▾'}</button>
+                  <button onClick={() => setOpenBill(openBill === e.purchaseId ? null : e.purchaseId)} aria-expanded={openBill === e.purchaseId} className={`min-h-11 text-xs ${btn.link}`}>{t('suppliers.billLine')} {openBill === e.purchaseId ? '▴' : '▾'}</button>
                   {!e.cancelled && <button onClick={() => void cancelBill(e.purchaseId!)} className="min-h-11 text-xs font-semibold text-due">{t('suppliers.cancelBill')}</button>}
                 </div>
               )}
