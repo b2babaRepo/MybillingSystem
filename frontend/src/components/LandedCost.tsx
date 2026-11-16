@@ -1,3 +1,4 @@
+import { controlSm } from './ui'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +13,7 @@ export const noCharges: Charges = { rows: [], split: 'value', extraInCost: false
 export interface LotLine { productId: string; name: string; units: number; billRate: number; chargePerUnit: number; landedCost: number; sellingPrice: number | null; marginPerUnit: number | null; marginPercent: number | null; lotMargin: number | null; sold: number; revenue: number; profit: number; left: number }
 export interface Lot { id: string; billNo: string | null; supplier: string; occurredAt: string; charges: number; chargeLines: { label: string; amount: number; paid: boolean }[]; landedTotal: number; expectedMargin: number | null; revenue: number; profit: number; lines: LotLine[] }
 
-const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
+const input = controlSm
 const PRESETS = ['freight', 'hamali', 'commission']
 const rows = (c: Charge[]) => c.filter((r) => r.label.trim() && Number(r.amount) > 0).map((r) => ({ label: r.label.trim(), amount: Number(r.amount), paidBy: r.paidBy || null }))
 
@@ -89,15 +90,15 @@ export function LotView({ shopId, purchaseId, isOwner = true }: { shopId: string
       <LotTable lines={lot.lines} />
       <p className="flex flex-wrap justify-between gap-x-3 font-semibold">
         <span>{t('landed.total', { amount: formatRupees(lot.landedTotal) })}</span>
-        {lot.revenue > 0 && <span className={lot.profit < 0 ? 'text-due' : 'text-teal-800'}>{t('landed.soldProfit', { revenue: formatRupees(lot.revenue), profit: formatRupees(lot.profit) })}</span>}
+        {lot.revenue > 0 && <span className={lot.profit < 0 ? 'text-due' : 'text-brand-strong'}>{t('landed.soldProfit', { revenue: formatRupees(lot.revenue), profit: formatRupees(lot.profit) })}</span>}
         {lot.expectedMargin != null && <span className="text-muted">{t('landed.expected', { amount: formatRupees(lot.expectedMargin) })}</span>}
       </p>
-      {isOwner && !later && <button onClick={() => setLater({ ...noCharges, rows: [{ label: t('landed.preset.freight'), amount: '', paidBy: '' }] })} className="self-start text-xs font-semibold text-teal-700">+ {t('landed.addLater')}</button>}
+      {isOwner && !later && <button onClick={() => setLater({ ...noCharges, rows: [{ label: t('landed.preset.freight'), amount: '', paidBy: '' }] })} className="self-start text-xs font-semibold text-brand">+ {t('landed.addLater')}</button>}
       {later && (
         <div className="flex flex-col gap-2">
           <ChargesEditor value={later} onChange={setLater} hasExtra={false} open />
           <div className="grid grid-cols-2 gap-2">
-            <button disabled={rows(later.rows).length === 0} onClick={() => void addLater()} className="min-h-11 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-50">{t('landed.saveLater')}</button>
+            <button disabled={rows(later.rows).length === 0} onClick={() => void addLater()} className="min-h-11 rounded-xl bg-brand font-semibold text-white disabled:opacity-50">{t('landed.saveLater')}</button>
             <button onClick={() => setLater(null)} className="min-h-11 rounded-xl border border-line font-semibold">{t('cancel')}</button>
           </div>
         </div>

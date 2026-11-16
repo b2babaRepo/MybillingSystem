@@ -43,7 +43,7 @@ export function TeamViewPage({ path }: { path: string }) {
   }
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-3 p-4">
-      <header className="rounded-[20px] bg-teal-800 p-4 text-white">
+      <header className="rounded-[20px] bg-brand-strong p-4 text-white">
         <p className="text-sm opacity-80">{t('team.title')}</p>
         <h1 className="text-2xl font-extrabold">{v.name}</h1>
       </header>
@@ -60,7 +60,7 @@ export function TeamViewPage({ path }: { path: string }) {
         <h3 className="mt-2 text-sm font-bold">{t('team.byHeading')}</h3>
         {v.monthByCategory.map((c) => <span key={c.category} className="flex justify-between text-sm"><span>{t(`expense.cat.${c.category}`)}</span><b>{formatRupees(c.total)}</b></span>)}
       </section>
-      <a href="/" className="rounded-xl bg-teal-700 p-3 text-center font-bold text-white">{t('team.getApp')}</a>
+      <a href="/" className="rounded-xl bg-brand p-3 text-center font-bold text-white">{t('team.getApp')}</a>
     </div>
   )
 }

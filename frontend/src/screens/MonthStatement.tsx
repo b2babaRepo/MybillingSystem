@@ -10,7 +10,7 @@ export function MonthStatementCard({ st }: { st: MonthStatement }) {
   const { t } = useTranslation()
   const Row = ({ label, amount, minus = false, strong = false, note }: { label: string; amount: number; minus?: boolean; strong?: boolean; note?: string }) => (
     <div className={`flex justify-between gap-2 py-1 ${strong ? 'border-t border-[#d8e2df] font-extrabold' : ''}`}>
-      <span className={strong ? '' : 'text-muted'}>{label}{note && <span className="block text-xs font-normal text-amber-800">{note}</span>}</span>
+      <span className={strong ? '' : 'text-muted'}>{label}{note && <span className="block text-xs font-normal text-warn">{note}</span>}</span>
       <span className="shrink-0">{minus && amount !== 0 ? '−' : ''}{formatRupees(Math.abs(amount))}</span>
     </div>
   )

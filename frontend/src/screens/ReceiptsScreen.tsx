@@ -74,14 +74,14 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
     <div className="flex flex-col gap-3 p-4">
       <h1 className="text-lg font-bold">{t('receipts.title')}</h1>
       <p className="text-sm text-muted">{t('receipts.hint')}</p>
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4">
         <Field label={t('receipts.amount')} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
         <Field label={t('receipts.utr')} value={utr} onChange={(e) => setUtr(e.target.value)} maxLength={30} />
         <Field label={t('receipts.payer')} value={payer} onChange={(e) => setPayer(e.target.value)} maxLength={120} />
         <Button disabled={!(Number(amount) > 0)} onClick={() => void note()}>{t('receipts.add')}</Button>
       </section>
       {isOwner && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4">
           <h2 className="font-bold">{t('receipts.statementTitle')}</h2>
           <p className="text-sm text-muted">{t('receipts.statementHint')}</p>
           <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-line font-semibold">
@@ -126,7 +126,7 @@ function ReceiptCard({ shopId, receipt: r, isOwner, run }: { shopId: string; rec
   const dismiss = (as: 'counterSale' | 'notKhata' | 'notReceived') => run(() => api(`/v1/receipts/${r.id}/dismiss`, 'POST', { as }))
 
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+    <section className="flex flex-col gap-2 rounded-card bg-white p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-xl font-bold">{formatRupees(r.left)}</div>
@@ -137,11 +137,11 @@ function ReceiptCard({ shopId, receipt: r, isOwner, run }: { shopId: string; rec
       </div>
       {r.already?.kind === 'entered' && (
         <>
-          <p className="rounded-xl bg-amber-50 p-2 text-sm font-semibold text-amber-900">{t('receipts.alreadyEntered', { name: r.already.customerName })}</p>
+          <p className="rounded-xl bg-warn-soft p-2 text-sm font-semibold text-warn-ink">{t('receipts.alreadyEntered', { name: r.already.customerName })}</p>
           <Button onClick={() => void link(r.already!.entryId!)}>{t('receipts.linkIt')}</Button>
         </>
       )}
-      {r.already?.kind === 'sale' && <p className="rounded-xl bg-amber-50 p-2 text-sm font-semibold text-amber-900">{t('receipts.alreadySale')}</p>}
+      {r.already?.kind === 'sale' && <p className="rounded-xl bg-warn-soft p-2 text-sm font-semibold text-warn-ink">{t('receipts.alreadySale')}</p>}
       {r.suggestion && (
         <Button onClick={() => void allocate(r.suggestion!.customerId, r.left)}>{t(`receipts.suggest_${r.suggestion.why}`, { name: r.suggestion.name })}</Button>
       )}
@@ -157,8 +157,8 @@ function ReceiptCard({ shopId, receipt: r, isOwner, run }: { shopId: string; rec
       )}
       {isOwner && r.source !== 'claim' && (
         <div className="flex flex-wrap gap-3">
-          <button onClick={() => void dismiss('counterSale')} className="min-h-11 text-sm font-semibold text-teal-700 underline">{t('receipts.counterSale')}</button>
-          <button onClick={() => void dismiss('notKhata')} className="min-h-11 text-sm font-semibold text-teal-700 underline">{t('receipts.notKhata')}</button>
+          <button onClick={() => void dismiss('counterSale')} className="min-h-11 text-sm font-semibold text-brand underline">{t('receipts.counterSale')}</button>
+          <button onClick={() => void dismiss('notKhata')} className="min-h-11 text-sm font-semibold text-brand underline">{t('receipts.notKhata')}</button>
         </div>
       )}
     </section>

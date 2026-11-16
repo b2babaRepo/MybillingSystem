@@ -59,9 +59,9 @@ export function BankBookScreen({ shopId }: { shopId: string }) {
       <div className="flex w-fit gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
         <button onClick={() => navigate('/cashbook')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('bankBook.cashBook')}</button>
         <button onClick={() => navigate('/cashledger')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('cashLedger.title')}</button>
-        <span className="flex h-10 items-center rounded-xl bg-white px-4 font-semibold text-teal-800 shadow-sm ring-1 ring-teal-700/20">{t('bankBook.title')}</span>
+        <span className="flex h-10 items-center rounded-xl bg-white px-4 font-semibold text-brand-strong shadow-sm ring-1 ring-brand/20">{t('bankBook.title')}</span>
       </div>
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{label}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= monthOf(today)} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -71,9 +71,9 @@ export function BankBookScreen({ shopId }: { shopId: string }) {
         <div className="flex flex-wrap items-center gap-2 text-sm">
           {(data.accounts?.length ?? 0) > 1 && data.accounts!.map((a) => (
             <button key={a.id} onClick={() => setAccount(a.id)} aria-pressed={data.account === a.id}
-              className={`h-10 rounded-xl px-4 font-semibold ${data.account === a.id ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`}>{a.name}</button>
+              className={`h-10 rounded-xl px-4 font-semibold ${data.account === a.id ? 'bg-brand text-white' : 'border border-line bg-white'}`}>{a.name}</button>
           ))}
-          <button onClick={() => setSetupOpen(!setupOpen)} className="h-10 px-2 font-semibold text-teal-800 underline">{t('bankBook.accounts')}</button>
+          <button onClick={() => setSetupOpen(!setupOpen)} className="h-10 px-2 font-semibold text-brand-strong underline">{t('bankBook.accounts')}</button>
         </div>
       )}
       {setupOpen && <BankAccountsEditor shopId={shopId} onDone={() => setSetupOpen(false)} />}
@@ -93,14 +93,14 @@ export function BankBookScreen({ shopId }: { shopId: string }) {
           <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4 text-sm">
             <p className="text-muted">
               {data.startingDate ? t('bankBook.startsAt', { amount: formatRupees(data.startingBalance ?? 0), date: data.startingDate }) : t('bankBook.noStart')}
-              {' '}<button className="font-semibold text-teal-800 underline" onClick={() => { setEditing(!editing); setAmount(data.startingBalance?.toString() ?? ''); setDate(data.startingDate ?? today) }}>{t('bankBook.setStart')}</button>
+              {' '}<button className="font-semibold text-brand-strong underline" onClick={() => { setEditing(!editing); setAmount(data.startingBalance?.toString() ?? ''); setDate(data.startingDate ?? today) }}>{t('bankBook.setStart')}</button>
             </p>
             {editing && (
               <div className="flex flex-wrap items-end gap-2">
                 <label className="flex flex-col gap-1">{t('bankBook.passbookBalance')}
-                  <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.-]/g, ''))} inputMode="decimal" className="h-11 w-40 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
+                  <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.-]/g, ''))} inputMode="decimal" className="h-11 w-40 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
                 <label className="flex flex-col gap-1">{t('bankBook.onDate')}
-                  <input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} className="h-11 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
+                  <input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} className="h-11 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
                 <button onClick={() => void saveOpening()} className="h-11 rounded-xl bg-ink px-4 font-semibold text-white">{t('bankBook.save')}</button>
               </div>
             )}
@@ -162,7 +162,7 @@ function BankAccountsEditor({ shopId, onDone }: { shopId: string; onDone: () => 
         <div key={i} className="flex gap-2">
           <input value={a.name} maxLength={40} aria-label={t('bankBook.accountName')} placeholder={t('bankBook.accountName')}
             onChange={(e) => setDraft({ ...setup, accounts: setup.accounts.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })}
-            className="h-11 flex-1 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+            className="h-11 flex-1 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
           {setup.accounts.length > 1 && (
             <button aria-label={t('expense.remove')} className="h-11 w-11 text-xl text-muted"
               onClick={() => setDraft({ ...setup, accounts: setup.accounts.filter((_, j) => j !== i) })}>×</button>
@@ -170,11 +170,11 @@ function BankAccountsEditor({ shopId, onDone }: { shopId: string; onDone: () => 
         </div>
       ))}
       {setup.accounts.length < 3 && (
-        <button className="self-start font-semibold text-teal-800 underline" onClick={() => setDraft({ ...setup, accounts: [...setup.accounts, { id: '', name: '' }] })}>{t('bankBook.addAccount')}</button>
+        <button className="self-start font-semibold text-brand-strong underline" onClick={() => setDraft({ ...setup, accounts: [...setup.accounts, { id: '', name: '' }] })}>{t('bankBook.addAccount')}</button>
       )}
       {setup.accounts.length > 1 && KINDS.map((k) => (
         <label key={k} className="flex items-center justify-between gap-2">{t(`bankBook.kinds.${k}`)}
-          <select value={setup[k]} onChange={(e) => setDraft({ ...setup, [k]: e.target.value })} className="h-10 rounded-xl border border-line px-2 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
+          <select value={setup[k]} onChange={(e) => setDraft({ ...setup, [k]: e.target.value })} className="h-10 rounded-xl border border-line px-2 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10">
             {setup.accounts.map((a, i) => <option key={i} value={keyOf(i)}>{a.name || '…'}</option>)}
           </select>
         </label>

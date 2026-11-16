@@ -38,12 +38,12 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
   const buckets: { key: Bucket; label: string; amount: number; tone: string }[] = [
     { key: 'd0', label: t('dues.bucket0'), amount: data.days0To7, tone: 'bg-blue-50 text-blue-800' },
     { key: 'd8', label: t('dues.bucket8'), amount: data.days8To30, tone: 'bg-orange-50 text-orange-800' },
-    { key: 'd30', label: t('dues.bucket30'), amount: data.over30, tone: 'bg-red-50 text-red-800' },
+    { key: 'd30', label: t('dues.bucket30'), amount: data.over30, tone: 'bg-due-soft text-red-800' },
   ]
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <button onClick={() => navigate('/reminders')} className="flex h-12 items-center justify-center rounded-2xl border-2 border-teal-700 font-bold text-teal-800">{t('reminders.title')}</button>
+      <button onClick={() => navigate('/reminders')} className="flex h-12 items-center justify-center rounded-2xl border-2 border-brand font-bold text-brand-strong">{t('reminders.title')}</button>
       <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px] lg:flex-row lg:items-center lg:gap-6">
         <button onClick={() => setBucket('all')} className="flex min-h-11 items-center justify-between gap-3 text-left lg:shrink-0" aria-pressed={bucket === 'all'}>
           <span className="text-[15px] font-semibold text-muted">{t('dues.total')}</span>
@@ -85,7 +85,7 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
           ]}
           footer={[t('dues.colTotal'), '', formatRupees(shown.reduce((n, d) => n + d.days0To7, 0)), formatRupees(shown.reduce((n, d) => n + d.days8To30, 0)), formatRupees(shown.reduce((n, d) => n + d.over30, 0)), formatRupees(shown.reduce((n, d) => n + d.balance, 0)), '']}
           renderCard={(d) => (
-          <div className="mb-2 flex flex-col gap-2 rounded-[18px] bg-white p-4">
+          <div className="mb-2 flex flex-col gap-2 rounded-card bg-white p-4">
             <button onClick={() => navigate(`/c/${d.customerId}`)} className="flex items-start justify-between gap-2 text-left">
               <span className="flex flex-col">
                 <span className="text-[17px] font-bold">{d.name}</span>

@@ -102,7 +102,7 @@ function NotFound() {
 function Header({ title, subtitle }: { title: string; subtitle?: string | null }) {
   const { i18n } = useTranslation()
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white lg:rounded-b-2xl lg:px-6">
+    <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand px-4 py-3 text-white lg:rounded-b-2xl lg:px-6">
       <div className="flex min-w-0 flex-1 flex-col">
         <h1 className="truncate text-xl font-bold">{title}</h1>
         {subtitle && <span className="truncate text-sm opacity-85">{subtitle}</span>}
@@ -161,11 +161,11 @@ function Catalogue({ slug }: { slug: string }) {
       )}
 
       {category ? (
-        <button onClick={() => setCategory(null)} className="mx-4 mt-3 flex min-h-11 items-center gap-1 text-lg font-bold text-teal-800">
+        <button onClick={() => setCategory(null)} className="mx-4 mt-3 flex min-h-11 items-center gap-1 text-lg font-bold text-brand-strong">
           ‹ {t('store.allAisles')}
         </button>
       ) : (
-        <div className="mx-4 mt-3 rounded-[18px] bg-white p-3 shadow-sm">
+        <div className="mx-4 mt-3 rounded-card bg-white p-3 shadow-sm">
           <AisleTiles available={stocked} onPick={(a) => setCategory(a.code)} />
           {stocked.has('other') && (
             <button onClick={() => setCategory('other')} className="mt-3 min-h-11 w-full rounded-xl bg-[#edf2f1] font-semibold">{t('store.otherItems')}</button>
@@ -187,7 +187,7 @@ function Catalogue({ slug }: { slug: string }) {
                 {item.regularPrice != null && item.regularPrice > item.price ? (
                   <>
                     <span className="text-[11px] text-muted line-through">{formatRupees(item.regularPrice)}</span>
-                    <span className="rounded-full bg-amber-100 px-1.5 text-[11px] font-bold text-amber-900">🏷 {item.offerName} · {Math.round((1 - item.price / item.regularPrice) * 100)}%</span>
+                    <span className="rounded-full bg-amber-100 px-1.5 text-[11px] font-bold text-warn-ink">🏷 {item.offerName} · {Math.round((1 - item.price / item.regularPrice) * 100)}%</span>
                   </>
                 ) : item.mrp != null && item.mrp > item.price && (
                   <>
@@ -201,7 +201,7 @@ function Catalogue({ slug }: { slug: string }) {
               {out ? (
                 <span className="text-sm font-semibold text-due">{t('store.out')}</span>
               ) : inCart === 0 ? (
-                <button onClick={() => change(item, 1)} aria-label={`${t('store.add')} ${item.name}`} className="h-10 w-full rounded-xl border-2 border-teal-700 font-bold text-teal-800">{t('store.add')}</button>
+                <button onClick={() => change(item, 1)} aria-label={`${t('store.add')} ${item.name}`} className="h-10 w-full rounded-xl border-2 border-brand font-bold text-brand-strong">{t('store.add')}</button>
               ) : (
                 <span className="flex items-center gap-1">
                   <button aria-label={t('a11y.less')} onClick={() => change(item, -1)} className="h-11 w-11 rounded-xl bg-[#edf2f1] text-xl">−</button>
@@ -218,7 +218,7 @@ function Catalogue({ slug }: { slug: string }) {
 
       {lines.length > 0 && !checkingOut && (
         <div className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-[440px] lg:rounded-2xl lg:border lg:shadow-xl">
-          <button onClick={() => setCheckingOut(true)} className="flex h-14 w-full items-center justify-between rounded-2xl bg-teal-700 px-5 text-lg font-bold text-white">
+          <button onClick={() => setCheckingOut(true)} className="flex h-14 w-full items-center justify-between rounded-2xl bg-brand px-5 text-lg font-bold text-white">
             <span>{t('store.cart', { count: lines.length, total: formatRupees(total) })}</span>
             <span>{t('store.checkout')} →</span>
           </button>
@@ -275,7 +275,7 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
     }
   }
 
-  const input = 'h-12 w-full rounded-[14px] border-[1.5px] border-line bg-white px-3 text-lg outline-none focus:border-teal-600'
+  const input = 'h-12 w-full rounded-[14px] border-[1.5px] border-line bg-white px-3 text-lg outline-none focus:border-brand-line'
   return (
     <div className="fixed inset-0 z-20 flex items-end bg-black/40 lg:items-center lg:justify-center lg:p-6" onClick={onClose}>
       <form onSubmit={place} onClick={(e) => e.stopPropagation()} className="flex max-h-[92dvh] w-full flex-col gap-3 overflow-y-auto rounded-t-3xl bg-ground p-4 pb-8 lg:max-w-lg lg:rounded-3xl lg:p-6">
@@ -295,22 +295,22 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
         <div className="grid grid-cols-2 gap-2">
           {(['delivery', 'pickup'] as const).map((f) => (
             <button type="button" key={f} onClick={() => setForm({ ...form, fulfilment: f })} aria-pressed={form.fulfilment === f}
-              className={`min-h-12 rounded-[14px] font-semibold ${form.fulfilment === f ? 'border-2 border-teal-700 bg-teal-50 text-teal-800' : 'border border-line bg-white'}`}>
+              className={`min-h-12 rounded-[14px] font-semibold ${form.fulfilment === f ? 'border-2 border-brand bg-brand-soft text-brand-strong' : 'border border-line bg-white'}`}>
               {t(`plan.${f}`)}
             </button>
           ))}
         </div>
         {form.fulfilment === 'delivery' && (
           <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.address')}</span>
-            <textarea value={form.address} onChange={set('address')} required rows={2} maxLength={300} autoComplete="street-address" className="w-full rounded-[14px] border-[1.5px] border-line bg-white p-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
+            <textarea value={form.address} onChange={set('address')} required rows={2} maxLength={300} autoComplete="street-address" className="w-full rounded-[14px] border-[1.5px] border-line bg-white p-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
         )}
         <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.when')}</span>
           <input value={form.slot} onChange={set('slot')} maxLength={80} placeholder={t('plan.whenPlaceholder')} className={input} /></label>
         <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.note')}</span>
           <input value={form.note} onChange={set('note')} maxLength={300} className={input} /></label>
         <p className="text-sm text-muted">{t('store.priceNote')}</p>
-        {error && <p className="rounded-lg bg-red-50 p-3 text-due">{error}</p>}
-        <button type="submit" disabled={busy} className="h-14 rounded-2xl bg-teal-700 text-lg font-bold text-white disabled:opacity-40">
+        {error && <p className="rounded-lg bg-due-soft p-3 text-due">{error}</p>}
+        <button type="submit" disabled={busy} className="h-14 rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
           {t('store.place', { total: formatRupees(total) })}
         </button>
       </form>
@@ -349,8 +349,8 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
             <ol className="grid grid-cols-3 gap-1">
               {STEPS.map((step, i) => (
                 <li key={step} className="flex flex-col gap-1">
-                  <span className={`h-1.5 rounded-full ${i <= reached ? 'bg-teal-700' : 'bg-[#edf2f1]'}`} />
-                  <span className={`text-xs ${i <= reached ? 'font-bold text-teal-800' : 'text-muted'}`}>{t(`store.status.${step}`)}</span>
+                  <span className={`h-1.5 rounded-full ${i <= reached ? 'bg-brand' : 'bg-[#edf2f1]'}`} />
+                  <span className={`text-xs ${i <= reached ? 'font-bold text-brand-strong' : 'text-muted'}`}>{t(`store.status.${step}`)}</span>
                 </li>
               ))}
             </ol>
@@ -358,7 +358,7 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
           <p className="text-sm text-muted">{t('store.keepLink')}</p>
         </section>
 
-        <ul className="rounded-[18px] bg-white px-4 shadow-sm">
+        <ul className="rounded-card bg-white px-4 shadow-sm">
           {order.lines.map((l) => (
             <li key={l.id} className={`flex justify-between gap-2 border-b border-[#edf2f1] py-2.5 last:border-0 ${l.removed ? 'text-due line-through' : ''}`}>
               <span className="flex flex-col">
@@ -370,7 +370,7 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
           ))}
         </ul>
 
-        <p className="flex justify-between rounded-[18px] bg-white p-4 text-xl font-extrabold shadow-sm">
+        <p className="flex justify-between rounded-card bg-white p-4 text-xl font-extrabold shadow-sm">
           <span>{order.finalAmount === null ? t('store.estimate') : t('plan.finalAmount')}</span>
           <span>{formatRupees(amount)}</span>
         </p>
@@ -381,7 +381,7 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
             {t('store.whatsappShop')}
           </a>
         )}
-        <button onClick={() => navigate(`/s/${slug}`)} className="min-h-11 font-semibold text-teal-700 underline">← {order.shopName}</button>
+        <button onClick={() => navigate(`/s/${slug}`)} className="min-h-11 font-semibold text-brand underline">← {order.shopName}</button>
       </div>
     </div>
   )

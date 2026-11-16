@@ -51,9 +51,9 @@ export function AmcScreen({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('amc.hint')}</p>
-      {renewing.length > 0 && <p className="rounded-[18px] bg-amber-50 p-3 text-sm font-semibold text-amber-900">{t('amc.renewSoon', { count: renewing.length })}</p>}
+      {renewing.length > 0 && <p className="rounded-card bg-warn-soft p-3 text-sm font-semibold text-warn-ink">{t('amc.renewSoon', { count: renewing.length })}</p>}
       {adding ? (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-3">
           <select value={d.customerId} onChange={(e) => setD({ ...d, customerId: e.target.value })} aria-label={t('amc.customer')} className="h-12 rounded-xl border border-line bg-white px-3">
             <option value="">{t('amc.customer')}</option>{customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -76,8 +76,8 @@ export function AmcScreen({ shopId }: { shopId: string }) {
           </div>
         </section>
       ) : <Button onClick={() => setAdding(true)}>{t('amc.new')}</Button>}
-      {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
-      {amcs.length === 0 && <p className="rounded-[18px] bg-white p-4 text-center text-muted">{t('amc.empty')}</p>}
+      {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
+      {amcs.length === 0 && <p className="rounded-card bg-white p-4 text-center text-muted">{t('amc.empty')}</p>}
       {amcs.map((a) => <AmcCard key={a.id} amc={a} run={run} />)}
     </div>
   )
@@ -91,18 +91,18 @@ function AmcCard({ amc: a, run }: { amc: Amc; run: (path: string, body: unknown,
   const reminder = t('amc.reminder', { name: a.customerName, title: a.title, date: day(a.endsOn), fee: formatRupees(a.fee) })
 
   return (
-    <section className="flex flex-col gap-1 rounded-[18px] bg-white p-3 text-sm">
+    <section className="flex flex-col gap-1 rounded-card bg-white p-3 text-sm">
       <p className="flex justify-between gap-2"><b>#{a.number} {a.customerName}</b><b>{formatRupees(a.fee)}</b></p>
       <p>{a.title}{a.serialNo ? ` · S/N ${a.serialNo}` : ''}</p>
       <p className="text-xs text-muted">{t('amc.period', { from: day(a.startOn), to: day(a.endsOn) })} · {t('amc.used', { done: a.visitsDone, total: a.visits })}</p>
-      {a.nextDue && due != null && <p className={due < 0 ? 'font-semibold text-due' : 'text-teal-800'}>{t(due < 0 ? 'amc.overdue' : 'amc.nextDue', { date: day(a.nextDue) })}</p>}
-      {left <= 30 && <p className="font-semibold text-amber-800">{t(left < 0 ? 'amc.ended' : 'amc.endsIn', { days: left })}</p>}
+      {a.nextDue && due != null && <p className={due < 0 ? 'font-semibold text-due' : 'text-brand-strong'}>{t(due < 0 ? 'amc.overdue' : 'amc.nextDue', { date: day(a.nextDue) })}</p>}
+      {left <= 30 && <p className="font-semibold text-warn">{t(left < 0 ? 'amc.ended' : 'amc.endsIn', { days: left })}</p>}
       <div className="flex flex-wrap gap-2 pt-1">
         {a.nextDue && left >= 0 && (
           <Button tone="plain" className="h-9 px-3 text-xs" onClick={() => void run(`/v1/amc/${a.id}/visit`, { jobId: crypto.randomUUID() }).then((ok) => ok && navigate('/jobs'))}>{t('amc.visit')}</Button>
         )}
         {left <= 30 && a.customerPhone && (
-          <a href={whatsAppLink(a.customerPhone, reminder)} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-xl border border-line px-3 text-xs font-semibold text-teal-700">💬 {t('amc.remind')}</a>
+          <a href={whatsAppLink(a.customerPhone, reminder)} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-xl border border-line px-3 text-xs font-semibold text-brand">💬 {t('amc.remind')}</a>
         )}
         {left <= 30 && fee == null && <Button tone="plain" className="h-9 px-3 text-xs" onClick={() => setFee(String(a.fee))}>{t('amc.renew')}</Button>}
       </div>

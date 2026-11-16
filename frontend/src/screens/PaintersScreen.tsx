@@ -47,13 +47,13 @@ export function PaintersScreen({ shopId, shopName }: { shopId: string; shopName:
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+      <div className="flex items-center justify-between rounded-card bg-white p-2">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{label}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= thisMonth()} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
       </div>
 
-      <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
+      <ul className="divide-y divide-[#edf2f1] rounded-card bg-white">
         {list.data?.length === 0 && <li className="p-4 text-muted">{t('painters.empty')}</li>}
         {list.data?.map((p) => (
           <li key={p.painterId} className="flex flex-col gap-1 p-4">
@@ -64,7 +64,7 @@ export function PaintersScreen({ shopId, shopName }: { shopId: string; shopName:
             <span className="text-sm text-muted">{t('painters.line', { count: p.bills, sales: formatRupees(p.sales) })}</span>
             {p.phone && p.commission > 0 && (
               <a href={whatsAppLink(p.phone, t('painters.message', { name: p.name, month: label, sales: formatRupees(p.sales), commission: formatRupees(p.commission), shop: shopName }))}
-                target="_blank" rel="noreferrer" className="flex min-h-11 items-center self-start text-sm font-semibold text-teal-700 underline">
+                target="_blank" rel="noreferrer" className="flex min-h-11 items-center self-start text-sm font-semibold text-brand underline">
                 {t('painters.tell', { phone: formatPhone(p.phone) })}
               </a>
             )}
@@ -72,7 +72,7 @@ export function PaintersScreen({ shopId, shopName }: { shopId: string; shopName:
         ))}
       </ul>
 
-      <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-3 rounded-card bg-white p-4">
         <h2 className="text-lg font-bold">{t('painters.addTitle')}</h2>
         <Field label={t('staff.name')} value={name} onChange={(e) => setName(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">

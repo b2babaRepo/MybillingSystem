@@ -10,7 +10,7 @@ type Movement = 'dead' | 'slow' | 'new' | 'fast' | 'none'
 interface Item { productId: string; name: string; category: string | null; unit: string; stock: number; value: number | null; sales90: number; sold90: number; daysSinceSale: number | null; daysSinceIn: number | null; movement: Movement; rank: 'A' | 'B' | 'C'; daysOfCover: number | null }
 interface Health { value: number; deadValue: number; deadItems: number; slowValue: number; slowItems: number; ageing: { label: string; value: number; items: number }[]; rankA: number; rankB: number; rankC: number; turnover: number; items: Item[] }
 
-const TONE: Record<Movement, string> = { dead: 'bg-red-50 text-due', slow: 'bg-amber-50 text-amber-800', new: 'bg-sky-50 text-sky-800', fast: 'bg-emerald-50 text-emerald-800', none: 'bg-slate-100 text-muted' }
+const TONE: Record<Movement, string> = { dead: 'bg-due-soft text-due', slow: 'bg-warn-soft text-warn', new: 'bg-sky-50 text-sky-800', fast: 'bg-emerald-50 text-emerald-800', none: 'bg-slate-100 text-muted' }
 
 /** Where the shop's money sits: dead and slow stock, how old the stock is, and A/B/C items by sales. */
 export function StockHealthScreen({ shopId }: { shopId: string }) {
@@ -25,7 +25,7 @@ export function StockHealthScreen({ shopId }: { shopId: string }) {
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h1 className="text-xl font-bold">🩺 {t('sh.title')}</h1>
         <p className="text-sm text-muted">{t('sh.hint')}</p>
         {h && (
@@ -38,7 +38,7 @@ export function StockHealthScreen({ shopId }: { shopId: string }) {
         )}
       </section>
       {h && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <h2 className="font-bold">{t('sh.ageing')}</h2>
           {h.ageing.map((a) => (
             <div key={a.label} className="flex items-center gap-2 text-sm">
@@ -56,7 +56,7 @@ export function StockHealthScreen({ shopId }: { shopId: string }) {
           {orderedNames(categoryRows, (h?.items ?? []).map((i) => i.category)).map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         {(['stuck', 'all', 'A', 'B', 'C'] as const).map((f) => (
-          <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f} className={`h-9 rounded-full px-3 text-sm font-semibold ${filter === f ? 'bg-teal-700 text-white' : 'bg-white text-muted ring-1 ring-black/5'}`}>{t(`sh.f.${f}`)}</button>
+          <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f} className={`h-9 rounded-full px-3 text-sm font-semibold ${filter === f ? 'bg-brand text-white' : 'bg-white text-muted ring-1 ring-black/5'}`}>{t(`sh.f.${f}`)}</button>
         ))}
       </div>
       {health.isError && <p className="text-sm text-due">{t('error')}</p>}

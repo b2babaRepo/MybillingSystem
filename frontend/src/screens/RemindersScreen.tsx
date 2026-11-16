@@ -54,9 +54,9 @@ export function RemindersScreen({ shopId, shopName }: { shopId: string; shopName
       <h1 className="text-lg font-bold">{t('reminders.title')}</h1>
       <p className="text-sm text-muted">{t('reminders.hint')}</p>
       {message && <p className="text-sm font-semibold text-due">{message}</p>}
-      {ready.length === 0 && <p className="rounded-[18px] bg-white p-4 text-center text-muted">{t('reminders.none')}</p>}
+      {ready.length === 0 && <p className="rounded-card bg-white p-4 text-center text-muted">{t('reminders.none')}</p>}
       {ready.map((i) => (
-        <section key={i.customerId} className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <section key={i.customerId} className="flex flex-col gap-2 rounded-card bg-white p-4">
           <button onClick={() => navigate(`/c/${i.customerId}`)} className="flex items-start justify-between gap-2 text-left">
             <span className="min-w-0">
               <span className="block truncate font-bold">{i.name}</span>
@@ -66,19 +66,19 @@ export function RemindersScreen({ shopId, shopName }: { shopId: string; shopName
           </button>
           <a href={whatsAppLink(i.phone, buildReminder(settings.data?.reminderTemplate, { name: i.name, amount: i.balance, shop: shopName, upi: settings.data?.upiId ?? null, slug: settings.data?.slug }))}
             target="_blank" rel="noreferrer" onClick={() => sent(i)} className="flex h-12 items-center justify-center rounded-2xl bg-[#15803d] font-bold text-white">{t('reminders.send')}</a>
-          <button onClick={() => void consent(i, false)} className="min-h-11 self-start text-sm font-semibold text-teal-700 underline">{t('reminders.stop')}</button>
+          <button onClick={() => void consent(i, false)} className="min-h-11 self-start text-sm font-semibold text-brand underline">{t('reminders.stop')}</button>
         </section>
       ))}
       {reasons.map((reason) => {
         const group = held.filter((h) => h.hold === reason)
         return group.length === 0 ? null : (
-          <section key={reason} className="flex flex-col gap-1 rounded-[18px] bg-white p-4">
+          <section key={reason} className="flex flex-col gap-1 rounded-card bg-white p-4">
             <h2 className="font-bold">{t(`reminders.hold_${reason}`)} · {group.length}</h2>
             <ul className="divide-y divide-[#edf2f1]">
               {group.map((h) => (
                 <li key={h.customerId} className="flex items-center justify-between gap-2 py-1.5 text-sm">
                   <button onClick={() => navigate(`/c/${h.customerId}`)} className="min-h-11 min-w-0 truncate text-left">{h.name} · {formatRupees(h.balance)}</button>
-                  {reason === 'noConsent' && <button onClick={() => void consent(h, true)} className="min-h-11 shrink-0 font-semibold text-teal-700 underline">{t('reminders.agreed')}</button>}
+                  {reason === 'noConsent' && <button onClick={() => void consent(h, true)} className="min-h-11 shrink-0 font-semibold text-brand underline">{t('reminders.agreed')}</button>}
                 </li>
               ))}
             </ul>

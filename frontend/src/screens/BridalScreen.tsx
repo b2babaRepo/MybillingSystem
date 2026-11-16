@@ -45,12 +45,12 @@ export function BridalScreen({ shopId, shopName, isOwner }: { shopId: string; sh
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('bridal.hint')}</p>
-      {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       <NewBooking shopId={shopId} onDone={setMessage} />
 
       {bookings.length === 0 && <p className="text-sm text-muted">{t('bridal.none')}</p>}
       {bookings.map((b) => (
-        <section key={b.id} className="flex flex-col gap-1 rounded-[18px] bg-white p-3">
+        <section key={b.id} className="flex flex-col gap-1 rounded-card bg-white p-3">
           <h3 className="font-bold">#{b.number} {b.title} · {b.customerName}</h3>
           {b.atHome && <p className="text-xs text-muted">{t('bridal.atHome')}{b.address ? `: ${b.address}` : ''}</p>}
           {b.events.map((e) => (
@@ -58,7 +58,7 @@ export function BridalScreen({ shopId, shopName, isOwner }: { shopId: string; sh
           ))}
           {b.travelCharge > 0 && <p className="flex justify-between text-sm"><span>{t('bridal.travel')}</span><span>{formatRupees(b.travelCharge)}</span></p>}
           <p className="flex justify-between font-bold"><span>{t('total')}</span><span>{formatRupees(b.total)}</span></p>
-          <p className="flex justify-between text-sm text-teal-900"><span>{t('bridal.received')}</span><span>{formatRupees(b.advance)}</span></p>
+          <p className="flex justify-between text-sm text-brand-deep"><span>{t('bridal.received')}</span><span>{formatRupees(b.advance)}</span></p>
           <p className="flex justify-between text-sm font-semibold text-due"><span>{t('bridal.balance')}</span><span>{formatRupees(Math.max(0, b.total - b.advance))}</span></p>
 
           {pay?.id === b.id ? (
@@ -116,7 +116,7 @@ function NewBooking({ shopId, onDone }: { shopId: string; onDone: (message: stri
   }
   const select = 'h-12 w-full rounded-xl border border-line bg-white px-3'
   return (
-    <details className="rounded-[18px] bg-white p-3">
+    <details className="rounded-card bg-white p-3">
       <summary className="min-h-11 cursor-pointer font-bold">{t('bridal.add')}</summary>
       <div className="mt-2 flex flex-col gap-2">
         <select value={d.customerId} onChange={(e) => setD({ ...d, customerId: e.target.value })} aria-label={t('jobs.customer')} className={select}>

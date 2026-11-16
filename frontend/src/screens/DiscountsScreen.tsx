@@ -31,10 +31,10 @@ export function DiscountsScreen() {
       {r && (
         <>
           <section className="grid grid-cols-2 gap-2">
-            <div className="rounded-[18px] bg-white p-3 shadow-sm"><p className="text-xs text-muted">{t('disc.byHand')}</p><p className="text-lg font-bold text-due">{formatRupees(r.byHand)}</p></div>
-            <div className="rounded-[18px] bg-white p-3 shadow-sm"><p className="text-xs text-muted">{t('disc.byOffer')}</p><p className="text-lg font-bold">{formatRupees(r.byOffer)}</p></div>
+            <div className="rounded-card bg-white p-3 shadow-sm"><p className="text-xs text-muted">{t('disc.byHand')}</p><p className="text-lg font-bold text-due">{formatRupees(r.byHand)}</p></div>
+            <div className="rounded-card bg-white p-3 shadow-sm"><p className="text-xs text-muted">{t('disc.byOffer')}</p><p className="text-lg font-bold">{formatRupees(r.byOffer)}</p></div>
           </section>
-          <section className="overflow-x-auto rounded-[18px] bg-white p-4 shadow-sm">
+          <section className="overflow-x-auto rounded-card bg-white p-4 shadow-sm">
             <h2 className="mb-1 font-bold">{t('disc.cashiers')}</h2>
             <table className="w-full text-sm">
               <thead><tr className="text-left text-xs text-muted"><th className="py-1">{t('disc.cashier')}</th><th className="text-right">{t('disc.bills')}</th><th className="text-right">{t('disc.sales')}</th><th className="text-right">{t('disc.byHand')}</th><th className="text-right">%</th><th className="text-right">{t('disc.byOffer')}</th></tr></thead>
@@ -49,7 +49,7 @@ export function DiscountsScreen() {
               </tbody>
             </table>
           </section>
-          <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm">
+          <section className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-bold">{t('disc.linesTitle')}</h2>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyHand} onChange={(e) => setOnlyHand(e.target.checked)} className="h-4 w-4" />{t('disc.onlyHand')}</label>

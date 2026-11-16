@@ -112,7 +112,7 @@ export function PlatformScreen() {
           <div className="flex gap-1 overflow-x-auto px-3 pb-2 lg:flex-col lg:overflow-visible lg:px-0">
             {sections.filter((x) => x.show).map((x) => (
               <button key={x.id} onClick={() => setSection(x.id)} aria-current={section === x.id ? 'page' : undefined}
-                className={`min-h-11 shrink-0 rounded-xl px-3 text-left font-semibold ${section === x.id ? 'bg-teal-700' : 'text-slate-200'}`}>{x.label}</button>
+                className={`min-h-11 shrink-0 rounded-xl px-3 text-left font-semibold ${section === x.id ? 'bg-brand' : 'text-slate-200'}`}>{x.label}</button>
             ))}
           </div>
         </nav>
@@ -123,7 +123,7 @@ export function PlatformScreen() {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
               {tiles.map((x) => {
                 const body = <><div className="text-2xl font-extrabold tabular-nums">{x.value ?? '–'}</div><div className="text-xs">{x.label}</div></>
-                const style = `rounded-2xl p-3 text-left ${x.urgent ? 'bg-amber-100 text-amber-900' : 'bg-white'}`
+                const style = `rounded-2xl p-3 text-left ${x.urgent ? 'bg-amber-100 text-warn-ink' : 'bg-white'}`
                 return x.onClick ? <button key={x.label} onClick={x.onClick} className={style}>{body}</button> : <div key={x.label} className={style}>{body}</div>
               })}
             </div>
@@ -135,17 +135,17 @@ export function PlatformScreen() {
               <div role="tablist" className="grid grid-cols-4 gap-1 text-sm font-semibold">
                 {(['new', 'active', 'blocked', 'all'] as const).map((x) => (
                   <button key={x} role="tab" aria-selected={status === x} onClick={() => setStatus(x)}
-                    className={`min-h-11 rounded-xl ${status === x ? 'bg-teal-700 text-white' : 'bg-ground'}`}>{t(`platform.tab.${x}`)}</button>
+                    className={`min-h-11 rounded-xl ${status === x ? 'bg-brand text-white' : 'bg-ground'}`}>{t(`platform.tab.${x}`)}</button>
                 ))}
               </div>
               <div className="flex flex-wrap gap-2" aria-label={t('plans.filter')}>
-                <button aria-pressed={plan === ''} onClick={() => setPlan('')} className={`min-h-11 rounded-full px-4 text-sm font-semibold ${plan === '' ? 'bg-teal-700 text-white' : 'border border-line'}`}>{t('plans.allPlans')}</button>
+                <button aria-pressed={plan === ''} onClick={() => setPlan('')} className={`min-h-11 rounded-full px-4 text-sm font-semibold ${plan === '' ? 'bg-brand text-white' : 'border border-line'}`}>{t('plans.allPlans')}</button>
                 {seesBilling
                   ? planTiles.map(([code, label]) => (
-                    <button key={code} aria-pressed={plan === code} onClick={() => showPlan(code)} className={`min-h-11 rounded-full px-4 text-sm font-semibold ${plan === code ? 'bg-teal-700 text-white' : 'border border-line'}`}>{label} · {byPlan ? byPlan[code] ?? 0 : '–'}</button>
+                    <button key={code} aria-pressed={plan === code} onClick={() => showPlan(code)} className={`min-h-11 rounded-full px-4 text-sm font-semibold ${plan === code ? 'bg-brand text-white' : 'border border-line'}`}>{label} · {byPlan ? byPlan[code] ?? 0 : '–'}</button>
                   ))
                   : plans.map((p) => (
-                    <button key={p.code} aria-pressed={plan === p.code} onClick={() => showPlan(p.code)} className={`min-h-11 rounded-full px-4 text-sm font-semibold ${plan === p.code ? 'bg-teal-700 text-white' : 'border border-line'}`}>{p.name}</button>
+                    <button key={p.code} aria-pressed={plan === p.code} onClick={() => showPlan(p.code)} className={`min-h-11 rounded-full px-4 text-sm font-semibold ${plan === p.code ? 'bg-brand text-white' : 'border border-line'}`}>{p.name}</button>
                   ))}
               </div>
             </section>
@@ -192,10 +192,10 @@ export function PlatformScreen() {
 function StatusChip({ shop }: { shop: ShopRow }) {
   const { t } = useTranslation()
   const [label, style] = !shop.isActive
-    ? [t('platform.chip.blocked'), 'bg-red-50 text-red-700']
+    ? [t('platform.chip.blocked'), 'bg-due-soft text-red-700']
     : !shop.approvedAt
-      ? [t('platform.chip.new'), 'bg-amber-100 text-amber-900']
-      : [t('platform.chip.active'), 'bg-teal-50 text-teal-800']
+      ? [t('platform.chip.new'), 'bg-amber-100 text-warn-ink']
+      : [t('platform.chip.active'), 'bg-brand-soft text-brand-strong']
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${style}`}>{label}</span>
 }
 
@@ -264,8 +264,8 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
 
   return (
     <div className="flex flex-col gap-3 border-t border-line p-4">
-      {d.shop.blockedReason && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{t('platform.blockedBecause', { reason: d.shop.blockedReason })}</p>}
-      {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      {d.shop.blockedReason && <p className="rounded-xl bg-due-soft p-3 text-sm text-red-800">{t('platform.blockedBecause', { reason: d.shop.blockedReason })}</p>}
+      {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       <dl className="grid grid-cols-2 gap-2 text-sm">
         {stats.map(([label, value]) => (
           <div key={label} className="rounded-xl bg-ground p-2"><dt className="text-xs text-muted">{label}</dt><dd className="font-bold">{value}</dd></div>
@@ -280,10 +280,10 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
             <span className="min-w-0 flex-1"><b>{p.name}</b> · {p.role === 'owner' ? t('staff.owner') : t('staff.helper')}{!p.isActive && ` · ${t('staff.off')}`}<br /><span className="text-muted">{formatPhone(p.phone)}</span></span>
             <a href={`tel:${p.phone}`} className="flex min-h-11 items-center rounded-xl border border-line px-3 font-semibold no-underline">{t('platform.call')}</a>
             <a href={`https://wa.me/${p.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex min-h-11 items-center rounded-xl border border-line px-3 font-semibold no-underline">WhatsApp</a>
-            {p.lockedOut && canSupport && <button disabled={busy} onClick={() => void run(`/v1/platform/users/${p.userId}/unlock`, {}, 'POST', t('platform.unlocked', { name: p.name }))} className="min-h-11 rounded-xl bg-amber-100 px-3 font-semibold text-amber-900">{t('platform.unlock')}</button>}
+            {p.lockedOut && canSupport && <button disabled={busy} onClick={() => void run(`/v1/platform/users/${p.userId}/unlock`, {}, 'POST', t('platform.unlocked', { name: p.name }))} className="min-h-11 rounded-xl bg-amber-100 px-3 font-semibold text-warn-ink">{t('platform.unlock')}</button>}
             {canPeople && (
               <button disabled={busy} onClick={async () => (!p.isActive || (await confirmAsk(t('staff.offConfirm', { name: p.name })))) && void run(`/v1/platform/shops/${id}/people/${p.membershipId}/active?active=${!p.isActive}`, {}, 'POST')}
-                className={`min-h-11 rounded-xl px-3 font-semibold ${p.isActive ? 'border border-line text-due' : 'bg-teal-700 text-white'}`}>{p.isActive ? t('staff.turnOff') : t('staff.turnOn')}</button>
+                className={`min-h-11 rounded-xl px-3 font-semibold ${p.isActive ? 'border border-line text-due' : 'bg-brand text-white'}`}>{p.isActive ? t('staff.turnOff') : t('staff.turnOn')}</button>
             )}
           </li>
         ))}
@@ -380,13 +380,13 @@ function MarketsPanel() {
           ))}
         </div>
         <Button disabled={draft.name.trim().length < 2} onClick={() => void add()}>{editingId ? t('save') : t('markets.add')}</Button>
-        {editingId && <button onClick={() => { setEditingId(null); setDraft(emptyMarket) }} className="min-h-11 font-semibold text-teal-700">{t('cancel')}</button>}
+        {editingId && <button onClick={() => { setEditingId(null); setDraft(emptyMarket) }} className="min-h-11 font-semibold text-brand">{t('cancel')}</button>}
         {message && <p className="text-sm text-due">{message}</p>}
         <ul className="flex flex-col gap-2">
           {markets.map((m) => (
             <li key={m.id} className={`flex items-center gap-2 border-t border-line pt-2 ${m.isActive ? '' : 'opacity-60'}`}>
               <span className="min-w-0 flex-1 truncate">{m.name}{marketPlace(m) ? `, ${marketPlace(m)}` : ''} · {t('markets.shops', { count: m.shops })}</span>
-              <button onClick={() => rename(m)} className="min-h-11 px-2 text-sm font-semibold text-teal-700">{t('markets.edit')}</button>
+              <button onClick={() => rename(m)} className="min-h-11 px-2 text-sm font-semibold text-brand">{t('markets.edit')}</button>
               <button onClick={() => void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { ...m, isActive: !m.isActive }))} className="min-h-11 px-2 text-sm font-semibold">{m.isActive ? t('markets.stop') : t('markets.restart')}</button>
             </li>
           ))}
@@ -420,14 +420,14 @@ function SuggestionsQueue({ onDone }: { onDone: () => void }) {
   }
   if (rows.length === 0) return null
   return (
-    <div className="rounded-xl bg-amber-50 p-3">
+    <div className="rounded-xl bg-warn-soft p-3">
       <h3 className="font-bold">{t('masterItems.suggestions', { count: rows.length })}</h3>
       {message && <p className="text-sm text-due">{message}</p>}
       <ul className="mt-2 flex flex-col gap-1">
         {rows.map((r) => (
           <li key={r.id} className="flex items-center gap-2 rounded-xl bg-white px-2">
             <span className="min-w-0 flex-1">{r.name}<span className="block text-xs text-muted">{t(`shopType.${r.trade}`)} · {r.category} · {t(`units.${r.unit}`)} · {r.shopName}{r.note ? ` · ${r.note}` : ''}</span></span>
-            <button onClick={() => void decide(r, true)} className="min-h-11 px-2 font-semibold text-teal-700">{t('masterItems.approve')}</button>
+            <button onClick={() => void decide(r, true)} className="min-h-11 px-2 font-semibold text-brand">{t('masterItems.approve')}</button>
             <button onClick={() => void decide(r, false)} className="min-h-11 px-2 font-semibold">{t('masterItems.reject')}</button>
           </li>
         ))}
@@ -515,7 +515,7 @@ function MasterItemsPanel() {
           <li key={r.id} className={`flex items-center gap-2 border-t border-line py-1 text-sm ${r.isActive ? '' : 'opacity-50'}`}>
             <MasterPhoto row={r} run={run} credit={photoCredit} />
             <span className="min-w-0 flex-1 truncate">{r.name}{r.nameHi ? ` · ${r.nameHi}` : ''}<span className="block text-xs text-muted">{r.category} · {t(`units.${r.unit}`)}{r.gstRate != null ? ` · ${r.gstRate}%` : ''}{r.hsnCode ? ` · ${r.hsnCode}` : ''}{r.packSizes.length ? ` · ${r.packSizes.join(' / ')}` : ''}</span></span>
-            <button onClick={() => edit(r)} className="min-h-11 px-2 font-semibold text-teal-700">{t('masterItems.edit')}</button>
+            <button onClick={() => edit(r)} className="min-h-11 px-2 font-semibold text-brand">{t('masterItems.edit')}</button>
             <button onClick={() => void run(() => api(`/v1/platform/master-items/${r.id}`, 'PUT', { ...body({ name: r.name, nameHi: r.nameHi ?? '', category: r.category, unit: r.unit, gst: r.gstRate == null ? '' : String(r.gstRate), hsn: r.hsnCode ?? '', packs: r.packSizes.join(', ') }), isActive: !r.isActive }))}
               className="min-h-11 px-2 font-semibold">{r.isActive ? t('masterItems.off') : t('masterItems.on')}</button>
           </li>
@@ -673,14 +673,14 @@ function NewShop({ canBill }: { canBill: boolean }) {
         <PeopleRows people={people} onChange={setPeople} />
         <Button disabled={busy || form.shopName.trim().length < 2 || form.phone.trim().length < 10} onClick={() => void create()}>{t('openShop.create')}</Button>
         {created && (
-          <div className="flex flex-col gap-1 rounded-xl bg-teal-50 p-3 text-sm text-teal-900">
+          <div className="flex flex-col gap-1 rounded-xl bg-brand-soft p-3 text-sm text-brand-deep">
             <span className="font-semibold">{t('openShop.done', { name: created.name })}{created.code && <span className="ml-2 font-mono">{created.code}</span>}</span>
             {created.password
               ? <span>{t('openShop.login', { phone: created.phone })} <span className="font-mono text-base font-bold">{created.password}</span><br />{t('openShop.once')}</span>
               : <span>{t('openShop.existing')}</span>}
           </div>
         )}
-        {message && <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{message}</p>}
+        {message && <p className="rounded-xl bg-due-soft p-3 text-sm font-semibold text-red-800">{message}</p>}
       </>}
     </section>
   )
@@ -752,7 +752,7 @@ function ManageAdmins() {
           {t('admins.add')}
         </Button>
       </div>
-      {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       </>}
     </section>
   )
@@ -811,7 +811,7 @@ function AddPerson({ shopId }: { shopId: string }) {
     <div className="flex flex-col gap-2">
       <PeopleRows people={draft} onChange={setDraft} />
       {draft.length > 0 && <Button disabled={busy} onClick={() => void save()}>{t('people.save')}</Button>}
-      {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
     </div>
   )
 }
@@ -860,7 +860,7 @@ function MasterPhoto({ row, run, credit }: { row: MasterRow; run: (action: () =>
           onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = '' }} />
       </label>
       {url && !busy && <button onClick={() => { setPreview(null); void run(() => request(`/v1/platform/master-items/${row.id}/image`, 'DELETE')) }} className="text-[10px] text-muted underline">{t('masterItems.removePhoto')}</button>}
-      {saved && <span role="status" className="mt-0.5 text-center text-[11px] font-semibold leading-tight text-teal-700">✓ {t('masterItems.photoSaved')}</span>}
+      {saved && <span role="status" className="mt-0.5 text-center text-[11px] font-semibold leading-tight text-brand">✓ {t('masterItems.photoSaved')}</span>}
       {error && <span role="alert" className="mt-0.5 text-center text-[11px] font-semibold leading-tight text-due">{error}</span>}
     </span>
   )

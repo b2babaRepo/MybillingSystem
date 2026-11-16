@@ -34,7 +34,7 @@ export function TagsScreen({ shopId, shopName, ids }: { shopId: string; shopName
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3 print:hidden">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3 print:hidden">
         <h2 className="font-bold">{t('tags.title')}</h2>
         <p className="text-sm text-muted">{t('tags.hint')}</p>
         {items.map((p) => (
@@ -44,7 +44,7 @@ export function TagsScreen({ shopId, shopName, ids }: { shopId: string; shopName
               aria-label={`${t('tags.count')}: ${p.name}`} className="h-11 w-20 rounded-lg border border-line text-center" />
           </label>
         ))}
-        <button onClick={() => window.print()} disabled={tags.length === 0} className="h-12 rounded-xl bg-teal-700 font-bold text-white disabled:opacity-40">{t('tags.print', { count: tags.length })}</button>
+        <button onClick={() => window.print()} disabled={tags.length === 0} className="h-12 rounded-xl bg-brand font-bold text-white disabled:opacity-40">{t('tags.print', { count: tags.length })}</button>
       </section>
       <div className="grid grid-cols-3 gap-2 print:gap-1">
         {tags.map((p, i) => (

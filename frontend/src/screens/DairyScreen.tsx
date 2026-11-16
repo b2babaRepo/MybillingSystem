@@ -41,12 +41,12 @@ function PhotoButton({ label, busy, onFile }: { label: string; busy: boolean; on
   if (!ai.canRead) return null
   if (!ai.consented) return (
     <>
-      <button onClick={() => setAsk(true)} className="min-h-11 rounded-xl border-2 border-teal-700 font-semibold text-teal-800">📷 {label}</button>
-      {ask && <div className="flex flex-col gap-2 rounded-xl bg-amber-50 p-2 text-sm"><p>{t('dairy.photoConsent')}</p><button onClick={() => void ai.agree()} className="h-10 rounded-lg bg-teal-700 font-semibold text-white">{t('expense.consentYes')}</button></div>}
+      <button onClick={() => setAsk(true)} className="min-h-11 rounded-xl border-2 border-brand font-semibold text-brand-strong">📷 {label}</button>
+      {ask && <div className="flex flex-col gap-2 rounded-xl bg-warn-soft p-2 text-sm"><p>{t('dairy.photoConsent')}</p><button onClick={() => void ai.agree()} className="h-10 rounded-lg bg-brand font-semibold text-white">{t('expense.consentYes')}</button></div>}
     </>
   )
   return (
-    <label className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl border-2 border-teal-700 font-semibold text-teal-800 ${busy ? 'opacity-50' : ''}`}>
+    <label className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl border-2 border-brand font-semibold text-brand-strong ${busy ? 'opacity-50' : ''}`}>
       📷 {busy ? t('invoicePhoto.reading') : label}
       <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f) }} />
     </label>
@@ -72,7 +72,7 @@ export function DairyHomeCard({ shopId }: { shopId: string }) {
   const { t } = useTranslation()
   const day = useQuery({ queryKey: [shopId, 'dairy', 'shift', 'now'], queryFn: () => api<ShiftDay>('/v1/dairy/collections') }).data
   return (
-    <button onClick={() => navigate('/dairy')} className="mx-4 mt-3 flex w-[calc(100%-2rem)] flex-col gap-1 rounded-[18px] bg-white p-3 text-left">
+    <button onClick={() => navigate('/dairy')} className="mx-4 mt-3 flex w-[calc(100%-2rem)] flex-col gap-1 rounded-card bg-white p-3 text-left">
       <span className="flex justify-between font-bold"><span>🥛 {t('dairy.homeTitle')}</span><span aria-hidden="true">→</span></span>
       {day && <span className="text-sm text-muted">{t(`dairy.shift_${day.shift}`)}: {t('dairy.shiftLine', { count: day.collections.length, litres: day.litres, fat: day.avgFat, amount: formatRupees(day.amount) })}</span>}
     </button>
@@ -87,7 +87,7 @@ export function DairyScreen({ shopId, shopName, isOwner }: { shopId: string; sho
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <div role="tablist" className="grid gap-1 rounded-2xl bg-white p-1 text-sm font-semibold" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
-        {tabs.map((x) => <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-teal-700 text-white' : ''}`}>{t(`dairy.tab_${x}`)}</button>)}
+        {tabs.map((x) => <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-brand text-white' : ''}`}>{t(`dairy.tab_${x}`)}</button>)}
       </div>
       {tab === 'collect' && <Collect shopId={shopId} shopName={shopName} isOwner={isOwner} />}
       {tab === 'farmers' && <Farmers shopId={shopId} />}
@@ -187,7 +187,7 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
 
   return (
     <>
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <div className="grid grid-cols-2 gap-2">
           <Field label={t('dairy.date')} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('dairy.shift')}</span>
@@ -199,7 +199,7 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
           <div className="flex min-h-12 items-end pb-2 text-lg font-bold">{farmer ? `${farmer.name}${farmer.village ? ` · ${farmer.village}` : ''}` : d.code ? <span className="text-sm text-due">{t('dairy.noFarmer')}</span> : null}</div>
         </div>
         <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label={t('dairy.kind')}>
-          {(['buffalo', 'cow', 'mixed'] as const).map((k) => <button key={k} role="radio" aria-checked={kind === k} onClick={() => setD({ ...d, kind: k })} className={`min-h-11 rounded-xl font-semibold ${kind === k ? 'bg-teal-700 text-white' : 'border border-line'}`}>{t(`dairy.kind_${k}`)}</button>)}
+          {(['buffalo', 'cow', 'mixed'] as const).map((k) => <button key={k} role="radio" aria-checked={kind === k} onClick={() => setD({ ...d, kind: k })} className={`min-h-11 rounded-xl font-semibold ${kind === k ? 'bg-brand text-white' : 'border border-line'}`}>{t(`dairy.kind_${k}`)}</button>)}
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Field label={t('dairy.litres')} value={d.litres} onChange={(e) => setD({ ...d, litres: e.target.value })} inputMode="decimal" />
@@ -211,15 +211,15 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
         {ai.canHear && ai.consented && <VoiceButton onText={(said) => void fromVoice(said)} onError={(m) => setQuoteError(m ?? '')} />}
         {heard && <p className="rounded-xl bg-ground p-2 text-sm">{t('dairy.heard', { text: heard })}</p>}
         <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={d.rejected} onChange={(e) => setD({ ...d, rejected: e.target.checked })} />{t('dairy.rejected')}</label>
-        {quote && <p className={`rounded-xl p-2 text-lg font-bold ${quote.belowStandard ? 'bg-amber-50' : 'bg-teal-50 text-teal-900'}`}>{d.rejected ? t('dairy.notPaid') : `${formatRupees(quote.amount)} · ₹${quote.perLitre}/L`}{!d.snf && d.clr ? ` · SNF ${quote.snf}` : ''}{quote.belowStandard ? ` · ${t('dairy.below')}` : ''}</p>}
+        {quote && <p className={`rounded-xl p-2 text-lg font-bold ${quote.belowStandard ? 'bg-warn-soft' : 'bg-brand-soft text-brand-deep'}`}>{d.rejected ? t('dairy.notPaid') : `${formatRupees(quote.amount)} · ₹${quote.perLitre}/L`}{!d.snf && d.clr ? ` · SNF ${quote.snf}` : ''}{quote.belowStandard ? ` · ${t('dairy.below')}` : ''}</p>}
         {quoteError && <p className="text-sm text-due">{quoteError}</p>}
         <Button disabled={!farmer || !(Number(d.litres) > 0) || !(Number(d.fat) > 0)} onClick={() => void save()}>{t('dairy.save')}</Button>
-        {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
         {last && last.phone && <a href={whatsAppLink(last.phone, slip(last))} target="_blank" rel="noreferrer" className="flex h-11 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('dairy.sendSlip', { name: last.farmerName })}</a>}
       </section>
 
       {day && (
-        <section className="flex flex-col gap-1 rounded-[18px] bg-white p-3">
+        <section className="flex flex-col gap-1 rounded-card bg-white p-3">
           <h3 className="flex justify-between font-bold"><span>{t(`dairy.shift_${day.shift}`)}</span><span>{day.litres} L · {t('dairy.avgFat', { fat: day.avgFat })} · {formatRupees(day.amount)}</span></h3>
           {day.collections.length === 0 && <p className="text-sm text-muted">{t('dairy.noneYet')}</p>}
           {[...day.collections].reverse().map((c) => (
@@ -252,7 +252,7 @@ function EditButton({ shopId, c, date, shift }: { shopId: string; c: Collection;
       alert(e instanceof Error ? e.message : t('error'))
     }
   }
-  return <button onClick={() => void edit()} aria-label={t('dairy.edit')} className="px-1 text-teal-700">✎</button>
+  return <button onClick={() => void edit()} aria-label={t('dairy.edit')} className="px-1 text-brand">✎</button>
 }
 
 function Farmers({ shopId }: { shopId: string }) {
@@ -264,9 +264,9 @@ function Farmers({ shopId }: { shopId: string }) {
   const { message, run } = useRun(shopId)
   return (
     <>
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('dairy.addFarmer')}</h3>
-        <p className="rounded-xl bg-teal-50 p-2 text-xs text-teal-900">{t('dairy.botHint')}</p>
+        <p className="rounded-xl bg-brand-soft p-2 text-xs text-brand-deep">{t('dairy.botHint')}</p>
         <div className="grid grid-cols-2 gap-2">
           <Field label={t('dairy.name')} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
           <Field label={t('phone')} value={d.phone} onChange={(e) => setD({ ...d, phone: e.target.value })} inputMode="tel" />
@@ -276,9 +276,9 @@ function Farmers({ shopId }: { shopId: string }) {
           </label>
         </div>
         <Button disabled={d.name.trim().length < 2} onClick={() => void run(async () => { await api('/v1/dairy/farmers', 'POST', { id: crypto.randomUUID(), name: d.name, phone: d.phone, village: d.village, defaultKind: d.kind }); setD(blank) }, t('saved'))}>{t('save')}</Button>
-        {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
       </section>
-      <section className="flex flex-col gap-1 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-1 rounded-card bg-white p-3">
         {farmers.length === 0 && <p className="text-sm text-muted">{t('dairy.noFarmers')}</p>}
         {farmers.map((f) => (
           <div key={f.id} className="border-b border-line py-1">
@@ -289,7 +289,7 @@ function Farmers({ shopId }: { shopId: string }) {
                 <Field label={t('bridal.amount')} value={entry.amount} onChange={(e) => setEntry({ ...entry, amount: e.target.value })} inputMode="decimal" />
                 <Button className="h-12 px-3" disabled={!(Number(entry.amount) > 0)} onClick={() => void run(async () => { await api(`/v1/dairy/farmers/${f.id}/entries`, 'POST', { id: crypto.randomUUID(), kind: entry.kind, amount: Number(entry.amount), mode: 'cash', note: entry.note || null }); setEntry(null) }, t('saved'))}>{t('save')}</Button>
               </div>
-            ) : <button onClick={() => setEntry({ id: f.id, kind: 'feed', amount: '', note: '' })} className="min-h-10 text-xs font-semibold text-teal-700 underline">{t('dairy.addEntry')}</button>}
+            ) : <button onClick={() => setEntry({ id: f.id, kind: 'feed', amount: '', note: '' })} className="min-h-10 text-xs font-semibold text-brand underline">{t('dairy.addEntry')}</button>}
           </div>
         ))}
       </section>
@@ -317,11 +317,11 @@ function Bills({ shopId, shopName }: { shopId: string; shopName: string }) {
         <Field label={t('rx.to')} type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         <select value={mode} onChange={(e) => setMode(e.target.value as 'upi')} aria-label={t('jobs.mode')} className={select}><option value="upi">UPI</option><option value="cash">{t('cash')}</option></select>
       </div>
-      {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
       <p className="text-sm font-semibold">{t('dairy.billsTotal', { count: bills.length, litres: bills.reduce((s, b) => s + b.litres, 0).toFixed(2), due: formatRupees(bills.reduce((s, b) => s + Math.max(0, b.due), 0)) })}</p>
-      {bills.length === 0 && <p className="rounded-[18px] bg-white p-3 text-sm text-muted">{t('dairy.noBills')}</p>}
+      {bills.length === 0 && <p className="rounded-card bg-white p-3 text-sm text-muted">{t('dairy.noBills')}</p>}
       {bills.map((b) => (
-        <section key={b.farmerId} className="flex flex-col gap-1 rounded-[18px] bg-white p-3 text-sm">
+        <section key={b.farmerId} className="flex flex-col gap-1 rounded-card bg-white p-3 text-sm">
           <p className="flex justify-between font-bold"><span>#{b.code} {b.name}</span><span className={b.due < 0 ? 'text-due' : ''}>{t(b.due < 0 ? 'dairy.owesUs' : 'dairy.weOwe', { amount: formatRupees(Math.abs(b.due)) })}</span></p>
           <p>{t('dairy.billLine', { count: b.collections, litres: b.litres, fat: b.avgFat, milk: formatRupees(b.milkAmount) })}</p>
           {(b.feed > 0 || b.advance > 0 || b.bonus > 0 || b.opening !== 0 || b.paidInPeriod > 0) && <p className="text-xs text-muted">{t('dairy.billDeductions', { feed: formatRupees(b.feed), advance: formatRupees(b.advance), bonus: formatRupees(b.bonus), opening: formatRupees(b.opening), paid: formatRupees(b.paidInPeriod) })}</p>}
@@ -354,21 +354,21 @@ function Dispatches({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   return (
     <>
       {isOwner && flags.length > 0 && (
-        <section className="flex flex-col gap-1 rounded-[18px] bg-amber-50 p-3 text-sm">
+        <section className="flex flex-col gap-1 rounded-card bg-warn-soft p-3 text-sm">
           <h3 className="font-bold">{t('dairy.flagsTitle', { count: flags.length })}</h3>
           <p className="text-xs text-muted">{t('dairy.flagsHint')}</p>
           {flags.map((f, i) => <p key={i}>⚠ {f.date} · {f.farmerName ? `${f.farmerName} · ` : ''}<b>{t(`dairy.flag_${f.kind}`)}</b>: {f.detail}</p>)}
         </section>
       )}
       {isOwner && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-3">
           <h3 className="font-bold">{t('dairy.statementTitle')}</h3>
           <p className="text-xs text-muted">{t('dairy.statementHint')}</p>
           <PhotoButton label={t('dairy.readStatement')} busy={reading} onFile={(f) => void readStatement(f)} />
           {matches?.map((m, i) => (
-            <div key={i} className={`flex flex-col gap-1 rounded-xl p-2 text-sm ${m.dispatchId ? 'bg-ground' : 'bg-red-50'}`}>
+            <div key={i} className={`flex flex-col gap-1 rounded-xl p-2 text-sm ${m.dispatchId ? 'bg-ground' : 'bg-due-soft'}`}>
               <p>{m.line.date ?? '?'} · {m.line.shift ? t(`dairy.shift_${m.line.shift}`) : '?'} · {m.line.litres ?? '?'} L · {m.line.fat ?? '?'}/{m.line.snf ?? '?'} · {m.line.amount != null ? formatRupees(m.line.amount) : '?'}</p>
-              {m.dispatchId ? <p className={(m.litresShort ?? 0) > 0 ? 'text-due' : 'text-teal-800'}>{t('dairy.matchLine', { sent: m.sentLitres, short: m.litresShort ?? '?', fat: m.fatKgShort ?? '?' })}</p> : <p className="text-due">{t('dairy.noMatch')}</p>}
+              {m.dispatchId ? <p className={(m.litresShort ?? 0) > 0 ? 'text-due' : 'text-brand-strong'}>{t('dairy.matchLine', { sent: m.sentLitres, short: m.litresShort ?? '?', fat: m.fatKgShort ?? '?' })}</p> : <p className="text-due">{t('dairy.noMatch')}</p>}
               {m.dispatchId && m.line.litres != null && m.line.fat != null && m.line.snf != null && (
                 <Button tone="plain" className="h-10 text-sm" onClick={() => void run(async () => {
                   await api(`/v1/dairy/dispatches/${m.dispatchId}/accepted`, 'PUT', { acceptedLitres: m.line.litres, acceptedFat: m.line.fat, acceptedSnf: m.line.snf, amount: m.line.amount })
@@ -380,7 +380,7 @@ function Dispatches({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
         </section>
       )}
       {summary && (
-        <section className="flex flex-col gap-1 rounded-[18px] bg-white p-3 text-sm">
+        <section className="flex flex-col gap-1 rounded-card bg-white p-3 text-sm">
           <h3 className="font-bold">{t('dairy.monthTitle')}</h3>
           <p className="flex justify-between"><span>{t('dairy.collected')}</span><span>{summary.collectedLitres} L · {summary.collectedFatKg} kg fat</span></p>
           <p className="flex justify-between"><span>{t('dairy.sent')}</span><span>{summary.dispatchedLitres} L · {summary.dispatchedFatKg} kg fat</span></p>
@@ -393,7 +393,7 @@ function Dispatches({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
           {summary.dairyUnpaid > 0 && <p className="text-xs text-due">{t('dairy.unpaid', { amount: formatRupees(summary.dairyUnpaid) })}</p>}
         </section>
       )}
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('dairy.sendMilk')}</h3>
         <div className="grid grid-cols-2 gap-2">
           <Field label={t('dairy.agency')} value={d.agency} onChange={(e) => setD({ ...d, agency: e.target.value })} />
@@ -411,10 +411,10 @@ function Dispatches({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
           await api('/v1/dairy/dispatches', 'POST', { id: crypto.randomUUID(), date: iso(new Date()), shift: d.shift, agency: d.agency, kind: d.kind, litres: Number(d.litres), fat: Number(d.fat), snf: Number(d.snf) })
           setD({ ...d, litres: '', fat: '', snf: '' })
         }, t('saved'))}>{t('dairy.saveDispatch')}</Button>
-        {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
       </section>
       {list.map((x) => (
-        <section key={x.id} className="flex flex-col gap-1 rounded-[18px] bg-white p-3 text-sm">
+        <section key={x.id} className="flex flex-col gap-1 rounded-card bg-white p-3 text-sm">
           <p className="flex justify-between font-semibold"><span>{x.date} · {t(`dairy.shift_${x.shift}`)} · {x.agency}</span><span>{x.amount != null ? formatRupees(x.amount) : ''}</span></p>
           <p>{t('dairy.sentLine', { litres: x.litres, fat: x.fat, snf: x.snf })}{x.acceptedLitres != null ? ` → ${t('dairy.acceptedLine', { litres: x.acceptedLitres, fat: x.acceptedFat, snf: x.acceptedSnf })}` : ''}</p>
           {isOwner && x.acceptedLitres == null && (acc?.id === x.id ? (
@@ -425,9 +425,9 @@ function Dispatches({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
               <Field label={t('dairy.statementAmount')} value={acc.amount} onChange={(e) => setAcc({ ...acc, amount: e.target.value })} inputMode="decimal" placeholder={t('dairy.statementAmountHint')} />
               <Button className="col-span-2" onClick={() => void run(async () => { await api(`/v1/dairy/dispatches/${x.id}/accepted`, 'PUT', { acceptedLitres: Number(acc.litres), acceptedFat: Number(acc.fat), acceptedSnf: Number(acc.snf), amount: acc.amount ? Number(acc.amount) : null }); setAcc(null) }, t('saved'))}>{t('save')}</Button>
             </div>
-          ) : <button onClick={() => setAcc({ id: x.id, litres: String(x.litres), fat: String(x.fat), snf: String(x.snf), amount: '' })} className="min-h-10 self-start text-xs font-semibold text-teal-700 underline">{t('dairy.enterAccepted')}</button>)}
-          {isOwner && x.amount != null && !x.paidOn && <button onClick={() => void run(() => api(`/v1/dairy/dispatches/${x.id}/paid`, 'POST', {}), t('saved'))} className="min-h-10 self-start text-xs font-semibold text-teal-700 underline">{t('dairy.markPaid')}</button>}
-          {x.paidOn && <p className="text-xs text-teal-800">{t('dairy.paidOn', { date: x.paidOn })}</p>}
+          ) : <button onClick={() => setAcc({ id: x.id, litres: String(x.litres), fat: String(x.fat), snf: String(x.snf), amount: '' })} className="min-h-10 self-start text-xs font-semibold text-brand underline">{t('dairy.enterAccepted')}</button>)}
+          {isOwner && x.amount != null && !x.paidOn && <button onClick={() => void run(() => api(`/v1/dairy/dispatches/${x.id}/paid`, 'POST', {}), t('saved'))} className="min-h-10 self-start text-xs font-semibold text-brand underline">{t('dairy.markPaid')}</button>}
+          {x.paidOn && <p className="text-xs text-brand-strong">{t('dairy.paidOn', { date: x.paidOn })}</p>}
         </section>
       ))}
     </>
@@ -450,7 +450,7 @@ function Rates({ shopId }: { shopId: string }) {
     : (Object.entries(d.rates) as [Kind, typeof empty][]).filter(([, r]) => (d.method === 'flat' ? Number(r.flatRate) : Number(r.fatRate)) > 0)
   return (
     <>
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('dairy.newPlan')}</h3>
         <p className="text-xs text-muted">{t('dairy.planHint')}</p>
         <div className="grid grid-cols-3 gap-2">
@@ -487,10 +487,10 @@ function Rates({ shopId }: { shopId: string }) {
           rates: filled.map(([kind, r]) => ({ kind, fatRate: Number(r.fatRate) || 0, snfRate: Number(r.snfRate) || 0, flatRate: Number(r.flatRate) || 0, minFat: Number(r.minFat) || 0, minSnf: Number(r.minSnf) || 0 })),
           grid: d.method === 'grid' ? cells.map((c) => ({ kind: gridKind, ...c })) : null,
         }), t('saved'))}>{t('dairy.savePlan')}</Button>
-        {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
       </section>
       {plans.map((p) => (
-        <section key={p.id} className="rounded-[18px] bg-white p-3 text-sm">
+        <section key={p.id} className="rounded-card bg-white p-3 text-sm">
           <p className="font-bold">{t(`dairy.for_${p.for}`)} · {t('dairy.fromDate', { date: p.from })} · {t(`dairy.method_${p.method}`)}</p>
           {p.method === 'grid' && <p>{t('dairy.gridSummary', { count: p.gridCells ?? 0, fat: `${p.gridMinFat}–${p.gridMaxFat}`, snf: `${p.gridMinSnf}–${p.gridMaxSnf}` })}</p>}
           {p.method !== 'grid' && p.rates.map((r) => <p key={r.kind}>{t(`dairy.kind_${r.kind}`)}: {p.method === 'flat' ? `₹${r.flatRate}/L` : `₹${r.fatRate}/kg fat${p.method === 'fat_snf' ? ` + ₹${r.snfRate}/kg SNF` : ''}`} · min {r.minFat}/{r.minSnf}</p>)}
@@ -521,16 +521,16 @@ function Helper({ shopId, shopName }: { shopId: string; shopName: string }) {
     setBusy(false)
   }
   const quick = ['dairy.q_today', 'dairy.q_pay', 'dairy.q_flags', 'dairy.q_dairy'] as const
-  if (!ai.canRead) return <p className="rounded-[18px] bg-white p-3 text-sm text-muted">{t('dairy.helperOff')}</p>
+  if (!ai.canRead) return <p className="rounded-card bg-white p-3 text-sm text-muted">{t('dairy.helperOff')}</p>
   if (!ai.consented) return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-amber-50 p-3 text-sm">
+    <section className="flex flex-col gap-2 rounded-card bg-warn-soft p-3 text-sm">
       <p>{t('dairy.helperConsent')}</p>
       <Button onClick={() => void ai.agree()}>{t('expense.consentYes')}</Button>
     </section>
   )
   return (
     <>
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <p className="text-xs text-muted">{t('dairy.helperHint')}</p>
         <div className="flex flex-wrap gap-2">{quick.map((k) => <button key={k} disabled={busy} onClick={() => { setQuestion(t(k)); void ask(t(k)) }} className="min-h-10 rounded-full border border-line px-3 text-sm">{t(k)}</button>)}</div>
         <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={2} placeholder={t('dairy.askPlaceholder')} className="rounded-xl border border-line p-2" />
@@ -541,7 +541,7 @@ function Helper({ shopId, shopName }: { shopId: string; shopName: string }) {
         {message && <p className="text-sm text-due">{message}</p>}
       </section>
       {answer && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-3">
           <p className="whitespace-pre-line">{answer.answer}</p>
           {answer.drafts.length > 0 && <p className="text-xs text-muted">{t('dairy.draftsHint')}</p>}
           {answer.drafts.map((d) => {

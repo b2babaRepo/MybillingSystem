@@ -58,13 +58,13 @@ export function CommonListScreen({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('commonList.hint')}</p>
-      {result && <p className="rounded-[14px] bg-teal-50 p-3 font-semibold text-teal-900">{result}</p>}
+      {result && <p className="rounded-[14px] bg-brand-soft p-3 font-semibold text-brand-deep">{result}</p>}
       {aisle ? (
-        <button onClick={() => setAisle(null)} className="flex min-h-11 items-center gap-1 self-start text-lg font-bold text-teal-800">
+        <button onClick={() => setAisle(null)} className="flex min-h-11 items-center gap-1 self-start text-lg font-bold text-brand-strong">
           ‹ {i18n.language === 'hi' ? aisle.name : aisle.nameEn}
         </button>
       ) : (
-        <div className="rounded-[18px] bg-white p-3">
+        <div className="rounded-card bg-white p-3">
           <AisleTiles counts={sellingPerAisle} onPick={setAisle} />
         </div>
       )}
@@ -203,8 +203,8 @@ function OptionsSheet({ shopId, item, options, onClose, onChanged }: { shopId: s
         <p className="mb-3 text-sm text-muted">{t('options.count', { count: options.length })}</p>
 
         {usualOption && (
-          <button onClick={() => navigate(`/p/${usualOption.id}`)} className="mb-3 flex w-full flex-col gap-1.5 rounded-[18px] border-2 border-teal-700 bg-white p-3 text-left">
-            <span className="text-xs font-bold text-teal-800">★ {t('options.usualHeading')}</span>
+          <button onClick={() => navigate(`/p/${usualOption.id}`)} className="mb-3 flex w-full flex-col gap-1.5 rounded-card border-2 border-brand bg-white p-3 text-left">
+            <span className="text-xs font-bold text-brand-strong">★ {t('options.usualHeading')}</span>
             <span className="flex items-center gap-3">
               {thumb(usualOption, 'h-12 w-12')}
               <span className="flex min-w-0 flex-1 flex-col">
@@ -219,7 +219,7 @@ function OptionsSheet({ shopId, item, options, onClose, onChanged }: { shopId: s
         {groups.map((g) => (
           <section key={g.key} className="mb-3">
             <h3 className="mb-1.5 text-sm font-bold text-muted">{g.label}</h3>
-            <ul className="overflow-hidden rounded-[18px] bg-white">
+            <ul className="overflow-hidden rounded-card bg-white">
               {g.items.map((o) => (
                 <li key={o.id} className="flex items-center border-b border-line last:border-b-0">
                   <button aria-label={`${t('options.makeUsual')}: ${o.name}`} onClick={() => void run(() => request(`/v1/products/${o.id}/default`, 'POST'))}
@@ -245,11 +245,11 @@ function OptionsSheet({ shopId, item, options, onClose, onChanged }: { shopId: s
         {adding && <h3 className="mt-2 mb-2 font-bold">{t('options.addTitle')}</h3>}
         {adding && <div className="flex flex-col gap-2 rounded-[14px] bg-white p-3">
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder={t('options.namePlaceholder')}
-            className="h-12 rounded-xl border border-line px-3 outline-none focus:border-teal-600" />
+            className="h-12 rounded-xl border border-line px-3 outline-none focus:border-brand-line" />
           <div className="flex flex-wrap gap-1.5">
             {UNITS.map((u) => (
               <button key={u} onClick={() => setUnit(u)} aria-pressed={unit === u}
-                className={`min-h-10 rounded-full px-3 text-sm font-semibold ${unit === u ? 'bg-teal-700 text-white' : 'bg-[#edf2f1]'}`}>
+                className={`min-h-10 rounded-full px-3 text-sm font-semibold ${unit === u ? 'bg-brand text-white' : 'bg-[#edf2f1]'}`}>
                 {t('options.soldPer', { unit: t(`units.${u}`) })}
               </button>
             ))}
@@ -295,12 +295,12 @@ function PriceSheet({ item, value, onClose, onSave }: { item: CatalogueItem; val
         <label className="block">
           <span className="mb-1 block font-semibold">{t('commonList.priceLabel', { unit })}</span>
           <input autoFocus value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" placeholder={String(item.typicalPrice)}
-            className="h-14 w-full rounded-[14px] border border-line bg-white px-4 text-2xl font-bold outline-none focus:border-teal-600" />
+            className="h-14 w-full rounded-[14px] border border-line bg-white px-4 text-2xl font-bold outline-none focus:border-brand-line" />
         </label>
         <label className="mt-3 block">
           <span className="mb-1 block text-sm font-semibold text-muted">{t('commonList.stockLabel', { unit })}</span>
           <input value={stock} onChange={(e) => setStock(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal"
-            className="h-12 w-full rounded-[14px] border border-line bg-white px-4 text-lg outline-none focus:border-teal-600" />
+            className="h-12 w-full rounded-[14px] border border-line bg-white px-4 text-lg outline-none focus:border-brand-line" />
         </label>
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Button tone="plain" className="h-12" onClick={() => onSave(null)}>{value ? t('remove') : t('cancel')}</Button>

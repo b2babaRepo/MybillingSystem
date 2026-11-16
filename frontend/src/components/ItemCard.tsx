@@ -30,8 +30,8 @@ export function ItemCard({ item, title, subtitle, badge, onClick, selected, comp
   return (
     <Wrapper
       onClick={onClick}
-      className={`item-card group relative flex w-full flex-col overflow-hidden rounded-[18px] bg-white text-left shadow-[0_2px_10px_rgba(16,32,29,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_22px_rgba(16,32,29,0.12)] active:scale-[0.97] ${
-        selected ? 'ring-[3px] ring-teal-600 shadow-[0_6px_18px_rgba(13,148,136,0.25)]' : ''
+      className={`item-card group relative flex w-full flex-col overflow-hidden rounded-card bg-white text-left shadow-[0_2px_10px_rgba(16,32,29,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_22px_rgba(16,32,29,0.12)] active:scale-[0.97] ${
+        selected ? 'ring-[3px] ring-brand-line shadow-[0_6px_18px_rgba(13,148,136,0.25)]' : ''
       }`}
     >
       <div

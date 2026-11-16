@@ -31,16 +31,16 @@ export function LotsScreen({ shopId }: { shopId: string }) {
         onPick={(p) => { setText(p.name); setProductId(p.id) }} />
       {lots.length === 0 && <p className="rounded-xl bg-white p-4 text-sm text-muted shadow-sm">{t('landed.noLots')}</p>}
       {lots.map((lot) => (
-        <section key={lot.id} className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm">
+        <section key={lot.id} className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm">
           <p className="flex flex-wrap justify-between gap-2 font-semibold">
             <span>{lot.supplier}{lot.billNo ? ` · ${lot.billNo}` : ''}</span>
             <span className="text-sm text-muted">{new Date(lot.occurredAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: '2-digit' })}</span>
           </p>
-          {cheapest !== null && lot.lines.some((l) => l.landedCost === cheapest) && <p className="self-start rounded-full bg-teal-50 px-2 text-xs font-semibold text-teal-800">{t('landed.cheapest')}</p>}
+          {cheapest !== null && lot.lines.some((l) => l.landedCost === cheapest) && <p className="self-start rounded-full bg-brand-soft px-2 text-xs font-semibold text-brand-strong">{t('landed.cheapest')}</p>}
           <LotTable lines={lot.lines} showName={!productId} />
           <p className="flex flex-wrap justify-between gap-x-3 text-sm">
             <span>{t('landed.total', { amount: formatRupees(lot.landedTotal) })}{lot.charges > 0 ? ` · ${t('landed.chargesIn', { amount: formatRupees(lot.charges) })}` : ''}</span>
-            {lot.revenue > 0 && <span className={lot.profit < 0 ? 'text-due' : 'text-teal-800'}>{t('landed.soldProfit', { revenue: formatRupees(lot.revenue), profit: formatRupees(lot.profit) })}</span>}
+            {lot.revenue > 0 && <span className={lot.profit < 0 ? 'text-due' : 'text-brand-strong'}>{t('landed.soldProfit', { revenue: formatRupees(lot.revenue), profit: formatRupees(lot.profit) })}</span>}
           </p>
         </section>
       ))}

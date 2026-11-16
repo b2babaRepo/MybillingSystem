@@ -105,16 +105,16 @@ export function StockStatementScreen({ shopId }: { shopId: string }) {
       case 'closing': return <td key={c} className={`px-2 font-bold ${i.closing < 0 ? 'text-due' : ''}`}>{i.closing}{i.closingBags != null && <span className="block text-xs font-normal text-muted">{t('bag.inBags', { count: i.closingBags })}</span>}</td>
       case 'value': return <td key={c} className="px-2 font-semibold">{i.value !== null ? formatRupees(i.value) : '—'}</td>
       case 'inShop': return <td key={c} className={`px-2 ${i.inShop < 0 ? 'text-due' : ''}`}>{i.inShop}</td>
-      case 'promised': return <td key={c} className="px-2 text-amber-800">{i.promised + i.reserved || ''}</td>
+      case 'promised': return <td key={c} className="px-2 text-warn">{i.promised + i.reserved || ''}</td>
       case 'free': return <td key={c} className={`px-2 font-semibold ${i.free < 0 ? 'text-due' : ''}`}>{i.free < 0 ? t('st.short', { qty: -i.free }) : i.free}</td>
-      case 'coming': return <td key={c} className="px-2">{i.coming ? <span className={i.lateOrder ? 'font-semibold text-due' : 'text-teal-800'}>{i.coming}{i.lateOrder && ' ⏰'}</span> : ''}</td>
+      case 'coming': return <td key={c} className="px-2">{i.coming ? <span className={i.lateOrder ? 'font-semibold text-due' : 'text-brand-strong'}>{i.coming}{i.lateOrder && ' ⏰'}</span> : ''}</td>
       case 'cover': return <td key={c} className={`px-3 text-xs font-semibold ${coverTone(i.cover)}`}>{coverText(t, i.cover)}</td>
     }
   }
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-bold">📊 {t('sl.statement')}</h1>
           <span className="flex gap-2">
@@ -125,25 +125,25 @@ export function StockStatementScreen({ shopId }: { shopId: string }) {
         <p className="text-sm text-muted">{t('st.hint')}</p>
         {choosing && (
           <div className="flex flex-wrap gap-1 rounded-xl bg-[#f6faf9] p-2">
-            {COLS.map((c) => <button key={c} onClick={() => toggleCol(c)} aria-pressed={cols.includes(c)} className={`h-8 rounded-full px-3 text-xs font-semibold ${cols.includes(c) ? 'bg-teal-700 text-white' : 'bg-white text-muted ring-1 ring-black/5'}`}>{t(`st.col.${c}`)}</button>)}
+            {COLS.map((c) => <button key={c} onClick={() => toggleCol(c)} aria-pressed={cols.includes(c)} className={`h-8 rounded-full px-3 text-xs font-semibold ${cols.includes(c) ? 'bg-brand text-white' : 'bg-white text-muted ring-1 ring-black/5'}`}>{t(`st.col.${c}`)}</button>)}
           </div>
         )}
         <div className="flex flex-wrap gap-2 text-sm">
-          <label className="flex items-center gap-1.5">{t('sl.from')}<input type="date" value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ ...range, from: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-teal-600" /></label>
-          <label className="flex items-center gap-1.5">{t('sl.to')}<input type="date" value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ ...range, to: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-teal-600" /></label>
+          <label className="flex items-center gap-1.5">{t('sl.from')}<input type="date" value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ ...range, from: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-brand-line" /></label>
+          <label className="flex items-center gap-1.5">{t('sl.to')}<input type="date" value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ ...range, to: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-brand-line" /></label>
         </div>
         {d && (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <span className="flex flex-col rounded-2xl bg-teal-50 p-3 text-teal-900"><span className="text-xs">{t('sl.totalValue')}</span><b className="text-xl">{formatRupees(d.value)}</b></span>
-            <span className="flex flex-col rounded-2xl bg-red-50 p-3 text-red-800"><span className="text-xs">{t('sl.lostValue')}</span><b className="text-xl">{formatRupees(d.lostValue)}</b></span>
-            <span className="flex flex-col rounded-2xl bg-amber-50 p-3 text-amber-900"><span className="text-xs">{t('st.overStock')}</span><b className="text-xl">{formatRupees(overStock)}</b></span>
+            <span className="flex flex-col rounded-2xl bg-brand-soft p-3 text-brand-deep"><span className="text-xs">{t('sl.totalValue')}</span><b className="text-xl">{formatRupees(d.value)}</b></span>
+            <span className="flex flex-col rounded-2xl bg-due-soft p-3 text-red-800"><span className="text-xs">{t('sl.lostValue')}</span><b className="text-xl">{formatRupees(d.lostValue)}</b></span>
+            <span className="flex flex-col rounded-2xl bg-warn-soft p-3 text-warn-ink"><span className="text-xs">{t('st.overStock')}</span><b className="text-xl">{formatRupees(overStock)}</b></span>
             <button onClick={() => setState('low')} className="flex flex-col rounded-2xl bg-[#f6faf9] p-3 text-left"><span className="text-xs text-muted">{t('st.underWeek')}</span><b className="text-xl text-due">{underWeek}</b></button>
-            {d.unvalued > 0 && <span className="col-span-2 text-xs font-semibold text-amber-800 sm:col-span-4">{t('sl.unvalued', { count: d.unvalued })}</span>}
+            {d.unvalued > 0 && <span className="col-span-2 text-xs font-semibold text-warn sm:col-span-4">{t('sl.unvalued', { count: d.unvalued })}</span>}
           </div>
         )}
         <div className="flex flex-wrap gap-1">
           {states.map(([s, n]) => (
-            <button key={s} onClick={() => setState(s)} aria-pressed={state === s} className={`h-9 rounded-full px-3 text-sm font-semibold ${state === s ? 'bg-teal-700 text-white' : 'bg-[#edf2f1] text-muted'}`}>{t(`st.state.${s}`)}{s !== 'all' && n > 0 ? ` · ${n}` : ''}</button>
+            <button key={s} onClick={() => setState(s)} aria-pressed={state === s} className={`h-9 rounded-full px-3 text-sm font-semibold ${state === s ? 'bg-brand text-white' : 'bg-[#edf2f1] text-muted'}`}>{t(`st.state.${s}`)}{s !== 'all' && n > 0 ? ` · ${n}` : ''}</button>
           ))}
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -158,13 +158,13 @@ export function StockStatementScreen({ shopId }: { shopId: string }) {
         </div>
         <span className="relative block">
           <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">🔍</span>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('st.search')} aria-label={t('st.search')} className="h-11 w-full rounded-2xl border border-line bg-white pl-10 pr-3 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('st.search')} aria-label={t('st.search')} className="h-11 w-full rounded-2xl border border-line bg-white pl-10 pr-3 outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
         </span>
       </section>
       {statement.isError && <p className="text-due">{t('error')}</p>}
       {d && groups.length === 0 && <p className="py-6 text-center text-muted">{t('st.none')}</p>}
       {groups.map(([category, lines]) => (
-        <section key={category} className="overflow-x-auto rounded-[18px] bg-white shadow-sm">
+        <section key={category} className="overflow-x-auto rounded-card bg-white shadow-sm">
           <h2 className="bg-[#f6faf9] px-4 py-2 text-sm font-bold text-muted">{category || t('sl.noCategory')} · {formatRupees(lines.reduce((s, l) => s + (l.value ?? 0), 0))}</h2>
           <table className="w-full min-w-[640px] text-sm">
             <thead><tr className="border-b border-line text-right text-xs text-muted">

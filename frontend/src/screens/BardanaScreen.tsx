@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/ui'
+import { Button, control } from '../components/ui'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 
@@ -13,7 +13,7 @@ interface Summary { types: BagType[]; suppliers: SupplierBags[]; soldThisMonth: 
 interface Move { id: string; bagType: string; kind: Kind; quantity: number; rate: number | null; amount: number | null; mode: string | null; supplier: string | null; party: string | null; note: string | null; occurredAt: string; struck: boolean; by: string | null }
 interface Supplier { id: string; name: string }
 
-const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
+const input = control
 const KINDS: Kind[] = ['came_with_goods', 'sold', 'returned_to_supplier', 'used', 'damaged', 'bought', 'counted', 'opening']
 const blank = { kind: 'came_with_goods' as Kind, quantity: '', rate: '', mode: 'cash', supplierId: '', party: '', note: '' }
 
@@ -75,12 +75,12 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
       </header>
 
       {summary && (summary.soldThisMonth > 0 || summary.boughtThisMonth > 0) && (
-        <p className="rounded-xl bg-teal-50 p-3 text-sm text-teal-900">{t('bardana.month', { sold: formatRupees(summary.soldThisMonth), bought: formatRupees(summary.boughtThisMonth) })}</p>
+        <p className="rounded-xl bg-brand-soft p-3 text-sm text-brand-deep">{t('bardana.month', { sold: formatRupees(summary.soldThisMonth), bought: formatRupees(summary.boughtThisMonth) })}</p>
       )}
 
       <section className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {types.map((x) => (
-          <div key={x.id} className="flex flex-col gap-1 rounded-[18px] bg-white p-3 shadow-sm">
+          <div key={x.id} className="flex flex-col gap-1 rounded-card bg-white p-3 shadow-sm">
             <p className="flex justify-between font-bold"><span>👜 {x.name}</span><span className="tabular-nums">{x.onHand}</span></p>
             {isOwner && (
               <label className="flex items-center gap-2 text-xs">
@@ -98,7 +98,7 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
           </div>
         ))}
         {isOwner && (
-          <div className="flex flex-col gap-2 rounded-[18px] border border-dashed border-line p-3">
+          <div className="flex flex-col gap-2 rounded-card border border-dashed border-line p-3">
             <div className="grid grid-cols-[1fr_6rem] gap-2">
               <input aria-label={t('bardana.typeName')} placeholder={t('bardana.typeName')} value={typeName} maxLength={60} onChange={(e) => setTypeName(e.target.value)} className={input} />
               <input aria-label={t('bardana.saleRate')} placeholder={t('bardana.saleRate')} value={typeRate} onChange={(e) => setTypeRate(e.target.value)} inputMode="decimal" className={input} />
@@ -109,12 +109,12 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
       </section>
 
       {type && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <h2 className="font-bold">{type.name} · {t('bardana.inBook', { qty: type.onHand })}</h2>
           <div className="flex flex-wrap gap-2">
             {KINDS.map((k) => (
               <button key={k} onClick={() => setForm({ ...form, kind: k, rate: k === 'sold' && type.saleRate != null ? String(type.saleRate) : form.rate })}
-                className={`min-h-10 rounded-full border px-3 text-sm font-semibold ${form.kind === k ? 'border-teal-700 bg-teal-700 text-white' : 'border-line'}`}>{t(`bardana.kind.${k}`)}</button>
+                className={`min-h-10 rounded-full border px-3 text-sm font-semibold ${form.kind === k ? 'border-brand bg-brand text-white' : 'border-line'}`}>{t(`bardana.kind.${k}`)}</button>
             ))}
           </div>
           <input aria-label={t('bardana.qty')} placeholder={form.kind === 'counted' ? t('bardana.countedQty') : t('bardana.qty')} value={form.quantity}
@@ -146,7 +146,7 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
       {message && <p className="text-sm text-due">{message}</p>}
 
       {(summary?.suppliers.length ?? 0) > 0 && (
-        <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm">
           <h2 className="font-bold">{t('bardana.suppliersTitle')}</h2>
           {summary!.suppliers.map((s) => (
             <p key={s.supplierId} className="flex justify-between gap-2 border-t border-line py-1.5 text-sm">
@@ -158,7 +158,7 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
       )}
 
       {moves.length > 0 && (
-        <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm">
           <h2 className="font-bold">{t('bardana.moves')}</h2>
           {moves.map((m) => (
             <div key={m.id} className={`flex items-start justify-between gap-2 border-t border-line py-1.5 text-sm ${m.struck ? 'text-muted line-through' : ''}`}>
@@ -167,7 +167,7 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
                 <p className="text-xs text-muted">{new Date(m.occurredAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}{[m.supplier, m.party, m.note, m.by].filter(Boolean).map((x) => ` · ${x}`).join('')}{m.amount != null ? ` · ${formatRupees(m.amount)} ${m.mode === 'upi' ? 'UPI' : t('bardana.cash')}` : ''}</p>
               </div>
               <div className="flex flex-col items-end">
-                <span className={`font-semibold tabular-nums ${m.quantity < 0 ? 'text-due' : 'text-teal-700'}`}>{m.quantity > 0 ? '+' : ''}{m.quantity}</span>
+                <span className={`font-semibold tabular-nums ${m.quantity < 0 ? 'text-due' : 'text-brand'}`}>{m.quantity > 0 ? '+' : ''}{m.quantity}</span>
                 {isOwner && !m.struck && <button onClick={() => void run(() => api(`/v1/bardana/moves/${m.id}/strike`, 'POST', {}))} className="text-xs font-semibold text-due">{t('bardana.strike')}</button>}
               </div>
             </div>

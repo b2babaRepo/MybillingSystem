@@ -69,7 +69,7 @@ export function AccountMenu({ name, role, actions, unsynced, onSignOut }: {
                 </button>
               )
             })()}
-            <button onClick={run(onSignOut)} className="mt-1.5 min-h-14 shrink-0 rounded-2xl bg-red-50 text-[17px] font-bold text-red-700">{t('signOut')}</button>
+            <button onClick={run(onSignOut)} className="mt-1.5 min-h-14 shrink-0 rounded-2xl bg-due-soft text-[17px] font-bold text-red-700">{t('signOut')}</button>
             {unsynced > 0 && <p className="text-center text-sm text-muted">{t('account.unsynced', { count: unsynced })}</p>}
           </div>
         </div>,

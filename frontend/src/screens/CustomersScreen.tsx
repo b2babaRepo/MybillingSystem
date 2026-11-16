@@ -26,7 +26,7 @@ export function CustomersScreen({ shopId, selectedId, isOwner = false }: { shopI
     <div className="p-4">
       <OpenDisputesBanner />
       <Button className="mb-3 hidden h-14 w-full text-lg shadow-md shadow-teal-900/15 lg:block" onClick={() => setAdding(true)}>+ {t('addCustomer')}</Button>
-      <div className="mb-3 flex flex-col gap-3 rounded-[18px] bg-white p-3 shadow-sm">
+      <div className="mb-3 flex flex-col gap-3 rounded-card bg-white p-3 shadow-sm">
         <span className="relative block">
           <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">🔍</span>
           <input
@@ -34,7 +34,7 @@ export function CustomersScreen({ shopId, selectedId, isOwner = false }: { shopI
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('search')}
             aria-label={t('search')}
-            className="h-12 w-full rounded-2xl border border-line bg-[#f6faf9] pl-11 pr-4 text-[17px] outline-none transition focus:border-teal-600 focus:bg-white focus:ring-4 focus:ring-teal-600/10"
+            className="h-12 w-full rounded-2xl border border-line bg-[#f6faf9] pl-11 pr-4 text-[17px] outline-none transition focus:border-brand-line focus:bg-white focus:ring-4 focus:ring-brand-line/10"
           />
         </span>
         {/* Sort: one segmented control. */}
@@ -44,7 +44,7 @@ export function CustomersScreen({ shopId, selectedId, isOwner = false }: { shopI
               key={key}
               onClick={() => setSort(key)}
               aria-pressed={sort === key}
-              className={`h-10 rounded-xl text-[15px] font-semibold transition ${sort === key ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted hover:text-ink'}`}
+              className={`h-10 rounded-xl text-[15px] font-semibold transition ${sort === key ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}
             >
               {t(`sort.${key}`)}
             </button>
@@ -59,17 +59,17 @@ export function CustomersScreen({ shopId, selectedId, isOwner = false }: { shopI
         </button>
         {isOwner && (
           <button onClick={() => navigate('/khata/import')} className="flex min-h-14 items-center gap-2.5 rounded-2xl bg-white p-3 text-left text-sm font-semibold shadow-sm hover:bg-[#f6faf9]">
-            <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-lg">📥</span>
+            <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-lg">📥</span>
             <span className="min-w-0 flex-1 leading-snug">{t('partyImport.link')}</span><span aria-hidden className="text-muted">›</span>
           </button>
         )}
       </div>
       {!isLoading && customers.length === 0 && <p className="py-8 text-center text-muted">{t('noCustomers')}</p>}
-      <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
+      <ul className="divide-y divide-[#edf2f1] rounded-card bg-white">
         {shown.map((c) => (
           <li key={c.id}>
-            <button aria-current={selectedId === c.id ? 'true' : undefined} className={`flex min-h-16 w-full items-center gap-3 px-3.5 py-3 text-left active:bg-slate-50 lg:hover:bg-[#f6faf9] ${selectedId === c.id ? 'lg:bg-teal-50' : ''}`} onClick={() => navigate(`/c/${c.id}`)}>
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e0efec] font-bold text-teal-700">{initials(c.name)}</span>
+            <button aria-current={selectedId === c.id ? 'true' : undefined} className={`flex min-h-16 w-full items-center gap-3 px-3.5 py-3 text-left active:bg-slate-50 lg:hover:bg-[#f6faf9] ${selectedId === c.id ? 'lg:bg-brand-soft' : ''}`} onClick={() => navigate(`/c/${c.id}`)}>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e0efec] font-bold text-brand">{initials(c.name)}</span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 text-[17px] font-semibold">
                   {c.name} {c.pending > 0 && <PendingDot />}

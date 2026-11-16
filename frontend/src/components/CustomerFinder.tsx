@@ -49,7 +49,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
             <span className="block truncate text-lg font-semibold">{selected.name}</span>
             <span className="block text-sm text-muted">{[selected.phone, selected.balance > 0 ? t('billFind.owes', { amount: formatRupees(selected.balance) }) : null].filter(Boolean).join(' · ')}</span>
           </span>
-          <button onClick={() => onPick('')} className="min-h-11 px-2 text-sm font-semibold text-teal-700 underline">{t('billFind.change')}</button>
+          <button onClick={() => onPick('')} className="min-h-11 px-2 text-sm font-semibold text-brand underline">{t('billFind.change')}</button>
         </div>
         {over && <p className="mt-1 text-sm font-semibold text-due">{t('billFind.overLimit', { limit: formatRupees(limit) })}</p>}
       </div>
@@ -58,7 +58,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
 
   if (adding) {
     return (
-      <div className="flex flex-col gap-2 rounded-xl border border-teal-700 p-3">
+      <div className="flex flex-col gap-2 rounded-xl border border-brand p-3">
         <span className="text-sm font-semibold">{t('newBuyer.title')}</span>
         <input value={adding.name} onChange={(e) => setAdding({ ...adding, name: e.target.value })} placeholder={t('newBuyer.name')} aria-label={t('newBuyer.name')} maxLength={80}
           className="h-12 w-full rounded-xl border border-line bg-white px-3 text-lg" />
@@ -67,7 +67,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
         <p className="text-xs text-muted">{t('newBuyer.hint')}</p>
         {problem && <p className="text-sm text-due">{problem}</p>}
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" disabled={!adding.name.trim() && !adding.phone.trim()} onClick={() => void saveNew()} className="min-h-11 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-40">{t('newBuyer.save')}</button>
+          <button type="button" disabled={!adding.name.trim() && !adding.phone.trim()} onClick={() => void saveNew()} className="min-h-11 rounded-xl bg-brand font-semibold text-white disabled:opacity-40">{t('newBuyer.save')}</button>
           <button type="button" onClick={() => setAdding(null)} className="min-h-11 rounded-xl border border-line font-semibold">{t('cancel')}</button>
         </div>
       </div>
@@ -95,16 +95,16 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
           }}
           placeholder={placeholder ?? t('billFind.placeholder')}
           autoComplete="off"
-          className="h-12 w-full rounded-2xl border border-line bg-[#f6faf9] pl-11 pr-3 text-lg outline-none transition focus:border-teal-600 focus:bg-white focus:ring-4 focus:ring-teal-600/10"
+          className="h-12 w-full rounded-2xl border border-line bg-[#f6faf9] pl-11 pr-3 text-lg outline-none transition focus:border-brand-line focus:bg-white focus:ring-4 focus:ring-brand-line/10"
         />
         </span>
       </label>
       {/* Always in sight: a new customer's name and mobile go straight on the bill. */}
       {onCreate && !open && (
         <span className="flex flex-wrap gap-x-2">
-          <button type="button" onClick={startAdding} className="mt-2 flex min-h-10 items-center gap-1.5 rounded-full border border-teal-700/30 bg-teal-50/60 px-3.5 text-sm font-semibold text-teal-800 hover:bg-teal-50">{t('newBuyer.addBlank')}</button>
+          <button type="button" onClick={startAdding} className="mt-2 flex min-h-10 items-center gap-1.5 rounded-full border border-brand/30 bg-brand-soft/60 px-3.5 text-sm font-semibold text-brand-strong hover:bg-brand-soft">{t('newBuyer.addBlank')}</button>
           {/* Udhaar to someone who won't give a name yet: a numbered "Name later" khata the owner names afterwards. */}
-          {onNameLater && <button type="button" onClick={() => void onNameLater().then(onPick)} className="mt-2 flex min-h-10 items-center gap-1.5 rounded-full border border-amber-600/30 bg-amber-50 px-3.5 text-sm font-semibold text-amber-900 hover:bg-amber-100"><span aria-hidden>⏳</span>{t('nameLater.button')}</button>}
+          {onNameLater && <button type="button" onClick={() => void onNameLater().then(onPick)} className="mt-2 flex min-h-10 items-center gap-1.5 rounded-full border border-amber-600/30 bg-warn-soft px-3.5 text-sm font-semibold text-warn-ink hover:bg-amber-100"><span aria-hidden>⏳</span>{t('nameLater.button')}</button>}
         </span>
       )}
       {open && (
@@ -114,7 +114,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
               key={c.id}
               // Before the box loses focus, which would close this list first.
               onMouseDown={(e) => { e.preventDefault(); pick(c.id) }}
-              className={`flex min-h-11 w-full items-center justify-between gap-2 px-3 py-1 text-left ${i === active ? 'bg-teal-50' : ''}`}
+              className={`flex min-h-11 w-full items-center justify-between gap-2 px-3 py-1 text-left ${i === active ? 'bg-brand-soft' : ''}`}
             >
               <span className="min-w-0">
                 <span className="block truncate font-semibold">{c.name}</span>
@@ -125,7 +125,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
           ))}
           {hits.length === 0 && !(onCreate && text.trim()) && <p className="p-3 text-sm text-muted">{t('billFind.none')}</p>}
           {onCreate && text.trim() && (
-            <button onMouseDown={(e) => { e.preventDefault(); startAdding() }} className="flex min-h-11 w-full items-center border-t border-line px-3 text-left font-semibold text-teal-800">
+            <button onMouseDown={(e) => { e.preventDefault(); startAdding() }} className="flex min-h-11 w-full items-center border-t border-line px-3 text-left font-semibold text-brand-strong">
               {t('newBuyer.add', { text: text.trim() })}
             </button>
           )}
@@ -144,7 +144,7 @@ export function CashChange({ paying, received, onChange }: { paying: number; rec
       <span className="font-semibold text-muted">💵 {t('billFind.received')}</span>
       <span className="relative">
         <span aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg text-muted">₹</span>
-        <input id="bill-received" value={received} onChange={(e) => onChange(e.target.value)} inputMode="decimal" autoComplete="off" placeholder={String(paying)} className="h-12 w-36 rounded-xl border border-line bg-white pl-8 pr-2 text-lg font-semibold outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+        <input id="bill-received" value={received} onChange={(e) => onChange(e.target.value)} inputMode="decimal" autoComplete="off" placeholder={String(paying)} className="h-12 w-36 rounded-xl border border-line bg-white pl-8 pr-2 text-lg font-semibold outline-none focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
       </span>
       {back !== null && back >= 0 && <span className="rounded-full bg-green-100 px-3 py-1 text-base font-bold text-green-900">{t('billFind.giveBack', { amount: formatRupees(back) })}</span>}
       {back !== null && back < 0 && <span className="rounded-full bg-red-100 px-3 py-1 font-semibold text-due">{t('billFind.short', { amount: formatRupees(-back) })}</span>}

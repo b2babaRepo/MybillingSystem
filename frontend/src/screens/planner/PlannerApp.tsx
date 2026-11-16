@@ -54,7 +54,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl pb-20 lg:max-w-none lg:pb-6">
-      <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white lg:h-16 lg:py-0 print:hidden">
+      <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand px-4 py-3 text-white lg:h-16 lg:py-0 print:hidden">
         <button type="button" onClick={() => setMenuOpen(!menuOpen)} aria-label={t('a11y.menu')} aria-expanded={menuOpen} className="-ml-2 hidden h-11 w-11 items-center justify-center lg:flex">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
@@ -117,7 +117,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
             key={tab.to}
             onClick={() => navigate(tab.to)}
             aria-current={tab.active ? 'page' : undefined}
-            className={`flex flex-col items-center justify-center gap-0.5 text-[13px] lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-4 lg:text-base ${tab.active ? 'font-bold text-teal-700 lg:bg-teal-50' : 'font-semibold text-muted lg:hover:bg-[#f1f5f4]'}`}
+            className={`flex flex-col items-center justify-center gap-0.5 text-[13px] lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-4 lg:text-base ${tab.active ? 'font-bold text-brand lg:bg-brand-soft' : 'font-semibold text-muted lg:hover:bg-[#f1f5f4]'}`}
           >
             {tab.icon}
             {tab.label}

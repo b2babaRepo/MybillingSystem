@@ -228,12 +228,12 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
 
   const viewSwitch = (
     <>
-    <button onClick={() => navigate('/team')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-teal-50 px-4 text-left font-semibold text-teal-900">
+    <button onClick={() => navigate('/team')} className="flex min-h-12 items-center justify-between rounded-card bg-brand-soft px-4 text-left font-semibold text-brand-deep">
       <span>👥 {t('teamLink')}</span><span aria-hidden="true">→</span>
     </button>
     {isOwner && <div role="tablist" className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 font-semibold">
       {(['day', 'month'] as const).map((v) => (
-        <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`min-h-11 rounded-xl ${view === v ? 'bg-teal-700 text-white' : ''}`}>
+        <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`min-h-11 rounded-xl ${view === v ? 'bg-brand text-white' : ''}`}>
           {t(`kharchaMonth.tab.${v}`)}
         </button>
       ))}
@@ -247,7 +247,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
   return (
     <div className="flex flex-col gap-3 p-4 lg:mx-auto lg:max-w-3xl">
       {viewSwitch}
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{isToday ? t('expense.today') : label}</span>
         <button onClick={() => setDay(shiftDay(day, 1))} disabled={isToday} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -265,7 +265,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
         <label htmlFor="expense-text" className="text-[15px] font-bold">{t('expense.writeTitle')}</label>
         <textarea id="expense-text" value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder={t('expense.placeholder')}
           className="rounded-2xl border border-line p-3 text-lg" />
-        <button disabled={busy || !text.trim()} onClick={() => void read()} className="h-12 rounded-2xl bg-teal-700 font-bold text-white disabled:opacity-40">
+        <button disabled={busy || !text.trim()} onClick={() => void read()} className="h-12 rounded-2xl bg-brand font-bold text-white disabled:opacity-40">
           {t('expense.read')}
         </button>
         {/* Say it, or snap the bill: shown only when the server has those switched on. */}
@@ -275,23 +275,23 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
               ? <VoiceButton onText={(heard) => setText((current) => (current ? `${current}, ${heard}` : heard))} onError={setError} />
               : <button onClick={() => setAskConsent('voice')} className="min-h-14 rounded-2xl bg-gradient-to-r from-rose-500 to-orange-400 font-bold text-white">🎤 {t('ai.speak')}</button>)}
             {ai.canReadPhotos && (ai.consentedAt ? (
-              <label className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-teal-700 font-bold text-teal-800">
+              <label className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-brand font-bold text-brand-strong">
                 📷 {t('expense.photo')}
                 <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy}
                   onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void readPhoto(file) }} />
               </label>
             ) : (
-              <button onClick={() => setAskConsent('photo')} className="min-h-14 rounded-2xl border-2 border-teal-700 font-bold text-teal-800">📷 {t('expense.photo')}</button>
+              <button onClick={() => setAskConsent('photo')} className="min-h-14 rounded-2xl border-2 border-brand font-bold text-brand-strong">📷 {t('expense.photo')}</button>
             ))}
           </div>
         )}
         {askConsent && ai && (
-          <div className="flex flex-col gap-2 rounded-2xl bg-amber-50 p-3 text-[15px]">
+          <div className="flex flex-col gap-2 rounded-2xl bg-warn-soft p-3 text-[15px]">
             <p className="font-bold">{t('expense.consentTitle')}</p>
             <p>{askConsent === 'voice' ? t('expense.consentVoice') : t('expense.consentPhoto')}</p>
             <p className="text-sm text-muted">{t('expense.consentKeep')}</p>
             <div className="grid grid-cols-2 gap-2">
-              <button disabled={busy} onClick={() => void agree()} className="h-12 rounded-xl bg-teal-700 font-bold text-white">{t('expense.consentYes')}</button>
+              <button disabled={busy} onClick={() => void agree()} className="h-12 rounded-xl bg-brand font-bold text-white">{t('expense.consentYes')}</button>
               <button onClick={() => setAskConsent(null)} className="h-12 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">{t('expense.consentNo')}</button>
             </div>
           </div>
@@ -307,14 +307,14 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
 
       {/* Check what was read before it goes on the page. */}
       {guesses.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-[20px] border-2 border-teal-700 bg-white p-4">
+        <section className="flex flex-col gap-2 rounded-[20px] border-2 border-brand bg-white p-4">
           <h2 className="font-bold">{t('expense.checkTitle')}</h2>
           {guesses.map((g) => (
             <div key={g.key} className="flex flex-col gap-2 rounded-2xl bg-ground p-3">
               <div className="flex items-center gap-2">
                 <label className="sr-only" htmlFor={`cat-${g.key}`}>{t('expense.heading')}</label>
                 <select id={`cat-${g.key}`} value={g.category} onChange={(e) => update(g.key, { category: e.target.value as ExpenseCategory, headingLater: false })}
-                  className="h-11 flex-1 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
+                  className="h-11 flex-1 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10">
                   {ALL.map((c) => <option key={c} value={c}>{ICONS[c]} {t(`expense.cat.${c}`)}</option>)}
                 </select>
                 <label className="sr-only" htmlFor={`amt-${g.key}`}>{t('expense.amount')}</label>
@@ -324,26 +324,26 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
               <div className="flex items-center gap-2">
                 <label className="sr-only" htmlFor={`note-${g.key}`}>{t('expense.note')}</label>
                 <input id={`note-${g.key}`} value={g.note} onChange={(e) => update(g.key, { note: e.target.value })} maxLength={120}
-                  className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+                  className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
                 {(['cash', 'upi'] as const).map((m) => (
                   <button key={m} onClick={() => update(g.key, { mode: m })} aria-pressed={g.mode === m}
-                    className={`h-11 rounded-xl px-3 text-sm font-semibold ${g.mode === m ? 'bg-teal-700 text-white shadow-sm' : 'border border-line bg-white'}`}>{t(m)}</button>
+                    className={`h-11 rounded-xl px-3 text-sm font-semibold ${g.mode === m ? 'bg-brand text-white shadow-sm' : 'border border-line bg-white'}`}>{t(m)}</button>
                 ))}
                 <button onClick={() => setGuesses(guesses.filter((x) => x.key !== g.key))} aria-label={t('expense.remove')} className="h-11 w-11 rounded-xl text-xl text-muted">×</button>
               </div>
               {/* A business payment above ₹10,000 in cash to one person in a day isn't allowed as an expense for tax. */}
               {g.mode === 'cash' && cashTo(g) > 10_000 && !['deposit', 'home', 'tax', 'loan', 'advance'].includes(g.category) && (
-                <p role="status" className="rounded-xl bg-amber-50 p-2 text-sm text-amber-800">{t('cashLimit.expense')}{cashTo(g) > (Number(g.amount) || 0) && ` ${t('cashLimit.expenseDay', { total: formatRupees(cashTo(g)) })}`}</p>
+                <p role="status" className="rounded-xl bg-warn-soft p-2 text-sm text-warn">{t('cashLimit.expense')}{cashTo(g) > (Number(g.amount) || 0) && ` ${t('cashLimit.expenseDay', { total: formatRupees(cashTo(g)) })}`}</p>
               )}
             </div>
           ))}
-          <button disabled={busy || !ready} onClick={() => void save()} className="h-12 rounded-2xl bg-teal-700 font-bold text-white disabled:opacity-40">
+          <button disabled={busy || !ready} onClick={() => void save()} className="h-12 rounded-2xl bg-brand font-bold text-white disabled:opacity-40">
             {t('expense.save', { count: guesses.length })}
           </button>
         </section>
       )}
 
-      {error && <p className="rounded-xl bg-red-50 p-3 text-due">{error}</p>}
+      {error && <p className="rounded-xl bg-due-soft p-3 text-due">{error}</p>}
 
       {/* The page itself: ruled lines and a margin, like the kharcha book. */}
       {(page.data || waiting.length > 0) && (

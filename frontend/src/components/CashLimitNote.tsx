@@ -25,7 +25,7 @@ export function CashLimitNote({ customerId, cash, day }: { customerId: string | 
   if (cash <= 0 || total < NEAR) return null
   const over = total >= LIMIT
   return (
-    <p role="status" className={`rounded-xl p-3 text-sm ${over ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>
+    <p role="status" className={`rounded-xl p-3 text-sm ${over ? 'bg-due-soft text-red-800' : 'bg-warn-soft text-warn'}`}>
       {t(over ? 'cashLimit.over' : 'cashLimit.near', { total: formatRupees(total), before: formatRupees(before) })}
       {before > 0 && <> {t('cashLimit.already', { before: formatRupees(before) })}</>}
     </p>

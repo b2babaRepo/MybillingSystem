@@ -58,7 +58,7 @@ export function ChequesScreen({ isOwner }: { isOwner: boolean }) {
       </div>
       <p className="text-sm text-muted">
         #{c.chequeNo}{c.bank ? ` · ${c.bank}` : ''}{c.chequeDate ? ` · ${t('cheques.dated', { date: day(c.chequeDate) })}` : ''} · {t('cheques.received', { date: day(c.receivedAt) })}
-        {c.status === 'pending' && c.chequeDate && c.chequeDate > today && <span className="ml-1 rounded bg-amber-100 px-1 text-amber-800">{t('cheques.postDated')}</span>}
+        {c.status === 'pending' && c.chequeDate && c.chequeDate > today && <span className="ml-1 rounded bg-amber-100 px-1 text-warn">{t('cheques.postDated')}</span>}
       </p>
       {c.status === 'pending' && isOwner && (
         <div className="flex gap-2">
@@ -77,7 +77,7 @@ export function ChequesScreen({ isOwner }: { isOwner: boolean }) {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-3 p-4">
       <h1 className="text-xl font-bold">{t('cheques.title')}</h1>
-      {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+      {error && <p className="rounded-xl bg-due-soft p-3 text-sm text-red-800">{error}</p>}
       <h2 className="font-semibold">{t('cheques.pending')}{data && data.pendingCount > 0 ? ` · ${formatRupees(data.pendingAmount)}` : ''}</h2>
       {data && pending.length === 0 && <p className="text-muted">{t('cheques.none')}</p>}
       <ul className="flex flex-col gap-2">{pending.map(row)}</ul>

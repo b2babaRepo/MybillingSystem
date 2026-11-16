@@ -28,7 +28,7 @@ export function StaffSalesScreen({ shopId }: { shopId: string }) {
   const totalCommission = (rows ?? []).reduce((n, r) => n + r.commission, 0)
   return (
     <div className="flex flex-col gap-3 p-4 pb-24">
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm print:shadow-none">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm print:shadow-none">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{label}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= now} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -45,7 +45,7 @@ export function StaffSalesScreen({ shopId }: { shopId: string }) {
             { key: 'lines', header: t('sales.colItems'), align: 'right', render: (r) => r.lines, sortValue: (r) => r.lines },
             { key: 'sales', header: t('sales.colSales'), align: 'right', render: (r) => <span className="font-extrabold">{formatRupees(r.sales)}</span>, sortValue: (r) => r.sales },
             { key: 'rate', header: t('sales.colRate'), align: 'right', render: (r) => (r.commissionPercent ? `${r.commissionPercent}%` : '—') },
-            { key: 'commission', header: t('sales.colCommission'), align: 'right', render: (r) => <span className="font-semibold text-teal-800">{formatRupees(r.commission)}</span>, sortValue: (r) => r.commission },
+            { key: 'commission', header: t('sales.colCommission'), align: 'right', render: (r) => <span className="font-semibold text-brand-strong">{formatRupees(r.commission)}</span>, sortValue: (r) => r.commission },
           ]}
           footer={[t('sales.colTotal'), rows.reduce((n, r) => n + r.bills, 0), rows.reduce((n, r) => n + r.lines, 0), formatRupees(rows.reduce((n, r) => n + r.sales, 0)), '', formatRupees(totalCommission)]}
           renderCard={(r) => (
@@ -56,14 +56,14 @@ export function StaffSalesScreen({ shopId }: { shopId: string }) {
               </span>
               <span className="flex shrink-0 flex-col items-end">
                 <span className="font-extrabold">{formatRupees(r.sales)}</span>
-                <span className="text-[13px] font-semibold text-teal-800">{r.commissionPercent ? t('sales.earned', { amount: formatRupees(r.commission), percent: r.commissionPercent }) : t('sales.noCommission')}</span>
+                <span className="text-[13px] font-semibold text-brand-strong">{r.commissionPercent ? t('sales.earned', { amount: formatRupees(r.commission), percent: r.commissionPercent }) : t('sales.noCommission')}</span>
               </span>
             </div>
           )}
         />
       )}
       {totalCommission > 0 && <p className="text-right font-bold lg:hidden">{t('sales.total', { amount: formatRupees(totalCommission) })}</p>}
-      <button onClick={() => navigate('/settings/staff')} className="min-h-11 self-start text-sm font-semibold text-teal-700 underline">{t('sales.setRates')}</button>
+      <button onClick={() => navigate('/settings/staff')} className="min-h-11 self-start text-sm font-semibold text-brand underline">{t('sales.setRates')}</button>
     </div>
   )
 }

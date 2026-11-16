@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ItemPicker } from '../components/ItemPicker'
-import { Button } from '../components/ui'
+import { Button, control } from '../components/ui'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
@@ -13,7 +13,7 @@ interface PlaceStock { productId: string; name: string; category: string; unit: 
 interface Transfer { id: string; number: number; from: string; to: string; occurredAt: string; note: string | null; cancelled: boolean; by: string | null; lines: { productId: string; name: string; quantity: number; bags: number | null }[] }
 interface Row { text: string; productId: string; qty: string }
 
-const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
+const input = control
 const SHOP = ''
 const blank: Row = { text: '', productId: '', qty: '' }
 
@@ -73,17 +73,17 @@ export function GodownsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
 
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {active.map((g) => (
-          <div key={g.id} className="flex flex-col gap-1 rounded-[18px] bg-white p-3 shadow-sm">
+          <div key={g.id} className="flex flex-col gap-1 rounded-card bg-white p-3 shadow-sm">
             <p className="font-bold">🏬 {g.name}</p>
             <p className="text-xs text-muted">{t('godown.holds', { items: g.items })}{isOwner ? ` · ${formatRupees(g.value)}` : ''}</p>
-            <div className="mt-1 flex gap-2 text-xs font-semibold text-teal-700">
+            <div className="mt-1 flex gap-2 text-xs font-semibold text-brand">
               <button onClick={() => startMove(SHOP, g.id)} className="min-h-9">{t('godown.sendHere')}</button>
               <button onClick={() => startMove(g.id, SHOP)} className="min-h-9">{t('godown.bringToShop')}</button>
             </div>
           </div>
         ))}
         {isOwner && (
-          <div className="flex flex-col gap-2 rounded-[18px] border border-dashed border-line p-3">
+          <div className="flex flex-col gap-2 rounded-card border border-dashed border-line p-3">
             <input aria-label={t('godown.name')} placeholder={t('godown.name')} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} className={input} />
             <Button disabled={!name.trim()} onClick={() => void addGodown()}>+ {t('godown.add')}</Button>
           </div>
@@ -93,7 +93,7 @@ export function GodownsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
       {active.length > 0 && !rows && <Button onClick={() => startMove(SHOP, active[0].id)}>⇄ {t('godown.move')}</Button>}
 
       {rows && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <h2 className="font-bold">{t('godown.move')}</h2>
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col gap-1 text-xs text-muted">{t('godown.from')}
@@ -122,7 +122,7 @@ export function GodownsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
               </div>
             )
           })}
-          <button onClick={() => setRows([...rows, blank])} className="min-h-11 font-semibold text-teal-700">+ {t('suppliers.addRow')}</button>
+          <button onClick={() => setRows([...rows, blank])} className="min-h-11 font-semibold text-brand">+ {t('suppliers.addRow')}</button>
           <input aria-label={t('po.note')} placeholder={t('godown.note')} value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} className={input} />
           <div className="grid grid-cols-2 gap-2">
             <Button disabled={valid.length === 0 || from === to} onClick={() => void move()}>{t('godown.save')}</Button>
@@ -133,7 +133,7 @@ export function GodownsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
       {message && <p className="text-sm text-due">{message}</p>}
 
       {active.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <h2 className="font-bold">{t('godown.whereTitle')}</h2>
           <input aria-label={t('godown.search')} placeholder={t('godown.search')} value={search} onChange={(e) => setSearch(e.target.value)} className={input} />
           <div className="overflow-x-auto">
@@ -159,7 +159,7 @@ export function GodownsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
       )}
 
       {transfers.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <h2 className="font-bold">{t('godown.moves')}</h2>
           {transfers.map((m) => (
             <div key={m.id} className={`flex flex-col gap-0.5 rounded-xl border border-line p-3 text-sm ${m.cancelled ? 'text-muted line-through' : ''}`}>

@@ -51,7 +51,7 @@ function ProfileForm({ initial }: { initial: Profile }) {
   }
 
   return (
-    <section className="m-4 flex flex-col gap-3 rounded-[18px] bg-white p-4">
+    <section className="m-4 flex flex-col gap-3 rounded-card bg-white p-4">
       <Field label={t('profile.name')} value={form.fullName} onChange={set('fullName')} maxLength={120} />
       <p className="text-sm text-muted">{t('profile.phone')}: {formatPhone(initial.phone)}</p>
       <Field label={t('profile.email')} value={form.email} onChange={set('email')} inputMode="email" maxLength={160} />

@@ -1,3 +1,4 @@
+import { controlSm } from '../components/ui'
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +9,7 @@ import { GST_RATES } from '../lib/gst'
 import type { Unit } from '../lib/types'
 
 const UNITS: Unit[] = ['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'dozen', 'box', 'bag', 'metre']
-const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
+const input = controlSm
 
 interface Draft { name: string; parentId: string; isActive: boolean; gst: string; hsn: string; unit: string; cover: string; slow: string }
 const draftOf = (c: CategoryRow): Draft => ({
@@ -67,12 +68,12 @@ export function CategoriesScreen({ shopId }: { shopId: string }) {
   const tops = rows.filter((r) => r.parentId == null)
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h1 className="text-xl font-bold">🗂️ {t('cat.title')}</h1>
         <p className="text-sm text-muted">{t('cat.hint')}</p>
         <form onSubmit={(e) => { e.preventDefault(); if (newName.trim()) void run(() => api('/v1/categories', 'POST', { name: newName.trim() })).then((ok) => ok && setNewName('')) }} className="flex gap-2">
           <input value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={60} placeholder={t('cat.newPlaceholder')} aria-label={t('cat.new')} className={`${input} flex-1`} />
-          <button className="h-11 rounded-xl bg-teal-700 px-4 font-semibold text-white">{t('cat.add')}</button>
+          <button className="h-11 rounded-xl bg-brand px-4 font-semibold text-white">{t('cat.add')}</button>
         </form>
       </section>
       {message && <p className="text-sm text-due">{message}</p>}
@@ -122,14 +123,14 @@ export function CategoriesScreen({ shopId }: { shopId: string }) {
                   <label className="col-span-2 flex flex-col gap-1 text-xs text-muted">{t('cat.slowAfter')}<input value={draft.slow} inputMode="numeric" onChange={(e) => setDraft({ ...draft, slow: e.target.value })} placeholder="30" className={input} /></label>
                 </div>
                 <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: !e.target.checked })} className="h-5 w-5" />{t('cat.hide')}</label>
-                <button onClick={() => void run(() => api(`/v1/categories/${c.id}`, 'PUT', body(draft))).then((ok) => ok && setOpen(null))} className="h-11 rounded-xl bg-teal-700 font-semibold text-white">{t('cat.save')}</button>
+                <button onClick={() => void run(() => api(`/v1/categories/${c.id}`, 'PUT', body(draft))).then((ok) => ok && setOpen(null))} className="h-11 rounded-xl bg-brand font-semibold text-white">{t('cat.save')}</button>
                 <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-3">
                   <span className="text-xs text-muted">{t('cat.mergeLabel')}</span>
                   <select aria-label={t('cat.mergeLabel')} value={mergeInto} onChange={(e) => setMergeInto(e.target.value)} className={`${input} flex-1`}>
                     <option value="">{t('cat.pick')}</option>
                     {rows.filter((r) => r.id !== c.id).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
-                  <button disabled={!mergeInto} onClick={() => void merge(c)} className="h-11 rounded-xl border border-line px-3 font-semibold text-due hover:bg-red-50 disabled:opacity-40">{t('cat.merge')}</button>
+                  <button disabled={!mergeInto} onClick={() => void merge(c)} className="h-11 rounded-xl border border-line px-3 font-semibold text-due hover:bg-due-soft disabled:opacity-40">{t('cat.merge')}</button>
                 </div>
               </div>
             )}

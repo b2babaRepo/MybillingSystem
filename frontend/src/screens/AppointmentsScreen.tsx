@@ -17,7 +17,7 @@ interface Day { date: string; stylists: { id: string; name: string }[]; appointm
 
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const time12 = (t: string) => new Date(`2000-01-01T${t}`).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })
-const TONE: Record<Status, string> = { booked: 'border-teal-200 bg-white', arrived: 'border-amber-300 bg-amber-50', done: 'border-line bg-slate-50 text-muted', no_show: 'border-line bg-slate-50 text-muted line-through', cancelled: 'border-line bg-slate-50 text-muted line-through' }
+const TONE: Record<Status, string> = { booked: 'border-teal-200 bg-white', arrived: 'border-amber-300 bg-warn-soft', done: 'border-line bg-slate-50 text-muted', no_show: 'border-line bg-slate-50 text-muted line-through', cancelled: 'border-line bg-slate-50 text-muted line-through' }
 
 /** The salon's day: a column for each stylist (and "any stylist"), each appointment by time, from booking to bill. */
 export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopName: string }) {
@@ -60,7 +60,7 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+      <div className="flex items-center justify-between rounded-card bg-white p-2">
         <button onClick={() => shift(-1)} aria-label={t('tables.prev')} className="h-11 w-11 text-xl">‹</button>
         <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label={t('tables.date')} className="h-11 rounded-xl border border-line px-2 font-bold" />
         <button onClick={() => shift(1)} aria-label={t('tables.next')} className="h-11 w-11 text-xl">›</button>
@@ -99,7 +99,7 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
                   {paying === a.id && (
                     <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-2">
                       {quote && quote.lines.some((l) => l.applied) && (
-                        <div className="col-span-3 rounded-lg bg-teal-50 p-2 text-xs">
+                        <div className="col-span-3 rounded-lg bg-brand-soft p-2 text-xs">
                           {quote.lines.map((l, i) => <div key={i} className="flex justify-between"><span>{l.name}</span><span>{l.price !== l.listPrice ? <><s className="text-muted">{formatRupees(l.listPrice)}</s> </> : null}{formatRupees(l.price)}</span></div>)}
                           <div className="flex justify-between font-bold"><span>{t('total')}</span><span>{formatRupees(quote.total)}</span></div>
                         </div>
@@ -155,7 +155,7 @@ function NewAppointment({ shopId, date, walkIn, stylists, onDone }: { shopId: st
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+    <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <h3 className="font-bold">{t(walkIn ? 'appointments.walkIn' : 'appointments.book')}</h3>
       {!walkIn && <div className="grid grid-cols-2 gap-2"><Field label={t('tables.date')} type="date" value={d.date} onChange={set('date')} /><Field label={t('tables.time')} type="time" value={d.start} onChange={set('start')} /></div>}
       <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('appointments.stylist')}</span>
@@ -170,7 +170,7 @@ function NewAppointment({ shopId, date, walkIn, stylists, onDone }: { shopId: st
       <div className="flex flex-wrap gap-2">
         {services.map((s) => (
           <button key={s.id} type="button" onClick={() => setChosen((c) => (c.includes(s.id) ? c.filter((x) => x !== s.id) : [...c, s.id]))}
-            className={`min-h-11 rounded-full px-3 text-sm font-semibold ${chosen.includes(s.id) ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`}>
+            className={`min-h-11 rounded-full px-3 text-sm font-semibold ${chosen.includes(s.id) ? 'bg-brand text-white' : 'border border-line bg-white'}`}>
             {s.name}{s.sellingPrice > 0 ? ` · ${formatRupees(s.sellingPrice)}` : ''}
           </button>
         ))}

@@ -72,20 +72,20 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <div className="flex items-center gap-3">
-          <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-700 text-lg font-extrabold text-white">{shop ? shop.name.charAt(0) : '🏪'}</span>
+          <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand text-lg font-extrabold text-white">{shop ? shop.name.charAt(0) : '🏪'}</span>
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate font-bold">{shop ? t('shopFirst.at', { name: shop.name }) : t('shopFirst.none')}</span>
             <span className="truncate text-[13px] text-muted">{shop ? (atShop ? t('shopFirst.summary', { here: hereItems.length, count: list.items.length }) : t('shopFirst.loading')) : t('shopFirst.noneHint')}</span>
           </span>
-          <button onClick={() => setChangingShop(!changingShop)} className="min-h-11 shrink-0 rounded-xl border border-line px-3 font-bold text-teal-700">{shop ? t('shopFirst.change') : t('shopFirst.pick')}</button>
+          <button onClick={() => setChangingShop(!changingShop)} className="min-h-11 shrink-0 rounded-xl border border-line px-3 font-bold text-brand">{shop ? t('shopFirst.change') : t('shopFirst.pick')}</button>
         </div>
         {changingShop && (
           <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
             {shopSearch.data?.map((s) => (
               <li key={s.id}>
-                <button onClick={() => chooseShop(s)} aria-pressed={shop?.id === s.id} className={`flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left ${shop?.id === s.id ? 'bg-teal-50 font-bold text-teal-800' : 'border border-line'}`}>
+                <button onClick={() => chooseShop(s)} aria-pressed={shop?.id === s.id} className={`flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left ${shop?.id === s.id ? 'bg-brand-soft font-bold text-brand-strong' : 'border border-line'}`}>
                   <span className="flex-1 truncate">{s.name}</span>
                   {s.area && <span className="truncate text-sm text-muted">{s.area}</span>}
                 </button>
@@ -102,20 +102,20 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
             role="tab"
             aria-selected={k === kind}
             onClick={() => navigate(`/list/${k}`)}
-            className={`h-11 rounded-[10px] font-semibold ${k === kind ? 'bg-teal-700 text-white' : 'text-muted'}`}
+            className={`h-11 rounded-[10px] font-semibold ${k === kind ? 'bg-brand text-white' : 'text-muted'}`}
           >
             {t(`plan.${k}`)}
           </button>
         ))}
       </div>
 
-      <form onSubmit={add} className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <form onSubmit={add} className="flex flex-col gap-2 rounded-card bg-white p-3">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={t('plan.addPlaceholder')}
           aria-label={t('plan.addPlaceholder')}
-          className="h-12 rounded-[14px] border border-line px-3 text-[17px] outline-none focus:border-teal-600"
+          className="h-12 rounded-[14px] border border-line px-3 text-[17px] outline-none focus:border-brand-line"
         />
         {suggestions.length > 0 && (
           <ul className="flex flex-col divide-y divide-[#edf2f1] rounded-[14px] border border-line">
@@ -135,7 +135,7 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
             <input value={quantity} onChange={(e) => setQuantity(e.target.value)} inputMode="decimal" className="h-12 w-full rounded-[14px] border border-line px-3 text-lg" />
           </label>
           <UnitSelect value={unit} onChange={setUnit} />
-          <button type="submit" disabled={!name.trim()} className="h-12 rounded-2xl bg-teal-700 px-5 text-lg font-semibold text-white disabled:opacity-40">
+          <button type="submit" disabled={!name.trim()} className="h-12 rounded-2xl bg-brand px-5 text-lg font-semibold text-white disabled:opacity-40">
             {t('plan.add')}
           </button>
         </div>
@@ -145,9 +145,9 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
         <>{atShop && <p className="-mb-1 px-1 text-sm text-muted">{t('shopFirst.shelfHint', { name: shop!.name })}</p>}</>
       )}
       {shelf.length > 0 && !name.trim() && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-3">
           {aisle ? (
-            <button onClick={() => setAisle(null)} className="flex min-h-11 items-center gap-1 self-start font-bold text-teal-800">
+            <button onClick={() => setAisle(null)} className="flex min-h-11 items-center gap-1 self-start font-bold text-brand-strong">
               ‹ {i18n.language === 'hi' ? aisle.name : aisle.nameEn}
             </button>
           ) : (
@@ -184,12 +184,12 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
           return (
             <section key={group} className="flex flex-col gap-1.5">
               {group !== 'all' && (
-                <h2 className={`px-1 text-[15px] font-extrabold ${group === 'here' ? 'text-teal-800' : group === 'out' ? 'text-udhaar' : 'text-muted'}`}>
+                <h2 className={`px-1 text-[15px] font-extrabold ${group === 'here' ? 'text-brand-strong' : group === 'out' ? 'text-udhaar' : 'text-muted'}`}>
                   {t(`shopFirst.group.${group}`, { count: items.length, name: shop!.name })}
                 </h2>
               )}
               {group === 'notSold' && <p className="-mt-1 px-1 text-[13px] text-muted">{t('shopFirst.notSoldHint')}</p>}
-              <ul className={`divide-y divide-[#edf2f1] rounded-[18px] bg-white px-3 ${group === 'out' || group === 'notSold' ? 'opacity-80' : ''}`}>
+              <ul className={`divide-y divide-[#edf2f1] rounded-card bg-white px-3 ${group === 'out' || group === 'notSold' ? 'opacity-80' : ''}`}>
                 {items.map((item) => {
                   const option = group === 'all' ? undefined : optionOf(item)
                   const photo = option?.imageAt && shop ? imageUrl(shop.id, option.productId, option.imageAt, 'thumb') : listItemPhoto(item, catalogue)
@@ -225,7 +225,7 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
             <span className="text-[13px] text-muted">{atShop ? t('shopFirst.totalAt', { here: hereItems.length, name: shop!.name }) : <>{t('plan.itemsCount', { count: list.items.length })}{estimate > 0 ? ` · ${t('home2.about')}` : ''}</>}</span>
             {estimate > 0 && <span className="text-[22px] leading-tight font-extrabold">{formatRupees(estimate)}</span>}
           </span>
-          <button onClick={() => navigate(`/send/${kind}`)} className="h-14 shrink-0 rounded-2xl bg-teal-700 px-6 text-lg font-bold text-white">
+          <button onClick={() => navigate(`/send/${kind}`)} className="h-14 shrink-0 rounded-2xl bg-brand px-6 text-lg font-bold text-white">
             {shop ? t('plan.send') : t('home2.chooseShop')} ›
           </button>
         </div>

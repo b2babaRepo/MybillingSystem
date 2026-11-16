@@ -187,7 +187,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
       ))}
       {!open ? (
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => { setExchange(true); setReason(t('exchange.reason')); setOpen(true) }} className="h-11 rounded-xl bg-teal-700 font-semibold text-white">{t('exchange.start')}</button>
+          <button onClick={() => { setExchange(true); setReason(t('exchange.reason')); setOpen(true) }} className="h-11 rounded-xl bg-brand font-semibold text-white">{t('exchange.start')}</button>
           <button onClick={() => { setExchange(false); setOpen(true) }} className="h-11 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">{t('creditNote.start')}</button>
         </div>
       ) : (
@@ -209,7 +209,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
             </label>
           )}
           <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} className="h-5 w-5" />{t('creditNote.restock')}</label>
-          <button disabled={reason.trim().length < 3 || !Object.values(qty).some((q) => Number(q) > 0)} onClick={() => void save()} className="h-11 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-40">{exchange ? t('exchange.next') : t('creditNote.save')}</button>
+          <button disabled={reason.trim().length < 3 || !Object.values(qty).some((q) => Number(q) > 0)} onClick={() => void save()} className="h-11 rounded-xl bg-brand font-semibold text-white disabled:opacity-40">{exchange ? t('exchange.next') : t('creditNote.save')}</button>
           {message && <p className="text-sm text-due">{message}</p>}
         </div>
       )}

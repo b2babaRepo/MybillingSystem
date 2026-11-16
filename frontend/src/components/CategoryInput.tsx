@@ -23,7 +23,7 @@ export function CategoryInput({ shopId, value, onChange, onPick }: { shopId: str
           const hit = rows.find((c) => sameCategory(c.name, e.target.value))
           if (hit) onPick?.(hit)
         }}
-        className="h-12 w-full rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
+        className="h-12 w-full rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10"
       />
       <datalist id={listId}>{rows.map((c) => <option key={c.id} value={c.name} />)}</datalist>
       {value.trim() !== '' && !match && <span className="mt-1 block text-xs text-muted">{t('cat.willCreate', { name: value.trim() })}</span>}

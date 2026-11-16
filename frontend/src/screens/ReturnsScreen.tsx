@@ -42,8 +42,8 @@ export function ReturnsScreen({ shopId }: { shopId: string }) {
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('returns.title')}</h3>
         <p className="text-xs text-muted">{t('returns.hint')}</p>
         <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} aria-label={t('returns.supplier')} className={select}>
@@ -51,7 +51,7 @@ export function ReturnsScreen({ shopId }: { shopId: string }) {
         </select>
         {expiring.length === 0 && <p className="text-sm text-muted">{t('batches.noneExpiring')}</p>}
         {expiring.map((e) => (
-          <div key={e.id} className={`grid grid-cols-[1fr_6rem] items-center gap-2 rounded-xl p-2 text-sm ${e.expired ? 'bg-red-50' : 'bg-amber-50'}`}>
+          <div key={e.id} className={`grid grid-cols-[1fr_6rem] items-center gap-2 rounded-xl p-2 text-sm ${e.expired ? 'bg-due-soft' : 'bg-warn-soft'}`}>
             <span><b>{e.productName}</b><span className="block text-xs">{t('batches.batchLine', { batch: e.batchNo, month: month(e.expiry), qty: e.quantity })} · {formatRupees(e.value)}</span></span>
             <input aria-label={`${t('returns.qty')}: ${e.productName} ${e.batchNo}`} placeholder={t('returns.qty')} value={picked[e.id] ?? ''} inputMode="decimal"
               onChange={(ev) => setPicked({ ...picked, [e.id]: ev.target.value })} className="h-11 rounded-lg border border-line px-2" />
@@ -63,13 +63,13 @@ export function ReturnsScreen({ shopId }: { shopId: string }) {
         }, t('returns.sent'))}>{t('returns.send')}</Button>
       </section>
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('returns.open', { count: open.length })}</h3>
         {open.length === 0 && <p className="text-sm text-muted">{t('returns.none')}</p>}
         {open.map((r) => {
           const c = credit[r.id] ?? { no: '', amount: String(r.value) }
           return (
-            <div key={r.id} className={`flex flex-col gap-2 rounded-xl p-2 ${r.daysOpen > 60 ? 'bg-red-50' : 'bg-ground'}`}>
+            <div key={r.id} className={`flex flex-col gap-2 rounded-xl p-2 ${r.daysOpen > 60 ? 'bg-due-soft' : 'bg-ground'}`}>
               <p className="flex justify-between text-sm font-semibold"><span>{t('returns.line', { number: r.number, supplier: r.supplierName, days: r.daysOpen })}</span><span>{formatRupees(r.value)}</span></p>
               {r.lines.map((l, i) => <p key={i} className="text-xs">{l.productName} · {l.batchNo} × {l.quantity}</p>)}
               <div className="grid grid-cols-2 gap-2">

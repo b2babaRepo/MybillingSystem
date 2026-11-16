@@ -64,10 +64,10 @@ export function ProfitLossScreen() {
       {data.isError && <p className="text-due">{data.error.message}</p>}
       {!r && !data.isError && <p className="text-muted">…</p>}
       {r && view === 'chart' && (
-        <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-3 rounded-card bg-white p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <b className="text-[17px]">{t('rv.howProfit', { sales: formatRupees(r.sales), net: formatRupees(r.netProfit) })}</b>
-            {margin(r) !== null && <span className="font-bold text-teal-800">{t('rv.marginIs', { percent: margin(r) })} <Delta value={margin(last) === null ? null : Math.round(((margin(r) ?? 0) - (margin(last) ?? 0)) * 10) / 10} /></span>}
+            {margin(r) !== null && <span className="font-bold text-brand-strong">{t('rv.marginIs', { percent: margin(r) })} <Delta value={margin(last) === null ? null : Math.round(((margin(r) ?? 0) - (margin(last) ?? 0)) * 10) / 10} /></span>}
           </div>
           <Waterfall label={t('rv.howProfit', { sales: formatRupees(r.sales), net: formatRupees(r.netProfit) })} steps={[
             { label: t('pnl.sales'), amount: r.sales, total: true },
@@ -101,7 +101,7 @@ export function ProfitLossScreen() {
             {(r.machineWear ?? 0) > 0 && <Line label={t('pnl.wear')} value={r.machineWear ?? 0} />}
             {!!r.bagsSold && <Line label={t('statement.bagsSold')} value={r.bagsSold} />}
             {!!r.bagsBought && <Line label={t('statement.bagsBought')} value={r.bagsBought} />}
-            <Line label={t('pnl.net')} value={r.netProfit} strong tone={r.netProfit >= 0 ? 'text-teal-800' : 'text-orange-800'} />
+            <Line label={t('pnl.net')} value={r.netProfit} strong tone={r.netProfit >= 0 ? 'text-brand-strong' : 'text-orange-800'} />
           </div>
           <div className="flex flex-col">
             <b className="border-b border-line bg-[#f3f6f5] px-3 py-2">{t('rv.cr')}</b>
@@ -113,11 +113,11 @@ export function ProfitLossScreen() {
       )}
       {r && <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:[&>p]:col-span-2 lg:[&>button]:col-span-2">
         {(r.turnoverAlerts ?? []).map((a) => (
-          <p key={a.key} className={`rounded-xl p-3 text-sm font-semibold ${a.crossed ? 'bg-amber-50 text-due' : 'bg-teal-50 text-teal-900'}`}>
+          <p key={a.key} className={`rounded-xl p-3 text-sm font-semibold ${a.crossed ? 'bg-warn-soft text-due' : 'bg-brand-soft text-brand-deep'}`}>
             {t(`pnl.limit.${a.key}`, { limit: formatRupees(a.limit), turnover: formatRupees(a.turnover) })} {a.crossed ? t('pnl.limitCrossed') : t('pnl.limitNear')}
           </p>
         ))}
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4">
           {row(t('pnl.sales'), r.sales)}
           {row(t('pnl.gst'), r.gst)}
           {row(t('pnl.turnover'), r.turnover, true)}
@@ -130,7 +130,7 @@ export function ProfitLossScreen() {
           {row(t('pnl.net'), r.netProfit, true)}
           {r.profitCoverage < 1 && r.sales > 0 && <p className="text-sm font-semibold text-due">{t('pnl.coverage', { percent: Math.round(r.profitCoverage * 100) })}</p>}
         </section>
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4">
           {row(t('pnl.opening'), r.openingStock)}
           {row(t('pnl.purchases'), r.purchases)}
           {row(t('pnl.closing', { date: new Date(r.closingDate).toLocaleDateString(shownLocale()) }), r.closingStock)}
@@ -142,13 +142,13 @@ export function ProfitLossScreen() {
           {row(t('pnl.customers'), r.customerDue)}
           {r.itemsWithoutCost > 0 && <p className="text-sm font-semibold text-due">{t('pnl.missing', { count: r.itemsWithoutCost })}</p>}
         </section>
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4">
           {row(t('pnl.cash'), r.cashReceipts ?? 0)}
           {row(t('pnl.digital'), r.digitalReceipts ?? 0)}
           {row(t('pnl.presumed'), r.presumedProfit ?? 0, true)}
           {(r.cashReceipts ?? 0) + (r.digitalReceipts ?? 0) > 0 && (() => {
             const percent = Math.round(((r.cashReceipts ?? 0) * 1000) / ((r.cashReceipts ?? 0) + (r.digitalReceipts ?? 0))) / 10
-            return <p className={`rounded-xl p-2 text-sm ${percent <= 5 ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>{t('cashLimit.share', { percent })} {t(percent <= 5 ? 'cashLimit.shareOk' : 'cashLimit.shareHigh')}</p>
+            return <p className={`rounded-xl p-2 text-sm ${percent <= 5 ? 'bg-emerald-50 text-emerald-800' : 'bg-warn-soft text-warn'}`}>{t('cashLimit.share', { percent })} {t(percent <= 5 ? 'cashLimit.shareOk' : 'cashLimit.shareHigh')}</p>
           })()}
           <p className="text-xs text-muted">{t('pnl.presumedHint')}</p>
         </section>

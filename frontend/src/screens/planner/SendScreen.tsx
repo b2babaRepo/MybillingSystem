@@ -53,25 +53,25 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
   }
 
   const chip = (selected: boolean) =>
-    `min-h-12 rounded-[14px] px-3 font-semibold ${selected ? 'border-2 border-teal-700 bg-teal-50 text-teal-800' : 'border border-line bg-white text-ink'}`
+    `min-h-12 rounded-[14px] px-3 font-semibold ${selected ? 'border-2 border-brand bg-brand-soft text-brand-strong' : 'border border-line bg-white text-ink'}`
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h2 className="text-base font-bold">{t('plan.chooseShop')}</h2>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('plan.searchShop')}
           aria-label={t('plan.searchShop')}
-          className="h-12 rounded-[14px] border border-line px-3 text-[17px] outline-none focus:border-teal-600"
+          className="h-12 rounded-[14px] border border-line px-3 text-[17px] outline-none focus:border-brand-line"
         />
         <div className="grid grid-cols-2 gap-2">
           <select aria-label={t('shopType.label')} value={type} onChange={(e) => setType(e.target.value)} className="h-12 rounded-[14px] border border-line bg-white px-2">
             <option value="">{t('plan.allTypes')}</option>
             {SHOP_TYPES.map((x) => <option key={x} value={x}>{t(`shopType.${x}`)}</option>)}
           </select>
-          <button onClick={() => (near ? setNear(null) : findNear())} aria-pressed={!!near} className={`h-12 rounded-[14px] font-semibold ${near ? 'bg-teal-700 text-white' : 'border border-line'}`}>{t('plan.nearMe')}</button>
+          <button onClick={() => (near ? setNear(null) : findNear())} aria-pressed={!!near} className={`h-12 rounded-[14px] font-semibold ${near ? 'bg-brand text-white' : 'border border-line'}`}>{t('plan.nearMe')}</button>
         </div>
         {shops.isError && <p className="text-sm text-due">{shops.error.message}</p>}
         {shops.data?.length === 0 && <p className="text-sm text-muted">{t('plan.noShops')}</p>}
@@ -81,9 +81,9 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
               <button
                 onClick={() => setShop(s)}
                 aria-pressed={shop?.id === s.id}
-                className={`flex w-full items-center gap-3 rounded-[14px] p-3 text-left ${shop?.id === s.id ? 'border-2 border-teal-700 bg-teal-50' : 'border border-line'}`}
+                className={`flex w-full items-center gap-3 rounded-[14px] p-3 text-left ${shop?.id === s.id ? 'border-2 border-brand bg-brand-soft' : 'border border-line'}`}
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e0efec] text-lg font-extrabold text-teal-700">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e0efec] text-lg font-extrabold text-brand">
                   {s.name.charAt(0)}
                 </span>
                 <span className="flex min-w-0 flex-col">
@@ -95,19 +95,19 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
           ))}
         </ul>
         {shop && estimate && (
-          <div className="rounded-[14px] bg-teal-50 p-3">
+          <div className="rounded-[14px] bg-brand-soft p-3">
             <div className="mb-2 grid grid-cols-2 gap-2 text-center">
-              <span className="rounded-xl bg-white p-2"><b className="block text-lg text-teal-800">{available} / {items.length}</b><span className="text-xs text-muted">{t('home2.itemsThere')}</span></span>
+              <span className="rounded-xl bg-white p-2"><b className="block text-lg text-brand-strong">{available} / {items.length}</b><span className="text-xs text-muted">{t('home2.itemsThere')}</span></span>
               <span className="rounded-xl bg-white p-2"><b className="block text-lg">~{formatRupees(estimate.total)}</b><span className="text-xs text-muted">{t('home2.estimateShort')}</span></span>
             </div>
-            <p className="text-lg font-bold text-teal-800">{t('plan.estimate', { amount: formatRupees(estimate.total) })}</p>
+            <p className="text-lg font-bold text-brand-strong">{t('plan.estimate', { amount: formatRupees(estimate.total) })}</p>
             {estimate.unpriced > 0 && <p className="text-sm text-muted">{t('plan.estimateUnpriced', { count: estimate.unpriced })}</p>}
           </div>
         )}
       </section>
 
       {shop && options.data && items.some((i) => options.data.some((o) => o.catalogueItemId === i.catalogueItemId)) && (
-        <section className="flex flex-col gap-3 rounded-[18px] bg-white p-3">
+        <section className="flex flex-col gap-3 rounded-card bg-white p-3">
           <h2 className="text-base font-bold">{t('options.title')}</h2>
           <p className="-mt-2 text-sm text-muted">{t('options.hint')}</p>
           {items.map((item) => {
@@ -121,18 +121,18 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
                 <div className="flex justify-between font-semibold">
                   <span>{item.name} · {item.quantity} {t(`units.${item.unit}`, { count: item.quantity })}</span>
                   {current && quantityIn(item.quantity, item.unit, current) !== null && (
-                    <span className="text-teal-800">{formatRupees(Math.round(current.price * quantityIn(item.quantity, item.unit, current)! * 100) / 100)}</span>
+                    <span className="text-brand-strong">{formatRupees(Math.round(current.price * quantityIn(item.quantity, item.unit, current)! * 100) / 100)}</span>
                   )}
                 </div>
                 <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
                   <button onClick={() => choose(item.id, { productId: null, preference: choice?.preference === 'dont_replace' ? 'shop_chooses' : choice?.preference })}
                     aria-pressed={!choice?.productId}
-                    className={`min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold ${!choice?.productId ? 'bg-teal-700 text-white' : 'border border-line'}`}>
+                    className={`min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold ${!choice?.productId ? 'bg-brand text-white' : 'border border-line'}`}>
                     {t('options.shopChooses')}
                   </button>
                   {mine.map((o) => (
                     <button key={o.productId} onClick={() => choose(item.id, { productId: o.productId })} aria-pressed={choice?.productId === o.productId}
-                      className={`flex min-h-11 shrink-0 flex-col items-start justify-center rounded-xl px-3 text-left text-sm ${choice?.productId === o.productId ? 'bg-teal-700 text-white' : 'border border-line'} ${o.inStock ? '' : 'opacity-50'}`}>
+                      className={`flex min-h-11 shrink-0 flex-col items-start justify-center rounded-xl px-3 text-left text-sm ${choice?.productId === o.productId ? 'bg-brand text-white' : 'border border-line'} ${o.inStock ? '' : 'opacity-50'}`}>
                       <span className="font-semibold">{o.name}</span>
                       <span className={choice?.productId === o.productId ? 'opacity-90' : 'text-muted'}>
                         {formatRupees(o.price)}/{t(`units.${o.unit}`)}{o.isDefault ? ` · ${t('options.usual')}` : ''}{o.inStock ? '' : ` · ${t('store.out')}`}
@@ -154,7 +154,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
         </section>
       )}
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h2 className="text-base font-bold">{t('plan.howGet')}</h2>
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => setFulfilment('delivery')} aria-pressed={fulfilment === 'delivery'} className={chip(fulfilment === 'delivery')}>{t('plan.delivery')}</button>
@@ -173,7 +173,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
                 className="min-h-11 self-start text-sm font-semibold text-due">{t('plan.removeAddress')}</button>
             )}
             <details className="rounded-[14px] border border-line p-2">
-              <summary className="min-h-11 cursor-pointer font-semibold text-teal-700">{t('plan.addAddress')}</summary>
+              <summary className="min-h-11 cursor-pointer font-semibold text-brand">{t('plan.addAddress')}</summary>
               <div className="mt-2 flex flex-col gap-2">
                 <input aria-label={t('plan.addressLabel')} placeholder={t('plan.addressLabel')} value={newAddress.label} onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })} maxLength={30} className="h-12 rounded-[14px] border border-line px-3" />
                 <input aria-label={t('plan.addressText')} placeholder={t('plan.addressText')} value={newAddress.text} onChange={(e) => setNewAddress({ ...newAddress, text: e.target.value })} maxLength={300} className="h-12 rounded-[14px] border border-line px-3" />
@@ -181,7 +181,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
                   <input aria-label={t('plan.landmark')} placeholder={t('plan.landmark')} value={newAddress.landmark} onChange={(e) => setNewAddress({ ...newAddress, landmark: e.target.value })} maxLength={120} className="h-12 min-w-0 rounded-[14px] border border-line px-3" />
                   <input aria-label={t('plan.pincode')} placeholder={t('plan.pincode')} value={newAddress.pincode} onChange={(e) => setNewAddress({ ...newAddress, pincode: e.target.value })} inputMode="numeric" maxLength={6} className="h-12 min-w-0 rounded-[14px] border border-line px-3" />
                 </div>
-                <button disabled={!newAddress.label.trim() || newAddress.text.trim().length < 5} onClick={() => void saveAddress()} className="min-h-11 rounded-[14px] bg-teal-700 font-semibold text-white disabled:opacity-40">{t('save')}</button>
+                <button disabled={!newAddress.label.trim() || newAddress.text.trim().length < 5} onClick={() => void saveAddress()} className="min-h-11 rounded-[14px] bg-brand font-semibold text-white disabled:opacity-40">{t('save')}</button>
               </div>
             </details>
           </div>
@@ -205,7 +205,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
       </section>
 
       <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:max-w-4xl max-w-xl border-t border-line bg-white px-4 py-3">
-        <button onClick={send} disabled={!shop || busy || items.length === 0} className="h-14 w-full rounded-2xl bg-teal-700 text-lg font-bold text-white disabled:opacity-40">
+        <button onClick={send} disabled={!shop || busy || items.length === 0} className="h-14 w-full rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
           {shop ? `${t('plan.send')} · ${shop.name}` : t('plan.pickShopFirst')}
         </button>
       </div>

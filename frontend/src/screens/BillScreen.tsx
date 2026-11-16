@@ -449,7 +449,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       {/* Desktop: items on the left, the bill on the right (always in view). A phone shows them one under the other. */}
       <div className="flex flex-col gap-3 lg:col-start-1">
       {exchange && (
-        <div className="flex items-center gap-2 rounded-[14px] bg-amber-50 p-3 text-sm text-amber-950">
+        <div className="flex items-center gap-2 rounded-[14px] bg-warn-soft p-3 text-sm text-amber-950">
           <span className="flex-1">{t('exchange.banner', { note: exchange.noteNo, amount: formatRupees(exchange.total) })}</span>
           <button onClick={() => { endExchange(); setExchangeState(null) }} className="min-h-9 px-2 text-xs font-semibold underline">{t('exchange.cancel')}</button>
         </div>
@@ -477,11 +477,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           }}
           placeholder={t('barcodeBill.search')}
           aria-label={t('search')}
-          className="h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-4 text-[17px] shadow-sm outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
+          className="h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-4 text-[17px] shadow-sm outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10"
         />
         </span>
         <button onClick={() => setKeysHelp((v) => !v)} aria-label={t('keys.title')} title={t('keys.title')} className="hidden h-12 w-12 shrink-0 rounded-[14px] border border-line bg-white font-bold text-muted lg:block">?</button>
-        {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className="flex h-12 shrink-0 items-center gap-1.5 rounded-2xl bg-teal-700 px-4 font-bold text-white shadow-sm hover:bg-teal-800"><span aria-hidden>📷</span>{t('barcodeBill.scan')}</button>}
+        {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className="flex h-12 shrink-0 items-center gap-1.5 rounded-2xl bg-brand px-4 font-bold text-white shadow-sm hover:bg-brand-strong"><span aria-hidden>📷</span>{t('barcodeBill.scan')}</button>}
       </div>
       {keysHelp && (
         <div className="hidden rounded-[14px] bg-white p-3 text-sm lg:block">
@@ -514,7 +514,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             subtitle={(() => {
               const offer = entry.items.map((p) => bestOffer(offers, p)).find(Boolean)
               return offer
-                ? <span><span className="mr-1 rounded-full bg-amber-100 px-1.5 text-[11px] font-bold text-amber-900">🏷 {offer.kind === 'percent' ? `${offer.value}%` : formatRupees(offer.value)} {t('offers.off')}</span>{t('styles.count', { count: entry.items.length })}</span>
+                ? <span><span className="mr-1 rounded-full bg-amber-100 px-1.5 text-[11px] font-bold text-warn-ink">🏷 {offer.kind === 'percent' ? `${offer.value}%` : formatRupees(offer.value)} {t('offers.off')}</span>{t('styles.count', { count: entry.items.length })}</span>
                 : t('styles.count', { count: entry.items.length })
             })()}
             badge={cart.filter((l) => entry.items.some((p) => p.id === l.productId)).reduce((n, l) => n + l.quantity, 0) || undefined}
@@ -529,7 +529,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             title={p.name}
             subtitle={p.sellingPrice > 0
               ? ((offer) => offer
-                ? <span><s className="text-muted">{formatRupees(p.sellingPrice)}</s> <b className="text-teal-800">{formatRupees(offerPrice(offer, p.sellingPrice))}</b> <span className="rounded-full bg-amber-100 px-1.5 text-[11px] font-bold text-amber-900">🏷 {offer.name}</span></span>
+                ? <span><s className="text-muted">{formatRupees(p.sellingPrice)}</s> <b className="text-brand-strong">{formatRupees(offerPrice(offer, p.sellingPrice))}</b> <span className="rounded-full bg-amber-100 px-1.5 text-[11px] font-bold text-warn-ink">🏷 {offer.name}</span></span>
                 : <span><b className="text-ink">{formatRupees(p.sellingPrice)}</b>/{t(`units.${p.unit}`)}</span>)(bestOffer(offers, p))
               : t('stock.noPrice')}
             badge={cart.filter((l) => l.productId === p.id).reduce((n, l) => n + l.quantity, 0) || undefined}
@@ -543,7 +543,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             + {t(`charge.${charge}`)}
           </button>
         ))}
-        <button onClick={() => setLoose({ name: '', unit: 'kg' })} className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-[18px] border-2 border-dashed border-teal-700/30 bg-teal-50/40 p-2 font-semibold text-teal-800 hover:bg-teal-50">
+        <button onClick={() => setLoose({ name: '', unit: 'kg' })} className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-card border-2 border-dashed border-brand/30 bg-brand-soft/40 p-2 font-semibold text-brand-strong hover:bg-brand-soft">
           + {t('addLooseItem')}
         </button>
       </div>
@@ -556,12 +556,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               const out = !p.isService && !p.uncounted && p.stock <= 0
               return (
                 <button key={p.id} onClick={() => { add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice }); setStylePick(null) }}
-                  className={`flex min-h-16 flex-col items-center justify-center rounded-xl border-2 px-1 py-2 ${out ? 'border-line opacity-60' : 'border-teal-700'}`}>
+                  className={`flex min-h-16 flex-col items-center justify-center rounded-xl border-2 px-1 py-2 ${out ? 'border-line opacity-60' : 'border-brand'}`}>
                   <span className="text-lg font-extrabold">{variantLabel(p) || p.name}</span>
                   <span className="text-xs text-muted">{(() => {
                     // A running offer shows here too, so the counter sees the price the bill will use.
                     const offer = p.sellingPrice > 0 ? bestOffer(offers, p) : null
-                    return p.sellingPrice <= 0 ? t('stock.noPrice') : offer ? <><s>{formatRupees(p.sellingPrice)}</s> <b className="text-teal-800">{formatRupees(offerPrice(offer, p.sellingPrice))}</b></> : formatRupees(p.sellingPrice)
+                    return p.sellingPrice <= 0 ? t('stock.noPrice') : offer ? <><s>{formatRupees(p.sellingPrice)}</s> <b className="text-brand-strong">{formatRupees(offerPrice(offer, p.sellingPrice))}</b></> : formatRupees(p.sellingPrice)
                   })()} · {p.uncounted ? t('stock.notCounted') : out ? t('stock.out') : t('styles.left', { count: p.stock })}</span>
                 </button>
               )
@@ -573,8 +573,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       </div>
       <div className="flex flex-col gap-3 lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto">
       {held.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-[14px] bg-amber-50 p-2 text-sm">
-          <span className="font-semibold text-amber-900">{t('hold.held', { count: held.length })}</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-[14px] bg-warn-soft p-2 text-sm">
+          <span className="font-semibold text-warn-ink">{t('hold.held', { count: held.length })}</span>
           {held.map((h, i) => (
             <button key={h.at} onClick={() => resumeBill(i)} className="min-h-9 rounded-full border border-amber-300 bg-white px-3 font-semibold">
               {(customers.find((c) => c.id === h.customerId)?.name ?? t('hold.walkIn'))} · {formatRupees(round2(h.cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}
@@ -582,18 +582,18 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           ))}
         </div>
       )}
-      <div ref={billRef} className="rounded-[18px] bg-white p-3">
+      <div ref={billRef} className="rounded-card bg-white p-3">
         {cart.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-4 text-center text-muted">
             <p>{saved ? `${t('saved')} ${formatRupees(saved.total)}` : t('emptyCart')}</p>
           {estimateSaved && (
-            <p className="flex items-center justify-between gap-2 rounded-xl bg-teal-50 p-2 text-sm text-teal-900">
+            <p className="flex items-center justify-between gap-2 rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">
               <span>{t('estimate.saved', { number: estimateSaved.number })}</span>
               <button type="button" onClick={() => navigate(`/print/estimate/${estimateSaved.id}`)} className="min-h-11 shrink-0 font-semibold underline">{t('estimate.open')}</button>
             </p>
           )}
             {saved && saved.paid > 0 && (
-              <p className={`rounded-full px-3 py-1 text-sm font-semibold ${saved.mode === 'upi' ? 'bg-teal-50 text-teal-800' : 'bg-amber-50 text-amber-900'}`}>
+              <p className={`rounded-full px-3 py-1 text-sm font-semibold ${saved.mode === 'upi' ? 'bg-brand-soft text-brand-strong' : 'bg-warn-soft text-warn-ink'}`}>
                 {saved.split || saved.mode === 'card' ? `${t('print.paid')} ${formatRupees(saved.paid)}${saved.split ? '' : ` (${t('card')})`}`
                   : t(saved.mode === 'upi' ? 'upiPay.paidUpi' : 'upiPay.paidCash', { amount: formatRupees(saved.paid) })}
               </p>
@@ -613,8 +613,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             )}
             {saved && (
               <span className="flex flex-wrap items-center justify-center gap-3">
-                <button onClick={() => printSaved()} className="min-h-11 rounded-xl border-2 border-teal-700 px-4 font-bold text-teal-800">{t('print.printNow')}</button>
-                <button onClick={() => navigate(`/print/bill/${saved.id}`)} className="min-h-11 font-semibold text-teal-700 underline">{t('print.viewBill')}</button>
+                <button onClick={() => printSaved()} className="min-h-11 rounded-xl border-2 border-brand px-4 font-bold text-brand-strong">{t('print.printNow')}</button>
+                <button onClick={() => navigate(`/print/bill/${saved.id}`)} className="min-h-11 font-semibold text-brand underline">{t('print.viewBill')}</button>
               </span>
             )}
           </div>
@@ -622,7 +622,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         {cart.map((l, i) => (
           <div key={`${l.productId ?? l.name}-${i}`} className="flex items-center gap-2 border-b border-[#edf2f1] py-2 last:border-0 lg:py-1.5 lg:[&>button]:h-8 lg:[&>button]:w-8">
             <div className="min-w-0 flex-1 lg:flex lg:flex-wrap lg:items-center lg:gap-x-2 lg:[&>div:not(:first-child)]:basis-full lg:[&>p]:basis-full">
-              <div className="font-semibold">{l.name}{(() => { const s = products.find((p) => p.id === l.productId)?.schedule; return s && s !== 'g' ? <span className="ml-1 whitespace-nowrap rounded bg-red-50 px-1 text-xs text-due">{t('rx.badge', { schedule: s.toUpperCase() })}</span> : null })()}</div>
+              <div className="font-semibold">{l.name}{(() => { const s = products.find((p) => p.id === l.productId)?.schedule; return s && s !== 'g' ? <span className="ml-1 whitespace-nowrap rounded bg-due-soft px-1 text-xs text-due">{t('rx.badge', { schedule: s.toUpperCase() })}</span> : null })()}</div>
               <label className="flex items-center gap-1 text-xs text-muted">
                 ₹
                 <input
@@ -645,7 +645,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   {offOf(l) && (
                     <>
-                      <span className={`text-xs font-semibold ${!isOwner && offOf(l)!.percent > staffLimit ? 'text-due' : 'text-teal-800'}`}>
+                      <span className={`text-xs font-semibold ${!isOwner && offOf(l)!.percent > staffLimit ? 'text-due' : 'text-brand-strong'}`}>
                         {t('discount.off', { amount: formatRupees(offOf(l)!.amount), percent: offOf(l)!.percent })}
                       </span>
                       <button type="button" onClick={() => setPrice(i, regularOf(l))} className="h-8 px-1 text-xs text-muted underline">{t('discount.undo')}</button>
@@ -654,8 +654,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 </div>
               )}
               {l.offerId && (
-                <p className="mt-1 flex items-center gap-2 text-xs font-semibold text-teal-800">
-                  <span className="rounded-full bg-teal-50 px-2 py-0.5">🏷 {t('offers.tag', { name: l.offerName })}</span>
+                <p className="mt-1 flex items-center gap-2 text-xs font-semibold text-brand-strong">
+                  <span className="rounded-full bg-brand-soft px-2 py-0.5">🏷 {t('offers.tag', { name: l.offerName })}</span>
                   <button type="button" onClick={() => setPrice(i, regularOf(l))} className="min-h-8 text-muted underline">{t('offers.remove')}</button>
                 </p>
               )}
@@ -666,43 +666,43 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 if (!p || p.costPrice == null || !(l.unitPrice > 0)) return null
                 const net = l.unitPrice / (1 + (garmentRate(p.hsnCode, p.gstRate, l.unitPrice) ?? 0) / 100)
                 const margin = ((net - p.costPrice) / net) * 100
-                return margin < 5 ? <p className={`text-xs font-semibold ${margin <= 0 ? 'text-due' : 'text-amber-800'}`}>{t(margin <= 0 ? 'pmonth.belowCost' : 'pmonth.thinMargin', { percent: Math.round(margin * 10) / 10 })}</p> : null
+                return margin < 5 ? <p className={`text-xs font-semibold ${margin <= 0 ? 'text-due' : 'text-warn'}`}>{t(margin <= 0 ? 'pmonth.belowCost' : 'pmonth.thinMargin', { percent: Math.round(margin * 10) / 10 })}</p> : null
               })()}
               {(() => {
                 // A clothes line priced above ₹2,500 a piece is billed at 18%: say so, so the higher total isn't a surprise.
                 const p = products.find((x) => x.id === l.productId)
                 return p && l.unitPrice > 0 && garmentRate(p.hsnCode, p.gstRate, l.unitPrice) === 18 && p.gstRate !== 18
-                  ? <p className="text-xs font-semibold text-amber-800">{t('garmentGst.high')}</p> : null
+                  ? <p className="text-xs font-semibold text-warn">{t('garmentGst.high')}</p> : null
               })()}
               {(() => { const per = products.find((p) => p.id === l.productId)?.unitsPerPack; return per ? (
-                <button onClick={() => sellLoose(i, per)} className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('loose.button')}</button>
+                <button onClick={() => sellLoose(i, per)} className="min-h-11 text-xs font-semibold text-brand underline">{t('loose.button')}</button>
               ) : null })()}
               {(() => {
                 const bagSize = products.find((p) => p.id === l.productId)?.bagSize
                 if (!bagSize) return null
                 return (
                   <span className="flex flex-wrap items-center gap-2">
-                    {l.bags ? <span className="rounded-full bg-amber-50 px-2 text-xs font-semibold text-amber-800">🛍️ {t('bag.inBags', { count: l.bags })}</span> : null}
+                    {l.bags ? <span className="rounded-full bg-warn-soft px-2 text-xs font-semibold text-warn">🛍️ {t('bag.inBags', { count: l.bags })}</span> : null}
                     <button onClick={async () => { const n = Math.round(Number(await ask(t('bag.wholeAsk', { size: bagSize, unit: t(`units.${l.unit}`) }))) || 0); if (n > 0) setCart((c) => c.map((x, k) => (k === i ? { ...x, quantity: n * bagSize, bags: n } : x))) }}
-                      className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('bag.wholeBags')}</button>
+                      className="min-h-11 text-xs font-semibold text-brand underline">{t('bag.wholeBags')}</button>
                   </span>
                 )
               })()}
               {hasScale && (l.unit === 'kg' || l.unit === 'g') && (
                 <span className="flex gap-3">
-                  <button disabled={weighing !== null} onClick={() => void weigh(i, l.unit)} className="min-h-11 text-xs font-semibold text-teal-700 underline disabled:opacity-50">{weighing === i ? t('scale.reading') : t('scale.button')}</button>
+                  <button disabled={weighing !== null} onClick={() => void weigh(i, l.unit)} className="min-h-11 text-xs font-semibold text-brand underline disabled:opacity-50">{weighing === i ? t('scale.reading') : t('scale.button')}</button>
                   <button disabled={weighing !== null} onClick={() => void weigh(i, l.unit, true)} className="min-h-11 text-xs text-muted underline">{t('scale.change')}</button>
                 </span>
               )}
               {tmtKgPerBar(l.name) && l.unit === 'kg' && (
                 <button onClick={async () => { const bars = Number((await ask(t('bars.ask', { name: l.name }))) || 0); if (bars > 0) setQuantity(i, Math.round(bars * tmtKgPerBar(l.name)! * 1000) / 1000) }}
-                  className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('bars.button', { kg: tmtKgPerBar(l.name) })}</button>
+                  className="min-h-11 text-xs font-semibold text-brand underline">{t('bars.button', { kg: tmtKgPerBar(l.name) })}</button>
               )}
             </div>
             <span className="flex shrink-0 items-center gap-0.5 rounded-xl bg-[#edf2f1] p-0.5">
-              <button aria-label="−" className="h-10 w-10 rounded-lg bg-white text-xl font-bold text-teal-800 shadow-sm active:scale-95 lg:h-8 lg:w-8" onClick={() => setQuantity(i, round2(l.quantity - 1))}>−</button>
+              <button aria-label="−" className="h-10 w-10 rounded-lg bg-white text-xl font-bold text-brand-strong shadow-sm active:scale-95 lg:h-8 lg:w-8" onClick={() => setQuantity(i, round2(l.quantity - 1))}>−</button>
               <QuantityInput value={l.quantity} onChange={(q) => setQuantity(i, q)} label={`${t('quantity')}: ${l.name}`} />
-              <button aria-label="+" className="h-10 w-10 rounded-lg bg-teal-700 text-xl font-bold text-white shadow-sm active:scale-95 lg:h-8 lg:w-8" onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
+              <button aria-label="+" className="h-10 w-10 rounded-lg bg-brand text-xl font-bold text-white shadow-sm active:scale-95 lg:h-8 lg:w-8" onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
             </span>
             <div className="w-20 text-right font-bold">{formatRupees(round2(l.quantity * l.unitPrice))}</div>
           </div>
@@ -717,19 +717,19 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             </label>
           )}
           {exchangeCredit > 0 && (
-            <div className="mt-2 flex justify-between text-sm font-semibold text-amber-900">
+            <div className="mt-2 flex justify-between text-sm font-semibold text-warn-ink">
               <span>{t('exchange.credit', { note: exchange!.noteNo })}</span><span>− {formatRupees(exchangeCredit)}</span>
             </div>
           )}
-          {exchange && exchange.total > total && total > 0 && <p className="mt-1 text-sm font-semibold text-amber-900">{t('exchange.change', { amount: formatRupees(round2(exchange.total - total)) })}</p>}
+          {exchange && exchange.total > total && total > 0 && <p className="mt-1 text-sm font-semibold text-warn-ink">{t('exchange.change', { amount: formatRupees(round2(exchange.total - total)) })}</p>}
           {discountTotal > 0 && (
-            <div className="mt-2 flex justify-between text-sm font-semibold text-teal-800">
+            <div className="mt-2 flex justify-between text-sm font-semibold text-brand-strong">
               <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>
             </div>
           )}
           {/* Optional: the shopkeeper's own discount on the whole bill. */}
           {billOff ? (
-            <p className="mt-1 flex items-center justify-between gap-2 text-sm font-semibold text-teal-800">
+            <p className="mt-1 flex items-center justify-between gap-2 text-sm font-semibold text-brand-strong">
               <span>{t('billOff.applied', { amount: formatRupees(billOff.amount) })}</span>
               <button type="button" onClick={() => { setCart(billOff.before); setBillOff(null) }} className="min-h-9 text-xs font-normal text-muted underline">{t('billOff.remove')}</button>
             </p>
@@ -740,14 +740,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               <div className="flex rounded-xl border border-line">
                 {([false, true] as const).map((pct) => (
                   <button key={String(pct)} type="button" onClick={() => setOffForm({ ...offForm, percent: pct })} aria-pressed={offForm.percent === pct}
-                    className={`min-h-11 px-3 font-semibold ${offForm.percent === pct ? 'bg-teal-700 text-white' : ''} ${pct ? 'rounded-r-xl' : 'rounded-l-xl'}`}>{t(pct ? 'billOff.percent' : 'billOff.rupees')}</button>
+                    className={`min-h-11 px-3 font-semibold ${offForm.percent === pct ? 'bg-brand text-white' : ''} ${pct ? 'rounded-r-xl' : 'rounded-l-xl'}`}>{t(pct ? 'billOff.percent' : 'billOff.rupees')}</button>
                 ))}
               </div>
-              <button type="button" onClick={applyBillOff} disabled={!(Number(offForm.value) > 0)} className="min-h-11 rounded-xl bg-teal-700 px-4 font-semibold text-white disabled:opacity-40">{t('billOff.apply')}</button>
+              <button type="button" onClick={applyBillOff} disabled={!(Number(offForm.value) > 0)} className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-white disabled:opacity-40">{t('billOff.apply')}</button>
               <button type="button" onClick={() => setOffForm(null)} className="min-h-11 px-2 text-muted">{t('cancel')}</button>
             </div>
           ) : (
-            <button type="button" onClick={() => setOffForm({ value: '', percent: false })} className="mt-1 min-h-11 text-sm font-semibold text-teal-700">{t('billOff.add')}</button>
+            <button type="button" onClick={() => setOffForm({ value: '', percent: false })} className="mt-1 min-h-11 text-sm font-semibold text-brand">{t('billOff.add')}</button>
           )}
           {settings && (
             <div className="mt-2 text-sm">
@@ -760,11 +760,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                   </select>
                 </label>
               )}
-              {picksState && withoutGst && <p className="mb-1 rounded-xl bg-amber-50 p-2 text-xs text-amber-900">{t('gstLine.noGstHint')}</p>}
+              {picksState && withoutGst && <p className="mb-1 rounded-xl bg-warn-soft p-2 text-xs text-warn-ink">{t('gstLine.noGstHint')}</p>}
               <GodownPicker shopId={shopId} value={fromGodown} onChange={setFromGodown} label="out" />
               <p className="font-semibold text-muted">
                 {t(taxInvoice ? 'gstLine.invoice' : picksState && withoutGst ? 'gstLine.withoutGst' : shopState ? 'gstLine.supply' : 'gstLine.plain')}
-                {!shopState && isOwner && <button type="button" onClick={() => navigate('/settings')} className="ml-2 min-h-11 font-semibold text-teal-700 underline">{t('gstLine.addGstin')}</button>}
+                {!shopState && isOwner && <button type="button" onClick={() => navigate('/settings')} className="ml-2 min-h-11 font-semibold text-brand underline">{t('gstLine.addGstin')}</button>}
               </p>
               {/* Prices include GST: show what the total is made of, so it is plain the GST is inside it, not on top. */}
               {taxInvoice && tax.tax > 0 && (
@@ -781,7 +781,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                   <span>{r.igst > 0 ? `IGST ${formatRupees(r.igst)}` : `CGST ${formatRupees(r.cgst)} · SGST ${formatRupees(r.sgst)}`}</span>
                 </p>
               ))}
-              {taxInvoice && tax.unset > 0 && <p className="font-semibold text-amber-800">{t('gstLine.noRate', { amount: formatRupees(tax.unset) })}</p>}
+              {taxInvoice && tax.unset > 0 && <p className="font-semibold text-warn">{t('gstLine.noRate', { amount: formatRupees(tax.unset) })}</p>}
             </div>
           )}
           <div className="mt-2 flex justify-between text-xl font-bold">
@@ -792,12 +792,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       </div>
 
       {cart.length > 0 && (
-        <div className="space-y-4 rounded-[18px] bg-white p-4 shadow-sm">
+        <div className="space-y-4 rounded-card bg-white p-4 shadow-sm">
           <CustomerFinder customers={customers} selected={customer} onKhata={customer ? round2(due - paidAmount) : 0} onPick={pickCustomer} onNameLater={() => addCustomer(shopId, '', '', true)} onCreate={(name, phone) => addCustomer(shopId, name, phone)} />
           {customer && (
             <>
               <Field id="bill-paid" label={t('paidNow')} value={paid ?? String(total)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
-              {paidAmount > 0 && <button onClick={allOnKhata} className="min-h-11 w-full rounded-xl border-2 border-teal-700 font-bold text-teal-800">{t('billFind.allKhata')}</button>}
+              {paidAmount > 0 && <button onClick={allOnKhata} className="min-h-11 w-full rounded-xl border-2 border-brand font-bold text-brand-strong">{t('billFind.allKhata')}</button>}
             </>
           )}
           {customer && total - paidAmount > 0 && (
@@ -811,9 +811,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 products={products} extras={extras} onExtras={setExtras} onAddLine={add} />
             </Suspense>
           )}
-          {picksState && buyerState && buyerState !== shopState && <p className="text-xs font-semibold text-amber-800">{t('pos.byGstin', { state: GST_STATES[buyerState] })}</p>}
+          {picksState && buyerState && buyerState !== shopState && <p className="text-xs font-semibold text-warn">{t('pos.byGstin', { state: GST_STATES[buyerState] })}</p>}
           {deliversGoods && (picksState || sendsGoods) && !deliveryOpen && (
-            <button type="button" onClick={() => setDeliveryOpen(true)} className="min-h-11 w-full rounded-xl border border-dashed border-line px-3 py-2 text-left font-semibold text-teal-800">
+            <button type="button" onClick={() => setDeliveryOpen(true)} className="min-h-11 w-full rounded-xl border border-dashed border-line px-3 py-2 text-left font-semibold text-brand-strong">
               + {t('delivery.add')}
               {earlierSites && <span className="block text-xs font-normal text-muted">{t('delivery.earlier', { sites: earlierSites })}</span>}
             </button>
@@ -822,7 +822,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             <section aria-label={t('delivery.title')} className="flex flex-col gap-2 rounded-xl border border-line p-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold">{t('delivery.title')}</h3>
-                <button type="button" onClick={() => setDelivery()} className="min-h-11 px-1 text-sm font-semibold text-teal-700 underline">{t('delivery.remove')}</button>
+                <button type="button" onClick={() => setDelivery()} className="min-h-11 px-1 text-sm font-semibold text-brand underline">{t('delivery.remove')}</button>
               </div>
               {picksState && buyerState && <p className="text-sm text-muted">{t('pos.followsGstin', { state: GST_STATES[buyerState] })}</p>}
               {picksState && !buyerState && (
@@ -834,7 +834,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                   </select>
                 </label>
               )}
-              {picksState && !buyerState && deliveredTo && <p className="text-xs font-semibold text-amber-800">{t('pos.igst', { state: GST_STATES[deliveredTo] })}</p>}
+              {picksState && !buyerState && deliveredTo && <p className="text-xs font-semibold text-warn">{t('pos.igst', { state: GST_STATES[deliveredTo] })}</p>}
               {sendsGoods && (
                 <Suspense fallback={null}>
                   <TradeDelivery shopId={shopId} customer={customer} total={total} cart={cart} extras={extras} onExtras={setExtras} placeOfSupply={(picksState && deliveredTo) || null}
@@ -848,7 +848,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               chosen={picked[l.productId!] ?? []} onChange={(list) => setPicked({ ...picked, [l.productId!]: list })} />
           ))}
           {schedules.length > 0 && (
-            <div className="flex flex-col gap-2 rounded-xl bg-red-50 p-2">
+            <div className="flex flex-col gap-2 rounded-xl bg-due-soft p-2">
               <p className="text-sm font-semibold text-due">{t(needsAddress ? 'rx.neededH1' : 'rx.needed')}</p>
               <div className="grid grid-cols-2 gap-2">
                 <Field label={t('rx.doctor')} value={rx.doctorName} onChange={(e) => setRx({ ...rx, doctorName: e.target.value })} />
@@ -866,14 +866,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               const on = upiPart === null && mode === m
               return (
                 <button key={m} onClick={() => { setMode(m); setUpiPart(null) }} aria-pressed={on}
-                  className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${on ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted hover:text-ink'}`}>
+                  className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${on ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}>
                   <span aria-hidden className="text-lg leading-none">{m === 'cash' ? '💵' : m === 'upi' ? '📱' : '💳'}</span>{t(m)}
                 </button>
               )
             })}
             {paidAmount > 0 && (
               <button onClick={() => { setMode('cash'); setUpiPart(upiPart === null ? '' : null) }} aria-pressed={upiPart !== null}
-                className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${upiPart !== null ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted hover:text-ink'}`}>
+                className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${upiPart !== null ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}>
                 <span aria-hidden className="text-lg leading-none">➗</span>{t('split.button')}
               </button>
             )}
@@ -891,18 +891,18 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           {(upiPart === null ? mode === 'cash' : cashPaid > 0) && paidAmount > 0 && <CashChange paying={upiPart === null ? paidAmount : cashPaid} received={received} onChange={setReceived} />}
           {upiNow && (
             <input value={utr} onChange={(e) => setUtr(e.target.value.replace(/[^0-9a-zA-Z]/g, '').toUpperCase().slice(0, 30))} placeholder={t('split.utr')} aria-label={t('split.utr')}
-              className="h-11 rounded-xl border border-line bg-white px-3 text-sm outline-none focus:border-teal-600" />
+              className="h-11 rounded-xl border border-line bg-white px-3 text-sm outline-none focus:border-brand-line" />
           )}
           {(upiPart === null ? mode === 'upi' : upiPaid > 0 && splitWith === 'upi') && paidAmount > 0 && <UpiCollect upiId={settings?.upiId ?? null} shop={shopName} amount={upiPart === null ? paidAmount : upiPaid} />}
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
           {needsBuyerAddress && <p className="text-sm font-semibold text-due">{t('print.bigBillAddress')}</p>}
-          {fromEstimate && <p className="rounded-xl bg-teal-50 p-2 text-sm text-teal-900">{t('estimate.fromEstimate', { number: fromEstimate.number })}</p>}
-          {fromOrder && <p className="rounded-xl bg-teal-50 p-2 text-sm text-teal-900">🚚 {t('saleOrder.fromOrder', { number: fromOrder.number })}</p>}
+          {fromEstimate && <p className="rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">{t('estimate.fromEstimate', { number: fromEstimate.number })}</p>}
+          {fromOrder && <p className="rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">🚚 {t('saleOrder.fromOrder', { number: fromOrder.number })}</p>}
           {orderSaved !== null && <p className="rounded-xl bg-emerald-50 p-2 text-sm font-semibold text-emerald-800">{t('saleOrder.saved', { number: orderSaved })} <button onClick={() => navigate('/sale-orders')} className="underline">{t('saleOrder.open')}</button></p>}
-          <button type="button" onClick={() => void saveEstimate()} disabled={cart.length === 0 || !!fromEstimate} className="flex min-h-10 items-center gap-1.5 self-start rounded-full border border-dashed border-teal-700/40 px-3.5 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-40"><span aria-hidden>📝</span>{t('estimate.save')}</button>
-          <button type="button" onClick={() => void saveOrder()} disabled={cart.length === 0 || !customerId || !!fromOrder || !!fromEstimate} title={!customerId ? t('saleOrder.needCustomer') : undefined} className="flex min-h-10 items-center gap-1.5 self-start rounded-full border border-dashed border-teal-700/40 px-3.5 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-40"><span aria-hidden>📦</span>{t('saleOrder.save')}</button>
+          <button type="button" onClick={() => void saveEstimate()} disabled={cart.length === 0 || !!fromEstimate} className="flex min-h-10 items-center gap-1.5 self-start rounded-full border border-dashed border-brand/40 px-3.5 text-sm font-semibold text-brand-strong hover:bg-brand-soft disabled:opacity-40"><span aria-hidden>📝</span>{t('estimate.save')}</button>
+          <button type="button" onClick={() => void saveOrder()} disabled={cart.length === 0 || !customerId || !!fromOrder || !!fromEstimate} title={!customerId ? t('saleOrder.needCustomer') : undefined} className="flex min-h-10 items-center gap-1.5 self-start rounded-full border border-dashed border-brand/40 px-3.5 text-sm font-semibold text-brand-strong hover:bg-brand-soft disabled:opacity-40"><span aria-hidden>📦</span>{t('saleOrder.save')}</button>
           <div className="flex gap-2 border-t border-line pt-4">
-            <button type="button" onClick={holdBill} className="flex min-h-14 shrink-0 items-center gap-1.5 rounded-2xl border-2 border-teal-700 px-4 font-bold text-teal-800 hover:bg-teal-50"><span aria-hidden>⏸</span>{t('hold.button')}</button>
+            <button type="button" onClick={holdBill} className="flex min-h-14 shrink-0 items-center gap-1.5 rounded-2xl border-2 border-brand px-4 font-bold text-brand-strong hover:bg-brand-soft"><span aria-hidden>⏸</span>{t('hold.button')}</button>
             <Button className="h-14 flex-1 text-lg shadow-md shadow-teal-900/15" id="bill-save" onClick={save} disabled={!canSave}>
               {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(total) }) : `${t('saveBill')} · ${formatRupees(total)}`}
             </Button>
@@ -913,7 +913,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       </div>
       {cart.length > 0 && !billInView && (
         <button onClick={() => billRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          className="fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-10 mx-auto flex h-14 lg:hidden w-[calc(100%-2rem)] max-w-[34rem] items-center justify-between rounded-2xl bg-teal-700 px-4 font-bold text-white shadow-lg">
+          className="fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-10 mx-auto flex h-14 lg:hidden w-[calc(100%-2rem)] max-w-[34rem] items-center justify-between rounded-2xl bg-brand px-4 font-bold text-white shadow-lg">
           <span>{t('billBar', { count: cart.length })}</span>
           <span>{formatRupees(total)} · {t('checkout')} ↓</span>
         </button>
@@ -999,7 +999,7 @@ function UpiCollect({ upiId, shop, amount }: { upiId: string | null; shop: strin
   }, [uri])
   if (!upiId) {
     return (
-      <button onClick={() => navigate('/settings')} className="rounded-xl bg-amber-50 p-3 text-left text-sm font-semibold text-amber-900">
+      <button onClick={() => navigate('/settings')} className="rounded-xl bg-warn-soft p-3 text-left text-sm font-semibold text-warn-ink">
         {t('upiPay.noId')} →
       </button>
     )
@@ -1045,7 +1045,7 @@ function QuantityInput({ value, onChange, label }: { value: number; onChange: (q
       onChange={(e) => { const next = e.target.value.replace(/[^\d.]/g, ''); setText(next); if (Number(next) > 0) onChange(Number(next)) }}
       inputMode="decimal"
       aria-label={label}
-      className="h-10 w-14 rounded-lg bg-transparent text-center text-lg font-bold outline-none focus:bg-white focus:ring-2 focus:ring-teal-600/30 lg:h-8"
+      className="h-10 w-14 rounded-lg bg-transparent text-center text-lg font-bold outline-none focus:bg-white focus:ring-2 focus:ring-brand-line/30 lg:h-8"
     />
   )
 }
@@ -1062,12 +1062,12 @@ function SerialPicker({ shopId, productId, name, quantity, chosen, onChange }: {
   const inStock = useSerialsInStock(shopId, productId)
   const toggle = (serial: string) => onChange(chosen.includes(serial) ? chosen.filter((s) => s !== serial) : chosen.length < quantity ? [...chosen, serial] : chosen)
   return (
-    <div className={`flex flex-col gap-1 rounded-xl p-2 ${chosen.length === quantity ? 'bg-teal-50' : 'bg-amber-50'}`}>
+    <div className={`flex flex-col gap-1 rounded-xl p-2 ${chosen.length === quantity ? 'bg-brand-soft' : 'bg-warn-soft'}`}>
       <p className="text-sm font-semibold">{t('serials.pick', { name, count: quantity, picked: chosen.length })}</p>
       {inStock.length === 0 && <p className="text-xs text-due">{t('serials.noneInStock')}</p>}
       <div className="flex flex-wrap gap-1">
         {inStock.map((s) => (
-          <button key={s.id} onClick={() => toggle(s.serialNo)} className={`min-h-10 rounded-lg px-2 font-mono text-sm ${chosen.includes(s.serialNo) ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`}>{s.serialNo}</button>
+          <button key={s.id} onClick={() => toggle(s.serialNo)} className={`min-h-10 rounded-lg px-2 font-mono text-sm ${chosen.includes(s.serialNo) ? 'bg-brand text-white' : 'border border-line bg-white'}`}>{s.serialNo}</button>
         ))}
       </div>
     </div>

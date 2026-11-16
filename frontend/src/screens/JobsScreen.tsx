@@ -35,7 +35,7 @@ export function JobsScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
   const jobs = useQuery({ queryKey: [shopId, 'jobs', done], queryFn: () => api<Job[]>(`/v1/jobs${done ? '?done=true' : ''}`) })
 
   if (openId) return <JobPage shopId={shopId} id={openId} onBack={() => setOpenId(null)} />
-  const chip = (on: boolean) => `min-h-11 flex-1 rounded-full text-sm font-semibold ${on ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`
+  const chip = (on: boolean) => `min-h-11 flex-1 rounded-full text-sm font-semibold ${on ? 'bg-brand text-white' : 'border border-line bg-white'}`
   const tabs = isOwner && (
     <div className="flex gap-2 rounded-full bg-white p-1">
       {(['jobs', 'machines', 'karigar', 'trade'] as const).map((x) => <button key={x} onClick={() => setTab(x)} className={chip(tab === x)}>{t(`workshop.tab.${x}`)}</button>)}
@@ -54,18 +54,18 @@ export function JobsScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
       </div>
       {!done && (adding ? <NewJob shopId={shopId} onDone={(id) => { setAdding(false); if (id) setOpenId(id) }} /> : <Button onClick={() => setAdding(true)}>{t('jobs.new')}</Button>)}
       {jobs.isLoading && <p className="text-muted">…</p>}
-      {jobs.data?.length === 0 && <p className="rounded-[18px] bg-white p-4 text-center text-muted">{t('jobs.empty')}</p>}
+      {jobs.data?.length === 0 && <p className="rounded-card bg-white p-4 text-center text-muted">{t('jobs.empty')}</p>}
       <ul className="flex flex-col gap-2">
         {jobs.data?.map((j) => (
           <li key={j.id}>
-            <button onClick={() => setOpenId(j.id)} className="flex w-full items-center gap-3 rounded-[18px] bg-white p-3 text-left">
+            <button onClick={() => setOpenId(j.id)} className="flex w-full items-center gap-3 rounded-card bg-white p-3 text-left">
               <span className="min-w-0 flex-1">
                 <span className="block font-semibold">#{j.number} {j.title}{j.serialNo ? ` · S/N ${j.serialNo}` : ''}</span>
                 <span className="block text-xs text-muted">{t(`jobs.status.${j.status}`)}{j.customerName ? ` · ${j.customerName}` : ''}{j.dueOn ? ` · ${t('jobs.due', { date: j.dueOn })}` : ''}{j.inWarranty ? ` · ${t('jobs.inWarranty')}` : ''}</span>
               </span>
               <span className="text-right">
                 <span className="block font-bold">{formatRupees(j.price)}</span>
-                <span className={`block text-xs font-semibold ${j.profit < 0 ? 'text-due' : 'text-teal-700'}`}>{t('jobs.profitShort', { amount: formatRupees(j.profit) })}</span>
+                <span className={`block text-xs font-semibold ${j.profit < 0 ? 'text-due' : 'text-brand'}`}>{t('jobs.profitShort', { amount: formatRupees(j.profit) })}</span>
               </span>
             </button>
           </li>
@@ -132,10 +132,10 @@ function NewJob({ shopId, onDone }: { shopId: string; onDone: (id?: string) => v
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+    <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <Field label={t('jobs.name')} value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} placeholder={t(service ? 'jobs.serviceTitleHint' : 'jobs.titleHint')} />
       {service && (
-        <div className="flex flex-col gap-2 rounded-xl bg-teal-50 p-2">
+        <div className="flex flex-col gap-2 rounded-xl bg-brand-soft p-2">
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder={t('jobs.notePlaceholder')} aria-label={t('jobs.note')} className="rounded-xl border border-line p-2 text-sm" />
           <div className="flex gap-2">
             <Button tone="plain" className="flex-1" disabled={listening} onClick={listen}>🎤 {t(listening ? 'jobs.listening' : 'jobs.speak')}</Button>
@@ -220,17 +220,17 @@ export function JobPage({ shopId, id, onBack, embedded = false }: { shopId: stri
 
   return (
     <div className={embedded ? "flex flex-col gap-3" : "flex flex-col gap-3 p-4 pb-28"}>
-      {!embedded && <button onClick={onBack} className="min-h-11 self-start font-semibold text-teal-700">← {t('jobs.all')}</button>}
-      <div className="rounded-[18px] bg-white p-4">
+      {!embedded && <button onClick={onBack} className="min-h-11 self-start font-semibold text-brand">← {t('jobs.all')}</button>}
+      <div className="rounded-card bg-white p-4">
         <h2 className="text-lg font-bold">#{job.number} {job.title}</h2>
         <p className="text-sm text-muted">{t(`jobs.status.${job.status}`)}{job.customerName ? ` · ${job.customerName}` : ''}{job.dueOn ? ` · ${t('jobs.due', { date: job.dueOn })}` : ''}</p>
         {job.serialNo && (
-          <p className="mt-1 text-sm">S/N <b>{job.serialNo}</b> · <span className={job.inWarranty ? 'font-semibold text-teal-700' : 'text-due'}>{t(job.inWarranty ? 'jobs.inWarranty' : 'jobs.outWarranty')}</span></p>
+          <p className="mt-1 text-sm">S/N <b>{job.serialNo}</b> · <span className={job.inWarranty ? 'font-semibold text-brand' : 'text-due'}>{t(job.inWarranty ? 'jobs.inWarranty' : 'jobs.outWarranty')}</span></p>
         )}
         {job.complaint && <p className="mt-1 text-sm">{t('jobs.complaint')}: {job.complaint}</p>}
         {job.customerPhone && (
           <a href={whatsAppLink(job.customerPhone, t('jobs.statusMessage', { name: job.customerName ?? '', number: job.number, title: job.title, status: t(`jobs.status.${job.status}`), due: formatRupees(Math.max(0, job.price - job.advance)) }))}
-            target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center font-semibold text-teal-700">💬 {t('jobs.sendStatus')}</a>
+            target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center font-semibold text-brand">💬 {t('jobs.sendStatus')}</a>
         )}
         <div className="mt-3 flex flex-col gap-1 text-sm">
           {line(t('jobs.price'), job.price, true)}
@@ -239,7 +239,7 @@ export function JobPage({ shopId, id, onBack, embedded = false }: { shopId: stri
           {line(t('jobs.otherCost'), job.other)}
           {line(t('jobs.totalCost'), job.cost, true)}
           {job.estimatedCost != null && line(t('jobs.estimate'), job.estimatedCost)}
-          <div className={`flex justify-between text-base font-bold ${job.profit < 0 ? 'text-due' : 'text-teal-700'}`}><span>{t('jobs.profit')}</span><span>{formatRupees(job.profit)}</span></div>
+          <div className={`flex justify-between text-base font-bold ${job.profit < 0 ? 'text-due' : 'text-brand'}`}><span>{t('jobs.profit')}</span><span>{formatRupees(job.profit)}</span></div>
           {(detail.data?.overhead ?? 0) > 0 && (
             <>
               {line(t('jobs.overhead'), detail.data!.overhead)}
@@ -263,7 +263,7 @@ export function JobPage({ shopId, id, onBack, embedded = false }: { shopId: stri
       )}
 
       {form && (
-        <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+        <div className="flex flex-col gap-2 rounded-card bg-white p-3">
           <h3 className="font-bold">{t(`jobs.form.${form}`)}</h3>
           {form === 'material' && (
             <>
@@ -293,11 +293,11 @@ export function JobPage({ shopId, id, onBack, embedded = false }: { shopId: stri
       )}
       {!form && message && <p className="text-sm text-due">{message}</p>}
 
-      <ul className="flex flex-col gap-1 rounded-[18px] bg-white p-2">
+      <ul className="flex flex-col gap-1 rounded-card bg-white p-2">
         {detail.data?.entries.map((e) => (
           <li key={e.id} className="flex min-h-11 items-center justify-between px-2 text-sm">
             <span>{t(`jobs.kind.${e.kind}`)} · {e.description}{e.quantity != null ? ` × ${e.quantity}` : ''}</span>
-            <span className={e.kind === 'advance' ? 'font-semibold text-teal-700' : ''}>{formatRupees(e.amount)}</span>
+            <span className={e.kind === 'advance' ? 'font-semibold text-brand' : ''}>{formatRupees(e.amount)}</span>
           </li>
         ))}
       </ul>

@@ -22,7 +22,7 @@ interface Stay {
 interface BoardRow { room: Room; state: 'free' | 'arriving' | 'occupied' | 'leaving'; stay: Stay | null }
 
 const SOURCES: Source[] = ['direct', 'walk_in', 'make_my_trip', 'goibibo', 'booking_com', 'oyo', 'airbnb', 'other']
-const STATE_TONE: Record<BoardRow['state'], string> = { free: 'bg-white', arriving: 'bg-amber-50', occupied: 'bg-teal-50', leaving: 'bg-red-50' }
+const STATE_TONE: Record<BoardRow['state'], string> = { free: 'bg-white', arriving: 'bg-warn-soft', occupied: 'bg-brand-soft', leaving: 'bg-due-soft' }
 const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
@@ -49,12 +49,12 @@ export function RoomsScreen({ shopId, isOwner }: { shopId: string; isOwner: bool
       {rooms.length === 0 ? (isOwner ? <AddRoom shopId={shopId} first /> : <p className="text-muted">{t('rooms.noRooms')}</p>) : (
         <>
           {formCDue.map((s) => (
-            <button key={s.id} onClick={() => setOpenId(s.id)} className="rounded-xl bg-red-50 p-3 text-left text-sm font-semibold text-due">{t('rooms.formCDue', { name: s.guestName, room: s.roomName })} →</button>
+            <button key={s.id} onClick={() => setOpenId(s.id)} className="rounded-xl bg-due-soft p-3 text-left text-sm font-semibold text-due">{t('rooms.formCDue', { name: s.guestName, room: s.roomName })} →</button>
           ))}
           <h3 className="font-bold">{t('rooms.today')}</h3>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {board.map((r) => (
-              <button key={r.room.id} onClick={() => (r.stay ? setOpenId(r.stay.id) : setAdding(r.room.id))} className={`flex min-h-20 flex-col rounded-[18px] border border-line p-3 text-left ${STATE_TONE[r.state]}`}>
+              <button key={r.room.id} onClick={() => (r.stay ? setOpenId(r.stay.id) : setAdding(r.room.id))} className={`flex min-h-20 flex-col rounded-card border border-line p-3 text-left ${STATE_TONE[r.state]}`}>
                 <span className="font-bold">{r.room.name}{r.room.kind ? ` · ${r.room.kind}` : ''}</span>
                 <span className="text-xs font-semibold">{t(`rooms.state.${r.state}`)}</span>
                 <span className="truncate text-xs text-muted">{r.stay ? `${r.stay.guestName} · ${t('rooms.until', { date: day(r.stay.checkOut) })}` : formatRupees(r.room.rate)}</span>
@@ -63,7 +63,7 @@ export function RoomsScreen({ shopId, isOwner }: { shopId: string; isOwner: bool
           </div>
           {adding !== false ? <NewStay shopId={shopId} rooms={rooms} roomId={adding} onDone={(id) => { setAdding(false); if (id) setOpenId(id) }} /> : <Button onClick={() => setAdding(null)}>{t('rooms.newStay')}</Button>}
           <h3 className="font-bold">{t('rooms.coming')}</h3>
-          {stays.filter((s) => s.status === 'booked').length === 0 && <p className="rounded-[18px] bg-white p-3 text-center text-muted">{t('rooms.noneComing')}</p>}
+          {stays.filter((s) => s.status === 'booked').length === 0 && <p className="rounded-card bg-white p-3 text-center text-muted">{t('rooms.noneComing')}</p>}
           <ul className="flex flex-col gap-1">
             {stays.filter((s) => s.status === 'booked').map((s) => (
               <li key={s.id}>
@@ -89,12 +89,12 @@ function AddRoom({ shopId, first = false }: { shopId: string; first?: boolean })
   const [d, setD] = useState({ name: '', kind: '', rate: '' })
   const [open, setOpen] = useState(first)
   const [message, setMessage] = useState('')
-  if (!open) return <button onClick={() => setOpen(true)} className="min-h-11 text-sm font-semibold text-teal-700">+ {t('rooms.addRoom')}</button>
+  if (!open) return <button onClick={() => setOpen(true)} className="min-h-11 text-sm font-semibold text-brand">+ {t('rooms.addRoom')}</button>
   const save = () => api('/v1/rooms', 'POST', { id: crypto.randomUUID(), name: d.name.trim(), kind: d.kind.trim() || null, rate: Number(d.rate) || 0 })
     .then(() => { setD({ name: '', kind: '', rate: '' }); setMessage(t('saved')); void queryClient.invalidateQueries({ queryKey: [shopId, 'rooms'] }) })
     .catch((e: unknown) => setMessage(e instanceof Error ? e.message : t('error')))
   return (
-    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+    <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <h3 className="font-bold">{t(first ? 'rooms.firstRoom' : 'rooms.addRoom')}</h3>
       <div className="grid grid-cols-3 gap-2">
         <Field label={t('rooms.roomName')} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="101" />
@@ -143,7 +143,7 @@ function NewStay({ shopId, rooms, roomId, onDone, bookingId, startDate }: { shop
 
   const labelled = (label: string, node: React.ReactNode) => <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{label}</span>{node}</label>
   return (
-    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+    <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <div className="grid grid-cols-3 gap-2">
         {labelled(t('rooms.room'), <select value={d.roomId} onChange={(e) => setD({ ...d, roomId: e.target.value })} className={select}>{rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>)}
         <Field label={t('rooms.checkIn')} type="date" value={d.checkIn} onChange={set('checkIn')} />
@@ -201,15 +201,15 @@ function StayPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: 
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <button onClick={onBack} className="min-h-11 self-start font-semibold text-teal-700">← {t('rooms.all')}</button>
-      <div className="rounded-[18px] bg-white p-4">
+      <button onClick={onBack} className="min-h-11 self-start font-semibold text-brand">← {t('rooms.all')}</button>
+      <div className="rounded-card bg-white p-4">
         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold">{t(`rooms.status.${s.status}`)}</span>
         <h2 className="mt-1 text-lg font-bold">#{s.number} {s.guestName} · {t('rooms.roomLabel', { room: s.roomName })}</h2>
         <p className="text-sm text-muted">{day(s.checkIn)} → {day(s.checkOut)} · {t('rooms.nights', { count: s.nights })} · {t('rooms.guestsCount', { count: s.guests })} · {t(`rooms.source.${s.source}`)}{s.sourceRef ? ` (${s.sourceRef})` : ''}</p>
         {s.phone && <p className="text-sm text-muted">{formatPhone(s.phone)}</p>}
         {s.idLast4 && <p className="text-sm text-muted">{t('rooms.idSeen', { type: s.idType, last4: s.idLast4 })}</p>}
         {s.formCDue && (
-          <div className="mt-2 rounded-xl bg-red-50 p-3 text-sm">
+          <div className="mt-2 rounded-xl bg-due-soft p-3 text-sm">
             <p className="font-semibold text-due">{t('rooms.formCText')}</p>
             <Button tone="plain" className="mt-2 h-11" onClick={() => void run('form-c', {})}>{t('rooms.formCFiled')}</Button>
           </div>
@@ -233,7 +233,7 @@ function StayPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: 
       {s.billId && <Button tone="plain" onClick={() => navigate(`/print/bill/${s.billId}`)}>{t('print.viewBill')}</Button>}
 
       {form && (
-        <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+        <div className="flex flex-col gap-2 rounded-card bg-white p-3">
           <h3 className="font-bold">{t(`rooms.form.${form}`)}</h3>
           {form === 'checkin' && (
             <>
@@ -288,7 +288,7 @@ function SeasonPrices({ shopId, rooms }: { shopId: string; rooms: Room[] }) {
     .catch((e: unknown) => setMessage(e instanceof Error ? e.message : t('error')))
   const roomName = (id: string | null) => (id ? rooms.find((r) => r.id === id)?.name ?? '' : t('rooms.allRooms'))
   return (
-    <details className="rounded-[18px] bg-white p-3">
+    <details className="rounded-card bg-white p-3">
       <summary className="min-h-11 cursor-pointer font-bold">{t('rooms.seasonTitle', { count: periods.length })}</summary>
       <p className="text-xs text-muted">{t('rooms.seasonHint')}</p>
       <ul className="my-2 flex flex-col gap-1">
@@ -342,7 +342,7 @@ function Calendars({ shopId }: { shopId: string }) {
     }
   }
   return (
-    <details className="rounded-[18px] bg-white p-3">
+    <details className="rounded-card bg-white p-3">
       <summary className="min-h-11 cursor-pointer font-bold">{t('rooms.calendarsTitle')}</summary>
       <p className="text-xs text-muted">{t('rooms.calendarsHint')}</p>
       <ul className="mt-2 flex flex-col gap-3">
@@ -358,7 +358,7 @@ function Calendars({ shopId }: { shopId: string }) {
               <div className="rounded-xl bg-ground p-2 text-xs">
                 <p className="font-semibold">{t('rooms.ourLink')}</p>
                 <p className="break-all font-mono">{`${window.location.origin}${r.icalExportPath}`}</p>
-                <button onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}${r.icalExportPath}`)} className="min-h-11 font-semibold text-teal-700">{t('payPage.copy')}</button>
+                <button onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}${r.icalExportPath}`)} className="min-h-11 font-semibold text-brand">{t('payPage.copy')}</button>
               </div>
             )}
             {message[r.id] && <p className="whitespace-pre-line text-sm text-muted">{message[r.id]}</p>}

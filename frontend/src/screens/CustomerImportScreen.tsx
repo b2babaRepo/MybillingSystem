@@ -62,7 +62,7 @@ export function CustomerImportScreen({ shopId }: { shopId: string }) {
       </label>
 
       {rows.length > 0 && (
-        <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-1 rounded-card bg-white p-4">
           <p className="font-bold">{t('partyImport.summary', { count: rows.length, owed: formatRupees(owed) })}</p>
           {advances > 0 && <p className="text-sm">{t('partyImport.advances', { amount: formatRupees(advances) })}</p>}
           <p className="text-sm font-semibold text-udhaar">{t('partyImport.checkSign')}</p>
@@ -70,7 +70,7 @@ export function CustomerImportScreen({ shopId }: { shopId: string }) {
             {rows.slice(0, 8).map((r, i) => (
               <li key={i} className="flex justify-between gap-2 py-1.5 text-sm">
                 <span className="min-w-0 truncate">{r.name}{r.phone ? ` · ${r.phone}` : ''}</span>
-                <span className={`shrink-0 font-semibold ${r.balance < 0 ? 'text-teal-700' : ''}`}>{r.balance < 0 ? t('partyImport.advance', { amount: formatRupees(-r.balance) }) : formatRupees(r.balance)}</span>
+                <span className={`shrink-0 font-semibold ${r.balance < 0 ? 'text-brand' : ''}`}>{r.balance < 0 ? t('partyImport.advance', { amount: formatRupees(-r.balance) }) : formatRupees(r.balance)}</span>
               </li>
             ))}
           </ul>

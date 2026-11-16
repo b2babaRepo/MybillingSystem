@@ -18,7 +18,7 @@ const value = (o: PurchaseOrder) => o.lines.reduce((s, l) => s + (l.rate ?? 0) *
 const state = (o: PurchaseOrder) => o.status === 'open' ? (o.lines.some((l) => l.received > 0) ? 'part' : 'open') : o.status
 // Where an open order has got to, from Goods to come (placed, sent, confirmed, dispatched).
 const stageLabel = (o: PurchaseOrder) => (o.status === 'open' && o.stage && !['placed', 'part'].includes(o.stage) ? o.stage : null)
-const TONE: Record<string, string> = { open: 'bg-teal-50 text-teal-800', part: 'bg-amber-50 text-amber-800', closed: 'bg-slate-100 text-muted', cancelled: 'bg-red-50 text-due', draft: 'bg-amber-100 text-amber-800' }
+const TONE: Record<string, string> = { open: 'bg-brand-soft text-brand-strong', part: 'bg-warn-soft text-warn', closed: 'bg-slate-100 text-muted', cancelled: 'bg-due-soft text-due', draft: 'bg-amber-100 text-warn' }
 
 /**
  * Every order to every supplier in one list: what came of each, what is still to come and what is late.
@@ -52,10 +52,10 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl font-bold">🧾 {t('po.title')}</h1>
-          <button onClick={() => (suppliers.length === 0 ? navigate('/suppliers') : setChoosing(!choosing))} className="min-h-11 rounded-xl bg-teal-700 px-3 font-semibold text-white">+ {t('supplier2.newOrder')}</button>
+          <button onClick={() => (suppliers.length === 0 ? navigate('/suppliers') : setChoosing(!choosing))} className="min-h-11 rounded-xl bg-brand px-3 font-semibold text-white">+ {t('supplier2.newOrder')}</button>
         </div>
         {choosing && (
           <label className="flex flex-col gap-1 text-sm">{t('po.pickSupplier')}
@@ -76,7 +76,7 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('po.search')} aria-label={t('po.search')} className="h-12 rounded-xl border border-line bg-white px-3" />
         <div className="flex flex-wrap gap-1">
           {(['open', 'late', 'closed', 'all'] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f} className={`h-9 rounded-full px-3 text-sm font-semibold ${filter === f ? 'bg-teal-700 text-white' : 'bg-[#edf2f1] text-muted'}`}>
+            <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f} className={`h-9 rounded-full px-3 text-sm font-semibold ${filter === f ? 'bg-brand text-white' : 'bg-[#edf2f1] text-muted'}`}>
               {t(`po.f.${f}`)}{f === 'late' && late.length > 0 ? ` (${late.length})` : ''}
             </button>
           ))}
@@ -89,7 +89,7 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
         const came = o.lines.reduce((s, l) => s + Math.min(l.received, l.quantity), 0)
         const s = state(o)
         return (
-          <button key={o.id} onClick={() => openSupplier(o.supplierId)} className="flex flex-col gap-2 rounded-[18px] bg-white p-4 text-left shadow-sm hover:bg-[#f6faf9]">
+          <button key={o.id} onClick={() => openSupplier(o.supplierId)} className="flex flex-col gap-2 rounded-card bg-white p-4 text-left shadow-sm hover:bg-[#f6faf9]">
             <span className="flex w-full items-start justify-between gap-2">
               <span className="flex flex-col">
                 <b>{o.supplierName} · {t('supplier2.orderNo', { number: o.number })}</b>

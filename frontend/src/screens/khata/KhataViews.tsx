@@ -123,7 +123,7 @@ function DisputeSheet({ entry, path, onClose, onSent }: { entry: StatementLine; 
           maxLength={300}
           rows={2}
           placeholder={items.length > 0 ? t('dispute.notePlaceholder') : t('dispute.ask')}
-          className="rounded-[14px] border border-line bg-white p-3 outline-none focus:border-teal-600"
+          className="rounded-[14px] border border-line bg-white p-3 outline-none focus:border-brand-line"
         />
         {chosen.length > 0 && <p className="font-semibold">{t('dispute.inQuestion', { amount: formatRupees(Math.round(inQuestion * 100) / 100) })}</p>}
         {error && <p className="text-sm text-due">{error}</p>}
@@ -154,10 +154,10 @@ function PaidCard({ path, balance, queryKey }: { path: string; balance: number; 
       setMessage(e instanceof Error ? e.message : t('error'))
     }
   }
-  if (sent) return <p className="rounded-[14px] bg-teal-50 p-3 text-sm font-semibold text-teal-900">{t('receipts.paidSent')}</p>
-  if (!open) return <button onClick={() => setOpen(true)} className="flex h-12 items-center justify-center rounded-2xl border-2 border-teal-700 font-bold text-teal-800">{t('receipts.iPaid')}</button>
+  if (sent) return <p className="rounded-[14px] bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{t('receipts.paidSent')}</p>
+  if (!open) return <button onClick={() => setOpen(true)} className="flex h-12 items-center justify-center rounded-2xl border-2 border-brand font-bold text-brand-strong">{t('receipts.iPaid')}</button>
   return (
-    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+    <div className="flex flex-col gap-2 rounded-card bg-white p-4">
       <input aria-label={t('receipts.amount')} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="h-12 rounded-xl border border-line px-3 text-lg font-bold" />
       <input aria-label={t('receipts.utr')} placeholder={t('receipts.utr')} value={utr} onChange={(e) => setUtr(e.target.value)} maxLength={30} className="h-12 rounded-xl border border-line px-3" />
       <Button disabled={!(Number(amount) > 0)} onClick={() => void send()}>{t('receipts.tellShop')}</Button>
@@ -174,26 +174,26 @@ function KhataBody({ view, disputePath, paidPath, queryKey }: { view: KhataView;
   const open = view.statement.entries.filter((e) => e.dispute && !e.dispute.resolvedAt).length
   return (
     <div className="flex flex-col gap-3 p-4">
-      <div className="flex items-start justify-between rounded-[18px] bg-white p-4">
+      <div className="flex items-start justify-between rounded-card bg-white p-4">
         <div className="min-w-0">
           <div className="text-sm text-muted">{[view.shopName, view.shopArea].filter(Boolean).join(' · ')}</div>
           <div className="text-2xl font-bold">{customer.name}</div>
         </div>
         <Balance amount={customer.balance} large />
       </div>
-      <p className="rounded-[14px] bg-teal-50 p-3 text-sm text-teal-900">{t('myKhata.readOnly', { shop: view.shopName })}</p>
+      <p className="rounded-[14px] bg-brand-soft p-3 text-sm text-brand-deep">{t('myKhata.readOnly', { shop: view.shopName })}</p>
       {view.shopPhone && (
         <a className="flex h-12 items-center justify-center rounded-2xl border border-line bg-white font-semibold" href={`tel:${view.shopPhone}`}>
           📞 {t('myKhata.callShop', { phone: formatPhone(view.shopPhone) })}
         </a>
       )}
       {view.claims?.map((c) => (
-        <p key={c.reportedAt} className={`rounded-[14px] p-3 text-sm font-semibold ${c.status === 'waiting' ? 'bg-teal-50 text-teal-900' : 'bg-amber-50 text-amber-950'}`}>
+        <p key={c.reportedAt} className={`rounded-[14px] p-3 text-sm font-semibold ${c.status === 'waiting' ? 'bg-brand-soft text-brand-deep' : 'bg-warn-soft text-amber-950'}`}>
           {t(`receipts.claim_${c.status}`, { amount: formatRupees(c.amount) })}
         </p>
       ))}
       {customer.balance > 0 && <PaidCard path={paidPath} balance={customer.balance} queryKey={queryKey} />}
-      {open > 0 && <p className="rounded-[14px] bg-amber-50 p-3 text-sm font-semibold text-amber-950">⚠ {t('dispute.openCount', { count: open })}</p>}
+      {open > 0 && <p className="rounded-[14px] bg-warn-soft p-3 text-sm font-semibold text-amber-950">⚠ {t('dispute.openCount', { count: open })}</p>}
       <p className="text-sm text-muted">{t('dispute.hint')}</p>
       <KhataHistory
         entries={view.statement.entries}
@@ -227,7 +227,7 @@ export function KhataLinkPage({ path }: { path: string }) {
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl">
-      <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white">
+      <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand px-4 py-3 text-white">
         <h1 className="flex-1 truncate text-xl font-bold">{t('myKhata.title')}</h1>
         <button onClick={() => setLanguage(nextLanguage(i18n.language).code)} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">
           {nextLanguage(i18n.language).short}
@@ -279,11 +279,11 @@ export function MyKhataScreen() {
   return (
     <div className="flex flex-col gap-3 p-4">
       {mine.data?.length === 0 && <p className="py-8 text-center text-muted">{t('myKhata.none')}</p>}
-      <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
+      <ul className="divide-y divide-[#edf2f1] rounded-card bg-white">
         {mine.data?.map((k) => (
           <li key={k.customerId}>
             {!k.confirmed ? <ConfirmKhata khata={k} /> : <button className="flex min-h-16 w-full items-center gap-3 px-3.5 py-3 text-left" onClick={() => navigate(`/khata/${k.shopId}/${k.customerId}`)}>
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e0efec] text-lg font-extrabold text-teal-700">{k.shopName.charAt(0)}</span>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e0efec] text-lg font-extrabold text-brand">{k.shopName.charAt(0)}</span>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-bold">{k.shopName}</div>
                 {k.shopArea && <div className="truncate text-sm text-muted">{k.shopArea}</div>}

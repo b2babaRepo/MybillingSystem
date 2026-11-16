@@ -10,7 +10,7 @@ import type { Order } from '../lib/planner'
 import { confirmAsk } from '../components/Ask'
 
 /** AI-read lines: Ready (sure), Check (one part unsure), Not understood (read the customer's words below it). */
-const AI_CHIP = { high: 'bg-[#e0efec] text-teal-800', medium: 'bg-amber-100 text-amber-900', low: 'bg-red-100 text-due' } as const
+const AI_CHIP = { high: 'bg-[#e0efec] text-brand-strong', medium: 'bg-amber-100 text-warn-ink', low: 'bg-red-100 text-due' } as const
 
 interface Draft {
   packedQuantity: string
@@ -126,26 +126,26 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-32 lg:pb-4">
-      <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm">
         <span className="text-xl font-bold">{order.customerName}</span>
         <span className="text-sm text-muted">
           {order.customerPhone} · {order.fulfilment === 'delivery' ? t('plan.delivery') : t('plan.pickup')} · {order.payment === 'khata' ? t('plan.onKhata') : t(order.payment)}
           {order.slot && ` · ${order.slot}`}
         </span>
         {order.address && <span className="mt-1 text-sm">{order.address}</span>}
-        {order.note && <span className="mt-1 rounded-lg bg-amber-50 px-2 py-1 text-sm text-amber-900">“{order.note}”</span>}
-        <span className="mt-1 text-sm font-bold text-teal-800">{t(`plan.status.${order.status}`)}</span>
+        {order.note && <span className="mt-1 rounded-lg bg-warn-soft px-2 py-1 text-sm text-warn-ink">“{order.note}”</span>}
+        <span className="mt-1 text-sm font-bold text-brand-strong">{t(`plan.status.${order.status}`)}</span>
       </section>
 
       {toCheck > 0 && (
-        <p className="rounded-[14px] bg-amber-50 p-3 text-sm font-semibold text-amber-950">🤖 {t('aiShop.summary', { count: toCheck })}</p>
+        <p className="rounded-[14px] bg-warn-soft p-3 text-sm font-semibold text-amber-950">🤖 {t('aiShop.summary', { count: toCheck })}</p>
       )}
       <ul className="flex flex-col gap-2">
         {order.lines.map((l) => {
           const d = drafts[l.id]
           if (!d) return null
           return (
-            <li key={l.id} className={`flex flex-col gap-2 rounded-[18px] bg-white p-3 ${d.removed ? 'opacity-60' : ''} shadow-sm`}>
+            <li key={l.id} className={`flex flex-col gap-2 rounded-card bg-white p-3 ${d.removed ? 'opacity-60' : ''} shadow-sm`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="flex flex-col">
                   <span className="font-bold">{products.find((p) => p.id === d.productId)?.name ?? l.name}</span>
@@ -159,12 +159,12 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
                     </span>
                   )}
                   {l.preference && (
-                    <span className={`mt-1 w-fit rounded-full px-2 py-0.5 text-[11px] font-bold ${l.preference === 'shop_chooses' ? 'bg-[#e0efec] text-teal-800' : 'bg-amber-100 text-amber-900'}`}>
+                    <span className={`mt-1 w-fit rounded-full px-2 py-0.5 text-[11px] font-bold ${l.preference === 'shop_chooses' ? 'bg-[#e0efec] text-brand-strong' : 'bg-amber-100 text-warn-ink'}`}>
                       {t(`options.pref.${l.requestedProductId ? 'picked' : 'any'}.${l.preference}`)}
                     </span>
                   )}
-                  {l.approval === 'pending' && <span className="mt-1 text-xs font-bold text-amber-800">⏳ {t('options.waitingShop')}</span>}
-                  {l.approval === 'approved' && <span className="mt-1 text-xs font-bold text-teal-800">✓ {t('options.approved')}</span>}
+                  {l.approval === 'pending' && <span className="mt-1 text-xs font-bold text-warn">⏳ {t('options.waitingShop')}</span>}
+                  {l.approval === 'approved' && <span className="mt-1 text-xs font-bold text-brand-strong">✓ {t('options.approved')}</span>}
                   {l.approval === 'declined' && <span className="mt-1 text-xs font-bold text-due">✗ {t('options.declined')}</span>}
                 </span>
                 <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
@@ -182,7 +182,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
                       const option = products.find((p) => p.id === e.target.value)
                       if (option) set(l.id, { productId: option.id, unitPrice: String(option.sellingPrice) })
                     }}
-                    className="h-11 w-full rounded-xl border border-line bg-white px-2 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
+                    className="h-11 w-full rounded-xl border border-line bg-white px-2 outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10"
                   >
                     {optionsFor(l.productId).map((p) => (
                       <option key={p.id} value={p.id}>
@@ -196,27 +196,27 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
                 <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-muted">{t('inbox.packedQty')} ({t(`units.${l.unit}`)})</span>
-                    <input value={d.packedQuantity} disabled={!editable} onChange={(e) => set(l.id, { packedQuantity: e.target.value })} inputMode="decimal" className="h-11 w-full rounded-xl border border-line px-2 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+                    <input value={d.packedQuantity} disabled={!editable} onChange={(e) => set(l.id, { packedQuantity: e.target.value })} inputMode="decimal" className="h-11 w-full rounded-xl border border-line px-2 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-muted">{t('inbox.price')}</span>
-                    <input value={d.unitPrice} disabled={!editable} onChange={(e) => set(l.id, { unitPrice: e.target.value })} inputMode="decimal" placeholder="₹" className="h-11 w-full rounded-xl border border-line px-2 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+                    <input value={d.unitPrice} disabled={!editable} onChange={(e) => set(l.id, { unitPrice: e.target.value })} inputMode="decimal" placeholder="₹" className="h-11 w-full rounded-xl border border-line px-2 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
                   </label>
                   <span className="w-20 pb-2.5 text-right font-bold">{formatRupees(round2((Number(d.packedQuantity) || 0) * (Number(d.unitPrice) || 0)))}</span>
                 </div>
               )}
-              <input value={d.shopNote} disabled={!editable} onChange={(e) => set(l.id, { shopNote: e.target.value })} maxLength={200} placeholder={t('inbox.shopNote')} className="h-11 rounded-xl border border-line px-2 text-sm bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+              <input value={d.shopNote} disabled={!editable} onChange={(e) => set(l.id, { shopNote: e.target.value })} maxLength={200} placeholder={t('inbox.shopNote')} className="h-11 rounded-xl border border-line px-2 text-sm bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
             </li>
           )
         })}
       </ul>
 
-      {error && <p className="rounded-lg bg-red-50 p-3 text-due">{error}</p>}
+      {error && <p className="rounded-lg bg-due-soft p-3 text-due">{error}</p>}
 
       {order.status === 'packed' && (
-        <label className="block rounded-[18px] bg-white p-3 shadow-sm">
+        <label className="block rounded-card bg-white p-3 shadow-sm">
           <span className="mb-1 block text-sm font-semibold text-muted">{t('inbox.paidNow')}</span>
-          <input value={paid ?? String(defaultPaid)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" className="h-12 w-full rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+          <input value={paid ?? String(defaultPaid)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" className="h-12 w-full rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
           {/* Cash received at the door: all of it, some (type it), or none (all on khata). */}
           <span className="mt-2 grid grid-cols-2 gap-2">
             <button type="button" onClick={() => setPaid(String(order.finalAmount ?? 0))} className="min-h-11 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">{t('print.paid')} · {formatRupees(order.finalAmount ?? 0)}</button>
@@ -230,18 +230,18 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
       )}
 
       {editable && (
-        <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:sticky lg:bottom-0 lg:mx-0 lg:max-w-none lg:rounded-[18px] lg:border lg:shadow-lg flex max-w-xl flex-col gap-2 border-t border-line bg-white px-4 py-3">
+        <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:sticky lg:bottom-0 lg:mx-0 lg:max-w-none lg:rounded-card lg:border lg:shadow-lg flex max-w-xl flex-col gap-2 border-t border-line bg-white px-4 py-3">
           {canHandOver && (
-            <button onClick={handOver} disabled={busy} className="h-14 rounded-2xl bg-teal-700 text-lg font-bold text-white disabled:opacity-40">
+            <button onClick={handOver} disabled={busy} className="h-14 rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
               {order.payment === 'khata' ? t('inbox.handOverKhata', { amount: formatRupees(total) }) : t('inbox.handOver', { amount: formatRupees(total) })}
             </button>
           )}
-          <button onClick={pack} disabled={busy || !allPriced} className={`h-12 rounded-2xl font-bold ${order.status === 'packed' || canHandOver ? 'border border-line bg-white' : 'bg-teal-700 text-white'} disabled:opacity-40`}>
+          <button onClick={pack} disabled={busy || !allPriced} className={`h-12 rounded-2xl font-bold ${order.status === 'packed' || canHandOver ? 'border border-line bg-white' : 'bg-brand text-white'} disabled:opacity-40`}>
             {t('inbox.markPacked', { amount: formatRupees(total) })}
           </button>
-          {waiting && <p className="text-center text-sm font-semibold text-amber-800">⏳ {t('options.waitingDeliver')}</p>}
+          {waiting && <p className="text-center text-sm font-semibold text-warn">⏳ {t('options.waitingDeliver')}</p>}
           {order.status === 'packed' && order.finalAmount !== null && (
-            <button onClick={deliver} disabled={busy || waiting} className="h-14 rounded-2xl bg-teal-700 text-lg font-bold text-white disabled:opacity-40">
+            <button onClick={deliver} disabled={busy || waiting} className="h-14 rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
               {t('inbox.deliver', { amount: formatRupees(order.finalAmount) })}
             </button>
           )}

@@ -51,7 +51,7 @@ export function Page({ title, subtitle, shareText, phone, children, receipt }: {
       {rule && <style>{rule}</style>}
       <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 flex flex-wrap gap-2 border-b border-line bg-white/95 px-6 py-3 backdrop-blur print:hidden">
         <button onClick={() => history.back()} className="h-11 rounded-xl border border-line px-4 font-semibold transition hover:bg-[#f6faf9]" aria-label={t('a11y.back')}>←</button>
-        <button onClick={() => window.print()} className="flex h-11 items-center gap-1.5 rounded-xl bg-teal-700 px-4 font-semibold text-white shadow-sm hover:bg-teal-800"><span aria-hidden>🖨️</span>{t('print.printPdf')}</button>
+        <button onClick={() => window.print()} className="flex h-11 items-center gap-1.5 rounded-xl bg-brand px-4 font-semibold text-white shadow-sm hover:bg-brand-strong"><span aria-hidden>🖨️</span>{t('print.printPdf')}</button>
         <a href={whatsAppLink(phone, shareText)} target="_blank" rel="noreferrer" className="flex h-11 items-center gap-1.5 rounded-xl bg-[#15803d] px-4 font-semibold text-white shadow-sm hover:bg-green-800"><span aria-hidden>💬</span>{t('print.share')}</a>
         {bt && <button onClick={() => void btPrint(false)} className="flex h-11 items-center gap-1.5 rounded-xl bg-slate-800 px-4 font-semibold text-white shadow-sm hover:bg-slate-900"><span aria-hidden>🧾</span>{t('btPrint.button')}</button>}
         <select aria-label={t('paper.label')} value={paper} onChange={(e) => { const next = e.target.value as Paper; setPaper(next); choosePaper(next) }} className="h-11 rounded-xl border border-line bg-white px-2 font-semibold transition hover:bg-[#f6faf9]">
@@ -62,7 +62,7 @@ export function Page({ title, subtitle, shareText, phone, children, receipt }: {
       </div>
       {bt && btState && (
         <p role="status" className="mb-3 flex flex-wrap items-center gap-3 text-sm print:hidden">{btState}
-          <button onClick={() => void btPrint(true)} className="font-semibold text-teal-700 underline">{t('btPrint.change')}</button></p>
+          <button onClick={() => void btPrint(true)} className="font-semibold text-brand underline">{t('btPrint.change')}</button></p>
       )}
       <div ref={roll} className={paper === 'a4' ? '' : `receipt receipt-${paper}`}>
         <header className="mb-4 border-b-2 border-black pb-3">

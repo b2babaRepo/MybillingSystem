@@ -65,10 +65,10 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
       <div className="flex w-fit flex-wrap gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
         <button onClick={() => navigate('/cashbook')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('bankBook.cashBook')}</button>
-        <span className="flex h-10 items-center rounded-xl bg-white px-4 font-semibold text-teal-800 shadow-sm ring-1 ring-teal-700/20">{t('cashLedger.title')}</span>
+        <span className="flex h-10 items-center rounded-xl bg-white px-4 font-semibold text-brand-strong shadow-sm ring-1 ring-brand/20">{t('cashLedger.title')}</span>
         <button onClick={() => navigate('/bankbook')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('bankBook.title')}</button>
       </div>
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{label}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= monthOf(today)} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -89,22 +89,22 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
         <div className="flex flex-wrap gap-2">
           {(['added', 'removed', 'to_bank', 'from_bank'] as const).map((k) => (
             <button key={k} onClick={() => setKind(kind === k ? null : k)} aria-pressed={kind === k}
-              className={`min-h-11 rounded-xl px-3 font-semibold ${kind === k ? 'bg-teal-700 text-white shadow-sm' : 'border border-line bg-white'}`}>{t(`cashLedger.kinds.${k}`)}</button>
+              className={`min-h-11 rounded-xl px-3 font-semibold ${kind === k ? 'bg-brand text-white shadow-sm' : 'border border-line bg-white'}`}>{t(`cashLedger.kinds.${k}`)}</button>
           ))}
         </div>
         {kind && (
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1">{t('expense.amount')}
-              <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" className="h-11 w-36 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
+              <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" className="h-11 w-36 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
             <label className="flex min-w-48 flex-1 flex-col gap-1">{needsNote ? t('cashLedger.why') : t('expense.note')}
-              <input value={note} onChange={(e) => setNote(e.target.value.slice(0, 120))} className="h-11 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
+              <input value={note} onChange={(e) => setNote(e.target.value.slice(0, 120))} className="h-11 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
             {bankMove && (accounts?.accounts.length ?? 0) > 1 && (
               <label className="flex flex-col gap-1">{t('cashLedger.account')}
-                <select value={account || accounts!.deposit} onChange={(e) => setAccount(e.target.value)} className="h-11 rounded-xl border border-line px-2 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
+                <select value={account || accounts!.deposit} onChange={(e) => setAccount(e.target.value)} className="h-11 rounded-xl border border-line px-2 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10">
                   {accounts!.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select></label>
             )}
-            <button disabled={!ready || busy} onClick={() => void save()} className="h-11 rounded-xl bg-teal-700 px-5 font-semibold text-white disabled:opacity-40">{t('bankBook.save')}</button>
+            <button disabled={!ready || busy} onClick={() => void save()} className="h-11 rounded-xl bg-brand px-5 font-semibold text-white disabled:opacity-40">{t('bankBook.save')}</button>
           </div>
         )}
         {error && <p className="text-due">{error}</p>}

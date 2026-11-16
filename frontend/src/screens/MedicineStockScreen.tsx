@@ -22,7 +22,7 @@ export function MedicineStockScreen({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <Receive shopId={shopId} />
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-bold">{t('batches.expiring')}</h3>
           <select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label={t('batches.within')} className="h-10 rounded-xl border border-line bg-white px-2 text-sm">
@@ -30,10 +30,10 @@ export function MedicineStockScreen({ shopId }: { shopId: string }) {
           </select>
         </div>
         <p className="text-xs text-muted">{t('batches.expiringHint')}</p>
-        {lost > 0 && <p className="rounded-xl bg-red-50 p-2 text-sm font-semibold text-due">{t('batches.expiredValue', { value: formatRupees(lost) })}</p>}
+        {lost > 0 && <p className="rounded-xl bg-due-soft p-2 text-sm font-semibold text-due">{t('batches.expiredValue', { value: formatRupees(lost) })}</p>}
         {expiring.length === 0 && <p className="text-sm text-muted">{t('batches.noneExpiring')}</p>}
         {expiring.map((e) => (
-          <div key={e.id} className={`flex justify-between gap-2 rounded-xl p-2 text-sm ${e.expired ? 'bg-red-50' : e.daysLeft <= 30 ? 'bg-amber-50' : 'bg-ground'}`}>
+          <div key={e.id} className={`flex justify-between gap-2 rounded-xl p-2 text-sm ${e.expired ? 'bg-due-soft' : e.daysLeft <= 30 ? 'bg-warn-soft' : 'bg-ground'}`}>
             <span><b>{e.productName}</b><span className="block text-xs">{t('batches.batchLine', { batch: e.batchNo, month: month(e.expiry), qty: e.quantity })} · {e.expired ? t('batches.expired') : t('batches.daysLeft', { count: e.daysLeft })}</span></span>
             <span className="shrink-0 font-semibold">{formatRupees(e.value)}</span>
           </div>
@@ -72,7 +72,7 @@ function Receive({ shopId }: { shopId: string }) {
   }
 
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+    <section className="flex flex-col gap-2 rounded-card bg-white p-3">
       <h3 className="font-bold">{t('batches.receive')}</h3>
       <select value={productId} onChange={(e) => setProductId(e.target.value)} aria-label={t('batches.medicine')} className={select}>
         <option value="">{t('batches.chooseMedicine')}</option>{medicines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -96,7 +96,7 @@ function Receive({ shopId }: { shopId: string }) {
           <Button disabled={!d.batchNo.trim() || !d.expiry || !(Number(d.mrp) > 0) || !(paid > 0)} onClick={() => void save()}>{t('batches.save')}</Button>
         </>
       )}
-      {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
     </section>
   )
 }

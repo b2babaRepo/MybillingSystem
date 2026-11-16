@@ -31,7 +31,7 @@ export function InboxScreen({ shopId, selectedId }: { shopId: string; selectedId
             role="tab"
             aria-selected={tab.status === status}
             onClick={() => setStatus(tab.status)}
-            className={`h-11 rounded-[10px] font-semibold ${tab.status === status ? 'bg-teal-700 text-white' : 'text-muted'}`}
+            className={`h-11 rounded-[10px] font-semibold ${tab.status === status ? 'bg-brand text-white' : 'text-muted'}`}
           >
             {tab.label}
           </button>
@@ -41,7 +41,7 @@ export function InboxScreen({ shopId, selectedId }: { shopId: string; selectedId
       {orders.isError && <p className="text-due">{orders.error.message}</p>}
       {orders.data?.length === 0 && <p className="py-8 text-center text-muted">{t('inbox.empty')}</p>}
       {orders.data?.map((order) => (
-        <section key={order.id} onClick={() => navigate(`/o/${order.id}`)} aria-current={selectedId === order.id ? 'true' : undefined} className={`flex flex-col gap-2 rounded-[18px] bg-white p-4 lg:cursor-pointer lg:hover:shadow-md ${selectedId === order.id ? 'lg:ring-2 lg:ring-teal-700' : ''}`}>
+        <section key={order.id} onClick={() => navigate(`/o/${order.id}`)} aria-current={selectedId === order.id ? 'true' : undefined} className={`flex flex-col gap-2 rounded-card bg-white p-4 lg:cursor-pointer lg:hover:shadow-md ${selectedId === order.id ? 'lg:ring-2 lg:ring-brand' : ''}`}>
           <div className="flex items-start justify-between gap-2">
             <span className="flex flex-col">
               <span className="text-[17px] font-bold">{order.customerName}</span>
@@ -50,12 +50,12 @@ export function InboxScreen({ shopId, selectedId }: { shopId: string; selectedId
                 {order.payment === 'khata' ? t('plan.onKhata') : t(order.payment)}
               </span>
             </span>
-            <span className={`rounded-lg px-2 py-0.5 text-xs font-bold ${order.source === 'store' ? 'bg-orange-50 text-orange-800' : order.listKind === 'monthly' ? 'bg-[#e0efec] text-teal-800' : 'bg-blue-50 text-blue-800'}`}>
+            <span className={`rounded-lg px-2 py-0.5 text-xs font-bold ${order.source === 'store' ? 'bg-orange-50 text-orange-800' : order.listKind === 'monthly' ? 'bg-[#e0efec] text-brand-strong' : 'bg-blue-50 text-blue-800'}`}>
               {order.source === 'store' ? t('myStore.online') : t(`plan.${order.listKind}List`)}
             </span>
           </div>
           {order.lines.some((l) => l.aiConfidence && l.aiConfidence !== 'high') && (
-            <span className="w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
+            <span className="w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-warn-ink">
               🤖 {t('aiShop.inbox', { count: order.lines.filter((l) => l.aiConfidence && l.aiConfidence !== 'high').length })}
             </span>
           )}
@@ -68,7 +68,7 @@ export function InboxScreen({ shopId, selectedId }: { shopId: string; selectedId
             <span>{order.slot ?? formatDateTime(order.createdAt)}</span>
             {order.note && <span className="truncate pl-2">“{order.note}”</span>}
           </div>
-          <button onClick={() => navigate(`/o/${order.id}`)} className="h-12 rounded-2xl bg-teal-700 font-bold text-white lg:h-10">
+          <button onClick={() => navigate(`/o/${order.id}`)} className="h-12 rounded-2xl bg-brand font-bold text-white lg:h-10">
             {order.status === 'placed' ? t('inbox.startPacking') : t('inbox.open')}
           </button>
         </section>

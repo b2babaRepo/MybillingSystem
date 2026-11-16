@@ -21,9 +21,9 @@ export function RefillsScreen({ shopId, shopName }: { shopId: string; shopName: 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('refills.hint')}</p>
-      {refills?.length === 0 && <p className="rounded-[18px] bg-white p-3 text-sm text-muted">{t('refills.none')}</p>}
+      {refills?.length === 0 && <p className="rounded-card bg-white p-3 text-sm text-muted">{t('refills.none')}</p>}
       {refills?.map((r) => (
-        <div key={`${r.customerId}-${r.productId}`} className={`flex flex-col gap-1 rounded-[18px] p-3 ${r.daysLate > 0 ? 'bg-amber-50' : 'bg-white'}`}>
+        <div key={`${r.customerId}-${r.productId}`} className={`flex flex-col gap-1 rounded-card p-3 ${r.daysLate > 0 ? 'bg-warn-soft' : 'bg-white'}`}>
           <p className="font-bold">{r.customerName} · {r.medicine}</p>
           <p className="text-sm">{t('refills.line', { every: r.everyDays, last: day(r.lastBought), qty: r.lastQuantity })} · {r.daysLate > 0 ? t('refills.late', { count: r.daysLate }) : t('refills.dueOn', { date: day(r.dueOn) })}</p>
           {r.phone
@@ -82,15 +82,15 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t(general ? 'reorder.hintAll' : 'reorder.hint')}</p>
-      {Object.values(saved).map((m) => <p key={m} className="rounded-[18px] bg-teal-50 p-3 text-sm text-teal-900">{m}</p>)}
-      {groups?.length === 0 && <p className="rounded-[18px] bg-white p-3 text-sm text-muted">{t('reorder.none')}</p>}
+      {Object.values(saved).map((m) => <p key={m} className="rounded-card bg-brand-soft p-3 text-sm text-brand-deep">{m}</p>)}
+      {groups?.length === 0 && <p className="rounded-card bg-white p-3 text-sm text-muted">{t('reorder.none')}</p>}
       {shown.map((g) => {
         const who = g.supplierId ? people.get(g.supplierId) : undefined
         const rateOf = (l: (typeof lines)[number]) => (l.options ?? []).find((o) => o.supplierId === g.supplierId)?.lastRate ?? (l.home === g.supplierId ? l.lastRate : null)
         const toOrder = g.rows.map((r) => ({ productId: r.line.productId, medicine: r.line.medicine, order: Number(r.qty) || 0, rate: rateOf(r.line) })).filter((l) => l.order > 0)
         const message = t('reorder.message', { shop: shopName, lines: toOrder.map((l) => `${l.medicine} × ${l.order}`).join('\n') })
         return (
-          <section key={g.supplierId ?? 'none'} className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+          <section key={g.supplierId ?? 'none'} className="flex flex-col gap-2 rounded-card bg-white p-3">
             <h3 className="font-bold">{who?.name ?? t(general ? 'reorder.noSupplierAll' : 'reorder.noSupplier')}</h3>
             {g.rows.map(({ line: l, part, qty }) => {
               const parts = partsOf(l)
@@ -98,7 +98,7 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
               return (
                 <div key={`${l.productId}-${part}`} className="flex flex-col gap-1 border-t border-[#edf2f1] pt-2 text-sm first-of-type:border-t-0">
                   <div className="grid grid-cols-[1fr_5rem] items-center gap-2">
-                    <span><b>{l.medicine}</b>{parts.length > 1 && <span className="ml-1 rounded-full bg-amber-50 px-1.5 text-[11px] font-semibold text-amber-800">{t('rs.splitOf', { total: l.suggested })}</span>}
+                    <span><b>{l.medicine}</b>{parts.length > 1 && <span className="ml-1 rounded-full bg-warn-soft px-1.5 text-[11px] font-semibold text-warn">{t('rs.splitOf', { total: l.suggested })}</span>}
                       <span className="block text-xs text-muted">{t('reorder.line', { stock: l.stock, sold: l.soldLast30Days })}{rate != null ? ` · ${formatRupees(rate)}` : ''}{l.daysLeft != null ? ` · ${t('orderToday.daysLeft', { count: Math.floor(l.daysLeft) })}` : ''}</span>
                     </span>
                     <input aria-label={`${t('reorder.qty')}: ${l.medicine}`} value={qty} inputMode="decimal"
@@ -124,12 +124,12 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
                         ))}
                         <button onClick={() => setSplitting(null)} className="self-end text-xs font-semibold text-muted">{t('cancel')}</button>
                       </div>
-                    ) : <button onClick={() => setSplitting(`${l.productId}-${part}`)} className="self-start text-xs font-semibold text-teal-700">⇄ {t('rs.otherSuppliers', { count: l.options!.length })}</button>
+                    ) : <button onClick={() => setSplitting(`${l.productId}-${part}`)} className="self-start text-xs font-semibold text-brand">⇄ {t('rs.otherSuppliers', { count: l.options!.length })}</button>
                   )}
                 </div>
               )
             })}
-            {g.supplierId && toOrder.length > 0 && <button onClick={() => void saveOrder(g.supplierId!, toOrder)} className="h-11 rounded-xl border-2 border-teal-700 font-semibold text-teal-800">{t('supplier2.saveAsOrder')}</button>}
+            {g.supplierId && toOrder.length > 0 && <button onClick={() => void saveOrder(g.supplierId!, toOrder)} className="h-11 rounded-xl border-2 border-brand font-semibold text-brand-strong">{t('supplier2.saveAsOrder')}</button>}
             {(who?.phone || !g.supplierId) && toOrder.length > 0
               ? <a href={whatsAppLink(who?.phone ?? null, message)} target="_blank" rel="noreferrer" className="flex h-11 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('reorder.send')}</a>
               : <p className="text-xs text-muted">{t(general ? 'reorder.noPhoneAll' : 'reorder.noPhone')}</p>}
@@ -162,7 +162,7 @@ export function PrescriptionPhoto({ billId }: { billId: string }) {
   return (
     <div className="mb-3 print:hidden">
       {photo ? <img src={photo} alt={t('rxPhoto.alt')} className="max-h-80 rounded-lg border border-line" /> : (
-        <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-teal-700 font-semibold text-teal-800">
+        <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-brand font-semibold text-brand-strong">
           📷 {t('rxPhoto.attach')}
           <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void attach(f) }} />
         </label>

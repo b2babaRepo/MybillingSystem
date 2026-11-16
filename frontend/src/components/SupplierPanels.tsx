@@ -29,19 +29,19 @@ export function ItemSuppliersCard({ shopId, productId, unit }: { shopId: string;
   }
 
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+    <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
       <h2 className="font-bold">🚚 {t('rs.itemSuppliers')}</h2>
       {rows.data.map((s) => (
-        <div key={s.supplierId} className={`flex flex-col gap-1 rounded-xl border p-3 text-sm ${s.preferred ? 'border-teal-600 bg-teal-50/40' : 'border-line'}`}>
+        <div key={s.supplierId} className={`flex flex-col gap-1 rounded-xl border p-3 text-sm ${s.preferred ? 'border-brand-line bg-brand-soft/40' : 'border-line'}`}>
           <div className="flex items-start justify-between gap-2">
             <b>{s.name}{s.bestRate && <span className="ml-1 rounded-full bg-emerald-50 px-2 text-[11px] font-semibold text-emerald-800">{t('rs.bestRate')}</span>}</b>
-            <button onClick={() => void prefer(s)} aria-pressed={s.preferred} className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${s.preferred ? 'bg-teal-700 text-white' : 'border border-line text-muted'}`}>
+            <button onClick={() => void prefer(s)} aria-pressed={s.preferred} className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${s.preferred ? 'bg-brand text-white' : 'border border-line text-muted'}`}>
               {s.preferred ? `★ ${t('rs.preferred')}` : `☆ ${t('rs.makePreferred')}`}
             </button>
           </div>
           <span className="text-xs text-muted">
             {t('rs.came', { qty: s.received, unit: t(`units.${unit}`, { count: s.received }), count: s.deliveries })}{s.ordered > 0 && ` · ${t('rs.ordered', { qty: s.ordered })}`}
-            {s.pending > 0 && <b className="text-amber-800"> · {t('supplier2.stillToCome', { qty: s.pending })}</b>}
+            {s.pending > 0 && <b className="text-warn"> · {t('supplier2.stillToCome', { qty: s.pending })}</b>}
           </span>
           <span className="text-xs text-muted">
             {s.lastRate != null ? `${t('rs.lastRate')} ${formatRupees(s.lastRate)}` : t('rs.noRate')}{s.lastAt && ` · ${short(s.lastAt)}`}
@@ -60,7 +60,7 @@ export function SupplierItemsCard({ shopId, supplierId }: { shopId: string; supp
   const rows = useQuery({ queryKey: [shopId, 'suppliers', 'items', supplierId], queryFn: () => api<SupplierProduct[]>(`/v1/suppliers/${supplierId}/items`), retry: false }).data
   if (!rows || rows.length === 0) return null
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+    <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
       <h2 className="font-bold">📦 {t('rs.supplierItems')}</h2>
       <ul className="flex flex-col">
         {rows.map((p) => (

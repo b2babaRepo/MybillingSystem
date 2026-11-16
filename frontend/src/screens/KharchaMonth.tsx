@@ -78,7 +78,7 @@ export function KharchaMonth({ shopId, shopName }: { shopId: string; shopName: s
 
   return (
     <>
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{monthLabel(month)}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= thisMonth()} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -93,7 +93,7 @@ export function KharchaMonth({ shopId, shopName }: { shopId: string; shopName: s
           {m.takenHome > 0 && <span className="text-sm text-muted">{t('kharchaMonth.home', { amount: formatRupees(m.takenHome) })}</span>}
           {m.refunds > 0 && <span className="text-sm text-muted">{t('kharchaMonth.refunds', { amount: formatRupees(m.refunds) })}</span>}
           {change !== null && (
-            <span className={`text-sm font-semibold ${change > 0 ? 'text-due' : 'text-teal-800'}`}>
+            <span className={`text-sm font-semibold ${change > 0 ? 'text-due' : 'text-brand-strong'}`}>
               {change > 0 ? t('kharchaMonth.more', { amount: formatRupees(change) }) : t('kharchaMonth.less', { amount: formatRupees(-change) })}
             </span>
           )}
@@ -192,13 +192,13 @@ export function MissingRegular({ shopId, skip, onRepeat }: { shopId: string; ski
   const missing = last.lines.filter((l) => REGULAR.includes(l.category) && !written.has(l.category) && !skip.includes(l.category))
   if (missing.length === 0) return null
   return (
-    <section className="flex flex-col gap-2 rounded-[20px] bg-amber-50 p-4 text-sm">
+    <section className="flex flex-col gap-2 rounded-[20px] bg-warn-soft p-4 text-sm">
       <p className="font-bold">{t('kharchaMonth.missingTitle', { month: monthLabel(now) })}</p>
       <p className="text-muted">{t('kharchaMonth.missingWhy')}</p>
       {missing.map((l) => (
         <div key={l.id} className="flex items-center justify-between gap-2">
           <span>{t('kharchaMonth.missingLine', { heading: l.note || t(`expense.cat.${l.category}`), amount: formatRupees(l.amount) })}</span>
-          <button onClick={() => onRepeat({ amount: l.amount, category: l.category, note: l.note, mode: l.mode === 'bank' ? 'upi' : l.mode })} className="min-h-11 shrink-0 rounded-xl border border-amber-700 bg-white px-3 font-semibold text-amber-900">
+          <button onClick={() => onRepeat({ amount: l.amount, category: l.category, note: l.note, mode: l.mode === 'bank' ? 'upi' : l.mode })} className="min-h-11 shrink-0 rounded-xl border border-amber-700 bg-white px-3 font-semibold text-warn-ink">
             {t('kharchaMonth.repeat')}
           </button>
         </div>

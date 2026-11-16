@@ -84,7 +84,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
   if (!ai.consentedAt) {
     return (
       <div className="flex flex-col gap-3 p-4">
-        <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-3 rounded-card bg-white p-4">
           <h2 className="text-xl font-bold">✍️ {t('ai.title')}</h2>
           <p className="text-[15px] leading-relaxed">{t('ai.consentBody')}</p>
           <ul className="list-disc pl-5 text-sm text-muted">
@@ -94,7 +94,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
             <li>{t('ai.consentPoint3')}</li>
           </ul>
           <button
-            className="h-12 rounded-2xl bg-teal-700 font-bold text-white"
+            className="h-12 rounded-2xl bg-brand font-bold text-white"
             onClick={() => void consent(true)}
           >
             {t('ai.consentAgree')}
@@ -157,7 +157,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
     const unsure = lines.filter((l) => l.confidence !== 'high').length
     return (
       <div className="flex flex-col gap-3 p-4 pb-28">
-        <section className="rounded-[18px] bg-white p-3">
+        <section className="rounded-card bg-white p-3">
           <h2 className="text-lg font-bold">{t('ai.checkTitle', { count: lines.length })}</h2>
           <p className="text-sm text-muted">{unsure > 0 ? t('ai.checkHintUnsure', { count: unsure }) : t('ai.checkHintAllSure')}</p>
         </section>
@@ -179,7 +179,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
                   <button aria-label={t('remove')} onClick={() => setLines((all) => all.filter((_, j) => j !== i))} className="h-10 w-10 text-xl text-muted">×</button>
                 </div>
                 <span className="text-xs text-muted">{t('ai.said', { said: l.said })}</span>
-                {l.reason && <span className={`text-xs font-semibold ${l.confidence === 'low' ? 'text-due' : 'text-amber-800'}`}>{l.reason}</span>}
+                {l.reason && <span className={`text-xs font-semibold ${l.confidence === 'low' ? 'text-due' : 'text-warn'}`}>{l.reason}</span>}
                 <div className="grid grid-cols-[1fr_1fr] items-end gap-2">
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-muted">{t('quantity')}</span>
@@ -193,7 +193,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
           ))}
         </ul>
         <div className="flex justify-between">
-          <button className="min-h-11 text-sm font-semibold text-teal-800 underline" onClick={() => setDraft(null)}>‹ {t('ai.again')}</button>
+          <button className="min-h-11 text-sm font-semibold text-brand-strong underline" onClick={() => setDraft(null)}>‹ {t('ai.again')}</button>
           {draft.reader === 'whatsapp' && (
             <button className="min-h-11 text-sm text-muted underline" onClick={() => void finishWhatsApp().then(() => setDraft(null))}>{t('ai.setAside')}</button>
           )}
@@ -202,12 +202,12 @@ export function AiOrderScreen({ userId }: { userId: string }) {
           <div role="tablist" className="grid grid-cols-2 rounded-xl bg-[#edf2f1] p-1 text-sm">
             {(['monthly', 'weekly'] as const).map((k) => (
               <button key={k} role="tab" aria-selected={kind === k} onClick={() => setKind(k)}
-                className={`h-9 rounded-lg font-semibold ${kind === k ? 'bg-white text-teal-800 shadow' : 'text-muted'}`}>
+                className={`h-9 rounded-lg font-semibold ${kind === k ? 'bg-white text-brand-strong shadow' : 'text-muted'}`}>
                 {t(`plan.${k}`)}
               </button>
             ))}
           </div>
-          <button disabled={lines.length === 0} onClick={() => void addToList()} className="h-13 min-h-12 rounded-2xl bg-teal-700 text-lg font-bold text-white disabled:opacity-40">
+          <button disabled={lines.length === 0} onClick={() => void addToList()} className="h-13 min-h-12 rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
             {t('ai.addToList', { count: lines.length })}
           </button>
         </div>
@@ -218,21 +218,21 @@ export function AiOrderScreen({ userId }: { userId: string }) {
   return (
     <div className="flex flex-col gap-3 p-4">
       {pending.data && pending.data.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-[#e7f8ee] p-3 ring-1 ring-[#25d366]/40">
+        <section className="flex flex-col gap-2 rounded-card bg-[#e7f8ee] p-3 ring-1 ring-[#25d366]/40">
           <h2 className="font-bold">💬 {t('ai.fromWhatsapp', { count: pending.data.length })}</h2>
           {pending.data.map((p) => (
             <button key={p.proposalId} onClick={() => open(p)} className="flex flex-col items-start rounded-xl bg-white p-3 text-left">
               <span className="text-xs text-muted">{formatDateTime(p.receivedAt)}{p.hadImage ? ' · 📷' : ''}</span>
               <span className="line-clamp-2 font-semibold">{p.text || t('ai.photoList')}</span>
-              <span className="text-sm text-teal-800">{t('ai.itemsToCheck', { count: p.lines.length })} ›</span>
+              <span className="text-sm text-brand-strong">{t('ai.itemsToCheck', { count: p.lines.length })} ›</span>
             </button>
           ))}
         </section>
       )}
-      <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-3 rounded-card bg-white p-4">
         <h2 className="text-lg font-bold">✍️ {t('ai.title')}</h2>
         <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} rows={5} placeholder={t('ai.placeholder')}
-          className="rounded-[14px] border border-line p-3 text-[17px] outline-none focus:border-teal-600" />
+          className="rounded-[14px] border border-line p-3 text-[17px] outline-none focus:border-brand-line" />
         {ai.canHearVoice ? (
           <VoiceButton onText={(heard) => setText((current) => (current.trim() ? `${current.trim()}, ${heard}` : heard))} onError={setError} />
         ) : (
@@ -244,7 +244,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
             <button className="text-sm text-muted underline" onClick={() => setPhoto(null)}>{t('ai.removePhoto')}</button>
           </div>
         ) : ai.canReadPhotos && (
-          <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-teal-600 font-semibold text-teal-800">
+          <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-line font-semibold text-brand-strong">
             📷 {t('ai.addPhoto')}
             <input type="file" accept="image/*" className="sr-only"
               onChange={async (e) => {
@@ -255,8 +255,8 @@ export function AiOrderScreen({ userId }: { userId: string }) {
           </label>
         )}
         <p className="text-xs text-muted">{ai.canReadPhotos ? t('ai.photoHint') : t('ai.photoOff')}</p>
-        {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-due">{error}</p>}
-        <button disabled={busy || (!text.trim() && !photo)} onClick={() => void read()} className="h-14 rounded-2xl bg-teal-700 text-lg font-bold text-white disabled:opacity-40">
+        {error && <p className="rounded-lg bg-due-soft p-3 text-sm text-due">{error}</p>}
+        <button disabled={busy || (!text.trim() && !photo)} onClick={() => void read()} className="h-14 rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
           {busy ? t('ai.reading') : t('ai.read')}
         </button>
       </section>

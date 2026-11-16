@@ -70,7 +70,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
 
   return (
     <ReportShell page="reports" title={t('rv.reportsTitle')} isOwner={isOwner} view={view} onView={setView} ticks={ticks}>
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm print:shadow-none">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm print:shadow-none">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('reports.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{label}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= current} aria-label={t('reports.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -87,7 +87,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[2fr_1fr] lg:items-start">
           <UpDownBars days={data.days} average={before && before.days.length ? before.sales / before.days.length : undefined} label={t('rv.daily')} />
           {mixTotal > 0 && (
-            <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+            <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm print:shadow-none">
               <b>{t('rv.cameBy')}</b>
               <div role="img" aria-label={mix.map((m) => `${t(m.key)} ${Math.round((m.amount * 100) / mixTotal)}%`).join(', ')} className="flex h-4 overflow-hidden rounded-full">
                 {mix.map((m) => <span key={m.key} style={{ width: `${(m.amount * 100) / mixTotal}%`, background: m.color }} />)}
@@ -138,7 +138,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             </div>
           </section>
 
-          <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+          <section className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm print:shadow-none">
             {isOwner && <>
             {data.statement ? <MonthStatementCard st={data.statement} /> : <>
             <span className="text-sm font-semibold text-muted">{t('reports.profit')}</span>
@@ -167,12 +167,12 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             </span>
           </section>
 
-          <section className="rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+          <section className="rounded-card bg-white p-4 shadow-sm print:shadow-none">
             <h2 className="mb-3 text-base font-bold">{t('reports.daily')}</h2>
             <div role="img" aria-label={t('reports.daily')} className="flex h-32 items-end gap-[2px]">
               {data.days.map((d) => (
                 <span key={d.date} title={`${d.date}: ${formatRupees(d.sales)}`}
-                  className={`flex-1 rounded-t-sm ${d.sales > 0 ? 'bg-teal-700' : 'bg-[#edf2f1]'}`}
+                  className={`flex-1 rounded-t-sm ${d.sales > 0 ? 'bg-brand' : 'bg-[#edf2f1]'}`}
                   style={{ height: `${Math.max(3, (d.sales / peak) * 100)}%` }} />
               ))}
             </div>
@@ -180,7 +180,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
           </section>
 
           {data.topItems.length > 0 && (
-            <section className="rounded-[18px] bg-white px-4 py-3 shadow-sm print:shadow-none">
+            <section className="rounded-card bg-white px-4 py-3 shadow-sm print:shadow-none">
               <h2 className="flex justify-between gap-2 pb-1 text-base font-bold">{t('reports.topItems')}<span className="text-xs font-semibold text-muted">{t('heads.topRow')}</span></h2>
               <ol className="divide-y divide-[#edf2f1]">
                 {data.topItems.map((item, i) => (
@@ -203,7 +203,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
           {isOwner && <Button tone="plain" onClick={() => navigate('/pnl')}>{t('pnl.title')}</Button>}
           {isOwner && <Button tone="plain" onClick={() => navigate('/gst')}>{t('gstExport.title')}</Button>}
           {year && (
-            <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+            <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm print:shadow-none">
               <h2 className="text-base font-bold">{t('reports.yearTitle', { fy: year.financialYear })}</h2>
               <p className="flex justify-between font-bold"><span>{t('reports.turnover')}</span><span>{formatRupees(year.total.turnover)}</span></p>
               <p className="flex justify-between text-sm"><span>{t('reports.gstInside')}</span><span>{formatRupees(year.total.gst)}</span></p>
@@ -216,7 +216,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
           )}
 
           {speed && speed.medianSeconds !== null && (
-            <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+            <section className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm print:shadow-none">
               <h2 className="text-base font-bold">{t('reports.speedTitle')}</h2>
               <p className="text-lg font-semibold">{t('reports.speedTypical', { seconds: speed.medianSeconds, count: speed.bills })}</p>
               {speed.rows.map((r) => (
@@ -225,7 +225,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
               <p className="text-xs text-muted">{t('reports.speedNote')}</p>
             </section>
           )}
-          <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+          <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm print:shadow-none">
             <h2 className="text-base font-bold">{t('reports.download')}</h2>
             {isOwner ? (
               <div className="grid grid-cols-2 gap-2">
@@ -258,7 +258,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: stri
 function Tile({ label, value, delta, trend, invert = false }: { label: string; value: string; delta?: number | null; trend?: number[]; invert?: boolean }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+    <div className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm print:shadow-none">
       <span className="text-[13px] text-muted">{label}</span>
       <b className="text-[26px] leading-tight">{value}</b>
       {delta === undefined ? null : delta !== null ? <span className="text-[13px]"><Delta value={delta} invert={invert} /> {t('rv.vsBefore')}</span> : <span className="text-[13px] text-muted">{t('rv.noCompare')}</span>}

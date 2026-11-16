@@ -23,7 +23,7 @@ export function ClientCardsScreen({ shopId, isOwner }: { shopId: string; isOwner
   const [customerId, setCustomerId] = useState(() => new URLSearchParams(location.hash.split('?')[1] ?? '').get('customer') ?? '')
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('cards.title')}</h3>
         <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} aria-label={t('jobs.customer')} className={select}>
           <option value="">{t('packages.chooseCustomer')}</option>{customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -58,8 +58,8 @@ function ClientCard({ shopId, customerId }: { shopId: string; customerId: string
   if (!card) return null
   return (
     <div className="flex flex-col gap-2">
-      {card.patchTestReaction ? <p className="rounded-xl bg-red-50 p-2 text-sm font-semibold text-due">{t('cards.reaction')}</p>
-        : card.patchTestDue && <p className="rounded-xl bg-amber-50 p-2 text-sm font-semibold">{t('cards.patchDue')}</p>}
+      {card.patchTestReaction ? <p className="rounded-xl bg-due-soft p-2 text-sm font-semibold text-due">{t('cards.reaction')}</p>
+        : card.patchTestDue && <p className="rounded-xl bg-warn-soft p-2 text-sm font-semibold">{t('cards.patchDue')}</p>}
       <div className="grid grid-cols-2 gap-2">
         <Field label={t('cards.hair')} value={d.hairType} onChange={set('hairType')} placeholder={t('cards.hairHint')} />
         <Field label={t('cards.skin')} value={d.skinType} onChange={set('skinType')} placeholder={t('cards.skinHint')} />
@@ -71,7 +71,7 @@ function ClientCard({ shopId, customerId }: { shopId: string; customerId: string
         <label className="flex min-h-11 items-end gap-2 pb-3 text-sm"><input type="checkbox" checked={d.patchTestReaction} onChange={(e) => setD({ ...d, patchTestReaction: e.target.checked })} />{t('cards.hadReaction')}</label>
       </div>
       <Field label={t('cards.notes')} value={d.notes} onChange={set('notes')} />
-      {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
       <Button onClick={() => void save()}>{t('save')}</Button>
       <h4 className="mt-2 font-semibold">{t('cards.visits')}</h4>
       {card.visits.length === 0 && <p className="text-sm text-muted">{t('cards.noVisits')}</p>}
@@ -102,7 +102,7 @@ function ServiceProducts({ shopId }: { shopId: string }) {
     }
   }
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+    <section className="flex flex-col gap-2 rounded-card bg-white p-3">
       <h3 className="font-bold">{t('cards.usesTitle')}</h3>
       <p className="text-xs text-muted">{t('cards.usesHint')}</p>
       <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} aria-label={t('packages.service')} className={select}>
@@ -122,7 +122,7 @@ function ServiceProducts({ shopId }: { shopId: string }) {
           <Button tone="plain" onClick={() => setRows([...rows, { productId: '', quantity: '1' }])}>{t('cards.addProduct')}</Button>
           <p className="text-sm">{t('cards.costLine', { cost: formatRupees(recipe.cost), price: formatRupees(recipe.price) })}</p>
           {recipe.products.some((p) => p.costPrice == null) && <p className="text-xs text-due">{t('cards.noCost', { names: recipe.products.filter((p) => p.costPrice == null).map((p) => p.name).join(', ') })}</p>}
-          {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+          {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
           <Button onClick={() => void save()}>{t('save')}</Button>
         </>
       )}

@@ -359,7 +359,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl pb-20 lg:max-w-none lg:pb-6">
-      <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-700 px-4 py-3 text-white lg:h-16 lg:py-0 print:hidden">
+      <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand px-4 py-3 text-white lg:h-16 lg:py-0 print:hidden">
         <button type="button" onClick={() => setMenuOpen(!menuOpen)} aria-label={t('a11y.menu')} aria-expanded={menuOpen} className="-ml-2 hidden h-10 w-10 items-center justify-center rounded-lg border border-white/50 lg:flex">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M9 4v16" /></svg>
         </button>
@@ -585,7 +585,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
             title={tab.label}
             aria-current={path === tab.path ? 'page' : undefined}
             className={`relative flex flex-col items-center justify-center gap-0.5 text-[13px] lg:flex-row ${menuOpen ? 'lg:justify-start lg:px-4' : 'lg:justify-center lg:px-0'} lg:gap-3 lg:rounded-xl lg:text-base ${
-              path === tab.path ? 'font-bold text-teal-700 lg:bg-teal-50' : 'font-semibold text-muted lg:hover:bg-[#f1f5f4]'
+              path === tab.path ? 'font-bold text-brand lg:bg-brand-soft' : 'font-semibold text-muted lg:hover:bg-[#f1f5f4]'
             }`}
           >
             {tab.icon}

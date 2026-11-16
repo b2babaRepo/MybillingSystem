@@ -38,7 +38,7 @@ export function TodaySummary({ today, shopName, lowCount }: { today: Today | und
   }
 
   return (
-    <section className="mx-4 mt-4 flex flex-col gap-1 rounded-[18px] bg-white p-4">
+    <section className="mx-4 mt-4 flex flex-col gap-1 rounded-card bg-white p-4">
       <div className="mb-1 flex items-baseline justify-between">
         <h2 className="font-bold">{t('summary.title')}</h2>
         <span className="text-[13px] text-muted">{day}</span>

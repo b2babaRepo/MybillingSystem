@@ -57,17 +57,17 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3 p-4 pb-24">
       <p className="text-sm text-muted">{t('estimate.hint')}</p>
-      {list.length === 0 && <p className="rounded-[18px] bg-white p-4 text-sm text-muted">{t('estimate.none')}</p>}
+      {list.length === 0 && <p className="rounded-card bg-white p-4 text-sm text-muted">{t('estimate.none')}</p>}
       {list.map((e) => (
-        <section key={e.id} className="flex flex-col gap-1 rounded-[18px] bg-white p-4 text-sm">
+        <section key={e.id} className="flex flex-col gap-1 rounded-card bg-white p-4 text-sm">
           <p className="flex items-center justify-between gap-2">
             <b className="text-base">{t('estimate.number', { number: e.number })} · {who(e)}</b>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${state(e) === 'open' ? 'bg-teal-50 text-teal-800' : 'bg-[#f1f5f4] text-muted'}`}>{t(`estimate.state.${state(e)}`)}</span>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${state(e) === 'open' ? 'bg-brand-soft text-brand-strong' : 'bg-[#f1f5f4] text-muted'}`}>{t(`estimate.state.${state(e)}`)}</span>
           </p>
           <p className="text-muted">{t('estimate.line', { count: e.lines.length, total: formatRupees(e.total), date: day(e.createdAt), until: day(e.validUntil) })}</p>
           <div className="flex flex-wrap gap-3">
-            <button onClick={() => navigate(`/print/estimate/${e.id}`)} className="min-h-11 font-semibold text-teal-700">{t('estimate.print')}</button>
-            {(state(e) === 'open' || state(e) === 'expired') && <button onClick={() => bill(e)} className="min-h-11 font-semibold text-teal-700">{t('estimate.makeBill')}</button>}
+            <button onClick={() => navigate(`/print/estimate/${e.id}`)} className="min-h-11 font-semibold text-brand">{t('estimate.print')}</button>
+            {(state(e) === 'open' || state(e) === 'expired') && <button onClick={() => bill(e)} className="min-h-11 font-semibold text-brand">{t('estimate.makeBill')}</button>}
             {(state(e) === 'open' || state(e) === 'expired') && <button onClick={() => void cancel(e)} className="min-h-11 text-due">{t('estimate.cancel')}</button>}
           </div>
         </section>

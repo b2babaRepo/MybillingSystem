@@ -4,7 +4,7 @@ import { BagCheck } from './ProductScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/ui'
+import { Button, control } from '../components/ui'
 import { ask, confirmAsk } from '../components/Ask'
 import { ItemPicker } from '../components/ItemPicker'
 import { api } from '../lib/api'
@@ -20,7 +20,7 @@ interface Pick { text: string; productId: string; quantity: string; rate: string
 export interface GoodsReceipt { id: string; number: number; supplierId: string; purchaseOrderId?: string | null; receivedAt: string; lines: { productId: string; name: string; quantity: number; bags?: number | null; bagSize?: number | null; damaged?: number }[]; note: string | null; purchaseId: string | null; by: string | null
   vehicleNo?: string | null; bilty?: string | null; transporter?: string | null; grossWeight?: number | null; tareWeight?: number | null; shortKg?: number | null; shortClaim?: number | null; debitNoteNo?: string | null; shortStock?: { productId: string; name: string; quantity: number; unit: string }[] }
 
-const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
+const input = control
 
 /** Kilograms in a quantity of an item: exact for weight units, from its weight per unit otherwise, null when not known. */
 export function kgOf(p: Product | undefined, quantity: number): number | null {
@@ -68,7 +68,7 @@ function PickRows({ products, rows, onChange, withRate, listId, withBags = false
           })()}
         </div>
       ))}
-      <button onClick={() => onChange([...rows, blank])} className="min-h-11 font-semibold text-teal-700">+ {t('suppliers.addRow')}</button>
+      <button onClick={() => onChange([...rows, blank])} className="min-h-11 font-semibold text-brand">+ {t('suppliers.addRow')}</button>
     </>
   )
 }
@@ -131,10 +131,10 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
   }
 
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+    <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-bold">{t('supplier2.orders')}</h2>
-        {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-teal-700">+ {t('supplier2.newOrder')}</button>}
+        {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-brand">+ {t('supplier2.newOrder')}</button>}
       </div>
       {orders.length === 0 && !rows && <p className="text-sm text-muted">{t('supplier2.noOrders')}</p>}
       {orders.map((o) => {
@@ -142,7 +142,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
         const draft = o.status === 'draft'
         return (
           <div key={o.id} className="flex flex-col gap-1 rounded-xl border border-line p-3 text-sm">
-            <p className="flex justify-between font-semibold"><span>{t('supplier2.orderNo', { number: o.number })} · {new Date(o.createdAt).toLocaleDateString(shownLocale())}</span>{draft ? <span className="rounded-full bg-amber-100 px-2 text-xs text-amber-800">{t('supplier2.draft')}</span> : <span>{t('supplier2.stillToCome', { qty: o.pending })}</span>}</p>
+            <p className="flex justify-between font-semibold"><span>{t('supplier2.orderNo', { number: o.number })} · {new Date(o.createdAt).toLocaleDateString(shownLocale())}</span>{draft ? <span className="rounded-full bg-amber-100 px-2 text-xs text-warn">{t('supplier2.draft')}</span> : <span>{t('supplier2.stillToCome', { qty: o.pending })}</span>}</p>
             {(o.expectedOn || o.note) && <p className={`text-xs ${isLate(o) ? 'font-semibold text-due' : 'text-muted'}`}>{o.expectedOn && t(isLate(o) ? 'po.late' : 'po.expected', { date: new Date(o.expectedOn).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) })}{o.expectedOn && o.note ? ' · ' : ''}{o.note}</p>}
             {o.lines.map((l) => (
               <p key={l.productId} className={`flex justify-between gap-2 ${l.received >= l.quantity ? 'text-muted' : ''}`}>
@@ -222,10 +222,10 @@ export function ReturnsPanel({ shopId, supplierId, products }: { shopId: string;
   })
 
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+    <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-bold">{t('supplier2.returns')}</h2>
-        {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-teal-700">+ {t('supplier2.returnGoods')}</button>}
+        {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-brand">+ {t('supplier2.returnGoods')}</button>}
       </div>
       {open.map((r) => {
         const c = credit[r.id] ?? { no: '', amount: String(r.value) }
@@ -313,10 +313,10 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
   const cancel = async (r: GoodsReceipt) => { if (await confirmAsk(t('receipt.cancelConfirm', { number: r.number }))) void run(() => api(`/v1/goods-receipts/${r.id}/cancel`, 'POST', {})) }
 
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+    <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-bold">{t('receipt.title')}</h2>
-        {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-teal-700">{t('receipt.add')}</button>}
+        {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-brand">{t('receipt.add')}</button>}
       </div>
       {open.length === 0 && !rows && <p className="text-sm text-muted">{t('receipt.none')}</p>}
       {open.map((r) => (
@@ -336,13 +336,13 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
             return (
               <>
                 <p className={`text-xs ${short >= 1 && !r.shortClaim ? 'font-semibold text-due' : 'text-muted'}`}>⚖ {t('bag.net', { net })}{expected > 0 ? ` · ${t('weigh.expected', { kg: expected })}` : ''}{short >= 1 && !r.shortClaim ? ` · ${t('weigh.short', { kg: short })}` : ''}</p>
-                {r.shortClaim ? <p className="text-xs font-semibold text-teal-700">{r.debitNoteNo ? `${r.debitNoteNo} · ` : ''}{t('weigh.claimed', { kg: r.shortKg, amount: formatRupees(r.shortClaim) })}{(r.shortStock?.length ?? 0) > 0 ? <span className="block font-normal">{t('weigh.stockOff', { items: r.shortStock!.map((x) => `${x.name} ${x.quantity} ${t(`units.${x.unit}`, { count: x.quantity })}`).join(', ') })}</span> : null}</p>
+                {r.shortClaim ? <p className="text-xs font-semibold text-brand">{r.debitNoteNo ? `${r.debitNoteNo} · ` : ''}{t('weigh.claimed', { kg: r.shortKg, amount: formatRupees(r.shortClaim) })}{(r.shortStock?.length ?? 0) > 0 ? <span className="block font-normal">{t('weigh.stockOff', { items: r.shortStock!.map((x) => `${x.name} ${x.quantity} ${t(`units.${x.unit}`, { count: x.quantity })}`).join(', ') })}</span> : null}</p>
                   : short >= 1 ? <button onClick={() => void claim()} className="min-h-11 self-start text-sm font-semibold text-due underline">{t('weigh.claim', { kg: short })}</button> : null}
               </>
             )
           })()}
           <div className="flex flex-wrap gap-3">
-            <button onClick={() => onBill(r, orders.find((o) => o.id === r.purchaseOrderId) ?? null)} className="min-h-11 font-semibold text-teal-700">{t('receipt.makeBill')}</button>
+            <button onClick={() => onBill(r, orders.find((o) => o.id === r.purchaseOrderId) ?? null)} className="min-h-11 font-semibold text-brand">{t('receipt.makeBill')}</button>
             <button onClick={() => void cancel(r)} className="min-h-11 text-due">{t('receipt.cancel')}</button>
           </div>
         </div>
@@ -359,7 +359,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
             </label>
           )}
           <PickRows products={products} rows={rows} onChange={setRows} withRate={false} listId="receipt-items" withBags />
-          {flags.length > 0 && <ul className="rounded-xl bg-amber-50 p-2 text-xs text-amber-900">{flags.map((f) => <li key={f}>⚠ {f}</li>)}</ul>}
+          {flags.length > 0 && <ul className="rounded-xl bg-warn-soft p-2 text-xs text-warn-ink">{flags.map((f) => <li key={f}>⚠ {f}</li>)}</ul>}
           <details className="rounded-xl bg-white p-3 text-sm">
             <summary className="cursor-pointer font-semibold">🚚 {t('bag.transport')}</summary>
             <div className="mt-2 grid grid-cols-2 gap-2">
@@ -404,7 +404,7 @@ export function SupplierImport({ shopId }: { shopId: string }) {
   }
 
   return (
-    <details className="rounded-[18px] bg-white p-4 shadow-sm">
+    <details className="rounded-card bg-white p-4 shadow-sm">
       <summary className="min-h-11 cursor-pointer font-bold">{t('supplier2.import')}</summary>
       <p className="mb-2 text-sm text-muted">{t('supplier2.importHint')}</p>
       <input type="file" accept=".csv,text/csv,text/plain" aria-label={t('supplier2.import')} className="mb-2 text-sm"

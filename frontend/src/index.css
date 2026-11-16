@@ -10,6 +10,21 @@
   --color-udhaar: #c2410c;
   --color-jama: #047857;
   --color-due: #b91c1c;
+
+  /* Brand and status colours by role. Each is the palette shade the screens already used, so light mode looks the
+     same; dark mode is set below in one place instead of per class. */
+  --color-brand: var(--color-teal-700);        /* main buttons, active tabs, links */
+  --color-brand-strong: var(--color-teal-800); /* brand text on light fills */
+  --color-brand-deep: var(--color-teal-900);   /* headings on brand-soft cards */
+  --color-brand-line: var(--color-teal-600);   /* focused or selected borders */
+  --color-brand-soft: var(--color-teal-50);    /* selected rows, info cards */
+  --color-warn: var(--color-amber-800);        /* "low stock", "due soon" text */
+  --color-warn-ink: var(--color-amber-900);    /* text on warn-soft cards */
+  --color-warn-soft: var(--color-amber-50);    /* warning cards */
+  --color-due-soft: var(--color-red-50);       /* "out", "overdue" cards */
+
+  /* Corners: controls (rounded-xl), cards, and pills (rounded-full). */
+  --radius-card: 18px;
 }
 
 :root {
@@ -88,7 +103,7 @@ body {
 @media print { body { background: #fff; } }
 
 /* Checkboxes and radio buttons in the app colour. */
-input[type="checkbox"], input[type="radio"] { accent-color: #0f766e; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--color-brand); }
 
 
 /* Dark mode, following the phone's setting. The colour tokens turn dark, and the fixed light colours used across the
@@ -103,6 +118,9 @@ input[type="checkbox"], input[type="radio"] { accent-color: #0f766e; }
     --color-udhaar: #fb923c;
     --color-jama: #34d399;
     --color-due: #f87171;
+    --color-brand-soft: rgb(20 184 166 / 0.12);
+    --color-warn-soft: rgb(245 158 11 / 0.12);
+    --color-due-soft: rgb(239 68 68 / 0.12);
   }
   /* The print sheet keeps the light colours. */
   [data-light] {
@@ -113,7 +131,16 @@ input[type="checkbox"], input[type="radio"] { accent-color: #0f766e; }
     --color-udhaar: #c2410c;
     --color-jama: #047857;
     --color-due: #b91c1c;
+    --color-brand-soft: var(--color-teal-50);
+    --color-warn-soft: var(--color-amber-50);
+    --color-due-soft: var(--color-red-50);
   }
+  /* Brand and warning text lighten on dark backgrounds, as the palette classes they replace did. */
+  .text-brand:not([data-light], [data-light] *), .text-brand-strong:not([data-light], [data-light] *), .text-brand-deep:not([data-light], [data-light] *) { color: #5eead4; }
+  .text-warn:not([data-light], [data-light] *), .text-warn-ink:not([data-light], [data-light] *) { color: #fcd34d; }
+  .hover\:bg-brand-soft\:hover:not([data-light], [data-light] *) { background-color: rgb(20 184 166 / 0.22); }
+  .hover\:bg-warn-soft\:hover:not([data-light], [data-light] *) { background-color: rgb(245 158 11 / 0.22); }
+  .hover\:bg-due-soft\:hover:not([data-light], [data-light] *) { background-color: rgb(239 68 68 / 0.22); }
   .bg-white:not([data-light], [data-light] *) { background-color: #16221f; }
   .bg-white\/95:not([data-light], [data-light] *), .bg-white\/90:not([data-light], [data-light] *) { background-color: rgb(22 34 31 / 0.95); }
   .bg-\[\#edf2f1\]:not([data-light], [data-light] *), .bg-\[\#f1f5f4\]:not([data-light], [data-light] *), .bg-\[\#f3f6f5\]:not([data-light], [data-light] *), .bg-\[\#e0efec\]:not([data-light], [data-light] *), .bg-slate-100:not([data-light], [data-light] *), .bg-slate-50:not([data-light], [data-light] *), .bg-slate-200:not([data-light], [data-light] *), .bg-\[\#cfd8d6\]:not([data-light], [data-light] *) { background-color: #22322f; }

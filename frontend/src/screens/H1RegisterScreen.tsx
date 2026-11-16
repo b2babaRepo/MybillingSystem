@@ -31,7 +31,7 @@ export function H1RegisterScreen({ shopId, shopName }: { shopId: string; shopNam
       </div>
       {rows.length === 0 && <p className="text-sm text-muted">{t('rx.noneRegister')}</p>}
       {rows.map((r, i) => (
-        <div key={i} className={`rounded-xl p-2 text-sm ${r.cancelled ? 'bg-red-50 line-through' : 'bg-white'}`}>
+        <div key={i} className={`rounded-xl p-2 text-sm ${r.cancelled ? 'bg-due-soft line-through' : 'bg-white'}`}>
           <p className="flex justify-between gap-2"><b>{r.medicine} × {r.quantity}</b><span>{new Date(r.soldAt).toLocaleDateString(shownLocale())}{r.billNo ? ` · ${r.billNo}` : ''}</span></p>
           <p>{t('rx.patient')}: {r.patientName}{r.patientAddress ? `, ${r.patientAddress}` : ''}</p>
           <p>{t('rx.doctor')}: {r.doctorName}{r.doctorRegNo ? ` (${r.doctorRegNo})` : ''}{r.doctorAddress ? `, ${r.doctorAddress}` : ''}</p>

@@ -67,10 +67,10 @@ export function DisputesScreen({ isOwner }: { isOwner: boolean }) {
   return (
     <div className="flex flex-col gap-3 p-4">
       <p className="text-sm text-muted">{t('dispute.shopHint')}</p>
-      {error && <p className="rounded-[14px] bg-red-50 p-3 text-sm text-due">{error}</p>}
+      {error && <p className="rounded-[14px] bg-due-soft p-3 text-sm text-due">{error}</p>}
       {disputes.data?.length === 0 && <p className="py-8 text-center text-muted">{t('dispute.none')}</p>}
       {disputes.data?.map((d) => (
-        <div key={d.id} className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <div key={d.id} className="flex flex-col gap-2 rounded-card bg-white p-4">
           <div>
             <div className="text-lg font-bold">{d.customerName}</div>
             <div className="text-sm text-muted">
@@ -78,13 +78,13 @@ export function DisputesScreen({ isOwner }: { isOwner: boolean }) {
               {' · '}{t('dispute.raisedOn', { date: formatDateTime(d.raisedAt) })}
             </div>
           </div>
-          {d.message && <div className="rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-950">⚠ {t('dispute.customerSays', { message: d.message })}</div>}
+          {d.message && <div className="rounded-xl bg-warn-soft p-3 text-sm font-semibold text-amber-950">⚠ {t('dispute.customerSays', { message: d.message })}</div>}
           {d.items.length > 0 && <DisputeItems items={d.items} onResolve={isOwner ? (item, outcome) => resolveItem(d, item, outcome) : undefined} />}
-          <button className="h-11 rounded-2xl border border-line font-semibold text-teal-800" onClick={() => navigate(`/c/${d.customerId}?e=${d.entryId}`)}>
+          <button className="h-11 rounded-2xl border border-line font-semibold text-brand-strong" onClick={() => navigate(`/c/${d.customerId}?e=${d.entryId}`)}>
             {t('dispute.openBill')} ›
           </button>
           {d.items.length === 0 && isOwner && (
-            <button className="h-12 rounded-2xl bg-teal-700 font-bold text-white" onClick={() => answer(d)}>
+            <button className="h-12 rounded-2xl bg-brand font-bold text-white" onClick={() => answer(d)}>
               {t('dispute.answer')}
             </button>
           )}

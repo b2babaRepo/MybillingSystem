@@ -102,12 +102,12 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+    <section className="flex flex-col gap-3 rounded-card bg-white p-4">
       {/* Credit limit, with how much of it is used */}
-      <div className={`flex flex-col gap-2 rounded-2xl border p-3 ${over ? 'border-red-200 bg-red-50/60' : 'border-line'}`}>
+      <div className={`flex flex-col gap-2 rounded-2xl border p-3 ${over ? 'border-red-200 bg-due-soft/60' : 'border-line'}`}>
         <div className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-3">
-            <span aria-hidden className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-lg">🛡️</span>
+            <span aria-hidden className="flex h-10 w-10 items-center justify-center rounded-xl bg-warn-soft text-lg">🛡️</span>
             <span className="flex flex-col">
               <span className="text-sm text-muted">{t('trade.creditLimit')}</span>
               <span className={`text-lg font-bold ${over ? 'text-due' : ''}`}>
@@ -116,7 +116,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
             </span>
           </span>
           {isOwner && limit === null && (
-            <button onClick={() => setLimit(customer.creditLimit ? String(customer.creditLimit) : '')} className="min-h-10 rounded-full border border-teal-700/30 bg-teal-50/60 px-4 text-sm font-semibold text-teal-800 hover:bg-teal-50">{t('trade.setLimit')}</button>
+            <button onClick={() => setLimit(customer.creditLimit ? String(customer.creditLimit) : '')} className="min-h-10 rounded-full border border-brand/30 bg-brand-soft/60 px-4 text-sm font-semibold text-brand-strong hover:bg-brand-soft">{t('trade.setLimit')}</button>
           )}
         </div>
         {customer.creditLimit ? (
@@ -133,7 +133,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
           <label className="sr-only" htmlFor="credit-limit">{t('trade.creditLimit')}</label>
           <input id="credit-limit" value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" placeholder="₹"
             className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 text-lg font-bold" />
-          <button disabled={busy} onClick={() => void saveLimit()} className="h-12 rounded-xl bg-teal-700 px-4 font-bold text-white">{t('trade.save')}</button>
+          <button disabled={busy} onClick={() => void saveLimit()} className="h-12 rounded-xl bg-brand px-4 font-bold text-white">{t('trade.save')}</button>
         </div>
       )}
 
@@ -191,10 +191,10 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
               </div>
               <div className="flex gap-2 text-sm">
                 {(['cash', 'upi'] as const).map((m) => (
-                  <button key={m} onClick={() => setMode(m)} className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-teal-700 text-white shadow-sm' : 'border border-line bg-white'}`}>{t(m)}</button>
+                  <button key={m} onClick={() => setMode(m)} className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-brand text-white shadow-sm' : 'border border-line bg-white'}`}>{t(m)}</button>
                 ))}
               </div>
-              <button disabled={busy} onClick={() => void invoice()} className="h-12 rounded-2xl bg-teal-700 font-bold text-white">
+              <button disabled={busy} onClick={() => void invoice()} className="h-12 rounded-2xl bg-brand font-bold text-white">
                 {t('trade.makeInvoice', { count: picked.length, total: formatRupees(pickedTotal) })}
               </button>
             </div>

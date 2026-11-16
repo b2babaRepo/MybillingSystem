@@ -21,7 +21,7 @@ describe('DataTable', () => {
     expect(html).toContain('<tfoot>')
     expect(html).toContain('₹3850')
     expect(html.match(/<th[^>]*><button/g)?.length).toBe(2)
-    expect(html).toContain('bg-teal-50') // the chosen row
+    expect(html).toContain('bg-brand-soft') // the chosen row
   })
 
   it('shows the phone cards and hides the table below desktop width when a card is given', () => {

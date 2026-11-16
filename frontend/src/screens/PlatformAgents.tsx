@@ -56,7 +56,7 @@ export function AgentsPanel() {
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-ground p-1 text-xs font-semibold">
           {TABS.map((s) => (
             <button key={s} role="tab" aria-selected={tab === s} onClick={() => setTab(s)}
-              className={`min-h-11 rounded-xl ${tab === s ? 'bg-teal-700 text-white' : ''}`}>{t(`fieldAgent.status.${s}`)}</button>
+              className={`min-h-11 rounded-xl ${tab === s ? 'bg-brand text-white' : ''}`}>{t(`fieldAgent.status.${s}`)}</button>
           ))}
         </div>
 
@@ -66,9 +66,9 @@ export function AgentsPanel() {
             <li key={a.id} className="flex flex-col gap-1 rounded-xl border border-line p-3 text-sm">
               <span className="flex items-baseline justify-between gap-2">
                 <b className="text-base">{a.fullName}</b>
-                {a.code && <span className="font-mono font-bold text-teal-800">{a.code}</span>}
+                {a.code && <span className="font-mono font-bold text-brand-strong">{a.code}</span>}
               </span>
-              <span>{formatPhone(a.phone)} · <a href={`tel:${a.phone}`} className="text-teal-700 underline">{t('agentsAdmin.call')}</a></span>
+              <span>{formatPhone(a.phone)} · <a href={`tel:${a.phone}`} className="text-brand underline">{t('agentsAdmin.call')}</a></span>
               <span>{a.market}</span>
               <span className="text-muted">{a.address}</span>
               <span className="text-muted">
@@ -81,7 +81,7 @@ export function AgentsPanel() {
 
               <div className="mt-1 grid grid-cols-2 gap-2">
                 {a.status === 'applied' && <>
-                  <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white"
+                  <button disabled={busy} className="min-h-11 rounded-xl bg-brand font-bold text-white"
                     onClick={async () => (await confirmAsk(t('agentsAdmin.kycAsk', { name: a.fullName, last4: a.aadhaarLast4 })))
                       && void run(() => api(`/v1/platform/agents/${a.id}/approve`, 'POST', { kycChecked: true }), t('agentsAdmin.approved', { name: a.fullName }))}>
                     {t('agentsAdmin.approve')}</button>
@@ -98,7 +98,7 @@ export function AgentsPanel() {
                     {t('agentsAdmin.block')}</button>
                 </>}
                 {a.status === 'blocked' && (
-                  <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-teal-700 font-bold text-white"
+                  <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-brand font-bold text-white"
                     onClick={() => void run(() => api(`/v1/platform/agents/${a.id}/unblock`, 'POST', {}))}>{t('agentsAdmin.unblock')}</button>
                 )}
               </div>
@@ -119,7 +119,7 @@ export function AgentsPanel() {
             <input aria-label={t('fieldAgent.upi')} placeholder={t('fieldAgent.upi')} value={form.upiId} onChange={(e) => setForm({ ...form, upiId: e.target.value.trim() })} className={box} />
             <div className="grid grid-cols-2 gap-2">
               <button disabled={busy || !isValidAadhaar(form.aadhaar) || form.fullName.trim().length < 2 || form.phone.trim().length < 10}
-                className="min-h-11 rounded-xl bg-teal-700 font-bold text-white disabled:opacity-40"
+                className="min-h-11 rounded-xl bg-brand font-bold text-white disabled:opacity-40"
                 onClick={() => void run(async () => {
                   const result = await api<{ agent: FieldAgent; tempPassword: string | null }>('/v1/platform/agents', 'POST', { ...form, upiId: form.upiId || null })
                   setForm(empty)
@@ -133,7 +133,7 @@ export function AgentsPanel() {
         ) : (
           <button onClick={() => setAdding(true)} className="min-h-11 rounded-xl border-2 border-dashed border-line font-semibold">+ {t('agentsAdmin.addTitle')}</button>
         )}
-        {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       </>}
     </section>
   )
@@ -192,7 +192,7 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
       {open && <>
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-ground p-1 text-xs font-semibold">
           {REG_TABS.filter((x) => review || x === 'payment').map((x) => (
-            <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-teal-700 text-white' : ''}`}>{t(`registrations.tab.${x}`)}</button>
+            <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-brand text-white' : ''}`}>{t(`registrations.tab.${x}`)}</button>
           ))}
         </div>
         {list.data?.length === 0 && <p className="text-sm text-muted">{t('agentsAdmin.none')}</p>}
@@ -200,12 +200,12 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
           {list.data?.map((r) => (
             <li key={r.id} className="flex flex-col gap-2 rounded-xl border border-line p-3 text-sm">
               <span className="flex items-baseline justify-between gap-2"><b className="text-base">{r.shopName}</b><span className="font-mono text-xs">{r.agentCode} · {r.agentName}</span></span>
-              {r.warnings.map((w) => <span key={w} className="rounded-lg bg-red-50 px-2 py-1 font-semibold text-red-800">⚠ {w}</span>)}
+              {r.warnings.map((w) => <span key={w} className="rounded-lg bg-due-soft px-2 py-1 font-semibold text-red-800">⚠ {w}</span>)}
               <div className="grid grid-cols-3 gap-2">
                 {r.photos.map((p) => <AuthPhoto key={p.id} path={`/v1/platform/registrations/${r.id}/photos/${p.id}`} alt={p.kind} />)}
               </div>
               <span>{t(`shopType.${r.type}`)} · {r.address} · {r.market}</span>
-              <a href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer" className="text-teal-700 underline">
+              <a href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer" className="text-brand underline">
                 {t('registrations.map')}{r.accuracyMetres ? ` (±${Math.round(r.accuracyMetres)} m)` : ''}</a>
               <span>{r.ownerName} · {formatPhone(r.ownerPhone)}{r.altPhone ? ` / ${formatPhone(r.altPhone)}` : ''}{r.gstin ? ` · GSTIN ${r.gstin}` : ''}</span>
               <span className="text-xs text-muted">{t('registrations.consent', { date: formatDateTime(r.consentAt) })}</span>
@@ -213,13 +213,13 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
               {r.rejectReason && <span className="font-semibold text-red-800">{r.rejectReason}</span>}
               <div className="grid grid-cols-2 gap-2">
                 {review && r.status === 'submitted' && <>
-                  <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white"
+                  <button disabled={busy} className="min-h-11 rounded-xl bg-brand font-bold text-white"
                     onClick={() => void run(() => api(`/v1/platform/registrations/${r.id}/approve`, 'POST', {}), t('registrations.approved', { name: r.shopName }))}>{t('registrations.approve')}</button>
                   <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold text-red-700"
                     onClick={async () => { const reason = (await ask(t('registrations.rejectAsk'))); if (reason) void run(() => api(`/v1/platform/registrations/${r.id}/reject`, 'POST', { reason })) }}>{t('agentsAdmin.reject')}</button>
                 </>}
                 {money && r.status === 'approved' && r.paymentStatus === 'received' && (
-                  <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-teal-700 font-bold text-white"
+                  <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-brand font-bold text-white"
                     onClick={async () => (await confirmAsk(t('registrations.confirmAsk', { amount: formatRupees(r.amount), how: t(`agentShops.pay.${r.paymentMode}`) })))
                       && void run(() => api(`/v1/platform/registrations/${r.id}/confirm-payment`, 'POST', {}), t('registrations.paid'))}>{t('registrations.confirmPay', { amount: formatRupees(r.amount) })}</button>
                 )}
@@ -227,7 +227,7 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
             </li>
           ))}
         </ul>
-        {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       </>}
     </section>
   )
@@ -278,15 +278,15 @@ export function PerformancePanel({ role }: { role: AdminRole }) {
               <span className="text-muted">{r.market} · {formatPhone(r.phone)}</span>
               <span>{t('performance.month', { submitted: r.thisMonth.submitted, approved: r.thisMonth.approved, rejected: r.thisMonth.rejected, paid: r.thisMonth.paid })}</span>
               <span className="text-muted">{t('agentHome.allTime', { shops: r.shopsAllTime, paid: r.paidShopsAllTime })}</span>
-              {r.cashToDeposit > 0 && <span className="font-semibold text-amber-800">{t('performance.cash', { amount: formatRupees(r.cashToDeposit) })}</span>}
+              {r.cashToDeposit > 0 && <span className="font-semibold text-warn">{t('performance.cash', { amount: formatRupees(r.cashToDeposit) })}</span>}
               <span>{t('performance.money', { due: formatRupees(r.commissionDue), waiting: formatRupees(r.commissionWaiting), paid: formatRupees(r.commissionPaid) })}</span>
               {pays && r.commissionDue > 0 && (
-                <button onClick={() => void pay(r)} className="mt-1 min-h-11 rounded-xl bg-teal-700 font-bold text-white">{t('performance.pay', { amount: formatRupees(r.commissionDue) })}</button>
+                <button onClick={() => void pay(r)} className="mt-1 min-h-11 rounded-xl bg-brand font-bold text-white">{t('performance.pay', { amount: formatRupees(r.commissionDue) })}</button>
               )}
             </li>
           ))}
         </ul>
-        {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       </>}
     </section>
   )

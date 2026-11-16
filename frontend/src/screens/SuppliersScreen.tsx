@@ -67,27 +67,27 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
   return (
     <ListDetail hasDetail={!!openId} detail={openId && <SupplierPage shopId={shopId} shopName={shopName} id={openId} onBack={() => setOpenId(null)} />} placeholder={t('suppliers.pick')} list={
     <div className="flex flex-col gap-3 p-4">
-      <section className="rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="rounded-card bg-white p-4 shadow-sm">
         <span className="text-sm font-semibold text-muted">{t('suppliers.totalDue')}</span>
         <p className="text-2xl font-extrabold text-due">{formatRupees(due)}</p>
         {due > 0 && (
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
             <span className="rounded-xl bg-blue-50 p-2 text-blue-800"><span className="block text-xs">{t('suppliers.age0')}</span><b>{formatRupees(sum('days0To15'))}</b></span>
             <span className="rounded-xl bg-orange-50 p-2 text-orange-800"><span className="block text-xs">{t('suppliers.age16')}</span><b>{formatRupees(sum('days16To30'))}</b></span>
-            <span className="rounded-xl bg-red-50 p-2 text-red-800"><span className="block text-xs">{t('suppliers.age30')}</span><b>{formatRupees(sum('over30'))}</b></span>
+            <span className="rounded-xl bg-due-soft p-2 text-red-800"><span className="block text-xs">{t('suppliers.age30')}</span><b>{formatRupees(sum('over30'))}</b></span>
           </div>
         )}
       </section>
       <span className="relative block">
         <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">🔍</span>
-        <input type="search" aria-label={t('supplier2.search')} placeholder={t('supplier2.search')} value={search} onChange={(e) => setSearch(e.target.value)} className="h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-3 shadow-sm outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+        <input type="search" aria-label={t('supplier2.search')} placeholder={t('supplier2.search')} value={search} onChange={(e) => setSearch(e.target.value)} className="h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-3 shadow-sm outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
       </span>
       {anyOff && <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} className="h-5 w-5" />{t('supplier2.showOff')}</label>}
       <ul className="flex flex-col gap-2">
         {ordered.map((s) => (
           <li key={s.id}>
-            <button onClick={() => setOpenId(s.id)} aria-current={openId === s.id ? 'true' : undefined} className={`flex min-h-16 w-full items-center gap-3 rounded-[18px] bg-white px-3 py-2 text-left shadow-sm transition hover:bg-[#f6faf9] lg:hover:shadow-md ${openId === s.id ? 'lg:ring-2 lg:ring-teal-700' : ''}`}>
-              <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.due > 0 ? 'bg-red-50 text-due' : 'bg-[#edf2f1] text-muted'}`}>{s.name.split(/s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}</span>
+            <button onClick={() => setOpenId(s.id)} aria-current={openId === s.id ? 'true' : undefined} className={`flex min-h-16 w-full items-center gap-3 rounded-card bg-white px-3 py-2 text-left shadow-sm transition hover:bg-[#f6faf9] lg:hover:shadow-md ${openId === s.id ? 'lg:ring-2 lg:ring-brand' : ''}`}>
+              <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.due > 0 ? 'bg-due-soft text-due' : 'bg-[#edf2f1] text-muted'}`}>{s.name.split(/s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}</span>
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate font-bold">{s.name}{s.isActive === false ? ` · ${t('supplier2.off')}` : ''}</span>
                 {s.due > 0 && (s.oldestDays ?? 0) > 0 && (
@@ -101,7 +101,7 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
         ))}
       </ul>
       <SupplierImport shopId={shopId} />
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h2 className="font-bold">{t('suppliers.add')}</h2>
         <Field label={t('suppliers.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={120} />
         <Field label={t('suppliers.phone')} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} inputMode="tel" />
@@ -277,15 +277,15 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
   const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
   return (
     <div className="flex flex-col gap-3 p-4">
-      <button onClick={onBack} className="min-h-11 self-start font-semibold text-teal-700">← {t('suppliers.all')}</button>
-      <section className="flex items-center justify-between rounded-[18px] bg-white p-4 shadow-sm">
+      <button onClick={onBack} className="min-h-11 self-start font-semibold text-brand">← {t('suppliers.all')}</button>
+      <section className="flex items-center justify-between rounded-card bg-white p-4 shadow-sm">
         <span className="flex min-w-0 flex-col"><span className="truncate text-lg font-bold">{s?.name}</span>
-          <span className="flex gap-3 text-sm"><button onClick={startEdit} className="min-h-11 font-semibold text-teal-700 underline">{t('supplier2.edit')}</button>
-          <button onClick={() => navigate(`/print/supplier/${id}`)} className="min-h-11 font-semibold text-teal-700 underline">{t('supplier2.statement')}</button></span></span><span className="text-right text-xl font-extrabold text-due">{s ? formatRupees(Math.abs(s.due)) : '–'}{s && s.due !== 0 && <span className="block text-xs font-normal text-muted">{t(s.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>
+          <span className="flex gap-3 text-sm"><button onClick={startEdit} className="min-h-11 font-semibold text-brand underline">{t('supplier2.edit')}</button>
+          <button onClick={() => navigate(`/print/supplier/${id}`)} className="min-h-11 font-semibold text-brand underline">{t('supplier2.statement')}</button></span></span><span className="text-right text-xl font-extrabold text-due">{s ? formatRupees(Math.abs(s.due)) : '–'}{s && s.due !== 0 && <span className="block text-xs font-normal text-muted">{t(s.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>
       </section>
 
       {editing && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <Field label={t('suppliers.name')} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} maxLength={120} />
           <Field label={t('suppliers.phone')} value={editing.phone} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} inputMode="tel" />
           <Field label={t('supplier2.gstin')} value={editing.gstin} onChange={(e) => setEditing({ ...editing, gstin: e.target.value })} maxLength={15} autoCapitalize="characters" />
@@ -300,7 +300,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       )}
 
       {detail.data && !detail.data.entries.some((e) => e.kind === 'opening') && (
-        <details className="rounded-[18px] bg-white p-4 shadow-sm">
+        <details className="rounded-card bg-white p-4 shadow-sm">
           <summary className="min-h-11 cursor-pointer font-bold">{t('supplier2.opening')}</summary>
           <p className="mb-2 text-sm text-muted">{t('supplier2.openingHint')}</p>
           <div className="grid grid-cols-2 gap-2">
@@ -314,12 +314,12 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
         </details>
       )}
 
-      <label className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm"><span className="text-sm font-medium text-muted">{t('suppliers.mode')}</span>
+      <label className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm"><span className="text-sm font-medium text-muted">{t('suppliers.mode')}</span>
         <select value={mode} onChange={(e) => setMode(e.target.value as 'cash' | 'upi' | 'bank')} className={input}>
           <option value="cash">{t('cash')}</option><option value="upi">{t('upi')}</option><option value="bank">{t('bank')}</option>
         </select></label>
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h2 className="font-bold">{t('suppliers.pay')}</h2>
         <div className="flex gap-2">
           <input aria-label={t('suppliers.pay')} value={pay} onChange={(e) => setPay(e.target.value)} inputMode="decimal" className={`${input} flex-1`} />
@@ -333,47 +333,47 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       {s && <ReceiptsPanel shopId={shopId} supplierId={id} products={products} onBill={billFor} />}
       {s && <SupplierItemsCard shopId={shopId} supplierId={id} />}
 
-      <section id="supplier-bill" className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section id="supplier-bill" className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h2 className="font-bold">{t('suppliers.bill')}</h2>
         {fromReceipts.length > 0 && (
-          <p className="flex items-start justify-between gap-2 rounded-xl bg-teal-50 p-2 text-sm text-teal-900">
+          <p className="flex items-start justify-between gap-2 rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">
             <span>{t('receipt.onBill', { numbers: fromReceipts.map((r) => r.number).join(', #') })}</span>
             <button onClick={() => setFromReceipts([])} className="min-h-11 shrink-0 font-semibold underline">{t('receipt.clear')}</button>
           </p>
         )}
         {against && (
-          <p className="flex items-start justify-between gap-2 rounded-xl bg-teal-50 p-2 text-sm text-teal-900">
+          <p className="flex items-start justify-between gap-2 rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">
             <span>{t('supplier2.againstOrder', { number: against.number })}</span>
             <button onClick={() => setAgainst(null)} className="min-h-11 shrink-0 font-semibold underline">{t('supplier2.clearOrder')}</button>
           </p>
         )}
         {ai?.canReadPhotos && (ai.consentedAt ? (
-          <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-teal-700 font-bold text-teal-800 ${reading ? 'opacity-50' : ''}`}>
+          <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-brand font-bold text-brand-strong ${reading ? 'opacity-50' : ''}`}>
             📷 {reading ? t('invoicePhoto.reading') : t('invoicePhoto.button')}
             <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={reading}
               onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void readPhoto(file) }} />
           </label>
         ) : (
-          <button onClick={() => setAskConsent(true)} className="min-h-12 rounded-2xl border-2 border-teal-700 font-bold text-teal-800">📷 {t('invoicePhoto.button')}</button>
+          <button onClick={() => setAskConsent(true)} className="min-h-12 rounded-2xl border-2 border-brand font-bold text-brand-strong">📷 {t('invoicePhoto.button')}</button>
         ))}
         {askConsent && (
-          <div className="flex flex-col gap-2 rounded-2xl bg-amber-50 p-3 text-sm">
+          <div className="flex flex-col gap-2 rounded-2xl bg-warn-soft p-3 text-sm">
             <p className="font-bold">{t('expense.consentTitle')}</p><p>{t('invoicePhoto.consent')}</p>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => void agree()} className="h-11 rounded-xl bg-teal-700 font-bold text-white">{t('expense.consentYes')}</button>
+              <button onClick={() => void agree()} className="h-11 rounded-xl bg-brand font-bold text-white">{t('expense.consentYes')}</button>
               <button onClick={() => setAskConsent(false)} className="h-11 rounded-xl border border-line font-semibold">{t('expense.consentNo')}</button>
             </div>
           </div>
         )}
         {photoNote && (
-          <p className={`rounded-xl p-2 text-sm ${photoNote.differs ? 'bg-red-50 font-semibold text-due' : 'bg-teal-50 text-teal-900'}`}>
+          <p className={`rounded-xl p-2 text-sm ${photoNote.differs ? 'bg-due-soft font-semibold text-due' : 'bg-brand-soft text-brand-deep'}`}>
             {photoNote.differs && photoNote.printed != null ? t('invoicePhoto.totalDiffers', { printed: formatRupees(photoNote.printed), lines: formatRupees(photoNote.lines) }) : t('invoicePhoto.check')}
           </p>
         )}
         <Field label={t('suppliers.billNo')} value={billNo} onChange={(e) => setBillNo(e.target.value)} maxLength={40} />
         <label className="flex items-center justify-between gap-2 text-sm"><span className="text-muted">{t('supplier2.billDate')}</span><input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} className={input} /></label>
         {rows.map((r, i) => (
-          <div key={i} className={`grid grid-cols-2 gap-2 ${r.problems?.length ? 'rounded-xl bg-amber-50 p-2' : ''}`}>
+          <div key={i} className={`grid grid-cols-2 gap-2 ${r.problems?.length ? 'rounded-xl bg-warn-soft p-2' : ''}`}>
             {r.read && <p className="col-span-2 text-xs text-muted">{t('invoicePhoto.read', { name: r.read })}{r.problems?.length ? ` · ${r.problems.map((p) => t(`invoicePhoto.problem.${p}`)).join(', ')}` : ''}</p>}
             {against && (() => {
               const ordered = against.lines.find((l) => l.productId === r.productId)
@@ -418,7 +418,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
             </select>
           </div>
         ))}
-        <button onClick={() => setRows([...rows, empty])} className="min-h-11 font-semibold text-teal-700">+ {t('suppliers.addRow')}</button>
+        <button onClick={() => setRows([...rows, empty])} className="min-h-11 font-semibold text-brand">+ {t('suppliers.addRow')}</button>
         <Field label={t('supplier2.extra')} value={extra} onChange={(e) => setExtra(e.target.value)} inputMode="text" />
         <ChargesEditor value={charges} onChange={setCharges} hasExtra={Number(extra) > 0} />
         <GodownPicker shopId={shopId} value={godown} onChange={setGodown} label="in" />
@@ -430,9 +430,9 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
 
       <ReturnsPanel shopId={shopId} supplierId={id} products={products} />
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <div className="flex gap-2">
-          {(['all', 'bills', 'payments'] as const).map((v) => <button key={v} onClick={() => setView(v)} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${view === v ? 'bg-teal-700 text-white shadow-sm' : 'border border-line'}`}>{t(`supplier2.${v}`)}</button>)}
+          {(['all', 'bills', 'payments'] as const).map((v) => <button key={v} onClick={() => setView(v)} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${view === v ? 'bg-brand text-white shadow-sm' : 'border border-line'}`}>{t(`supplier2.${v}`)}</button>)}
         </div>
         {shown.length === 0 && <p className="text-sm text-muted">{t('supplier2.noLines')}</p>}
         <ul className="flex flex-col">
@@ -448,7 +448,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
               </div>
               {e.purchaseId && e.amount > 0 && (
                 <div className="flex gap-3">
-                  <button onClick={() => setOpenBill(openBill === e.purchaseId ? null : e.purchaseId)} aria-expanded={openBill === e.purchaseId} className="min-h-11 text-xs font-semibold text-teal-700 underline">{t('suppliers.billLine')} {openBill === e.purchaseId ? '▴' : '▾'}</button>
+                  <button onClick={() => setOpenBill(openBill === e.purchaseId ? null : e.purchaseId)} aria-expanded={openBill === e.purchaseId} className="min-h-11 text-xs font-semibold text-brand underline">{t('suppliers.billLine')} {openBill === e.purchaseId ? '▴' : '▾'}</button>
                   {!e.cancelled && <button onClick={() => void cancelBill(e.purchaseId!)} className="min-h-11 text-xs font-semibold text-due">{t('suppliers.cancelBill')}</button>}
                 </div>
               )}

@@ -49,7 +49,7 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-24">
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
         <button onClick={() => setDate(shift(date, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <input type="date" value={date} max={today} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label={t('day.date')} className="h-11 rounded-xl border border-line px-2 font-bold" />
         <button onClick={() => setDate(shift(date, 1))} disabled={date >= today} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -57,10 +57,10 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
       {query.isError && <p className="text-sm text-due">{query.error.message}</p>}
       {!r && !query.isError && <p className="text-muted">…</p>}
       {r && <>
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <div className="flex items-baseline justify-between">
             <span className="text-sm font-semibold text-muted">{t('day.sales', { count: r.totals.bills })}</span>
-            {change !== null && <span className={`text-sm font-semibold ${change >= 0 ? 'text-teal-800' : 'text-due'}`}>{change >= 0 ? '▲' : '▼'} {Math.abs(change)}% {t('day.vsYesterday')}</span>}
+            {change !== null && <span className={`text-sm font-semibold ${change >= 0 ? 'text-brand-strong' : 'text-due'}`}>{change >= 0 ? '▲' : '▼'} {Math.abs(change)}% {t('day.vsYesterday')}</span>}
           </div>
           <span className="text-3xl font-extrabold">{formatRupees(r.totals.sales)}</span>
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -73,7 +73,7 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
           {r.totals.bank > 0 && <p className="text-xs text-muted">{t('bank')} {formatRupees(r.totals.bank)}</p>}
         </section>
 
-        <section className="rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="rounded-card bg-white p-4 shadow-sm">
           <h2 className="mb-1 font-bold">{t('day.bills', { count: r.bills.length })}</h2>
           {r.bills.length === 0 && <p className="text-sm text-muted">{t('day.noBills')}</p>}
           <ul className="divide-y divide-[#edf2f1] text-sm">
@@ -96,7 +96,7 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
         </section>
 
         {(r.tills?.length ?? 0) > 1 && (
-          <section className="overflow-x-auto rounded-[18px] bg-white p-4 text-sm shadow-sm">
+          <section className="overflow-x-auto rounded-card bg-white p-4 text-sm shadow-sm">
             <h2 className="mb-1 font-bold">{t('day.tills')}</h2>
             <table className="w-full">
               <thead><tr className="text-left text-xs text-muted"><th className="py-1">{t('day.till')}</th><th className="text-right">{t('day.tillBills')}</th><th className="text-right">{t('day.tillSales')}</th><th className="text-right">{t('day.tillCash')}</th><th className="text-right">UPI</th><th className="text-right">{t('day.tillKhata')}</th></tr></thead>
@@ -114,7 +114,7 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
         )}
 
         {r.cancelled.length > 0 && (
-          <section className="rounded-[18px] bg-white p-4 text-sm shadow-sm">
+          <section className="rounded-card bg-white p-4 text-sm shadow-sm">
             <h2 className="mb-1 font-bold text-due">{t('day.cancelled', { count: r.cancelled.length })}</h2>
             {r.cancelled.map((b) => (
               <button key={b.id} onClick={() => navigate(`/print/bill/${b.id}`)} className="flex w-full justify-between gap-2 py-1.5 text-left">
@@ -125,7 +125,7 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
           </section>
         )}
 
-        <section className="rounded-[18px] bg-white p-4 text-sm shadow-sm">
+        <section className="rounded-card bg-white p-4 text-sm shadow-sm">
           <button onClick={() => setShowItems(!showItems)} aria-expanded={showItems} className="flex min-h-11 w-full items-center justify-between font-bold">
             <span>{t('day.items', { count: r.items.length })}</span><span>{showItems ? '▴' : '▾'}</span>
           </button>
@@ -134,11 +134,11 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
           ))}
         </section>
 
-        <section className="grid grid-cols-2 gap-2 rounded-[18px] bg-white p-4 text-sm shadow-sm">
+        <section className="grid grid-cols-2 gap-2 rounded-card bg-white p-4 text-sm shadow-sm">
           <span className="text-muted">{t('day.spent')}<b className="block text-ink">{formatRupees(r.totals.spent)}</b></span>
           {r.galla && (
             <span className="text-muted">{t('day.drawer')}<b className="block text-ink">{formatRupees(r.galla.expected)}</b>
-              {r.galla.counted != null && <span className={`block text-xs ${r.galla.difference === 0 ? 'text-teal-800' : 'text-due'}`}>{t('day.counted', { amount: formatRupees(r.galla.counted), diff: formatRupees(r.galla.difference ?? 0) })}</span>}
+              {r.galla.counted != null && <span className={`block text-xs ${r.galla.difference === 0 ? 'text-brand-strong' : 'text-due'}`}>{t('day.counted', { amount: formatRupees(r.galla.counted), diff: formatRupees(r.galla.difference ?? 0) })}</span>}
             </span>
           )}
         </section>

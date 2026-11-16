@@ -28,7 +28,7 @@ export function ItemPicker({ products, text, onText, onPick, placeholder, classN
           {matches.map((p) => (
             <li key={p.id}>
               <button type="button" role="option" aria-selected={false} onMouseDown={(e) => e.preventDefault()} onClick={() => { onPick(p); setOpen(false) }}
-                className="flex min-h-11 w-full items-center px-3 text-left text-sm hover:bg-teal-50">
+                className="flex min-h-11 w-full items-center px-3 text-left text-sm hover:bg-brand-soft">
                 {itemName(p)}
               </button>
             </li>

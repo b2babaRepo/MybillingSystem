@@ -67,16 +67,16 @@ export function OrderToday() {
 
   if (!today) return null
   return (
-    <section className={`mx-4 mt-4 flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm ${today.count > 0 ? 'ring-1 ring-orange-200' : ''}`}>
+    <section className={`mx-4 mt-4 flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm ${today.count > 0 ? 'ring-1 ring-orange-200' : ''}`}>
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-bold"><span aria-hidden>🛒</span>{today.count > 0 ? t('orderToday.title', { count: today.count }) : t('orderToday.none')}</h2>
-        {today.count > 0 && <button onClick={() => navigate('/reorder')} className="min-h-10 text-sm font-semibold text-teal-700 underline">{t('orderToday.open')}</button>}
+        {today.count > 0 && <button onClick={() => navigate('/reorder')} className="min-h-10 text-sm font-semibold text-brand underline">{t('orderToday.open')}</button>}
       </div>
       {today.items.slice(0, 5).map((i) => (
         <button key={i.productId} onClick={() => navigate(`/p/${i.productId}`)} className="flex min-h-11 items-center justify-between gap-2 border-b border-[#edf2f1] text-left last:border-0">
           <span className="min-w-0 truncate font-semibold">{itemName(i)}</span>
           <span className="flex shrink-0 items-center gap-2 text-sm">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${i.stock <= 0 || (i.daysLeft ?? 99) <= i.leadDays ? 'bg-red-50 text-due' : 'bg-amber-50 text-amber-800'}`}>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${i.stock <= 0 || (i.daysLeft ?? 99) <= i.leadDays ? 'bg-due-soft text-due' : 'bg-warn-soft text-warn'}`}>
               {i.stock <= 0 ? t('orderToday.out') : i.daysLeft != null ? t('orderToday.daysLeft', { count: Math.floor(i.daysLeft) }) : t('orderToday.low')}
             </span>
             <span className="text-muted">{t('orderToday.order', { qty: i.suggested })}</span>
@@ -89,7 +89,7 @@ export function OrderToday() {
           {on
             ? <><button onClick={() => void test()} className="h-9 rounded-lg border border-line bg-white px-3 font-semibold">{t('orderToday.test')}</button>
               <button onClick={() => void turnOff()} className="h-9 rounded-lg px-3 font-semibold text-muted underline">{t('orderToday.off')}</button></>
-            : <button onClick={() => void turnOn()} className="h-9 rounded-lg bg-teal-700 px-3 font-semibold text-white">{t('orderToday.turnOn')}</button>}
+            : <button onClick={() => void turnOn()} className="h-9 rounded-lg bg-brand px-3 font-semibold text-white">{t('orderToday.turnOn')}</button>}
         </div>
       )}
       {note && <p className="text-xs text-muted">{note}</p>}

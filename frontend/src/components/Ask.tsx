@@ -46,11 +46,11 @@ export function AskHost() {
         className="w-full max-w-md rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:rounded-3xl">
         <p className="whitespace-pre-line text-[17px] font-semibold leading-snug">{question.message}</p>
         {question.kind === 'text' && (
-          <input ref={input} value={text} onChange={(e) => setText(e.target.value)} className="mt-3 h-12 w-full rounded-xl border border-line px-3 text-[17px] outline-none focus:border-teal-600" />
+          <input ref={input} value={text} onChange={(e) => setText(e.target.value)} className="mt-3 h-12 w-full rounded-xl border border-line px-3 text-[17px] outline-none focus:border-brand-line" />
         )}
         <div className={`mt-4 grid gap-2 ${question.kind === 'tell' ? 'grid-cols-1' : 'grid-cols-2'}`}>
           {question.kind !== 'tell' && <button type="button" onClick={() => finish(null)} className="h-12 rounded-xl border border-line font-semibold">{t('cancel')}</button>}
-          <button type="submit" className="h-12 rounded-xl bg-teal-700 font-bold text-white">{question.kind === 'confirm' ? t('ask.yes') : t('ask.ok')}</button>
+          <button type="submit" className="h-12 rounded-xl bg-brand font-bold text-white">{question.kind === 'confirm' ? t('ask.yes') : t('ask.ok')}</button>
         </div>
       </form>
     </div>

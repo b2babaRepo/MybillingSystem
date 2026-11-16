@@ -41,7 +41,7 @@ export function BalanceSheetScreen({ shopId }: { shopId: string }) {
         </label>
         {!sheet ? <p className="text-muted">…</p> : (
           <>
-            <section className="rounded-[18px] bg-white p-4 shadow-sm">
+            <section className="rounded-card bg-white p-4 shadow-sm">
               <h2 className="flex justify-between text-lg font-bold"><span>{t('bs.assets')}</span><span className="tabular-nums text-jama">{formatRupees(sheet.totalAssets)}</span></h2>
               <p className="mb-1 text-xs text-muted">{t('bs.assetsHint')}</p>
               {row(t('bs.cash'), sheet.cash, '/cashledger')}
@@ -50,13 +50,13 @@ export function BalanceSheetScreen({ shopId }: { shopId: string }) {
               {row(t('bs.customersOwe'), sheet.customersOwe, '/dues', t('bs.people', { count: sheet.customersOwing }))}
               {sheet.supplierAdvances > 0 && row(t('bs.supplierAdvances'), sheet.supplierAdvances, '/suppliers')}
             </section>
-            <section className="rounded-[18px] bg-white p-4 shadow-sm">
+            <section className="rounded-card bg-white p-4 shadow-sm">
               <h2 className="flex justify-between text-lg font-bold"><span>{t('bs.liabilities')}</span><span className="tabular-nums text-due">{formatRupees(sheet.totalLiabilities)}</span></h2>
               <p className="mb-1 text-xs text-muted">{t('bs.liabilitiesHint')}</p>
               {row(t('bs.suppliersOwed'), sheet.suppliersOwed, '/suppliers', t('bs.suppliers', { count: sheet.suppliersOwedCount }))}
               {sheet.customerAdvances > 0 && row(t('bs.customerAdvances'), sheet.customerAdvances, '/khata')}
             </section>
-            <section className="rounded-[18px] bg-teal-50 p-4">
+            <section className="rounded-card bg-brand-soft p-4">
               <p className="flex justify-between text-xl font-bold"><span>{t('bs.capital')}</span><span className="tabular-nums">{formatRupees(sheet.capital)}</span></p>
               <p className="mt-1 text-sm text-muted">{t('bs.capitalHint')}</p>
               <p className="mt-3 text-xs text-muted">{t('bs.asOf', { day })} · {t('bs.note')}</p>

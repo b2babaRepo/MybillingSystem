@@ -4,14 +4,14 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { confirmAsk } from '../components/Ask'
-import { Button, Field } from '../components/ui'
+import { Button, Field, control } from '../components/ui'
 import { ItemPicker } from '../components/ItemPicker'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees, indiaToday as today } from '../lib/format'
 import { isRunning, useOffers, type SaleOffer } from '../lib/offers'
 
-const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
+const input = control
 const day = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 
 /**
@@ -56,7 +56,7 @@ export function OffersScreen({ shopId }: { shopId: string }) {
       <p className="text-sm text-muted">{t('offers.hint')}</p>
       {!draft && <Button onClick={() => setDraft(blank)}>+ {t('offers.new')}</Button>}
       {draft && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4">
           <Field label={t('offers.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={60} placeholder={t('offers.namePlaceholder')} />
           <div className="grid grid-cols-2 gap-2">
             <input aria-label={t('offers.value')} placeholder={t('offers.value')} value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })} inputMode="decimal" className={input} />
@@ -80,7 +80,7 @@ export function OffersScreen({ shopId }: { shopId: string }) {
                 onText={(text) => setDraft({ ...draft, itemText: text })} onPick={(p) => setDraft({ ...draft, items: [...draft.items, p.id], itemText: '' })} />
               <div className="flex flex-wrap gap-1">
                 {draft.items.map((id) => (
-                  <button key={id} onClick={() => setDraft({ ...draft, items: draft.items.filter((x) => x !== id) })} className="min-h-9 rounded-full bg-teal-50 px-3 text-sm text-teal-900">
+                  <button key={id} onClick={() => setDraft({ ...draft, items: draft.items.filter((x) => x !== id) })} className="min-h-9 rounded-full bg-brand-soft px-3 text-sm text-brand-deep">
                     {products.find((p) => p.id === id)?.name} ×
                   </button>
                 ))}
@@ -93,12 +93,12 @@ export function OffersScreen({ shopId }: { shopId: string }) {
           </div>
         </section>
       )}
-      {offers.length === 0 && !draft && <p className="rounded-[18px] bg-white p-4 text-sm text-muted">{t('offers.none')}</p>}
+      {offers.length === 0 && !draft && <p className="rounded-card bg-white p-4 text-sm text-muted">{t('offers.none')}</p>}
       {offers.map((o) => (
-        <section key={o.id} className="flex flex-col gap-1 rounded-[18px] bg-white p-4 text-sm">
+        <section key={o.id} className="flex flex-col gap-1 rounded-card bg-white p-4 text-sm">
           <p className="flex items-center justify-between gap-2">
             <b className="text-base">{o.name} · {o.kind === 'percent' ? `${o.value}%` : formatRupees(o.value)} {t('offers.off')}</b>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${state(o) === 'running' ? 'bg-teal-50 text-teal-800' : 'bg-[#f1f5f4] text-muted'}`}>{t(`offers.state.${state(o)}`)}</span>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${state(o) === 'running' ? 'bg-brand-soft text-brand-strong' : 'bg-[#f1f5f4] text-muted'}`}>{t(`offers.state.${state(o)}`)}</span>
           </p>
           <p className="text-muted">{what(o)} · {day(o.startsAt)} – {day(new Date(Date.parse(o.endsAt) - 1).toISOString())}{o.stoppedAt ? ` · ${t('offers.stoppedOn', { date: day(o.stoppedAt) })}` : ''}</p>
           {o.stats && <p>{t('offers.stats', { bills: o.stats.bills, sales: formatRupees(o.stats.sales), saved: formatRupees(o.stats.saved) })}</p>}

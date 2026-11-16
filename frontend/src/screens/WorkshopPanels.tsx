@@ -34,13 +34,13 @@ export function MachinesPanel({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3">
       {list.data && (
-        <div className="rounded-[18px] bg-white p-4">
+        <div className="rounded-card bg-white p-4">
           <p className="font-bold">{t('workshop.wearYear', { year: list.data.financialYear, amount: formatRupees(list.data.thisYear) })}</p>
           <p className="text-sm text-muted">{t('workshop.wearMonth', { amount: formatRupees(list.data.perMonth) })}</p>
           <p className="mt-1 text-xs text-muted">{t('workshop.wearHint')}</p>
         </div>
       )}
-      <ul className="flex flex-col gap-1 rounded-[18px] bg-white p-2">
+      <ul className="flex flex-col gap-1 rounded-card bg-white p-2">
         {list.data?.machines.map((m) => (
           <li key={m.id} className="flex min-h-12 items-center gap-2 px-2">
             <span className="min-w-0 flex-1">
@@ -53,7 +53,7 @@ export function MachinesPanel({ shopId }: { shopId: string }) {
         ))}
         {list.data?.machines.length === 0 && <li className="p-3 text-center text-muted">{t('workshop.noMachines')}</li>}
       </ul>
-      <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <div className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('workshop.addMachine')}</h3>
         <Field label={t('workshop.machineName')} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder={t('workshop.machineHint')} />
         <div className="grid grid-cols-2 gap-2">
@@ -108,7 +108,7 @@ export function KarigarPanel({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted">{t('workshop.karigarHint')}</p>
-      <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <div className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('workshop.send')}</h3>
         <div className="grid grid-cols-2 gap-2">
           <Field label={t('workshop.karigar')} value={d.karigar} onChange={(e) => setD({ ...d, karigar: e.target.value })} />
@@ -130,7 +130,7 @@ export function KarigarPanel({ shopId }: { shopId: string }) {
       {message && <p className="text-sm text-due">{message}</p>}
       <ul className="flex flex-col gap-2">
         {list.data?.map((c) => (
-          <li key={c.id} className={`rounded-[18px] p-3 ${c.overAYear ? 'bg-amber-50' : 'bg-white'}`}>
+          <li key={c.id} className={`rounded-card p-3 ${c.overAYear ? 'bg-warn-soft' : 'bg-white'}`}>
             <p className="font-semibold">#{c.number} {c.karigar} · {c.productName} × {c.quantity} {t(`units.${c.unit}`, { count: c.quantity })}</p>
             <p className="text-xs text-muted">
               {t('workshop.sentOn', { date: new Date(c.sentAt).toLocaleDateString(shownLocale()) })}{c.note ? ` · ${c.note}` : ''}
@@ -146,7 +146,7 @@ export function KarigarPanel({ shopId }: { shopId: string }) {
             )}
           </li>
         ))}
-        {list.data?.length === 0 && <li className="rounded-[18px] bg-white p-3 text-center text-muted">{t('workshop.noChallans')}</li>}
+        {list.data?.length === 0 && <li className="rounded-card bg-white p-3 text-center text-muted">{t('workshop.noChallans')}</li>}
       </ul>
       <Button tone="plain" onClick={() => void download()}>{t('workshop.itc04')}</Button>
       <TdsPanel shopId={shopId} />
@@ -162,12 +162,12 @@ export function TdsPanel({ shopId }: { shopId: string }) {
   const tds = useQuery({ queryKey: [shopId, 'tds'], queryFn: () => api<Tds>('/v1/workshop/tds') }).data
   if (!tds || tds.karigars.length === 0) return null
   return (
-    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+    <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <h3 className="font-bold">{t('workshop.tdsTitle', { year: tds.financialYear })}</h3>
       <p className="text-xs text-muted">{t('workshop.tdsHint', { single: formatRupees(tds.singleLimit), year: formatRupees(tds.yearLimit) })}</p>
       <ul className="flex flex-col gap-1">
         {tds.karigars.map((k) => (
-          <li key={k.karigar} className={`rounded-xl px-2 py-2 ${k.alert === 'single' || k.alert === 'year' ? 'bg-amber-50' : ''}`}>
+          <li key={k.karigar} className={`rounded-xl px-2 py-2 ${k.alert === 'single' || k.alert === 'year' ? 'bg-warn-soft' : ''}`}>
             <div className="flex justify-between font-semibold"><span>{k.karigar}</span><span>{formatRupees(k.total)}</span></div>
             <p className="text-xs text-muted">{t('workshop.tdsLine', { count: k.payments, largest: formatRupees(k.largest) })}</p>
             {k.alert && <p className={`text-sm font-semibold ${k.alert === 'near' ? 'text-muted' : 'text-due'}`}>{t(`workshop.tdsAlert.${k.alert}`)}</p>}

@@ -32,12 +32,12 @@ export function CashBookScreen({ shopId, isOwner = false }: { shopId: string; is
     <div className="flex flex-col gap-3 p-4">
       {isOwner && (
         <div className="flex w-fit gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
-          <span className="flex h-10 items-center rounded-xl bg-white px-4 font-semibold text-teal-800 shadow-sm ring-1 ring-teal-700/20">{t('bankBook.cashBook')}</span>
+          <span className="flex h-10 items-center rounded-xl bg-white px-4 font-semibold text-brand-strong shadow-sm ring-1 ring-brand/20">{t('bankBook.cashBook')}</span>
           <button onClick={() => navigate('/cashledger')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('cashLedger.title')}</button>
           <button onClick={() => navigate('/bankbook')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('bankBook.title')}</button>
         </div>
       )}
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{label}</span>
         <button onClick={() => setDay(shiftDay(day, 1))} disabled={day >= today} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -54,7 +54,7 @@ export function CashBookScreen({ shopId, isOwner = false }: { shopId: string; is
               <div className="flex flex-col rounded-xl bg-blue-50 p-2.5 text-blue-800"><span className="text-xs">{t('upi')}</span><span className="text-[17px] font-bold">{formatRupees(data.upi)}</span></div>
             </div>
             {(data.spentCash ?? 0) + (data.spentUpi ?? 0) > 0 && (
-              <button onClick={() => navigate('/expenses')} className="flex items-center justify-between rounded-xl bg-red-50 p-2.5 text-left text-red-800">
+              <button onClick={() => navigate('/expenses')} className="flex items-center justify-between rounded-xl bg-due-soft p-2.5 text-left text-red-800">
                 <span className="text-sm">{t('book.spent', { cash: formatRupees(data.spentCash ?? 0), upi: formatRupees(data.spentUpi ?? 0) })}</span>
                 <span className="font-bold">{t('book.netCash')} {formatRupees(data.netCash ?? data.cash)}</span>
               </button>
@@ -63,11 +63,11 @@ export function CashBookScreen({ shopId, isOwner = false }: { shopId: string; is
           </section>
           <GallaCount shopId={shopId} day={day} />
           <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col rounded-[18px] bg-white p-3 shadow-sm"><span className="text-xs text-muted">{t('book.sales')}</span><span className="text-lg font-bold">{formatRupees(data.salesTotal)}</span></div>
-            <div className="flex flex-col rounded-[18px] bg-white p-3 shadow-sm"><span className="text-xs text-muted">{t('book.udhaarGiven')}</span><span className="text-lg font-bold text-udhaar">{formatRupees(data.udhaarGiven)}</span></div>
+            <div className="flex flex-col rounded-card bg-white p-3 shadow-sm"><span className="text-xs text-muted">{t('book.sales')}</span><span className="text-lg font-bold">{formatRupees(data.salesTotal)}</span></div>
+            <div className="flex flex-col rounded-card bg-white p-3 shadow-sm"><span className="text-xs text-muted">{t('book.udhaarGiven')}</span><span className="text-lg font-bold text-udhaar">{formatRupees(data.udhaarGiven)}</span></div>
           </div>
           {data.lines.length > 0 && <p className="px-4 text-right text-xs font-semibold text-muted">{t('heads.cashRow')}</p>}
-          <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white px-4 shadow-sm">
+          <ul className="divide-y divide-[#edf2f1] rounded-card bg-white px-4 shadow-sm">
             {data.lines.length === 0 && <li className="py-4 text-muted">{t('book.empty')}</li>}
             {data.lines.map((line, i) => (
               <li key={i}>
@@ -168,17 +168,17 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
           <span className="text-muted">{t('galla.opening')}</span>
           <span className="flex items-center gap-2">
             <span className="font-bold">{formatRupees(c.opening)}</span>
-            {!done && <button onClick={() => setOpening(String(c.opening))} className="min-h-11 px-1 text-sm text-teal-700 underline">{t('galla.change')}</button>}
+            {!done && <button onClick={() => setOpening(String(c.opening))} className="min-h-11 px-1 text-sm text-brand underline">{t('galla.change')}</button>}
           </span>
         </div>
       )}
       {row(`+ ${t('galla.cashIn')}`, formatRupees(c.cashIn))}
       {row(`− ${t('galla.cashOut')}`, formatRupees(c.cashOut))}
       {row(`= ${t('galla.shouldBe')}`, formatRupees(done ? c.expectedAtCount ?? c.expected : expected), 'border-t border-line pt-2 text-base')}
-      {done && c.expectedAtCount != null && c.expectedAtCount !== c.expected && <p className="text-xs text-amber-800">{t('galla.changedSince', { amount: formatRupees(c.expected) })}</p>}
+      {done && c.expectedAtCount != null && c.expectedAtCount !== c.expected && <p className="text-xs text-warn">{t('galla.changedSince', { amount: formatRupees(c.expected) })}</p>}
 
       {done ? (
-        <div className={`flex flex-col gap-1 rounded-xl p-3 ${c.difference === 0 ? 'bg-emerald-50 text-emerald-900' : 'bg-red-50 text-red-900'}`}>
+        <div className={`flex flex-col gap-1 rounded-xl p-3 ${c.difference === 0 ? 'bg-emerald-50 text-emerald-900' : 'bg-due-soft text-red-900'}`}>
           <span className="font-bold">
             {t('galla.counted', { amount: formatRupees(c.counted ?? 0) })} ·{' '}
             {c.difference === 0
@@ -206,14 +206,14 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
           <label className="flex items-center justify-between gap-2">
             <span className="font-semibold">{t('galla.countedLabel')}</span>
             <input value={counted} onChange={(e) => setCounted(money(e.target.value))} inputMode="decimal" placeholder="₹" aria-label={t('galla.countedLabel')}
-              className="h-12 w-36 rounded-xl border-2 border-teal-700 px-3 text-right text-lg font-bold" />
+              className="h-12 w-36 rounded-xl border-2 border-brand px-3 text-right text-lg font-bold" />
           </label>
           {counted !== '' && Number(counted) !== expected && (
             <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder={t('galla.notePlaceholder')} aria-label={t('galla.note')}
-              className="h-11 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+              className="h-11 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
           )}
           {error && <p className="text-sm text-due">{error}</p>}
-          <button disabled={busy || counted === ''} onClick={() => void save()} className="h-12 rounded-2xl bg-teal-700 font-bold text-white disabled:opacity-40">
+          <button disabled={busy || counted === ''} onClick={() => void save()} className="h-12 rounded-2xl bg-brand font-bold text-white disabled:opacity-40">
             {t('galla.save')}
           </button>
         </>

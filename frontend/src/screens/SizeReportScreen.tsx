@@ -34,7 +34,7 @@ export function SizeReportScreen({ shopId }: { shopId: string }) {
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-24">
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm print:shadow-none">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm print:shadow-none">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{label}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= now} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -46,7 +46,7 @@ export function SizeReportScreen({ shopId }: { shopId: string }) {
         const totalLeft = rows.reduce((n, r) => n + r.left, 0)
         const best = Math.max(0, ...rows.map((r) => r.sold))
         return (
-          <section key={s.name} className="flex flex-col gap-2 rounded-[18px] bg-white p-3 shadow-sm print:shadow-none">
+          <section key={s.name} className="flex flex-col gap-2 rounded-card bg-white p-3 shadow-sm print:shadow-none">
             <div className="flex items-baseline justify-between">
               <h2 className="font-bold">{s.name}</h2>
               <span className="text-[13px] text-muted">{t('sizeReport.summary', { sold: totalSold, left: totalLeft })}</span>
@@ -59,8 +59,8 @@ export function SizeReportScreen({ shopId }: { shopId: string }) {
                 <button key={p.id} onClick={() => navigate(`/p/${p.id}`)} className="contents text-left">
                   <span className="min-h-9 py-1 font-semibold">
                     {variantLabel(p) || p.name}
-                    {best > 0 && n === best && <span className="ml-2 rounded-full bg-teal-50 px-2 text-xs font-bold text-teal-800">{t('sizeReport.best')}</span>}
-                    {n === 0 && left > 0 && <span className="ml-2 rounded-full bg-amber-50 px-2 text-xs font-bold text-amber-900">{t('sizeReport.sitting')}</span>}
+                    {best > 0 && n === best && <span className="ml-2 rounded-full bg-brand-soft px-2 text-xs font-bold text-brand-strong">{t('sizeReport.best')}</span>}
+                    {n === 0 && left > 0 && <span className="ml-2 rounded-full bg-warn-soft px-2 text-xs font-bold text-warn-ink">{t('sizeReport.sitting')}</span>}
                   </span>
                   <span className="py-1 text-right font-bold">{n}</span>
                   <span className={`py-1 text-right ${left === 0 ? 'font-bold text-due' : ''}`}>{left}</span>

@@ -66,16 +66,16 @@ export function MeterCard({ shopId }: { shopId: string }) {
         {last && <p>{t('meter.last', { reading: num(last.reading), day: day(last.day) })}</p>}
         <div className="grid grid-cols-[1fr_auto] gap-2">
           <input aria-label={t('meter.today')} placeholder={t('meter.today')} value={value} onChange={(e) => setValue(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal"
-            className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
-          <button disabled={busy || value === '' || !(typed >= 0) || (lower && !reset)} onClick={() => void save()} className="h-12 rounded-xl bg-teal-700 px-4 font-bold text-white disabled:opacity-40">{t('meter.save')}</button>
+            className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
+          <button disabled={busy || value === '' || !(typed >= 0) || (lower && !reset)} onClick={() => void save()} className="h-12 rounded-xl bg-brand px-4 font-bold text-white disabled:opacity-40">{t('meter.save')}</button>
         </div>
         {last && value !== '' && !lower && typed > last.reading && (
-          <p className="font-semibold text-teal-800">{t('meter.preview', { units: num((typed - last.reading) * last.factor), days: Math.max(1, Math.round((Date.parse(todayIso()) - Date.parse(last.day)) / 86_400_000)) })}</p>
+          <p className="font-semibold text-brand-strong">{t('meter.preview', { units: num((typed - last.reading) * last.factor), days: Math.max(1, Math.round((Date.parse(todayIso()) - Date.parse(last.day)) / 86_400_000)) })}</p>
         )}
         {lower && (
-          <div className="flex flex-col gap-1 rounded-xl bg-amber-50 p-3">
+          <div className="flex flex-col gap-1 rounded-xl bg-warn-soft p-3">
             <p className="font-semibold">{t('meter.lower', { last: num(last.reading) })}</p>
-            <select aria-label={t('meter.why')} value={reset} onChange={(e) => setReset(e.target.value as typeof reset)} className="h-11 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
+            <select aria-label={t('meter.why')} value={reset} onChange={(e) => setReset(e.target.value as typeof reset)} className="h-11 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10">
               <option value="">{t('meter.whyTypo')}</option>
               <option value="new_meter">{t('meter.newMeter')}</option>
               <option value="went_round">{t('meter.wentRound')}</option>

@@ -20,7 +20,7 @@ export function SalesByScreen() {
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-bold">🏷️ {t('sl.salesBy')}</h1>
           <button disabled={!data} onClick={() => data && saveCsv(`sales-by-${by}-${range.from}-to-${range.to}.csv`, [[t(`sl.byWhat.${by}`), t('sl.sales'), t('sl.share'), t('sl.bills'), t('sl.profit')], ...data.groups.map((g) => [label(g), g.sales, g.share, g.bills, g.profit])])}
@@ -28,13 +28,13 @@ export function SalesByScreen() {
         </div>
         <div className="grid grid-cols-3 gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
           {(['category', 'supplier', 'customer'] as const).map((k) => (
-            <button key={k} onClick={() => setBy(k)} aria-pressed={by === k} className={`h-10 rounded-xl font-semibold transition ${by === k ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted hover:text-ink'}`}>{t(`sl.byWhat.${k}`)}</button>
+            <button key={k} onClick={() => setBy(k)} aria-pressed={by === k} className={`h-10 rounded-xl font-semibold transition ${by === k ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}>{t(`sl.byWhat.${k}`)}</button>
           ))}
         </div>
         {by === 'supplier' && <p className="text-xs text-muted">{t('rs.salesShare')}</p>}
         <div className="flex flex-wrap gap-2 text-sm">
-          <label className="flex items-center gap-1.5">{t('sl.from')}<input type="date" value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ ...range, from: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-teal-600" /></label>
-          <label className="flex items-center gap-1.5">{t('sl.to')}<input type="date" value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ ...range, to: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-teal-600" /></label>
+          <label className="flex items-center gap-1.5">{t('sl.from')}<input type="date" value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ ...range, from: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-brand-line" /></label>
+          <label className="flex items-center gap-1.5">{t('sl.to')}<input type="date" value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ ...range, to: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-brand-line" /></label>
         </div>
         {data && <span className="text-sm text-muted">{t('sl.sales')}: <b className="text-ink">{formatRupees(data.total)}</b></span>}
       </section>

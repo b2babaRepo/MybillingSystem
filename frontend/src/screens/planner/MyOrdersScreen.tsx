@@ -41,7 +41,7 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
   const changed = order.lines.filter((l) => l.removed || l.shopNote || (l.packedQuantity !== null && l.packedQuantity !== l.quantity))
 
   return (
-    <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+    <section className="flex flex-col gap-3 rounded-card bg-white p-4">
       <div className="flex items-start justify-between gap-2">
         <span className="flex flex-col">
           <span className="text-[17px] font-bold">{order.shopName}</span>
@@ -49,7 +49,7 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
             {t(`plan.${order.listKind}List`)} · {t('plan.itemsCount', { count: order.lines.length })} · {formatDateTime(order.createdAt)}
           </span>
         </span>
-        <span className={`flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-xs font-bold ${order.status === 'cancelled' ? 'bg-red-50 text-due' : 'bg-[#e0efec] text-teal-800'}`}>
+        <span className={`flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-xs font-bold ${order.status === 'cancelled' ? 'bg-due-soft text-due' : 'bg-[#e0efec] text-brand-strong'}`}>
           {order.pending && <PendingDot />}
           {order.pending ? t('plan.sending') : t(`plan.status.${order.status}`)}
         </span>
@@ -59,15 +59,15 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
         <ol className="grid grid-cols-3 gap-1" aria-label={t(`plan.status.${order.status}`)}>
           {STEPS.map((step, index) => (
             <li key={step} className="flex flex-col gap-1">
-              <span className={`h-1.5 rounded-full ${index <= reached && !order.pending ? 'bg-teal-700' : 'bg-[#edf2f1]'}`} />
-              <span className={`text-xs ${index <= reached && !order.pending ? 'font-bold text-teal-800' : 'text-muted'}`}>{t(`plan.status.${step}`)}</span>
+              <span className={`h-1.5 rounded-full ${index <= reached && !order.pending ? 'bg-brand' : 'bg-[#edf2f1]'}`} />
+              <span className={`text-xs ${index <= reached && !order.pending ? 'font-bold text-brand-strong' : 'text-muted'}`}>{t(`plan.status.${step}`)}</span>
             </li>
           ))}
         </ol>
       )}
 
       {waiting.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-950 ring-1 ring-amber-300">
+        <div className="flex flex-col gap-2 rounded-xl bg-warn-soft p-3 text-sm text-amber-950 ring-1 ring-amber-300">
           <span className="font-bold">⚠ {t('options.waitingTitle')}</span>
           {waiting.map((l) => (
             <div key={l.id} className="flex flex-col gap-2 rounded-lg bg-white p-2.5">
@@ -79,7 +79,7 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
               )}
               {l.shopNote && <span className="text-muted">{l.shopNote}</span>}
               <div className="grid grid-cols-2 gap-2">
-                <button disabled={busy === l.id} onClick={() => void answer(l.id, true)} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white disabled:opacity-40">{t('options.ok')}</button>
+                <button disabled={busy === l.id} onClick={() => void answer(l.id, true)} className="min-h-11 rounded-xl bg-brand font-bold text-white disabled:opacity-40">{t('options.ok')}</button>
                 <button disabled={busy === l.id} onClick={() => void answer(l.id, false)} className="min-h-11 rounded-xl border border-line font-semibold text-due disabled:opacity-40">{t('options.leaveOut')}</button>
               </div>
             </div>

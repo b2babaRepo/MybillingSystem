@@ -48,10 +48,10 @@ export function HoldsScreen({ shopId }: { shopId: string }) {
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl font-bold">🔖 {t('holds.title')}</h1>
-          {!adding && <button onClick={() => setAdding(true)} className="h-10 rounded-xl bg-teal-700 px-3 text-sm font-semibold text-white">+ {t('holds.add')}</button>}
+          {!adding && <button onClick={() => setAdding(true)} className="h-10 rounded-xl bg-brand px-3 text-sm font-semibold text-white">+ {t('holds.add')}</button>}
         </div>
         <p className="text-sm text-muted">{t('holds.hint')}</p>
         {data.length > 0 && <p className="text-sm font-semibold">{t('holds.summary', { count: data.length })}{shortCount > 0 && <span className="text-due"> · {t('holds.shortCount', { count: shortCount })}</span>}</p>}
@@ -66,7 +66,7 @@ export function HoldsScreen({ shopId }: { shopId: string }) {
               <label className="flex flex-col gap-1 text-xs text-muted">{t('holds.note')}<input value={draft.note} maxLength={200} onChange={(e) => setDraft({ ...draft, note: e.target.value })} className="h-11 rounded-xl border border-line bg-white px-3" /></label>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button disabled={!draft.productId || !(Number(draft.qty) > 0) || !draft.party.trim()} onClick={() => void add()} className="h-11 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-50">{t('holds.save')}</button>
+              <button disabled={!draft.productId || !(Number(draft.qty) > 0) || !draft.party.trim()} onClick={() => void add()} className="h-11 rounded-xl bg-brand font-semibold text-white disabled:opacity-50">{t('holds.save')}</button>
               <button onClick={() => setAdding(false)} className="h-11 rounded-xl border border-line font-semibold">{t('cancel')}</button>
             </div>
           </div>
@@ -81,14 +81,14 @@ export function HoldsScreen({ shopId }: { shopId: string }) {
               <b className="truncate">{h.product} · {h.quantity} {t(`units.${h.unit}`, { count: h.quantity })}</b>
               <span className="text-xs text-muted">{t(`holds.source.${h.source}`, { number: h.reference })} · {h.party} · {t('holds.since', { date: short(h.since) })}</span>
             </button>
-            {h.until && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${h.overdue ? 'bg-red-50 text-due' : 'bg-teal-50 text-teal-800'}`}>{t(h.overdue ? 'holds.overdue' : 'holds.till', { date: short(h.until) })}</span>}
+            {h.until && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${h.overdue ? 'bg-due-soft text-due' : 'bg-brand-soft text-brand-strong'}`}>{t(h.overdue ? 'holds.overdue' : 'holds.till', { date: short(h.until) })}</span>}
           </div>
           {h.shortBy > 0 && <p className="text-xs font-semibold text-due">{t('holds.short', { qty: h.shortBy })}</p>}
           {h.note && <p className="text-xs text-muted">{h.note}</p>}
           {h.source === 'counter' && (
             <div className="flex gap-2">
               <button onClick={() => void run(() => api(`/v1/holds/${h.sourceId}/done`, 'POST', {}))} className="h-10 flex-1 rounded-xl border border-line text-sm font-semibold hover:bg-[#f6faf9]">✓ {t('holds.done')}</button>
-              <button onClick={() => void run(() => api(`/v1/holds/${h.sourceId}/release`, 'POST', {}))} className="h-10 flex-1 rounded-xl border border-line text-sm font-semibold text-due hover:bg-red-50">{t('holds.release')}</button>
+              <button onClick={() => void run(() => api(`/v1/holds/${h.sourceId}/release`, 'POST', {}))} className="h-10 flex-1 rounded-xl border border-line text-sm font-semibold text-due hover:bg-due-soft">{t('holds.release')}</button>
             </div>
           )}
         </div>

@@ -82,24 +82,24 @@ export function ImportScreen({ shopId }: { shopId: string }) {
       <Button onClick={() => navigate('/items/pick')}>{t('pick.title')}</Button>
 
       {type === 'kirana' && (
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4">
         <h2 className="text-base font-bold">{t('stock.starter')}</h2>
         <p className="text-sm text-muted">{t('stock.starterHint', { count: STARTER_CATALOGUE.length })}</p>
         <Button disabled={busy} onClick={() => upload(STARTER_CATALOGUE)}>{t('stock.starter')}</Button>
       </section>
       )}
       {hasTradeList && (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4">
           <h2 className="text-base font-bold">{t(`stock.tradeStarter.${type}`)}</h2>
           <p className="text-sm text-muted">{t('stock.tradeStarterHint')}</p>
           <Button disabled={busy} onClick={() => void addTradeList()}>{t(`stock.tradeStarter.${type}`)}</Button>
         </section>
       )}
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4">
         <h2 className="text-base font-bold">{t('stock.import')}</h2>
         <p className="text-sm text-muted">{t('stock.importHint')}</p>
-        <label className="flex min-h-12 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-line font-semibold text-teal-700">
+        <label className="flex min-h-12 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-line font-semibold text-brand">
           {t('stock.chooseFile')}
           <input type="file" accept=".csv,text/csv,text/plain" onChange={readFile} className="sr-only" />
         </label>

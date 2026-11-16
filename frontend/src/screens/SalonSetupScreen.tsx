@@ -19,7 +19,7 @@ interface StaffRow { membershipId: string; name: string; phone: string; role: st
 export function SalonSetupScreen({ shopId }: { shopId: string }) {
   const { t } = useTranslation()
   const [step, setStep] = useState<'services' | 'stylists'>('services')
-  const chip = (on: boolean) => `min-h-11 flex-1 rounded-full text-sm font-semibold ${on ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`
+  const chip = (on: boolean) => `min-h-11 flex-1 rounded-full text-sm font-semibold ${on ? 'bg-brand text-white' : 'border border-line bg-white'}`
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <h2 className="text-lg font-bold">{t('salon.setupTitle')}</h2>
@@ -66,7 +66,7 @@ function Services({ shopId, onNext }: { shopId: string; onNext: () => void }) {
       {services.length === 0 && (
         <Button onClick={() => void run(() => api('/v1/products/starter', 'POST', {}), t('salon.added'))}>{t('salon.addCommon')}</Button>
       )}
-      <ul className="flex flex-col gap-1 rounded-[18px] bg-white p-2">
+      <ul className="flex flex-col gap-1 rounded-card bg-white p-2">
         {services.map((p) => (
           <li key={p.id} className="grid grid-cols-[1fr_5.5rem_4.5rem_auto] items-center gap-2 px-1 py-1">
             <span className="min-w-0 truncate font-semibold">{p.name}</span>
@@ -74,12 +74,12 @@ function Services({ shopId, onNext }: { shopId: string; onNext: () => void }) {
               inputMode="decimal" placeholder="₹" aria-label={t('salon.price', { name: p.name })} className="h-11 rounded-xl border border-line px-2" />
             <input value={edits[p.id]?.minutes ?? (p.durationMinutes ?? '')} onChange={(e) => setEdits({ ...edits, [p.id]: { minutes: e.target.value, price: edits[p.id]?.price ?? String(p.sellingPrice || '') } })}
               inputMode="numeric" placeholder={t('salon.min')} aria-label={t('salon.minutes', { name: p.name })} className="h-11 rounded-xl border border-line px-2" />
-            <button disabled={!edits[p.id]} onClick={() => void run(() => save(p), t('saved'))} className="min-h-11 px-2 text-sm font-semibold text-teal-700 disabled:opacity-40">{t('save')}</button>
+            <button disabled={!edits[p.id]} onClick={() => void run(() => save(p), t('saved'))} className="min-h-11 px-2 text-sm font-semibold text-brand disabled:opacity-40">{t('save')}</button>
           </li>
         ))}
       </ul>
       {services.some((p) => !(p.sellingPrice > 0)) && <p className="text-sm font-semibold text-udhaar">{t('salon.setPrices')}</p>}
-      <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <div className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('salon.addService')}</h3>
         <div className="grid grid-cols-[2fr_1fr_1fr] gap-2">
           <Field label={t('salon.serviceName')} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder={t('salon.serviceHint')} />
@@ -117,11 +117,11 @@ function Stylists({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted">{t('salon.stylistsHint')}</p>
-      <ul className="flex flex-col gap-1 rounded-[18px] bg-white p-2">
+      <ul className="flex flex-col gap-1 rounded-card bg-white p-2">
         {staff.filter((s) => s.isActive && s.role === 'staff').map((s) => <li key={s.membershipId} className="flex min-h-11 items-center justify-between px-2"><span className="font-semibold">{s.name}</span><span className="text-xs text-muted">{s.hasPin ? t('salon.hasPin') : ''}</span></li>)}
         {staff.filter((s) => s.role === 'staff').length === 0 && <li className="p-2 text-center text-muted">{t('salon.noStylists')}</li>}
       </ul>
-      <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <div className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('salon.addStylist')}</h3>
         <div className="grid grid-cols-2 gap-2">
           <Field label={t('salon.stylistName')} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
@@ -143,15 +143,15 @@ export function SalonHomeCard({ shopId, isOwner }: { shopId: string; isOwner: bo
   const { products } = useProducts(shopId)
   const services = products.filter((p) => p.isService)
   const unpriced = services.filter((p) => !(p.sellingPrice > 0)).length
-  const row = 'flex min-h-12 items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold'
+  const row = 'flex min-h-12 items-center justify-between rounded-card bg-white px-4 text-left font-semibold'
   return (
     <section className="mx-4 mt-3 flex flex-col gap-2">
       {isOwner && (services.length === 0 || unpriced > 0) && (
-        <button onClick={() => navigate('/salon/setup')} className="flex min-h-12 items-center justify-between rounded-[18px] bg-teal-700 px-4 text-left font-semibold text-white">
+        <button onClick={() => navigate('/salon/setup')} className="flex min-h-12 items-center justify-between rounded-card bg-brand px-4 text-left font-semibold text-white">
           <span>{services.length === 0 ? t('salon.startSetup') : t('salon.pricesMissing', { count: unpriced })}</span><span aria-hidden="true">→</span>
         </button>
       )}
-      <button onClick={() => navigate('/appointments')} className="flex min-h-14 items-center justify-between rounded-[18px] bg-white px-4 text-left text-lg font-bold">
+      <button onClick={() => navigate('/appointments')} className="flex min-h-14 items-center justify-between rounded-card bg-white px-4 text-left text-lg font-bold">
         <span>{t('appointments.link')}</span><span aria-hidden="true">→</span>
       </button>
       <div className="grid grid-cols-2 gap-2">
@@ -180,14 +180,14 @@ export function CommissionRates({ shopId }: { shopId: string }) {
     .then(() => { setMessage(t('saved')); void queryClient.invalidateQueries({ queryKey: [shopId, 'stylist-earnings'] }) })
     .catch((e: unknown) => setMessage(e instanceof Error ? e.message : t('error')))
   return (
-    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+    <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <h3 className="font-bold">{t('salon.commissionTitle')}</h3>
       <p className="text-xs text-muted">{t('salon.commissionHint')}</p>
       {data?.stylists.map((s) => (
         <div key={s.membershipId} className="grid grid-cols-[1fr_5rem_auto] items-center gap-2">
           <span className="font-semibold">{s.name}</span>
           <input value={rates[s.membershipId] ?? String(s.percent)} onChange={(e) => setRates({ ...rates, [s.membershipId]: e.target.value })} inputMode="decimal" aria-label={t('salon.percentFor', { name: s.name })} className="h-11 rounded-xl border border-line px-2" />
-          <button disabled={rates[s.membershipId] === undefined} onClick={() => void save(s.membershipId)} className="min-h-11 px-2 text-sm font-semibold text-teal-700 disabled:opacity-40">{t('save')}</button>
+          <button disabled={rates[s.membershipId] === undefined} onClick={() => void save(s.membershipId)} className="min-h-11 px-2 text-sm font-semibold text-brand disabled:opacity-40">{t('save')}</button>
         </div>
       ))}
       {message && <p className="text-sm text-muted">{message}</p>}
@@ -216,14 +216,14 @@ export function StylistEarningsScreen({ shopId }: { shopId: string }) {
   }
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+      <div className="flex items-center justify-between rounded-card bg-white p-2">
         <button onClick={() => shift(-1)} aria-label={t('bookings.prev')} className="h-11 w-11 text-xl">‹</button>
         <span className="font-bold">{new Date(`${month}-01T00:00`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric' })}</span>
         <button onClick={() => shift(1)} aria-label={t('bookings.next')} className="h-11 w-11 text-xl">›</button>
       </div>
       {message && <p className="text-sm text-muted">{message}</p>}
       {data?.stylists.map((s) => (
-        <section key={s.membershipId} className="flex flex-col gap-1 rounded-[18px] bg-white p-4 text-sm">
+        <section key={s.membershipId} className="flex flex-col gap-1 rounded-card bg-white p-4 text-sm">
           <h3 className="text-base font-bold">{s.name} <span className="font-normal text-muted">· {s.percent}%</span></h3>
           <div className="flex justify-between"><span>{t('salon.servicesDone', { count: s.services })}</span><span>{formatRupees(s.sales)}</span></div>
           <div className="flex justify-between"><span>{t('salon.commission')}</span><span>{formatRupees(s.commission)}</span></div>

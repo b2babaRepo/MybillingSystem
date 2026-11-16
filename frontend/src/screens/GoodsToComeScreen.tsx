@@ -85,7 +85,7 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
   const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h1 className="text-xl font-bold">⏳ {t('gtc.title')}</h1>
         <p className="text-sm text-muted">{t('gtc.hint')}</p>
         {data.length > 0 && <p className="text-sm font-semibold">{t('gtc.summary', { count: data.length })}{late > 0 && <span className="text-due"> · {t('gtc.lateCount', { count: late })}</span>}</p>}
@@ -97,7 +97,7 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
         const isLate = (o.daysLate ?? 0) > 0
         const snoozed = !!o.snoozedUntil && o.snoozedUntil >= todayIso()
         return (
-          <section key={o.id} className={`flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm ${isLate ? 'ring-1 ring-red-200' : ''}`}>
+          <section key={o.id} className={`flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm ${isLate ? 'ring-1 ring-red-200' : ''}`}>
             <button onClick={() => { setOpen(isOpen ? null : o.id); setLot(null) }} className="flex items-start justify-between gap-2 text-left">
               <span className="flex min-w-0 flex-col">
                 <b>{o.supplier} · {t('supplier2.orderNo', { number: o.number })}</b>
@@ -107,7 +107,7 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
                 </span>
                 <span className="text-xs text-muted">{t('po.types', { count: o.items })} · {t('supplier2.stillToCome', { qty: o.pending })}{o.value > 0 && ` · ${formatRupees(o.value)}`}{snoozed && ` · 🔕 ${t('gtc.snoozedTill', { date: day(o.snoozedUntil!) })}`}</span>
               </span>
-              <span className="shrink-0 rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-800">{t(`gtc.stage.${o.stage}`)}</span>
+              <span className="shrink-0 rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-semibold text-brand-strong">{t(`gtc.stage.${o.stage}`)}</span>
             </button>
             <div className="flex flex-wrap gap-2">
               {o.phone && <a href={`tel:${o.phone}`} onClick={() => logContact(o, 'call')} className="flex h-10 items-center rounded-xl border border-line px-3 text-sm font-semibold">📞 {t('gtc.call')}</a>}
@@ -123,8 +123,8 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
                     {s.freight != null && ` · ${t('gtc.freight')} ${formatRupees(s.freight)}${s.freightPaidBy ? ` (${t(`gtc.paidBy.${s.freightPaidBy}`)})` : ''}`}
                     {s.ewayValidUntil && !s.arrived && s.ewayValidUntil < todayIso() && <b className="text-due"> · {t('gtc.ewayExpired')}</b>}
                     <span className="ml-1 inline-flex gap-2 no-underline">
-                      {s.hasPhoto && <button onClick={() => void openPhoto(o.id, s.id)} className="font-semibold text-teal-700">📄 {t('gtc.seeBilty')}</button>}
-                      <label className="cursor-pointer font-semibold text-teal-700">📷 {t(s.hasPhoto ? 'gtc.newBilty' : 'gtc.addBilty')}
+                      {s.hasPhoto && <button onClick={() => void openPhoto(o.id, s.id)} className="font-semibold text-brand">📄 {t('gtc.seeBilty')}</button>}
+                      <label className="cursor-pointer font-semibold text-brand">📷 {t(s.hasPhoto ? 'gtc.newBilty' : 'gtc.addBilty')}
                         <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void addPhoto(o.id, s.id, f) }} />
                       </label>
                     </span>
@@ -139,7 +139,7 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
                   <div className="flex flex-wrap gap-1">
                     {STAGES.map((s) => (
                       <button key={s} onClick={() => s === 'dispatched' ? setLot({ ...blankLot, dispatchedOn: todayIso(), expectedOn: o.expectedOn ?? '' }) : void run(() => api(`/v1/suppliers/orders/${o.id}/stage`, 'POST', { stage: s }))}
-                        aria-pressed={o.stage === s} className={`h-9 rounded-full px-3 text-sm font-semibold ${o.stage === s ? 'bg-teal-700 text-white' : 'bg-[#edf2f1] text-muted'}`}>{t(`gtc.stage.${s}`)}</button>
+                        aria-pressed={o.stage === s} className={`h-9 rounded-full px-3 text-sm font-semibold ${o.stage === s ? 'bg-brand text-white' : 'bg-[#edf2f1] text-muted'}`}>{t(`gtc.stage.${s}`)}</button>
                     ))}
                     {o.stage === 'dispatched' && <button onClick={() => setLot({ ...blankLot, dispatchedOn: todayIso(), expectedOn: o.expectedOn ?? '' })} className="h-9 rounded-full border border-line px-3 text-sm font-semibold">+ {t('gtc.addLot')}</button>}
                   </div>
@@ -157,8 +157,8 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
                     <select aria-label={t('gtc.freightBy')} value={lot.freightPaidBy} onChange={(e) => setLot({ ...lot, freightPaidBy: e.target.value })} className={input}>
                       <option value="">{t('gtc.freightBy')}</option><option value="shop">{t('gtc.paidBy.shop')}</option><option value="supplier">{t('gtc.paidBy.supplier')}</option>
                     </select>
-                    {o.value > EWAY_ABOVE && !lot.ewayBillNo && <p className="col-span-2 text-xs text-amber-800">{t('gtc.ewayHint', { amount: formatRupees(EWAY_ABOVE) })}</p>}
-                    <button onClick={() => void saveLot(o)} className="h-11 rounded-xl bg-teal-700 font-semibold text-white">{t('gtc.saveLot')}</button>
+                    {o.value > EWAY_ABOVE && !lot.ewayBillNo && <p className="col-span-2 text-xs text-warn">{t('gtc.ewayHint', { amount: formatRupees(EWAY_ABOVE) })}</p>}
+                    <button onClick={() => void saveLot(o)} className="h-11 rounded-xl bg-brand font-semibold text-white">{t('gtc.saveLot')}</button>
                     <button onClick={() => setLot(null)} className="h-11 rounded-xl border border-line font-semibold">{t('cancel')}</button>
                   </div>
                 )}
@@ -171,13 +171,13 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
                     <label className="flex flex-col gap-1 text-xs text-muted">{t('gtc.newDate')}<input type="date" value={note.date} onChange={(e) => setNote({ ...note, date: e.target.value })} className={input} /></label>
                     <input aria-label={t('gtc.whatSaid')} placeholder={t('gtc.whatSaid')} value={note.text} maxLength={300} onChange={(e) => setNote({ ...note, text: e.target.value })} className={`${input} col-span-2`} />
                   </div>
-                  <button disabled={!note.text.trim() && !note.date} onClick={() => void saveNote(o)} className="h-11 rounded-xl border-2 border-teal-700 font-semibold text-teal-800 disabled:opacity-40">{t('gtc.saveFollowUp')}</button>
+                  <button disabled={!note.text.trim() && !note.date} onClick={() => void saveNote(o)} className="h-11 rounded-xl border-2 border-brand font-semibold text-brand-strong disabled:opacity-40">{t('gtc.saveFollowUp')}</button>
                 </div>
                 {o.followUps.length > 0 && (
                   <ul className="flex flex-col gap-1 text-xs">
                     {o.followUps.map((f, i) => (
                       <li key={i} className="text-muted">
-                        {day(f.at)} · {t(`gtc.channel.${f.channel}`)}{f.by && ` · ${f.by}`}{f.note && <span className="text-ink"> · {f.note}</span>}{f.newPromisedDate && <b className="text-amber-800"> · {t('gtc.promisedFor', { date: day(f.newPromisedDate) })}</b>}
+                        {day(f.at)} · {t(`gtc.channel.${f.channel}`)}{f.by && ` · ${f.by}`}{f.note && <span className="text-ink"> · {f.note}</span>}{f.newPromisedDate && <b className="text-warn"> · {t('gtc.promisedFor', { date: day(f.newPromisedDate) })}</b>}
                       </li>
                     ))}
                   </ul>

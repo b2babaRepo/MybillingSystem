@@ -67,8 +67,8 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
 
   // The ways to fill the list, as equal picture tiles instead of a banner and three plain buttons.
   const actions = [
-    ...(isKirana ? [{ icon: '🛒', label: t('items2.common'), to: '/items/common', tint: 'bg-amber-50' }] : []),
-    { icon: '📋', label: t('items2.master'), to: '/items/pick', tint: 'bg-teal-50' },
+    ...(isKirana ? [{ icon: '🛒', label: t('items2.common'), to: '/items/common', tint: 'bg-warn-soft' }] : []),
+    { icon: '📋', label: t('items2.master'), to: '/items/pick', tint: 'bg-brand-soft' },
     { icon: '📦', label: t('items2.stocktake'), to: '/stocktake', tint: 'bg-sky-50' },
     { icon: '📥', label: t('items2.import'), to: '/import', tint: 'bg-violet-50' },
   ]
@@ -98,7 +98,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('items2.search', { count: products.length })}
           aria-label={t('search')}
-          className="h-12 w-full rounded-2xl border border-line bg-white pr-10 pl-11 text-[17px] shadow-sm outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
+          className="h-12 w-full rounded-2xl border border-line bg-white pr-10 pl-11 text-[17px] shadow-sm outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10"
         />
         {search && <button onClick={() => setSearch('')} aria-label={t('cancel')} className="absolute top-1/2 right-2 h-9 w-9 -translate-y-1/2 rounded-full text-muted">✕</button>}
       </div>
@@ -114,7 +114,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
       </div>
 
       {isOwner && lowCount + outCount > 0 && (
-        <button onClick={() => navigate('/reorder')} className="flex min-h-14 items-center justify-between rounded-2xl bg-amber-50 px-4 text-left font-bold text-amber-900 shadow-sm ring-1 ring-amber-200">
+        <button onClick={() => navigate('/reorder')} className="flex min-h-14 items-center justify-between rounded-2xl bg-warn-soft px-4 text-left font-bold text-warn-ink shadow-sm ring-1 ring-amber-200">
           <span>📦 {t('reorder.linkAll', { count: lowCount + outCount })}</span><span aria-hidden>›</span>
         </button>
       )}
@@ -122,7 +122,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
       {filter === 'suggested' && (
         <section className="flex flex-col gap-2">
           <p className="px-1 text-sm text-muted">{t('items2.suggestedHint')}</p>
-          <ul className="divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white">
+          <ul className="divide-y divide-[#edf2f1] overflow-hidden rounded-card bg-white">
             {suggested.map((m) => {
               const art = itemArt({ name: m.name })
               const photo = m.imageAt ? `/api/v1/master-images/${m.id}?v=${Date.parse(m.imageAt)}&size=thumb` : null
@@ -136,7 +136,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
                     <span className="truncate text-[13px] text-muted">{m.nameHi ?? m.category}</span>
                   </span>
                   <button onClick={() => void addSuggested(m)} disabled={added.has(m.id)}
-                    className={`h-10 shrink-0 rounded-xl px-4 font-bold ${added.has(m.id) ? 'bg-teal-700 text-white' : 'border-2 border-teal-700 text-teal-800'}`}>
+                    className={`h-10 shrink-0 rounded-xl px-4 font-bold ${added.has(m.id) ? 'bg-brand text-white' : 'border-2 border-brand text-brand-strong'}`}>
                     {added.has(m.id) ? `✓ ${t('pick.picked')}` : `+ ${t('pick.addOne')}`}
                   </button>
                 </li>
@@ -152,8 +152,8 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
           <Button className="px-5" onClick={() => setAdding(true)}>+ {t('addItem')}</Button>
         </div>
       )}
-      {isOwner && filter === 'out' && <button onClick={() => void stopCounting()} className="min-h-11 rounded-xl border border-line bg-white px-3 text-left text-sm font-semibold text-teal-800">{t('stock.stopCountingEmpty')}</button>}
-      <ul className={`divide-y divide-[#edf2f1] overflow-hidden rounded-[18px] bg-white shadow-sm ${filter === 'suggested' ? 'hidden' : ''}`}>
+      {isOwner && filter === 'out' && <button onClick={() => void stopCounting()} className="min-h-11 rounded-xl border border-line bg-white px-3 text-left text-sm font-semibold text-brand-strong">{t('stock.stopCountingEmpty')}</button>}
+      <ul className={`divide-y divide-[#edf2f1] overflow-hidden rounded-card bg-white shadow-sm ${filter === 'suggested' ? 'hidden' : ''}`}>
         {shown.length > 0 && (
           <li aria-hidden className="hidden items-center gap-3 bg-[#f6faf9] px-3 py-2 text-[13px] font-semibold text-muted lg:flex">
             <span className="w-[52px] shrink-0" />
@@ -173,12 +173,12 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
                 <span className="truncate text-[16px] font-semibold">{entry.name}</span>
                 <span className="shrink-0 text-[13px] text-muted">{t('styles.total', { count: entry.items.reduce((n, x) => n + Math.max(0, x.stock), 0) })}</span>
                 {isOwner && <button onClick={() => navigate(`/tags/${entry.items.map((x) => x.id).join(',')}`)} className="min-h-9 shrink-0 rounded-lg border border-line px-2 text-[13px] font-semibold">{t('tags.short')}</button>}
-                {isOwner && <button onClick={() => setReceiving(entry.name)} className="min-h-9 shrink-0 rounded-lg bg-teal-700 px-2.5 text-[13px] font-bold text-white">{products.some((p) => p.styleName?.trim() === entry.name && p.sellingPrice <= 0) ? t('styles.setPrice') : t('styles.receive')}</button>}
+                {isOwner && <button onClick={() => setReceiving(entry.name)} className="min-h-9 shrink-0 rounded-lg bg-brand px-2.5 text-[13px] font-bold text-white">{products.some((p) => p.styleName?.trim() === entry.name && p.sellingPrice <= 0) ? t('styles.setPrice') : t('styles.receive')}</button>}
               </span>
               <span className="flex flex-wrap gap-1.5">
                 {entry.items.map((x) => (
                   <button key={x.id} onClick={() => navigate(`/p/${x.id}`)}
-                    className={`min-h-9 rounded-lg border px-2 text-[13px] font-semibold ${!x.uncounted && x.stock <= 0 ? 'border-red-200 bg-red-50 text-due' : x.isLow ? 'border-amber-200 bg-amber-50 text-udhaar' : 'border-line bg-white'}`}>
+                    className={`min-h-9 rounded-lg border px-2 text-[13px] font-semibold ${!x.uncounted && x.stock <= 0 ? 'border-red-200 bg-due-soft text-due' : x.isLow ? 'border-amber-200 bg-warn-soft text-udhaar' : 'border-line bg-white'}`}>
                     {variantLabel(x) || x.name} <span className="font-normal">· {x.stock}</span>
                   </button>
                 ))}
@@ -205,7 +205,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
                     {p.pending && <PendingDot />}
                   </span>
                   {(p.dailySales ?? 0) > 0 && p.stock > 0 && p.stock / p.dailySales! <= 10 && !p.isService && (
-                    <span className={`w-fit rounded-full px-2 text-[11px] font-semibold ${p.stock / p.dailySales! <= 3 ? 'bg-red-50 text-due' : 'bg-amber-50 text-amber-800'}`}>⏳ {t('sl.daysLeft', { count: Math.floor(p.stock / p.dailySales!) })}</span>
+                    <span className={`w-fit rounded-full px-2 text-[11px] font-semibold ${p.stock / p.dailySales! <= 3 ? 'bg-due-soft text-due' : 'bg-warn-soft text-warn'}`}>⏳ {t('sl.daysLeft', { count: Math.floor(p.stock / p.dailySales!) })}</span>
                   )}
                   <span className="truncate text-[13px] text-muted lg:hidden">
                     {p.sellingPrice > 0 ? <b className="font-bold text-ink">{formatRupees(p.sellingPrice)}</b> : <span className="font-semibold text-udhaar">{t('stock.noPrice')}</span>}
@@ -246,7 +246,7 @@ function StockPill({ product }: { product: Product }) {
   const { t } = useTranslation()
   if (product.isService || product.uncounted || isOutToday(product.outOn)) return <StockBadge product={product} />
   const out = product.stock <= 0
-  const tone = out ? 'bg-red-50 text-due' : product.isLow ? 'bg-amber-50 text-udhaar' : 'bg-teal-50 text-teal-800'
+  const tone = out ? 'bg-due-soft text-due' : product.isLow ? 'bg-warn-soft text-udhaar' : 'bg-brand-soft text-brand-strong'
   return (
     <span className={`flex shrink-0 flex-col items-center rounded-xl px-2.5 py-1 ${tone}`}>
       <span className="text-[17px] leading-tight font-bold">{product.stock} {t(`units.${product.unit}`, { count: product.stock })}</span>
@@ -259,7 +259,7 @@ function StockPill({ product }: { product: Product }) {
 export function StockBadge({ product, large = false }: { product: Product; large?: boolean }) {
   const { t } = useTranslation()
   if (product.isService) {
-    return <span className="shrink-0 text-right text-sm font-semibold text-teal-800">{t('salon.serviceBadge')}{product.durationMinutes ? ` · ${t('salon.minutesShort', { count: product.durationMinutes })}` : ''}</span>
+    return <span className="shrink-0 text-right text-sm font-semibold text-brand-strong">{t('salon.serviceBadge')}{product.durationMinutes ? ` · ${t('salon.minutesShort', { count: product.durationMinutes })}` : ''}</span>
   }
   if (isOutToday(product.outOn)) return <span className="shrink-0 text-right text-sm font-semibold text-due">{t('stock.outToday')}</span>
   if (product.uncounted) return <span className="shrink-0 text-right text-sm font-semibold text-muted">{t('stock.notCounted')}</span>
@@ -276,7 +276,7 @@ export function StockBadge({ product, large = false }: { product: Product; large
 }
 
 function Chip({ selected, onClick, children, tone = 'plain' }: { selected: boolean; onClick: () => void; children: ReactNode; tone?: 'plain' | 'warn' | 'due' }) {
-  const on = tone === 'warn' ? 'bg-udhaar text-white' : tone === 'due' ? 'bg-due text-white' : 'bg-teal-700 text-white shadow-sm'
+  const on = tone === 'warn' ? 'bg-udhaar text-white' : tone === 'due' ? 'bg-due text-white' : 'bg-brand text-white shadow-sm'
   return (
     <button onClick={onClick} aria-pressed={selected} className={`h-11 shrink-0 rounded-full px-4 text-[15px] font-semibold ${selected ? on : 'border border-line bg-white text-ink'}`}>
       {children}

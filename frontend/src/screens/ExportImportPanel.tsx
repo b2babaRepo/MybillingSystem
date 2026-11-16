@@ -27,7 +27,7 @@ export function ExportImportPanel() {
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('workshop.trade.exportTitle')}</h3>
         <p className="text-xs text-muted">{t('workshop.trade.exportHint')}</p>
         <div className="grid grid-cols-2 gap-2">
@@ -43,7 +43,7 @@ export function ExportImportPanel() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('workshop.trade.importTitle')}</h3>
         <p className="text-xs text-muted">{t('workshop.trade.importHint')}</p>
         <div className="grid grid-cols-2 gap-2">

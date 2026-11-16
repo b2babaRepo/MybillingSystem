@@ -30,13 +30,13 @@ export function KhataHistory({ entries, canRemove, onRemove, onDispute, focusEnt
     focused.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [focusEntryId, loaded])
   return (
-    <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white px-1 shadow-sm">
+    <ul className="divide-y divide-[#edf2f1] rounded-card bg-white px-1 shadow-sm">
       {entries.length === 0 && <li className="p-4 text-muted">{t('noEntries')}</li>}
       {[...entries].reverse().map((e, i, newestFirst) => (
         <li key={e.id} ref={e.id === focusEntryId ? focused : undefined} className={e.id === focusEntryId ? 'rounded-xl ring-2 ring-amber-400' : undefined}>
           {/* The account came back to zero here: everything below this line is settled. */}
           {e.runningBalance === 0 && i > 0 && !e.isReversed && newestFirst.length > 1 && (
-            <div className="mx-2 mt-2 rounded-lg bg-teal-50 px-3 py-1.5 text-center text-sm font-semibold text-teal-800">
+            <div className="mx-2 mt-2 rounded-lg bg-brand-soft px-3 py-1.5 text-center text-sm font-semibold text-brand-strong">
               ✓ {t('ledgerView.settledDivider', { date: formatDateTime(e.occurredAt) })}
             </div>
           )}
@@ -80,9 +80,9 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
             <div className={`flex flex-wrap items-center gap-x-2 font-semibold ${e.isReversed ? 'line-through' : ''}`}>
               {e.kind === 'reversal' ? t('reversal') : e.kind === 'return' ? t('dispute.returned') : e.amount > 0 ? t('creditShort') : t('paymentShort')}
               {e.paymentMode && <span className="rounded-full bg-[#edf2f1] px-2 py-0.5 text-[11px] font-semibold text-muted uppercase">{t(e.paymentMode)}{e.chequeNo ? ` #${e.chequeNo}` : ''}</span>}
-              {e.chequeStatus && e.kind !== 'reversal' && <span className={`rounded px-1 text-xs font-normal ${e.chequeStatus === 'cleared' ? 'bg-emerald-50 text-emerald-800' : e.chequeStatus === 'bounced' ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>{t(`cheques.status.${e.chequeStatus}`)}</span>}
+              {e.chequeStatus && e.kind !== 'reversal' && <span className={`rounded px-1 text-xs font-normal ${e.chequeStatus === 'cleared' ? 'bg-emerald-50 text-emerald-800' : e.chequeStatus === 'bounced' ? 'bg-due-soft text-red-800' : 'bg-warn-soft text-warn'}`}>{t(`cheques.status.${e.chequeStatus}`)}</span>}
               {items.length > 0 && (
-                <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-800">
+                <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand-strong">
                   {t('ledgerView.items', { count: items.length })} {open ? '▴' : '▾'}
                 </span>
               )}
@@ -93,7 +93,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
               {e.recordedBy && ` · ${t(e.kind === 'reversal' ? 'ledgerView.removedBy' : 'ledgerView.by', { name: e.recordedBy })}`}
             </div>
             {e.enteredLate && e.recordedAt && (
-              <div className="text-xs font-semibold text-amber-800">{t('ledgerView.enteredLate', { date: formatDateTime(e.recordedAt) })}</div>
+              <div className="text-xs font-semibold text-warn">{t('ledgerView.enteredLate', { date: formatDateTime(e.recordedAt) })}</div>
             )}
             {e.note && (
               <div className={`text-xs ${e.kind === 'reversal' ? 'font-semibold text-due' : 'text-muted'}`}>
@@ -122,7 +122,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
         <div className="-mt-2 px-3 pb-2 text-xs font-semibold text-jama">{t('ledgerView.upiLocked', { ref: e.upiRef })}</div>
       )}
       {e.dispute && (
-        <div className={`mx-3 mb-3 rounded-xl p-3 text-sm ${e.dispute.resolvedAt ? 'bg-[#f4f8f7]' : 'bg-amber-50 text-amber-950'}`}>
+        <div className={`mx-3 mb-3 rounded-xl p-3 text-sm ${e.dispute.resolvedAt ? 'bg-[#f4f8f7]' : 'bg-warn-soft text-amber-950'}`}>
           {e.dispute.message && <div className="font-semibold">⚠ {t('dispute.customerSays', { message: e.dispute.message })}</div>}
           {e.dispute.items.length > 0 && <DisputeItems items={e.dispute.items} />}
           <div className="text-xs opacity-80">{formatDateTime(e.dispute.raisedAt)}</div>
@@ -166,9 +166,9 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
 }
 
 const outcomeStyle: Record<ItemOutcome, string> = {
-  handed_over: 'bg-teal-50 text-teal-800',
-  refunded: 'bg-teal-50 text-teal-800',
-  disagreed: 'bg-red-50 text-due',
+  handed_over: 'bg-brand-soft text-brand-strong',
+  refunded: 'bg-brand-soft text-brand-strong',
+  disagreed: 'bg-due-soft text-due',
 }
 
 /**
@@ -199,8 +199,8 @@ export function DisputeItems({ items, onResolve }: { items: DisputeItemView[]; o
           )}
           {!item.outcome && onResolve && (
             <div className="mt-2 grid grid-cols-3 gap-1.5 text-xs font-semibold">
-              <button className="min-h-11 rounded-lg bg-teal-700 px-1 text-white" onClick={() => onResolve(item, 'handed_over')}>{t('dispute.fix.handed_over')}</button>
-              <button className="min-h-11 rounded-lg border-2 border-teal-700 px-1 text-teal-800" onClick={() => onResolve(item, 'refunded')}>{t('dispute.fix.refunded')}</button>
+              <button className="min-h-11 rounded-lg bg-brand px-1 text-white" onClick={() => onResolve(item, 'handed_over')}>{t('dispute.fix.handed_over')}</button>
+              <button className="min-h-11 rounded-lg border-2 border-brand px-1 text-brand-strong" onClick={() => onResolve(item, 'refunded')}>{t('dispute.fix.refunded')}</button>
               <button className="min-h-11 rounded-lg border border-line bg-white px-1 text-due" onClick={() => onResolve(item, 'disagreed')}>{t('dispute.fix.disagreed')}</button>
             </div>
           )}

@@ -90,7 +90,7 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
 
   return (
     <div className="flex flex-col gap-4 pb-6">
-      <div className="flex flex-col gap-3 bg-teal-700 px-4 pt-1 pb-5 text-white">
+      <div className="flex flex-col gap-3 bg-brand px-4 pt-1 pb-5 text-white">
         <button onClick={findNear} className="flex min-h-11 items-center gap-1.5 self-start text-[17px] font-bold">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
           {locating ? t('home2.locating') : near ? t('home2.nearYou') : t('home2.setLocation')}
@@ -99,13 +99,13 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
 
       <section className="-mt-4 flex flex-col gap-3 px-4">
         {last && lastList && lastList.items.length > 0 && (
-          <button onClick={() => void orderAgain()} disabled={sending} className="flex items-center gap-3 rounded-[18px] bg-white p-3 text-left shadow-[0_1px_4px_rgba(16,32,29,0.06)] disabled:opacity-50">
+          <button onClick={() => void orderAgain()} disabled={sending} className="flex items-center gap-3 rounded-card bg-white p-3 text-left shadow-[0_1px_4px_rgba(16,32,29,0.06)] disabled:opacity-50">
             <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-amber-100 text-2xl">🔁</span>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="font-extrabold">{t('again.title')}</span>
               <span className="truncate text-[13px] text-muted">{t('again.line', { list: t(last.listKind === 'monthly' ? 'plan.monthlyList' : 'plan.weeklyList'), count: lastList.items.length, shop: last.shopName })}</span>
             </span>
-            <span className="shrink-0 rounded-xl bg-teal-700 px-3 py-2 text-sm font-bold text-white">{t('again.send')}</span>
+            <span className="shrink-0 rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white">{t('again.send')}</span>
           </button>
         )}
         <h2 className="text-[17px] font-extrabold">{t('home2.myLists')}</h2>
@@ -113,27 +113,27 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
           <ListCard list={monthly} title={t('plan.monthlyList')} catalogue={catalogue} />
           <ListCard list={weekly} title={t('plan.weeklyList')} catalogue={catalogue} />
         </div>
-        <button onClick={() => navigate('/ai')} className="flex min-h-14 items-center gap-3 rounded-2xl border border-dashed border-teal-600/50 bg-white px-4 text-left">
+        <button onClick={() => navigate('/ai')} className="flex min-h-14 items-center gap-3 rounded-2xl border border-dashed border-brand-line/50 bg-white px-4 text-left">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f6b5c" strokeWidth="2" aria-hidden><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
           <span className="flex-1 font-bold">{t('ai.title')}</span>
-          <span className="text-xl font-extrabold text-teal-700">+</span>
+          <span className="text-xl font-extrabold text-brand">+</span>
         </button>
       </section>
 
       <section className="flex flex-col gap-2 px-4">
         <div className="flex items-baseline justify-between">
           <h2 className="text-[17px] font-extrabold">{near ? t('home2.shopsNear') : t('home2.shops')}</h2>
-          {!near && <button onClick={findNear} className="min-h-11 font-bold text-teal-700">{t('plan.nearMe')}</button>}
+          {!near && <button onClick={findNear} className="min-h-11 font-bold text-brand">{t('plan.nearMe')}</button>}
         </div>
         {shops.data?.length === 0 && <p className="text-sm text-muted">{t('plan.noShops')}</p>}
         {shops.data?.slice(0, 5).map((s) => (
           <button key={s.id} onClick={() => { setChosenShop(userId, s); navigate('/list/monthly') }} className="flex items-center gap-3 rounded-2xl bg-white p-3 text-left">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-teal-700 text-lg font-extrabold text-white">{s.name.charAt(0)}</span>
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-brand text-lg font-extrabold text-white">{s.name.charAt(0)}</span>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate font-bold">{s.name}</span>
               <span className="truncate text-[13px] text-muted">{[s.distanceKm != null ? t('plan.km', { km: s.distanceKm }) : null, s.area].filter(Boolean).join(' · ')}</span>
             </span>
-            <span className="shrink-0 text-sm font-bold text-teal-700">{t('home2.order')} ›</span>
+            <span className="shrink-0 text-sm font-bold text-brand">{t('home2.order')} ›</span>
           </button>
         ))}
       </section>
@@ -146,7 +146,7 @@ function ListCard({ list, title, catalogue }: { list: ShoppingList; title: strin
   const count = list.items.length
   const estimate = listEstimate(list.items, catalogue)
   return (
-    <button onClick={() => navigate(`/list/${list.kind}`)} className="flex flex-col gap-1.5 rounded-[18px] bg-white p-3 text-left shadow-[0_1px_4px_rgba(16,32,29,0.06)]">
+    <button onClick={() => navigate(`/list/${list.kind}`)} className="flex flex-col gap-1.5 rounded-card bg-white p-3 text-left shadow-[0_1px_4px_rgba(16,32,29,0.06)]">
       <span className="flex h-8">
         {list.items.slice(0, 4).map((i, n) => {
           const art = itemArt({ catalogueItemId: i.catalogueItemId, name: i.name })
@@ -158,7 +158,7 @@ function ListCard({ list, title, catalogue }: { list: ShoppingList; title: strin
       </span>
       <span className="font-extrabold">{title}</span>
       <span className="text-[13px] text-muted">{count === 0 ? t('home2.empty') : estimate > 0 ? t('home2.countAbout', { count, amount: formatRupees(estimate) }) : t('plan.itemsCount', { count })}</span>
-      <span className="text-[13px] font-bold text-teal-700">{count === 0 ? t('home2.start') : t('home2.order')} ›</span>
+      <span className="text-[13px] font-bold text-brand">{count === 0 ? t('home2.start') : t('home2.order')} ›</span>
     </button>
   )
 }

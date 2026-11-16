@@ -78,11 +78,11 @@ export function TradeDelivery({ shopId, customer, total, cart, extras, onExtras,
       <Field label={t('trade.vehicle')} value={extras.vehicleNumber} onChange={(e) => onExtras({ ...extras, vehicleNumber: e.target.value })} maxLength={15}
         placeholder="RJ14 GB 1234" autoCapitalize="characters" />
       {total > EWAY_LIMIT && (
-        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t('trade.eway', { amount: formatRupees(EWAY_LIMIT) })}</p>
+        <p className="rounded-xl bg-warn-soft p-3 text-sm text-warn-ink">{t('trade.eway', { amount: formatRupees(EWAY_LIMIT) })}</p>
       )}
       {customer && canChallan && (
         <button disabled={busy || cart.length === 0} onClick={() => void saveChallan()}
-          className="min-h-12 rounded-2xl border-2 border-teal-700 font-bold text-teal-800 disabled:opacity-40">
+          className="min-h-12 rounded-2xl border-2 border-brand font-bold text-brand-strong disabled:opacity-40">
           {t('trade.saveChallan')}
         </button>
       )}
@@ -114,7 +114,7 @@ export function TradeBillPanel({ shopId, shopType, customer, onKhata, products, 
   return (
     <div className="flex flex-col gap-2">
       {overLimit && (
-        <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">
+        <p role="alert" className="rounded-xl bg-due-soft p-3 text-sm font-semibold text-red-800">
           {t('trade.overLimit', { limit: formatRupees(customer!.creditLimit!), after: formatRupees(round2(customer!.balance + onKhata)) })}
         </p>
       )}

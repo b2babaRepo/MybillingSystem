@@ -14,7 +14,7 @@ interface SaleOrder { id: string; number: number; customerId: string | null; par
 export const SALE_ORDER_KEY = 'gk-sale-order'
 
 const TONE: Record<SaleOrder['state'], string> = {
-  open: 'bg-teal-50 text-teal-800', part: 'bg-amber-50 text-amber-800', delivered: 'bg-emerald-50 text-emerald-800', closed: 'bg-slate-100 text-muted', cancelled: 'bg-red-50 text-due',
+  open: 'bg-brand-soft text-brand-strong', part: 'bg-warn-soft text-warn', delivered: 'bg-emerald-50 text-emerald-800', closed: 'bg-slate-100 text-muted', cancelled: 'bg-due-soft text-due',
 }
 
 /**
@@ -49,12 +49,12 @@ export function SaleOrdersScreen() {
   const shortOrders = data.filter((o) => o.lines.some((l) => l.shortBy > 0)).length
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h1 className="text-xl font-bold">📦 {t('saleOrder.title')}</h1>
         <p className="text-sm text-muted">{t('saleOrder.hint')}</p>
         <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
           {([false, true] as const).map((v) => (
-            <button key={String(v)} onClick={() => setAll(v)} aria-pressed={all === v} className={`h-10 rounded-xl font-semibold transition ${all === v ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted hover:text-ink'}`}>{t(v ? 'saleOrder.all' : 'saleOrder.open')}</button>
+            <button key={String(v)} onClick={() => setAll(v)} aria-pressed={all === v} className={`h-10 rounded-xl font-semibold transition ${all === v ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}>{t(v ? 'saleOrder.all' : 'saleOrder.open')}</button>
           ))}
         </div>
         {!all && data.length > 0 && (
@@ -64,7 +64,7 @@ export function SaleOrdersScreen() {
       {message && <p className="text-sm text-due">{message}</p>}
       {orders.data && data.length === 0 && <p className="py-6 text-center text-muted">{t('saleOrder.none')}</p>}
       {data.map((o) => (
-        <section key={o.id} className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+        <section key={o.id} className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <span className="flex flex-col">
               <b>{t('saleOrder.number', { number: o.number })} · {o.party ?? '—'}</b>
@@ -78,7 +78,7 @@ export function SaleOrdersScreen() {
               <tbody>
                 {o.lines.map((l, i) => (
                   <tr key={i} className="border-t border-[#edf2f1] text-right">
-                    <td className="py-1.5 text-left font-semibold">{l.name}{l.shortBy > 0 && <span className="ml-1 rounded-full bg-red-50 px-1.5 text-[11px] font-semibold text-due">{t('saleOrder.short', { qty: l.shortBy })}</span>}</td>
+                    <td className="py-1.5 text-left font-semibold">{l.name}{l.shortBy > 0 && <span className="ml-1 rounded-full bg-due-soft px-1.5 text-[11px] font-semibold text-due">{t('saleOrder.short', { qty: l.shortBy })}</span>}</td>
                     <td>{l.quantity}</td><td className="text-jama">{l.delivered || ''}</td><td className="font-bold">{l.pending || '—'}</td><td className="text-muted">{l.inStock ?? '—'}</td>
                   </tr>
                 ))}
@@ -89,10 +89,10 @@ export function SaleOrdersScreen() {
           <p className="text-sm">{t('saleOrder.value', { total: formatRupees(o.total), pending: formatRupees(o.pendingValue) })}</p>
           {(o.state === 'open' || o.state === 'part') && (
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => deliver(o)} className="h-11 flex-1 rounded-xl bg-teal-700 px-4 font-bold text-white shadow-sm hover:bg-teal-800">🚚 {t('saleOrder.deliver')}</button>
+              <button onClick={() => deliver(o)} className="h-11 flex-1 rounded-xl bg-brand px-4 font-bold text-white shadow-sm hover:bg-brand-strong">🚚 {t('saleOrder.deliver')}</button>
               {o.state === 'part'
                 ? <button onClick={() => void finish(o, 'close')} className="h-11 rounded-xl border border-line px-3 font-semibold hover:bg-[#f6faf9]">{t('saleOrder.close')}</button>
-                : <button onClick={() => void finish(o, 'cancel')} className="h-11 rounded-xl border border-line px-3 font-semibold text-due hover:bg-red-50">{t('saleOrder.cancel')}</button>}
+                : <button onClick={() => void finish(o, 'cancel')} className="h-11 rounded-xl border border-line px-3 font-semibold text-due hover:bg-due-soft">{t('saleOrder.cancel')}</button>}
             </div>
           )}
         </section>

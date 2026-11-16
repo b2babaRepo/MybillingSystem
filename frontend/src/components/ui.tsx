@@ -1,11 +1,30 @@
 import { useEffect } from 'react'
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../lib/format'
 
-export function Button({ className = '', tone = 'primary', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'credit' | 'payment' | 'plain' }) {
+/** A text box or drop-down at counter size; `controlSm` for rows with several boxes side by side. */
+export const control = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
+export const controlSm = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
+
+/** A white card on the green-grey ground; the tones mark brand info, a warning or something overdue. */
+export function Card({ tone = 'plain', className = '', ...props }: HTMLAttributes<HTMLElement> & { tone?: 'plain' | 'brand' | 'warn' | 'due' }) {
+  const tones = { plain: 'bg-white shadow-sm', brand: 'bg-brand-soft', warn: 'bg-warn-soft', due: 'bg-due-soft' }
+  return <section {...props} className={`rounded-card p-4 ${tones[tone]} ${className}`} />
+}
+
+export function Input({ small = false, className = '', ...props }: InputHTMLAttributes<HTMLInputElement> & { small?: boolean }) {
+  return <input {...props} className={`${small ? controlSm : control} outline-none focus:border-brand-line ${className}`} />
+}
+
+export function Select({ small = false, className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement> & { small?: boolean }) {
+  return <select {...props} className={`${small ? controlSm : control} outline-none focus:border-brand-line ${className}`} />
+}
+
+/** `busy` greys the button and blocks a second tap while its action runs (saving a bill twice is the worry). */
+export function Button({ className = '', tone = 'primary', busy = false, disabled, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'credit' | 'payment' | 'plain'; busy?: boolean }) {
   const tones = {
-    primary: 'bg-teal-700 text-white shadow-sm shadow-teal-900/20 hover:bg-teal-800 active:bg-teal-800',
+    primary: 'bg-brand text-white shadow-sm shadow-teal-900/20 hover:bg-brand-strong active:bg-brand-strong',
     credit: 'bg-udhaar text-white shadow-sm shadow-orange-900/20 active:bg-orange-800',
     payment: 'bg-jama text-white shadow-sm shadow-emerald-900/20 active:bg-emerald-800',
     plain: 'bg-white text-ink border border-line hover:bg-[#f6faf9] active:bg-[#edf2f1]',
@@ -13,8 +32,13 @@ export function Button({ className = '', tone = 'primary', ...props }: ButtonHTM
   return (
     <button
       {...props}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
       className={`min-h-12 rounded-2xl px-4 text-lg font-semibold transition active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 ${tones[tone]} ${className}`}
-    />
+    >
+      {busy ? <span aria-hidden className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent align-[-2px]" /> : null}
+      {children}
+    </button>
   )
 }
 
@@ -24,7 +48,7 @@ export function Field({ label, ...props }: InputHTMLAttributes<HTMLInputElement>
       <span className="mb-1 block text-sm font-semibold text-muted">{label}</span>
       <input
         {...props}
-        className="h-12 w-full rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10"
+        className="h-12 w-full rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10"
       />
     </label>
   )

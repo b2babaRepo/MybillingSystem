@@ -67,7 +67,7 @@ export function SideGroups({ groups, open, current }: { groups: SideGroup[]; ope
                   </button>
                   {group.add && (
                     <button type="button" onClick={() => navigate(group.add!.path)} title={group.add.label} aria-label={group.add.label}
-                      className="flex h-9 w-9 items-center justify-center rounded-full text-teal-700 hover:bg-teal-50">
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-brand hover:bg-brand-soft">
                       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></svg>
                     </button>
                   )}
@@ -80,7 +80,7 @@ export function SideGroups({ groups, open, current }: { groups: SideGroup[]; ope
                 onClick={() => navigate(link.path)}
                 title={link.label}
                 aria-current={current === link.path ? 'page' : undefined}
-                className={`flex min-h-10 items-center gap-3 rounded-xl text-left text-[15px] ${open ? 'px-4' : 'justify-center px-0'} ${current === link.path ? 'bg-teal-50 font-bold text-teal-700' : 'font-semibold text-muted hover:bg-[#f1f5f4]'}`}
+                className={`flex min-h-10 items-center gap-3 rounded-xl text-left text-[15px] ${open ? 'px-4' : 'justify-center px-0'} ${current === link.path ? 'bg-brand-soft font-bold text-brand' : 'font-semibold text-muted hover:bg-[#f1f5f4]'}`}
               >
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
                   <path d={ICONS[link.path] ?? 'M12 12h.01'} />

@@ -41,19 +41,19 @@ export function ItemLedger({ productId }: { productId: string }) {
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4 shadow-sm">
+    <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-bold">📒 {t('sl.ledger')}</h2>
         <button onClick={download} disabled={!d} className="h-10 rounded-xl border border-line px-3 text-sm font-semibold transition hover:bg-[#f6faf9] disabled:opacity-40">⬇ {t('sl.csv')}</button>
       </div>
       <p className="text-sm text-muted">{t('sl.ledgerHint')}</p>
       <div className="flex flex-wrap gap-2 text-sm">
-        <label className="flex items-center gap-1.5">{t('sl.from')}<input type="date" value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ ...range, from: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-teal-600" /></label>
-        <label className="flex items-center gap-1.5">{t('sl.to')}<input type="date" value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ ...range, to: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-teal-600" /></label>
+        <label className="flex items-center gap-1.5">{t('sl.from')}<input type="date" value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ ...range, from: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-brand-line" /></label>
+        <label className="flex items-center gap-1.5">{t('sl.to')}<input type="date" value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ ...range, to: e.target.value })} className="h-10 rounded-xl border border-line bg-white px-2 outline-none focus:border-brand-line" /></label>
       </div>
       {d && (
         <div className="grid grid-cols-4 gap-1.5 text-center text-sm">
-          {([['opening', d.opening, 'bg-[#edf2f1]'], ['in', d.in, 'bg-emerald-50 text-emerald-800'], ['out', d.out, 'bg-orange-50 text-orange-800'], ['closing', d.closing, 'bg-teal-50 text-teal-900']] as const).map(([k, v, tone]) => (
+          {([['opening', d.opening, 'bg-[#edf2f1]'], ['in', d.in, 'bg-emerald-50 text-emerald-800'], ['out', d.out, 'bg-orange-50 text-orange-800'], ['closing', d.closing, 'bg-brand-soft text-brand-deep']] as const).map(([k, v, tone]) => (
             <span key={k} className={`flex flex-col rounded-xl px-1 py-2 ${tone}`}><span className="text-xs">{t(`sl.${k}`)}</span><b className="text-base">{v}</b>
               {d.bagSize && (k === 'opening' || k === 'closing') ? <span className="text-[11px]">{t('bag.inBags', { count: k === 'opening' ? d.openingBags ?? 0 : d.closingBags ?? 0 })}</span> : null}</span>
           ))}
@@ -73,8 +73,8 @@ export function ItemLedger({ productId }: { productId: string }) {
                   {l.costPrice !== null && ` · ${formatRupees(l.costPrice)}`}
                 </span>
                 {doc(l) && (l.docType === 'bill' && l.docId
-                  ? <button onClick={() => navigate(`/print/bill/${l.docId}`)} className="w-fit text-xs font-semibold text-teal-700 underline">🧾 {doc(l)}</button>
-                  : <span className="text-xs font-semibold text-teal-800">📄 {doc(l)}</span>)}
+                  ? <button onClick={() => navigate(`/print/bill/${l.docId}`)} className="w-fit text-xs font-semibold text-brand underline">🧾 {doc(l)}</button>
+                  : <span className="text-xs font-semibold text-brand-strong">📄 {doc(l)}</span>)}
                 {l.note && !l.docLabel && <span className="text-xs text-muted">{l.note}</span>}
               </span>
               <span className="flex shrink-0 flex-col items-end">

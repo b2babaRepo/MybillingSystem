@@ -50,14 +50,14 @@ export function ReceivedBySupplierScreen({ shopId }: { shopId: string }) {
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl font-bold">🚚 {t('rs.title')}</h1>
           {tab === 'grid' && <button disabled={!g} onClick={download} className="h-10 rounded-xl border border-line px-3 text-sm font-semibold hover:bg-[#f6faf9] disabled:opacity-40">⬇ {t('sl.csv')}</button>}
         </div>
         <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
           {(['grid', 'score'] as const).map((k) => (
-            <button key={k} onClick={() => setTab(k)} aria-pressed={tab === k} className={`h-10 rounded-xl font-semibold ${tab === k ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-700/20' : 'text-muted'}`}>{t(`rs.tab.${k}`)}</button>
+            <button key={k} onClick={() => setTab(k)} aria-pressed={tab === k} className={`h-10 rounded-xl font-semibold ${tab === k ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted'}`}>{t(`rs.tab.${k}`)}</button>
           ))}
         </div>
         {tab === 'grid' ? (
@@ -76,7 +76,7 @@ export function ReceivedBySupplierScreen({ shopId }: { shopId: string }) {
       </section>
 
       {tab === 'grid' && g && (rows.length === 0 ? <p className="py-6 text-center text-muted">{t('rs.none')}</p> : (
-        <div className="overflow-x-auto rounded-[18px] bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-card bg-white shadow-sm">
           <table className="w-full min-w-[480px] text-sm">
             <thead>
               <tr className="text-right text-xs text-muted">
@@ -97,7 +97,7 @@ export function ReceivedBySupplierScreen({ shopId }: { shopId: string }) {
                         <td key={s.id} className="p-2">
                           {c ? (
                             <button onClick={() => setOpen(open?.productId === r.productId && open.supplierId === s.id ? null : { productId: r.productId, supplierId: s.id })}
-                              className={`rounded-lg px-1.5 py-0.5 hover:bg-[#edf2f1] ${short ? 'text-amber-800' : ''}`}>
+                              className={`rounded-lg px-1.5 py-0.5 hover:bg-[#edf2f1] ${short ? 'text-warn' : ''}`}>
                               {c.ordered > 0 ? t('rs.ofOrdered', { received: c.received, ordered: c.ordered }) : c.received}
                             </button>
                           ) : <span className="text-muted">·</span>}
@@ -105,7 +105,7 @@ export function ReceivedBySupplierScreen({ shopId }: { shopId: string }) {
                       )
                     })}
                     <td className="p-2 font-bold">{r.received}</td>
-                    <td className={`p-2 ${r.pending > 0 ? 'font-semibold text-amber-800' : 'text-muted'}`}>{r.pending || '—'}</td>
+                    <td className={`p-2 ${r.pending > 0 ? 'font-semibold text-warn' : 'text-muted'}`}>{r.pending || '—'}</td>
                   </tr>
                   {open?.productId === r.productId && (
                     <tr><td colSpan={g.suppliers.length + 3} className="bg-[#f6faf9] p-2">
@@ -127,7 +127,7 @@ export function ReceivedBySupplierScreen({ shopId }: { shopId: string }) {
       ))}
 
       {tab === 'score' && score.data && (score.data.length === 0 ? <p className="py-6 text-center text-muted">{t('rs.none')}</p> : score.data.map((s) => (
-        <section key={s.supplierId} className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+        <section key={s.supplierId} className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <b>{s.name}</b>
             <span className="text-sm font-semibold">{formatRupees(s.valueReceived)}</span>

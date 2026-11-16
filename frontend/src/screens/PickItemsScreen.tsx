@@ -159,17 +159,17 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
     }
   }
 
-  const side = (on: boolean) => `flex min-h-10 items-center justify-between gap-2 rounded-xl px-3 text-left text-[15px] ${on ? 'bg-teal-50 font-bold text-teal-800' : 'font-semibold hover:bg-[#f1f5f4]'}`
-  const chip = (on: boolean) => `min-h-11 shrink-0 rounded-full px-3 text-sm font-semibold ${on ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`
+  const side = (on: boolean) => `flex min-h-10 items-center justify-between gap-2 rounded-xl px-3 text-left text-[15px] ${on ? 'bg-brand-soft font-bold text-brand-strong' : 'font-semibold hover:bg-[#f1f5f4]'}`
+  const chip = (on: boolean) => `min-h-11 shrink-0 rounded-full px-3 text-sm font-semibold ${on ? 'bg-brand text-white' : 'border border-line bg-white'}`
   return (
     <div className="p-4 pb-28 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start lg:gap-5">
-      <aside className="hidden lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100dvh-6rem)] lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:rounded-[18px] lg:bg-white lg:p-2" aria-label={t('pick.suggestCategory')}>
+      <aside className="hidden lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100dvh-6rem)] lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:rounded-card lg:bg-white lg:p-2" aria-label={t('pick.suggestCategory')}>
         {popularCount > 0 && <button onClick={() => setCategory(POPULAR)} className={side(category === POPULAR)}>★ {t('pick.popular', { count: popularCount })}</button>}
         <button onClick={() => setCategory('')} className={side(!category)}><span>{t('pick.all')}</span><span className="text-xs text-muted">{tradeItems.length}</span></button>
         {tiles.map((c) => <button key={c.name} onClick={() => setCategory(c.name)} className={side(c.name === category)}><span className="truncate">{c.name}</span><span className="text-xs text-muted">{c.count}</span></button>)}
       </aside>
       <div className="flex min-w-0 flex-col gap-3">
-      <div className="-mx-4 -mt-4 lg:mx-0 lg:mt-0 lg:rounded-[22px] lg:pt-3 flex items-center justify-between gap-2 rounded-b-[22px] bg-teal-700 px-4 pb-4 pt-1 text-white">
+      <div className="-mx-4 -mt-4 lg:mx-0 lg:mt-0 lg:rounded-[22px] lg:pt-3 flex items-center justify-between gap-2 rounded-b-[22px] bg-brand px-4 pb-4 pt-1 text-white">
         <span className="flex flex-col">
           <h1 className="text-xl font-extrabold leading-tight">{t('pick.titleShort')}</h1>
           <span className="text-sm opacity-90">{t('pick.listCount', { trade: t(`shopType.${activeTrade}`), count: tradeItems.length })}</span>
@@ -192,7 +192,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
           <Button className="w-full" onClick={() => void applyChanges()}>{t('pick.apply', { count: changes.length })}</Button>
         </Sheet>
       )}
-      {newIds.size > 0 && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{t('pick.newCount', { count: newIds.size })}</p>}
+      {newIds.size > 0 && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{t('pick.newCount', { count: newIds.size })}</p>}
       <p className="text-sm text-muted">{t('pick.hint2')}</p>
       {trades.length > 1 && (
         <div className="flex gap-2 overflow-x-auto">
@@ -230,9 +230,9 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
         <section key={group} className="[content-visibility:auto] [contain-intrinsic-size:auto_600px]">
           <div className="sticky top-0 z-[5] -mx-4 flex items-center justify-between bg-ground/95 px-4 py-2 backdrop-blur-sm lg:top-16 lg:mx-0 lg:px-1">
             <h2 className="text-base font-bold">{group}{category === POPULAR ? '' : <span className="text-sm font-semibold text-muted"> · {rows.length}</span>}</h2>
-            <button onClick={() => addGroup(rows)} className="min-h-9 rounded-xl border-2 border-teal-700 bg-white px-3 text-sm font-semibold text-teal-800">{category === POPULAR ? t('pick.addAllCount', { count: rows.length }) : t('pick.addGroup')}</button>
+            <button onClick={() => addGroup(rows)} className="min-h-9 rounded-xl border-2 border-brand bg-white px-3 text-sm font-semibold text-brand-strong">{category === POPULAR ? t('pick.addAllCount', { count: rows.length }) : t('pick.addGroup')}</button>
           </div>
-          <ul className="overflow-hidden rounded-[18px] bg-white shadow-[0_1px_3px_rgba(16,32,29,0.08)] lg:grid lg:grid-cols-2 lg:gap-px lg:bg-line xl:grid-cols-3">
+          <ul className="overflow-hidden rounded-card bg-white shadow-[0_1px_3px_rgba(16,32,29,0.08)] lg:grid lg:grid-cols-2 lg:gap-px lg:bg-line xl:grid-cols-3">
             {rows.map((i) => {
               const on = chosen.has(i.id)
               const have = inShop(i)
@@ -240,23 +240,23 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
               return (
                 <li key={i.id} className="border-b border-line last:border-b-0 lg:border-b-0 lg:bg-white">
                   <button onClick={() => !have && toggle(i.id)} aria-pressed={on} disabled={have}
-                    className={`flex min-h-16 w-full items-center gap-3 py-2 pr-3 pl-3 text-left transition-colors ${on ? 'bg-teal-50 shadow-[inset_4px_0_0_#0f6b5c]' : ''}`}>
+                    className={`flex min-h-16 w-full items-center gap-3 py-2 pr-3 pl-3 text-left transition-colors ${on ? 'bg-brand-soft shadow-[inset_4px_0_0_#0f6b5c]' : ''}`}>
                     {thumb(i)}
                     <span className="flex min-w-0 flex-1 flex-col leading-[1.45]">
-                      <span className="truncate text-[16px] font-semibold">{label(i)}{newIds.has(i.id) && <span className="ml-2 rounded-full bg-teal-700 px-2 align-middle text-[11px] font-bold text-white">{t('pick.new')}</span>}</span>
+                      <span className="truncate text-[16px] font-semibold">{label(i)}{newIds.has(i.id) && <span className="ml-2 rounded-full bg-brand px-2 align-middle text-[11px] font-bold text-white">{t('pick.new')}</span>}</span>
                       <span className="truncate text-[13px] text-muted">{other ?? t(`units.${i.unit}`)}</span>
                     </span>
                     {have
                       ? <span className="shrink-0 rounded-full bg-[#edf2f1] px-2 py-1 text-xs font-semibold text-muted">{t('pick.inShop')}</span>
-                      : <span className={`flex h-9 min-w-[76px] shrink-0 items-center justify-center rounded-xl border-2 border-teal-700 text-sm font-bold transition-colors ${on ? 'bg-teal-700 text-white' : 'text-teal-800'}`}>{on ? (i.packSizes.length > 0 ? `✓ ${(sizes[i.id]?.length || i.packSizes.length)}` : `✓ ${t('pick.picked')}`) : `+ ${t('pick.addOne')}`}</span>}
+                      : <span className={`flex h-9 min-w-[76px] shrink-0 items-center justify-center rounded-xl border-2 border-brand text-sm font-bold transition-colors ${on ? 'bg-brand text-white' : 'text-brand-strong'}`}>{on ? (i.packSizes.length > 0 ? `✓ ${(sizes[i.id]?.length || i.packSizes.length)}` : `✓ ${t('pick.picked')}`) : `+ ${t('pick.addOne')}`}</span>}
                   </button>
                   {!have && (i.packSizes.length > 0 || i.gstRate != null) && (
-                    <div className={`-mt-1 flex flex-wrap items-center gap-1.5 pb-2.5 pl-[68px] pr-3 ${on ? 'bg-teal-50' : ''}`}>
+                    <div className={`-mt-1 flex flex-wrap items-center gap-1.5 pb-2.5 pl-[68px] pr-3 ${on ? 'bg-brand-soft' : ''}`}>
                       {i.packSizes.map((s) => {
                         const ticked = (sizes[i.id] ?? []).includes(s) || (on && !(sizes[i.id]?.length))
                         return (
                           <button key={s} onClick={() => toggleSize(i.id, s)} aria-pressed={ticked}
-                            className={`min-h-8 rounded-full border px-3 text-[13px] font-semibold ${ticked ? 'border-teal-700 bg-teal-700 text-white' : 'border-line bg-white text-ink'}`}>{s}</button>
+                            className={`min-h-8 rounded-full border px-3 text-[13px] font-semibold ${ticked ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink'}`}>{s}</button>
                         )
                       })}
                       {i.gstRate != null && <span className="text-[12px] text-muted">GST {i.gstRate}%</span>}
@@ -268,7 +268,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
           </ul>
         </section>
       ))}
-      <details className="rounded-[18px] bg-white p-3">
+      <details className="rounded-card bg-white p-3">
         <summary className="min-h-11 cursor-pointer font-semibold">{t('pick.suggest')}</summary>
         <p className="text-xs text-muted">{t('pick.suggestHint')}</p>
         <div className="mt-2 grid grid-cols-2 gap-2">
@@ -280,7 +280,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
           <Button className="col-span-2" disabled={idea.name.trim().length < 2} onClick={() => void suggest()}>{t('pick.suggestSend')}</Button>
         </div>
       </details>
-      {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:left-auto lg:right-6 lg:w-[440px] lg:max-w-none flex max-w-xl flex-col gap-2 px-3 pb-3">
         {undo && (
           <div role="status" className="flex items-center justify-between rounded-xl bg-ink px-4 py-2 text-sm text-white">

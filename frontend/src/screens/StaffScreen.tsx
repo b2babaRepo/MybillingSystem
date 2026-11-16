@@ -103,9 +103,9 @@ export function StaffScreen() {
   return (
     <div className="flex flex-col gap-3 p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-4 lg:[&>p]:col-start-1 lg:[&>ul]:col-start-1 lg:[&>section]:col-start-2 lg:[&>section]:row-span-3 lg:[&>section]:row-start-1">
       <p className="text-sm text-muted">{t('staff.hint')}</p>
-      {message && <p className="rounded-[14px] bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="rounded-[14px] bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
 
-      <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white shadow-sm">
+      <ul className="divide-y divide-[#edf2f1] rounded-card bg-white shadow-sm">
         {staff.data?.map((s) => (
           <li key={s.membershipId} className={`flex flex-col gap-2 p-4 ${s.isActive ? '' : 'opacity-60'}`}>
             <div className="flex items-start justify-between gap-2">
@@ -113,7 +113,7 @@ export function StaffScreen() {
                 <span className="text-[17px] font-bold">{s.name}</span>
                 <span className="text-sm text-muted">{formatPhone(s.phone)}</span>
               </span>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${s.role === 'owner' ? 'bg-teal-50 text-teal-800' : s.isActive ? 'bg-[#edf2f1]' : 'bg-red-50 text-due'}`}>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${s.role === 'owner' ? 'bg-brand-soft text-brand-strong' : s.isActive ? 'bg-[#edf2f1]' : 'bg-due-soft text-due'}`}>
                 {s.role === 'owner' ? t('staff.owner') : s.isActive ? t('staff.helper') : t('staff.off')}
               </span>
             </div>
@@ -123,7 +123,7 @@ export function StaffScreen() {
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {s.role === 'staff' ? <button disabled={busy} onClick={() => changePin(s)} className="min-h-11 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">🔑 {t('staff.changePin')}</button> : <span />}
                 <button disabled={busy} onClick={() => setActive(s, !s.isActive)}
-                  className={`min-h-11 rounded-xl font-semibold ${s.isActive ? 'border border-line text-due' : 'bg-teal-700 text-white'}`}>
+                  className={`min-h-11 rounded-xl font-semibold ${s.isActive ? 'border border-line text-due' : 'bg-brand text-white'}`}>
                   {s.isActive ? t('staff.turnOff') : t('staff.turnOn')}
                 </button>
               </div>
@@ -132,14 +132,14 @@ export function StaffScreen() {
         ))}
       </ul>
 
-      <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm">
         <h2 className="text-lg font-bold">{t('staff.addTitle')}</h2>
         <Field label={t('staff.name')} value={name} onChange={(e) => setName(e.target.value)} />
         <Field label={t('staff.phone')} value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
         <div role="radiogroup" aria-label={t('staff.roleLabel')} className="grid grid-cols-2 gap-2">
           {(['staff', 'owner'] as const).map((r) => (
             <button key={r} type="button" role="radio" aria-checked={role === r} onClick={() => setRole(r)}
-              className={`min-h-12 rounded-xl font-semibold ${role === r ? 'bg-teal-700 text-white' : 'border border-line'}`}>{r === 'owner' ? t('staff.owner') : t('staff.helper')}</button>
+              className={`min-h-12 rounded-xl font-semibold ${role === r ? 'bg-brand text-white' : 'border border-line'}`}>{r === 'owner' ? t('staff.owner') : t('staff.helper')}</button>
           ))}
         </div>
         {role === 'staff' ? <>

@@ -20,7 +20,7 @@ export function EwayBill({ shopName, bill, customerName }: { shopName: string; b
   const [buyerName, setBuyer] = useState(customerName ?? '')
   const [problems, setProblems] = useState<string[]>([])
 
-  if (!open) return <button onClick={() => setOpen(true)} className="mt-4 h-11 w-full rounded-xl border border-teal-700 font-semibold text-teal-800 print:hidden">{t('eway.button')}</button>
+  if (!open) return <button onClick={() => setOpen(true)} className="mt-4 h-11 w-full rounded-xl border border-brand font-semibold text-brand-strong print:hidden">{t('eway.button')}</button>
 
   function download() {
     const result = ewayBillJson(shopName, bill, { fromPincode: fromPincode.trim(), toPincode: toPincode.trim(), distanceKm: Number(distance), vehicleNo, buyerName: buyerName.trim() || 'Customer' })
@@ -51,7 +51,7 @@ export function EwayBill({ shopName, bill, customerName }: { shopName: string; b
       </div>
       {problems.length > 0 && <ul className="list-disc pl-5 text-due">{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
       <div className="flex flex-wrap gap-2">
-        <button onClick={download} className="h-11 flex-1 rounded-xl bg-teal-700 px-4 font-semibold text-white">{t('eway.download')}</button>
+        <button onClick={download} className="h-11 flex-1 rounded-xl bg-brand px-4 font-semibold text-white">{t('eway.download')}</button>
         <a href="https://ewaybillgst.gov.in" target="_blank" rel="noreferrer" className="flex h-11 items-center rounded-xl border border-line px-4 font-semibold">{t('eway.portal')}</a>
       </div>
     </section>

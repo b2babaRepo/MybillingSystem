@@ -35,7 +35,7 @@ export function AttachCustomer({ shopId, billId, occurredAt, cash, onDone }: { s
   }
 
   if (!open) {
-    return <button onClick={() => setOpen(true)} className="mt-4 h-11 w-full rounded-xl border border-teal-700 font-semibold text-teal-800 print:hidden">{t('attach.button')}</button>
+    return <button onClick={() => setOpen(true)} className="mt-4 h-11 w-full rounded-xl border border-brand font-semibold text-brand-strong print:hidden">{t('attach.button')}</button>
   }
   return (
     <section className="mt-4 flex flex-col gap-2 rounded-xl border border-line p-3 text-sm print:hidden">
@@ -50,7 +50,7 @@ export function AttachCustomer({ shopId, billId, occurredAt, cash, onDone }: { s
       )}
       {error && <p className="text-due">{error}</p>}
       <div className="flex gap-2">
-        <button disabled={!picked || busy || (old && reason.trim().length < 3)} onClick={() => void save()} className="h-11 flex-1 rounded-xl bg-teal-700 font-semibold text-white disabled:opacity-40">{t('attach.save')}</button>
+        <button disabled={!picked || busy || (old && reason.trim().length < 3)} onClick={() => void save()} className="h-11 flex-1 rounded-xl bg-brand font-semibold text-white disabled:opacity-40">{t('attach.save')}</button>
         <button onClick={() => setOpen(false)} className="h-11 rounded-xl border border-line px-4 font-semibold">{t('cancel')}</button>
       </div>
     </section>

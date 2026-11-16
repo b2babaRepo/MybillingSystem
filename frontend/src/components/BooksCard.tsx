@@ -39,7 +39,7 @@ export function BooksCard({ month }: { month: string }) {
   }
 
   return (
-    <section className={`flex flex-col gap-2 rounded-[18px] p-4 shadow-sm print:hidden ${isClosed ? 'bg-slate-50' : 'bg-white'}`}>
+    <section className={`flex flex-col gap-2 rounded-card p-4 shadow-sm print:hidden ${isClosed ? 'bg-slate-50' : 'bg-white'}`}>
       <h2 className="font-bold">🔒 {t('books.title')}</h2>
       <p className="text-sm">
         {isClosed ? t('books.closed', { month: monthName(month), until: monthName(closedMonth!) }) : closedMonth ? t('books.closedUpTo', { until: monthName(closedMonth) }) : t('books.none')}

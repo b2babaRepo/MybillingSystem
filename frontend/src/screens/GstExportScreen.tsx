@@ -73,12 +73,12 @@ export function GstExportScreen() {
   return (
     <ReportShell page="gst" title={t('rv.gstTitle')} isOwner view={view} onView={setView} ticks={ticks}>
       <label className="flex flex-col gap-1"><span className="text-sm font-medium text-muted">{t('gstExport.month')}</span>
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
+        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
       {data && registered && !data.composition && view === 'chart' && (
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start">
-          <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+          <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm print:shadow-none">
             <span className="text-[13px] text-muted">{t('rv.toPay')}</span>
-            <b className="text-[36px] leading-none text-teal-900">{formatRupees(pay)}</b>
+            <b className="text-[36px] leading-none text-brand-deep">{formatRupees(pay)}</b>
             {output > 0 && (
               <div role="img" aria-label={t('rv.meterLabel', { credit: formatRupees(Math.min(credit, output)), pay: formatRupees(pay) })} className="flex h-7 overflow-hidden rounded-lg text-xs font-semibold">
                 <span className="flex items-center bg-blue-600 pl-2 text-white" style={{ width: `${(Math.min(credit, output) * 100) / output}%` }}>{credit > 0 ? t('rv.creditShort', { amount: formatRupees(Math.min(credit, output)) }) : ''}</span>
@@ -86,14 +86,14 @@ export function GstExportScreen() {
               </div>
             )}
             <p className="text-[13px] text-muted">{t('rv.meterHint', { output: formatRupees(output), credit: formatRupees(credit), count: data.purchaseBills ?? 0 })}</p>
-            {carry > 0 && <p className="rounded-xl bg-teal-50 p-2 text-sm text-teal-900">{t('rv.carry', { amount: formatRupees(carry) })}</p>}
+            {carry > 0 && <p className="rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">{t('rv.carry', { amount: formatRupees(carry) })}</p>}
           </section>
-          <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+          <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm print:shadow-none">
             {dues.map((d) => {
               const left = daysUntil(d.date)
               return (
-                <div key={d.key} className={`flex items-center gap-3 rounded-xl p-3 ${left <= 3 ? 'bg-orange-50' : 'bg-teal-50'}`}>
-                  <b className={`min-w-14 text-center text-[26px] ${left <= 3 ? 'text-orange-800' : 'text-teal-900'}`}>{left < 0 ? '!' : left}</b>
+                <div key={d.key} className={`flex items-center gap-3 rounded-xl p-3 ${left <= 3 ? 'bg-orange-50' : 'bg-brand-soft'}`}>
+                  <b className={`min-w-14 text-center text-[26px] ${left <= 3 ? 'text-orange-800' : 'text-brand-deep'}`}>{left < 0 ? '!' : left}</b>
                   <span className="text-sm">{t(`rv.${d.key}`)}<br /><span className="text-muted">{left < 0 ? t('rv.passed', { date: d.date }) : t('rv.daysLeft', { count: left, date: new Date(`${d.date}T00:00:00Z`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', timeZone: 'UTC' }) })}</span></span>
                 </div>
               )
@@ -109,7 +109,7 @@ export function GstExportScreen() {
             <tbody className="text-right tabular-nums">
               <tr><td className="px-3 py-2 text-left">{t('rv.outward')}</td><td className="px-3 py-2">{formatRupees(data.taxable)}</td><td className="px-3 py-2">{formatRupees(data.cgst)}</td><td className="px-3 py-2">{formatRupees(data.sgst)}</td><td className="px-3 py-2">{formatRupees(data.igst)}</td><td className="px-3 py-2">{formatRupees(output)}</td></tr>
               <tr className="bg-[#fafbfb]"><td className="px-3 py-2 text-left">{t('rv.itc')}</td><td className="px-3 py-2">{formatRupees(data.inputTaxable ?? 0)}</td><td className="px-3 py-2">{formatRupees(inputHalf)}</td><td className="px-3 py-2">{formatRupees(credit - inputHalf)}</td><td className="px-3 py-2">{formatRupees(0)}</td><td className="px-3 py-2">{formatRupees(credit)}</td></tr>
-              <tr className="border-t-2 border-ink font-bold"><td className="px-3 py-2 text-left">{t('rv.payable')}</td><td className="px-3 py-2"></td><td className="px-3 py-2">{formatRupees(Math.max(0, data.cgst - inputHalf))}</td><td className="px-3 py-2">{formatRupees(Math.max(0, data.sgst - (credit - inputHalf)))}</td><td className="px-3 py-2">{formatRupees(data.igst)}</td><td className="px-3 py-2 text-teal-900">{formatRupees(pay)}</td></tr>
+              <tr className="border-t-2 border-ink font-bold"><td className="px-3 py-2 text-left">{t('rv.payable')}</td><td className="px-3 py-2"></td><td className="px-3 py-2">{formatRupees(Math.max(0, data.cgst - inputHalf))}</td><td className="px-3 py-2">{formatRupees(Math.max(0, data.sgst - (credit - inputHalf)))}</td><td className="px-3 py-2">{formatRupees(data.igst)}</td><td className="px-3 py-2 text-brand-deep">{formatRupees(pay)}</td></tr>
             </tbody>
           </table>
           <p className="px-3 pb-3 text-xs text-muted">{t('rv.itcNote')}</p>
@@ -117,7 +117,7 @@ export function GstExportScreen() {
       )}
       {data && <>
         {data.checks.length > 0 && (
-          <section className="flex flex-col gap-2 rounded-[18px] bg-amber-50 p-4 text-amber-900">
+          <section className="flex flex-col gap-2 rounded-card bg-warn-soft p-4 text-warn-ink">
             <h2 className="font-bold">{t('gstExport.fixFirst')}</h2>
             {data.checks.map((c) => (
               <div key={c.code} className="flex items-center justify-between gap-2 text-sm">
@@ -127,7 +127,7 @@ export function GstExportScreen() {
             ))}
           </section>
         )}
-        <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+        <section className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm print:shadow-none">
           {data.composition && <p className="mb-2 text-sm font-semibold">{t('gstExport.composition')}</p>}
           {row(t('gstExport.bills'), `${data.bills}${data.cancelled ? ` · ${t('gstExport.cancelled', { count: data.cancelled })}` : ''}`)}
           {data.firstBillNo && row(t('gstExport.series'), `${data.firstBillNo} – ${data.lastBillNo}`)}
@@ -141,7 +141,7 @@ export function GstExportScreen() {
           {!!data.creditNotes && row(t('gstExport.creditNotes', { count: data.creditNotes }), `−${formatRupees(data.creditNoteValue ?? 0)} (${t('gstExport.tax')} ${formatRupees(data.creditNoteTax ?? 0)})`)}
         </section>
         {data.payable && registered && (
-          <section className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+          <section className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm print:shadow-none">
             <h2 className="font-bold">{t(data.composition ? 'gstExport.cmp08' : 'gstExport.gstr3b')}</h2>
             {data.composition ? <>
               {row(t('gstExport.turnover'), formatRupees(data.payable.compositionTurnover ?? 0))}

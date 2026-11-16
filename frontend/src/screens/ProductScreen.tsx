@@ -40,7 +40,7 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex items-start justify-between gap-3 rounded-[18px] bg-white p-4">
+      <section className="flex items-start justify-between gap-3 rounded-card bg-white p-4">
         <span className="flex min-w-0 flex-col">
           <span className="text-2xl font-bold">{itemName(product)}</span>
           <span className="text-sm text-muted">
@@ -49,7 +49,7 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
           </span>
           {(product.dailySales ?? 0) > 0 && !product.isService && product.stock > 0 && (() => {
             const days = Math.floor(product.stock / product.dailySales!)
-            return <span className={`mt-1 w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${days <= 3 ? 'bg-red-50 text-due' : days <= 10 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
+            return <span className={`mt-1 w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${days <= 3 ? 'bg-due-soft text-due' : days <= 10 ? 'bg-warn-soft text-warn' : 'bg-emerald-50 text-emerald-800'}`}>
               ⏳ {coverText(t, product.stock / product.dailySales!)} · {t('sl.perDay', { qty: Math.round(product.dailySales! * 10) / 10, unit: t(`units.${product.unit}`, { count: Math.round(product.dailySales! * 10) / 10 }) })}
             </span>
           })()}
@@ -57,7 +57,7 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
         <span className="flex flex-col items-end gap-1">
           <StockBadge product={product} large />
           {(product.promised ?? 0) > 0 && (
-            <button onClick={() => navigate('/holds')} className="text-right text-xs font-semibold text-amber-800 underline">
+            <button onClick={() => navigate('/holds')} className="text-right text-xs font-semibold text-warn underline">
               {t('saleOrder.promised', { qty: product.promised })} · {(() => { const free = Math.round((product.stock - (product.reserved ?? 0) - product.promised!) * 1000) / 1000; return free >= 0 ? t('saleOrder.free', { qty: free }) : <span className="text-due">{t('saleOrder.short', { qty: -free })}</span> })()}
             </button>
           )}
@@ -69,7 +69,7 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
       {/* Medicines sold loose: stock is in strips, so 9.5 strips of 10 reads as 9 strips and 5 tablets, as a chemist counts it. */}
       {product.unitsPerPack && product.stock > 0 && (() => {
         const tablets = Math.round(product.stock * product.unitsPerPack)
-        return <p className="rounded-[18px] bg-white p-4 text-lg font-semibold">💊 {t('loose.inHand', { strips: Math.floor(tablets / product.unitsPerPack), tablets: tablets % product.unitsPerPack })}</p>
+        return <p className="rounded-card bg-white p-4 text-lg font-semibold">💊 {t('loose.inHand', { strips: Math.floor(tablets / product.unitsPerPack), tablets: tablets % product.unitsPerPack })}</p>
       })()}
 
       <PhotoCard shopId={shopId} product={product} />
@@ -143,7 +143,7 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
             <div className="flex flex-wrap gap-2">
               {REASONS.map((r) => (
                 <button key={r} onClick={() => setReason(r)} aria-pressed={reason === r}
-                  className={`h-11 rounded-full px-4 font-semibold ${reason === r ? 'bg-teal-700 text-white shadow-sm' : 'border border-line bg-white'}`}>
+                  className={`h-11 rounded-full px-4 font-semibold ${reason === r ? 'bg-brand text-white shadow-sm' : 'border border-line bg-white'}`}>
                   {t(`stock.reasons.${r}`)}
                 </button>
               ))}
@@ -263,7 +263,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-[18px] bg-white p-4">
+    <section className="flex flex-col gap-3 rounded-card bg-white p-4">
       <Field label={t('itemName')} value={form.name} onChange={set('name')} />
       <div className="grid grid-cols-2 gap-2">
         <UnitSelect value={form.unit} onChange={(unit) => setForm({ ...form, unit })} />
@@ -281,7 +281,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
       )}
       {!product.isService && <BarcodeRow product={product} />}
       {!product.isService && (
-        <button type="button" onClick={() => void setOutToday(!isOutToday(product.outOn))} className="min-h-11 self-start rounded-xl border-2 border-teal-700 px-3 font-semibold text-teal-800">
+        <button type="button" onClick={() => void setOutToday(!isOutToday(product.outOn))} className="min-h-11 self-start rounded-xl border-2 border-brand px-3 font-semibold text-brand-strong">
           {isOutToday(product.outOn) ? t('stock.backOnSale') : t('stock.markOutToday')}
         </button>
       )}
@@ -289,7 +289,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={form.uncounted} onChange={(e) => setForm({ ...form, uncounted: e.target.checked })} className="h-5 w-5" />{t('stock.dontCount')}</label>
       )}
       {!product.isService && (
-        <button type="button" onClick={() => void addVariant()} className="min-h-11 self-start rounded-xl border-2 border-dashed border-teal-700 px-3 font-semibold text-teal-800">{t('styles.addVariant')}</button>
+        <button type="button" onClick={() => void addVariant()} className="min-h-11 self-start rounded-xl border-2 border-dashed border-brand px-3 font-semibold text-brand-strong">{t('styles.addVariant')}</button>
       )}
       <div className="grid grid-cols-2 gap-2">
         <Field label={t('stock.buyingCostShort')} value={form.cost} onChange={set('cost')} inputMode="decimal" />
@@ -302,14 +302,14 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
           <select aria-label={t('bag.buyIn')} value={form.purchaseUnit} onChange={set('purchaseUnit')} className="mr-2 h-12 rounded-2xl border-[1.5px] border-line bg-white px-2">
             {(['bag', 'carton', 'box', 'strip', 'bottle', 'packet', 'jar', 'set', 'dozen', 'quintal'] as const).map((u) => <option key={u} value={u}>{t(`units.${u}`)}</option>)}
           </select>
-          <input value={form.bagSize} onChange={set('bagSize')} inputMode="decimal" placeholder="50" className="h-12 w-32 rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /> {t(`units.${form.unit}`)}
+          <input value={form.bagSize} onChange={set('bagSize')} inputMode="decimal" placeholder="50" className="h-12 w-32 rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /> {t(`units.${form.unit}`)}
           <span className="mt-1 block text-xs text-muted">{t('bag.sizeHint', { unit: t(`units.${form.unit}`) })}</span>
         </label>
       )}
       {!product.isService && !['kg', 'g', 'tonne', 'quintal'].includes(form.unit) && (
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-muted">⚖️ {t('weigh.label', { unit: t(`units.${form.unit}`) })}</span>
-          <input value={form.weightKg} onChange={set('weightKg')} inputMode="decimal" placeholder="0.5" className="h-12 w-32 rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /> kg
+          <input value={form.weightKg} onChange={set('weightKg')} inputMode="decimal" placeholder="0.5" className="h-12 w-32 rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /> kg
           <span className="mt-1 block text-xs text-muted">{t('weigh.hint')}</span>
         </label>
       )}
@@ -375,7 +375,7 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
   const upload = (file: File) => run(async () => api(`/v1/products/${product.id}/image`, 'PUT', await itemPhotos(file)))
 
   return (
-    <section className="flex items-center gap-3 rounded-[18px] bg-white p-3">
+    <section className="flex items-center gap-3 rounded-card bg-white p-3">
       <div className="w-24 shrink-0">
         <ItemCard item={product} title="" compact imageUrl={url} onClick={url ? () => setViewing(true) : undefined} />
         {url && <p className="mt-1 text-center text-[11px] text-muted">{t('photo.tapToView')}</p>}
@@ -388,7 +388,7 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
       )}
       <div className="flex flex-1 flex-col gap-2">
         <span className="text-sm text-muted">{url ? t('photo.has') : t('photo.none')}</span>
-        <label className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-teal-700 px-3 font-semibold text-white ${busy ? 'opacity-50' : ''}`}>
+        <label className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-brand px-3 font-semibold text-white ${busy ? 'opacity-50' : ''}`}>
           📷 {url ? t('photo.change') : t('photo.add')}
           <input type="file" accept="image/*" capture="environment" disabled={busy} className="sr-only"
             onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = '' }} />
@@ -400,7 +400,7 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
         )}
         {product.imageCredit && <p className="text-xs text-muted">{t('photo.credit', { source: product.imageCredit })}</p>}
         {(product.photoReports ?? 0) > 0 && (
-          <div className="rounded-xl bg-amber-50 p-2 text-sm text-amber-900">
+          <div className="rounded-xl bg-warn-soft p-2 text-sm text-warn-ink">
             ⚑ {t('photo.reported', { count: product.photoReports })}{product.photoReportNote ? `: "${product.photoReportNote}"` : ''}
             <button disabled={busy} onClick={() => void run(() => request(`/v1/products/${product.id}/image/reports`, 'DELETE'))} className="ml-2 font-semibold underline">{t('photo.keep')}</button>
           </div>
@@ -409,7 +409,7 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
           <input value={barcode} onChange={(e) => setBarcode(e.target.value.replace(/\D/g, ''))} inputMode="numeric" maxLength={14} placeholder={t('photo.barcode')}
             aria-label={t('photo.barcode')} className="h-11 min-w-0 rounded-xl border border-line px-3" />
           <button disabled={busy || barcode.length < 8} onClick={() => void run(() => api(`/v1/products/${product.id}/image/barcode`, 'POST', { barcode }))}
-            className="h-11 rounded-xl border-2 border-teal-700 px-3 text-sm font-semibold text-teal-800 disabled:opacity-40">{t('photo.findByBarcode')}</button>
+            className="h-11 rounded-xl border-2 border-brand px-3 text-sm font-semibold text-brand-strong disabled:opacity-40">{t('photo.findByBarcode')}</button>
         </div>
         <p className="text-xs text-muted">{t('photo.barcodeHint')}</p>
         {error && <p className="text-sm text-due">{error}</p>}
@@ -441,11 +441,11 @@ function BarcodeRow({ product }: { product: Product }) {
       <span className="text-sm font-semibold text-muted">{t('barcodeBill.label')}</span>
       <div className={`grid gap-2 ${cameraPossible() ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-[1fr_auto]'}`}>
         <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={30} aria-label={t('barcodeBill.label')} className="h-11 min-w-0 rounded-xl border border-line px-3" />
-        {cameraPossible() && <button type="button" onClick={() => setScanning(true)} className="h-11 rounded-xl border-2 border-teal-700 px-3 font-semibold text-teal-800">{t('scan.scanIt')}</button>}
+        {cameraPossible() && <button type="button" onClick={() => setScanning(true)} className="h-11 rounded-xl border-2 border-brand px-3 font-semibold text-brand-strong">{t('scan.scanIt')}</button>}
         <button type="button" onClick={() => void save(`/v1/products/${product.id}/barcode`, 'PUT', { barcode: code })} className="h-11 rounded-xl border border-line px-3 font-semibold">{t('save')}</button>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        {!product.barcode && <button type="button" onClick={() => void save(`/v1/products/${product.id}/barcode/new`, 'POST', {})} className="min-h-11 rounded-xl border-2 border-teal-700 px-2 text-sm font-semibold text-teal-800">{t('barcodeBill.make')}</button>}
+        {!product.barcode && <button type="button" onClick={() => void save(`/v1/products/${product.id}/barcode/new`, 'POST', {})} className="min-h-11 rounded-xl border-2 border-brand px-2 text-sm font-semibold text-brand-strong">{t('barcodeBill.make')}</button>}
         <button type="button" onClick={() => navigate(`/tags/${product.id}`)} className="min-h-11 rounded-xl border border-line px-2 text-sm font-semibold">{t('tags.open')}</button>
       </div>
       {message && <p className="text-xs text-muted">{message}</p>}
@@ -464,7 +464,7 @@ export function BagCheck({ avg, size, bags, unit }: { avg: number; size: number;
   const { t } = useTranslation()
   const diff = Math.round((avg - size) * 100) / 100
   const total = Math.round((size - avg) * bags * 100) / 100
-  const tone = Math.abs(diff) < size * 0.005 ? 'bg-emerald-50 text-emerald-800' : diff < 0 ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'
+  const tone = Math.abs(diff) < size * 0.005 ? 'bg-emerald-50 text-emerald-800' : diff < 0 ? 'bg-due-soft text-red-800' : 'bg-warn-soft text-warn'
   return (
     <p className={`rounded-xl px-3 py-2 text-sm font-semibold ${tone}`}>
       ⚖ {t('bag.perBag', { avg: Math.round(avg * 100) / 100, unit })}
@@ -494,13 +494,13 @@ function BagCard({ shopId, product }: { shopId: string; product: Product }) {
     }
   }
   return (
-    <section className="flex flex-wrap items-center gap-3 rounded-[18px] bg-white p-4 shadow-sm">
-      <span aria-hidden className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-2xl">🛍️</span>
+    <section className="flex flex-wrap items-center gap-3 rounded-card bg-white p-4 shadow-sm">
+      <span aria-hidden className="flex h-12 w-12 items-center justify-center rounded-2xl bg-warn-soft text-2xl">🛍️</span>
       <span className="flex min-w-0 flex-1 flex-col">
         <b className="text-lg">{t('bag.sealed', { count: bags })}</b>
         <span className="text-sm text-muted">{t('bag.bagsOf', { size: product.bagSize, unit })} · {loose >= 0 ? t('bag.loose', { qty: loose, unit }) : t('bag.perBag', { avg: average, unit })}</span>
       </span>
-      <button onClick={() => void open()} disabled={bags <= 0} className="h-11 rounded-xl border-2 border-teal-700 px-4 font-bold text-teal-800 hover:bg-teal-50 disabled:opacity-40">✂ {t('bag.open')}</button>
+      <button onClick={() => void open()} disabled={bags <= 0} className="h-11 rounded-xl border-2 border-brand px-4 font-bold text-brand-strong hover:bg-brand-soft disabled:opacity-40">✂ {t('bag.open')}</button>
     </section>
   )
 }

@@ -41,7 +41,7 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-muted">{t('stock.stocktakeHint')}</p>
       {result && <p className="rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800">{result}</p>}
-      <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
+      <ul className="divide-y divide-[#edf2f1] rounded-card bg-white">
         {products.filter((p) => !p.uncounted).map((p) => (
           <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 lg:py-1.5">
             <span className="flex min-w-0 flex-1 flex-col">
@@ -60,7 +60,7 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
               // Desktop: the difference against the books, so a shortfall stands out while counting.
               const c = counts[p.id]?.trim()
               const diff = c ? Math.round((Number(c) - p.stock) * 1000) / 1000 : null
-              return <span className={`hidden w-20 text-right font-bold lg:block ${diff == null || isNaN(diff) ? 'text-muted' : diff < 0 ? 'text-due' : diff > 0 ? 'text-teal-800' : 'text-muted'}`}>{diff == null || isNaN(diff) ? '—' : diff > 0 ? `+${diff}` : diff}</span>
+              return <span className={`hidden w-20 text-right font-bold lg:block ${diff == null || isNaN(diff) ? 'text-muted' : diff < 0 ? 'text-due' : diff > 0 ? 'text-brand-strong' : 'text-muted'}`}>{diff == null || isNaN(diff) ? '—' : diff > 0 ? `+${diff}` : diff}</span>
             })()}
           </li>
         ))}
@@ -85,7 +85,7 @@ function StocktakeHistory() {
   const [open, setOpen] = useState<string | null>(null)
   const lines = useQuery({ queryKey: ['stocktake', open], queryFn: () => api<{ lines: TakeLine[] }>(`/v1/stocktakes/${open}`), enabled: !!open }).data
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+    <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
       <h2 className="font-bold">🗂️ {t('sl.takes')}</h2>
       {takes && takes.length === 0 && <p className="text-sm text-muted">{t('sl.noTakes')}</p>}
       {takes?.map((k) => (

@@ -48,7 +48,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
   const tone = (l: CheckLine) => {
     const c = countOf(l)
     if (c.came === '') return 'border-line'
-    return num(c.came) >= l.pending ? 'border-emerald-500 bg-emerald-50/60' : num(c.came) > 0 ? 'border-amber-500 bg-amber-50/60' : 'border-red-400 bg-red-50/60'
+    return num(c.came) >= l.pending ? 'border-emerald-500 bg-emerald-50/60' : num(c.came) > 0 ? 'border-amber-500 bg-warn-soft/60' : 'border-red-400 bg-due-soft/60'
   }
 
   function start(o: CheckOrder) {
@@ -126,13 +126,13 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
   if (!order) {
     return (
       <div className="flex flex-col gap-3 p-4">
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
           <h1 className="text-xl font-bold">🚚 {t('gi.title')}</h1>
           <p className="text-sm text-muted">{t('gi.hint')}</p>
         </section>
-        {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
         {shorts && (
-          <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+          <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
             <h2 className="font-bold">{t('gi.shortTitle', { number: shorts.order.number })}</h2>
             <p className="text-xs text-muted">{t(isOwner ? 'gi.shortHint' : 'gi.shortHintStaff')}</p>
             {shorts.lines.map((x, i) => (
@@ -143,7 +143,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
                     <select aria-label={t('gi.why')} value={x.reason} onChange={(e) => setShorts({ ...shorts, lines: shorts.lines.map((y, j) => (j === i ? { ...y, reason: e.target.value } : y)) })} className="h-10 rounded-xl border border-line bg-white px-2 text-sm">
                       {REASONS.map((r) => <option key={r} value={r}>{t(`gi.reason.${r}`)}</option>)}
                     </select>
-                    <button onClick={() => void closeShort(i)} className="h-10 rounded-xl border border-line px-3 text-sm font-semibold text-due hover:bg-red-50">{t('gi.closeShort')}</button>
+                    <button onClick={() => void closeShort(i)} className="h-10 rounded-xl border border-line px-3 text-sm font-semibold text-due hover:bg-due-soft">{t('gi.closeShort')}</button>
                   </>
                 )}
               </div>
@@ -159,12 +159,12 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
         {orders.data?.map((o) => {
           const pending = o.lines.reduce((s, l) => s + l.pending, 0)
           return (
-            <button key={o.id} onClick={() => start(o)} className="flex items-center justify-between gap-2 rounded-[18px] bg-white p-4 text-left shadow-sm hover:bg-[#f6faf9]">
+            <button key={o.id} onClick={() => start(o)} className="flex items-center justify-between gap-2 rounded-card bg-white p-4 text-left shadow-sm hover:bg-[#f6faf9]">
               <span className="flex flex-col">
                 <b>{o.supplierName} · {t('supplier2.orderNo', { number: o.number })}</b>
                 <span className="text-xs text-muted">{t('po.types', { count: o.lines.filter((l) => l.pending > 0).length })}{o.expectedOn && ` · ${t('po.expected', { date: new Date(o.expectedOn).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) })}`}</span>
               </span>
-              <span className="shrink-0 rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800">{t('supplier2.stillToCome', { qty: round(pending) })}</span>
+              <span className="shrink-0 rounded-full bg-brand-soft px-3 py-1 text-sm font-semibold text-brand-strong">{t('supplier2.stillToCome', { qty: round(pending) })}</span>
             </button>
           )
         })}
@@ -179,8 +179,8 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
   const total = order.lines.filter((l) => l.pending > 0).length
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
-        <button onClick={() => setOrderId(null)} className="self-start text-sm font-semibold text-teal-700">← {t('gi.allOrders')}</button>
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
+        <button onClick={() => setOrderId(null)} className="self-start text-sm font-semibold text-brand">← {t('gi.allOrders')}</button>
         <h1 className="text-lg font-bold">{order.supplierName} · {t('supplier2.orderNo', { number: order.number })}</h1>
         {order.note && <p className="text-xs text-muted">{order.note}</p>}
         <div className="flex items-center gap-2">
@@ -199,7 +199,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
             const c = countOf(l)
             const full = c.came !== '' && num(c.came) >= l.pending
             return (
-              <div key={l.productId} id={`gi-${l.productId}`} className={`flex flex-col gap-2 rounded-2xl border-2 bg-white p-3 shadow-sm transition ${tone(l)} ${flash === l.productId ? 'ring-2 ring-teal-600' : ''}`}>
+              <div key={l.productId} id={`gi-${l.productId}`} className={`flex flex-col gap-2 rounded-2xl border-2 bg-white p-3 shadow-sm transition ${tone(l)} ${flash === l.productId ? 'ring-2 ring-brand-line' : ''}`}>
                 <div className="flex items-center gap-3">
                   <button aria-label={t('gi.tick', { name: l.name })} aria-pressed={full} onClick={() => setCount(l.productId, { came: full ? '' : String(l.pending) })}
                     className={`grid size-12 shrink-0 place-items-center rounded-xl text-2xl font-bold ${full ? 'bg-emerald-600 text-white' : 'border-2 border-line text-transparent'}`}>✓</button>
@@ -214,13 +214,13 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
                     <input aria-label={t('gi.damaged')} value={c.damaged} onChange={(e) => setCount(l.productId, { damaged: e.target.value })} inputMode="decimal" placeholder="0" className="h-10 w-20 rounded-xl border border-line bg-white px-2 text-right" />
                   </label>
                 )}
-                {c.came !== '' && num(c.came) > l.pending && <p className="text-xs font-semibold text-amber-800">⚠ {t('po.moreThanOrdered', { name: l.name, qty: round(num(c.came) - l.pending) })}</p>}
+                {c.came !== '' && num(c.came) > l.pending && <p className="text-xs font-semibold text-warn">⚠ {t('po.moreThanOrdered', { name: l.name, qty: round(num(c.came) - l.pending) })}</p>}
               </div>
             )
           })}
         </section>
       ))}
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h2 className="text-sm font-bold">{t('gi.extraTitle')}</h2>
         <p className="text-xs text-muted">{t('gi.extraHint')}</p>
         {extras.map((e, i) => (
@@ -235,7 +235,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
       {message && <p className="text-sm text-due">{message}</p>}
       <div className="sticky bottom-2 z-10 rounded-2xl bg-white/95 p-2 shadow-lg ring-1 ring-black/5 backdrop-blur">
         <GodownPicker shopId={shopId} value={godown} onChange={setGodown} label="in" />
-        <button disabled={busy} onClick={() => void save()} className="h-12 w-full rounded-xl bg-teal-700 font-bold text-white shadow-sm hover:bg-teal-800 disabled:opacity-60">{t('gi.save')}</button>
+        <button disabled={busy} onClick={() => void save()} className="h-12 w-full rounded-xl bg-brand font-bold text-white shadow-sm hover:bg-brand-strong disabled:opacity-60">{t('gi.save')}</button>
       </div>
       {scan && <Suspense fallback={null}><ScanSheet continuous onCode={onCode} onClose={() => setScan(false)} /></Suspense>}
     </div>

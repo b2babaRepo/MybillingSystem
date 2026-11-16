@@ -114,7 +114,7 @@ export function ScanSheet({ onCode, onClose, continuous = false }: { onCode: (co
   return (
     <Sheet title={t('barcodeBill.scan')} onClose={onClose}>
       {error ? (
-        <p className="rounded-xl bg-red-50 p-3 text-sm text-due">{error}</p>
+        <p className="rounded-xl bg-due-soft p-3 text-sm text-due">{error}</p>
       ) : (
         <div className="flex flex-col gap-2">
           <div className="relative">
@@ -122,10 +122,10 @@ export function ScanSheet({ onCode, onClose, continuous = false }: { onCode: (co
             <div className="pointer-events-none absolute inset-x-[12%] top-1/2 h-0.5 -translate-y-1/2 bg-red-500/80" />
           </div>
           <p className="text-sm text-muted">{continuous ? t('scan.keepGoing') : t('scan.hint')}</p>
-          {last && <p className={`text-sm font-semibold ${last.ok ? 'text-teal-800' : 'text-due'}`}>{last.ok ? t('scan.added', { code: last.code }) : t('scan.unknown', { code: last.code })}</p>}
+          {last && <p className={`text-sm font-semibold ${last.ok ? 'text-brand-strong' : 'text-due'}`}>{last.ok ? t('scan.added', { code: last.code }) : t('scan.unknown', { code: last.code })}</p>}
           <div className="flex gap-2">
             {torch && <button type="button" onClick={() => void toggleTorch()} className="min-h-11 flex-1 rounded-xl border border-line font-semibold">{torch.on ? t('scan.torchOff') : t('scan.torchOn')}</button>}
-            {continuous && <button type="button" onClick={onClose} className="min-h-11 flex-1 rounded-xl bg-teal-700 font-semibold text-white">{t('scan.done')}</button>}
+            {continuous && <button type="button" onClick={onClose} className="min-h-11 flex-1 rounded-xl bg-brand font-semibold text-white">{t('scan.done')}</button>}
           </div>
         </div>
       )}

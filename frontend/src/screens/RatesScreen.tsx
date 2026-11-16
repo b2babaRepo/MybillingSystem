@@ -47,16 +47,16 @@ export function RatesScreen({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('rates.hint')}</p>
-      {message && <p className="rounded-[14px] bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="rounded-[14px] bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       {products.length < 5 && (
-        <button disabled={busy} onClick={() => void starter()} className="min-h-12 rounded-2xl border-2 border-teal-700 font-bold text-teal-800">
+        <button disabled={busy} onClick={() => void starter()} className="min-h-12 rounded-2xl border-2 border-brand font-bold text-brand-strong">
           {t('rates.starter')}
         </button>
       )}
       {products.length === 0 && <p className="text-muted">{t('rates.empty')}</p>}
 
       {groups.map((group) => (
-        <section key={group} className="rounded-[18px] bg-white">
+        <section key={group} className="rounded-card bg-white">
           {group && <h2 className="px-4 pt-3 text-sm font-bold text-muted">{group}</h2>}
           <ul className="divide-y divide-[#edf2f1]">
             {products.filter((p) => (p.category ?? '') === group).map((p) => {
@@ -84,7 +84,7 @@ export function RatesScreen({ shopId }: { shopId: string }) {
 
       {changed.length > 0 && (
         <button disabled={busy} onClick={() => void save()}
-          className="fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-10 mx-auto h-14 w-[calc(100%-2rem)] max-w-[34rem] rounded-2xl bg-teal-700 font-bold text-white shadow-lg">
+          className="fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-10 mx-auto h-14 w-[calc(100%-2rem)] max-w-[34rem] rounded-2xl bg-brand font-bold text-white shadow-lg">
           {t('rates.save', { count: changed.length })}
         </button>
       )}

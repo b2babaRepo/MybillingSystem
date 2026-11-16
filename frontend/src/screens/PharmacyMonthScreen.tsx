@@ -25,15 +25,15 @@ export function PharmacyMonthScreen({ shopId }: { shopId: string }) {
       <Field label={t('pmonth.month')} type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
       {m && (
         <>
-          <section className="flex flex-col gap-1 rounded-[18px] bg-white p-3">
+          <section className="flex flex-col gap-1 rounded-card bg-white p-3">
             <h3 className="font-bold">{t('pmonth.gst')}</h3>
             {row(t('pmonth.outputGst'), m.outputGst)}
             {row(t('pmonth.inputGst'), m.inputGst)}
             {row(t('pmonth.payable'), m.gstPayable, true, m.gstPayable > 0 ? 'text-due' : '')}
-            {m.creditCarried > 0 && row(t('pmonth.carried'), m.creditCarried, false, 'text-teal-800')}
+            {m.creditCarried > 0 && row(t('pmonth.carried'), m.creditCarried, false, 'text-brand-strong')}
             <p className="text-xs text-muted">{t(m.composition ? 'pmonth.compositionHint' : 'pmonth.gstHint')}</p>
           </section>
-          <section className="flex flex-col gap-1 rounded-[18px] bg-white p-3">
+          <section className="flex flex-col gap-1 rounded-card bg-white p-3">
             <h3 className="font-bold">{t('pmonth.profit')}</h3>
             {row(t('pmonth.sales'), m.sales)}
             {row(t('pmonth.salesTaxable'), m.salesTaxable)}
@@ -41,11 +41,11 @@ export function PharmacyMonthScreen({ shopId }: { shopId: string }) {
             {row(t('pmonth.gross', { percent: m.marginPercent }), m.grossProfit, true)}
             {row(t('pmonth.expiryLoss'), m.expiryLoss, false, m.expiryLoss > 0 ? 'text-due' : '')}
             {row(t('pmonth.afterExpiry'), m.profitAfterExpiry, true)}
-            {m.expiredOnShelf > 0 && <p className="rounded-xl bg-red-50 p-2 text-sm text-due">{t('pmonth.expiredOnShelf', { value: formatRupees(m.expiredOnShelf) })}</p>}
-            {m.linesWithoutCost > 0 && <p className="rounded-xl bg-amber-50 p-2 text-sm">{t('pmonth.noCost', { count: m.linesWithoutCost })}</p>}
+            {m.expiredOnShelf > 0 && <p className="rounded-xl bg-due-soft p-2 text-sm text-due">{t('pmonth.expiredOnShelf', { value: formatRupees(m.expiredOnShelf) })}</p>}
+            {m.linesWithoutCost > 0 && <p className="rounded-xl bg-warn-soft p-2 text-sm">{t('pmonth.noCost', { count: m.linesWithoutCost })}</p>}
             {row(t('pmonth.purchases'), m.purchases)}
           </section>
-          <section className="flex flex-col gap-1 rounded-[18px] bg-white p-3">
+          <section className="flex flex-col gap-1 rounded-card bg-white p-3">
             <h3 className="font-bold">{t('pmonth.receipts')}</h3>
             {row(t('cash'), m.cashReceipts)}
             {row(t('pmonth.digital'), m.digitalReceipts)}

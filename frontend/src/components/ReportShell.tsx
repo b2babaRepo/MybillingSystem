@@ -28,7 +28,7 @@ export const change = (now: number, before: number | undefined | null) =>
 export function Delta({ value, invert = false, className = '' }: { value: number | null | undefined; invert?: boolean; className?: string }) {
   if (value === null || value === undefined || !Number.isFinite(value)) return null
   const good = invert ? value <= 0 : value >= 0
-  return <span className={`font-semibold ${good ? 'text-teal-700' : 'text-orange-700'} ${className}`}>{value >= 0 ? '▲' : '▼'} {Math.abs(value)}%</span>
+  return <span className={`font-semibold ${good ? 'text-brand' : 'text-orange-700'} ${className}`}>{value >= 0 ? '▲' : '▼'} {Math.abs(value)}%</span>
 }
 
 /**
@@ -96,10 +96,10 @@ export function UpDownBars({ days, average, label }: { days: { date: string; sal
   const y = (v: number) => 200 - (v / peak) * 185
   const best = days.reduce((a, d) => (d.sales > (a?.sales ?? -1) ? d : a), days[0])
   return (
-    <figure className="m-0 flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm print:shadow-none">
+    <figure className="m-0 flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm print:shadow-none">
       <figcaption className="flex flex-wrap items-baseline justify-between gap-2">
         <b>{label}</b>
-        <span className="text-xs text-muted"><span className="text-teal-700">■</span> {t('rv.up')} · <span className="text-orange-700">■</span> {t('rv.down')}{average ? ` · ${t('rv.avgLine')}` : ''}</span>
+        <span className="text-xs text-muted"><span className="text-brand">■</span> {t('rv.up')} · <span className="text-orange-700">■</span> {t('rv.down')}{average ? ` · ${t('rv.avgLine')}` : ''}</span>
       </figcaption>
       <svg viewBox="0 0 700 220" className="h-auto w-full" role="img" aria-label={best ? t('rv.bestDay', { date: best.date, amount: formatRupees(best.sales) }) : label}>
         <line x1="0" y1="200" x2="700" y2="200" stroke="#d5e0de" />

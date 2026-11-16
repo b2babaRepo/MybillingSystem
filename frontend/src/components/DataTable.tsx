@@ -41,7 +41,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, renderCard, fo
   return (
     <>
       {renderCard && <div className="lg:hidden">{sorted.map((row) => <div key={rowKey(row)}>{renderCard(row)}</div>)}</div>}
-      <div className={`${renderCard ? 'hidden lg:block' : ''} overflow-x-auto rounded-[18px] bg-white`}>
+      <div className={`${renderCard ? 'hidden lg:block' : ''} overflow-x-auto rounded-card bg-white`}>
         <table className="w-full text-[15px]" aria-label={label}>
           <thead className="sticky top-0 bg-white">
             <tr className="border-b border-line text-[13px] text-muted">
@@ -64,7 +64,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, renderCard, fo
               const key = rowKey(row)
               return (
                 <tr key={key} onClick={onRowClick && (() => onRowClick(row))}
-                  className={`border-b border-[#edf2f1] last:border-0 ${onRowClick ? 'cursor-pointer hover:bg-[#f6faf9]' : ''} ${selectedKey === key ? 'bg-teal-50' : ''}`}>
+                  className={`border-b border-[#edf2f1] last:border-0 ${onRowClick ? 'cursor-pointer hover:bg-[#f6faf9]' : ''} ${selectedKey === key ? 'bg-brand-soft' : ''}`}>
                   {columns.map((c) => <td key={c.key} className={`px-3 py-2 ${alignClass(c.align)}`}>{c.render(row)}</td>)}
                 </tr>
               )

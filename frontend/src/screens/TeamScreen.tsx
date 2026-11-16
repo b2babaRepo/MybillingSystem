@@ -54,7 +54,7 @@ function useRun() {
 function Header({ title, back }: { title: string; back: string }) {
   const { t } = useTranslation()
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-800 px-4 py-3 text-white">
+    <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand-strong px-4 py-3 text-white">
       <button onClick={() => navigate(back)} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}><BackIcon /></button>
       <h1 className="truncate text-xl font-bold">{title}</h1>
     </header>
@@ -98,7 +98,7 @@ function MyTeams({ userName }: { userName: string }) {
       <div className="flex flex-col gap-3 p-4">
         <p className="text-sm text-muted">{t('team.intro')}</p>
         {teams.map((x) => (
-          <button key={x.id} onClick={() => navigate(`/team/${x.id}`)} className="flex items-center justify-between rounded-[18px] bg-white p-4 text-left shadow-sm">
+          <button key={x.id} onClick={() => navigate(`/team/${x.id}`)} className="flex items-center justify-between rounded-card bg-white p-4 text-left shadow-sm">
             <span className="flex flex-col"><b className="text-lg">{x.name}</b><span className="text-sm text-muted">{t('team.people', { count: x.members })} · {t(`team.role.${x.myRole}`)}</span></span>
             <span className="text-right"><span className="block text-xs text-muted">{t('team.thisMonth')}</span><b>{formatRupees(x.thisMonth)}</b></span>
           </button>
@@ -123,7 +123,7 @@ function MyTeams({ userName }: { userName: string }) {
             navigate(`/team/${team.id}`)
           })}>{t('team.createButton')}</Button>
         </section>
-        {message && <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{message}</p>}
+        {message && <p className="rounded-xl bg-due-soft p-3 text-sm font-semibold text-red-800">{message}</p>}
       </div>
     </div>
   )
@@ -142,13 +142,13 @@ function JoinTeam({ code, userName }: { code: string; userName: string }) {
     <div className="mx-auto min-h-dvh max-w-md pb-10">
       <Header title={t('team.join')} back="/team" />
       <div className="flex flex-col gap-3 p-4">
-        {preview.isError && <p className="rounded-xl bg-red-50 p-3 font-semibold text-red-800">{preview.error.message}</p>}
+        {preview.isError && <p className="rounded-xl bg-due-soft p-3 font-semibold text-red-800">{preview.error.message}</p>}
         {p && (
           <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
             <span className="text-2xl font-extrabold">{p.name}</span>
             <span className="text-sm text-muted">{t('team.madeBy', { name: p.createdBy, count: p.members })}</span>
             <label className="flex flex-col gap-1"><span className="text-sm text-muted">{t('team.yourName')}</span>
-              <input value={yourName} onChange={(e) => setYourName(e.target.value)} className="h-12 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
+              <input value={yourName} onChange={(e) => setYourName(e.target.value)} className="h-12 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
             <Consent checked={consent} onChange={setConsent} />
             <Button disabled={busy || !consent} onClick={() => void run(async () => {
               const team = await api<Team>('/v1/teams/join', 'POST', { code, yourName: yourName.trim(), consent })
@@ -157,7 +157,7 @@ function JoinTeam({ code, userName }: { code: string; userName: string }) {
             })}>{t('team.joinButton', { name: p.name })}</Button>
           </section>
         )}
-        {message && <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{message}</p>}
+        {message && <p className="rounded-xl bg-due-soft p-3 text-sm font-semibold text-red-800">{message}</p>}
       </div>
     </div>
   )
@@ -187,11 +187,11 @@ function TeamBook({ id }: { id: string }) {
       <div className="flex flex-col gap-3 p-4">
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-white p-1 text-sm font-semibold">
           {(['day', 'month', 'advance', 'people'] as const).map((v) => (
-            <button key={v} role="tab" aria-selected={tab === v} onClick={() => setTab(v)} className={`min-h-11 rounded-xl ${tab === v ? 'bg-teal-700 text-white' : ''}`}>{t(`team.tab.${v}`)}</button>
+            <button key={v} role="tab" aria-selected={tab === v} onClick={() => setTab(v)} className={`min-h-11 rounded-xl ${tab === v ? 'bg-brand text-white' : ''}`}>{t(`team.tab.${v}`)}</button>
           ))}
         </div>
-        {x.pending > 0 && <p className="rounded-xl bg-amber-100 p-3 text-sm font-semibold text-amber-900">⏳ {t('team.pendingBanner', { count: x.pending })}</p>}
-        {x.viewLinkOn && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">🔗 {t('team.viewOnNotice')}</p>}
+        {x.pending > 0 && <p className="rounded-xl bg-amber-100 p-3 text-sm font-semibold text-warn-ink">⏳ {t('team.pendingBanner', { count: x.pending })}</p>}
+        {x.viewLinkOn && <p className="rounded-xl bg-warn-soft p-3 text-sm text-warn-ink">🔗 {t('team.viewOnNotice')}</p>}
         {tab === 'day' && <TeamDay team={x} />}
         {tab === 'month' && <TeamMonth team={x} />}
         {tab === 'advance' && <TeamAdvances team={x} />}
@@ -241,7 +241,7 @@ function TeamDay({ team }: { team: Team }) {
 
   return (
     <>
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{isToday ? t('team.today') : new Date(`${day}T00:00:00`).toLocaleDateString(shownLocale(), { weekday: 'short', day: 'numeric', month: 'short' })}</span>
         <button onClick={() => setDay(shiftDay(day, 1))} disabled={isToday} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -251,15 +251,15 @@ function TeamDay({ team }: { team: Team }) {
         <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4">
           <div className="grid grid-cols-[1fr_2fr] gap-2">
             <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^\d.]/g, '') })} inputMode="decimal" placeholder="₹" aria-label={t('team.amount')} className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg font-bold" />
-            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={t('team.notePlaceholder')} aria-label={t('team.note')} className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={t('team.notePlaceholder')} aria-label={t('team.note')} className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             {(['cash', 'upi'] as const).map((m) => (
               <button key={m} onClick={() => setForm({ ...form, mode: m })} aria-pressed={form.mode === m}
-                className={`min-h-11 rounded-xl font-semibold ${form.mode === m ? 'bg-teal-700 text-white' : 'border border-line'}`}>{m === 'cash' ? t('team.cash') : 'UPI'}</button>
+                className={`min-h-11 rounded-xl font-semibold ${form.mode === m ? 'bg-brand text-white' : 'border border-line'}`}>{m === 'cash' ? t('team.cash') : 'UPI'}</button>
             ))}
           </div>
-          <label className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border text-sm font-semibold ${form.photo ? 'border-teal-700 bg-teal-50 text-teal-900' : 'border-dashed border-line'}`}>
+          <label className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border text-sm font-semibold ${form.photo ? 'border-brand bg-brand-soft text-brand-deep' : 'border-dashed border-line'}`}>
             📷 {form.photo ? t('team.photoAdded') : t('team.addPhoto')}
             <input type="file" accept="image/*" capture="environment" className="sr-only"
               onChange={(e) => { const file = e.target.files?.[0]; if (file) void shrinkPhoto(file, 1024, 140_000, false).then((url) => setForm((f) => ({ ...f, photo: url }))) }} />
@@ -273,7 +273,7 @@ function TeamDay({ team }: { team: Team }) {
           {team.approvalAbove && !manages && <p className="text-xs text-muted">{t('team.approvalNote', { amount: formatRupees(team.approvalAbove) })}</p>}
           {manages && (
             <label className="flex items-center gap-2 text-sm"><span className="text-muted">{t('team.spentBy')}</span>
-              <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} className="h-11 flex-1 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
+              <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} className="h-11 flex-1 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10">
                 {team.members.filter((m) => m.role !== 'viewer').map((m) => <option key={m.id} value={m.id}>{m.isMe ? t('team.me', { name: m.name }) : m.name}</option>)}
               </select>
             </label>
@@ -286,7 +286,7 @@ function TeamDay({ team }: { team: Team }) {
       {page && (
         <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
           <div className="flex items-baseline justify-between"><h2 className="font-bold">{t('team.byName')}</h2><span className="text-2xl font-extrabold">{formatRupees(page.total)}</span></div>
-          {page.pendingTotal > 0 && <p className="text-sm font-semibold text-amber-800">⏳ {t('team.pendingTotal', { amount: formatRupees(page.pendingTotal) })}</p>}
+          {page.pendingTotal > 0 && <p className="text-sm font-semibold text-warn">⏳ {t('team.pendingTotal', { amount: formatRupees(page.pendingTotal) })}</p>}
           {page.byName.length === 0 ? <p className="text-sm text-muted">{t('team.nothing')}</p> : <NameBars rows={page.byName} />}
           {page.byName.length > 0 && (
             <a href={whatsAppLink(null, [
@@ -299,14 +299,14 @@ function TeamDay({ team }: { team: Team }) {
           )}
           <ul className="divide-y divide-[#edf2f1] text-sm">
             {page.lines.map((l) => (
-              <li key={l.id} className={`flex items-center justify-between gap-2 py-2 ${l.struckAt ? 'text-muted line-through' : ''} ${l.pending ? 'rounded-lg bg-amber-50 px-2' : ''}`}>
+              <li key={l.id} className={`flex items-center justify-between gap-2 py-2 ${l.struckAt ? 'text-muted line-through' : ''} ${l.pending ? 'rounded-lg bg-warn-soft px-2' : ''}`}>
                 <span className="min-w-0">{l.fromAdvance && <span title={t('team.fromAdvanceShort')}>💼 </span>}<b>{l.memberName === 'Former member' ? t('team.former') : l.memberName}</b> · {l.note ?? t(`expense.cat.${l.category}`)} · {l.mode === 'upi' ? 'UPI' : t('team.cash')}
                   {l.writtenBy && <span className="block text-xs text-muted">{t('team.writtenBy', { name: l.writtenBy })}{l.approvedBy ? ` · ${t('team.okBy', { name: l.approvedBy })}` : ''}{l.struckReason ? ` · ${l.struckReason}` : ''}</span>}
-                  {l.pending && <span className="block text-xs font-semibold text-amber-800">⏳ {t('team.waiting')}</span>}</span>
+                  {l.pending && <span className="block text-xs font-semibold text-warn">⏳ {t('team.waiting')}</span>}</span>
                 <span className="flex items-center gap-2"><b>{formatRupees(l.amount)}</b>
                   {l.hasPhoto && <button onClick={() => void openPhoto(team.id, l.id)} aria-label={t('team.seePhoto')} className="h-9 w-9 rounded-lg border border-line">📷</button>}
                   {l.canApprove && <button disabled={busy} onClick={() => void run(async () => { await api(`/v1/teams/${team.id}/expenses/${l.id}/approve`, 'POST', {}); await queryClient.invalidateQueries({ queryKey: ['team', team.id] }) })}
-                    className="h-9 rounded-lg bg-teal-700 px-2 text-xs font-bold text-white">{t('team.ok')}</button>}
+                    className="h-9 rounded-lg bg-brand px-2 text-xs font-bold text-white">{t('team.ok')}</button>}
                   {l.canStrike && <button onClick={async () => { const reason = (await ask(t('team.strikeAsk'))); if (reason !== null) void run(async () => { await api(`/v1/teams/${team.id}/expenses/${l.id}/strike`, 'POST', { reason }); await queryClient.invalidateQueries({ queryKey: ['team', team.id] }) }) }}
                     aria-label={t('team.strike')} className="h-9 w-9 rounded-lg border border-line text-due">✕</button>}</span>
               </li>
@@ -331,7 +331,7 @@ function TeamMonth({ team }: { team: Team }) {
   ].filter(Boolean).join('\n')
   return (
     <>
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
+      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
         <span className="text-lg font-bold">{monthLabel(month)}</span>
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= thisMonth()} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
@@ -377,7 +377,7 @@ function TeamPeople({ team }: { team: Team }) {
             {team.myRole === 'owner' && !m.isMe && m.role !== 'owner' && m.hasLogin && (
               <select aria-label={t('team.roleLabel')} value={m.role} disabled={busy}
                 onChange={(e) => void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/members/${m.id}/role`, 'PUT', { role: e.target.value })))}
-                className="h-11 rounded-xl border border-line bg-white px-2 text-sm outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
+                className="h-11 rounded-xl border border-line bg-white px-2 text-sm outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10">
                 {(['admin', 'member', 'viewer'] as const).map((r) => <option key={r} value={r}>{t(`team.role.${r}`)}</option>)}
               </select>
             )}
@@ -396,13 +396,13 @@ function TeamPeople({ team }: { team: Team }) {
           <label className="flex items-center gap-2 text-sm"><span className="flex-1">{t('team.approvalAbove')}</span>
             <input defaultValue={team.approvalAbove ?? ''} inputMode="numeric" placeholder={t('team.none')} aria-label={t('team.approvalAbove')}
               onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); if (String(team.approvalAbove ?? '') !== v) void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/rules`, 'PUT', { approvalAbove: v ? Number(v) : null }))) }}
-              className="h-11 w-28 rounded-xl border border-line px-2 text-right bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></label>
+              className="h-11 w-28 rounded-xl border border-line px-2 text-right bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
           {team.members.filter((m) => m.role !== 'owner' && m.role !== 'viewer').map((m) => (
             <label key={m.id} className="flex flex-col gap-1 text-sm">
               <span className="flex items-center gap-2"><span className="flex-1">{t('team.limitFor', { name: m.name })}</span>
                 <input defaultValue={m.monthlyLimit ?? ''} inputMode="numeric" placeholder={t('team.none')} aria-label={t('team.limitFor', { name: m.name })}
                   onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); if (String(m.monthlyLimit ?? '') !== v) void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/members/${m.id}/limit`, 'PUT', { monthlyLimit: v ? Number(v) : null }))) }}
-                  className="h-11 w-28 rounded-xl border border-line px-2 text-right bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" /></span>
+                  className="h-11 w-28 rounded-xl border border-line px-2 text-right bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></span>
               {m.monthlyLimit && (
                 <span className="flex items-center gap-2 text-xs text-muted">
                   <span className="h-2 flex-1 rounded-full bg-ground"><span className={`block h-2 rounded-full ${m.spentThisMonth > m.monthlyLimit ? 'bg-red-500' : 'bg-teal-600'}`} style={{ width: `${Math.min(100, (m.spentThisMonth / m.monthlyLimit) * 100)}%` }} /></span>
@@ -428,13 +428,13 @@ function TeamPeople({ team }: { team: Team }) {
           <h2 className="mt-2 font-bold">{t('team.namedTitle')}</h2>
           <p className="text-xs text-muted">{t('team.namedHint')}</p>
           <div className="flex gap-2">
-            <input value={named} onChange={(e) => setNamed(e.target.value)} placeholder={t('team.namedPlaceholder')} aria-label={t('team.namedTitle')} className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+            <input value={named} onChange={(e) => setNamed(e.target.value)} placeholder={t('team.namedPlaceholder')} aria-label={t('team.namedTitle')} className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
             <button disabled={busy || named.trim().length < 2} onClick={() => void run(async () => { refresh(await api<Team>(`/v1/teams/${team.id}/members`, 'POST', { name: named.trim() })); setNamed('') })}
-              className="h-12 rounded-xl bg-teal-700 px-4 font-bold text-white disabled:opacity-40">{t('team.addNamed')}</button>
+              className="h-12 rounded-xl bg-brand px-4 font-bold text-white disabled:opacity-40">{t('team.addNamed')}</button>
           </div>
         </section>
       )}
-      {manages && full && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t('team.full', { max: team.maxMembers })}</p>}
+      {manages && full && <p className="rounded-xl bg-warn-soft p-3 text-sm text-warn-ink">{t('team.full', { max: team.maxMembers })}</p>}
 
       {team.myRole === 'owner' && (
         <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4">
@@ -467,7 +467,7 @@ function TeamPeople({ team }: { team: Team }) {
           </div>
         </section>
       )}
-      {message && <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{message}</p>}
+      {message && <p className="rounded-xl bg-due-soft p-3 text-sm font-semibold text-red-800">{message}</p>}
     </>
   )
 }
@@ -516,15 +516,15 @@ function TeamAdvances({ team }: { team: Team }) {
           <div className="grid grid-cols-2 gap-2">
             {(['given', 'returned'] as const).map((k) => (
               <button key={k} onClick={() => setForm({ ...form, kind: k })} aria-pressed={form.kind === k}
-                className={`min-h-11 rounded-xl font-semibold ${form.kind === k ? 'bg-teal-700 text-white' : 'border border-line'}`}>{t(`team.advanceKind.${k}`)}</button>
+                className={`min-h-11 rounded-xl font-semibold ${form.kind === k ? 'bg-brand text-white' : 'border border-line'}`}>{t(`team.advanceKind.${k}`)}</button>
             ))}
           </div>
-          <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} aria-label={t('team.spentBy')} className="h-12 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10">
+          <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} aria-label={t('team.spentBy')} className="h-12 rounded-xl border border-line bg-white px-2 outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10">
             {people.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
           <div className="grid grid-cols-[1fr_2fr] gap-2">
             <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^\d.]/g, '') })} inputMode="decimal" placeholder="₹" aria-label={t('team.amount')} className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg font-bold" />
-            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={t('team.advanceNote')} aria-label={t('team.note')} className="h-12 min-w-0 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10" />
+            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={t('team.advanceNote')} aria-label={t('team.note')} className="h-12 min-w-0 rounded-xl border border-line px-3 bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
           </div>
           <Button disabled={busy || !(Number(form.amount) > 0)} onClick={() => void run(async () => {
             save(await api<Advances>(`/v1/teams/${team.id}/advances`, 'POST', { ...form, amount: Number(form.amount), note: form.note.trim() || null }))

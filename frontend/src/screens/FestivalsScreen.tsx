@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/ui'
+import { Button, controlSm } from '../components/ui'
 import { api } from '../lib/api'
 import { navigate } from '../router'
 
@@ -10,7 +10,7 @@ interface FestivalItem { productId: string; name: string; category: string | nul
 interface Festival { key: string; name: string; date: string; daysLeft: number; changed: boolean; basis: 'last_year' | 'usual_items'; items: FestivalItem[] }
 interface Supplier { id: string; name: string; isActive?: boolean }
 
-const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
+const input = controlSm
 const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 
 /** Home: the next festival coming, with how many items to stock up on. */
@@ -20,7 +20,7 @@ export function FestivalCard({ shopId }: { shopId: string }) {
   if (!next) return null
   const toOrder = next.items.filter((i) => i.suggest > 0).length
   return (
-    <button onClick={() => navigate('/festivals')} className="flex items-center gap-3 rounded-[18px] bg-amber-50 p-4 text-left shadow-sm">
+    <button onClick={() => navigate('/festivals')} className="flex items-center gap-3 rounded-card bg-warn-soft p-4 text-left shadow-sm">
       <span className="text-2xl" aria-hidden>🪔</span>
       <span className="flex-1">
         <span className="block font-bold">{t('fest.coming', { name: next.name, count: next.daysLeft })}</span>
@@ -76,19 +76,19 @@ export function FestivalsScreen({ shopId, isOwner }: { shopId: string; isOwner: 
         <p className="text-sm text-muted">{t('fest.hint')}</p>
       </header>
       {festivals.length === 0 && <p className="rounded-xl bg-white p-4 text-sm text-muted shadow-sm">{t('fest.none')}</p>}
-      {message && <p className="text-sm text-teal-800">{message}</p>}
+      {message && <p className="text-sm text-brand-strong">{message}</p>}
       {festivals.map((f) => {
         const muted = isOff(f)
         const ordering = f.items.some((i) => amount(f, i) > 0)
         return (
-          <section key={`${f.key}${f.date}`} className={`flex flex-col gap-2 rounded-[18px] bg-white p-4 shadow-sm ${muted ? 'opacity-60' : ''}`}>
+          <section key={`${f.key}${f.date}`} className={`flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm ${muted ? 'opacity-60' : ''}`}>
             <div className="flex items-start justify-between gap-2">
               <div>
                 <h2 className="text-lg font-bold">🪔 {f.name}</h2>
                 <p className="text-sm text-muted">{day(f.date)} · {t('fest.inDays', { count: f.daysLeft })}{muted ? ` · ${t('fest.off')}` : ''}</p>
               </div>
               {isOwner && (
-                <div className="flex flex-col items-end gap-1 text-xs font-semibold text-teal-700">
+                <div className="flex flex-col items-end gap-1 text-xs font-semibold text-brand">
                   <button onClick={() => { setEditing(editing === f.key ? null : f.key); setDate(f.date) }}>{t('fest.changeDate')}</button>
                   <button onClick={() => void setting(f, { off: !muted })}>{muted ? t('fest.turnOn') : t('fest.turnOff')}</button>
                 </div>

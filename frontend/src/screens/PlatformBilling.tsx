@@ -78,7 +78,7 @@ export function AgentPanel({ role }: { role: AdminRole }) {
             <div className="grid grid-cols-2 gap-2">
               <button disabled={busy || (s.kind === 'extend_trial' && role !== 'super' && role !== 'approver')}
                 onClick={() => void run(() => api(`/v1/platform/agent/suggestions/${s.id}/approve`, 'POST', {}), t('agent.done'))}
-                className="min-h-11 rounded-xl bg-teal-700 font-bold text-white disabled:opacity-40">{s.kind === 'extend_trial' ? t('agent.extend', { days: s.days }) : t('agent.markDone')}</button>
+                className="min-h-11 rounded-xl bg-brand font-bold text-white disabled:opacity-40">{s.kind === 'extend_trial' ? t('agent.extend', { days: s.days }) : t('agent.markDone')}</button>
               <button disabled={busy} onClick={() => void run(() => api(`/v1/platform/agent/suggestions/${s.id}/reject`, 'POST', {}))}
                 className="min-h-11 rounded-xl border border-line font-semibold">{t('agent.dismiss')}</button>
             </div>
@@ -90,7 +90,7 @@ export function AgentPanel({ role }: { role: AdminRole }) {
           {t('agent.runNow')}
         </button>
       )}
-      {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
     </Collapsible>
   )
 }
@@ -123,7 +123,7 @@ export function BillingPanel() {
               <span className="font-mono">UTR {c.upiRef} · {formatDateTime(c.createdAt)}</span>
               <div className="grid grid-cols-2 gap-2">
                 <button disabled={busy} onClick={() => void run(() => api(`/v1/platform/claims/${c.id}/confirm`, 'POST', {}), t('billing.confirmed'))}
-                  className="min-h-11 rounded-xl bg-teal-700 font-bold text-white">{t('billing.confirm')}</button>
+                  className="min-h-11 rounded-xl bg-brand font-bold text-white">{t('billing.confirm')}</button>
                 <button disabled={busy} onClick={async () => { const note = (await ask(t('billing.rejectAsk'))); if (note !== null) void run(() => api(`/v1/platform/claims/${c.id}/reject`, 'POST', { note })) }}
                   className="min-h-11 rounded-xl border border-line font-semibold text-red-700">{t('billing.reject')}</button>
               </div>
@@ -153,11 +153,11 @@ export function BillingPanel() {
           {(['monthly', 'year1', 'year3', 'year5'] as const).map((x) => <option key={x} value={x}>{t(`plan2.term.${x}`)}</option>)}
         </select>
         <label className="col-span-2 flex min-h-11 items-center gap-2"><input type="checkbox" checked={newOffer.newShopsOnly} onChange={(e) => setNewOffer({ ...newOffer, newShopsOnly: e.target.checked })} className="h-5 w-5" />{t('billing.newOnly')}</label>
-        <button disabled={busy || newOffer.code.length < 4 || !newOffer.title || !newOffer.price} className="col-span-2 min-h-11 rounded-xl bg-teal-700 font-bold text-white disabled:opacity-40"
+        <button disabled={busy || newOffer.code.length < 4 || !newOffer.title || !newOffer.price} className="col-span-2 min-h-11 rounded-xl bg-brand font-bold text-white disabled:opacity-40"
           onClick={() => void run(() => api('/v1/platform/offers', 'POST', { ...newOffer, price: Number(newOffer.price) }), t('billing.offerAdded'))}>{t('billing.addOffer')}</button>
       </div>
 
-      {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
     </Collapsible>
   )
 }
@@ -187,11 +187,11 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
   const paid = view.status === 'active' || view.status === 'grace'
   const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '')
   const tone: Record<string, string> = {
-    active: 'bg-emerald-50 text-emerald-900', grace: 'bg-amber-50 text-amber-900', trial: 'bg-teal-50 text-teal-900',
-    complimentary: 'bg-violet-50 text-violet-900', on_hold: 'bg-red-50 text-red-900', free: 'bg-white text-ink',
+    active: 'bg-emerald-50 text-emerald-900', grace: 'bg-warn-soft text-warn-ink', trial: 'bg-brand-soft text-brand-deep',
+    complimentary: 'bg-violet-50 text-violet-900', on_hold: 'bg-due-soft text-red-900', free: 'bg-white text-ink',
   }
   const stepTitle = (n: number, label: string) => (
-    <span className="flex items-center gap-2 font-bold"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-700 text-sm text-white">{n}</span>{label}</span>
+    <span className="flex items-center gap-2 font-bold"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-sm text-white">{n}</span>{label}</span>
   )
   const billText = (p: Payment) => t('billing.waBill', {
     shop: shopName, invoice: p.invoiceNo, plan: planName(p.planCode), term: t(`plan2.term.${p.term}`), amount: formatRupees(p.amount),
@@ -240,19 +240,19 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
       {/* Taking a payment, one step at a time */}
       {money && step === 0 && (
         <button onClick={() => { setPay({ planCode: '', term: 'year1', method: 'cash', reference: '' }); setDone(null); setStep(1) }}
-          className="min-h-12 rounded-xl bg-teal-700 text-base font-bold text-white">{paid ? t('billing.renew') : t('billing.takePayment')}</button>
+          className="min-h-12 rounded-xl bg-brand text-base font-bold text-white">{paid ? t('billing.renew') : t('billing.takePayment')}</button>
       )}
 
       {money && step >= 1 && step <= 4 && (
         <div className="flex flex-col gap-3 rounded-xl bg-white p-3">
-          <div className="flex gap-1" aria-hidden="true">{[1, 2, 3, 4].map((n) => <span key={n} className={`h-1.5 flex-1 rounded-full ${n <= step ? 'bg-teal-700' : 'bg-line'}`} />)}</div>
+          <div className="flex gap-1" aria-hidden="true">{[1, 2, 3, 4].map((n) => <span key={n} className={`h-1.5 flex-1 rounded-full ${n <= step ? 'bg-brand' : 'bg-line'}`} />)}</div>
 
           {step === 1 && <>
             {stepTitle(1, t('billing.step.plan'))}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {plans.map((p) => (
                 <button key={p.code} onClick={() => { setPay({ ...pay, planCode: p.code }); setStep(2) }}
-                  className={`flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left ${pay.planCode === p.code ? 'border-teal-700 bg-teal-50' : 'border-line'}`}>
+                  className={`flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left ${pay.planCode === p.code ? 'border-brand bg-brand-soft' : 'border-line'}`}>
                   <span className="text-lg font-extrabold">{p.name}</span>
                   <span className="font-semibold">{formatRupees(p.priceYear1 ?? 0)}/{t('plan2.year')}</span>
                   <span className="text-xs text-muted">{p.features.map((f) => t(`plan2.feature.${f}`)).join(' · ')}</span>
@@ -268,7 +268,7 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
                 const price = priceFor(chosen, x)
                 return price === null ? null : (
                   <button key={x} onClick={() => { setPay({ ...pay, term: x }); setStep(3) }}
-                    className={`flex min-h-16 flex-col items-center justify-center rounded-xl border-2 font-semibold ${pay.term === x ? 'border-teal-700 bg-teal-50' : 'border-line'}`}>
+                    className={`flex min-h-16 flex-col items-center justify-center rounded-xl border-2 font-semibold ${pay.term === x ? 'border-brand bg-brand-soft' : 'border-line'}`}>
                     <span>{t(`plan2.term.${x}`)}</span>
                     <span className="text-lg font-extrabold">{formatRupees(price)}</span>
                     {x === 'year5' && <span className="text-xs text-muted">{t('billing.perYear5')}</span>}
@@ -283,13 +283,13 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
             <div className="grid grid-cols-3 gap-2">
               {['cash', 'upi', 'bank'].map((m) => (
                 <button key={m} onClick={() => setPay({ ...pay, method: m })}
-                  className={`min-h-12 rounded-xl border-2 font-semibold ${pay.method === m ? 'border-teal-700 bg-teal-50' : 'border-line'}`}>{t(`billing.methods.${m}`)}</button>
+                  className={`min-h-12 rounded-xl border-2 font-semibold ${pay.method === m ? 'border-brand bg-brand-soft' : 'border-line'}`}>{t(`billing.methods.${m}`)}</button>
               ))}
             </div>
             <label className="flex flex-col gap-1"><span className="text-xs text-muted">{pay.method === 'cash' ? t('billing.receiptOptional') : t('billing.utrNeeded')}</span>
               <input value={pay.reference} onChange={(e) => setPay({ ...pay, reference: e.target.value })} className="h-12 rounded-xl border border-line px-3 text-base" /></label>
             <button disabled={pay.method !== 'cash' && pay.reference.trim().length < 6} onClick={() => setStep(4)}
-              className="min-h-12 rounded-xl bg-teal-700 font-bold text-white disabled:opacity-40">{t('billing.next')}</button>
+              className="min-h-12 rounded-xl bg-brand font-bold text-white disabled:opacity-40">{t('billing.next')}</button>
           </>}
 
           {step === 4 && chosen && amount !== null && <>
@@ -301,11 +301,11 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
               <dt className="text-muted">{t('plan2.toPay')}</dt><dd className="text-xl font-extrabold">{formatRupees(amount)}</dd>
             </dl>
             <p className="text-xs text-muted">{paid ? t('billing.addsOn', { date: date(view.endsAt) }) : t('billing.startsToday')}</p>
-            <button disabled={busy} onClick={() => void record()} className="min-h-12 rounded-xl bg-teal-700 text-base font-bold text-white">{t('billing.recordAmount', { amount: formatRupees(amount) })}</button>
+            <button disabled={busy} onClick={() => void record()} className="min-h-12 rounded-xl bg-brand text-base font-bold text-white">{t('billing.recordAmount', { amount: formatRupees(amount) })}</button>
           </>}
 
           <div className="flex justify-between">
-            <button onClick={() => setStep(step === 1 ? 0 : ((step - 1) as 1 | 2 | 3))} className="min-h-11 px-2 font-semibold text-teal-700">{step === 1 ? t('plans.cancel') : t('billing.back')}</button>
+            <button onClick={() => setStep(step === 1 ? 0 : ((step - 1) as 1 | 2 | 3))} className="min-h-11 px-2 font-semibold text-brand">{step === 1 ? t('plans.cancel') : t('billing.back')}</button>
           </div>
         </div>
       )}
@@ -323,7 +323,7 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
 
       {/* Rarer actions */}
       {(money || approve) && (
-        <button onClick={() => setMore(!more)} aria-expanded={more} className="min-h-11 self-start font-semibold text-teal-700">{more ? '−' : '+'} {t('billing.more')}</button>
+        <button onClick={() => setMore(!more)} aria-expanded={more} className="min-h-11 self-start font-semibold text-brand">{more ? '−' : '+'} {t('billing.more')}</button>
       )}
       {more && (
         <div className="grid grid-cols-2 gap-2">
@@ -346,13 +346,13 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
               if (reason) void run(() => api(`/v1/platform/shops/${shopId}/complimentary`, 'POST', { planCode: compPlan, months: months.trim() ? Number(months) : null, reason }), t('billing.compGiven'))
             }}>{t('billing.giveFree')}</button>
             {view.holdSince
-              ? <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white" onClick={() => void run(() => api(`/v1/platform/shops/${shopId}/release`, 'POST', {}))}>{t('billing.release')}</button>
+              ? <button disabled={busy} className="min-h-11 rounded-xl bg-brand font-bold text-white" onClick={() => void run(() => api(`/v1/platform/shops/${shopId}/release`, 'POST', {}))}>{t('billing.release')}</button>
               : <button disabled={busy} className="min-h-11 rounded-xl border border-line bg-white font-semibold text-red-700" onClick={async () => { const reason = (await ask(t('billing.holdAsk'))); if (reason) void run(() => api(`/v1/platform/shops/${shopId}/hold`, 'POST', { reason })) }}>{t('billing.hold')}</button>}
             {view.compPlanCode && <button disabled={busy} className="col-span-2 min-h-11 rounded-xl border border-line bg-white text-xs font-semibold" onClick={() => void run(() => api(`/v1/platform/shops/${shopId}/complimentary`, 'DELETE'))}>{t('billing.endFree')}</button>}
           </>}
         </div>
       )}
-      {message && <p className="font-semibold text-teal-900">{message}</p>}
+      {message && <p className="font-semibold text-brand-deep">{message}</p>}
     </div>
   )
 }
@@ -454,7 +454,7 @@ function PlanFields({ draft, onChange, disabled, free }: { draft: PlanDraft; onC
           {FEATURES.map((f) => {
             const on = draft.features.includes(f)
             return (
-              <label key={f} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm ${on ? 'border-teal-700 bg-teal-50 font-semibold' : 'border-line'}`}>
+              <label key={f} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm ${on ? 'border-brand bg-brand-soft font-semibold' : 'border-line'}`}>
                 <input type="checkbox" checked={on} disabled={disabled} className="h-5 w-5"
                   onChange={() => onChange({ ...draft, features: on ? draft.features.filter((x) => x !== f) : [...draft.features, f] })} />
                 {t(`plan2.feature.${f}`)}
@@ -494,7 +494,7 @@ export function PlansPanel() {
               <>
                 <PlanFields draft={draft} onChange={(d) => setDrafts({ ...drafts, [p.code]: d })} disabled={busy} free={p.code === 'free'} />
                 <div className="grid grid-cols-2 gap-2">
-                  <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white" onClick={() => void run(async () => {
+                  <button disabled={busy} className="min-h-11 rounded-xl bg-brand font-bold text-white" onClick={() => void run(async () => {
                     await api(`/v1/platform/plans/${p.code}`, 'PUT', toBody(draft))
                     const next = { ...drafts }
                     delete next[p.code]
@@ -532,7 +532,7 @@ export function PlansPanel() {
           <span className="font-bold">{t('plans.new')}</span>
           <PlanFields draft={adding} onChange={setAdding} disabled={busy} />
           <div className="grid grid-cols-2 gap-2">
-            <button disabled={busy || adding.name.trim().length < 2 || !adding.priceYear1} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white disabled:opacity-40"
+            <button disabled={busy || adding.name.trim().length < 2 || !adding.priceYear1} className="min-h-11 rounded-xl bg-brand font-bold text-white disabled:opacity-40"
               onClick={() => void run(async () => { await api('/v1/platform/plans', 'POST', toBody(adding)); setAdding(null) }, t('plans.added'))}>{t('plans.add')}</button>
             <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold" onClick={() => setAdding(null)}>{t('plans.cancel')}</button>
           </div>
@@ -540,7 +540,7 @@ export function PlansPanel() {
       ) : (
         <button onClick={() => setAdding(blank)} className="min-h-11 rounded-xl border-2 border-dashed border-line font-semibold">+ {t('plans.new')}</button>
       )}
-      {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
     </Collapsible>
   )
 }

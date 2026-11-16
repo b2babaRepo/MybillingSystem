@@ -17,7 +17,7 @@ const PHOTO_KINDS = ['front', 'inside', 'owner'] as const
 const TERMS: PlanTerm[] = ['year1', 'year3', 'year5']
 
 const STATUS_STYLE: Record<string, string> = {
-  submitted: 'bg-amber-50 text-amber-900', approved: 'bg-emerald-50 text-emerald-900', rejected: 'bg-red-50 text-red-900',
+  submitted: 'bg-warn-soft text-warn-ink', approved: 'bg-emerald-50 text-emerald-900', rejected: 'bg-due-soft text-red-900',
 }
 
 /** The approved agent's work: sign a shop up on a visit, and the list of shops they signed up with where each stands. */
@@ -32,7 +32,7 @@ export function AgentShops({ agent }: { agent: FieldAgent }) {
     <div className="flex flex-col gap-3">
       <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-white p-1 text-sm font-semibold">
         {(['home', 'new', 'mine', 'awards'] as const).map((x) => (
-          <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-teal-700 text-white' : ''}`}>
+          <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-brand text-white' : ''}`}>
             {t(`agentShops.tab.${x}`)}
           </button>
         ))}
@@ -138,14 +138,14 @@ function NewShopForm({ agent, onDone }: { agent: FieldAgent; onDone: () => void 
         <select value={form.type} onChange={set('type')} className={box}>{SHOP_TYPES.map((x) => <option key={x} value={x}>{t(`shopType.${x}`)}</option>)}</select></label>
       <label className={label}><span className={caption}>{t('agentShops.address')}</span><textarea value={form.address} onChange={set('address')} rows={2} className="rounded-xl border border-line p-3 text-lg" /></label>
       <label className={label}><span className={caption}>{t('fieldAgent.market')}</span><input value={form.market} onChange={set('market')} className={box} /></label>
-      <button type="button" onClick={locate} className={`min-h-12 rounded-xl border-2 font-semibold ${gps ? 'border-teal-700 bg-teal-50 text-teal-900' : 'border-dashed border-line'}`}>
+      <button type="button" onClick={locate} className={`min-h-12 rounded-xl border-2 font-semibold ${gps ? 'border-brand bg-brand-soft text-brand-deep' : 'border-dashed border-line'}`}>
         {gps ? t('agentShops.gpsTaken', { accuracy: gps.accuracyMetres }) : t('agentShops.takeGps')}
       </button>
 
       <h2 className="mt-2 font-bold">{t('agentShops.photos')}</h2>
       <div className="grid grid-cols-3 gap-2">
         {PHOTO_KINDS.map((kind) => (
-          <label key={kind} className={`flex aspect-square cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 text-center text-xs font-semibold ${photos[kind] ? 'border-teal-700' : 'border-dashed border-line'}`}>
+          <label key={kind} className={`flex aspect-square cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 text-center text-xs font-semibold ${photos[kind] ? 'border-brand' : 'border-dashed border-line'}`}>
             {photos[kind] ? <img src={photos[kind]} alt={t(`agentShops.photo.${kind}`)} className="h-full w-full object-cover" /> : <span className="p-1">{t(`agentShops.photo.${kind}`)}{kind === 'front' ? ' *' : ''}</span>}
             <input type="file" accept="image/*" capture="environment" className="sr-only"
               onChange={(e) => { const file = e.target.files?.[0]; if (file) void shrinkPhoto(file, 1024, 140_000, false).then((url) => setPhotos((p) => ({ ...p, [kind]: url }))) }} />
@@ -164,7 +164,7 @@ function NewShopForm({ agent, onDone }: { agent: FieldAgent; onDone: () => void 
       <div className="grid grid-cols-3 gap-2">
         {plans.map((p) => (
           <button key={p.code} type="button" onClick={() => setForm({ ...form, planCode: p.code })} aria-pressed={form.planCode === p.code}
-            className={`min-h-14 rounded-xl font-bold ${form.planCode === p.code ? 'bg-teal-700 text-white' : 'border border-line'}`}>{p.name}</button>
+            className={`min-h-14 rounded-xl font-bold ${form.planCode === p.code ? 'bg-brand text-white' : 'border border-line'}`}>{p.name}</button>
         ))}
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -172,7 +172,7 @@ function NewShopForm({ agent, onDone }: { agent: FieldAgent; onDone: () => void 
           const price = plan ? priceFor(plan, x) : null
           return price === null ? null : (
             <button key={x} type="button" onClick={() => setForm({ ...form, term: x })} aria-pressed={form.term === x}
-              className={`flex min-h-14 flex-col items-center justify-center rounded-xl text-sm font-semibold ${form.term === x ? 'bg-teal-700 text-white' : 'border border-line'}`}>
+              className={`flex min-h-14 flex-col items-center justify-center rounded-xl text-sm font-semibold ${form.term === x ? 'bg-brand text-white' : 'border border-line'}`}>
               <span>{t(`plan2.term.${x}`)}</span><span>{formatRupees(price)}{x === 'year5' ? `/${t('plan2.year')}` : ''}</span>
             </button>
           )
@@ -181,14 +181,14 @@ function NewShopForm({ agent, onDone }: { agent: FieldAgent; onDone: () => void 
       <div role="radiogroup" aria-label={t('agentShops.payHow')} className="grid grid-cols-3 gap-2">
         {(['cash', 'upi', 'later'] as const).map((m) => (
           <button key={m} type="button" role="radio" aria-checked={form.paymentMode === m} onClick={() => setForm({ ...form, paymentMode: m })}
-            className={`min-h-12 rounded-xl text-sm font-semibold ${form.paymentMode === m ? 'bg-teal-700 text-white' : 'border border-line'}`}>{t(`agentShops.pay.${m}`)}</button>
+            className={`min-h-12 rounded-xl text-sm font-semibold ${form.paymentMode === m ? 'bg-brand text-white' : 'border border-line'}`}>{t(`agentShops.pay.${m}`)}</button>
         ))}
       </div>
       {form.paymentMode !== 'later' && (
         <label className={label}><span className={caption}>{form.paymentMode === 'upi' ? t('agentShops.utr') : t('agentShops.receipt')}</span>
           <input value={form.paymentRef} onChange={set('paymentRef')} className={box} /></label>
       )}
-      {form.paymentMode === 'cash' && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t('agentShops.cashNote', { amount: amount !== null ? formatRupees(amount) : '–' })}</p>}
+      {form.paymentMode === 'cash' && <p className="rounded-xl bg-warn-soft p-3 text-sm text-warn-ink">{t('agentShops.cashNote', { amount: amount !== null ? formatRupees(amount) : '–' })}</p>}
 
       <h2 className="mt-2 font-bold">{t('agentShops.consent')}</h2>
       <p className="text-sm text-muted">{t('agentShops.consentHint')}</p>
@@ -200,7 +200,7 @@ function NewShopForm({ agent, onDone }: { agent: FieldAgent; onDone: () => void 
           <input value={form.consentCode} onChange={(e) => setForm({ ...form, consentCode: e.target.value.replace(/\D/g, '').slice(0, 6) })} inputMode="numeric" className={`${box} font-mono tracking-widest`} /></label>
       )}
 
-      {message && <p className={`rounded-xl p-3 text-sm font-semibold ${message.ok ? 'bg-teal-50 text-teal-900' : 'bg-red-50 text-red-800'}`}>{message.text}</p>}
+      {message && <p className={`rounded-xl p-3 text-sm font-semibold ${message.ok ? 'bg-brand-soft text-brand-deep' : 'bg-due-soft text-red-800'}`}>{message.text}</p>}
       <Button disabled={busy || !ready} onClick={() => void submit()}>{t('agentShops.submit', { amount: amount !== null ? formatRupees(amount) : '' })}</Button>
     </section>
   )
@@ -226,7 +226,7 @@ function AgentHome({ s }: { s: AgentSummary }) {
       </section>
 
       {s.cashToDeposit > 0 && (
-        <section className="rounded-[20px] bg-amber-50 p-4 text-amber-900">
+        <section className="rounded-[20px] bg-warn-soft p-4 text-warn-ink">
           <div className="text-sm font-semibold">{t('agentHome.cash')}</div>
           <div className="text-3xl font-extrabold">{formatRupees(s.cashToDeposit)}</div>
           <div className="text-xs">{t('agentHome.cashHint')}</div>
@@ -268,7 +268,7 @@ function AgentAwards({ s }: { s: AgentSummary }) {
         {s.marketLeaders.length === 0 && <p className="text-sm text-muted">{t('agentAwards.none')}</p>}
         <ol className="flex flex-col gap-1">
           {s.marketLeaders.map((l) => (
-            <li key={l.code} className={`flex items-center justify-between rounded-xl px-3 py-2 ${l.code === s.code ? 'bg-teal-50 font-bold' : ''}`}>
+            <li key={l.code} className={`flex items-center justify-between rounded-xl px-3 py-2 ${l.code === s.code ? 'bg-brand-soft font-bold' : ''}`}>
               <span>{l.rank}. {l.name} <span className="font-mono text-xs text-muted">{l.code}</span></span>
               <span>{BADGE_ICON[l.badge]} {t('agentAwards.paid', { count: l.paid })}</span>
             </li>
