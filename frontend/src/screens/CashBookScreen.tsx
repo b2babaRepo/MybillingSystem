@@ -80,6 +80,7 @@ export function CashBookScreen({ shopId, isOwner = false }: { shopId: string; is
                     <span className="font-semibold">{line.who || t('book.walkIn')}</span>
                     <span className="text-xs text-muted">
                       {new Date(line.occurredAt).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })} · {t(`book.sources.${line.source}`)} · {t(line.mode)}
+                      {line.chequePending && <span className="font-semibold text-amber-700"> · {t('book.chequePending')}</span>}
                     </span>
                   </span>
                   <span className={`font-bold ${line.amount < 0 ? 'text-due' : 'text-jama'}`}>{line.amount < 0 ? '−' : '+'}{formatRupees(Math.abs(line.amount))}</span>

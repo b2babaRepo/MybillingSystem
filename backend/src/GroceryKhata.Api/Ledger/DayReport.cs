@@ -91,7 +91,7 @@ public static class DayReport
         var (start, end) = IndiaTime.Day(day);
         // Khata payments not tied to a bill (negative amounts on the khata), less any reversed later.
         var collected = -await db.LedgerEntries.AsNoTracking()
-            .Where(e => (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end) && e.PaymentMode != null && e.BillId == null)
+            .Where(e => (e.OccurredAt >= start && e.OccurredAt < end) && e.PaymentMode != null && e.BillId == null)
             .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
         var spent = await db.Expenses.AsNoTracking().Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null)
             .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;

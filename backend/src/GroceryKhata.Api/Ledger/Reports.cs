@@ -280,8 +280,8 @@ public static class ReportEndpoints
             .Where(b => b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null)
             .ToListAsync(ct);
         var entries = await db.LedgerEntries.AsNoTracking()
-            .Where(e => (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end))
-            .Select(e => new { OccurredAt = e.PaymentMode == PaymentMode.Cheque && e.ReversesEntryId == null ? e.ChequeSettledAt ?? e.OccurredAt : e.OccurredAt, e.Amount, e.PaymentMode, e.BillId, e.Kind })
+            .Where(e => (e.OccurredAt >= start && e.OccurredAt < end))
+            .Select(e => new { e.OccurredAt, e.Amount, e.PaymentMode, e.BillId, e.Kind })
             .ToListAsync(ct);
         var productIds = bills.SelectMany(b => b.Lines).Where(l => l.ProductId != null).Select(l => l.ProductId!.Value).Distinct().ToList();
         var costs = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id) && p.CostPrice != null)
@@ -682,8 +682,8 @@ public static class ReportEndpoints
         var bills = await db.Bills.AsNoTracking().Include(b => b.Lines)
             .Where(b => b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null).ToListAsync(ct);
         var khata = await db.LedgerEntries.AsNoTracking()
-            .Where(e => (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end) && e.BillId == null && e.PaymentMode != null)
-            .Select(e => new { OccurredAt = e.PaymentMode == PaymentMode.Cheque && e.ReversesEntryId == null ? e.ChequeSettledAt ?? e.OccurredAt : e.OccurredAt, e.Amount, e.PaymentMode }).ToListAsync(ct);
+            .Where(e => (e.OccurredAt >= start && e.OccurredAt < end) && e.BillId == null && e.PaymentMode != null)
+            .Select(e => new { e.OccurredAt, e.Amount, e.PaymentMode }).ToListAsync(ct);
 
         var rows = new List<YearMonthRow>();
         for (var i = 0; i < 12; i++)

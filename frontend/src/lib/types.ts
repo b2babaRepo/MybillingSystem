@@ -205,6 +205,8 @@ export interface CashBookLine {
   mode: PaymentMode
   amount: number
   billId: string | null
+  /** A cheque counted the day it came in, not yet cleared at the bank. */
+  chequePending?: boolean
 }
 
 export interface CashBook {

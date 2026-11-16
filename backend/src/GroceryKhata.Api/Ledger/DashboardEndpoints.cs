@@ -48,7 +48,7 @@ public static class DashboardEndpoints
             .Select(b => new { b.Total, b.PaidAmount, b.PaymentMode, b.Payments })
             .ToListAsync(ct);
         var entries = await db.LedgerEntries.AsNoTracking()
-            .Where(e => (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end))
+            .Where(e => (e.OccurredAt >= start && e.OccurredAt < end))
             .Select(e => new { e.Amount, e.PaymentMode, e.BillId, e.Kind })
             .ToListAsync(ct);
 

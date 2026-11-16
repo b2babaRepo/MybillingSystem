@@ -1132,15 +1132,16 @@ public sealed class LedgerFixTests(ApiFactory api)
         var first = await (await shop.PostJsonAsync("/api/v1/khata-entries", Cheque("123456"))).ReadAsync<KhataEntryResponse>();
         Assert.Equal(300m, first.CustomerBalance);
 
+        // Received the day it comes in, and shown as pending until the bank clears it.
         var today = await shop.GetJsonAsync<TodayDto>("/api/v1/dashboard/today");
-        Assert.Equal((200m, 0m, 0m, 500m, 1), (today.Card, today.Cheque, today.Collected, today.ChequesPending, today.ChequesPendingCount));
+        Assert.Equal((200m, 500m, 500m, 500m, 1), (today.Card, today.Cheque, today.Collected, today.ChequesPending, today.ChequesPendingCount));
 
-        // Cleared: now it is money received.
+        // Cleared: still received, no longer pending.
         Assert.Equal(HttpStatusCode.Created, (await shop.PostJsonAsync($"/api/v1/cheques/{first.Entry.Id}/clear", new { })).StatusCode);
         today = await shop.GetJsonAsync<TodayDto>("/api/v1/dashboard/today");
         Assert.Equal((500m, 500m, 0m), (today.Cheque, today.Collected, today.ChequesPending));
 
-        // A second cheque bounces: the ₹500 goes back on Meena's khata, and nothing counts as received.
+        // A second cheque bounces: the ₹500 goes back on Meena's khata, and the bounce takes it back out of received.
         var second = await (await shop.PostJsonAsync("/api/v1/khata-entries", Cheque("654321"))).ReadAsync<KhataEntryResponse>();
         Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/cheques/{second.Entry.Id}/bounce", new { reason = "" })).StatusCode);
         var bounced = await (await shop.PostJsonAsync($"/api/v1/cheques/{second.Entry.Id}/bounce", new { reason = "Funds insufficient" })).ReadAsync<KhataEntryResponse>();
@@ -1154,6 +1155,12 @@ public sealed class LedgerFixTests(ApiFactory api)
         var statement = await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement");
         Assert.Equal(300m, statement.ClosingBalance);
         Assert.Contains(statement.Entries, e => e.ChequeNo == "654321" && e.Kind == LedgerEntryKind.Reversal);
+
+        // The cash book shows a cheque that hasn't cleared as pending.
+        var third = await (await shop.PostJsonAsync("/api/v1/khata-entries", Cheque("777777"))).ReadAsync<KhataEntryResponse>();
+        var day = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5));
+        var book = await shop.GetJsonAsync<CashBookDto>($"/api/v1/cash-book?date={day:yyyy-MM-dd}");
+        Assert.Single(book.Lines, l => l.Mode == PaymentMode.Cheque && l.ChequePending);
     }
 
     [Fact]

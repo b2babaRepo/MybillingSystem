@@ -65,7 +65,7 @@ public static class PharmacyMonth
 
         // Money received: bills paid at the counter, and khata payments taken later.
         var counter = bills.SelectMany(b => b.Parts()).GroupBy(p => p.Mode).ToDictionary(g => g.Key, g => g.Sum(p => p.Amount));
-        var khata = await db.LedgerEntries.AsNoTracking().Where(e => e.Kind == LedgerEntryKind.Payment && e.BillId == null && (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end))
+        var khata = await db.LedgerEntries.AsNoTracking().Where(e => e.Kind == LedgerEntryKind.Payment && e.BillId == null && (e.OccurredAt >= start && e.OccurredAt < end))
             .GroupBy(e => e.PaymentMode).Select(g => new { g.Key, Total = -g.Sum(e => e.Amount) }).ToListAsync(ct);
         // Less money handed back to walk-ins on this month's credit notes, the way it went back.
         decimal Received(PaymentMode mode) => counter.GetValueOrDefault(mode) + khata.Where(k => (k.Key ?? PaymentMode.Cash) == mode).Sum(k => k.Total)

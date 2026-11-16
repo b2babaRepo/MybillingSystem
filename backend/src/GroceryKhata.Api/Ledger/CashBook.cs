@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace GroceryKhata.Api.Ledger;
 
 /// <summary>One line of the day book: money that came in (or, for a reversed payment, went back).</summary>
-public sealed record CashBookLine(DateTimeOffset OccurredAt, CashBookSource Source, string Who, PaymentMode Mode, decimal Amount, Guid? BillId, Guid? MoveId = null);
+/// <summary><see cref="ChequePending"/>: a cheque counted the day it came in that hasn't cleared at the bank yet.</summary>
+public sealed record CashBookLine(DateTimeOffset OccurredAt, CashBookSource Source, string Who, PaymentMode Mode, decimal Amount, Guid? BillId, Guid? MoveId = null, bool ChequePending = false);
 
 public enum CashBookSource
 {
@@ -96,9 +97,9 @@ public static class CashBookEndpoints
             .ToListAsync(ct);
         var bills = touched.Where(b => b.OccurredAt >= start && b.OccurredAt < end).ToList();
         var entries = await (from e in db.LedgerEntries.AsNoTracking()
-                             where (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end) && e.TripId == null
+                             where (e.OccurredAt >= start && e.OccurredAt < end) && e.TripId == null
                              join c in db.Customers.AsNoTracking() on e.CustomerId equals c.Id
-                             select new { OccurredAt = e.PaymentMode == PaymentMode.Cheque && e.ReversesEntryId == null ? e.ChequeSettledAt ?? e.OccurredAt : e.OccurredAt, e.Kind, e.Amount, e.PaymentMode, e.BillId, c.Name })
+                             select new { e.OccurredAt, e.Kind, e.Amount, e.PaymentMode, e.BillId, c.Name, e.ChequeStatus })
             .ToListAsync(ct);
 
         var lines = new List<CashBookLine>();
@@ -110,7 +111,8 @@ public static class CashBookEndpoints
         // Khata payments not tied to a bill (a bill's own payment is already counted on the bill line above).
         lines.AddRange(entries.Where(e => e.PaymentMode is not null && e.BillId is null)
             .Select(e => new CashBookLine(e.OccurredAt, e.Kind == LedgerEntryKind.Reversal ? CashBookSource.Reversal : CashBookSource.KhataPayment,
-                e.Name, e.PaymentMode!.Value, -e.Amount, null)));
+                e.Name, e.PaymentMode!.Value, -e.Amount, null, null,
+                e.PaymentMode == PaymentMode.Cheque && e.Kind != LedgerEntryKind.Reversal && e.ChequeStatus == ChequeStatus.Pending)));
         // Money out: the day's kharcha (struck lines don't count).
         lines.AddRange(await db.Expenses.AsNoTracking()
             .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && e.TripId == null)
