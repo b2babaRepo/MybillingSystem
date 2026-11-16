@@ -1,4 +1,4 @@
-import { getSession, setSession } from './session'
+import { getSession, savedSession, setSession } from './session'
 import type { AuthResponse, ProblemDetails } from './types'
 
 /** The request never reached the server (offline, or the server is down). Safe to retry later. */
@@ -58,11 +58,27 @@ async function fetchOrThrow(path: string, method: string, body: unknown, token?:
 
 let refreshing: Promise<boolean> | null = null
 
-/** Swaps the refresh token for new tokens. One at a time: parallel calls share the same refresh. */
+/** One tab at a time across the whole app (where the browser can), else just within this tab. */
+function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? (navigator as Navigator & { locks?: LockManager }).locks : undefined
+  return locks ? (locks.request('gk-session-refresh', work) as Promise<T>) : work()
+}
+
+/**
+ * Swaps the refresh token for new tokens. One at a time: parallel calls in this tab share the same refresh, and tabs
+ * take turns. A tab whose token another tab has already swapped takes that tab's new session instead of sending the
+ * old token, which the server would take for a stolen one and sign the person out everywhere.
+ */
 export function refreshSession(): Promise<boolean> {
-  refreshing ??= (async () => {
+  const mine = getSession()?.refreshToken
+  refreshing ??= oneAtATime(async () => {
     try {
-      const session = getSession()
+      const saved = savedSession()
+      if (saved && saved.refreshToken !== mine && new Date(saved.accessTokenExpiresAt).getTime() > Date.now() + 60_000) {
+        setSession(saved)
+        return true
+      }
+      const session = saved ?? getSession()
       if (!session) return false
       const response = await send('/v1/auth/refresh', 'POST', { refreshToken: session.refreshToken })
       if (response.ok) {
@@ -74,7 +90,7 @@ export function refreshSession(): Promise<boolean> {
     } finally {
       refreshing = null
     }
-  })()
+  })
   return refreshing
 }
 
