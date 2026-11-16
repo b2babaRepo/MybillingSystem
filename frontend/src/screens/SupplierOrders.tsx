@@ -17,7 +17,7 @@ interface ReturnLine { productName: string; batchNo: string; quantity: number; v
 interface SupplierReturn { id: string; number: number; value: number; daysOpen: number; settledAt: string | null; lines: ReturnLine[] }
 interface Pick { text: string; productId: string; quantity: string; rate: string; bags?: string }
 export interface GoodsReceipt { id: string; number: number; supplierId: string; purchaseOrderId?: string | null; receivedAt: string; lines: { productId: string; name: string; quantity: number; bags?: number | null; bagSize?: number | null; damaged?: number }[]; note: string | null; purchaseId: string | null; by: string | null
-  vehicleNo?: string | null; bilty?: string | null; transporter?: string | null; grossWeight?: number | null; tareWeight?: number | null; shortKg?: number | null; shortClaim?: number | null; debitNoteNo?: string | null }
+  vehicleNo?: string | null; bilty?: string | null; transporter?: string | null; grossWeight?: number | null; tareWeight?: number | null; shortKg?: number | null; shortClaim?: number | null; debitNoteNo?: string | null; shortStock?: { productId: string; name: string; quantity: number; unit: string }[] }
 
 const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
 
@@ -335,7 +335,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
             return (
               <>
                 <p className={`text-xs ${short >= 1 && !r.shortClaim ? 'font-semibold text-due' : 'text-muted'}`}>⚖ {t('bag.net', { net })}{expected > 0 ? ` · ${t('weigh.expected', { kg: expected })}` : ''}{short >= 1 && !r.shortClaim ? ` · ${t('weigh.short', { kg: short })}` : ''}</p>
-                {r.shortClaim ? <p className="text-xs font-semibold text-teal-700">{r.debitNoteNo ? `${r.debitNoteNo} · ` : ''}{t('weigh.claimed', { kg: r.shortKg, amount: formatRupees(r.shortClaim) })}</p>
+                {r.shortClaim ? <p className="text-xs font-semibold text-teal-700">{r.debitNoteNo ? `${r.debitNoteNo} · ` : ''}{t('weigh.claimed', { kg: r.shortKg, amount: formatRupees(r.shortClaim) })}{(r.shortStock?.length ?? 0) > 0 ? <span className="block font-normal">{t('weigh.stockOff', { items: r.shortStock!.map((x) => `${x.name} ${x.quantity} ${t(`units.${x.unit}`)}`).join(', ') })}</span> : null}</p>
                   : short >= 1 ? <button onClick={() => void claim()} className="min-h-11 self-start text-sm font-semibold text-due underline">{t('weigh.claim', { kg: short })}</button> : null}
               </>
             )

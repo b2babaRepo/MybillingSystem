@@ -76,7 +76,10 @@ public sealed record ShortClaimRequest(decimal RatePerKg);
 public sealed record GoodsReceiptDto(
     Guid Id, int Number, Guid SupplierId, Guid? PurchaseOrderId, DateTimeOffset ReceivedAt, IReadOnlyList<ReceiptLine> Lines, string? Note, Guid? PurchaseId, DateTimeOffset? CancelledAt, string? By,
     string? VehicleNo = null, string? Bilty = null, string? Transporter = null, decimal? GrossWeight = null, decimal? TareWeight = null,
-    decimal? ShortKg = null, decimal? ShortClaim = null, string? DebitNoteNo = null);
+    decimal? ShortKg = null, decimal? ShortClaim = null, string? DebitNoteNo = null, IReadOnlyList<ShortStock>? ShortStock = null);
+
+/// <summary>Stock taken off an item for a weighbridge shortfall, in its own unit.</summary>
+public sealed record ShortStock(Guid ProductId, string Name, decimal Quantity, Unit Unit);
 
 public static class GoodsReceipts
 {
@@ -122,14 +125,24 @@ public static class GoodsReceipts
         var lines = await LinesAsync(db, rows.Select(x => x.r.Id).ToList(), ct);
         var claimIds = rows.Select(x => x.r.ShortEntryId).OfType<Guid>().ToList();
         var claims = await db.SupplierEntries.AsNoTracking().Where(e => claimIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => -e.Amount, ct);
-        return rows.Select(x => ToDto(x.r, x.By, lines[x.r.Id].ToList(), x.r.ShortEntryId is { } c ? claims.GetValueOrDefault(c) : null)).ToList();
+        var shorts = await ShortStockAsync(db, rows.Where(x => x.r.ShortEntryId != null).Select(x => x.r.Id).ToList(), ct);
+        return rows.Select(x => ToDto(x.r, x.By, lines[x.r.Id].ToList(), x.r.ShortEntryId is { } c ? claims.GetValueOrDefault(c) : null, shorts[x.r.Id].ToList())).ToList();
     }
+
+    /// <summary>What each receipt's shortfall took off stock, by item (zero once the receipt is cancelled and it went back).</summary>
+    private static async Task<ILookup<Guid, ShortStock>> ShortStockAsync(AppDbContext db, IReadOnlyCollection<Guid> receiptIds, CancellationToken ct) =>
+        (await (from m in db.StockMovements.AsNoTracking()
+                where m.RefType == "receipt-short" && m.RefId != null && receiptIds.Contains(m.RefId.Value)
+                join p in db.Products.AsNoTracking() on m.ProductId equals p.Id
+                group m by new { RefId = m.RefId!.Value, m.ProductId, p.Name, p.Unit } into g
+                select new { g.Key.RefId, g.Key.ProductId, g.Key.Name, g.Key.Unit, Quantity = -g.Sum(m => m.Quantity) }).ToListAsync(ct))
+        .Where(r => r.Quantity > 0).ToLookup(r => r.RefId, r => new ShortStock(r.ProductId, r.Name, r.Quantity, r.Unit));
 
     private static async Task<GoodsReceiptDto> ToDtoAsync(AppDbContext db, GoodsReceipt r, CancellationToken ct) => ToDto(r, null, (await LinesAsync(db, [r.Id], ct))[r.Id].ToList());
 
-    private static GoodsReceiptDto ToDto(GoodsReceipt r, string? by, IReadOnlyList<ReceiptLine> lines, decimal? claim = null) =>
+    private static GoodsReceiptDto ToDto(GoodsReceipt r, string? by, IReadOnlyList<ReceiptLine> lines, decimal? claim = null, IReadOnlyList<ShortStock>? shortStock = null) =>
         new(r.Id, r.Number, r.SupplierId, r.PurchaseOrderId, r.ReceivedAt, lines, r.Note, r.PurchaseId, r.CancelledAt, by, r.VehicleNo, r.Bilty, r.Transporter, r.GrossWeight, r.TareWeight,
-            r.ShortEntryId is null ? null : r.ShortKg, claim, r.DebitNoteNo);
+            r.ShortEntryId is null ? null : r.ShortKg, claim, r.DebitNoteNo, shortStock);
 
     /// <summary>
     /// Claims a weighbridge shortfall from the supplier: what the items add up to, less what the weighbridge says came,
@@ -218,7 +231,7 @@ public static class GoodsReceipts
             products[productId].Stock -= quantity;
         }
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(ToDto(receipt, null, lines, amount));
+        return TypedResults.Ok(ToDto(receipt, null, lines, amount, (await ShortStockAsync(db, [receipt.Id], ct))[receipt.Id].ToList()));
     }
 
     private static async Task<IResult> AddAsync(GoodsReceiptRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)

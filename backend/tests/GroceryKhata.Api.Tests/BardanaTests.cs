@@ -121,6 +121,7 @@ public sealed class BardanaTests(ApiFactory api)
 
         // The 10 kg that never came come off stock: 490 kg on the shelf, not 500.
         Assert.Equal(490m, (await shop.GetJsonAsync<GroceryKhata.Api.Catalogue.ProductDto>($"/api/v1/products/{rice}")).Stock);
+        Assert.Equal((rice, 10m), (claimed.ShortStock!.Single().ProductId, claimed.ShortStock!.Single().Quantity));
 
         // Only once.
         Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/short-claim", new { ratePerKg = 40m })).StatusCode);
