@@ -6,6 +6,7 @@ import { AskHost } from './components/Ask'
 import { i18nReady } from './i18n'
 import './index.css'
 import { installSyncHandler } from './lib/data'
+import { getSession, subscribeSession } from './lib/session'
 import './lib/pwa'
 
 // A tab left open across an update asks for files the update replaced: without this it goes white. Once only,
@@ -25,6 +26,15 @@ const queryClient = new QueryClient({
   },
 })
 installSyncHandler(queryClient)
+
+// Another shop or person signing in on this phone must never see the last one's figures, even for a moment: some
+// screens' data isn't keyed by shop, so drop everything cached whenever the signed-in user or shop changes.
+let signedIn = `${getSession()?.user.id ?? ''}/${getSession()?.shopId ?? ''}`
+subscribeSession(() => {
+  const now = `${getSession()?.user.id ?? ''}/${getSession()?.shopId ?? ''}`
+  if (now !== signedIn) queryClient.clear()
+  signedIn = now
+})
 
 // The text for the shown language arrives first (one small file, cached offline by the service worker).
 void i18nReady.then(() => createRoot(document.getElementById('root')!).render(
