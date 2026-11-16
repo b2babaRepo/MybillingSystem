@@ -5,7 +5,7 @@ import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 
 export type ReportView = 'chart' | 'ledger'
-export type ReportPage = 'reports' | 'pnl' | 'gst'
+export type ReportPage = 'reports' | 'pnl' | 'gst' | 'balance'
 
 /** One figure in the ticker strip: its label, value and, when known, the change on the period before. */
 export interface Tick { label: string; value: string; change?: number | null; note?: string }
@@ -41,7 +41,7 @@ export function ReportShell({ page, title, isOwner, view, onView, ticks, childre
   const { t } = useTranslation()
   const tabs: { key: ReportPage; path: string; label: string }[] = [
     { key: 'reports', path: '/reports', label: t('rv.reports') },
-    ...(isOwner ? [{ key: 'pnl' as const, path: '/pnl', label: t('rv.pnl') }, { key: 'gst' as const, path: '/gst', label: t('rv.gst') }] : []),
+    ...(isOwner ? [{ key: 'pnl' as const, path: '/pnl', label: t('rv.pnl') }, { key: 'gst' as const, path: '/gst', label: t('rv.gst') }, { key: 'balance' as const, path: '/balance-sheet', label: t('rv.balance') }] : []),
   ]
   return (
     <div className="flex flex-col">

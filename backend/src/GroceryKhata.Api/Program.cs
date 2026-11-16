@@ -134,6 +134,7 @@ app.MapCommonCatalogue();
 app.MapOrders();
 app.MapStore();
 app.MapReports();
+app.MapBalanceSheet();
 app.MapShopSettings();
 app.MapShopData();
 app.MapStaff();

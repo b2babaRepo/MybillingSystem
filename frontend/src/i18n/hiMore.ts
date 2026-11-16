@@ -743,7 +743,9 @@ export const hiMore: TextsMore = {
     expenseDay: 'आज इन्हें कुल {{total}} नकद।',
     share: 'मिले पैसे में नकद {{percent}}% है।', shareOk: '5% से कम: 44AD की ₹3 करोड़ वाली सीमा मिलेगी।', shareHigh: '5% से ज़्यादा: 44AD सीमा ₹2 करोड़ रहेगी। UPI और कार्ड बढ़ाएँ।',
   },
+  bs: { title: 'बैलेंस शीट', on: 'इस दिन के अंत तक', assets: 'दुकान के पास', liabilities: 'दुकान को देना है', capital: 'आपकी पूँजी', assetsHint: 'नकद, बैंक, लागत पर स्टॉक और आपको मिलने वाला पैसा।', liabilitiesHint: 'सप्लायर को देना और ग्राहकों का पहले से जमा पैसा।', cash: 'हाथ में नकद', bank: 'बैंक', stock: 'स्टॉक', atCost: 'ख़रीद दाम पर', unvalued_one: '{{count}} आइटम का ख़रीद दाम नहीं, इसलिए नहीं गिना', unvalued_other: '{{count}} आइटम का ख़रीद दाम नहीं, इसलिए नहीं गिने', customersOwe: 'ग्राहकों से लेना है (खाता)', people_one: '{{count}} ग्राहक', people_other: '{{count}} ग्राहक', supplierAdvances: 'सप्लायर को पहले दिया', suppliersOwed: 'सप्लायर को देना है', suppliers_one: '{{count}} सप्लायर', suppliers_other: '{{count}} सप्लायर', customerAdvances: 'ग्राहकों ने पहले से जमा किया', capitalHint: 'दुकान के पास जो है, उसमें से देना घटाकर: कारोबार में आपका पैसा।', asOf: '{{day}} के अंत तक', note: 'कोई लाइन दबाएँ तो देखें यह कहाँ से आई। इस महीने का बाकी GST, GST पेज पर है।' },
   rv: {
+    balance: 'बैलेंस शीट',
     reports: 'रिपोर्ट', pnl: 'नफ़ा-नुकसान', gst: 'GST', pages: 'रिपोर्ट पेज', view: 'दिखाएँ', chart: '▲▼ चार्ट', ledger: '☰ बही', ticker: 'इस अवधि की झलक',
     reportsTitle: 'बिक्री रिपोर्ट', pnlTitle: 'नफ़ा-नुकसान', gstTitle: 'GST',
     billsTick: 'बिल', avgBill: 'औसत बिल', vsBefore: 'पिछली अवधि से', noCompare: 'तुलना के लिए अभी कुछ नहीं',

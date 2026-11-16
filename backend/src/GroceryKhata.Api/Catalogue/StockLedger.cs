@@ -226,7 +226,7 @@ public static class StockLedger
         return Results.Ok(new ItemLedger(id, product.Name, product.Unit, p.From, p.To, opening, lines.Sum(l => l.In), lines.Sum(l => l.Out), balance, lines, product.BagSize, openingBags, bagBalance));
     }
 
-    private static async Task<IResult> StatementAsync(DateOnly? from, DateOnly? to, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
+    internal static async Task<IResult> StatementAsync(DateOnly? from, DateOnly? to, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         if (Period(from, to, clock) is not { } p)
         {

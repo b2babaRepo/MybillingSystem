@@ -96,7 +96,7 @@ public static class BankBook
         return BankSetup.Read(shop.BankAccounts, shop.BankOpeningBalance, shop.BankOpeningDate);
     }
 
-    private static async Task<IResult> GetAsync(string? from, string? to, string? account, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
+    internal static async Task<IResult> GetAsync(string? from, string? to, string? account, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         var today = IndiaTime.Today(clock);
         DateOnly start = new(today.Year, today.Month, 1), end = today;

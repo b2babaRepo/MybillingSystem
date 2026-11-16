@@ -741,7 +741,9 @@ export const enMore = {
     expenseDay: '{{total}} in cash to them today.',
     share: 'Cash is {{percent}}% of money received.', shareOk: 'Under 5%: the higher ₹3 crore 44AD limit is open to you.', shareHigh: 'Over 5%: the 44AD limit stays ₹2 crore. More UPI and card lowers it.',
   },
+  bs: { title: 'Balance sheet', on: 'As at the end of', assets: 'What the shop has', liabilities: 'What the shop owes', capital: 'Your capital', assetsHint: 'Cash, bank, stock at cost and money due to you.', liabilitiesHint: 'Money you owe suppliers and advances customers paid.', cash: 'Cash in hand', bank: 'Bank', stock: 'Stock', atCost: 'at buying price', unvalued_one: '{{count}} item has no buying price, so it is not counted', unvalued_other: '{{count}} items have no buying price, so they are not counted', customersOwe: 'Customers owe you (khata)', people_one: '{{count}} customer', people_other: '{{count}} customers', supplierAdvances: 'Paid ahead to suppliers', suppliersOwed: 'You owe suppliers', suppliers_one: '{{count}} supplier', suppliers_other: '{{count}} suppliers', customerAdvances: 'Customers paid ahead', capitalHint: 'What the shop has, less what it owes: your money in the business.', asOf: 'As at the end of {{day}}', note: 'Tap a line to see where it comes from. GST still to pay this month is on the GST page.' },
   rv: {
+    balance: 'Balance sheet',
     reports: 'Reports', pnl: 'Profit & loss', gst: 'GST', pages: 'Report pages', view: 'View', chart: '▲▼ Chart view', ledger: '☰ Ledger view', ticker: 'This period at a glance',
     reportsTitle: 'Sales report', pnlTitle: 'Profit & loss', gstTitle: 'GST',
     billsTick: 'Bills', avgBill: 'Average bill', vsBefore: 'vs the period before', noCompare: 'Nothing to compare yet',

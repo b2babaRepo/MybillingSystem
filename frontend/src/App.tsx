@@ -75,6 +75,7 @@ const PaintersScreen = lazy(() => import('./screens/PaintersScreen').then((modul
 const GstExportScreen = lazy(() => import('./screens/GstExportScreen').then((module) => ({ default: module.GstExportScreen })))
 const PickItemsScreen = lazy(() => import('./screens/PickItemsScreen').then((module) => ({ default: module.PickItemsScreen })))
 const ProfitLossScreen = lazy(() => import('./screens/ProfitLossScreen').then((module) => ({ default: module.ProfitLossScreen })))
+const BalanceSheetScreen = lazy(() => import('./screens/BalanceSheetScreen').then((module) => ({ default: module.BalanceSheetScreen })))
 const ClientCardsScreen = lazy(() => import('./screens/ClientCardsScreen').then((module) => ({ default: module.ClientCardsScreen })))
 const BridalScreen = lazy(() => import('./screens/BridalScreen').then((module) => ({ default: module.BridalScreen })))
 const PackagesScreen = lazy(() => import('./screens/PackagesScreen').then((module) => ({ default: module.PackagesScreen })))
@@ -320,7 +321,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     { key: 'reports', title: t('menu.reports'), links: [
       { path: '/reports', label: t('side.reports') },
       { path: '/sales-by', label: t('sl.salesByShort') },
-      ...(isOwner ? [{ path: '/pnl', label: t('side.pnl') }, { path: '/gst', label: 'GST' }, { path: '/discounts', label: t('disc.title') }] : []),
+      ...(isOwner ? [{ path: '/pnl', label: t('side.pnl') }, { path: '/balance-sheet', label: t('rv.balance') }, { path: '/gst', label: 'GST' }, { path: '/discounts', label: t('disc.title') }] : []),
     ] },
     { key: 'more', title: t('menu.more'), links: [
       ...(isOwner ? [{ path: '/store', label: t('menu.store') }] : []),
@@ -446,6 +447,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <ItemMarginScreen shopId={shopId} />
         ) : path === '/pnl' && isOwner ? (
           <ProfitLossScreen />
+        ) : path === '/balance-sheet' && isOwner ? (
+          <BalanceSheetScreen shopId={shopId} />
         ) : path === '/client-cards' ? (
           <ClientCardsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/bridal' ? (

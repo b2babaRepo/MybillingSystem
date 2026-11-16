@@ -138,7 +138,7 @@ public static class CashMoves
         return TypedResults.Ok(CashMoveDto.From(move));
     }
 
-    private static async Task<IResult> LedgerAsync(string? from, string? to, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    internal static async Task<IResult> LedgerAsync(string? from, string? to, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var today = IndiaTime.Today(clock);
         DateOnly start = new(today.Year, today.Month, 1), end = today;
