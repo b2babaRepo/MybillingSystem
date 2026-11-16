@@ -6,7 +6,7 @@ import { formatRupees, indiaToday, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import { OUTSIDE_PROFIT, type ExpenseCategory } from './ExpensesScreen'
 import { Page } from '../components/PrintPage'
-import { addText } from '../i18n'
+import { addText, shownLocale } from '../i18n'
 import { kharchaText } from '../i18n/kharcha'
 
 addText(kharchaText)
@@ -40,7 +40,7 @@ export function shiftMonth(month: string, by: number) {
 /** The India-time month now, "2026-10". */
 export const thisMonth = () => indiaToday().slice(0, 7)
 
-const monthLabel = (month: string) => new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+const monthLabel = (month: string) => new Date(`${month}-01T00:00:00`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric' })
 
 export function useExpenseMonth(shopId: string, month: string) {
   return useQuery({ queryKey: [shopId, 'expenses', 'month', month], queryFn: () => api<ExpenseMonth>(`/v1/expenses/month?month=${month}`) })
@@ -120,7 +120,7 @@ export function KharchaMonth({ shopId, shopName }: { shopId: string; shopName: s
             <ul className="divide-y divide-[#edf2f1] text-sm">
               {m.byDay.map((d) => (
                 <li key={d.date} className="flex justify-between py-2">
-                  <span>{new Date(`${d.date}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} <span className="text-muted">×{d.count}</span></span>
+                  <span>{new Date(`${d.date}T00:00:00`).toLocaleDateString(shownLocale(), { weekday: 'short', day: 'numeric', month: 'short' })} <span className="text-muted">×{d.count}</span></span>
                   <b>{formatRupees(d.total)}</b>
                 </li>
               ))}
@@ -147,7 +147,7 @@ export function KharchaPrint({ shopId, shopName, month }: { shopId: string; shop
         <tbody>
           {m.lines.map((l) => (
             <tr key={l.id} className="border-b border-gray-300">
-              <td className="py-1 pr-2 whitespace-nowrap">{new Date(l.occurredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+              <td className="py-1 pr-2 whitespace-nowrap">{new Date(l.occurredAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}</td>
               <td className="pr-2">{t(`expense.cat.${l.category}`)}{l.note && <span className="block text-xs text-gray-600">{l.note}</span>}</td>
               <td className="pr-2">{t(l.mode)}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.amount)}</td>

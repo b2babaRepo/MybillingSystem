@@ -88,7 +88,11 @@ public sealed record ProductDto(
     decimal Promised = 0,
     // What the bag size counts when buying (carton, strip); null: a bag.
     Unit? PurchaseUnit = null,
-    decimal? WeightKg = null);
+    decimal? WeightKg = null,
+    // The item's English and Hindi names from the master list or common catalogue, so the app can show the one for its
+    // language; the shop's own name is used when it renamed the item.
+    string? NameEn = null,
+    string? NameHi = null);
 
 public sealed record OutTodayRequest(bool Out);
 

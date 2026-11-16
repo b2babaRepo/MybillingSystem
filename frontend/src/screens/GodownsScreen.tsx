@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -164,7 +165,7 @@ export function GodownsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             <div key={m.id} className={`flex flex-col gap-0.5 rounded-xl border border-line p-3 text-sm ${m.cancelled ? 'text-muted line-through' : ''}`}>
               <p className="flex justify-between font-semibold">
                 <span>#{m.number} · {m.from === 'Shop' ? t('godown.shop') : m.from} → {m.to === 'Shop' ? t('godown.shop') : m.to}</span>
-                <span className="text-xs text-muted">{new Date(m.occurredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{m.by ? ` · ${m.by}` : ''}</span>
+                <span className="text-xs text-muted">{new Date(m.occurredAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}{m.by ? ` · ${m.by}` : ''}</span>
               </p>
               <p className="text-xs">{m.lines.map((l) => `${l.name} × ${l.quantity}`).join(', ')}{m.note ? ` · ${m.note}` : ''}</p>
               {isOwner && !m.cancelled && (

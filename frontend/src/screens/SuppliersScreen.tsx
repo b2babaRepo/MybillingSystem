@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { SupplierItemsCard } from '../components/SupplierPanels'
 import { ChargesEditor, LotView, chargesBody, noCharges, type Charges } from '../components/LandedCost'
@@ -439,8 +440,8 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
             <li key={e.id} className="border-b border-line py-2 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="flex min-w-0 flex-col">
-                  <span>{new Date(e.occurredAt).toLocaleDateString('en-IN')} · {t(`supplier2.kind.${e.kind}`)}{e.note && e.kind !== 'bill_cancelled' ? ` ${e.note.replace(/^Credit note\s*/, '')}` : ''}{e.mode ? ` · ${t(e.mode)}` : ''}{e.reference ? ` ${e.reference}` : ''}</span>
-                  {e.dueOn && <span className="text-xs text-muted">{t('supplier2.due', { date: new Date(e.dueOn).toLocaleDateString('en-IN') })}</span>}
+                  <span>{new Date(e.occurredAt).toLocaleDateString(shownLocale())} · {t(`supplier2.kind.${e.kind}`)}{e.note && e.kind !== 'bill_cancelled' ? ` ${e.note.replace(/^Credit note\s*/, '')}` : ''}{e.mode ? ` · ${t(e.mode)}` : ''}{e.reference ? ` ${e.reference}` : ''}</span>
+                  {e.dueOn && <span className="text-xs text-muted">{t('supplier2.due', { date: new Date(e.dueOn).toLocaleDateString(shownLocale()) })}</span>}
                 </span>
                 <span className="shrink-0 text-right"><span className={`block font-semibold ${e.cancelled ? 'line-through' : ''}`}>{e.amount < 0 ? '−' : ''}{formatRupees(Math.abs(e.amount))}</span>
                   <span className="block text-xs text-muted">{t('supplier2.balance')} {formatRupees(Math.abs(e.balance))}{e.balance !== 0 ? ` · ${t(e.balance > 0 ? 'heads.weOwe' : 'heads.theyOwe')}` : ''}</span></span>

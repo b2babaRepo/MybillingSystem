@@ -1,3 +1,4 @@
+import { itemName, nameMatches } from '../lib/itemName'
 import { CategoryInput } from '../components/CategoryInput'
 import { orderedNames, useCategories } from '../lib/categories'
 import { useShopSettings } from '../lib/reports'
@@ -46,7 +47,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
   const query = search.trim().toLowerCase()
   const isOut = (p: Product) => !p.isService && !p.uncounted && p.stock <= 0
   const shown = products.filter((p) =>
-    (!query || p.name.toLowerCase().includes(query)) && (!category || p.category === category)
+    (!query || nameMatches(p, query)) && (!category || p.category === category)
     && (filter === 'all' || (filter === 'out' ? isOut(p) : p.isLow && !isOut(p))))
   const lowCount = products.filter((p) => p.isLow && !isOut(p)).length
   // Suggested: the trade's popular master items this shop doesn't have yet (matched by name, as the picker does).
@@ -200,7 +201,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
               <button onClick={() => navigate(`/p/${p.id}`)} className="flex min-h-14 min-w-0 flex-1 items-center gap-2 text-left">
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="flex items-center gap-2 text-[16px] font-semibold">
-                    <span className="truncate">{p.name}</span>
+                    <span className="truncate">{itemName(p)}</span>
                     {p.pending && <PendingDot />}
                   </span>
                   {(p.dailySales ?? 0) > 0 && p.stock > 0 && p.stock / p.dailySales! <= 10 && !p.isService && (

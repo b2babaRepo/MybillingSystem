@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,7 +31,7 @@ export function PaintersScreen({ shopId, shopName }: { shopId: string; shopName:
   const [phone, setPhone] = useState('')
   const [percent, setPercent] = useState('5')
   const [message, setMessage] = useState<string | null>(null)
-  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' })
 
   async function add() {
     setMessage(null)

@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -65,7 +66,7 @@ export function GstExportScreen() {
   const ticks = data && registered && !data.composition ? [
     { label: t('rv.outputGst'), value: formatRupees(output) },
     { label: t('rv.credit'), value: formatRupees(credit) },
-    { label: t('rv.toPay'), value: formatRupees(pay), note: t('rv.dueOn', { date: new Date(`${next}-20T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }) }) },
+    { label: t('rv.toPay'), value: formatRupees(pay), note: t('rv.dueOn', { date: new Date(`${next}-20T00:00:00Z`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', timeZone: 'UTC' }) }) },
     { label: t('gstExport.bills'), value: String(data.bills) },
   ] : []
   const row = (label: string, value: string) => <p key={label} className="flex justify-between"><span>{label}</span><span className="font-semibold">{value}</span></p>
@@ -93,7 +94,7 @@ export function GstExportScreen() {
               return (
                 <div key={d.key} className={`flex items-center gap-3 rounded-xl p-3 ${left <= 3 ? 'bg-orange-50' : 'bg-teal-50'}`}>
                   <b className={`min-w-14 text-center text-[26px] ${left <= 3 ? 'text-orange-800' : 'text-teal-900'}`}>{left < 0 ? '!' : left}</b>
-                  <span className="text-sm">{t(`rv.${d.key}`)}<br /><span className="text-muted">{left < 0 ? t('rv.passed', { date: d.date }) : t('rv.daysLeft', { count: left, date: new Date(`${d.date}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }) })}</span></span>
+                  <span className="text-sm">{t(`rv.${d.key}`)}<br /><span className="text-muted">{left < 0 ? t('rv.passed', { date: d.date }) : t('rv.daysLeft', { count: left, date: new Date(`${d.date}T00:00:00Z`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', timeZone: 'UTC' }) })}</span></span>
                 </div>
               )
             })}

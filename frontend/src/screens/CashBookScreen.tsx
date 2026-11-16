@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -78,7 +79,7 @@ export function CashBookScreen({ shopId, isOwner = false }: { shopId: string; is
                   <span className="flex flex-col">
                     <span className="font-semibold">{line.who || t('book.walkIn')}</span>
                     <span className="text-xs text-muted">
-                      {new Date(line.occurredAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · {t(`book.sources.${line.source}`)} · {t(line.mode)}
+                      {new Date(line.occurredAt).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })} · {t(`book.sources.${line.source}`)} · {t(line.mode)}
                     </span>
                   </span>
                   <span className={`font-bold ${line.amount < 0 ? 'text-due' : 'text-jama'}`}>{line.amount < 0 ? '−' : '+'}{formatRupees(Math.abs(line.amount))}</span>
@@ -186,14 +187,14 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
                 : t('galla.extra', { amount: formatRupees(c.difference ?? 0) })}
           </span>
           {c.note && <span className="text-sm">{c.note}</span>}
-          <span className="text-xs opacity-80">{c.countedBy} · {c.countedAt && new Date(c.countedAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>
+          <span className="text-xs opacity-80">{c.countedBy} · {c.countedAt && new Date(c.countedAt).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })}</span>
           <button onClick={() => { setEditing(true); setCounted(''); setNote('') }} className="min-h-11 self-start text-sm underline">{t('galla.recount')}</button>
           {(c.history?.length ?? 0) > 1 && (
             <details className="text-xs">
               <summary className="cursor-pointer font-semibold">{t('galla.history', { count: c.history!.length })}</summary>
               <ul className="mt-1 flex flex-col gap-1">
                 {c.history!.map((h, i) => (
-                  <li key={i}>{new Date(h.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · {h.by ?? ''} · {formatRupees(h.counted)} ({h.difference === 0 ? t('galla.matches') : h.difference < 0 ? t('galla.short', { amount: formatRupees(-h.difference) }) : t('galla.extra', { amount: formatRupees(h.difference) })}){h.note ? ` · ${h.note}` : ''}</li>
+                  <li key={i}>{new Date(h.at).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })} · {h.by ?? ''} · {formatRupees(h.counted)} ({h.difference === 0 ? t('galla.matches') : h.difference < 0 ? t('galla.short', { amount: formatRupees(-h.difference) }) : t('galla.extra', { amount: formatRupees(h.difference) })}){h.note ? ` · ${h.note}` : ''}</li>
                 ))}
               </ul>
             </details>

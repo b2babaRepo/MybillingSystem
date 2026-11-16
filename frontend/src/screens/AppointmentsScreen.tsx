@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,7 +16,7 @@ interface Appointment {
 interface Day { date: string; stylists: { id: string; name: string }[]; appointments: Appointment[] }
 
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-const time12 = (t: string) => new Date(`2000-01-01T${t}`).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+const time12 = (t: string) => new Date(`2000-01-01T${t}`).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })
 const TONE: Record<Status, string> = { booked: 'border-teal-200 bg-white', arrived: 'border-amber-300 bg-amber-50', done: 'border-line bg-slate-50 text-muted', no_show: 'border-line bg-slate-50 text-muted line-through', cancelled: 'border-line bg-slate-50 text-muted line-through' }
 
 /** The salon's day: a column for each stylist (and "any stylist"), each appointment by time, from booking to bill. */
@@ -55,7 +56,7 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
   }
   const shift = (n: number) => { const d = new Date(`${date}T00:00`); d.setDate(d.getDate() + n); setDate(isoDay(d)) }
   const columns = [...(day?.stylists ?? []).map((s) => ({ id: s.id as string | null, name: s.name })), { id: null, name: t('appointments.anyStylist') }]
-  const reminder = (a: Appointment) => t('appointments.reminder', { name: a.name, shop: shopName, date: new Date(`${a.date}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), time: time12(a.start), services: a.services.map((s) => s.name).join(', ') })
+  const reminder = (a: Appointment) => t('appointments.reminder', { name: a.name, shop: shopName, date: new Date(`${a.date}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }), time: time12(a.start), services: a.services.map((s) => s.name).join(', ') })
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">

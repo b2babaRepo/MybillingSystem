@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -217,7 +218,7 @@ export function StylistEarningsScreen({ shopId }: { shopId: string }) {
     <div className="flex flex-col gap-3 p-4 pb-28">
       <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
         <button onClick={() => shift(-1)} aria-label={t('bookings.prev')} className="h-11 w-11 text-xl">‹</button>
-        <span className="font-bold">{new Date(`${month}-01T00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</span>
+        <span className="font-bold">{new Date(`${month}-01T00:00`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric' })}</span>
         <button onClick={() => shift(1)} aria-label={t('bookings.next')} className="h-11 w-11 text-xl">›</button>
       </div>
       {message && <p className="text-sm text-muted">{message}</p>}

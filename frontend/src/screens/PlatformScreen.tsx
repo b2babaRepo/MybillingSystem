@@ -10,7 +10,7 @@ import { useSession } from '../lib/data'
 import { ActivityPanel, AgentPanel, BillingPanel, PlansPanel, ShopBillingPanel } from './PlatformBilling'
 import { usePlans } from '../lib/billing'
 import { AgentsPanel, PerformancePanel, RegistrationsPanel } from './PlatformAgents'
-import { addText } from '../i18n'
+import { addText, shownLocale } from '../i18n'
 import { adminText } from '../i18n/admin'
 import { ask, confirmAsk } from '../components/Ask'
 
@@ -163,7 +163,7 @@ export function PlatformScreen() {
                       <span className="truncate text-sm text-muted">{[s.ownerName, formatPhone(s.ownerPhone)].filter(Boolean).join(' · ')}</span>
                       <span className="text-sm text-muted">
                         {s.planCode && (s.planStatus === 'trial' ? t('plan2.status.trial') : `${plans.find((p) => p.code === s.planCode)?.name ?? s.planCode}${s.planStatus === 'active' || s.planStatus === 'grace' ? ` ${t('billing.paidTag')}` : ''}`)}
-                        {s.planEndsAt && ` · ${t('billing.until', { date: new Date(s.planEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) })}`}
+                        {s.planEndsAt && ` · ${t('billing.until', { date: new Date(s.planEndsAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) })}`}
                       </span>
                     </span>
                     <StatusChip shop={s} />

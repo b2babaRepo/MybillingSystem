@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -112,7 +113,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
         {s.daysLeft !== null && <span className="text-sm">{t('plan2.daysLeft', { count: s.daysLeft })}</span>}
         {s.compReason && <span className="text-sm">{s.compReason}</span>}
         {s.holdReason && <span className="text-sm font-semibold">{t('plan2.holdReason', { reason: s.holdReason })}</span>}
-        {s.priceLockUntil && <span className="text-sm">{t('plan2.priceLock', { date: new Date(s.priceLockUntil).toLocaleDateString('en-IN') })}</span>}
+        {s.priceLockUntil && <span className="text-sm">{t('plan2.priceLock', { date: new Date(s.priceLockUntil).toLocaleDateString(shownLocale()) })}</span>}
         <span className="mt-1 text-xs opacity-80">{t('plan2.alwaysFree')}</span>
       </section>
 
@@ -213,7 +214,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
           <ul className="divide-y divide-[#edf2f1] text-sm">
             {s.payments.map((p) => (
               <li key={p.id} className={`flex justify-between gap-2 py-2 ${p.refundedAt ? 'text-muted line-through' : ''}`}>
-                <span>{p.invoiceNo} · {t(`plan2.term.${p.term}`)} {s.plans.find((x) => x.code === p.planCode)?.name ?? p.planCode}<br /><span className="text-xs text-muted">{new Date(p.paidAt).toLocaleDateString('en-IN')} → {new Date(p.periodEnd).toLocaleDateString('en-IN')}</span></span>
+                <span>{p.invoiceNo} · {t(`plan2.term.${p.term}`)} {s.plans.find((x) => x.code === p.planCode)?.name ?? p.planCode}<br /><span className="text-xs text-muted">{new Date(p.paidAt).toLocaleDateString(shownLocale())} → {new Date(p.periodEnd).toLocaleDateString(shownLocale())}</span></span>
                 <span className="flex flex-col items-end gap-1">
                   <span className="font-bold">{formatRupees(p.amount)}</span>
                   {p.billToken && <a href={`#/bill/plan/${p.id}?t=${p.billToken}`} className="text-xs font-semibold text-teal-700 underline">{t('planBill.bill')}</a>}

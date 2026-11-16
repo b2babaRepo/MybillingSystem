@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -132,8 +133,8 @@ export function KarigarPanel({ shopId }: { shopId: string }) {
           <li key={c.id} className={`rounded-[18px] p-3 ${c.overAYear ? 'bg-amber-50' : 'bg-white'}`}>
             <p className="font-semibold">#{c.number} {c.karigar} · {c.productName} × {c.quantity} {t(`units.${c.unit}`, { count: c.quantity })}</p>
             <p className="text-xs text-muted">
-              {t('workshop.sentOn', { date: new Date(c.sentAt).toLocaleDateString('en-IN') })}{c.note ? ` · ${c.note}` : ''}
-              {c.receivedAt ? ` · ${t('workshop.backOn', { date: new Date(c.receivedAt).toLocaleDateString('en-IN'), qty: c.receivedQuantity })}` : ''}
+              {t('workshop.sentOn', { date: new Date(c.sentAt).toLocaleDateString(shownLocale()) })}{c.note ? ` · ${c.note}` : ''}
+              {c.receivedAt ? ` · ${t('workshop.backOn', { date: new Date(c.receivedAt).toLocaleDateString(shownLocale()), qty: c.receivedQuantity })}` : ''}
             </p>
             {c.overAYear && <p className="text-sm font-semibold text-due">{t('workshop.overAYear')}</p>}
             {!c.receivedAt && (

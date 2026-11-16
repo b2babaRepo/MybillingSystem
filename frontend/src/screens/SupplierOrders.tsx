@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { BagCheck } from './ProductScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -141,8 +142,8 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
         const draft = o.status === 'draft'
         return (
           <div key={o.id} className="flex flex-col gap-1 rounded-xl border border-line p-3 text-sm">
-            <p className="flex justify-between font-semibold"><span>{t('supplier2.orderNo', { number: o.number })} · {new Date(o.createdAt).toLocaleDateString('en-IN')}</span>{draft ? <span className="rounded-full bg-amber-100 px-2 text-xs text-amber-800">{t('supplier2.draft')}</span> : <span>{t('supplier2.stillToCome', { qty: o.pending })}</span>}</p>
-            {(o.expectedOn || o.note) && <p className={`text-xs ${isLate(o) ? 'font-semibold text-due' : 'text-muted'}`}>{o.expectedOn && t(isLate(o) ? 'po.late' : 'po.expected', { date: new Date(o.expectedOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) })}{o.expectedOn && o.note ? ' · ' : ''}{o.note}</p>}
+            <p className="flex justify-between font-semibold"><span>{t('supplier2.orderNo', { number: o.number })} · {new Date(o.createdAt).toLocaleDateString(shownLocale())}</span>{draft ? <span className="rounded-full bg-amber-100 px-2 text-xs text-amber-800">{t('supplier2.draft')}</span> : <span>{t('supplier2.stillToCome', { qty: o.pending })}</span>}</p>
+            {(o.expectedOn || o.note) && <p className={`text-xs ${isLate(o) ? 'font-semibold text-due' : 'text-muted'}`}>{o.expectedOn && t(isLate(o) ? 'po.late' : 'po.expected', { date: new Date(o.expectedOn).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) })}{o.expectedOn && o.note ? ' · ' : ''}{o.note}</p>}
             {o.lines.map((l) => (
               <p key={l.productId} className={`flex justify-between gap-2 ${l.received >= l.quantity ? 'text-muted' : ''}`}>
                 <span>{l.name}{l.rate != null ? ` · ${formatRupees(l.rate)}` : ''}</span>
@@ -320,7 +321,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
       {open.length === 0 && !rows && <p className="text-sm text-muted">{t('receipt.none')}</p>}
       {open.map((r) => (
         <div key={r.id} className="flex flex-col gap-1 rounded-xl border border-line p-3 text-sm">
-          <p className="font-semibold">{t('receipt.number', { number: r.number, date: new Date(r.receivedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) })}{r.by ? ` · ${t('receipt.by', { name: r.by })}` : ''}{orders.find((o) => o.id === r.purchaseOrderId) ? ` · ${t('supplier2.orderNo', { number: orders.find((o) => o.id === r.purchaseOrderId)!.number })}` : ''}</p>
+          <p className="font-semibold">{t('receipt.number', { number: r.number, date: new Date(r.receivedAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) })}{r.by ? ` · ${t('receipt.by', { name: r.by })}` : ''}{orders.find((o) => o.id === r.purchaseOrderId) ? ` · ${t('supplier2.orderNo', { number: orders.find((o) => o.id === r.purchaseOrderId)!.number })}` : ''}</p>
           {r.lines.map((l) => <p key={l.productId} className="text-xs">{l.name} × {l.quantity}{l.bags ? ` · ${t('bag.inBags', { count: l.bags })}` : ''}</p>)}
           {(r.vehicleNo || r.bilty) && <p className="text-xs text-muted">🚚 {[r.vehicleNo, r.bilty && `${t('bag.bilty')} ${r.bilty}`, r.transporter].filter(Boolean).join(' · ')}</p>}
           {r.grossWeight != null && r.tareWeight != null && (() => {

@@ -148,6 +148,8 @@ public sealed class Product : Entity, ITenantOwned
     public int? MasterItemId { get; set; }
 
     public MasterItem? MasterItem { get; set; }
+
+    public CatalogueItem? CatalogueItem { get; set; }
 }
 
 public enum DrugSchedule

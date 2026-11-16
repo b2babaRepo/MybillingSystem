@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../lib/format'
@@ -110,7 +111,7 @@ export function UpDownBars({ days, average, label }: { days: { date: string; sal
         <text x="2" y="216" fontSize="11" fill="#4b5d59">1</text>
         <text x="690" y="216" fontSize="11" fill="#4b5d59" textAnchor="end">{days.length}</text>
       </svg>
-      {best && best.sales > 0 && <p className="text-[13px] text-muted">{t('rv.bestDay', { date: new Date(best.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), amount: formatRupees(best.sales) })}</p>}
+      {best && best.sales > 0 && <p className="text-[13px] text-muted">{t('rv.bestDay', { date: new Date(best.date).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }), amount: formatRupees(best.sales) })}</p>}
     </figure>
   )
 }

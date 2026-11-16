@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keypad } from '../components/Keypad'
@@ -453,7 +454,7 @@ function monthKey(offset: number) {
   return date.toISOString().slice(0, 7)
 }
 
-const monthLabel = (month: string) => new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' })
+const monthLabel = (month: string) => new Date(`${month}-01T00:00:00Z`).toLocaleDateString(shownLocale(), { month: 'short', timeZone: 'UTC' })
 
 /** A "Name later" khata turned out to be someone already on the list: move everything onto them. */
 function MoveInto({ from, customers, onMoved }: { from: string; customers: { id: string; name: string; phone: string | null }[]; onMoved: (to: string) => Promise<void> }) {

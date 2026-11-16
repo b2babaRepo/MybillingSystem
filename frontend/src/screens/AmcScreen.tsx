@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +13,7 @@ interface Amc {
   startOn: string; endsOn: string; months: number; visits: number; visitsDone: number; nextDue: string | null; fee: number; billId: string
 }
 
-const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 const daysFrom = (iso: string) => Math.round((new Date(`${iso}T00:00`).getTime() - new Date(new Date().toDateString()).getTime()) / 86_400_000)
 const EMPTY = { customerId: '', title: '', serialNo: '', months: '12', visits: '4', fee: '', paid: '', mode: 'cash' }
 

@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +15,7 @@ type Kind = 'added' | 'removed' | 'to_bank' | 'from_bank'
 const monthOf = (day: string) => day.slice(0, 7)
 const lastDay = (month: string) => { const [y, m] = month.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10) }
 const shiftMonth = (month: string, by: number) => { const [y, m] = month.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + by, 1)).toISOString().slice(0, 7) }
-const when = (iso: string) => new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+const when = (iso: string) => new Date(iso).toLocaleString(shownLocale(), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 
 /**
  * Cash in hand, a month at a time: the opening (the last galla count before it), every rupee in and out of the drawer
@@ -35,7 +36,7 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const data = ledger.data
-  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' })
   const bankMove = kind === 'to_bank' || kind === 'from_bank'
   const needsNote = kind === 'added' || kind === 'removed'
   const ready = !!kind && Number(amount) > 0 && (!needsNote || note.trim().length > 0)
@@ -135,7 +136,7 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
             <tbody className="text-right tabular-nums">
               {data.days.filter((d) => d.in || d.out || d.counted !== null).map((d) => (
                 <tr key={d.date}>
-                  <td className="px-3 py-2 text-left">{new Date(d.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                  <td className="px-3 py-2 text-left">{new Date(d.date).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}</td>
                   <td className="px-3 py-2">{formatRupees(d.in)}</td><td className="px-3 py-2">{formatRupees(d.out)}</td><td className="px-3 py-2">{formatRupees(d.closing)}</td>
                   <td className={`px-3 py-2 ${(d.difference ?? 0) < 0 ? 'text-orange-700' : ''}`}>{d.counted === null ? '–' : formatRupees(d.difference ?? 0)}</td>
                 </tr>

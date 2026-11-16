@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +23,7 @@ interface BoardRow { room: Room; state: 'free' | 'arriving' | 'occupied' | 'leav
 
 const SOURCES: Source[] = ['direct', 'walk_in', 'make_my_trip', 'goibibo', 'booking_com', 'oyo', 'airbnb', 'other']
 const STATE_TONE: Record<BoardRow['state'], string> = { free: 'bg-white', arriving: 'bg-amber-50', occupied: 'bg-teal-50', leaving: 'bg-red-50' }
-const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
 /** Rooms today (free, arriving, guest in, leaving), the coming stays, and each stay from booking to checkout. */

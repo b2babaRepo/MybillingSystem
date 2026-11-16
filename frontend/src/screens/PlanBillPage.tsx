@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../lib/format'
@@ -49,7 +50,7 @@ export function PlanBillPage({ path }: { path: string }) {
   if (!match || bill.isError) return <p className="p-6 text-center">{t('planBill.notFound')}</p>
   const b = bill.data
   if (!b) return <p className="p-6 text-center">…</p>
-  const date = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  const date = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 
   return (
     <div className="mx-auto max-w-xl bg-white p-6 text-[15px] text-black print:p-0">

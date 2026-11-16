@@ -64,6 +64,9 @@ export interface Product {
   purchaseUnit?: Unit | null
   /** Kilograms in one unit, for load weight and freight by weight. */
   weightKg?: number | null
+  /** The item's English and Hindi names from the master list or common catalogue (see lib/itemName). */
+  nameEn?: string | null
+  nameHi?: string | null
   bags?: number
   /** Promised on open sale orders, not yet delivered. */
   promised?: number

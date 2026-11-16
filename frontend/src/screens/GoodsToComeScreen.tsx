@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +19,7 @@ interface Coming {
 const STAGES = ['sent', 'confirmed', 'dispatched'] as const
 // E-way bill: needed for goods above ₹50,000 moving by road (rule 138); some states set other limits within the state.
 const EWAY_ABOVE = 50_000
-const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00` : iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00` : iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 const todayIso = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
 const plusDays = (n: number) => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000 + n * 86_400_000).toISOString().slice(0, 10)
 const blankLot = { transporter: '', lrNo: '', vehicleNo: '', ewayBillNo: '', ewayValidUntil: '', freight: '', freightPaidBy: '', dispatchedOn: '', expectedOn: '' }

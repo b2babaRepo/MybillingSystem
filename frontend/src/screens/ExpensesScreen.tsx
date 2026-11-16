@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -154,7 +155,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
     : live.filter((l) => l.mode === 'cash' && payee(l.note) === payee(g.note)).reduce((sum, l) => sum + l.amount, 0)
       + guesses.filter((x) => x.mode === 'cash' && payee(x.note) === payee(g.note)).reduce((sum, x) => sum + (Number(x.amount) || 0), 0)
   const upiOut = live.filter((l) => l.mode === 'upi').reduce((sum, l) => sum + l.amount, 0)
-  const label = new Date(`${day}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+  const label = new Date(`${day}T00:00:00Z`).toLocaleDateString(shownLocale(), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
   const isToday = day === today
 
   const refresh = () => Promise.all([
@@ -362,7 +363,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate font-semibold">{line.note ?? t(`expense.cat.${line.category}`)}</span>
                     <span className="text-xs text-muted">
-                      {new Date(line.occurredAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} · {t(line.mode)}{line.by ? ` · ${line.by}` : ''}{'pending' in line ? ` · ⏳ ${t('expense.waiting')}` : ''}
+                      {new Date(line.occurredAt).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })} · {t(line.mode)}{line.by ? ` · ${line.by}` : ''}{'pending' in line ? ` · ⏳ ${t('expense.waiting')}` : ''}
                     </span>
                   </span>
                   <span className="font-bold">{formatRupees(line.amount)}</span>

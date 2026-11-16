@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +23,7 @@ interface CustomerPattern {
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 const shift = (date: string, days: number) => iso(new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000))
-const label = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+const label = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
 /** The quick choices: this week (Monday to today), last week, the last 7 days, this month so far. */
 export function presets() {
@@ -101,7 +102,7 @@ export function SalesWeekScreen({ shopId, shopName, isOwner }: { shopId: string;
             ))}
           </div>
           {r.days.length <= 14 && (
-            <div className="flex gap-1 text-[10px] text-muted">{r.days.map((d) => <span key={d.date} className="flex-1 text-center">{new Date(`${d.date}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'narrow', timeZone: 'UTC' })}</span>)}</div>
+            <div className="flex gap-1 text-[10px] text-muted">{r.days.map((d) => <span key={d.date} className="flex-1 text-center">{new Date(`${d.date}T00:00:00Z`).toLocaleDateString(shownLocale(), { weekday: 'narrow', timeZone: 'UTC' })}</span>)}</div>
           )}
         </section>
 
@@ -142,7 +143,7 @@ export function SalesWeekScreen({ shopId, shopName, isOwner }: { shopId: string;
                 <li key={u.productId}>
                   <button onClick={() => navigate(`/p/${u.productId}`)} className="flex min-h-11 w-full items-center justify-between gap-2 text-left">
                     <span className="truncate">{u.name}</span>
-                    <span className="shrink-0 text-muted">{u.stock} {t(`units.${u.unit}`, { count: u.stock })} · {u.lastSold ? t('insights.lastSold', { date: new Date(u.lastSold).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) }) : t('insights.neverSold')}</span>
+                    <span className="shrink-0 text-muted">{u.stock} {t(`units.${u.unit}`, { count: u.stock })} · {u.lastSold ? t('insights.lastSold', { date: new Date(u.lastSold).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) }) : t('insights.neverSold')}</span>
                   </button>
                 </li>
               ))}

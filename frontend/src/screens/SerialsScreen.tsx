@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,7 +8,7 @@ import { useProducts } from '../lib/data'
 import type { Serial } from '../lib/serials'
 import { navigate } from '../router'
 
-const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 
 /** On a sales & service shop's home. */
 export function ServiceHomeCard({ isOwner }: { isOwner: boolean }) {

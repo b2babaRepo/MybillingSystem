@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -10,7 +11,7 @@ interface Festival { key: string; name: string; date: string; daysLeft: number; 
 interface Supplier { id: string; name: string; isActive?: boolean }
 
 const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
-const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 
 /** Home: the next festival coming, with how many items to stock up on. */
 export function FestivalCard({ shopId }: { shopId: string }) {

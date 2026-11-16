@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { addText } from '../i18n'
+import { addText, shownLocale } from '../i18n'
 import { teamText } from '../i18n/team'
 import { formatRupees } from '../lib/format'
 
@@ -53,7 +53,7 @@ export function TeamViewPage({ path }: { path: string }) {
       </section>
       <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
         <div className="flex items-baseline justify-between">
-          <h2 className="font-bold">{new Date(`${v.month}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</h2>
+          <h2 className="font-bold">{new Date(`${v.month}-01T00:00:00`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric' })}</h2>
           <span className="text-2xl font-extrabold">{formatRupees(v.monthTotal)}</span>
         </div>
         {bars(v.monthByName)}

@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -93,8 +94,8 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
               <span className="flex flex-col">
                 <b>{o.supplierName} · {t('supplier2.orderNo', { number: o.number })}</b>
                 <span className={`text-xs ${isLate(o) ? 'font-semibold text-due' : 'text-muted'}`}>
-                  {new Date(o.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                  {o.expectedOn && ` · ${t(isLate(o) ? 'po.late' : 'po.expected', { date: new Date(o.expectedOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) })}`}
+                  {new Date(o.createdAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}
+                  {o.expectedOn && ` · ${t(isLate(o) ? 'po.late' : 'po.expected', { date: new Date(o.expectedOn).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) })}`}
                   {` · ${t('po.types', { count: o.lines.length })}`}{value(o) > 0 && ` · ${formatRupees(value(o))}`}
                 </span>
               </span>

@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +12,7 @@ interface Return {
   lines: { productName: string; batchNo: string; quantity: number; value: number }[]
 }
 
-const month = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+const month = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { month: 'short', year: 'numeric' })
 const select = 'h-12 w-full rounded-xl border border-line bg-white px-3'
 
 /** Expiry returns: send near-expiry batches back to a distributor, then settle each return when its credit note comes. */

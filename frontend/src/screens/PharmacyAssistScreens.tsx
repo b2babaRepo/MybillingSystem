@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +12,7 @@ interface ReorderOption { supplierId: string; name: string; phone: string | null
 interface ReorderGroup { supplierId: string | null; supplierName: string | null; phone: string | null; lines: { productId: string; medicine: string; stock: number; soldLast30Days: number; suggested: number; lastRate: number | null; daysLeft?: number | null; leadDays?: number; options?: ReorderOption[] }[] }
 interface Part { supplierId: string | null; qty: string }
 
-const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 
 /** Regular patients due a refill, worked out from how often they buy each medicine. A reminder goes only when the shop taps it. */
 export function RefillsScreen({ shopId, shopName }: { shopId: string; shopName: string }) {

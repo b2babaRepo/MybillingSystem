@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { lazy, Suspense, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -161,7 +162,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
             <button key={o.id} onClick={() => start(o)} className="flex items-center justify-between gap-2 rounded-[18px] bg-white p-4 text-left shadow-sm hover:bg-[#f6faf9]">
               <span className="flex flex-col">
                 <b>{o.supplierName} · {t('supplier2.orderNo', { number: o.number })}</b>
-                <span className="text-xs text-muted">{t('po.types', { count: o.lines.filter((l) => l.pending > 0).length })}{o.expectedOn && ` · ${t('po.expected', { date: new Date(o.expectedOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) })}`}</span>
+                <span className="text-xs text-muted">{t('po.types', { count: o.lines.filter((l) => l.pending > 0).length })}{o.expectedOn && ` · ${t('po.expected', { date: new Date(o.expectedOn).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) })}`}</span>
               </span>
               <span className="shrink-0 rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800">{t('supplier2.stillToCome', { qty: round(pending) })}</span>
             </button>

@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { lazy, Suspense, useState } from 'react'
 import { AttachCustomer } from '../components/AttachCustomer'
 import { Page } from '../components/PrintPage'
@@ -105,7 +106,7 @@ function SupplierStatementPrint({ shopName, supplierId }: { shopName: string; su
     const text = e.note?.replace(/^Credit note\s*/, '')
     const note = text && e.kind !== 'bill_cancelled' && text !== kind ? ` ${text}` : ''
     return {
-      key: e.id, date: new Date(e.occurredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }),
+      key: e.id, date: new Date(e.occurredAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: '2-digit' }),
       details: `${kind}${note}${e.mode ? ` · ${t(e.mode)}` : ''}${e.reference ? ` ${e.reference}` : ''}`,
       debit: e.amount < 0 ? -e.amount : 0, credit: e.amount > 0 ? e.amount : 0, balance: e.balance, struck: e.cancelled,
     }
@@ -126,13 +127,13 @@ function StatementPrint({ shopName, customerId, month }: { shopName: string; cus
   if (query.isError) return <Problem error={query.error} />
   const s = query.data
   if (!s) return <p className="p-6">…</p>
-  const monthLabel = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const monthLabel = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' })
   const share = t('print.statementShare', { shop: shopName, month: monthLabel, opening: s.openingBalance, closing: s.closingBalance })
   const name = s.customer.name
   const rows: LedgerRow[] = [
     { key: 'opening', date: '', details: t('print.openingBalance'), debit: 0, credit: 0, balance: s.openingBalance },
     ...s.entries.map((e) => ({
-      key: e.id, date: new Date(e.occurredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+      key: e.id, date: new Date(e.occurredAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }),
       details: `${e.kind === 'reversal' ? t('reversal') : e.kind === 'opening' ? t('partyImport.openingShort') : e.amount > 0 ? t('creditShort') : t('paymentShort')}${e.paymentMode ? ` (${t(e.paymentMode)}${e.upiRef ? ` · UTR ${e.upiRef}` : ''}${e.chequeNo ? ` #${e.chequeNo}` : ''}${e.chequeStatus && e.kind !== 'reversal' ? ` · ${t(`cheques.status.${e.chequeStatus}`)}` : ''})` : ''}${e.note ? ` · ${e.note}` : ''}`,
       debit: e.amount > 0 ? e.amount : 0, credit: e.amount < 0 ? -e.amount : 0, balance: e.runningBalance, struck: e.isReversed,
     })),
@@ -182,7 +183,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
   return (
     <section className="mt-6 flex flex-col gap-2 print:hidden">
       {notes.data?.map((n) => (
-        <p key={n.id} className="flex justify-between text-sm"><span>{n.noteNo} · {new Date(n.occurredAt).toLocaleDateString('en-IN')} · {n.reason}</span><span>−{formatRupees(n.total)}</span></p>
+        <p key={n.id} className="flex justify-between text-sm"><span>{n.noteNo} · {new Date(n.occurredAt).toLocaleDateString(shownLocale())} · {n.reason}</span><span>−{formatRupees(n.total)}</span></p>
       ))}
       {!open ? (
         <div className="grid grid-cols-2 gap-2">
@@ -219,7 +220,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
 /** A bill still on this device: the customer gets a receipt now, without a bill number or tax, which only the server gives. */
 function ProvisionalPrint({ shopName, bill }: { shopName: string; bill: ProvisionalBill }) {
   const { t } = useTranslation()
-  const when = new Date(bill.occurredAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+  const when = new Date(bill.occurredAt).toLocaleString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
   return (
     <Page title={shopName} subtitle={`${t('print.provisional')} · ${when}${bill.customerName ? ` · ${bill.customerName}` : ''}`} shareText={t('print.billShare', { shop: shopName, total: bill.total, paid: bill.paidAmount, khata: bill.onKhata })} phone={null}>
       <p className="mb-3 border-2 border-black p-2 text-center text-sm font-bold">{t('print.provisionalNote')}</p>
@@ -302,7 +303,7 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
 function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: { shopName: string; bill: BillView['bill']; customerName: string | null; phone: string | null; link: string | null; onCancel?: () => void }) {
   const { t } = useTranslation()
   const gstin = bill.gstin
-  const when = new Date(bill.occurredAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+  const when = new Date(bill.occurredAt).toLocaleString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
   const share = [t('print.billShare', { shop: shopName, total: bill.total, paid: bill.paidAmount, khata: bill.onKhata }), link].filter(Boolean).join('\n')
   // No GSTIN: not registered, so no tax on the bill at all.
   // A composition shop's bill of supply shows no tax. Bills keep their tax since it was stored; older ones work it out.

@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,7 +10,7 @@ import { formatRupees } from '../lib/format'
 interface Batch { id: string; batchNo: string; expiry: string; mrp: number; costPrice: number | null; quantity: number; expired: boolean; daysLeft: number }
 interface Expiring { id: string; productName: string; batchNo: string; expiry: string; quantity: number; value: number; expired: boolean; daysLeft: number }
 
-const month = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+const month = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { month: 'short', year: 'numeric' })
 const select = 'h-12 w-full rounded-xl border border-line bg-white px-3'
 
 /** Medicines by batch: receive a batch (batch no., expiry, MRP, cost, free units), see each medicine's batches, and what is expiring. */

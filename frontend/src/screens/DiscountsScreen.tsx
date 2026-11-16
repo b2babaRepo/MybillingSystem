@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -58,7 +59,7 @@ export function DiscountsScreen() {
               <div key={i} className="flex justify-between gap-2 border-t border-line py-1.5 text-sm">
                 <span>
                   <span className="font-semibold">{l.item} × {l.quantity}</span>
-                  <span className="block text-xs text-muted">{new Date(l.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {l.billNo} · {l.by}{l.offer ? ` · ${t('disc.offer', { name: l.offer })}` : ''}</span>
+                  <span className="block text-xs text-muted">{new Date(l.at).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })} · {l.billNo} · {l.by}{l.offer ? ` · ${t('disc.offer', { name: l.offer })}` : ''}</span>
                 </span>
                 <span className="text-right tabular-nums"><span className="font-semibold text-due">−{formatRupees(l.discount)}</span>
                   <span className="block text-xs text-muted">{formatRupees(l.listPrice)} → {formatRupees(l.soldAt)}</span></span>

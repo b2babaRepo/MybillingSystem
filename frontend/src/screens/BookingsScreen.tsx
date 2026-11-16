@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,7 +37,7 @@ export function BookingsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
 
   if (openId) return <BookingPage shopId={shopId} id={openId} isOwner={isOwner} onBack={() => setOpenId(null)} />
   const shift = (n: number) => { const [y, m] = month.split('-').map(Number); setMonth(monthOf(new Date(y, m - 1 + n, 1))) }
-  const label = new Date(`${month}-01T00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  const label = new Date(`${month}-01T00:00`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric' })
   const byDate = bookings.reduce<Record<string, Booking[]>>((acc, b) => ({ ...acc, [b.date]: [...(acc[b.date] ?? []), b] }), {})
 
   return (
@@ -53,7 +54,7 @@ export function BookingsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
           {Object.keys(byDate).length === 0 && <p className="rounded-[18px] bg-white p-4 text-center text-muted">{t('bookings.none')}</p>}
           {Object.entries(byDate).map(([date, list]) => (
             <section key={date} className="rounded-[18px] bg-white p-3">
-              <h3 className="mb-1 font-bold">{new Date(`${date}T00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</h3>
+              <h3 className="mb-1 font-bold">{new Date(`${date}T00:00`).toLocaleDateString(shownLocale(), { weekday: 'short', day: 'numeric', month: 'short' })}</h3>
               <ul className="flex flex-col gap-1">
                 {list.map((b) => (
                   <li key={b.id}>
@@ -185,8 +186,8 @@ function BookingPage({ shopId, id, isOwner, onBack }: { shopId: string; id: stri
       <div className="rounded-[18px] bg-white p-4">
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_TONE[b.status]}`}>{t(`bookings.status.${b.status}`)}</span>
         <h2 className="mt-1 text-lg font-bold">#{b.number} {t(`bookings.occasion.${b.occasion}`)} · {b.customerName ?? '—'}</h2>
-        <p className="text-sm text-muted">{b.venueName} · {new Date(`${b.date}T00:00`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · {t(`bookings.slot.${b.slot}`)}</p>
-        {b.status === 'hold' && b.holdUntil && <p className="text-sm font-semibold text-amber-800">{t('bookings.heldUntil', { date: new Date(b.holdUntil).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) })}</p>}
+        <p className="text-sm text-muted">{b.venueName} · {new Date(`${b.date}T00:00`).toLocaleDateString(shownLocale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · {t(`bookings.slot.${b.slot}`)}</p>
+        {b.status === 'hold' && b.holdUntil && <p className="text-sm font-semibold text-amber-800">{t('bookings.heldUntil', { date: new Date(b.holdUntil).toLocaleString(shownLocale(), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) })}</p>}
         <div className="mt-3 flex flex-col gap-1 text-sm">
           {line(t('bookings.hallRent'), formatRupees(b.hallRent))}
           {line(t('bookings.platesLine', { count: b.guests, rate: formatRupees(b.plateRate) }), formatRupees(b.guests * b.plateRate))}

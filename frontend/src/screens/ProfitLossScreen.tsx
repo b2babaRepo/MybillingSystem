@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -132,7 +133,7 @@ export function ProfitLossScreen() {
         <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
           {row(t('pnl.opening'), r.openingStock)}
           {row(t('pnl.purchases'), r.purchases)}
-          {row(t('pnl.closing', { date: new Date(r.closingDate).toLocaleDateString('en-IN') }), r.closingStock)}
+          {row(t('pnl.closing', { date: new Date(r.closingDate).toLocaleDateString(shownLocale()) }), r.closingStock)}
           {(r.workInProgress ?? 0) > 0 && row(t('pnl.wip'), r.workInProgress ?? 0)}
           {(r.finishedGoods ?? 0) > 0 && row(t('pnl.finished'), r.finishedGoods ?? 0)}
           {row(t('pnl.home'), r.takenHome)}

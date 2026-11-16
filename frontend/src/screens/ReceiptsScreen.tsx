@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -132,7 +133,7 @@ function ReceiptCard({ shopId, receipt: r, isOwner, run }: { shopId: string; rec
           {matched && <div className="text-sm text-muted">{t('receipts.leftOf', { amount: formatRupees(r.amount) })}</div>}
           <div className="truncate text-sm text-muted">{[r.payerName, r.utr && `UTR ${r.utr}`].filter(Boolean).join(' · ')}</div>
         </div>
-        <span className="shrink-0 text-sm text-muted">{new Date(r.receivedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+        <span className="shrink-0 text-sm text-muted">{new Date(r.receivedAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}</span>
       </div>
       {r.already?.kind === 'entered' && (
         <>

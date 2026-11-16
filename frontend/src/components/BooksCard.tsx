@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -5,7 +6,7 @@ import { api } from '../lib/api'
 
 interface Books { closedUntil: string | null; history: { at: string; by: string | null; action: 'close' | 'reopen'; month: string; reason: string | null }[] }
 
-const monthName = (ym: string) => new Date(`${ym}-01T00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+const monthName = (ym: string) => new Date(`${ym}-01T00:00`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric' })
 const previousMonth = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` }
 
 /**
@@ -63,7 +64,7 @@ export function BooksCard({ month }: { month: string }) {
           <ul className="mt-1 flex flex-col gap-1">
             {books.history.map((h, i) => (
               <li key={i} className="border-t border-line pt-1">
-                {new Date(h.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · {h.by ?? ''} · {t(`books.action.${h.action}`, { month: monthName(h.month) })}{h.reason ? ` · “${h.reason}”` : ''}
+                {new Date(h.at).toLocaleString(shownLocale(), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · {h.by ?? ''} · {t(`books.action.${h.action}`, { month: monthName(h.month) })}{h.reason ? ` · “${h.reason}”` : ''}
               </li>
             ))}
           </ul>

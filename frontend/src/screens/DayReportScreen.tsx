@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +21,7 @@ interface DayReport {
 }
 
 const shift = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
-const time = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+const time = (iso: string) => new Date(iso).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })
 
 /**
  * The day book: every bill of a day with its items, how it was paid and what went on khata; cancelled bills apart (never
@@ -36,7 +37,7 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
   const modeLabel = (b: DayBill) => ((b.parts?.length ?? 0) > 1 ? b.parts!.map((p) => `${t(p.mode)} ${formatRupees(p.amount)}`).join(' + ') : b.paid > 0 && b.mode ? t(b.mode) : '') + (b.onKhata > 0 ? `${b.paid > 0 ? ' + ' : ''}${t('day.khata')}` : '')
   const change = r && r.yesterday.sales > 0 ? Math.round(((r.totals.sales - r.yesterday.sales) / r.yesterday.sales) * 100) : null
   const share = r ? [
-    t('day.waTitle', { shop: shopName, date: new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) }),
+    t('day.waTitle', { shop: shopName, date: new Date(`${date}T00:00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) }),
     t('day.waTotals', { sales: formatRupees(r.totals.sales), bills: r.totals.bills }),
     t('day.waModes', { cash: formatRupees(r.totals.cash), upi: formatRupees(r.totals.upi), khata: formatRupees(r.totals.onKhata) }),
     ...r.bills.map((b) => `${time(b.at)} · ${b.billNo ?? ''} · ${b.customer ?? t('hold.walkIn')} · ${formatRupees(b.total)} · ${modeLabel(b)}`),

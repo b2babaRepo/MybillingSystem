@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +15,7 @@ interface Booking {
 }
 interface EventDraft { name: string; date: string; start: string; minutes: string; price: string; stylistId: string }
 
-const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { weekday: 'short', day: 'numeric', month: 'short' })
 const hm = (t: string) => t.slice(0, 5)
 
 /** Bridal and home bookings: several events on their own dates, a travel charge, trial fee and advances, then one final bill. */

@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { Fragment, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -111,7 +112,7 @@ export function ReceivedBySupplierScreen({ shopId }: { shopId: string }) {
                       {deliveries.data?.length === 0 && <p className="text-xs text-muted">{t('rs.noDeliveries')}</p>}
                       {deliveries.data?.map((a) => (
                         <p key={a.id} className="text-xs">
-                          {new Date(a.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {a.supplier} · <b>{a.received} {t(`units.${r.unit}`, { count: a.received })}</b>
+                          {new Date(a.at).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })} · {a.supplier} · <b>{a.received} {t(`units.${r.unit}`, { count: a.received })}</b>
                           {a.damaged > 0 && ` (${t('rs.damaged', { qty: a.damaged })})`}{a.rate != null && ` · ${formatRupees(a.rate)}`}
                           {a.receiptNo != null && ` · ${t('rs.receiptNo', { number: a.receiptNo })}`}{a.billNo && ` · ${t('rs.billNo', { no: a.billNo })}`}{a.extra && ` · ${t('rs.extra')}`}
                         </p>

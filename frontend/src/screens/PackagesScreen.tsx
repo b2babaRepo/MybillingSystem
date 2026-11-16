@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +14,7 @@ interface CustomerPlan {
   discountPercent: number | null; expiresOn: string; state: 'active' | 'used' | 'expired' | 'closed'
 }
 
-const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 
 /** Packages and memberships: sell one to a customer, see who is running out, and (owner) set what the salon offers. */
 export function PackagesScreen({ shopId, shopName, isOwner }: { shopId: string; shopName: string; isOwner: boolean }) {

@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { lazy, Suspense } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 // Below the fold and owner-only: kept out of the first load.
@@ -270,7 +271,7 @@ function KharchaRow({ shopId }: { shopId: string }) {
       <Tile to="/expenses" icon="🧾" tone="bg-amber-50" sub={current && <span className="text-xs font-normal text-muted">{t('kharchaMonth.homeThisMonth', { amount: formatRupees(current.shopKharcha) })}</span>}>{t('expense.link')}</Tile>
       {firstWeek && previous && previous.count > 0 && (
         <button onClick={() => navigate('/expenses/month')} className="col-span-full flex min-h-12 items-center justify-between rounded-2xl bg-teal-50 px-4 text-left font-semibold text-teal-900 ring-1 ring-teal-100">
-          <span>{t('kharchaMonth.lastMonthReady', { month: new Date(`${last}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long' }), amount: formatRupees(previous.shopKharcha) })}</span>
+          <span>{t('kharchaMonth.lastMonthReady', { month: new Date(`${last}-01T00:00:00`).toLocaleDateString(shownLocale(), { month: 'long' }), amount: formatRupees(previous.shopKharcha) })}</span>
           <span aria-hidden="true">→</span>
         </button>
       )}

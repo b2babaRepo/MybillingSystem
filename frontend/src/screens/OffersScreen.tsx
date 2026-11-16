@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { orderedNames, useCategories } from '../lib/categories'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -11,7 +12,7 @@ import { formatRupees, indiaToday as today } from '../lib/format'
 import { isRunning, useOffers, type SaleOffer } from '../lib/offers'
 
 const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
-const day = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+const day = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 
 /**
  * Sales the owner plans before billing: a name, a percent or rupees off, the days it runs and what it is on. The bill

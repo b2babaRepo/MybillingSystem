@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +13,7 @@ interface Card {
 }
 interface Recipe { serviceId: string; products: { productId: string; name: string; unit: string; quantity: number; costPrice: number | null; stock: number }[]; cost: number; price: number }
 
-const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 const select = 'h-12 w-full rounded-xl border border-line bg-white px-3'
 
 /** Client cards (hair, skin, allergies, colour formula, patch test, past visits) and, for the owner, what each service uses from stock. */

@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -33,7 +34,7 @@ export function LotsScreen({ shopId }: { shopId: string }) {
         <section key={lot.id} className="flex flex-col gap-1 rounded-[18px] bg-white p-4 shadow-sm">
           <p className="flex flex-wrap justify-between gap-2 font-semibold">
             <span>{lot.supplier}{lot.billNo ? ` · ${lot.billNo}` : ''}</span>
-            <span className="text-sm text-muted">{new Date(lot.occurredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
+            <span className="text-sm text-muted">{new Date(lot.occurredAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: '2-digit' })}</span>
           </p>
           {cheapest !== null && lot.lines.some((l) => l.landedCost === cheapest) && <p className="self-start rounded-full bg-teal-50 px-2 text-xs font-semibold text-teal-800">{t('landed.cheapest')}</p>}
           <LotTable lines={lot.lines} showName={!productId} />

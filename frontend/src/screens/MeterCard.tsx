@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,7 +18,7 @@ interface Reading {
   by: string | null
 }
 
-const day = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+const day = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 const num = (n: number) => n.toLocaleString('en-IN', { maximumFractionDigits: 2 })
 
 /**

@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +9,7 @@ import { navigate } from '../router'
 
 interface Hold { source: 'online' | 'sale_order' | 'counter'; sourceId: string; reference: string; productId: string; product: string; unit: string; quantity: number; party: string; until: string | null; overdue: boolean; shortBy: number; since: string; note: string | null }
 
-const short = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00` : iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+const short = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00` : iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 
 /**
  * Promised stock: every hold on the shelf in one list, whatever made it (an online order, a customer's sale order, or

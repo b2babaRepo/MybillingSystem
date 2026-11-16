@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BackIcon } from '../components/Icons'
 import { Button } from '../components/ui'
-import { addText } from '../i18n'
+import { addText, shownLocale } from '../i18n'
 import { teamText } from '../i18n/team'
 import { api, ApiError, request } from '../lib/api'
 import { shrinkPhoto } from '../lib/images'
@@ -30,7 +30,7 @@ interface Month { month: string; complete: boolean; total: number; cash: number;
 
 const indiaToday = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
 const shiftDay = (day: string, by: number) => new Date(Date.parse(`${day}T00:00:00Z`) + by * 86_400_000).toISOString().slice(0, 10)
-const monthLabel = (month: string) => new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+const monthLabel = (month: string) => new Date(`${month}-01T00:00:00`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric' })
 export const teamJoinLink = (code: string) => `${location.origin}/#/team/join/${code}`
 
 function useRun() {
@@ -243,7 +243,7 @@ function TeamDay({ team }: { team: Team }) {
     <>
       <div className="flex items-center justify-between rounded-[18px] bg-white p-2 shadow-sm">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
-        <span className="text-lg font-bold">{isToday ? t('team.today') : new Date(`${day}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+        <span className="text-lg font-bold">{isToday ? t('team.today') : new Date(`${day}T00:00:00`).toLocaleDateString(shownLocale(), { weekday: 'short', day: 'numeric', month: 'short' })}</span>
         <button onClick={() => setDay(shiftDay(day, 1))} disabled={isToday} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
       </div>
 
@@ -290,7 +290,7 @@ function TeamDay({ team }: { team: Team }) {
           {page.byName.length === 0 ? <p className="text-sm text-muted">{t('team.nothing')}</p> : <NameBars rows={page.byName} />}
           {page.byName.length > 0 && (
             <a href={whatsAppLink(null, [
-              t('team.waToday', { team: team.name, date: new Date(`${day}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) }),
+              t('team.waToday', { team: team.name, date: new Date(`${day}T00:00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) }),
               t('team.waTotal', { amount: formatRupees(page.total) }),
               ...page.byName.map((n) => `• ${n.name === 'Former member' ? t('team.former') : n.name}: ${formatRupees(n.total)}`),
               team.viewToken ? `${t('team.waSee')} ${teamViewLink(team.id, team.viewToken)}` : '',
@@ -420,7 +420,7 @@ function TeamPeople({ team }: { team: Team }) {
           <h2 className="font-bold">{t('team.inviteTitle')}</h2>
           {invite ? <>
             <span className="text-center font-mono text-3xl font-extrabold tracking-widest">{invite}</span>
-            <span className="text-center text-xs text-muted">{t('team.inviteValid', { time: new Date(team.inviteExpiresAt!).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) })}</span>
+            <span className="text-center text-xs text-muted">{t('team.inviteValid', { time: new Date(team.inviteExpiresAt!).toLocaleString(shownLocale(), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) })}</span>
             <a href={whatsAppLink(null, inviteText)} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-center rounded-xl bg-[#15803d] font-bold text-white">{t('team.inviteWa')}</a>
           </> : (
             <Button disabled={busy} onClick={() => void run(async () => refresh(await api<Team>(`/v1/teams/${team.id}/invite`, 'POST', {})))}>{t('team.makeCode')}</Button>
@@ -539,7 +539,7 @@ function TeamAdvances({ team }: { team: Team }) {
           {data.entries.map((e) => (
             <li key={e.id} className={`flex items-center justify-between gap-2 py-2 ${e.struck ? 'text-muted line-through' : ''}`}>
               <span>{e.kind === 'given' ? '➡️' : '⬅️'} <b>{name(e.memberName)}</b> · {t(`team.advanceKind.${e.kind}`)}{e.note ? ` · ${e.note}` : ''}
-                <span className="block text-xs text-muted">{new Date(e.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{e.by ? ` · ${e.by}` : ''}</span></span>
+                <span className="block text-xs text-muted">{new Date(e.at).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}{e.by ? ` · ${e.by}` : ''}</span></span>
               <span className="flex items-center gap-2"><b>{formatRupees(e.amount)}</b>
                 {manages && !e.struck && <button disabled={busy} aria-label={t('team.strike')} className="h-9 w-9 rounded-lg border border-line text-due"
                   onClick={async () => (await confirmAsk(t('team.advanceStrikeAsk'))) && void run(async () => save(await api<Advances>(`/v1/teams/${team.id}/advances/${e.id}/strike`, 'POST', {})))}>✕</button>}</span>

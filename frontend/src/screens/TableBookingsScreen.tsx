@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,8 +43,8 @@ export function TableBookingsScreen({ shopId, shopName }: { shopId: string; shop
     }
   }
   const shift = (n: number) => { const d = new Date(`${date}T00:00`); d.setDate(d.getDate() + n); setDate(isoDay(d)) }
-  const time12 = (time: string) => new Date(`2000-01-01T${time}`).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
-  const reminder = (b: TableBooking) => t('tables.reminder', { name: b.name, shop: shopName, date: new Date(`${b.date}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), time: time12(b.time), people: b.people })
+  const time12 = (time: string) => new Date(`2000-01-01T${time}`).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })
+  const reminder = (b: TableBooking) => t('tables.reminder', { name: b.name, shop: shopName, date: new Date(`${b.date}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }), time: time12(b.time), people: b.people })
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">

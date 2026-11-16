@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +13,7 @@ interface Cheque {
 }
 interface ChequeList { cheques: Cheque[]; pendingAmount: number; pendingCount: number }
 
-const day = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+const day = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 
 /**
  * Customers' cheques: those waiting on the bank first (oldest date first), with Cleared and Bounced for the owner; then

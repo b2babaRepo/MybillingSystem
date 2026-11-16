@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -184,7 +185,7 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
   const chosen = plans.find((p) => p.code === pay.planCode)
   const amount = chosen ? priceFor(chosen, pay.term) : null
   const paid = view.status === 'active' || view.status === 'grace'
-  const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+  const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '')
   const tone: Record<string, string> = {
     active: 'bg-emerald-50 text-emerald-900', grace: 'bg-amber-50 text-amber-900', trial: 'bg-teal-50 text-teal-900',
     complimentary: 'bg-violet-50 text-violet-900', on_hold: 'bg-red-50 text-red-900', free: 'bg-white text-ink',

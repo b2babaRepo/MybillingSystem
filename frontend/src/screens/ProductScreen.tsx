@@ -1,3 +1,4 @@
+import { itemName } from '../lib/itemName'
 import { coverText } from '../lib/cover'
 import { ItemSuppliersCard } from '../components/SupplierPanels'
 import { CategoryInput } from '../components/CategoryInput'
@@ -41,7 +42,7 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
     <div className="flex flex-col gap-3 p-4">
       <section className="flex items-start justify-between gap-3 rounded-[18px] bg-white p-4">
         <span className="flex min-w-0 flex-col">
-          <span className="text-2xl font-bold">{product.name}</span>
+          <span className="text-2xl font-bold">{itemName(product)}</span>
           <span className="text-sm text-muted">
             {product.sellingPrice > 0 ? `${formatRupees(product.sellingPrice)}/${t(`units.${product.unit}`)}` : t('stock.noPrice')}
             {product.category && ` · ${product.category}`}

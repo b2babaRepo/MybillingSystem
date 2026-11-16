@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { navigate } from '../router'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -36,7 +37,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
     queryKey: [shopId, 'report-year', fy], enabled: isOwner, retry: false,
     queryFn: () => api<{ financialYear: string; months: YearRow[]; total: YearRow }>(`/v1/reports/year?fy=${fy}`),
   }).data
-  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' })
   const peak = Math.max(1, ...(data?.days.map((d) => d.sales) ?? [1]))
 
   async function download(path: string, name: string) {
@@ -104,13 +105,13 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             <tbody className="text-right tabular-nums">
               {year ? year.months.filter((m) => m.month <= month && (m.sales > 0 || m.month === month)).map((m, i, all) => (
                 <tr key={m.month} className={m.month === month ? 'bg-emerald-50 font-semibold' : i % 2 ? 'bg-[#fafbfb]' : ''}>
-                  <td className="px-3 py-2 text-left">{new Date(`${m.month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' })}</td>
+                  <td className="px-3 py-2 text-left">{new Date(`${m.month}-01T00:00:00Z`).toLocaleDateString(shownLocale(), { month: 'short', year: '2-digit', timeZone: 'UTC' })}</td>
                   <td className="px-3 py-2">{formatRupees(m.sales)}</td><td className="px-3 py-2">{m.bills}</td><td className="px-3 py-2">{formatRupees(m.cash)}</td><td className="px-3 py-2">{formatRupees(m.digital)}</td><td className="px-3 py-2">{formatRupees(m.gst)}</td>
                   <td className="px-3 py-2"><Delta value={i > 0 ? change(m.sales, all[i - 1].sales) : null} /></td>
                 </tr>
               )) : data.days.map((d, i) => (
                 <tr key={d.date} className={i % 2 ? 'bg-[#fafbfb]' : ''}>
-                  <td className="px-3 py-2 text-left">{new Date(d.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                  <td className="px-3 py-2 text-left">{new Date(d.date).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}</td>
                   <td className="px-3 py-2">{formatRupees(d.sales)}</td><td className="px-3 py-2">{formatRupees(d.received)}</td>
                   <td className="px-3 py-2"><Delta value={i > 0 ? change(d.sales, data.days[i - 1].sales) : null} /></td>
                 </tr>

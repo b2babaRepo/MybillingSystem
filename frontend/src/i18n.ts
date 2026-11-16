@@ -22,6 +22,9 @@ export function nextLanguage(current: string): { code: Language; short: string }
 /** Locale for dates and numbers in the shown language. */
 export const localeOf = (language: string) => (language === 'hi' ? 'hi-IN' : language === 'gu' ? 'gu-IN' : 'en-IN')
 
+/** The locale for dates in the language being shown: Hindi, Gujarati or English month names. */
+export const shownLocale = () => localeOf(i18n.language ?? 'en')
+
 // Each language is its own chunks; only the one being shown is fetched. The first screens wait for the small one.
 const loaders: Record<Language, () => Promise<Record<string, unknown>>> = {
   en: () => import('./i18n/en').then((module) => module.en),

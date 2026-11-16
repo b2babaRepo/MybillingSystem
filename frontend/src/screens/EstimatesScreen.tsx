@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,7 +27,7 @@ export interface Estimate {
 /** Where the bill screen picks up an estimate to bill: read once, then cleared. */
 export const ESTIMATE_KEY = 'gk-estimate'
 
-const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 
 /** Estimates (quotations): open ones to print, share or turn into a bill, and the ones already billed or cancelled. */
 export function EstimatesScreen({ shopId }: { shopId: string }) {

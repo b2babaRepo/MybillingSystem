@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -163,7 +164,7 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             <div key={m.id} className={`flex items-start justify-between gap-2 border-t border-line py-1.5 text-sm ${m.struck ? 'text-muted line-through' : ''}`}>
               <div>
                 <p className="font-semibold">{t(`bardana.kind.${m.kind}`)} · {m.bagType}</p>
-                <p className="text-xs text-muted">{new Date(m.occurredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{[m.supplier, m.party, m.note, m.by].filter(Boolean).map((x) => ` · ${x}`).join('')}{m.amount != null ? ` · ${formatRupees(m.amount)} ${m.mode === 'upi' ? 'UPI' : t('bardana.cash')}` : ''}</p>
+                <p className="text-xs text-muted">{new Date(m.occurredAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}{[m.supplier, m.party, m.note, m.by].filter(Boolean).map((x) => ` · ${x}`).join('')}{m.amount != null ? ` · ${formatRupees(m.amount)} ${m.mode === 'upi' ? 'UPI' : t('bardana.cash')}` : ''}</p>
               </div>
               <div className="flex flex-col items-end">
                 <span className={`font-semibold tabular-nums ${m.quantity < 0 ? 'text-due' : 'text-teal-700'}`}>{m.quantity > 0 ? '+' : ''}{m.quantity}</span>
