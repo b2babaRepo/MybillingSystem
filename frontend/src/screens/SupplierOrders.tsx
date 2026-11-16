@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../components/ui'
-import { confirmAsk } from '../components/Ask'
+import { ask, confirmAsk } from '../components/Ask'
 import { ItemPicker } from '../components/ItemPicker'
 import { api } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
@@ -330,7 +330,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
             const expected = Math.round(r.lines.reduce((s, l) => s + (kgOf(products.find((p) => p.id === l.productId), l.quantity) ?? 0), 0) * 100) / 100
             const short = Math.round((expected - net) * 100) / 100
             const claim = async () => {
-              const rate = window.prompt(t('weigh.ratePrompt', { kg: short }))
+              const rate = await ask(t('weigh.ratePrompt', { kg: short }))
               if (rate && Number(rate) > 0) void run(() => api(`/v1/goods-receipts/${r.id}/short-claim`, 'POST', { ratePerKg: Math.round(Number(rate) * 100) / 100 }))
             }
             return (

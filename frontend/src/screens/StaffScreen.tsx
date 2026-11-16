@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatPhone } from '../lib/format'
-import { ask, confirmAsk } from '../components/Ask'
+import { ask, confirmAsk, tell } from '../components/Ask'
 
 interface Staff {
   membershipId: string
@@ -33,7 +33,7 @@ function Limits({ staff, onSaved }: { staff: Staff; onSaved: () => void }) {
       setBlocked(next)
       onSaved()
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : t('error'))
+      void tell(e instanceof Error ? e.message : t('error'))
     } finally {
       setBusy(false)
     }

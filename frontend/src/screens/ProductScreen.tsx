@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field, Sheet } from '../components/ui'
 import { api, request } from '../lib/api'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
-import { ask } from '../components/Ask'
+import { ask, tell } from '../components/Ask'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { GST_RATES } from '../lib/gst'
 import { formatRupees } from '../lib/format'
@@ -490,7 +490,7 @@ function BagCard({ shopId, product }: { shopId: string; product: Product }) {
       await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
       void queryClient.invalidateQueries({ queryKey: ['item-ledger', product.id] })
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : t('error'))
+      void tell(e instanceof Error ? e.message : t('error'))
     }
   }
   return (

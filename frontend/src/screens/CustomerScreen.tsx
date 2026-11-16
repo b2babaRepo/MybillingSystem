@@ -12,7 +12,7 @@ import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/
 import { buildReminder, useShopSettings } from '../lib/reports'
 import type { KhataEntryType, PaymentMode, StatementLine } from '../lib/types'
 import { navigate } from '../router'
-import { ask, confirmAsk } from '../components/Ask'
+import { ask, confirmAsk, tell } from '../components/Ask'
 import { CashLimitNote } from '../components/CashLimitNote'
 
 const CustomerTradePanel = lazy(() => import('./CustomerTrade').then((module) => ({ default: module.CustomerTradePanel })))
@@ -183,7 +183,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
       await queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] })
       queryClient.removeQueries({ queryKey: ['khata-link', customer!.id] })
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : t('error'))
+      void tell(e instanceof Error ? e.message : t('error'))
     }
   }
 
@@ -471,7 +471,7 @@ function MoveInto({ from, customers, onMoved }: { from: string; customers: { id:
       await api(`/v1/customers/${from}/move-into`, 'POST', { customerId: to })
       await onMoved(to)
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : t('error'))
+      void tell(e instanceof Error ? e.message : t('error'))
     } finally {
       setBusy(false)
     }

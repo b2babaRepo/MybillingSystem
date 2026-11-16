@@ -17,7 +17,7 @@ import { listOps } from '../lib/outbox'
 import { provisionalBill } from '../lib/provisionalBill'
 import type { ProvisionalBill } from '../lib/provisionalBill'
 import type { BillView, Statement } from '../lib/types'
-import { ask } from '../components/Ask'
+import { ask, tell } from '../components/Ask'
 
 
 /**
@@ -278,7 +278,7 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
       await api(`/v1/bills/${billId}/cancel`, 'POST', { reason })
       await query.refetch()
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : t('error'))
+      void tell(err instanceof Error ? err.message : t('error'))
     }
   }
   const url = link.data ? `${window.location.origin}/#/b/${link.data.shopSlug}/${link.data.billId}?t=${link.data.token}` : null

@@ -28,7 +28,7 @@ import type { PaymentMode, Unit } from '../lib/types'
 import { useShopSettings, shopTypes, isTrade, sendsToSites, upiUri } from '../lib/reports'
 import { navigate } from '../router'
 import { useSerialsInStock } from '../lib/serials'
-import { ask } from '../components/Ask'
+import { ask, tell } from '../components/Ask'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
 const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))
@@ -336,7 +336,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       const kg = await readScale(choose)
       setQuantity(index, unit === 'g' ? Math.round(kg * 1000) : kg)
     } catch (e) {
-      if (!(e instanceof Error && e.name === 'NotFoundError')) window.alert(`${t('scale.failed')} ${e instanceof Error ? e.message : String(e)}`)
+      if (!(e instanceof Error && e.name === 'NotFoundError')) void tell(`${t('scale.failed')} ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setWeighing(null)
     }

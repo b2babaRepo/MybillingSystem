@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
+import { confirmAsk } from './Ask'
 
 interface Books { closedUntil: string | null; history: { at: string; by: string | null; action: 'close' | 'reopen'; month: string; reason: string | null }[] }
 
@@ -45,7 +46,7 @@ export function BooksCard({ month }: { month: string }) {
       </p>
       <p className="text-xs text-muted">{t('books.hint')}</p>
       {!isClosed && canClose && (
-        <button onClick={() => { if (window.confirm(t('books.closeConfirm', { month: monthName(month) }))) void run('/v1/books/close', { month }) }} className="min-h-11 self-start rounded-xl bg-slate-800 px-4 font-semibold text-white">{t('books.close', { month: monthName(month) })}</button>
+        <button onClick={async () => { if (await confirmAsk(t('books.closeConfirm', { month: monthName(month) }))) void run('/v1/books/close', { month }) }} className="min-h-11 self-start rounded-xl bg-slate-800 px-4 font-semibold text-white">{t('books.close', { month: monthName(month) })}</button>
       )}
       {isClosed && !reopening && <button onClick={() => setReopening(true)} className="min-h-11 self-start text-sm font-semibold text-due underline">{t('books.reopen', { month: monthName(month) })}</button>}
       {reopening && (
