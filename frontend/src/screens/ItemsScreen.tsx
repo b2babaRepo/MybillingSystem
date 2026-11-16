@@ -248,7 +248,7 @@ function StockPill({ product }: { product: Product }) {
   const tone = out ? 'bg-red-50 text-due' : product.isLow ? 'bg-amber-50 text-udhaar' : 'bg-teal-50 text-teal-800'
   return (
     <span className={`flex shrink-0 flex-col items-center rounded-xl px-2.5 py-1 ${tone}`}>
-      <span className="text-[17px] leading-tight font-bold">{product.stock} {t(`units.${product.unit}`)}</span>
+      <span className="text-[17px] leading-tight font-bold">{product.stock} {t(`units.${product.unit}`, { count: product.stock })}</span>
       <span className="text-[11px] font-semibold">{out ? t('stock.out') : product.isLow ? t('stock.low') : t('stock.inStock')}</span>
     </span>
   )
@@ -267,7 +267,7 @@ export function StockBadge({ product, large = false }: { product: Product; large
   return (
     <span className={`flex shrink-0 flex-col items-end ${tone}`}>
       <span className={`${large ? 'text-4xl' : 'text-lg'} font-bold`}>
-        {product.stock} {t(`units.${product.unit}`)}
+        {product.stock} {t(`units.${product.unit}`, { count: product.stock })}
       </span>
       <span className="text-xs font-semibold">{out ? t('stock.out') : product.isLow ? t('stock.low') : t('stock.inStock')}</span>
     </span>

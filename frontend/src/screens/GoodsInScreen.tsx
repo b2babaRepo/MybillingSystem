@@ -118,7 +118,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
 
   const shortText = (s: NonNullable<typeof shorts>) => t('gi.shortMessage', {
     shop: shopName, number: s.order.number,
-    lines: s.lines.map((x) => `• ${x.line.name}: ${x.short} ${t(`units.${x.line.unit}`)}${x.closed ? ` (${t(`gi.reason.${x.reason}`)})` : ''}`).join('\n'),
+    lines: s.lines.map((x) => `• ${x.line.name}: ${x.short} ${t(`units.${x.line.unit}`, { count: x.short })}${x.closed ? ` (${t(`gi.reason.${x.reason}`)})` : ''}`).join('\n'),
   })
 
   // The order list.
@@ -204,7 +204,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
                     className={`grid size-12 shrink-0 place-items-center rounded-xl text-2xl font-bold ${full ? 'bg-emerald-600 text-white' : 'border-2 border-line text-transparent'}`}>✓</button>
                   <span className="flex min-w-0 flex-1 flex-col">
                     <b className="truncate">{l.name}</b>
-                    <span className="text-xs text-muted">{t('gi.toCome', { qty: l.pending, unit: t(`units.${l.unit}`) })}{l.received > 0 && ` · ${t('supplier2.cameOf', { came: l.received, ordered: l.ordered })}`}</span>
+                    <span className="text-xs text-muted">{t('gi.toCome', { qty: l.pending, unit: t(`units.${l.unit}`, { count: l.pending }) })}{l.received > 0 && ` · ${t('supplier2.cameOf', { came: l.received, ordered: l.ordered })}`}</span>
                   </span>
                   <input aria-label={t('gi.came')} value={c.came} onChange={(e) => setCount(l.productId, { came: e.target.value })} inputMode="decimal" placeholder={t('gi.came')} className="h-12 w-20 rounded-xl border border-line bg-white px-2 text-right" />
                 </div>

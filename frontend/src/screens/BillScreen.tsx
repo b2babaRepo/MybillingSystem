@@ -1020,7 +1020,7 @@ function billReceipt(
   bill: { total: number; lines: CartLine[]; paid: number; mode?: PaymentMode; customer: { name: string } | null },
   nameOf: (line: CartLine) => string = (l) => l.name,
 ) {
-  const items = bill.lines.map((l) => `• ${nameOf(l)} ${l.quantity} ${t(`units.${l.unit}`)} × ${formatRupees(l.unitPrice)} = ${formatRupees(Math.round(l.quantity * l.unitPrice * 100) / 100)}`)
+  const items = bill.lines.map((l) => `• ${nameOf(l)} ${l.quantity} ${t(`units.${l.unit}`, { count: l.quantity })} × ${formatRupees(l.unitPrice)} = ${formatRupees(Math.round(l.quantity * l.unitPrice * 100) / 100)}`)
   const due = Math.round((bill.total - bill.paid) * 100) / 100
   return [
     t('billReceipt.header', { shop: shopName, date: formatDateTime(new Date().toISOString()) }),

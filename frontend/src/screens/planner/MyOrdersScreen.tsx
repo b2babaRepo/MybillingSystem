@@ -72,7 +72,7 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
           {waiting.map((l) => (
             <div key={l.id} className="flex flex-col gap-2 rounded-lg bg-white p-2.5">
               <span>
-                {t('options.askedFor', { asked: l.requestedName ?? '' })} → <b>{l.name}</b> · {l.packedQuantity ?? l.quantity} {t(`units.${l.unit}`)}
+                {t('options.askedFor', { asked: l.requestedName ?? '' })} → <b>{l.name}</b> · {l.packedQuantity ?? l.quantity} {t(`units.${l.unit}`, { count: l.packedQuantity ?? l.quantity })}
               </span>
               {l.expectedAmount !== null && l.expectedAmount !== undefined && l.amount !== null && (
                 <span className="font-semibold">{formatRupees(l.expectedAmount)} → {formatRupees(l.amount)}</span>
@@ -92,7 +92,7 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
           <span className="font-bold">{t('plan.shopChanged')}</span>
           {changed.map((l) => (
             <span key={l.id} className={l.removed ? 'text-due' : ''}>
-              {l.name}: {l.removed ? t('plan.removedItem') : `${l.packedQuantity ?? l.quantity} ${t(`units.${l.unit}`)}`}
+              {l.name}: {l.removed ? t('plan.removedItem') : `${l.packedQuantity ?? l.quantity} ${t(`units.${l.unit}`, { count: l.packedQuantity ?? l.quantity })}`}
               {l.shopNote && ` · ${l.shopNote}`}
             </span>
           ))}

@@ -181,7 +181,7 @@ function Catalogue({ slug }: { slug: string }) {
           return (
             <li key={item.id} className="item-card">
               <ItemCard item={item} square imageUrl={imageUrl(data.shopId, item.id, item.imageAt, 'thumb')} title={item.name} badge={inCart > 0 ? inCart : undefined} selected={inCart > 0}>
-              <div className="mt-0.5 text-[11px] text-muted">{item.packSize && item.packUnit ? `${item.packSize} ${t(`units.${item.packUnit}`)}` : `/${t(`units.${item.unit}`)}`}</div>
+              <div className="mt-0.5 text-[11px] text-muted">{item.packSize && item.packUnit ? `${item.packSize} ${t(`units.${item.packUnit}`, { count: item.packSize })}` : `/${t(`units.${item.unit}`)}`}</div>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
                 <span className="text-[15px] font-bold">{formatRupees(item.price)}</span>
                 {item.regularPrice != null && item.regularPrice > item.price ? (
@@ -205,7 +205,7 @@ function Catalogue({ slug }: { slug: string }) {
               ) : (
                 <span className="flex items-center gap-1">
                   <button aria-label={t('a11y.less')} onClick={() => change(item, -1)} className="h-11 w-11 rounded-xl bg-[#edf2f1] text-xl">−</button>
-                  <span className="min-w-14 text-center font-bold">{inCart} {t(`units.${item.unit}`)}</span>
+                  <span className="min-w-14 text-center font-bold">{inCart} {t(`units.${item.unit}`, { count: inCart })}</span>
                   <button aria-label={t('a11y.more')} onClick={() => change(item, 1)} disabled={inCart >= item.available} className="h-11 w-11 rounded-xl bg-[#edf2f1] text-xl disabled:opacity-30">+</button>
                 </span>
               )}
@@ -283,7 +283,7 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
         <ul className="rounded-[14px] bg-white px-3 text-sm">
           {lines.map((l) => (
             <li key={l.item.id} className="flex justify-between border-b border-[#edf2f1] py-2 last:border-0">
-              <span>{l.item.name} · {l.quantity} {t(`units.${l.item.unit}`)}</span>
+              <span>{l.item.name} · {l.quantity} {t(`units.${l.item.unit}`, { count: l.quantity })}</span>
               <span className="font-semibold">{formatRupees(round2(l.quantity * l.item.price))}</span>
             </li>
           ))}
@@ -363,7 +363,7 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
             <li key={l.id} className={`flex justify-between gap-2 border-b border-[#edf2f1] py-2.5 last:border-0 ${l.removed ? 'text-due line-through' : ''}`}>
               <span className="flex flex-col">
                 <span className="font-semibold">{l.name}</span>
-                <span className="text-xs text-muted">{l.packedQuantity ?? l.quantity} {t(`units.${l.unit}`)}{l.shopNote && ` · ${l.shopNote}`}</span>
+                <span className="text-xs text-muted">{l.packedQuantity ?? l.quantity} {t(`units.${l.unit}`, { count: l.packedQuantity ?? l.quantity })}{l.shopNote && ` · ${l.shopNote}`}</span>
               </span>
               <span className="font-semibold">{formatRupees(l.amount ?? round2((l.unitPrice ?? 0) * l.quantity))}</span>
             </li>

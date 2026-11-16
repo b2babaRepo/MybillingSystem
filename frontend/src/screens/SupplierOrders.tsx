@@ -55,7 +55,7 @@ function PickRows({ products, rows, onChange, withRate, listId, withBags = false
             const avg = Number(r.bags) > 0 && Number(r.quantity) > 0 ? Number(r.quantity) / Number(r.bags) : null
             return (
               <div className="col-span-full flex flex-col gap-1">
-                <input aria-label={t('bag.bags')} placeholder={`${t(`units.${p.purchaseUnit ?? 'bag'}`)} × ${p.bagSize} ${t(`units.${p.unit}`)}`} value={r.bags ?? ''} onChange={(e) => {
+                <input aria-label={t('bag.bags')} placeholder={`${t(`units.${p.purchaseUnit ?? 'bag'}`)} × ${p.bagSize} ${t(`units.${p.unit}`, { count: p.bagSize })}`} value={r.bags ?? ''} onChange={(e) => {
                   // Typing the cartons or bags fills the quantity, unless the quantity was typed by hand (a carton of other than the usual count).
                   const n = Number(e.target.value)
                   const auto = !r.quantity || Number(r.quantity) === Number(r.bags) * p.bagSize!

@@ -39,7 +39,7 @@ export function ItemSuppliersCard({ shopId, productId, unit }: { shopId: string;
             </button>
           </div>
           <span className="text-xs text-muted">
-            {t('rs.came', { qty: s.received, unit: t(`units.${unit}`), count: s.deliveries })}{s.ordered > 0 && ` · ${t('rs.ordered', { qty: s.ordered })}`}
+            {t('rs.came', { qty: s.received, unit: t(`units.${unit}`, { count: s.received }), count: s.deliveries })}{s.ordered > 0 && ` · ${t('rs.ordered', { qty: s.ordered })}`}
             {s.pending > 0 && <b className="text-amber-800"> · {t('supplier2.stillToCome', { qty: s.pending })}</b>}
           </span>
           <span className="text-xs text-muted">
@@ -67,7 +67,7 @@ export function SupplierItemsCard({ shopId, supplierId }: { shopId: string; supp
             <button onClick={() => navigate(`/p/${p.productId}`)} className="flex w-full items-center justify-between gap-2 border-t border-[#edf2f1] py-2 text-left text-sm first:border-t-0 hover:bg-[#f6faf9]">
               <span className="flex min-w-0 flex-col">
                 <b className="truncate">{p.preferred && '★ '}{p.name}</b>
-                <span className="text-xs text-muted">{t('rs.came', { qty: p.received, unit: t(`units.${p.unit}`), count: p.deliveries })}{p.lastAt && ` · ${short(p.lastAt)}`}{p.pending > 0 && ` · ${t('supplier2.stillToCome', { qty: p.pending })}`}</span>
+                <span className="text-xs text-muted">{t('rs.came', { qty: p.received, unit: t(`units.${p.unit}`, { count: p.received }), count: p.deliveries })}{p.lastAt && ` · ${short(p.lastAt)}`}{p.pending > 0 && ` · ${t('supplier2.stillToCome', { qty: p.pending })}`}</span>
               </span>
               <span className="shrink-0 font-semibold">{p.lastRate != null ? formatRupees(p.lastRate) : '—'}</span>
             </button>

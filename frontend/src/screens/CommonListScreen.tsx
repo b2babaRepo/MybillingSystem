@@ -191,7 +191,7 @@ function OptionsSheet({ shopId, item, options, onClose, onChanged }: { shopId: s
       <span className="text-[13px] text-muted">
         <b className="text-ink">{formatRupees(o.sellingPrice)}</b>{o.packSize ? '' : `/${t(`units.${o.unit}`)}`}
         {per ? ` · ${formatRupees(per.price)}/${t(`units.${per.unit}`)}` : ''}
-        {' · '}<span className={o.stock <= 0 ? 'font-semibold text-due' : ''}>{t('options.stockLeft', { qty: o.stock, unit: t(`units.${o.unit}`) })}</span>
+        {' · '}<span className={o.stock <= 0 ? 'font-semibold text-due' : ''}>{t('options.stockLeft', { qty: o.stock, unit: t(`units.${o.unit}`, { count: o.stock }) })}</span>
       </span>
     )
   }

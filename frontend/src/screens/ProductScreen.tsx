@@ -49,7 +49,7 @@ export function ProductScreen({ shopId, productId }: { shopId: string; productId
           {(product.dailySales ?? 0) > 0 && !product.isService && product.stock > 0 && (() => {
             const days = Math.floor(product.stock / product.dailySales!)
             return <span className={`mt-1 w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${days <= 3 ? 'bg-red-50 text-due' : days <= 10 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
-              ⏳ {coverText(t, product.stock / product.dailySales!)} · {t('sl.perDay', { qty: Math.round(product.dailySales! * 10) / 10, unit: t(`units.${product.unit}`) })}
+              ⏳ {coverText(t, product.stock / product.dailySales!)} · {t('sl.perDay', { qty: Math.round(product.dailySales! * 10) / 10, unit: t(`units.${product.unit}`, { count: Math.round(product.dailySales! * 10) / 10 }) })}
             </span>
           })()}
         </span>

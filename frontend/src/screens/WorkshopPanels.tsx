@@ -130,7 +130,7 @@ export function KarigarPanel({ shopId }: { shopId: string }) {
       <ul className="flex flex-col gap-2">
         {list.data?.map((c) => (
           <li key={c.id} className={`rounded-[18px] p-3 ${c.overAYear ? 'bg-amber-50' : 'bg-white'}`}>
-            <p className="font-semibold">#{c.number} {c.karigar} · {c.productName} × {c.quantity} {t(`units.${c.unit}`)}</p>
+            <p className="font-semibold">#{c.number} {c.karigar} · {c.productName} × {c.quantity} {t(`units.${c.unit}`, { count: c.quantity })}</p>
             <p className="text-xs text-muted">
               {t('workshop.sentOn', { date: new Date(c.sentAt).toLocaleDateString('en-IN') })}{c.note ? ` · ${c.note}` : ''}
               {c.receivedAt ? ` · ${t('workshop.backOn', { date: new Date(c.receivedAt).toLocaleDateString('en-IN'), qty: c.receivedQuantity })}` : ''}

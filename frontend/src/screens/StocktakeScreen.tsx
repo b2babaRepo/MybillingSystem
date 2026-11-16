@@ -46,7 +46,7 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
           <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 lg:py-1.5">
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate font-semibold">{p.name}</span>
-              <span className="text-xs text-muted">{t('stock.books')}: {p.stock} {t(`units.${p.unit}`)}</span>
+              <span className="text-xs text-muted">{t('stock.books')}: {p.stock} {t(`units.${p.unit}`, { count: p.stock })}</span>
             </span>
             <input
               value={counts[p.id] ?? ''}

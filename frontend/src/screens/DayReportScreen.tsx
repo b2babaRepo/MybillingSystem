@@ -126,7 +126,7 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
             <span>{t('day.items', { count: r.items.length })}</span><span>{showItems ? '▴' : '▾'}</span>
           </button>
           {showItems && r.items.map((i) => (
-            <p key={`${i.productId ?? i.name}-${i.unit}`} className="flex justify-between gap-2 py-1"><span className="truncate">{i.name}</span><span className="shrink-0">{i.quantity} {t(`units.${i.unit}`)} · {formatRupees(i.sales)}</span></p>
+            <p key={`${i.productId ?? i.name}-${i.unit}`} className="flex justify-between gap-2 py-1"><span className="truncate">{i.name}</span><span className="shrink-0">{i.quantity} {t(`units.${i.unit}`, { count: i.quantity })} · {formatRupees(i.sales)}</span></p>
           ))}
         </section>
 

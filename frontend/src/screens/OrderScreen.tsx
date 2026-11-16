@@ -150,7 +150,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
                 <span className="flex flex-col">
                   <span className="font-bold">{products.find((p) => p.id === d.productId)?.name ?? l.name}</span>
                   <span className="text-xs text-muted">
-                    {l.requestedName ? t('options.askedFor', { asked: l.requestedName }) : `${l.quantity} ${t(`units.${l.unit}`)}`}
+                    {l.requestedName ? t('options.askedFor', { asked: l.requestedName }) : `${l.quantity} ${t(`units.${l.unit}`, { count: l.quantity })}`}
                     {l.note && ` · ${l.note}`}
                   </span>
                   {l.aiConfidence && (

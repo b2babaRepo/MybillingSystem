@@ -233,7 +233,7 @@ function ProvisionalPrint({ shopName, bill }: { shopName: string; bill: Provisio
           {bill.lines.map((l, i) => (
             <tr key={i} className="border-b border-gray-300">
               <td className="py-1.5 pr-2">{l.name}</td>
-              <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`)}{l.bags ? <span className="block text-xs text-gray-600">{t('bag.inBags', { count: l.bags })}</span> : null}</td>
+              <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`, { count: l.quantity })}{l.bags ? <span className="block text-xs text-gray-600">{t('bag.inBags', { count: l.bags })}</span> : null}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.unitPrice)}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.amount)}</td>
             </tr>
@@ -324,7 +324,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
     rows.push({ rule: true })
     for (const l of bill.lines) {
       rows.push({ left: l.printName ?? l.name, right: formatRupees(l.amount), bold: true })
-      rows.push({ text: `  ${l.quantity} ${t(`units.${l.unit}`)} × ${formatRupees(l.unitPrice)}${l.hsnCode ? ` · HSN ${l.hsnCode}` : ''}${gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}` })
+      rows.push({ text: `  ${l.quantity} ${t(`units.${l.unit}`, { count: l.quantity })} × ${formatRupees(l.unitPrice)}${l.hsnCode ? ` · HSN ${l.hsnCode}` : ''}${gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}` })
     }
     rows.push({ rule: true }, { left: t('print.total'), right: formatRupees(bill.total), big: true })
     if ((bill.exchangeCredit ?? 0) > 0) rows.push({ left: t('exchange.credit', { note: bill.exchangeNoteNo ?? '' }), right: `− ${formatRupees(bill.exchangeCredit!)}` })
@@ -366,7 +366,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
           {bill.lines.map((l, i) => (
             <tr key={i} className="border-b border-gray-300">
               <td className="py-1.5 pr-2">{l.printName ?? l.name}{l.batch && <span className="block text-xs text-gray-600">{l.batch.startsWith('S/N') ? l.batch : `Batch ${l.batch}`}</span>}{l.hsnCode && <span className="block text-xs text-gray-600">HSN {l.hsnCode}{gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}</span>}</td>
-              <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`)}{l.bags ? <span className="block text-xs text-gray-600">{t('bag.inBags', { count: l.bags })}</span> : null}</td>
+              <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`, { count: l.quantity })}{l.bags ? <span className="block text-xs text-gray-600">{t('bag.inBags', { count: l.bags })}</span> : null}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.unitPrice)}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.amount)}</td>
             </tr>

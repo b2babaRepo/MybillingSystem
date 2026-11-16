@@ -176,7 +176,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
                 onChange={(e) => setPicked(e.target.checked ? [...picked, c.id] : picked.filter((id) => id !== c.id))} />
               <span className="flex min-w-0 flex-1 flex-col text-sm">
                 <span className="font-semibold">{formatDateTime(c.occurredAt)}{c.site ? ` · ${c.site}` : ''}</span>
-                <span className="truncate text-muted">{c.lines.map((l) => `${l.name} ${l.quantity} ${t(`units.${l.unit}`)}`).join(', ')}</span>
+                <span className="truncate text-muted">{c.lines.map((l) => `${l.name} ${l.quantity} ${t(`units.${l.unit}`, { count: l.quantity })}`).join(', ')}</span>
                 {c.vehicleNumber && <span className="text-xs text-muted">{c.vehicleNumber}</span>}
               </span>
               <span className="font-bold">{formatRupees(c.total)}</span>

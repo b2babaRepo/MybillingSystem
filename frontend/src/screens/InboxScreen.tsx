@@ -60,7 +60,7 @@ export function InboxScreen({ shopId, selectedId }: { shopId: string; selectedId
             </span>
           )}
           <p className="text-sm leading-snug">
-            {order.lines.slice(0, 5).map((l) => `${l.name} ${l.quantity} ${t(`units.${l.unit}`)}`).join(', ')}
+            {order.lines.slice(0, 5).map((l) => `${l.name} ${l.quantity} ${t(`units.${l.unit}`, { count: l.quantity })}`).join(', ')}
             {order.lines.length > 5 && ` + ${order.lines.length - 5}`}
           </p>
           {order.address && <p className="text-sm">{order.address}</p>}

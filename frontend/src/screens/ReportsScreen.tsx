@@ -183,7 +183,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
                 {data.topItems.map((item, i) => (
                   <li key={`${item.name}-${i}`} className="flex justify-between gap-2 py-2">
                     <span className="truncate"><span className="text-muted">{i + 1}.</span> {item.name}</span>
-                    <span className="shrink-0 font-semibold">{item.quantity} {t(`units.${item.unit}`)} · {formatRupees(item.amount)}</span>
+                    <span className="shrink-0 font-semibold">{item.quantity} {t(`units.${item.unit}`, { count: item.quantity })} · {formatRupees(item.amount)}</span>
                   </li>
                 ))}
               </ol>

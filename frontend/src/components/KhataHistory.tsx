@@ -145,7 +145,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
             >
               <span className="min-w-0 truncate">{item.name}</span>
               <span className="shrink-0 text-muted">
-                {item.quantity} {t(`units.${item.unit}`)} × {formatRupees(item.unitPrice)} = <b className="text-ink">{formatRupees(item.amount)}</b>
+                {item.quantity} {t(`units.${item.unit}`, { count: item.quantity })} × {formatRupees(item.unitPrice)} = <b className="text-ink">{formatRupees(item.amount)}</b>
               </span>
             </div>
           ))}
@@ -187,8 +187,8 @@ export function DisputeItems({ items, onResolve }: { items: DisputeItemView[]; o
           </div>
           <div className="text-xs">
             {item.problem === 'short'
-              ? t('dispute.problem.short', { got: item.receivedQuantity, of: item.quantity, unit: t(`units.${item.unit}`) })
-              : t(`dispute.problem.${item.problem}`, { qty: item.quantity, unit: t(`units.${item.unit}`) })}
+              ? t('dispute.problem.short', { got: item.receivedQuantity, of: item.quantity, unit: t(`units.${item.unit}`, { count: item.quantity }) })
+              : t(`dispute.problem.${item.problem}`, { qty: item.quantity, unit: t(`units.${item.unit}`, { count: item.quantity }) })}
           </div>
           {item.outcome && (
             <div className={`mt-1 rounded px-2 py-1 text-xs font-semibold ${outcomeStyle[item.outcome]}`}>

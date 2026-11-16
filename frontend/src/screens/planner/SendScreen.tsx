@@ -119,7 +119,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
             return (
               <div key={item.id} className="flex flex-col gap-2 border-t border-[#edf2f1] pt-3 first:border-0 first:pt-0">
                 <div className="flex justify-between font-semibold">
-                  <span>{item.name} · {item.quantity} {t(`units.${item.unit}`)}</span>
+                  <span>{item.name} · {item.quantity} {t(`units.${item.unit}`, { count: item.quantity })}</span>
                   {current && quantityIn(item.quantity, item.unit, current) !== null && (
                     <span className="text-teal-800">{formatRupees(Math.round(current.price * quantityIn(item.quantity, item.unit, current)! * 100) / 100)}</span>
                   )}

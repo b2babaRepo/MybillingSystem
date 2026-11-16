@@ -74,7 +74,7 @@ export function ItemMarginScreen({ shopId }: { shopId: string }) {
                 <button onClick={() => i.productId && navigate(`/p/${i.productId}`)} className="flex min-h-14 w-full items-center gap-3 py-2 text-left">
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate font-semibold">{i.name}</span>
-                    <span className="truncate text-[13px] text-muted">{t('margin.line', { qty: i.quantity, unit: t(`units.${i.unit}`), sales: formatRupees(i.sales) })}</span>
+                    <span className="truncate text-[13px] text-muted">{t('margin.line', { qty: i.quantity, unit: t(`units.${i.unit}`, { count: i.quantity }), sales: formatRupees(i.sales) })}</span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end">
                     <span className={`font-bold ${i.profit !== null && i.profit < 0 ? 'text-due' : ''}`}>{i.profit === null ? t('margin.setCost') : formatRupees(i.profit)}</span>

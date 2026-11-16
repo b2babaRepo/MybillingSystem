@@ -88,7 +88,7 @@ function DisputeSheet({ entry, path, onClose, onSent }: { entry: StatementLine; 
             <div key={item.id} className={`rounded-[14px] border bg-white p-3 ${tick ? 'border-amber-400' : 'border-line'}`}>
               <div className="flex justify-between gap-2 font-semibold">
                 <span className="min-w-0 truncate">{item.name}</span>
-                <span className="shrink-0 text-sm text-muted">{item.quantity} {t(`units.${item.unit}`)} · {formatRupees(item.amount)}</span>
+                <span className="shrink-0 text-sm text-muted">{item.quantity} {t(`units.${item.unit}`, { count: item.quantity })} · {formatRupees(item.amount)}</span>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-1.5 text-xs font-semibold">
                 {(['not_received', 'short', 'wrong'] as const).map((problem) => (

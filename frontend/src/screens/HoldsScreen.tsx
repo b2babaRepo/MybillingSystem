@@ -77,7 +77,7 @@ export function HoldsScreen({ shopId }: { shopId: string }) {
         <div key={`${h.source}-${h.sourceId}-${h.productId}`} className={`flex flex-col gap-1 rounded-2xl bg-white p-3 shadow-sm ${h.shortBy > 0 ? 'ring-1 ring-red-200' : ''}`}>
           <div className="flex items-start justify-between gap-2">
             <button onClick={() => open(h)} className="flex min-w-0 flex-col text-left">
-              <b className="truncate">{h.product} · {h.quantity} {t(`units.${h.unit}`)}</b>
+              <b className="truncate">{h.product} · {h.quantity} {t(`units.${h.unit}`, { count: h.quantity })}</b>
               <span className="text-xs text-muted">{t(`holds.source.${h.source}`, { number: h.reference })} · {h.party} · {t('holds.since', { date: short(h.since) })}</span>
             </button>
             {h.until && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${h.overdue ? 'bg-red-50 text-due' : 'bg-teal-50 text-teal-800'}`}>{t(h.overdue ? 'holds.overdue' : 'holds.till', { date: short(h.until) })}</span>}

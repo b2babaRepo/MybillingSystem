@@ -50,7 +50,7 @@ export function weekSummary(r: SalesRange, shop: string, t: (k: string, o?: Reco
     t('insights.waTitle', { shop, from: label(r.from), to: label(r.to) }),
     t('insights.waSales', { sales: formatRupees(r.sales), bills: r.bills }) + (pct === null ? '' : ` (${pct >= 0 ? '+' : ''}${pct}% ${t('insights.vsBefore')})`),
     t('insights.waTop'),
-    ...r.items.slice(0, 5).map((i, n) => `${n + 1}. ${i.name}: ${i.quantity} ${t(`units.${i.unit}`)} · ${formatRupees(i.sales)}`),
+    ...r.items.slice(0, 5).map((i, n) => `${n + 1}. ${i.name}: ${i.quantity} ${t(`units.${i.unit}`, { count: i.quantity })} · ${formatRupees(i.sales)}`),
     r.notSold.length > 0 ? t('insights.waNotSold', { count: r.notSold.length, names: r.notSold.slice(0, 3).map((u) => u.name).join(', ') }) : '',
   ].filter(Boolean).join('\n')
 }
@@ -124,7 +124,7 @@ export function SalesWeekScreen({ shopId, shopName, isOwner }: { shopId: string;
                 <li key={`${i.productId ?? i.name}-${i.unit}`} className="flex items-center justify-between gap-2 py-2">
                   <span className="min-w-0 truncate"><span className="text-muted">{n + 1}.</span> {i.name}</span>
                   <span className="shrink-0 text-right">
-                    <b>{i.quantity} {t(`units.${i.unit}`)} · {formatRupees(i.sales)}</b>
+                    <b>{i.quantity} {t(`units.${i.unit}`, { count: i.quantity })} · {formatRupees(i.sales)}</b>
                     <span className={`block text-xs ${up === null ? 'text-muted' : up >= 0 ? 'text-teal-800' : 'text-due'}`}>{up === null ? t('insights.newSeller') : `${up >= 0 ? '▲' : '▼'} ${Math.abs(up)}%`}</span>
                   </span>
                 </li>
@@ -142,7 +142,7 @@ export function SalesWeekScreen({ shopId, shopName, isOwner }: { shopId: string;
                 <li key={u.productId}>
                   <button onClick={() => navigate(`/p/${u.productId}`)} className="flex min-h-11 w-full items-center justify-between gap-2 text-left">
                     <span className="truncate">{u.name}</span>
-                    <span className="shrink-0 text-muted">{u.stock} {t(`units.${u.unit}`)} · {u.lastSold ? t('insights.lastSold', { date: new Date(u.lastSold).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) }) : t('insights.neverSold')}</span>
+                    <span className="shrink-0 text-muted">{u.stock} {t(`units.${u.unit}`, { count: u.stock })} · {u.lastSold ? t('insights.lastSold', { date: new Date(u.lastSold).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) }) : t('insights.neverSold')}</span>
                   </button>
                 </li>
               ))}

@@ -207,7 +207,7 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
                         {option && <span className="truncate text-[13px] text-muted">{option.name} · {formatRupees(option.price)}/{t(`units.${option.unit}`)}{group === 'out' ? ` · ${t('store.out')}` : ''}</span>}
                       </span>
                       <button aria-label={t('a11y.less')} onClick={() => step(item, -1)} className="h-11 w-10 rounded-[10px] bg-[#edf2f1] text-lg">−</button>
-                      <span className="min-w-12 text-center text-[15px] font-bold">{item.quantity} {t(`units.${item.unit}`)}</span>
+                      <span className="min-w-12 text-center text-[15px] font-bold">{item.quantity} {t(`units.${item.unit}`, { count: item.quantity })}</span>
                       <button aria-label={t('a11y.more')} onClick={() => step(item, 1)} className="h-11 w-10 rounded-[10px] bg-[#edf2f1] text-lg">+</button>
                       <button aria-label={t('remove')} onClick={() => void removeItem(userId, kind, item)} className="h-11 w-8 text-xl text-muted">×</button>
                     </li>
