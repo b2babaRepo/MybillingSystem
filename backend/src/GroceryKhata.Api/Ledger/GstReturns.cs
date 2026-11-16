@@ -18,7 +18,10 @@ public sealed record TaxPayableDto(
 
 public static class GstReturns
 {
-    /// <summary>The GST unit code (UQC) for an item's unit, as GSTR-1 asks.</summary>
+    /// <summary>
+    /// The GST unit code (UQC) for an item's unit, as GSTR-1 asks. Only codes on the portal's UQC master
+    /// (einvoice1.gst.gov.in, Master Codes) are accepted; a unit with none of its own, like a jar or a strip, goes as OTH.
+    /// </summary>
     public static string Uqc(Unit unit) => unit switch
     {
         Unit.Kg => "KGS",
@@ -32,7 +35,6 @@ public static class GstReturns
         Unit.Bag => "BAG",
         Unit.Packet => "PAC",
         Unit.Pair => "PRS",
-        Unit.Jar => "JAR",
         Unit.Piece => "PCS",
         Unit.Cft or Unit.Brass => "CBM",
         Unit.SqFt => "SQF",
