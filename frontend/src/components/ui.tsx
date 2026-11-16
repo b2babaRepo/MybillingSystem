@@ -3,6 +3,18 @@ import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNo
 import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../lib/format'
 
+/**
+ * How a button looks, apart from its size and place: `solid` for the main action (save, add), `outline` for the one
+ * beside it (hold, minus, choose), `link` for small actions in text, `quiet` for minor ones (clear, cancel). Screens
+ * keep their own size and layout classes and add one of these.
+ */
+export const btn = {
+  solid: 'bg-brand font-bold text-white shadow-sm hover:bg-brand-strong active:bg-brand-strong disabled:opacity-40',
+  outline: 'border-2 border-brand bg-white font-bold text-brand-strong hover:bg-brand-soft disabled:opacity-40',
+  link: 'font-semibold text-brand underline disabled:opacity-50',
+  quiet: 'text-muted underline',
+}
+
 /** A text box or drop-down at counter size; `controlSm` for rows with several boxes side by side. */
 export const control = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
 export const controlSm = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
