@@ -138,6 +138,8 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-semibold text-muted">{t('gtc.whereIs')}</span>
                   <div className="flex flex-wrap gap-1">
+                    {/* Where it started: a placed order lights this step until it moves on, so its place is always shown. */}
+                    <span aria-current={o.stage === 'placed' ? 'step' : undefined} className={`flex h-9 items-center rounded-full px-3 text-sm font-semibold ${o.stage === 'placed' ? 'bg-brand text-white' : 'bg-[#edf2f1] text-muted'}`}>{t('gtc.stage.placed')}</span>
                     {STAGES.map((s) => (
                       <button key={s} onClick={() => s === 'dispatched' ? setLot({ ...blankLot, dispatchedOn: todayIso(), expectedOn: o.expectedOn ?? '' }) : void run(() => api(`/v1/suppliers/orders/${o.id}/stage`, 'POST', { stage: s }))}
                         aria-pressed={o.stage === s} className={`h-9 rounded-full px-3 text-sm font-semibold ${o.stage === s ? 'bg-brand text-white' : 'bg-[#edf2f1] text-muted'}`}>{t(`gtc.stage.${s}`)}</button>
@@ -166,10 +168,13 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
                 <div className="flex flex-col gap-2">
                   <span className="text-xs font-semibold text-muted">{t('gtc.followUp')}</span>
                   <div className="grid grid-cols-2 gap-2">
-                    <select aria-label={t('gtc.how')} value={note.channel} onChange={(e) => setNote({ ...note, channel: e.target.value as Channel })} className={input}>
-                      {(['call', 'whatsapp', 'visit'] as const).map((c) => <option key={c} value={c}>{t(`gtc.channel.${c}`)}</option>)}
-                    </select>
-                    <label className="flex flex-col gap-1 text-xs text-muted">{t('gtc.newDate')}<input type="date" value={note.date} onChange={(e) => setNote({ ...note, date: e.target.value })} className={input} /></label>
+                    <label className="flex flex-col gap-1 text-xs text-muted">{t('gtc.how')}
+                      <select value={note.channel} onChange={(e) => setNote({ ...note, channel: e.target.value as Channel })} className={`${input} text-sm text-ink`}>
+                        {(['call', 'whatsapp', 'visit'] as const).map((c) => <option key={c} value={c}>{t(`gtc.channel.${c}`)}</option>)}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs text-muted">{t('gtc.newDate')}<input type="date" value={note.date} min={todayIso()} onChange={(e) => setNote({ ...note, date: e.target.value })} className={`${input} text-sm text-ink`} /></label>
+                    <p className="col-span-2 -mt-1 text-xs text-muted">{o.expectedOn ? t('gtc.promisedNow', { date: day(o.expectedOn) }) : t('gtc.noPromise')}</p>
                     <input aria-label={t('gtc.whatSaid')} placeholder={t('gtc.whatSaid')} value={note.text} maxLength={300} onChange={(e) => setNote({ ...note, text: e.target.value })} className={`${input} col-span-2`} />
                   </div>
                   <button disabled={!note.text.trim() && !note.date} onClick={() => void saveNote(o)} className={`h-11 rounded-xl ${btn.outline}`}>{t('gtc.saveFollowUp')}</button>

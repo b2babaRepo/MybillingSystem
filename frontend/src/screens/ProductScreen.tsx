@@ -2,12 +2,12 @@ import { itemName } from '../lib/itemName'
 import { coverText } from '../lib/cover'
 import { ItemSuppliersCard } from '../components/SupplierPanels'
 import { CategoryInput } from '../components/CategoryInput'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { isOutToday } from '../lib/local'
 import { billNameFor } from '../lib/billNames'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, Sheet } from '../components/ui'
+import { Button, Field, Select, Sheet } from '../components/ui'
 import { api, request } from '../lib/api'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { ask, tell } from '../components/Ask'
@@ -102,11 +102,29 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
   const [reason, setReason] = useState<StockReason>('damage')
   const [note, setNote] = useState('')
   const [bags, setBags] = useState('')
+  const [supplierId, setSupplierId] = useState('')
+  const [error, setError] = useState('')
+  const queryClient = useQueryClient()
+  // Stock coming in can be put on a supplier: it is then their goods received today, waiting for their bill. Helpers
+  // can't see suppliers (owner only), so for them the list is empty and stock goes in by hand as before.
+  const suppliers = useQuery({ queryKey: [shopId, 'suppliers', 'pick'], queryFn: () => api<{ id: string; name: string; isActive?: boolean }[]>('/v1/suppliers'), enabled: kind === 'purchase', retry: false }).data ?? []
   const value = Number(quantity)
   const unitName = t(`units.${product.unit}`)
   const avg = Number(bags) > 0 && value > 0 ? value / Number(bags) : null
 
   async function save() {
+    if (kind === 'purchase' && supplierId) {
+      setError('')
+      try {
+        await api('/v1/goods-receipts', 'POST', { id: crypto.randomUUID(), supplierId, note: note.trim() || null,
+          lines: [{ productId: product.id, quantity: value, bags: Number(bags) > 0 ? Number(bags) : null }] })
+        await queryClient.invalidateQueries({ queryKey: [shopId] })
+        onClose()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t('error'))
+      }
+      return
+    }
     await addStockMovement(
       shopId,
       product,
@@ -136,7 +154,22 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
             {avg !== null && <BagCheck avg={avg} size={product.bagSize} bags={Number(bags)} unit={unitName} />}
           </div>
         ) : null}
-        {kind === 'purchase' && <Field label={`${t('stock.costPrice')} / ${t(`units.${product.unit}`)}`} value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" />}
+        {kind === 'purchase' && (
+          <>
+            <p className="rounded-xl bg-white px-3 py-2 text-sm"><span className="text-muted">{t('stock.inCategory')}: </span><b>{product.category || t('stock.noCategory')}</b></p>
+            {suppliers.length > 0 && (
+              <label className="block">
+                <span className="mb-1 block text-sm font-semibold text-muted">{t('stock.fromSupplier')}</span>
+                <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full text-base">
+                  <option value="">{t('stock.noSupplier')}</option>
+                  {suppliers.filter((x) => x.isActive !== false).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </Select>
+                <span className="mt-1 block text-xs text-muted">{t(supplierId ? 'stock.supplierHint' : 'stock.byHandHint')}</span>
+              </label>
+            )}
+            {!supplierId && <Field label={`${t('stock.costPrice')} / ${t(`units.${product.unit}`)}`} value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" />}
+          </>
+        )}
         {kind === 'adjustment' && (
           <div>
             <span className="mb-1 block text-sm font-semibold text-muted">{t('stock.reason')}</span>
@@ -151,6 +184,7 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
           </div>
         )}
         <Field label={t('note')} value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
+        {error && <p className="text-sm text-due">{error}</p>}
         <Button tone={kind === 'purchase' ? 'payment' : 'credit'} className="w-full" disabled={!(value > 0)} onClick={save}>
           {t('save')}
         </Button>

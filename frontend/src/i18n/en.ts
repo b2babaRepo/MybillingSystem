@@ -177,6 +177,8 @@ export const en = {
     pickShopFirst: 'Choose a shop first',
   },
   stock: {
+    inCategory: 'Category', fromSupplier: 'From supplier', noSupplier: 'No supplier (add by hand)', supplierHint: 'Goes in as goods received from them today, waiting for their bill; enter the price on the bill.', byHandHint: 'Added by hand: no supplier or bill will show for this stock.',
+    noCategory: 'No category', colItem: 'Item', colDiff: 'Difference', lastIn: 'last in {{date}}: {{qty}} from {{supplier}}', lastInHand: 'last in {{date}}: {{qty}} added by hand, no supplier',
     outToday: 'Out today', markOutToday: 'Sold out today', backOnSale: 'Back on sale',
     notCounted: 'Not counted', dontCount: "Don't count this item (never shows as out or low)",
     stopCountingEmpty: "I don't count these: keep them on sale", stopCountingConfirm: 'Stop counting every item at zero? They will stop showing as out, and customers can order them online.',

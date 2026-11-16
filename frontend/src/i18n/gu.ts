@@ -179,6 +179,8 @@ export const gu: Texts = {
     pickShopFirst: 'પહેલાં દુકાન પસંદ કરો',
   },
   stock: {
+    inCategory: 'શ્રેણી', fromSupplier: 'કયા સપ્લાયર પાસેથી', noSupplier: 'સપ્લાયર નહીં (હાથે ઉમેરો)', supplierHint: 'આજે તેમની પાસેથી આવેલો માલ ગણાશે, તેમના બિલની રાહ; ભાવ બિલ પર ભરો.', byHandHint: 'હાથે ઉમેર્યું: આ સ્ટોક પર કોઈ સપ્લાયર કે બિલ નહીં દેખાય.',
+    noCategory: 'શ્રેણી વગર', colItem: 'વસ્તુ', colDiff: 'ફરક', lastIn: 'છેલ્લે આવ્યું {{date}}: {{qty}}, {{supplier}} પાસેથી', lastInHand: 'છેલ્લે આવ્યું {{date}}: {{qty}} હાથે ઉમેર્યું, સપ્લાયર નહીં',
     outToday: 'આજે ખલાસ', markOutToday: 'આજે ખલાસ થઈ ગયું', backOnSale: 'ફરી વેચાણમાં',
     notCounted: 'ગણાતું નથી', dontCount: 'આ માલ ગણશો નહીં (ક્યારેય ખલાસ કે ઓછું નહીં બતાવે)',
     stopCountingEmpty: 'હું આ ગણતો નથી: વેચાણમાં રાખો', stopCountingConfirm: 'શૂન્ય પરનો દરેક માલ ગણવાનું બંધ કરવું છે? તે ખલાસ તરીકે નહીં દેખાય, અને ગ્રાહકો ઓનલાઇન મંગાવી શકશે.',

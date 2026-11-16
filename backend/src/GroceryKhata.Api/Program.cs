@@ -116,6 +116,7 @@ app.MapBankBook();
 app.MapCashLimits();
 app.MapCustomerMove();
 app.MapStockLedger();
+app.MapLastStockIn();
 app.MapStockHealth();
 app.MapArrivals();
 app.MapCategories();

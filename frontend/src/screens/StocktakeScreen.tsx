@@ -6,6 +6,10 @@ import { Button } from '../components/ui'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { uuidv7 } from '../lib/ids'
+import { shownLocale } from '../i18n'
+import { itemName } from '../lib/itemName'
+
+interface LastIn { productId: string; at: string; quantity: number; supplier: string | null; byHand: boolean }
 
 /**
  * Count the shelf, item by item. Only counted items are sent; each difference becomes a "count fix"
@@ -17,6 +21,14 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
   const { products } = useProducts(shopId)
   const [counts, setCounts] = useState<Record<string, string>>({})
   const [stocktakeId] = useState(uuidv7)
+  // When each item's stock last came in and from whom, so a count can tell where stock came from.
+  const lastIn = new Map((useQuery({ queryKey: [shopId, 'stock-last-in'], queryFn: () => api<LastIn[]>('/v1/stock/last-in') }).data ?? []).map((l) => [l.productId, l]))
+  // Counted under their category, as the shelves are kept.
+  const groups = Object.entries(products.filter((p) => !p.uncounted).reduce<Record<string, typeof products>>((g, p) => {
+    const key = p.category?.trim() || ''
+    ;(g[key] ??= []).push(p)
+    return g
+  }, {})).sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
   const [result, setResult] = useState('')
   const [busy, setBusy] = useState(false)
   const counted = Object.entries(counts).filter(([, v]) => v.trim() !== '' && Number(v) >= 0)
@@ -41,12 +53,25 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-muted">{t('stock.stocktakeHint')}</p>
       {result && <p className="rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800">{result}</p>}
+      {groups.map(([category, items]) => (
+      <section key={category} className="flex flex-col gap-1">
+      <h2 className="px-1 text-sm font-bold text-muted">{category || t('stock.noCategory')} · {items.length}</h2>
       <ul className="divide-y divide-[#edf2f1] rounded-card bg-white">
-        {products.filter((p) => !p.uncounted).map((p) => (
+        <li aria-hidden className="flex items-center gap-3 px-4 py-1.5 text-xs font-semibold text-muted">
+          <span className="flex-1">{t('stock.colItem')}</span><span className="w-24 text-right">{t('stock.counted')}</span><span className="hidden w-20 text-right lg:block">{t('stock.colDiff')}</span>
+        </li>
+        {items.map((p) => (
           <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 lg:py-1.5">
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate font-semibold">{p.name}</span>
-              <span className="text-xs text-muted">{t('stock.books')}: {p.stock} {t(`units.${p.unit}`, { count: p.stock })}</span>
+              <span className="truncate font-semibold">{itemName(p)}</span>
+              <span className="text-xs text-muted">{t('stock.books')}: {p.stock} {t(`units.${p.unit}`, { count: p.stock })}
+                {(() => {
+                  const l = lastIn.get(p.id)
+                  if (!l) return null
+                  const when = new Date(l.at).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
+                  return <> · {l.byHand ? <span className="text-warn">{t('stock.lastInHand', { date: when, qty: l.quantity })}</span> : t('stock.lastIn', { date: when, qty: l.quantity, supplier: l.supplier })}</>
+                })()}
+              </span>
             </span>
             <input
               value={counts[p.id] ?? ''}
@@ -65,6 +90,8 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
           </li>
         ))}
       </ul>
+      </section>
+      ))}
       <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:max-w-4xl max-w-xl border-t border-line bg-white px-4 py-3">
         <Button className="h-14 w-full lg:ml-auto lg:block lg:h-12 lg:w-auto lg:px-10" disabled={busy || counted.length === 0} onClick={save}>
           {t('stock.saveCount', { count: counted.length })}

@@ -788,6 +788,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             <span>{t('total')}</span>
             <span>{formatRupees(total)}</span>
           </div>
+          {/* The exchange credit pays part of the bill: say plainly what is left to pay now. */}
+          {exchangeCredit > 0 && (
+            <div className="flex justify-between text-lg font-bold text-brand-strong">
+              <span>{t('exchange.toPay')}</span>
+              <span>{formatRupees(due)}</span>
+            </div>
+          )}
         </>)}
       </div>
 
@@ -796,7 +803,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           <CustomerFinder customers={customers} selected={customer} onKhata={customer ? round2(due - paidAmount) : 0} onPick={pickCustomer} onNameLater={() => addCustomer(shopId, '', '', true)} onCreate={(name, phone) => addCustomer(shopId, name, phone)} />
           {customer && (
             <>
-              <Field id="bill-paid" label={t('paidNow')} value={paid ?? String(total)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
+              <Field id="bill-paid" label={t('paidNow')} value={paid ?? String(due)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
               {paidAmount > 0 && <button onClick={allOnKhata} className={`min-h-11 w-full rounded-xl ${btn.outline}`}>{t('billFind.allKhata')}</button>}
             </>
           )}
@@ -904,7 +911,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           <div className="flex gap-2 border-t border-line pt-4">
             <button type="button" onClick={holdBill} className={`flex min-h-14 shrink-0 items-center gap-1.5 rounded-2xl px-4 ${btn.outline}`}><span aria-hidden>⏸</span>{t('hold.button')}</button>
             <Button className="h-14 flex-1 text-lg shadow-md shadow-teal-900/15" id="bill-save" onClick={save} disabled={!canSave}>
-              {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(total) }) : `${t('saveBill')} · ${formatRupees(total)}`}
+              {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(due) }) : `${t('saveBill')} · ${formatRupees(due)}`}
             </Button>
           </div>
         </div>
@@ -915,7 +922,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         <button onClick={() => billRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
           className={`fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-10 mx-auto flex h-14 lg:hidden w-[calc(100%-2rem)] max-w-[34rem] items-center justify-between rounded-2xl px-4 shadow-lg ${btn.solid}`}>
           <span>{t('billBar', { count: cart.length })}</span>
-          <span>{formatRupees(total)} · {t('checkout')} ↓</span>
+          <span>{formatRupees(due)} · {t('checkout')} ↓</span>
         </button>
       )}
 

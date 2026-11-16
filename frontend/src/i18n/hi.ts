@@ -179,6 +179,8 @@ export const hi: Texts = {
     pickShopFirst: 'पहले दुकान चुनें',
   },
   stock: {
+    inCategory: 'श्रेणी', fromSupplier: 'किस सप्लायर से', noSupplier: 'सप्लायर नहीं (हाथ से जोड़ें)', supplierHint: 'आज उनसे आया माल गिना जाएगा, उनके बिल का इंतज़ार; दाम बिल पर भरें।', byHandHint: 'हाथ से जोड़ा: इस स्टॉक पर कोई सप्लायर या बिल नहीं दिखेगा।',
+    noCategory: 'बिना श्रेणी', colItem: 'सामान', colDiff: 'फ़र्क', lastIn: 'आख़िरी आया {{date}}: {{qty}}, {{supplier}} से', lastInHand: 'आख़िरी आया {{date}}: {{qty}} हाथ से जोड़ा, सप्लायर नहीं',
     outToday: 'आज खत्म', markOutToday: 'आज खत्म हो गया', backOnSale: 'फिर बिक्री पर',
     notCounted: 'गिनती नहीं', dontCount: 'इस सामान की गिनती न करें (कभी खत्म या कम नहीं दिखेगा)',
     stopCountingEmpty: 'मैं इनकी गिनती नहीं करता: इन्हें बिक्री पर रखें', stopCountingConfirm: 'शून्य स्टॉक वाले सभी सामान की गिनती बंद करें? ये खत्म नहीं दिखेंगे और ग्राहक इन्हें ऑनलाइन मँगा सकेंगे।',
