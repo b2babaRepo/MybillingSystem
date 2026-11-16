@@ -36,7 +36,8 @@ public sealed class PushKey
 
 public sealed record PushSubscribeRequest(string? Endpoint, string? P256dh, string? Auth);
 
-public sealed record OrderTodayItem(Guid ProductId, string Name, decimal Stock, decimal? DaysLeft, decimal Suggested, int LeadDays);
+/// <summary><see cref="NameEn"/>, <see cref="NameHi"/>: the item's list names, so the app shows the one for its language.</summary>
+public sealed record OrderTodayItem(Guid ProductId, string Name, decimal Stock, decimal? DaysLeft, decimal Suggested, int LeadDays, string? NameEn = null, string? NameHi = null);
 
 public sealed record OrderTodayDto(int Count, IReadOnlyList<OrderTodayItem> Items);
 
@@ -80,7 +81,16 @@ public static class StockAlerts
         // Most urgent first: out of stock, then fewest days left.
         var items = lines.OrderBy(l => l.Stock > 0).ThenBy(l => l.DaysLeft ?? 9999).ThenBy(l => l.Medicine)
             .Select(l => new OrderTodayItem(l.ProductId, l.Medicine, l.Stock, l.DaysLeft, l.Suggested, l.LeadDays)).ToList();
-        return new OrderTodayDto(items.Count, items.Take(20).ToList());
+        var shown = items.Take(20).ToList();
+        var ids = shown.Select(i => i.ProductId).ToList();
+        var names = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id))
+            .Select(p => new
+            {
+                p.Id,
+                En = p.MasterItem != null ? p.MasterItem.Name : p.CatalogueItem != null ? p.CatalogueItem.NameEn : null,
+                Hi = p.MasterItem != null ? p.MasterItem.NameHi : p.CatalogueItem != null ? p.CatalogueItem.Name : null,
+            }).ToDictionaryAsync(p => p.Id, ct);
+        return new OrderTodayDto(items.Count, shown.Select(i => names.TryGetValue(i.ProductId, out var n) ? i with { NameEn = n.En, NameHi = n.Hi } : i).ToList());
     }
 
     private static async Task<IResult> SubscribeAsync(PushSubscribeRequest request, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, CancellationToken ct)

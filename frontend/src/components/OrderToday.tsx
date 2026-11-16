@@ -1,10 +1,11 @@
+import { itemName } from '../lib/itemName'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { navigate } from '../router'
 
-interface Item { productId: string; name: string; stock: number; daysLeft: number | null; suggested: number; leadDays: number }
+interface Item { productId: string; name: string; stock: number; daysLeft: number | null; suggested: number; leadDays: number; nameEn?: string | null; nameHi?: string | null }
 
 const KEY = 'gk-push-on'
 
@@ -73,7 +74,7 @@ export function OrderToday() {
       </div>
       {today.items.slice(0, 5).map((i) => (
         <button key={i.productId} onClick={() => navigate(`/p/${i.productId}`)} className="flex min-h-11 items-center justify-between gap-2 border-b border-[#edf2f1] text-left last:border-0">
-          <span className="min-w-0 truncate font-semibold">{i.name}</span>
+          <span className="min-w-0 truncate font-semibold">{itemName(i)}</span>
           <span className="flex shrink-0 items-center gap-2 text-sm">
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${i.stock <= 0 || (i.daysLeft ?? 99) <= i.leadDays ? 'bg-red-50 text-due' : 'bg-amber-50 text-amber-800'}`}>
               {i.stock <= 0 ? t('orderToday.out') : i.daysLeft != null ? t('orderToday.daysLeft', { count: Math.floor(i.daysLeft) }) : t('orderToday.low')}
