@@ -43,6 +43,40 @@ public sealed class TallyAccuracyTests(ApiFactory api)
         xml.Split("<TALLYMESSAGE>").Single(v => v.Contains($"<GUID>gk-{guid}</GUID>"));
 
     [Fact]
+    public async Task A_weighbridge_debit_note_takes_back_input_tax_and_its_undoing_reaches_tally_as_a_credit_note()
+    {
+        var shop = await RegisteredShopAsync();
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jain Traders", gstin = "08AAPFU0939F1ZV" })).EnsureSuccessStatusCode();
+        var rice = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = rice, name = "Rice", unit = "kg", sellingPrice = 50m, costPrice = 40m, gstRate = 5m, openingStock = 0m })).EnsureSuccessStatusCode();
+
+        // 500 kg on the receipt, 490 on the weighbridge: a debit note for 10 kg at 40, 400 + 20 GST.
+        var receipt = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = receipt, supplierId = supplier, grossWeight = 3490m, tareWeight = 3000m, lines = new[] { new { productId = rice, quantity = 500m } } })).EnsureSuccessStatusCode();
+        var note = await (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/short-claim", new { ratePerKg = 40m })).ReadAsync<GoodsReceiptDto>();
+
+        // 3B: the 20 of input tax on the missing goods comes back off.
+        Assert.Equal(-20m, (await shop.GetJsonAsync<GstMonthDto>("/api/v1/gst/month")).InputGst);
+
+        // Tally: a Debit Note under its number, supplier debited 420, purchases credited 400 and input tax 10 + 10.
+        var xml = await VouchersAsync(shop);
+        var debit = xml.Split("<TALLYMESSAGE>").Single(v => v.Contains($"<VOUCHERNUMBER>{note.DebitNoteNo}</VOUCHERNUMBER>"));
+        Assert.Contains("VCHTYPE=\"Debit Note\"", debit);
+        Assert.Contains("<LEDGERNAME>Jain Traders</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-420.00</AMOUNT>", debit);
+        Assert.Contains("<LEDGERNAME>Purchase</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>400.00</AMOUNT>", debit);
+        Assert.Contains("<LEDGERNAME>Input CGST</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>10.00</AMOUNT>", debit);
+
+        // Cancelling the receipt undoes it: the input tax is back to nothing and Tally gets the same voucher turned over.
+        (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/cancel", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(0m, (await shop.GetJsonAsync<GstMonthDto>("/api/v1/gst/month")).InputGst);
+        var undo = (await VouchersAsync(shop)).Split("<TALLYMESSAGE>").Single(v => v.Contains($"<VOUCHERNUMBER>{note.DebitNoteNo}/R</VOUCHERNUMBER>"));
+        Assert.Contains("VCHTYPE=\"Credit Note\"", undo);
+        Assert.Contains("<LEDGERNAME>Jain Traders</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>420.00</AMOUNT>", undo);
+        Assert.Contains("<LEDGERNAME>Input CGST</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-10.00</AMOUNT>", undo);
+    }
+
+    [Fact]
     public async Task A_walk_in_sale_paid_by_upi_goes_to_the_upi_account_and_a_split_one_to_both()
     {
         var shop = await RegisteredShopAsync();
