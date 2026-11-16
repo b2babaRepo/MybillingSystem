@@ -420,8 +420,12 @@ public sealed class AuthService(
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), cancellationToken);
     }
 
-    /// <summary>"Sharma General Store" → "sharma-general-store-k3f9". The suffix keeps names unique without a lookup.</summary>
-    internal static string NewSlug(string name)
+    /// <summary>
+    /// "Sharma General Store" → "sharma-general-store-k3f9a2c1". The suffix keeps names unique without a lookup: eight
+    /// characters, since thousands of shops share common names (four gave only 65,536 links per name, and a clash made
+    /// sign-up fail). Links already given out keep their shorter suffix.
+    /// </summary>
+    public static string NewSlug(string name)
     {
         var builder = new StringBuilder();
         foreach (var c in name.Trim().ToLowerInvariant())
@@ -442,7 +446,7 @@ public sealed class AuthService(
             stem = stem[..60].TrimEnd('-');
         }
 
-        var suffix = Guid.NewGuid().ToString("N")[..4];
+        var suffix = Guid.NewGuid().ToString("N")[..8];
         return stem.Length == 0 ? $"shop-{suffix}" : $"{stem}-{suffix}";
     }
 }
