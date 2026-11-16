@@ -74,7 +74,7 @@ function PickRows({ products, rows, onChange, withRate, listId, withBags = false
 
 /** The message a supplier gets: the shop's order, item by item. */
 export function orderText(t: (key: string, values?: Record<string, unknown>) => string, shopName: string, number: number, lines: { name: string; quantity: number; unit?: string; bags?: number | null; packUnit?: string | null }[]) {
-  return t('supplier2.orderMessage', { shop: shopName, number, lines: lines.map((l) => `${l.name} × ${l.quantity}${l.unit ? ` ${t(`units.${l.unit}`)}` : ''}${l.bags ? ` (${l.packUnit && l.packUnit !== 'bag' ? `${l.bags} ${t(`units.${l.packUnit}`)}` : t('bag.inBags', { count: l.bags })})` : ''}`).join('\n') })
+  return t('supplier2.orderMessage', { shop: shopName, number, lines: lines.map((l) => `${l.name} × ${l.quantity}${l.unit ? ` ${t(`units.${l.unit}`, { count: l.quantity })}` : ''}${l.bags ? ` (${l.packUnit && l.packUnit !== 'bag' ? `${l.bags} ${t(`units.${l.packUnit}`, { count: l.bags })}` : t('bag.inBags', { count: l.bags })})` : ''}`).join('\n') })
 }
 
 /**
@@ -106,7 +106,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
     }
   }
 
-  const packs = (n: number, u?: string | null) => (u && u !== 'bag' ? `${n} ${t(`units.${u}`)}` : t('bag.inBags', { count: n }))
+  const packs = (n: number, u?: string | null) => (u && u !== 'bag' ? `${n} ${t(`units.${u}`, { count: n })}` : t('bag.inBags', { count: n }))
   const close = () => { setRows(null); setEditing(null); setExpectedOn(''); setNote('') }
   // A draft is kept but not counted as on order; "Save order" places it straight away.
   const save = (draft: boolean) => run(async () => {
@@ -146,11 +146,11 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
             {o.lines.map((l) => (
               <p key={l.productId} className={`flex justify-between gap-2 ${l.received >= l.quantity ? 'text-muted' : ''}`}>
                 <span>{l.name}{l.rate != null ? ` · ${formatRupees(l.rate)}` : ''}</span>
-                <span className="text-right">{draft ? l.quantity : t('supplier2.cameOf', { came: l.received, ordered: l.quantity })}{l.unit ? ` ${t(`units.${l.unit}`)}` : ''}{l.bags ? ` · ${packs(l.bags, l.packUnit)}` : ''}
+                <span className="text-right">{draft ? l.quantity : t('supplier2.cameOf', { came: l.received, ordered: l.quantity })}{l.unit ? ` ${t(`units.${l.unit}`, { count: l.quantity })}` : ''}{l.bags ? ` · ${packs(l.bags, l.packUnit)}` : ''}
                   {(l.shortClosed ?? 0) > 0 && <span className="block text-xs text-due">{t('supplier2.shortClosed', { qty: l.shortClosed })}{l.shortReason ? ` · ${t(`gi.reason.${l.shortReason}`)}` : ''}</span>}</span>
               </p>
             ))}
-            {(o.totals?.length ?? 0) > 0 && <p className="border-t border-line pt-1 text-xs font-semibold">{t('po.total')}: {o.totals!.map((u) => `${u.quantity} ${t(`units.${u.unit}`)}`).join(' · ')}{Object.entries(o.lines.reduce<Record<string, number>>((m, l) => (l.bags ? { ...m, [l.packUnit ?? 'bag']: (m[l.packUnit ?? 'bag'] ?? 0) + l.bags } : m), {})).map(([u, n]) => ` · ${packs(n, u)}`).join('')}{o.weightKg ? ` · ${t('po.load', { kg: o.weightKg })}${o.unweighedLines ? ` ${t('po.loadMissing', { count: o.unweighedLines })}` : ''}` : ''}</p>}
+            {(o.totals?.length ?? 0) > 0 && <p className="border-t border-line pt-1 text-xs font-semibold">{t('po.total')}: {o.totals!.map((u) => `${u.quantity} ${t(`units.${u.unit}`, { count: u.quantity })}`).join(' · ')}{Object.entries(o.lines.reduce<Record<string, number>>((m, l) => (l.bags ? { ...m, [l.packUnit ?? 'bag']: (m[l.packUnit ?? 'bag'] ?? 0) + l.bags } : m), {})).map(([u, n]) => ` · ${packs(n, u)}`).join('')}{o.weightKg ? ` · ${t('po.load', { kg: o.weightKg })}${o.unweighedLines ? ` ${t('po.loadMissing', { count: o.unweighedLines })}` : ''}` : ''}</p>}
             {draft ? (
             <div className="mt-1 flex flex-wrap gap-2">
               <Button className="flex-1" onClick={() => void run(() => api(`/v1/suppliers/orders/${o.id}/place`, 'POST', {}))}>{t('supplier2.placeOrder')}</Button>
@@ -335,7 +335,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
             return (
               <>
                 <p className={`text-xs ${short >= 1 && !r.shortClaim ? 'font-semibold text-due' : 'text-muted'}`}>⚖ {t('bag.net', { net })}{expected > 0 ? ` · ${t('weigh.expected', { kg: expected })}` : ''}{short >= 1 && !r.shortClaim ? ` · ${t('weigh.short', { kg: short })}` : ''}</p>
-                {r.shortClaim ? <p className="text-xs font-semibold text-teal-700">{r.debitNoteNo ? `${r.debitNoteNo} · ` : ''}{t('weigh.claimed', { kg: r.shortKg, amount: formatRupees(r.shortClaim) })}{(r.shortStock?.length ?? 0) > 0 ? <span className="block font-normal">{t('weigh.stockOff', { items: r.shortStock!.map((x) => `${x.name} ${x.quantity} ${t(`units.${x.unit}`)}`).join(', ') })}</span> : null}</p>
+                {r.shortClaim ? <p className="text-xs font-semibold text-teal-700">{r.debitNoteNo ? `${r.debitNoteNo} · ` : ''}{t('weigh.claimed', { kg: r.shortKg, amount: formatRupees(r.shortClaim) })}{(r.shortStock?.length ?? 0) > 0 ? <span className="block font-normal">{t('weigh.stockOff', { items: r.shortStock!.map((x) => `${x.name} ${x.quantity} ${t(`units.${x.unit}`, { count: x.quantity })}`).join(', ') })}</span> : null}</p>
                   : short >= 1 ? <button onClick={() => void claim()} className="min-h-11 self-start text-sm font-semibold text-due underline">{t('weigh.claim', { kg: short })}</button> : null}
               </>
             )

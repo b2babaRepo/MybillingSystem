@@ -542,7 +542,7 @@ export const hiMore: TextsMore = {
     cancel: 'ऑर्डर रद्द करें',
     cancelConfirm: 'यह ऑर्डर रद्द करें?',
   },
-  units: { quintal: 'क्विंटल', carton: 'कार्टन', bottle: 'बोतल', set: 'सेट', strip: 'स्ट्रिप', pair: 'जोड़ी', dozen: 'दर्जन', box: 'डिब्बा', jar: 'जार', piece: 'पीस', kg: 'किलो', g: 'ग्राम', litre: 'लीटर', ml: 'ml', packet: 'पैकेट', bag: 'बोरी', tonne: 'टन', brass: 'ब्रास', cft: 'घन फुट', metre: 'मीटर', sq_ft: 'वर्ग फुट', running_ft: 'रनिंग फुट' },
+  units: { quintal_other: 'क्विंटल', carton_other: 'कार्टन', bottle_other: 'बोतल', set_other: 'सेट', strip_other: 'स्ट्रिप', pair_other: 'जोड़ी', box_other: 'डिब्बा', jar_other: 'जार', piece_other: 'पीस', packet_other: 'पैकेट', bag_other: 'बोरी', tonne_other: 'टन', quintal: 'क्विंटल', carton: 'कार्टन', bottle: 'बोतल', set: 'सेट', strip: 'स्ट्रिप', pair: 'जोड़ी', dozen: 'दर्जन', box: 'डिब्बा', jar: 'जार', piece: 'पीस', kg: 'किलो', g: 'ग्राम', litre: 'लीटर', ml: 'ml', packet: 'पैकेट', bag: 'बोरी', tonne: 'टन', brass: 'ब्रास', cft: 'घन फुट', metre: 'मीटर', sq_ft: 'वर्ग फुट', running_ft: 'रनिंग फुट' },
   upiPay: { scan: 'ग्राहक स्कैन करके {{amount}} दे', qrAlt: '{{amount}} का UPI QR कोड', check: 'UPI ऐप में पैसा आने के बाद बिल सेव करें।', note: '{{shop}} का बिल', noId: 'यहाँ QR दिखाने के लिए दुकान सेटिंग में UPI ID डालें', save: 'पैसा मिल गया · बिल सेव करें {{amount}}', paidUpi: '{{amount}} UPI से मिले', paidCash: '{{amount}} नकद मिले' },
   billReceipt: {
     send: 'बिल WhatsApp पर भेजें',

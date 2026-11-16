@@ -540,7 +540,7 @@ export const enMore = {
     cancel: 'Cancel order',
     cancelConfirm: 'Cancel this order?',
   },
-  units: { quintal: 'qtl', carton: 'carton', bottle: 'bottle', set: 'set', strip: 'strip', pair: 'pair', dozen: 'dozen', box: 'box', jar: 'jar', piece: 'pc', kg: 'kg', g: 'g', litre: 'L', ml: 'ml', packet: 'pkt', bag: 'bag', tonne: 'tonne', brass: 'brass', cft: 'cft', metre: 'm', sq_ft: 'sq ft', running_ft: 'rft' },
+  units: { quintal_other: 'qtl', carton_other: 'cartons', bottle_other: 'bottles', set_other: 'sets', strip_other: 'strips', pair_other: 'pairs', box_other: 'boxes', jar_other: 'jars', piece_other: 'pcs', packet_other: 'pkts', bag_other: 'bags', tonne_other: 'tonnes', quintal: 'qtl', carton: 'carton', bottle: 'bottle', set: 'set', strip: 'strip', pair: 'pair', dozen: 'dozen', box: 'box', jar: 'jar', piece: 'pc', kg: 'kg', g: 'g', litre: 'L', ml: 'ml', packet: 'pkt', bag: 'bag', tonne: 'tonne', brass: 'brass', cft: 'cft', metre: 'm', sq_ft: 'sq ft', running_ft: 'rft' },
   upiPay: { scan: 'Customer scans to pay {{amount}}', qrAlt: 'UPI QR code for {{amount}}', check: 'Save the bill once the money shows in your UPI app.', note: 'Bill at {{shop}}', noId: 'Add your UPI ID in Shop settings to show a pay QR here', save: 'Payment received · save bill {{amount}}', paidUpi: 'Paid {{amount}} by UPI', paidCash: 'Paid {{amount}} in cash' },
   billReceipt: {
     send: 'Send bill on WhatsApp',
