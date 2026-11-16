@@ -1,3 +1,4 @@
+import { useItemName } from '../lib/useItemName'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,6 +29,7 @@ type Sort = 'profit' | 'low' | 'noCost'
  */
 export function ItemMarginScreen({ shopId }: { shopId: string }) {
   const { t, i18n } = useTranslation()
+  const nm = useItemName(shopId)
   const now = thisMonth()
   const [month, setMonth] = useState(now)
   const [sort, setSort] = useState<Sort>('profit')
@@ -73,7 +75,7 @@ export function ItemMarginScreen({ shopId }: { shopId: string }) {
               <li key={`${i.productId ?? i.name}-${i.unit}`}>
                 <button onClick={() => i.productId && navigate(`/p/${i.productId}`)} className="flex min-h-14 w-full items-center gap-3 py-2 text-left">
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate font-semibold">{i.name}</span>
+                    <span className="truncate font-semibold">{nm(i)}</span>
                     <span className="truncate text-[13px] text-muted">{t('margin.line', { qty: i.quantity, unit: t(`units.${i.unit}`, { count: i.quantity }), sales: formatRupees(i.sales) })}</span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end">

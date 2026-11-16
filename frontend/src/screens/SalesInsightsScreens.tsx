@@ -1,3 +1,4 @@
+import { useItemName } from '../lib/useItemName'
 import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -59,6 +60,7 @@ export function weekSummary(r: SalesRange, shop: string, t: (k: string, o?: Reco
 /** Sales over the days chosen (a week by default): against the same days before, each day, best sellers, and what sat. */
 export function SalesWeekScreen({ shopId, shopName, isOwner }: { shopId: string; shopName: string; isOwner: boolean }) {
   const { t } = useTranslation()
+  const nm = useItemName(shopId)
   const p = presets()
   const [range, setRange] = useState(() => {
     try { const pick = sessionStorage.getItem('gk-week'); sessionStorage.removeItem('gk-week'); if (pick === 'lastWeek') return p.lastWeek } catch { /* no storage */ }
@@ -123,7 +125,7 @@ export function SalesWeekScreen({ shopId, shopName, isOwner }: { shopId: string;
               const up = change(is, was)
               return (
                 <li key={`${i.productId ?? i.name}-${i.unit}`} className="flex items-center justify-between gap-2 py-2">
-                  <span className="min-w-0 truncate"><span className="text-muted">{n + 1}.</span> {i.name}</span>
+                  <span className="min-w-0 truncate"><span className="text-muted">{n + 1}.</span> {nm(i)}</span>
                   <span className="shrink-0 text-right">
                     <b>{i.quantity} {t(`units.${i.unit}`, { count: i.quantity })} · {formatRupees(i.sales)}</b>
                     <span className={`block text-xs ${up === null ? 'text-muted' : up >= 0 ? 'text-teal-800' : 'text-due'}`}>{up === null ? t('insights.newSeller') : `${up >= 0 ? '▲' : '▼'} ${Math.abs(up)}%`}</span>
@@ -142,7 +144,7 @@ export function SalesWeekScreen({ shopId, shopName, isOwner }: { shopId: string;
               {r.notSold.slice(0, 15).map((u) => (
                 <li key={u.productId}>
                   <button onClick={() => navigate(`/p/${u.productId}`)} className="flex min-h-11 w-full items-center justify-between gap-2 text-left">
-                    <span className="truncate">{u.name}</span>
+                    <span className="truncate">{nm(u)}</span>
                     <span className="shrink-0 text-muted">{u.stock} {t(`units.${u.unit}`, { count: u.stock })} · {u.lastSold ? t('insights.lastSold', { date: new Date(u.lastSold).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) }) : t('insights.neverSold')}</span>
                   </button>
                 </li>

@@ -1,3 +1,4 @@
+import { useItemName } from '../lib/useItemName'
 import { orderedNames, useCategories } from '../lib/categories'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -33,6 +34,7 @@ const sortValue = (r: Row, c: Col) => ({ opening: r.opening, bought: r.purchased
  */
 export function StockStatementScreen({ shopId }: { shopId: string }) {
   const { t } = useTranslation()
+  const nm = useItemName(shopId)
   const [range, setRange] = useState(monthToDate)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
@@ -178,7 +180,7 @@ export function StockStatementScreen({ shopId }: { shopId: string }) {
             <tbody>
               {lines.map((i) => (
                 <tr key={i.productId} onClick={() => navigate(`/p/${i.productId}`)} className="cursor-pointer border-b border-[#edf2f1] text-right last:border-0 hover:bg-[#f6faf9]">
-                  <td className="px-3 py-2 text-left font-semibold">{i.name}<span className="block text-xs font-normal text-muted">{t(`units.${i.unit}`)}{i.costPrice !== null && ` · ${formatRupees(i.costPrice)}`}</span></td>
+                  <td className="px-3 py-2 text-left font-semibold">{nm(i)}<span className="block text-xs font-normal text-muted">{t(`units.${i.unit}`)}{i.costPrice !== null && ` · ${formatRupees(i.costPrice)}`}</span></td>
                   {cols.map((c) => cell(i, c))}
                 </tr>
               ))}

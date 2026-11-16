@@ -1,3 +1,5 @@
+import { useItemName } from '../lib/useItemName'
+import { getSession } from '../lib/session'
 import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -29,6 +31,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString(shownLocale(), { 
  */
 export function DayReportScreen({ shopName }: { shopName: string }) {
   const { t } = useTranslation()
+  const nm = useItemName(getSession()?.shopId)
   const today = indiaToday()
   const [date, setDate] = useState(today)
   const [showItems, setShowItems] = useState(false)
@@ -127,7 +130,7 @@ export function DayReportScreen({ shopName }: { shopName: string }) {
             <span>{t('day.items', { count: r.items.length })}</span><span>{showItems ? '▴' : '▾'}</span>
           </button>
           {showItems && r.items.map((i) => (
-            <p key={`${i.productId ?? i.name}-${i.unit}`} className="flex justify-between gap-2 py-1"><span className="truncate">{i.name}</span><span className="shrink-0">{i.quantity} {t(`units.${i.unit}`, { count: i.quantity })} · {formatRupees(i.sales)}</span></p>
+            <p key={`${i.productId ?? i.name}-${i.unit}`} className="flex justify-between gap-2 py-1"><span className="truncate">{nm(i)}</span><span className="shrink-0">{i.quantity} {t(`units.${i.unit}`, { count: i.quantity })} · {formatRupees(i.sales)}</span></p>
           ))}
         </section>
 

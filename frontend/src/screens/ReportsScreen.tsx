@@ -1,3 +1,4 @@
+import { useItemName } from '../lib/useItemName'
 import { shownLocale } from '../i18n'
 import { navigate } from '../router'
 import { useQuery } from '@tanstack/react-query'
@@ -21,6 +22,7 @@ const thisMonth = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slic
 /** One month: sales, money in, udhaar out and back, estimated profit, the best sellers, and downloads. */
 export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const { t } = useTranslation()
+  const nm = useItemName(shopId)
   const current = thisMonth()
   const [month, setMonth] = useState(current)
   const [error, setError] = useState('')
@@ -183,7 +185,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
               <ol className="divide-y divide-[#edf2f1]">
                 {data.topItems.map((item, i) => (
                   <li key={`${item.name}-${i}`} className="flex justify-between gap-2 py-2">
-                    <span className="truncate"><span className="text-muted">{i + 1}.</span> {item.name}</span>
+                    <span className="truncate"><span className="text-muted">{i + 1}.</span> {nm(item)}</span>
                     <span className="shrink-0 font-semibold">{item.quantity} {t(`units.${item.unit}`, { count: item.quantity })} · {formatRupees(item.amount)}</span>
                   </li>
                 ))}
