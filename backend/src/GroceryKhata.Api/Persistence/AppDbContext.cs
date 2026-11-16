@@ -665,6 +665,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(r => r.Note).HasMaxLength(200);
             b.HasIndex(r => new { r.ShopId, r.SupplierId, r.PurchaseId });
             b.HasIndex(r => new { r.ShopId, r.Number }).IsUnique();
+            b.Property(r => r.DebitNoteNo).HasMaxLength(16);
+            b.HasIndex(r => new { r.ShopId, r.DebitNoteNo }).IsUnique();
         });
 
         modelBuilder.Entity<MeterReading>(b =>

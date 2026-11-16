@@ -688,7 +688,7 @@ public static class GstExport
             var undo = e.Amount > 0;
             var name = d.Suppliers.GetValueOrDefault(e.SupplierId, ("Supplier", null)).Name;
             var note = string.Join(" · ", new[] { e.Note, e.Reference }.Where(x => !string.IsNullOrWhiteSpace(x)));
-            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"{(undo ? "Credit Note" : "Debit Note")}\" ACTION=\"Create\"><GUID>gk-{e.Id}</GUID><DATE>{Day(e.OccurredAt)}</DATE><VOUCHERTYPENAME>{(undo ? "Credit Note" : "Debit Note")}</VOUCHERTYPENAME>")
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"{(undo ? "Credit Note" : "Debit Note")}\" ACTION=\"Create\"><GUID>gk-{e.Id}</GUID><DATE>{Day(e.OccurredAt)}</DATE><VOUCHERTYPENAME>{(undo ? "Credit Note" : "Debit Note")}</VOUCHERTYPENAME>{(e.Reference is { Length: > 0 } no ? $"<VOUCHERNUMBER>{X(no)}</VOUCHERNUMBER>" : "")}")
                 .Append($"<PARTYLEDGERNAME>{X(name)}</PARTYLEDGERNAME>{(note.Length > 0 ? $"<NARRATION>{X(note)}</NARRATION>" : "")}<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
             Entry(name, Math.Abs(e.Amount), debit: !undo);
             // The GST in it reverses the input tax taken on those goods (only where it was claimable).

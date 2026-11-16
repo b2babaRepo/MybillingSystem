@@ -50,6 +50,9 @@ public sealed class GoodsReceipt : Entity, ITenantOwned
 
     public Guid? ShortEntryId { get; set; }
 
+    /// <summary>The debit note's number, serial within the financial year as GST asks: DN/26-27/1, DN/26-27/2, …</summary>
+    public string? DebitNoteNo { get; set; }
+
     /// <summary>The supplier bill these goods were billed on. Null: still waiting for the bill.</summary>
     public Guid? PurchaseId { get; set; }
 
@@ -73,7 +76,7 @@ public sealed record ShortClaimRequest(decimal RatePerKg);
 public sealed record GoodsReceiptDto(
     Guid Id, int Number, Guid SupplierId, Guid? PurchaseOrderId, DateTimeOffset ReceivedAt, IReadOnlyList<ReceiptLine> Lines, string? Note, Guid? PurchaseId, DateTimeOffset? CancelledAt, string? By,
     string? VehicleNo = null, string? Bilty = null, string? Transporter = null, decimal? GrossWeight = null, decimal? TareWeight = null,
-    decimal? ShortKg = null, decimal? ShortClaim = null);
+    decimal? ShortKg = null, decimal? ShortClaim = null, string? DebitNoteNo = null);
 
 public static class GoodsReceipts
 {
@@ -126,7 +129,7 @@ public static class GoodsReceipts
 
     private static GoodsReceiptDto ToDto(GoodsReceipt r, string? by, IReadOnlyList<ReceiptLine> lines, decimal? claim = null) =>
         new(r.Id, r.Number, r.SupplierId, r.PurchaseOrderId, r.ReceivedAt, lines, r.Note, r.PurchaseId, r.CancelledAt, by, r.VehicleNo, r.Bilty, r.Transporter, r.GrossWeight, r.TareWeight,
-            r.ShortEntryId is null ? null : r.ShortKg, claim);
+            r.ShortEntryId is null ? null : r.ShortKg, claim, r.DebitNoteNo);
 
     /// <summary>
     /// Claims a weighbridge shortfall from the supplier: what the items add up to, less what the weighbridge says came,
@@ -178,10 +181,16 @@ public static class GoodsReceipts
         var gstRate = !composition && GstExport.IsValidGstin(supplierGstin) && expected > 0 ? weighed.Sum(w => w.Kg * w.Rate) / expected : 0;
         var gst = decimal.Round(taxable * gstRate / 100, 2);
         var amount = taxable + gst;
+        // Numbered within the financial year (April to March): the next after the year's highest.
+        var today = IndiaTime.DayOf(now);
+        var fy = today.Month >= 4 ? today.Year : today.Year - 1;
+        var prefix = $"DN/{fy % 100:D2}-{(fy + 1) % 100:D2}/";
+        var used = await db.GoodsReceipts.AsNoTracking().Where(r => r.DebitNoteNo != null && r.DebitNoteNo.StartsWith(prefix)).Select(r => r.DebitNoteNo!).ToListAsync(ct);
+        receipt.DebitNoteNo = prefix + (used.Select(n => int.TryParse(n[prefix.Length..], out var k) ? k : 0).DefaultIfEmpty(0).Max() + 1);
         var entry = new SupplierEntry
         {
             Id = Guid.CreateVersion7(), SupplierId = receipt.SupplierId, Kind = SupplierEntryKind.CreditNote, Amount = -amount, Gst = gst, OccurredAt = now, CreatedByUserId = user.UserId()!.Value,
-            Note = $"Debit note: short {shortKg:0.###} kg, GR #{receipt.Number}"[..Math.Min(40, $"Debit note: short {shortKg:0.###} kg, GR #{receipt.Number}".Length)], Reference = $"@ {request.RatePerKg:0.##}/kg + GST",
+            Note = $"Short {shortKg:0.###} kg @{request.RatePerKg:0.##}/kg, GR #{receipt.Number}"[..Math.Min(40, $"Short {shortKg:0.###} kg @{request.RatePerKg:0.##}/kg, GR #{receipt.Number}".Length)], Reference = receipt.DebitNoteNo,
         };
         db.SupplierEntries.Add(entry);
         (receipt.ShortKg, receipt.ShortEntryId) = (shortKg, entry.Id);
@@ -366,7 +375,7 @@ public static class GoodsReceipts
             db.SupplierEntries.Add(new SupplierEntry
             {
                 SupplierId = receipt.SupplierId, Kind = claim.Kind, Amount = -claim.Amount, Gst = claim.Gst is { } g ? -g : null, OccurredAt = now, CreatedByUserId = userId,
-                Note = $"Short claim undone, GR #{receipt.Number}",
+                Note = $"Short claim undone, GR #{receipt.Number}", Reference = claim.Reference is { } dn ? $"{dn}/R" : null,
             });
         }
 

@@ -5509,6 +5509,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by_user_id");
 
+                    b.Property<string>("DebitNoteNo")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("debit_note_no");
+
                     b.Property<decimal?>("GrossWeight")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")
@@ -5572,6 +5577,9 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "DebitNoteNo")
+                        .IsUnique();
 
                     b.HasIndex("ShopId", "Number")
                         .IsUnique();

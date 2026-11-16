@@ -111,6 +111,11 @@ public sealed class BardanaTests(ApiFactory api)
         var claimed = await (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/short-claim", new { ratePerKg = 40m })).ReadAsync<GoodsReceiptDto>();
         // A debit note: 10 kg at 40 is 400, plus 5% GST from a registered supplier, 420 off what the shop owes.
         Assert.Equal(((decimal?)10m, (decimal?)420m), (claimed.ShortKg, claimed.ShortClaim));
+        // Numbered in the financial year, as GST asks: DN/yy-yy/1.
+        var now = DateTime.UtcNow.AddHours(5.5);
+        var fy = now.Month >= 4 ? now.Year : now.Year - 1;
+        Assert.Equal($"DN/{fy % 100:D2}-{(fy + 1) % 100:D2}/1", claimed.DebitNoteNo);
+
         var detail = await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}");
         Assert.Equal((-420m, SupplierEntryKind.CreditNote), (detail.Supplier.Due, detail.Entries.Single().Kind));
 
@@ -124,5 +129,11 @@ public sealed class BardanaTests(ApiFactory api)
         (await shop.PostJsonAsync($"/api/v1/goods-receipts/{receipt}/cancel", new { })).EnsureSuccessStatusCode();
         Assert.Equal(0m, (await shop.GetJsonAsync<SupplierDetail>($"/api/v1/suppliers/{supplier}")).Supplier.Due);
         Assert.Equal(0m, (await shop.GetJsonAsync<GroceryKhata.Api.Catalogue.ProductDto>($"/api/v1/products/{rice}")).Stock);
+
+        // The next claim takes the next number.
+        var second = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/goods-receipts", new { id = second, supplierId = supplier, grossWeight = 3095m, tareWeight = 3000m, lines = new[] { new { productId = rice, quantity = 100m } } })).EnsureSuccessStatusCode();
+        Assert.EndsWith("/2", (await (await shop.PostJsonAsync($"/api/v1/goods-receipts/{second}/short-claim", new { ratePerKg = 40m })).ReadAsync<GoodsReceiptDto>()).DebitNoteNo);
+        (await shop.PostJsonAsync($"/api/v1/goods-receipts/{second}/cancel", new { })).EnsureSuccessStatusCode();
     }
 }
