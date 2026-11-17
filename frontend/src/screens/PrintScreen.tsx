@@ -1,5 +1,6 @@
 import { shownLocale } from '../i18n'
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import QRCode from 'qrcode'
 import { AttachCustomer } from '../components/AttachCustomer'
 import { Page } from '../components/PrintPage'
 import type { ReceiptRow } from '../lib/escpos'
@@ -25,7 +26,8 @@ import { ask, tell } from '../components/Ask'
  * phone's "Print → Save as PDF" makes a clean PDF with Hindi rendered by the browser; a WhatsApp button sends a
  * short summary for customers without a printer.
  */
-export function PrintScreen({ shopId, shopName, kind, id, month }: { shopId: string; shopName: string; kind: 'statement' | 'bill' | 'supplier'; id: string; month?: string }) {
+export function PrintScreen({ shopId, shopName, kind, id, month }: { shopId: string; shopName: string; kind: 'statement' | 'bill' | 'supplier' | 'slip'; id: string; month?: string }) {
+  if (kind === 'slip') return <SlipPrint shopName={shopName} noteId={id} />
   if (kind === 'supplier') return <SupplierStatementPrint shopName={shopName} supplierId={id} />
   return kind === 'statement' ? <StatementPrint shopName={shopName} customerId={id} month={month!} /> : <BillPrint shopId={shopId} shopName={shopName} billId={id} />
 }
@@ -162,6 +164,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
   const [exchange, setExchange] = useState(false)
   const [refundMode, setRefundMode] = useState<'cash' | 'upi' | 'card' | 'bank'>('cash')
   const [message, setMessage] = useState('')
+  const [taken, setTaken] = useState<{ noteId: string; noteNo: string; total: number; customerId: string | null } | null>(null)
   if (notes.isError) return null
   const back = (lineNo: number) => (notes.data ?? []).flatMap((n) => n.lines).filter((l) => l.billLineNo === lineNo).reduce((s, l) => s + l.quantity, 0)
 
@@ -173,7 +176,8 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
         lines: Object.entries(qty).filter(([, q]) => Number(q) > 0).map(([lineNo, q]) => ({ lineNo: Number(lineNo), quantity: Number(q) })),
       })
       setQty({}); setReason(''); setSerials(''); setOpen(false)
-      if (exchange) { startExchange({ noteId: note.id, noteNo: note.noteNo, total: note.total, customerId }); navigate('/bill'); return }
+      // Exchange: bill the new goods here, or print a slip the customer takes to another counter.
+      if (exchange) { setTaken({ noteId: note.id, noteNo: note.noteNo, total: note.total, customerId }); await notes.refetch(); return }
       await notes.refetch()
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
@@ -185,6 +189,16 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
       {notes.data?.map((n) => (
         <p key={n.id} className="flex justify-between text-sm"><span>{n.noteNo} · {new Date(n.occurredAt).toLocaleDateString(shownLocale())} · {n.reason}</span><span>−{formatRupees(n.total)}</span></p>
       ))}
+      {taken && (
+        <div className="flex flex-col gap-2 rounded-xl bg-brand-soft p-3">
+          <p className="text-sm"><b>{t('slip.taken', { note: taken.noteNo, amount: formatRupees(taken.total) })}</b></p>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => { startExchange(taken); navigate('/bill') }} className="min-h-11 rounded-xl bg-brand px-2 py-2 font-semibold leading-tight text-white">{t('slip.billHere')}</button>
+            <button onClick={() => navigate(`/print/slip/${taken.noteId}`)} className="min-h-11 rounded-xl border border-line bg-white px-2 py-2 font-semibold leading-tight">🎟 {t('slip.print')}</button>
+          </div>
+          <p className="text-xs text-muted">{t('slip.otherCounter')}</p>
+        </div>
+      )}
       {!open ? (
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => { setExchange(true); setReason(t('exchange.reason')); setOpen(true) }} className="min-h-11 rounded-xl bg-brand px-2 py-2 font-semibold leading-tight text-white">{t('exchange.start')}</button>
@@ -458,5 +472,41 @@ export function BillLinkPage({ path }: { path: string }) {
       <BillDocument shopName={view.data.shopName} bill={view.data.bill} customerName={view.data.customerName} phone={null} link={null} />
       <p className="mx-auto max-w-2xl bg-white p-4 text-center text-sm text-muted print:hidden">{t('billLink.madeWith')}</p>
     </>
+  )
+}
+
+/** The exchange slip the customer carries to a billing counter: its number and QR bring the credit onto the new bill. */
+function SlipPrint({ shopName, noteId }: { shopName: string; noteId: string }) {
+  const { t } = useTranslation()
+  const query = useServer<{ id: string; noteNo: string; amount: number; issuedAt: string; validTill: string; status: string; billNo: string; customerName: string | null; customerPhone: string | null; usedOnBillNo: string | null }>(['slip', noteId], `/v1/exchange-slips/find?no=${noteId}`)
+  const [qr, setQr] = useState<string | null>(null)
+  const s = query.data
+  useEffect(() => { if (s) void QRCode.toDataURL(s.id, { width: 240, margin: 1 }).then(setQr) }, [s])
+  if (query.isError) return <Problem error={query.error} />
+  if (!s) return <p className="p-6">…</p>
+  const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00` : iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
+  return (
+    <Page title={shopName} subtitle={`${t('slip.title')} · ${s.noteNo}`} phone={s.customerPhone}
+      shareText={t('slip.share', { shop: shopName, note: s.noteNo, amount: s.amount, date: day(s.validTill) })}
+      receipt={() => [
+        { text: t('slip.title'), bold: true, align: 'center' },
+        { text: s.noteNo, bold: true, align: 'center' },
+        { text: `${t('slip.amount')}: ${formatRupees(s.amount)}`, bold: true },
+        { text: `${t('slip.validTill')}: ${day(s.validTill)}` },
+        { text: `${t('slip.againstBill')}: ${s.billNo}` },
+        ...(s.customerName ? [{ text: `${s.customerName}${s.customerPhone ? ` ${s.customerPhone}` : ''}` }] : []),
+      ]}>
+      <div className="flex flex-col items-center gap-2 text-center">
+        <p className="text-sm font-bold uppercase tracking-wide">{t('slip.title')}</p>
+        <p className="text-2xl font-extrabold">{s.noteNo}</p>
+        <p className="text-3xl font-extrabold">{formatRupees(s.amount)}</p>
+        {qr && <img src={qr} alt={s.noteNo} className="h-40 w-40" />}
+        <p>{t('slip.validTill')}: <b>{day(s.validTill)}</b></p>
+        <p className="text-sm">{t('slip.againstBill')}: {s.billNo} · {day(s.issuedAt)}</p>
+        {s.customerName && <p className="text-sm">{s.customerName}{s.customerPhone ? ` · ${s.customerPhone}` : ''}</p>}
+        {s.status !== 'open' && <p className="font-bold text-due">{s.status === 'used' ? t('slip.used', { bill: s.usedOnBillNo ?? '' }) : t('slip.expired', { date: day(s.validTill) })}</p>}
+        <p className="mt-2 text-xs">{t('slip.terms')}</p>
+      </div>
+    </Page>
   )
 }

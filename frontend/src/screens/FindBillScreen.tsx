@@ -33,6 +33,7 @@ export function FindBillScreen({ shopId }: { shopId: string }) {
       <Card>
         <h1 className="text-lg font-extrabold">↩ {t('findBill.title')}</h1>
         <p className="mt-1 text-sm text-muted">{t('findBill.hint')}</p>
+        <button onClick={() => navigate('/exchange-slips')} className="mt-1 min-h-10 text-sm font-semibold text-brand underline">🎟 {t('slip.register')} ›</button>
         <Input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t('findBill.search')} aria-label={t('findBill.search')} className="mt-3 w-full text-base" />
         <div className="mt-2 grid grid-cols-2 gap-2">
           <label className="block text-sm"><span className="mb-1 block font-semibold text-muted">{t('findBill.from')}</span>

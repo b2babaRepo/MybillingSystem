@@ -100,6 +100,7 @@ const TableBookingsScreen = lazy(() => import('./screens/TableBookingsScreen').t
 const BookingsScreen = lazy(() => import('./screens/BookingsScreen').then((module) => ({ default: module.BookingsScreen })))
 const JobsScreen = lazy(() => import('./screens/JobsScreen').then((module) => ({ default: module.JobsScreen })))
 const SaleOrdersScreen = lazy(() => import('./screens/SaleOrdersScreen').then((module) => ({ default: module.SaleOrdersScreen })))
+const ExchangeSlipsScreen = lazy(() => import('./screens/ExchangeSlipsScreen').then((module) => ({ default: module.ExchangeSlipsScreen })))
 const FindBillScreen = lazy(() => import('./screens/FindBillScreen').then((module) => ({ default: module.FindBillScreen })))
 const EstimatesScreen = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatesScreen })))
 const EstimatePrint = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatePrint })))
@@ -263,7 +264,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const orderMatch = path.match(/^\/o\/([0-9a-f-]+)$/)
   const productMatch = path.match(/^\/p\/([0-9a-f-]+)$/)
   const tagsMatch = path.match(/^\/tags\/([0-9a-f,-]+)$/)
-  const printMatch = path.match(/^\/print\/(statement|bill|supplier)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
+  const printMatch = path.match(/^\/print\/(statement|bill|supplier|slip)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
   const isItemsPage = !!productMatch || path === '/items/pick' || path === '/stocktake' || path === '/stock-statement' || path === '/stock-health' || path === '/categories' || path === '/import' || path === '/items/common'
   const tabs: { path: string; label: string; icon: ReactNode; badge?: number }[] = [
     { path: '/', label: t('home'), icon: <HomeIcon size={22} /> },
@@ -281,6 +282,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const sideGroups: { key: string; title: string; add?: { path: string; label: string }; links: { path: string; label: string }[] }[] = [
     { key: 'sell', title: t('menu.sell'), add: { path: '/bill', label: t('menu.addBill') }, links: [
       { path: '/find-bill', label: t('findBill.title') },
+      { path: '/exchange-slips', label: t('slip.register') },
       { path: '/estimates', label: t('estimate.link') },
       { path: '/sale-orders', label: t('saleOrder.link') },
       { path: '/holds', label: t('holds.link') },
@@ -354,7 +356,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   if (printMatch) {
     return (
       <Suspense fallback={<Loading />}>
-        <PrintScreen shopId={shopId} shopName={shopName} kind={printMatch[1] as 'statement' | 'bill' | 'supplier'} id={printMatch[2]} month={printMatch[3]} />
+        <PrintScreen shopId={shopId} shopName={shopName} kind={printMatch[1] as 'statement' | 'bill' | 'supplier' | 'slip'} id={printMatch[2]} month={printMatch[3]} />
       </Suspense>
     )
   }
@@ -499,6 +501,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <BookingsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/jobs' ? (
           <JobsScreen shopId={shopId} isOwner={isOwner} />
+        ) : path === '/exchange-slips' ? (
+          <ExchangeSlipsScreen shopId={shopId} />
         ) : path === '/find-bill' ? (
           <FindBillScreen shopId={shopId} />
         ) : path === '/estimates' ? (

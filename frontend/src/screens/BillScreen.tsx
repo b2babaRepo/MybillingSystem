@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { CashChange, CustomerFinder } from '../components/CustomerFinder'
@@ -6,9 +7,9 @@ import { billSeconds } from '../lib/billTimer'
 import { GST_STATES } from '../lib/states'
 import { nameMatches, splitQuantity } from '../lib/nameMatch'
 import { getSession } from '../lib/session'
-import { api } from '../lib/api'
+import { ApiError, api } from '../lib/api'
 import { useQuery } from '@tanstack/react-query'
-import { currentExchange, endExchange, type Exchange } from '../lib/exchange'
+import { currentExchange, endExchange, startExchange, type Exchange } from '../lib/exchange'
 import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
 import { billTax, garmentRate } from '../lib/gst'
@@ -20,7 +21,7 @@ import { enqueue } from '../lib/outbox'
 import { useTranslation } from 'react-i18next'
 import { ItemCard } from '../components/ItemCard'
 import { imageUrl } from '../lib/images'
-import { Button, Field, Sheet, btn } from '../components/ui'
+import { Button, Field, Input, Sheet, btn } from '../components/ui'
 import { addCustomer, saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import { round2 } from '../lib/local'
@@ -288,6 +289,33 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const customer = customers.find((c) => c.id === customerId) ?? null
   // An exchange started from an old bill: its credit note pays this much of the new bill (the rest, or change back).
   const [exchange, setExchangeState] = useState<Exchange | null>(() => currentExchange())
+  const [askCustomer, setAskCustomer] = useState(false)
+  // An exchange slip from another counter: its number (or QR) brings its credit and its customer onto this bill.
+  const [slipOpen, setSlipOpen] = useState(false)
+  const [slipNo, setSlipNo] = useState('')
+  const [slipError, setSlipError] = useState('')
+  const [slipBusy, setSlipBusy] = useState(false)
+  async function applySlip() {
+    setSlipBusy(true)
+    setSlipError('')
+    try {
+      const s = await api<{ id: string; noteNo: string; amount: number; status: string; validTill: string; customerId: string | null; usedOnBillNo: string | null }>(`/v1/exchange-slips/find?no=${encodeURIComponent(slipNo.trim())}`)
+      if (s.status === 'used') setSlipError(t('slip.used', { bill: s.usedOnBillNo ?? '' }))
+      else if (s.status === 'expired') setSlipError(t('slip.expired', { date: new Date(`${s.validTill}T00:00`).toLocaleDateString(shownLocale()) }))
+      else {
+        const ex = { noteId: s.id, noteNo: s.noteNo, total: s.amount, customerId: s.customerId }
+        startExchange(ex)
+        setExchangeState(ex)
+        if (s.customerId) setCustomerId(s.customerId)
+        setSlipOpen(false)
+        setSlipNo('')
+      }
+    } catch (e) {
+      setSlipError(e instanceof ApiError && e.status === 404 ? t('slip.notFound') : e instanceof Error ? e.message : t('error'))
+    } finally {
+      setSlipBusy(false)
+    }
+  }
   const exchangeCredit = exchange ? Math.min(exchange.total, total) : 0
   const due = round2(total - exchangeCredit)
   const paidAmount = paid === null || !customer ? due : Math.min(Number(paid) || 0, due)
@@ -455,7 +483,20 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         </div>
       )}
       {!exchange && (
-        <button type="button" onClick={() => navigate('/find-bill')} className={`-my-1 min-h-10 self-start text-sm ${btn.link}`}>↩ {t('findBill.link')}</button>
+        <div className="-my-1 flex flex-wrap items-center gap-x-4">
+          <button type="button" onClick={() => navigate('/find-bill')} className={`min-h-10 text-sm ${btn.link}`}>↩ {t('findBill.link')}</button>
+          <button type="button" onClick={() => { setSlipOpen(!slipOpen); setSlipError('') }} className={`min-h-10 text-sm ${btn.link}`}>🎟 {t('slip.use')}</button>
+        </div>
+      )}
+      {!exchange && slipOpen && (
+        <form onSubmit={(e) => { e.preventDefault(); void applySlip() }} className="flex flex-col gap-2 rounded-[14px] bg-brand-soft p-3">
+          <span className="text-sm text-muted">{t('slip.useHint')}</span>
+          <div className="flex gap-2">
+            <Input autoFocus value={slipNo} onChange={(e) => setSlipNo(e.target.value)} placeholder="CN/2026-27/0003" aria-label={t('slip.number')} className="min-w-0 flex-1" />
+            <Button type="submit" busy={slipBusy} disabled={!slipNo.trim()}>{t('slip.apply')}</Button>
+          </div>
+          {slipError && <p className="text-sm text-due">{slipError}</p>}
+        </form>
       )}
       <div className="flex gap-2">
         <span className="relative min-w-0 flex-1">
@@ -803,7 +844,17 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
       {cart.length > 0 && (
         <div className="space-y-4 rounded-card bg-white p-4 shadow-sm">
+          {/* From an exchange slip: the customer is the slip's (or a walk-in), so don't ask again unless the shop wants a name. */}
+          {exchange && !customer && !askCustomer ? (
+            <p className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-brand-soft px-3 py-2 text-sm">
+              <span><span className="text-muted">{t('slip.customer')}: </span><b>{t('slip.walkIn', { note: exchange.noteNo })}</b></span>
+              <button type="button" onClick={() => setAskCustomer(true)} className={`min-h-9 text-sm ${btn.link}`}>{t('slip.addCustomer')}</button>
+            </p>
+          ) : exchange?.customerId && customer ? (
+            <p className="rounded-xl bg-brand-soft px-3 py-2 text-sm"><span className="text-muted">{t('slip.customer')}: </span><b>{customer.name}</b>{customer.phone ? ` · ${customer.phone}` : ''} <span className="text-muted">({t('slip.fromSlip', { note: exchange.noteNo })})</span></p>
+          ) : (
           <CustomerFinder customers={customers} selected={customer} onKhata={customer ? round2(due - paidAmount) : 0} onPick={pickCustomer} onNameLater={() => addCustomer(shopId, '', '', true)} onCreate={(name, phone) => addCustomer(shopId, name, phone)} />
+          )}
           {customer && (
             <>
               <Field id="bill-paid" label={t('paidNow')} value={paid ?? String(due)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />

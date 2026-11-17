@@ -118,6 +118,7 @@ app.MapCustomerMove();
 app.MapStockLedger();
 app.MapLastStockIn();
 app.MapBillFinder();
+app.MapExchangeSlips();
 app.MapStockHealth();
 app.MapArrivals();
 app.MapCategories();
