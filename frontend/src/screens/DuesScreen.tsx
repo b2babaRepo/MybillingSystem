@@ -7,8 +7,16 @@ import { api, request } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { buildReminder, useShopSettings, type Due, type DuesReport } from '../lib/reports'
 import { navigate } from '../router'
+import { shownLocale } from '../i18n'
 
-type Bucket = 'all' | 'd0' | 'd8' | 'd30'
+type Bucket = 'all' | 'd0' | 'd8' | 'd30' | 'd60' | 'd90' | 'd90p' | 'overdue'
+
+/** "Due 5 Dec" or "Overdue since 5 Dec": when the oldest unpaid udhaar falls due under the customer's credit days. */
+function dueLine(d: Due, t: (key: string, options?: Record<string, unknown>) => string): { text: string; late: boolean } | null {
+  if (!d.dueOn) return null
+  const day = new Date(`${d.dueOn}T00:00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
+  return (d.overdue ?? 0) > 0 ? { text: t('dues.overdueSince', { amount: formatRupees(d.overdue!), date: day }), late: true } : { text: t('dues.dueOn', { date: day }), late: false }
+}
 
 /**
  * Who owes what, and for how long: oldest dues first, with one tap to remind on WhatsApp (the shop's own
@@ -27,7 +35,15 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
   if (!data) return <p className="p-4 text-muted">…</p>
 
   const shown = data.customers.filter((d) =>
-    bucket === 'all' || (bucket === 'd0' && d.days0To7 > 0) || (bucket === 'd8' && d.days8To30 > 0) || (bucket === 'd30' && d.over30 > 0))
+    bucket === 'all' || (bucket === 'd0' && d.days0To7 > 0) || (bucket === 'd8' && d.days8To30 > 0) || (bucket === 'd30' && d.over30 > 0)
+    || (bucket === 'd60' && (d.days31To60 ?? 0) > 0) || (bucket === 'd90' && (d.days61To90 ?? 0) > 0) || (bucket === 'd90p' && (d.over90 ?? 0) > 0)
+    || (bucket === 'overdue' && (d.overdue ?? 0) > 0))
+  // Over 30 days, split the way accounts read it.
+  const older: { key: Bucket; label: string; amount: number }[] = [
+    { key: 'd60', label: t('dues.bucket60'), amount: data.days31To60 ?? 0 },
+    { key: 'd90', label: t('dues.bucket90'), amount: data.days61To90 ?? 0 },
+    { key: 'd90p', label: t('dues.bucket90p'), amount: data.over90 ?? 0 },
+  ]
   const reminderFor = (d: Due) =>
     buildReminder(settings.data?.reminderTemplate, { name: d.name, amount: d.balance, shop: shopName, upi: settings.data?.upiId ?? null, slug: settings.data?.slug })
   // Opening WhatsApp must not wait for the server (pop-up blockers); the "reminded" mark goes in the background.
@@ -59,6 +75,23 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
           ))}
         </div>
       </section>
+      {data.over30 > 0 && (
+        <section className="flex flex-wrap items-center gap-2 rounded-card bg-white p-3" aria-label={t('dues.olderTitle')}>
+          <span className="text-sm font-semibold text-muted">{t('dues.olderTitle')}</span>
+          {older.map((b) => (
+            <button key={b.key} onClick={() => setBucket(bucket === b.key ? 'all' : b.key)} aria-pressed={bucket === b.key} disabled={b.amount === 0}
+              className={`min-h-11 rounded-xl bg-due-soft px-3 text-left text-red-800 disabled:opacity-40 ${bucket === b.key ? 'ring-2 ring-ink' : ''}`}>
+              <span className="block text-xs font-semibold">{b.label}</span><span className="font-bold">{formatRupees(b.amount)}</span>
+            </button>
+          ))}
+        </section>
+      )}
+      {(data.overdue ?? 0) > 0 && (
+        <button onClick={() => setBucket(bucket === 'overdue' ? 'all' : 'overdue')} aria-pressed={bucket === 'overdue'}
+          className={`flex min-h-12 items-center justify-between rounded-2xl bg-due px-4 font-bold text-white ${bucket === 'overdue' ? 'ring-2 ring-ink' : ''}`}>
+          <span>⏰ {t('dues.overdueTotal', { count: data.customers.filter((d) => (d.overdue ?? 0) > 0).length })}</span><span>{formatRupees(data.overdue!)}</span>
+        </button>
+      )}
 
       {data.customers.length === 0 && <p className="py-8 text-center text-muted">{t('dues.empty')}</p>}
       {shown.length > 0 && (
@@ -70,6 +103,7 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
           columns={[
             { key: 'name', header: t('dues.colName'), sortValue: (d) => d.name, render: (d) => (
               <span className="flex flex-col"><span className="font-bold">{d.name}</span>
+                {dueLine(d, t) && <span className={`text-xs font-semibold ${dueLine(d, t)!.late ? 'text-due' : 'text-muted'}`}>{dueLine(d, t)!.text}</span>}
                 {d.lastRemindedAt && <span className="text-xs text-muted">{t('dues.remindedAgo', { when: ago(d.lastRemindedAt, t) })}</span>}
                 {d.moneyWaiting && <span className="text-xs font-semibold text-udhaar">{t('receipts.moneyWaiting')}</span>}</span>) },
             { key: 'days', header: t('dues.colDays'), align: 'right', sortValue: (d) => d.oldestDays, render: (d) => d.oldestDays },
@@ -94,6 +128,7 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
                   {d.lastRemindedAt && ` · ${t('dues.remindedAgo', { when: ago(d.lastRemindedAt, t) })}`}
                 </span>
                 {d.moneyWaiting && <span className="text-[13px] font-semibold text-udhaar">{t('receipts.moneyWaiting')}</span>}
+                {dueLine(d, t) && <span className={`text-[13px] font-semibold ${dueLine(d, t)!.late ? 'text-due' : 'text-muted'}`}>{dueLine(d, t)!.text}</span>}
               </span>
               <span className="flex flex-col items-end">
                 <span className="text-lg font-bold text-due">{formatRupees(d.balance)}</span>

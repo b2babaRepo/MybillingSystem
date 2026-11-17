@@ -47,9 +47,18 @@ public sealed record DueDto(
     int OldestDays,
     DateTimeOffset? LastPaymentAt,
     DateTimeOffset? LastRemindedAt,
-    bool MoneyWaiting = false);
+    bool MoneyWaiting = false,
+    // Over30 split the way accounts read it: 31-60, 61-90 and over 90 days.
+    decimal Days31To60 = 0,
+    decimal Days61To90 = 0,
+    decimal Over90 = 0,
+    // With credit days: the udhaar past its due date, and when the oldest unpaid udhaar is (or was) due.
+    int? CreditDays = null,
+    decimal Overdue = 0,
+    DateOnly? DueOn = null);
 
-public sealed record DuesReport(decimal Total, decimal Days0To7, decimal Days8To30, decimal Over30, IReadOnlyList<DueDto> Customers);
+public sealed record DuesReport(decimal Total, decimal Days0To7, decimal Days8To30, decimal Over30, IReadOnlyList<DueDto> Customers,
+    decimal Days31To60 = 0, decimal Days61To90 = 0, decimal Over90 = 0, decimal Overdue = 0);
 
 public sealed record DailyTotals(DateOnly Date, decimal Sales, decimal Received);
 
@@ -233,6 +242,9 @@ public static class ReportEndpoints
             var unpaid = Ageing.Unpaid(own.Select(e => new Ageing.Entry(e.OccurredAt, e.Amount)));
             int Age(Ageing.Entry e) => today.DayNumber - DateOnly.FromDateTime(e.At.ToOffset(IndiaTime.Offset).DateTime).DayNumber;
             var lastPayment = own.Where(e => e.Amount < 0 && e.PaymentMode != null).Select(e => (DateTimeOffset?)e.OccurredAt).Max();
+            // With credit days, each unpaid udhaar is due that many days after it was taken.
+            var overdue = c.CreditDays is { } days ? unpaid.Where(e => Age(e) > days).Sum(e => e.Amount) : 0m;
+            DateOnly? dueOn = c.CreditDays is { } d2 && unpaid.Count > 0 ? today.AddDays(d2 - Age(unpaid[0])) : null;
             return new DueDto(
                 c.Id, c.Name, c.Phone, c.Balance,
                 unpaid.Where(e => Age(e) <= 7).Sum(e => e.Amount),
@@ -241,12 +253,18 @@ public static class ReportEndpoints
                 unpaid.Count == 0 ? 0 : Age(unpaid[0]),
                 lastPayment,
                 c.LastRemindedAt,
-                waiting.Any(x => x.Receipt.ClaimedByCustomerId == c.Id || x.Left == c.Balance));
+                waiting.Any(x => x.Receipt.ClaimedByCustomerId == c.Id || x.Left == c.Balance),
+                unpaid.Where(e => Age(e) is > 30 and <= 60).Sum(e => e.Amount),
+                unpaid.Where(e => Age(e) is > 60 and <= 90).Sum(e => e.Amount),
+                unpaid.Where(e => Age(e) > 90).Sum(e => e.Amount),
+                c.CreditDays, overdue, dueOn);
         })
-        .OrderByDescending(d => d.Over30).ThenByDescending(d => d.Days8To30).ThenByDescending(d => d.Balance)
+        // Overdue first (past what was agreed), then the oldest money.
+        .OrderByDescending(d => d.Overdue).ThenByDescending(d => d.Over90).ThenByDescending(d => d.Over30).ThenByDescending(d => d.Days8To30).ThenByDescending(d => d.Balance)
         .ToList();
 
-        return new DuesReport(dues.Sum(d => d.Balance), dues.Sum(d => d.Days0To7), dues.Sum(d => d.Days8To30), dues.Sum(d => d.Over30), dues);
+        return new DuesReport(dues.Sum(d => d.Balance), dues.Sum(d => d.Days0To7), dues.Sum(d => d.Days8To30), dues.Sum(d => d.Over30), dues,
+            dues.Sum(d => d.Days31To60), dues.Sum(d => d.Days61To90), dues.Sum(d => d.Over90), dues.Sum(d => d.Overdue));
     }
 
     private static async Task<IResult> RemindedAsync(Guid id, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
@@ -526,11 +544,11 @@ public static class ReportEndpoints
     private static async Task<IResult> DuesCsvAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var report = await DuesAsync(db, clock, ct);
-        var csv = new StringBuilder("Name,Phone,Customer owes (minus = advance),0-7 days,8-30 days,30+ days,Oldest due (days),Last payment,Last reminded\n");
+        var csv = new StringBuilder("Name,Phone,Customer owes (minus = advance),0-7 days,8-30 days,30+ days,31-60 days,61-90 days,90+ days,Oldest due (days),Credit days,Overdue,Due on,Last payment,Last reminded\n");
         foreach (var d in report.Customers)
         {
-            csv.AppendJoin(',', Cell(d.Name), Cell(d.Phone), Num(d.Balance), Num(d.Days0To7), Num(d.Days8To30), Num(d.Over30), d.OldestDays,
-                Day(d.LastPaymentAt), Day(d.LastRemindedAt)).Append('\n');
+            csv.AppendJoin(',', Cell(d.Name), Cell(d.Phone), Num(d.Balance), Num(d.Days0To7), Num(d.Days8To30), Num(d.Over30), Num(d.Days31To60), Num(d.Days61To90), Num(d.Over90), d.OldestDays,
+                d.CreditDays?.ToString() ?? "", Num(d.Overdue), d.DueOn?.ToString("yyyy-MM-dd") ?? "", Day(d.LastPaymentAt), Day(d.LastRemindedAt)).Append('\n');
         }
 
         return Csv(csv, $"dues-{IndiaTime.Today(clock):yyyy-MM-dd}.csv");

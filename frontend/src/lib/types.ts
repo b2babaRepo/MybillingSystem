@@ -39,6 +39,8 @@ export interface Customer {
   balance: number
   /** The most they may owe: a bill that would cross it warns the shop. */
   creditLimit?: number | null
+  /** Days the customer has to pay what they take on credit. Null: no terms. */
+  creditDays?: number | null
   /** A placeholder khata ("Name later 3") for udhaar to someone not named yet. */
   nameLater?: boolean
 }
@@ -289,6 +291,8 @@ export interface BillView {
     counter?: string | null
     /** How the shop prints its bills: logo and signature (data URLs), style and terms. */
     print?: BillPrint | null
+    /** The khata part is due on this day ("2026-12-01"). */
+    dueOn?: string | null
   }
   customer: Customer | null
 }

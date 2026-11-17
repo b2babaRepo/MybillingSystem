@@ -601,7 +601,7 @@ export const enMore = {
     amount: 'Amount',
     balance: 'Balance',
     printPdf: 'Print / save PDF',
-    inWords: 'Amount in words', terms: 'Terms',
+    inWords: 'Amount in words', terms: 'Terms', dueBy: 'Due by',
     copy: { label: 'Which copy', noLabel: 'No copy label', none: '', original: 'Original for recipient', duplicate: 'Duplicate for transporter', triplicate: 'Triplicate for supplier' },
     pdfShare: 'PDF on WhatsApp',
     pdfSaved: 'PDF saved to Downloads. Attach it in WhatsApp.',
@@ -934,6 +934,10 @@ export const enMore = {
     state: { open: 'Open', part: 'Part delivered', delivered: 'Delivered', closed: 'Closed', cancelled: 'Cancelled' },
     save: 'Save as sale order', needCustomer: 'Choose the customer first', saved: 'Sale order #{{number}} saved: items held for the customer.', fromOrder: 'Delivering order #{{number}}: change quantities for a part delivery.', promised: '{{qty}} promised on orders', free: '{{qty}} free to sell' },
   pos: { byGstin: "Buyer's GSTIN is from {{state}}: this bill charges IGST.", followsGstin: "The tax state comes from the buyer's GSTIN: {{state}}.", label: 'Delivered to', here: '{{state}} (this state)', igst: 'Going to {{state}}: this bill charges IGST.', print: 'Place of supply' },
+  creditDays: {
+    label: 'Pays within', days_one: '{{count}} day', days_other: '{{count}} days', none: 'No credit terms', set: 'Set', clear: 'Remove',
+    hint: 'Each udhaar falls due this many days later: the dues list shows what is overdue, and credit bills print the due date.',
+  },
   wholesale: {
     price: 'Wholesale price', pricePlaceholder: 'Leave empty for none', minQty: 'From how many ({{unit}})',
     hint: 'A bill with at least this many gets the wholesale price by itself. Helpers may bill at it too.',

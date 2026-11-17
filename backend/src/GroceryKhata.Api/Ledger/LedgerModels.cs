@@ -8,7 +8,7 @@ public sealed record CustomerRequest(Guid Id, string? Name, string? Phone, bool 
 /// <summary>Puts a paid walk-in bill on a customer's khata after the fact; older than a week needs the owner and a reason.</summary>
 public sealed record AttachCustomerRequest(Guid CustomerId, string? Reason);
 
-public sealed record CustomerDto(Guid Id, string Name, string? Phone, decimal Balance, decimal? CreditLimit = null, bool NameLater = false);
+public sealed record CustomerDto(Guid Id, string Name, string? Phone, decimal Balance, decimal? CreditLimit = null, bool NameLater = false, int? CreditDays = null);
 
 /// <summary>
 /// The fast path: "Ramesh, ₹340, udhaar" with no items. <see cref="Amount"/> is always positive;
@@ -117,7 +117,9 @@ public sealed record BillDto(
     string? BuyerAddress = null,
     IReadOnlyList<BillPaymentPart>? Payments = null,
     string? Counter = null,
-    Shops.BillPrintDto? Print = null);
+    Shops.BillPrintDto? Print = null,
+    // The khata part of the bill is due on this day (the customer's credit days after the bill). Null: no terms.
+    DateOnly? DueOn = null);
 
 public sealed record CancelBillRequest(string? Reason);
 

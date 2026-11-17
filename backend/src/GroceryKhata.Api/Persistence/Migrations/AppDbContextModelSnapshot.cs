@@ -4763,6 +4763,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<int?>("CreditDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("credit_days");
+
                     b.Property<decimal?>("CreditLimit")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")

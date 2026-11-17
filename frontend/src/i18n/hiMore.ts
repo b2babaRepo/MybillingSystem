@@ -603,7 +603,7 @@ export const hiMore: TextsMore = {
     amount: 'रकम',
     balance: 'बाकी',
     printPdf: 'प्रिंट / PDF सेव करें',
-    inWords: 'शब्दों में रकम', terms: 'शर्तें',
+    inWords: 'शब्दों में रकम', terms: 'शर्तें', dueBy: 'देने की तारीख',
     copy: { label: 'कौन सी कॉपी', noLabel: 'कॉपी का नाम नहीं', none: '', original: 'मूल प्रति (खरीदार के लिए)', duplicate: 'दूसरी प्रति (ट्रांसपोर्टर के लिए)', triplicate: 'तीसरी प्रति (विक्रेता के लिए)' },
     pdfShare: 'WhatsApp पर PDF',
     pdfSaved: 'PDF डाउनलोड में सेव हुई। WhatsApp में लगाकर भेजें।',
@@ -936,6 +936,10 @@ export const hiMore: TextsMore = {
     state: { open: 'खुला', part: 'कुछ दिया', delivered: 'पूरा दिया', closed: 'बंद', cancelled: 'रद्द' },
     save: 'बिक्री ऑर्डर सेव करें', needCustomer: 'पहले ग्राहक चुनें', saved: 'बिक्री ऑर्डर #{{number}} सेव: सामान ग्राहक के लिए रखा।', fromOrder: 'ऑर्डर #{{number}} दे रहे हैं: कुछ ही देना हो तो मात्रा बदलें।', promised: '{{qty}} ऑर्डर पर रखा', free: '{{qty}} बेचने को खाली' },
   pos: { byGstin: "खरीदार का GSTIN {{state}} का है: इस बिल पर IGST लगेगा।", followsGstin: "टैक्स का राज्य खरीदार के GSTIN से तय होता है: {{state}}।", label: 'कहाँ भेजा', here: '{{state}} (यही राज्य)', igst: '{{state}} भेजा जा रहा है: इस बिल पर IGST लगेगा।', print: 'आपूर्ति का स्थान' },
+  creditDays: {
+    label: 'कितने दिन में देगा', days_one: '{{count}} दिन', days_other: '{{count}} दिन', none: 'कोई तय दिन नहीं', set: 'तय करें', clear: 'हटाएँ',
+    hint: 'हर उधार इतने दिन बाद देय होगा: बकाया सूची में देर वाला दिखेगा, और उधार बिल पर देने की तारीख छपेगी।',
+  },
   wholesale: {
     price: 'थोक दाम', pricePlaceholder: 'न हो तो खाली छोड़ें', minQty: 'कितने से ({{unit}})',
     hint: 'कम से कम इतना लेने वाले बिल पर थोक दाम अपने आप लगेगा। हेल्पर भी इस दाम पर बिल बना सकते हैं।',

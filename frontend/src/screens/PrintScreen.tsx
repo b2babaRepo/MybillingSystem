@@ -361,6 +361,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
     if ((bill.payments?.length ?? 0) > 0) for (const p of bill.payments!) rows.push({ left: `${t('print.paid')} (${t(p.mode)}${p.reference ? ` · UTR ${p.reference}` : ''})`, right: formatRupees(p.amount) })
     else rows.push({ left: `${t('print.paid')}${bill.paymentMode ? ` (${t(bill.paymentMode)})` : ''}`, right: formatRupees(bill.paidAmount) })
     if (bill.onKhata > 0) rows.push({ left: t('print.onKhata'), right: formatRupees(bill.onKhata), bold: true })
+    if (bill.dueOn && bill.onKhata > 0) rows.push({ left: t('print.dueBy'), right: new Date(`${bill.dueOn}T00:00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' }), bold: true })
     if (gst.length > 0) {
       rows.push({ rule: true }, { text: t('print.gstTitle'), bold: true })
       for (const g of gst) rows.push({ left: `${g.rate}% · ${formatRupees(g.taxable)}`, right: igst ? `IGST ${formatRupees(g.igst)}` : `${formatRupees(g.cgst)} + ${formatRupees(g.sgst)}` })
@@ -419,6 +420,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
         {(bill.exchangeCredit ?? 0) > 0 && <p className="flex justify-between text-sm font-semibold"><span>{t('exchange.credit', { note: bill.exchangeNoteNo ?? '' })}</span><span>− {formatRupees(bill.exchangeCredit!)}</span></p>}
         {(bill.payments?.length ?? 0) > 0 ? bill.payments!.map((p) => <p key={p.mode} className="flex justify-between"><span>{t('print.paid')} ({t(p.mode)}{'reference' in p && p.reference ? ` · UTR ${p.reference}` : ''})</span><span>{formatRupees(p.amount)}</span></p>) : <p className="flex justify-between"><span>{t('print.paid')}{bill.paymentMode && ` (${t(bill.paymentMode)})`}</span><span>{formatRupees(bill.paidAmount)}</span></p>}
         {bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.onKhata')}</span><span>{formatRupees(bill.onKhata)}</span></p>}
+        {bill.dueOn && bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.dueBy')}</span><span>{new Date(`${bill.dueOn}T00:00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}</span></p>}
         <p className="text-sm"><span className="font-semibold">{t('print.inWords')}:</span> {rupeesInWords(bill.total)}</p>
       </div>
       {gst.length > 0 && (

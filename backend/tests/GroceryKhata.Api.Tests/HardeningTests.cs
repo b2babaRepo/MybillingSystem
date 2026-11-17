@@ -75,6 +75,33 @@ public sealed class HardeningTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Credit_days_give_dues_a_due_date_and_an_overdue_amount_and_old_dues_split_by_age()
+    {
+        var (shop, _) = await api.SignUpAsync("Ageing Store");
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Ramesh");
+        // Udhaar 100 days ago, 45 days ago and today.
+        foreach (var (days, amount) in new[] { (100, 300m), (45, 200m), (0, 50m) })
+        {
+            var entry = new { id = Guid.CreateVersion7(), customerId = customer, type = "credit", amount, occurredAt = DateTimeOffset.UtcNow.AddDays(-days) };
+            Assert.Equal(HttpStatusCode.Created, (await shop.PostJsonAsync("/api/v1/khata-entries", entry)).StatusCode);
+        }
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/customers/{customer}/credit-days", new { creditDays = 400 })).StatusCode);
+        (await shop.PutAsJsonAsync($"/api/v1/customers/{customer}/credit-days", new { creditDays = 30 })).EnsureSuccessStatusCode();
+
+        var dues = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/reports/dues")).RootElement;
+        var ramesh = dues.GetProperty("customers")[0];
+        Assert.Equal(200m, ramesh.GetProperty("days31To60").GetDecimal());
+        Assert.Equal(300m, ramesh.GetProperty("over90").GetDecimal());
+        Assert.Equal(500m, ramesh.GetProperty("overdue").GetDecimal()); // older than 30 days
+        Assert.Equal(30, ramesh.GetProperty("creditDays").GetInt32());
+        // The oldest udhaar (100 days ago) was due 70 days ago.
+        var dueOn = DateOnly.Parse(ramesh.GetProperty("dueOn").GetString()!);
+        Assert.InRange(DateOnly.FromDateTime(DateTime.UtcNow).DayNumber - dueOn.DayNumber, 69, 71);
+        Assert.Equal(500m, dues.GetProperty("overdue").GetDecimal());
+    }
+
+    [Fact]
     public async Task A_wholesale_price_must_be_below_the_regular_one_and_can_be_cleared()
     {
         var (shop, _) = await api.SignUpAsync("Wholesale Store");

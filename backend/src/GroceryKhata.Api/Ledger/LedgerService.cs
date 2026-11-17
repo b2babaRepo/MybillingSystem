@@ -22,14 +22,14 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         }
 
         return await query.OrderBy(c => c.Name).Take(500)
-            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater))
+            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays))
             .ToListAsync(cancellationToken);
     }
 
     public Task<LedgerResult<CustomerDto>> CreateCustomerAsync(CustomerRequest request, CancellationToken cancellationToken) =>
         WriteOnceAsync(
             () => db.Customers.AsNoTracking().Where(c => c.Id == request.Id)
-                .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater)).SingleOrDefaultAsync(cancellationToken),
+                .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays)).SingleOrDefaultAsync(cancellationToken),
             async () =>
             {
                 var errors = new Dictionary<string, string[]>();
@@ -857,8 +857,11 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         }
 
         var customer = bill.CustomerId is { } customerId
-            ? await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit)).SingleAsync(cancellationToken)
+            ? await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays)).SingleAsync(cancellationToken)
             : null;
+        // What went on the khata is due the customer's credit days after the bill.
+        DateOnly? dueOn = bill.OnKhata > 0 && customer?.CreditDays is { } creditDays
+            ? DateOnly.FromDateTime(bill.OccurredAt.ToOffset(Common.IndiaTime.Offset).DateTime).AddDays(creditDays) : null;
         // For the printed bill. Today's addresses, not a copy kept on the bill: a shop that moves shows its new address on old bills.
         var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.ShopNo, s.Address, s.Area, s.Village, s.City, s.District, s.State }).SingleAsync(cancellationToken);
         var shopAddress = string.Join(", ", new[] { shop.ShopNo, shop.Address, shop.Area, shop.Village, shop.City, shop.District, shop.State }
@@ -866,7 +869,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         var buyerAddress = bill.CustomerId is { } buyerId ? await db.Customers.AsNoTracking().Where(c => c.Id == buyerId).Select(c => c.Address).SingleAsync(cancellationToken) : null;
         // How the shop prints: logo, signature, style and terms, on the shop's copy and the customer's link alike.
         var print = await Shops.PrintLooks.ForBillAsync(db, cancellationToken);
-        return new BillView(bill with { ShopAddress = shopAddress.Length > 0 ? shopAddress : null, BuyerAddress = buyerAddress, Print = print }, customer);
+        return new BillView(bill with { ShopAddress = shopAddress.Length > 0 ? shopAddress : null, BuyerAddress = buyerAddress, Print = print, DueOn = dueOn }, customer);
     }
 
     /// <summary>Customers whose stored balance differs from the sum of their entries. Should always be empty.</summary>

@@ -15,6 +15,14 @@ export interface Due {
   lastRemindedAt: string | null
   /** Money seen lately may be theirs: check before chasing. */
   moneyWaiting?: boolean
+  /** over30 split as accounts read it. */
+  days31To60?: number
+  days61To90?: number
+  over90?: number
+  /** With credit days: udhaar past its due date, and when the oldest unpaid udhaar is (or was) due ("2026-12-01"). */
+  creditDays?: number | null
+  overdue?: number
+  dueOn?: string | null
 }
 
 export interface DuesReport {
@@ -23,6 +31,10 @@ export interface DuesReport {
   days8To30: number
   over30: number
   customers: Due[]
+  days31To60?: number
+  days61To90?: number
+  over90?: number
+  overdue?: number
 }
 
 export interface MonthReport {

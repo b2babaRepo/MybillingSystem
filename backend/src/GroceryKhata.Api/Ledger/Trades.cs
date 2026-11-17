@@ -62,6 +62,8 @@ public sealed record InvoiceChallansRequest(Guid Id, IReadOnlyList<Guid>? Challa
 
 public sealed record CreditLimitRequest(decimal? CreditLimit);
 
+public sealed record CreditDaysRequest(int? CreditDays);
+
 public sealed record CustomerGstinRequest(string? Gstin);
 
 public sealed record CustomerAddressRequest(string? Address);
@@ -98,6 +100,7 @@ public static class TradeEndpoints
         shop.MapPost("/challans/invoice", InvoiceAsync).RequireFeature(Billing.Features.Trade);
         shop.MapGet("/customers/{id:guid}/sites", SitesAsync);
         shop.MapPut("/customers/{id:guid}/credit-limit", SetLimitAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapPut("/customers/{id:guid}/credit-days", SetCreditDaysAsync).RequireAuthorization(AppPolicies.ShopOwner);
         shop.MapPut("/customers/{id:guid}", SetDetailsAsync).RequireAuthorization(AppPolicies.ShopOwner);
         shop.MapGet("/customers/{id:guid}/gstin", async (Guid id, AppDbContext db, CancellationToken ct) =>
             Results.Ok(new CustomerGstinRequest(await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Gstin).SingleOrDefaultAsync(ct))));
@@ -307,6 +310,25 @@ public static class TradeEndpoints
         customer.CreditLimit = request.CreditLimit is > 0 ? request.CreditLimit : null;
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(new CustomerDto(customer.Id, customer.Name, customer.Phone, customer.Balance, customer.CreditLimit));
+    }
+
+    /// <summary>How many days the customer has to pay (1 to 365); null or 0 clears it.</summary>
+    private static async Task<IResult> SetCreditDaysAsync(Guid id, CreditDaysRequest request, AppDbContext db, CancellationToken ct)
+    {
+        if (request.CreditDays is < 0 or > 365)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["CreditDays"] = ["Enter 1 to 365 days, or leave it empty for none."] });
+        }
+
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        customer.CreditDays = request.CreditDays is > 0 ? request.CreditDays : null;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(new CustomerDto(customer.Id, customer.Name, customer.Phone, customer.Balance, customer.CreditLimit, customer.NameLater, customer.CreditDays));
     }
 
     /// <summary>A business customer's GSTIN, for their tax invoices. Empty clears it.</summary>

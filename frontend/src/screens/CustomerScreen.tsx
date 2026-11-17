@@ -14,6 +14,7 @@ import type { KhataEntryType, PaymentMode, StatementLine } from '../lib/types'
 import { navigate } from '../router'
 import { ask, confirmAsk, tell } from '../components/Ask'
 import { CashLimitNote } from '../components/CashLimitNote'
+import { CreditDays } from '../components/CreditDays'
 
 const CustomerTradePanel = lazy(() => import('./CustomerTrade').then((module) => ({ default: module.CustomerTradePanel })))
 
@@ -227,6 +228,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
           <CustomerTradePanel shopId={shopId} customer={customer} isOwner={isOwner} />
         </Suspense>
       )}
+      {!customer.isNew && <CreditDays shopId={shopId} customerId={customer.id} days={customer.creditDays} isOwner={isOwner} />}
 
       {customer.balance > 0 && (
         <div className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm">
