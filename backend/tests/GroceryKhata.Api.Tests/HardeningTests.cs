@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.Json;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
@@ -71,6 +72,65 @@ public sealed class HardeningTests(ApiFactory api)
         Assert.Equal("Shop A", export.GetProperty("shop").GetProperty("name").GetString());
         Assert.Equal(["Only in A"], export.GetProperty("customers").EnumerateArray().Select(c => c.GetProperty("name").GetString()));
         Assert.Equal(250m, export.GetProperty("ledgerEntries")[0].GetProperty("amount").GetDecimal());
+    }
+
+    [Fact]
+    public async Task A_wholesale_price_must_be_below_the_regular_one_and_can_be_cleared()
+    {
+        var (shop, _) = await api.SignUpAsync("Wholesale Store");
+        var soap = Guid.NewGuid();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = soap, name = "Soap", unit = "piece", sellingPrice = 40m, costPrice = 30m })).EnsureSuccessStatusCode();
+        object Update(decimal wholesale, decimal? from) => new { name = "Soap", unit = "piece", sellingPrice = 40m, costPrice = 30m, wholesalePrice = wholesale, wholesaleMinQty = from };
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/products/{soap}", Update(45m, 12m))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/products/{soap}", Update(36m, 1m))).StatusCode);
+
+        var set = JsonDocument.Parse(await (await shop.PutAsJsonAsync($"/api/v1/products/{soap}", Update(36m, 12m))).Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal(36m, set.GetProperty("wholesalePrice").GetDecimal());
+        Assert.Equal(12m, set.GetProperty("wholesaleMinQty").GetDecimal());
+
+        var cleared = JsonDocument.Parse(await (await shop.PutAsJsonAsync($"/api/v1/products/{soap}", Update(0m, null))).Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal(JsonValueKind.Null, cleared.GetProperty("wholesalePrice").ValueKind);
+    }
+
+    [Fact]
+    public async Task The_print_look_is_saved_checked_and_kept_to_its_shop()
+    {
+        var (shop, _) = await api.SignUpAsync("Print Look Store");
+        var (other, _) = await api.SignUpAsync("Other Look Store");
+        const string png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+        var bad = await shop.PutAsJsonAsync("/api/v1/shop/print", new { logo = "not a picture", theme = "neon" });
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, bad.StatusCode);
+
+        var saved = await shop.PutAsJsonAsync("/api/v1/shop/print", new { logo = png, signature = (string?)null, theme = "modern", terms = "No returns" });
+        Assert.True(saved.IsSuccessStatusCode);
+        var mine = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/print")).RootElement;
+        Assert.Equal("modern", mine.GetProperty("theme").GetString());
+        Assert.Equal(png, mine.GetProperty("logo").GetString());
+        Assert.Equal("No returns", mine.GetProperty("terms").GetString());
+
+        var theirs = JsonDocument.Parse(await other.GetStringAsync("/api/v1/shop/print")).RootElement;
+        Assert.Equal("classic", theirs.GetProperty("theme").GetString());
+        Assert.Equal(JsonValueKind.Null, theirs.GetProperty("logo").ValueKind);
+    }
+
+    [Fact]
+    public async Task A_backup_is_marked_as_one_and_records_when_it_was_taken()
+    {
+        var (shop, _) = await api.SignUpAsync("Backup Store");
+        var before = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/backup-status")).RootElement;
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("lastBackupAt").ValueKind);
+        Assert.True(before.GetProperty("empty").GetBoolean());
+
+        await KhataTests.CreateCustomerAsync(shop, "Mohan");
+        var export = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/export")).RootElement;
+        Assert.Equal("grocery-khata-backup", export.GetProperty("format").GetString());
+        Assert.Equal(JsonValueKind.Array, export.GetProperty("suppliers").ValueKind);
+
+        var after = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/backup-status")).RootElement;
+        Assert.NotEqual(JsonValueKind.Null, after.GetProperty("lastBackupAt").ValueKind);
+        Assert.False(after.GetProperty("empty").GetBoolean());
     }
 
     [Fact]

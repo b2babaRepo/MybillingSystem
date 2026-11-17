@@ -24,6 +24,7 @@ const BillScreen = lazy(() => billScreen().then((module) => ({ default: module.B
 const CustomerScreen = lazy(() => import('./screens/CustomerScreen').then((module) => ({ default: module.CustomerScreen })))
 const DisputesScreen = lazy(() => import('./screens/DisputesScreen').then((module) => ({ default: module.DisputesScreen })))
 const CommonListScreen = lazy(() => import('./screens/CommonListScreen').then((module) => ({ default: module.CommonListScreen })))
+const BackupScreen = lazy(() => import('./screens/BackupScreen').then((module) => ({ default: module.BackupScreen })))
 const CustomerImportScreen = lazy(() => import('./screens/CustomerImportScreen').then((module) => ({ default: module.CustomerImportScreen })))
 const ReceiptsScreen = lazy(() => import('./screens/ReceiptsScreen').then((module) => ({ default: module.ReceiptsScreen })))
 const RemindersScreen = lazy(() => import('./screens/RemindersScreen').then((module) => ({ default: module.RemindersScreen })))
@@ -330,6 +331,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     { key: 'more', title: t('menu.more'), links: [
       ...(isOwner ? [{ path: '/store', label: t('menu.store') }] : []),
       { path: '/sync', label: t('menu.sync') },
+      ...(isOwner ? [{ path: '/backup', label: t('backup.title') }] : []),
       ...(isOwner ? [{ path: '/settings', label: t('side.settings') }] : []),
     ] },
   ]
@@ -559,6 +561,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <ReceiptsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/reminders' ? (
           <RemindersScreen shopId={shopId} shopName={shopName} />
+        ) : path === '/backup' && isOwner ? (
+          <BackupScreen shopId={shopId} />
         ) : path === '/khata/import' ? (
           <CustomerImportScreen shopId={shopId} />
         ) : path === '/import' ? (

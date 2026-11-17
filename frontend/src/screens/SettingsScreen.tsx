@@ -7,6 +7,8 @@ import { api } from '../lib/api'
 import { buildReminder, DEFAULT_REMINDER, SHOP_TYPES, useShopSettings, type ShopSettings, type ShopType, sendsToSites, SERVICE_TYPES } from '../lib/reports'
 
 /** The shop's name and place, its UPI ID, and the reminder wording, with a live preview. */
+import { PrintLookPanel } from './PrintLookPanel'
+
 export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const settings = useShopSettings(shopId)
   if (!settings.data) return <p className="p-4 text-muted">…</p>
@@ -123,6 +125,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
         {isOwner && <Button onClick={save} disabled={!form.name.trim()}>{t('save')}</Button>}
         {message && <p className="text-sm text-muted">{message}</p>}
       </fieldset>
+      {isOwner && <PrintLookPanel />}
     </div>
   )
 }

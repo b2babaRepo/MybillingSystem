@@ -210,6 +210,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<PharmacyProfile> PharmacyProfiles => Set<PharmacyProfile>();
 
+    public DbSet<PrintLook> PrintLooks => Set<PrintLook>();
+
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
 
     public DbSet<ProductSerial> ProductSerials => Set<ProductSerial>();
@@ -553,6 +555,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.IsActive).HasDefaultValue(true);
             b.Property(p => p.Stock).HasPrecision(12, 3);
             b.Property(p => p.ReorderLevel).HasPrecision(12, 3);
+            b.Property(p => p.WholesalePrice).HasPrecision(12, 2);
+            b.Property(p => p.WholesaleMinQty).HasPrecision(12, 3);
             b.Property(p => p.Reserved).HasPrecision(12, 3);
             b.HasIndex(p => new { p.ShopId, p.Name });
             b.HasIndex(p => new { p.ShopId, p.Category });
@@ -1264,6 +1268,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.PharmacistRegNo).HasMaxLength(40);
             b.Property(p => p.Gstin).HasMaxLength(15);
             b.Property(p => p.FssaiNo).HasMaxLength(40);
+            b.HasIndex(p => p.ShopId).IsUnique();
+        });
+
+        modelBuilder.Entity<PrintLook>(b =>
+        {
+            b.ToTable("print_looks");
+            b.HasTenantKey();
+            b.Property(p => p.Theme).HasMaxLength(20);
+            b.Property(p => p.Terms).HasMaxLength(GroceryKhata.Api.Shops.PrintLooks.MaxTerms);
             b.HasIndex(p => p.ShopId).IsUnique();
         });
 

@@ -399,7 +399,10 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                         errors[field] = [$"{name} has MRP ₹{mrp:0.##}: the price can't be above it."];
                     }
                     // The owner set the offer's price before billing, so a helper may sell at it, past their own limit.
-                    else if (!isOwner && !(offerPrice is { } floor && line.UnitPrice >= floor) && DiscountProblem(name, product, line.UnitPrice, staffMaxDiscount) is { } tooLow)
+                    // So did a wholesale price, for a line that takes at least its quantity.
+                    else if (!isOwner && !(offerPrice is { } floor && line.UnitPrice >= floor)
+                        && !(product is { WholesalePrice: { } wholesale, WholesaleMinQty: { } atLeast } && line.Quantity >= atLeast && line.UnitPrice >= wholesale)
+                        && DiscountProblem(name, product, line.UnitPrice, staffMaxDiscount) is { } tooLow)
                     {
                         errors[field] = [tooLow];
                     }
@@ -861,7 +864,9 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         var shopAddress = string.Join(", ", new[] { shop.ShopNo, shop.Address, shop.Area, shop.Village, shop.City, shop.District, shop.State }
             .Where(part => !string.IsNullOrWhiteSpace(part)).Select(part => part!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase));
         var buyerAddress = bill.CustomerId is { } buyerId ? await db.Customers.AsNoTracking().Where(c => c.Id == buyerId).Select(c => c.Address).SingleAsync(cancellationToken) : null;
-        return new BillView(bill with { ShopAddress = shopAddress.Length > 0 ? shopAddress : null, BuyerAddress = buyerAddress }, customer);
+        // How the shop prints: logo, signature, style and terms, on the shop's copy and the customer's link alike.
+        var print = await Shops.PrintLooks.ForBillAsync(db, cancellationToken);
+        return new BillView(bill with { ShopAddress = shopAddress.Length > 0 ? shopAddress : null, BuyerAddress = buyerAddress, Print = print }, customer);
     }
 
     /// <summary>Customers whose stored balance differs from the sum of their entries. Should always be empty.</summary>

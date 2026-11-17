@@ -160,8 +160,20 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             return (null, errors);
         }
 
+        // Wholesale: a price under the regular one, from a quantity above 1. 0 clears it; null keeps it (older apps).
+        if (request.WholesalePrice is > 0 and var wp && (wp >= request.SellingPrice || !Money.IsValidAmount(wp)))
+        {
+            return (null, new() { ["WholesalePrice"] = ["The wholesale price must be below the regular price."] });
+        }
+
+        if (request.WholesalePrice is > 0 && request.WholesaleMinQty is not (> 1 and <= 1_000_000))
+        {
+            return (null, new() { ["WholesaleMinQty"] = ["Say from how many the wholesale price starts (more than 1)."] });
+        }
+
         if (!isOwner && (request.SellingPrice != product.SellingPrice || request.CostPrice != product.CostPrice
-            || (request.Mrp is { } asked && CleanMrp(asked, product.SellingPrice) != product.Mrp)))
+            || (request.Mrp is { } asked && CleanMrp(asked, product.SellingPrice) != product.Mrp)
+            || (request.WholesalePrice is { } w && (w > 0 ? w : null) != product.WholesalePrice)))
         {
             return (null, new() { ["SellingPrice"] = ["Only the owner can change prices."] });
         }
@@ -205,6 +217,16 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.PurchaseUnit = product.BagSize is null ? null : request.PurchaseUnit is { } pu ? (pu == product.Unit || pu == Unit.Bag ? null : pu) : product.PurchaseUnit;
         // Null keeps it; 0 clears it.
         product.WeightKg = request.WeightKg is { } kg ? (kg is > 0 and <= 100_000 && !product.IsService ? kg : null) : product.WeightKg;
+        if (request.WholesalePrice is { } wholesale)
+        {
+            (product.WholesalePrice, product.WholesaleMinQty) = wholesale > 0 ? ((decimal?)wholesale, request.WholesaleMinQty) : ((decimal?)null, (decimal?)null);
+        }
+        else if (product.WholesalePrice >= product.SellingPrice)
+        {
+            // The regular price came down to or below it: it is no longer a wholesale price.
+            (product.WholesalePrice, product.WholesaleMinQty) = (null, null);
+        }
+
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
@@ -632,7 +654,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? MasterPhotos.Representative : null,
         p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn, null, p.BagSize, 0, 0, p.PurchaseUnit, p.WeightKg,
         p.MasterItem != null ? p.MasterItem.Name : p.CatalogueItem != null ? p.CatalogueItem.NameEn : null,
-        p.MasterItem != null ? p.MasterItem.NameHi : p.CatalogueItem != null ? p.CatalogueItem.Name : null);
+        p.MasterItem != null ? p.MasterItem.NameHi : p.CatalogueItem != null ? p.CatalogueItem.Name : null,
+        p.WholesalePrice, p.WholesaleMinQty);
 
     /// <summary>An MRP below the selling price is a typing slip. At the price it stays: it's what stops a bill going above it.</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>

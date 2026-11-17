@@ -116,6 +116,14 @@ public sealed class Product : Entity, ITenantOwned
     public decimal? Mrp { get; set; }
 
     /// <summary>
+    /// The price per <see cref="Unit"/> when a bill takes at least <see cref="WholesaleMinQty"/> (a carton of soap, 10 bags
+    /// of cement): the bill switches to it by itself. Null: one price for any quantity.
+    /// </summary>
+    public decimal? WholesalePrice { get; set; }
+
+    public decimal? WholesaleMinQty { get; set; }
+
+    /// <summary>
     /// The name printed on the customer's bill and receipt instead of <see cref="Name"/> ("Innerwear" for a bra or
     /// bridal nightwear), so a private purchase isn't spelled out. Null: the real name, or the discreet default for
     /// innerwear and nightwear (<see cref="BillNames"/>).

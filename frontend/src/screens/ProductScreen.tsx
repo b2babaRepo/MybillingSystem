@@ -241,6 +241,8 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     bagSize: product.bagSize ? String(product.bagSize) : '',
     purchaseUnit: product.purchaseUnit ?? 'bag',
     weightKg: product.weightKg ? String(product.weightKg) : '',
+    wholesale: product.wholesalePrice ? String(product.wholesalePrice) : '',
+    wholesaleMin: product.wholesaleMinQty ? String(product.wholesaleMinQty) : '',
   })
   const types = shopTypes(useShopSettings(shopId).data)
   const medical = types.includes('medical')
@@ -267,6 +269,9 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     bagSize: Number(form.bagSize) || 0,
     purchaseUnit: form.purchaseUnit,
     weightKg: Number(form.weightKg) || 0,
+    // 0 clears the wholesale price.
+    wholesalePrice: Number(form.wholesale) || 0,
+    wholesaleMinQty: Number(form.wholesale) ? Number(form.wholesaleMin) || null : null,
     ...(medical ? { schedule: form.schedule || null, replaceSchedule: true, unitsPerPack: Number(form.perPack) || 0 } : {}),
     ...(service ? { tracksSerials: form.serials, warrantyMonths: Number(form.warranty) || 0 } : {}),
     isActive,
@@ -304,6 +309,14 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         <Field label={t('stock.sellingPrice')} value={form.price} onChange={set('price')} inputMode="decimal" />
       </div>
       {!product.isService && <Field label={t('stock.mrp')} value={form.mrp} onChange={set('mrp')} inputMode="decimal" placeholder={t('stock.mrpHint')} />}
+      {/* Wholesale: a lower price per unit from a quantity, applied on the bill by itself. */}
+      <div>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label={t('wholesale.price')} value={form.wholesale} onChange={set('wholesale')} inputMode="decimal" placeholder={t('wholesale.pricePlaceholder')} />
+          <Field label={t('wholesale.minQty', { unit: t(`units.${form.unit}`) })} value={form.wholesaleMin} onChange={set('wholesaleMin')} inputMode="decimal" placeholder="12" />
+        </div>
+        <p className="mt-1 text-sm text-muted">{t('wholesale.hint')}</p>
+      </div>
       <Field label={t('billName.label')} value={form.billName} onChange={set('billName')} maxLength={60} placeholder={billNameFor({ billName: null, category: product.category }) ?? t('billName.hint')} />
       {/* Clothes: which design this is one size/colour of, so its sizes show together on the bill and the item list. */}
       {!product.isService && (

@@ -1,5 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { normBarcode } from './barcode'
+import { CODE128_PATTERNS, code128Modules, ean13Modules, normBarcode } from './barcode'
+
+describe('code128', () => {
+  it('has 107 distinct symbols of 11 modules (stop: 13)', () => {
+    expect(CODE128_PATTERNS).toHaveLength(107)
+    expect(new Set(CODE128_PATTERNS).size).toBe(107)
+    CODE128_PATTERNS.forEach((p, i) => expect([...p].reduce((s, w) => s + Number(w), 0)).toBe(i === 106 ? 13 : 11))
+  })
+  it('draws start, characters, check and stop, starting and ending on a bar', () => {
+    const bits = code128Modules('SHIRT40')!
+    expect(bits).toHaveLength(11 * (1 + 7 + 1) + 13)
+    expect(bits.startsWith('11010010000')).toBe(true) // start B
+    expect(bits.endsWith('1100011101011')).toBe(true) // stop
+  })
+  it('refuses characters set B lacks', () => {
+    expect(code128Modules('')).toBeNull()
+    expect(code128Modules('दाल')).toBeNull()
+  })
+  it('EAN-13 is 95 modules', () => expect(ean13Modules('8901030865336')).toHaveLength(95))
+})
 
 describe('normBarcode', () => {
   it('gives a 12-digit UPC-A its leading 0, so it matches the 13-digit scan', () => {

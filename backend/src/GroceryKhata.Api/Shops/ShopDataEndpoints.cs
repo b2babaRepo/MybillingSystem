@@ -27,16 +27,38 @@ public static class ShopDataEndpoints
     {
         var group = app.MapGroup("/api/v1/shop").WithTags("Shop").RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("/export", ExportAsync);
+        group.MapGet("/backup-status", BackupStatusAsync);
         group.MapPost("/delete", DeleteAsync);
         return app;
     }
 
-    private static async Task<IResult> ExportAsync(AppDbContext db, ITenantContext tenant, TimeProvider clock, ILogger<AppDbContext> logger, CancellationToken ct)
+    /// <summary>What a backup file says it is: the restore screen refuses any other JSON.</summary>
+    public const string BackupFormat = "grocery-khata-backup";
+
+    /// <summary>The audit log's record of each backup download: who and when, so the app can say "last backed up".</summary>
+    public const string BackupTable = "backup";
+
+    /// <summary>
+    /// When the shop last downloaded a backup, and whether it is still empty (no customers, suppliers, items or bills),
+    /// which is the only kind of shop a backup can be restored into.
+    /// </summary>
+    private static async Task<IResult> BackupStatusAsync(AppDbContext db, CancellationToken ct)
+    {
+        var last = await db.AuditEntries.AsNoTracking().Where(a => a.Table == BackupTable).MaxAsync(a => (DateTimeOffset?)a.CreatedAt, ct);
+        var empty = !await db.Customers.AnyAsync(ct) && !await db.Suppliers.AnyAsync(ct) && !await db.Products.AnyAsync(ct) && !await db.Bills.AnyAsync(ct);
+        return TypedResults.Ok(new { lastBackupAt = last, empty });
+    }
+
+    private static async Task<IResult> ExportAsync(ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, ILogger<AppDbContext> logger, CancellationToken ct)
     {
         var shop = await db.Shops.AsNoTracking().SingleAsync(s => s.Id == tenant.ShopId, ct);
+        // What each supplier is owed now: the sum of their account (bills +, payments −).
+        var supplierDue = await db.SupplierEntries.AsNoTracking().GroupBy(e => e.SupplierId).Select(g => new { g.Key, Due = g.Sum(e => e.Amount) }).ToDictionaryAsync(g => g.Key, g => g.Due, ct);
         // Every query below is limited to this shop by the tenant filter (and row-level security).
         var export = new
         {
+            format = BackupFormat,
+            version = 1,
             exportedAt = clock.GetUtcNow(),
             shop = new { shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.CreatedAt },
             products = await db.Products.AsNoTracking().ToListAsync(ct),
@@ -54,7 +76,12 @@ public static class ShopDataEndpoints
             cashCounts = await db.CashCounts.AsNoTracking().OrderBy(c => c.Day).ToListAsync(ct),
             challans = await db.Challans.AsNoTracking().OrderBy(c => c.OccurredAt).ToListAsync(ct),
             painters = await db.Painters.AsNoTracking().ToListAsync(ct),
+            suppliers = (await db.Suppliers.AsNoTracking().Where(s => s.IsActive).Select(s => new { s.Id, s.Name, s.Phone, s.Gstin, s.Address, s.PaymentDays }).ToListAsync(ct))
+                .Select(s => new { s.Id, s.Name, s.Phone, s.Gstin, s.Address, s.PaymentDays, Balance = supplierDue.GetValueOrDefault(s.Id) }).ToList(),
         };
+        // Kept in the audit log, so "last backed up" is the same on every phone.
+        db.AuditEntries.Add(new AuditEntry { ShopId = tenant.ShopId, UserId = user.UserId()!.Value, Table = BackupTable, RecordId = tenant.ShopId, Action = "download", Changes = "{}" });
+        await db.SaveChangesAsync(ct);
         logger.LogInformation("Shop {ShopId} exported its data", tenant.ShopId);
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(export, Json));
         return TypedResults.File(bytes, "application/json", $"{shop.Slug}-{IndiaTime.Today(clock):yyyy-MM-dd}.json");

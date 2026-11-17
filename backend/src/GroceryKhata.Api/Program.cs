@@ -166,6 +166,8 @@ app.MapAppointments();
 app.MapBridal();
 app.MapSalonCards();
 app.MapPharmacyProfile();
+app.MapPrintLook();
+app.MapLastPrices();
 app.MapBatches();
 app.MapSerials();
 app.MapPrescriptions();

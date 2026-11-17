@@ -41,7 +41,10 @@ public sealed record ProductUpdate(
     // Null keeps it; 0 clears it (no longer kept in bags).
     decimal? BagSize = null,
     Unit? PurchaseUnit = null,
-    decimal? WeightKg = null);
+    decimal? WeightKg = null,
+    // The wholesale price and the quantity it starts at: null keeps them; a price of 0 clears both.
+    decimal? WholesalePrice = null,
+    decimal? WholesaleMinQty = null);
 
 /// <summary><see cref="IsLow"/>: out of stock, or at/below the reorder level.</summary>
 public sealed record ProductDto(
@@ -92,7 +95,10 @@ public sealed record ProductDto(
     // The item's English and Hindi names from the master list or common catalogue, so the app can show the one for its
     // language; the shop's own name is used when it renamed the item.
     string? NameEn = null,
-    string? NameHi = null);
+    string? NameHi = null,
+    // From this quantity on a bill, the price per unit is WholesalePrice.
+    decimal? WholesalePrice = null,
+    decimal? WholesaleMinQty = null);
 
 public sealed record OutTodayRequest(bool Out);
 

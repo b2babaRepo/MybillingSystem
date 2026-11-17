@@ -63,7 +63,8 @@ export default defineConfig({
     }),
   ],
   server: {
-    proxy: { '/api': 'http://localhost:5274' },
+    // GK_API points a second dev server at another API (one running a branch's changes); the usual one is on 5274.
+    proxy: { '/api': process.env.GK_API ?? 'http://localhost:5274' },
     // A Cloudflare quick tunnel (cloudflared tunnel --url http://localhost:5175) for demos from this PC.
     allowedHosts: ['.trycloudflare.com'],
   },

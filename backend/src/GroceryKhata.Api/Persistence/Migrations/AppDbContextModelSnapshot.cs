@@ -2358,6 +2358,16 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("weight_kg");
 
+                    b.Property<decimal?>("WholesaleMinQty")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("wholesale_min_qty");
+
+                    b.Property<decimal?>("WholesalePrice")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("wholesale_price");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CatalogueItemId");
@@ -9224,6 +9234,53 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("platform_admins", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Shops.PrintLook", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Logo")
+                        .HasColumnType("text")
+                        .HasColumnName("logo");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<string>("Signature")
+                        .HasColumnType("text")
+                        .HasColumnName("signature");
+
+                    b.Property<string>("Terms")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("terms");
+
+                    b.Property<string>("Theme")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("theme");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique();
+
+                    b.ToTable("print_looks", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Shops.Shop", b =>

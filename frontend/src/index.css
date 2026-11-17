@@ -102,6 +102,20 @@ body {
 .receipt .print\:hidden { min-width: 18rem; } /* shop-only buttons keep their size on screen, and never print */
 @media print { body { background: #fff; } }
 
+/* Bill print styles (Settings → Bill print look). Modern: the shop's name on a teal band, shaded table heads.
+   Compact: smaller type, so a long bill fits one A4 page. Rolls keep their own receipt layout. */
+.print-theme-modern .print-head { background: #0f766e; color: #fff; border: 0; border-radius: 10px; padding: 12px 14px; }
+.print-theme-modern .print-logo { background: #fff; border-radius: 8px; padding: 2px; }
+.print-theme-modern table thead tr { background: #e6f2f0; border-color: #0f766e; }
+.print-theme-modern table th { padding-top: 6px; padding-bottom: 6px; }
+.print-theme-modern .text-xl { color: #0f766e; }
+.print-theme-compact { font-size: 13px; }
+.print-theme-compact h1 { font-size: 1.25rem; }
+.print-theme-compact .bill-lines { font-size: 12.5px; }
+.print-theme-compact .bill-lines td { padding-top: 2px; padding-bottom: 2px; }
+.receipt.print-theme-modern .print-head { background: none; color: inherit; border-bottom: 2px solid #000; border-radius: 0; padding: 0 0 6px; }
+* { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
 /* Checkboxes and radio buttons in the app colour. */
 input[type="checkbox"], input[type="radio"] { accent-color: var(--color-brand); }
 

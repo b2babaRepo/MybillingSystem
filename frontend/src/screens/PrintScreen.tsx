@@ -13,6 +13,7 @@ import { PrescriptionPhoto } from './PharmacyAssistScreens'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
+import { rupeesInWords } from '../lib/inWords'
 import { gstSummary, gstUnsetAmount, storedSummary } from '../lib/gst'
 import { listOps } from '../lib/outbox'
 import { provisionalBill } from '../lib/provisionalBill'
@@ -337,6 +338,9 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
   const unset = gstin ? gstUnsetAmount(bill.lines) : 0
   const isTaxInvoice = gst.length > 0 && unset === 0
   const title = `${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''}`
+  const look = bill.print
+  // Which copy this is: GST rules want the buyer's original, a duplicate for the transporter and a triplicate kept by the seller.
+  const [copy, setCopy] = useState<'none' | 'original' | 'duplicate' | 'triplicate'>(isTaxInvoice ? 'original' : 'none')
 
   /** The same bill for a Bluetooth roll printer. */
   function billReceipt(): ReceiptRow[] {
@@ -352,7 +356,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
       rows.push({ left: l.printName ?? l.name, right: formatRupees(l.amount), bold: true })
       rows.push({ text: `  ${l.quantity} ${t(`units.${l.unit}`, { count: l.quantity })} × ${formatRupees(l.unitPrice)}${l.hsnCode ? ` · HSN ${l.hsnCode}` : ''}${gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}` })
     }
-    rows.push({ rule: true }, { left: t('print.total'), right: formatRupees(bill.total), big: true })
+    rows.push({ rule: true }, { left: t('print.total'), right: formatRupees(bill.total), big: true }, { text: rupeesInWords(bill.total) })
     if ((bill.exchangeCredit ?? 0) > 0) rows.push({ left: t('exchange.credit', { note: bill.exchangeNoteNo ?? '' }), right: `− ${formatRupees(bill.exchangeCredit!)}` })
     if ((bill.payments?.length ?? 0) > 0) for (const p of bill.payments!) rows.push({ left: `${t('print.paid')} (${t(p.mode)}${p.reference ? ` · UTR ${p.reference}` : ''})`, right: formatRupees(p.amount) })
     else rows.push({ left: `${t('print.paid')}${bill.paymentMode ? ` (${t(bill.paymentMode)})` : ''}`, right: formatRupees(bill.paidAmount) })
@@ -366,7 +370,13 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
   }
 
   return (
-    <Page title={shopName} subtitle={`${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${bill.counter ? ` · ${bill.counter}` : ''}${customerName ? ` · ${customerName}` : ''}`} shareText={share} phone={phone} receipt={() => billReceipt()}>
+    <Page title={shopName} subtitle={`${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${bill.counter ? ` · ${bill.counter}` : ''}${customerName ? ` · ${customerName}` : ''}`} shareText={share} phone={phone} receipt={() => billReceipt()} pdfName={`${shopName} ${bill.billNo ?? when}`}
+      logo={look?.logo} theme={look?.theme} corner={copy !== 'none' ? t(`print.copy.${copy}`) : null}
+      tools={(
+        <select aria-label={t('print.copy.label')} value={copy} onChange={(e) => setCopy(e.target.value as typeof copy)} className="h-11 rounded-xl border border-line bg-white px-2 font-semibold transition hover:bg-[#f6faf9]">
+          {(['none', 'original', 'duplicate', 'triplicate'] as const).map((c) => <option key={c} value={c}>{t(`print.copy.${c === 'none' ? 'noLabel' : c}`)}</option>)}
+        </select>
+      )}>
       {bill.billOfSupply && <p className="mb-2 text-sm font-semibold">{t('print.compositionNote')}</p>}
       {bill.shopAddress && <p className="mb-2 text-sm">{bill.shopAddress}</p>}
       {(customerName || phone) && <p className="mb-2 text-sm font-semibold">{t('print.billTo', { who: [customerName, phone].filter(Boolean).join(' · ') })}</p>}
@@ -409,6 +419,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
         {(bill.exchangeCredit ?? 0) > 0 && <p className="flex justify-between text-sm font-semibold"><span>{t('exchange.credit', { note: bill.exchangeNoteNo ?? '' })}</span><span>− {formatRupees(bill.exchangeCredit!)}</span></p>}
         {(bill.payments?.length ?? 0) > 0 ? bill.payments!.map((p) => <p key={p.mode} className="flex justify-between"><span>{t('print.paid')} ({t(p.mode)}{'reference' in p && p.reference ? ` · UTR ${p.reference}` : ''})</span><span>{formatRupees(p.amount)}</span></p>) : <p className="flex justify-between"><span>{t('print.paid')}{bill.paymentMode && ` (${t(bill.paymentMode)})`}</span><span>{formatRupees(bill.paidAmount)}</span></p>}
         {bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.onKhata')}</span><span>{formatRupees(bill.onKhata)}</span></p>}
+        <p className="text-sm"><span className="font-semibold">{t('print.inWords')}:</span> {rupeesInWords(bill.total)}</p>
       </div>
       {gst.length > 0 && (
         <table className="mt-4 w-full border-collapse text-sm">
@@ -444,10 +455,17 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
       {/* Goods over ₹50,000 moving by vehicle need an e-way bill: the shop's copy offers the portal file. */}
       {onCancel && gstin && !bill.billOfSupply && !bill.cancelledAt && bill.total >= 50000 && <Suspense fallback={null}><EwayBill shopName={shopName} bill={bill} customerName={customerName} /></Suspense>}
       {unset > 0 && <p className="mt-1 text-sm font-semibold text-due print:hidden">{t('print.gstUnsetWarning')}</p>}
-      {gstin && (
-        <div className="mt-6 text-right text-sm">
+      {look?.terms && (
+        <div className="mt-4 text-xs">
+          <p className="font-bold">{t('print.terms')}</p>
+          <p className="whitespace-pre-line">{look.terms}</p>
+        </div>
+      )}
+      {(gstin || look?.signature) && (
+        <div className="mt-6 flex flex-col items-end text-sm">
           <p>{t('print.forShop', { shop: shopName })}</p>
-          <p className="mt-10">{t('print.signatory')}</p>
+          {look?.signature ? <img src={look.signature} alt="" className="my-1 h-14 max-w-48 object-contain" /> : <div className="h-10" />}
+          <p>{t('print.signatory')}</p>
         </div>
       )}
       <p className="mt-6 text-center">{t('print.thanks')}</p>

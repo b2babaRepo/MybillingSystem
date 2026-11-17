@@ -87,6 +87,9 @@ export interface Product {
   tracksSerials?: boolean
   warrantyMonths?: number | null
   mrp?: number | null
+  /** From wholesaleMinQty on a bill, the price per unit is wholesalePrice. */
+  wholesalePrice?: number | null
+  wholesaleMinQty?: number | null
   /** Printed on the customer's bill instead of the name ("Innerwear"); see lib/billNames.ts. */
   billName?: string | null
   /** Clothes: the design this item is one size/colour of ("पुरुष जींस"); see lib/styles.ts. */
@@ -249,6 +252,10 @@ export type DrugSchedule = 'g' | 'h' | 'h1' | 'x'
 
 export interface Prescription { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null; prescribedOn: string | null }
 
+export type PrintTheme = 'classic' | 'modern' | 'compact'
+
+export interface BillPrint { logo: string | null; signature: string | null; theme: PrintTheme; terms: string | null }
+
 export interface BillView {
   bill: {
     id: string
@@ -280,6 +287,8 @@ export interface BillView {
     exchangeNoteNo?: string | null
     /** The counter (device) it was made on. */
     counter?: string | null
+    /** How the shop prints its bills: logo and signature (data URLs), style and terms. */
+    print?: BillPrint | null
   }
   customer: Customer | null
 }

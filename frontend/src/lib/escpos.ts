@@ -14,7 +14,7 @@ export type ReceiptRow =
 export const dotsFor = (paper: string) => (paper === '58' ? 384 : 576)
 
 /** Draws the rows onto a canvas `width` dots wide; returns its 1-bit pixels, row by row (true = black). */
-export function drawReceipt(rows: ReceiptRow[], width: number): { width: number; height: number; black: (x: number, y: number) => boolean } {
+export function drawReceipt(rows: ReceiptRow[], width: number): { width: number; height: number; black: (x: number, y: number) => boolean; canvas: HTMLCanvasElement } {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')!
   const size = width <= 384 ? 22 : 26
@@ -74,7 +74,7 @@ export function drawReceipt(rows: ReceiptRow[], width: number): { width: number;
   ctx.textBaseline = 'alphabetic'
   for (const op of ops) op.draw(ctx)
   const pixels = ctx.getImageData(0, 0, width, height).data
-  return { width, height, black: (x, yy) => { const i = (yy * width + x) * 4; return pixels[i] * 0.3 + pixels[i + 1] * 0.59 + pixels[i + 2] * 0.11 < 140 } }
+  return { width, height, canvas, black: (x, yy) => { const i = (yy * width + x) * 4; return pixels[i] * 0.3 + pixels[i + 1] * 0.59 + pixels[i + 2] * 0.11 < 140 } }
 }
 
 /** ESC/POS bytes for a 1-bit picture: reset, the picture in bands (small printers have small buffers), feed and cut. */

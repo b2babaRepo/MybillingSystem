@@ -116,7 +116,8 @@ public sealed record BillDto(
     string? ShopAddress = null,
     string? BuyerAddress = null,
     IReadOnlyList<BillPaymentPart>? Payments = null,
-    string? Counter = null);
+    string? Counter = null,
+    Shops.BillPrintDto? Print = null);
 
 public sealed record CancelBillRequest(string? Reason);
 

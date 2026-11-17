@@ -35,6 +35,7 @@ const ICONS: Record<string, string> = {
     '/cheques': 'M3 7h18v10H3zM6 13h6M15 13h3',
     '/store': 'M4 9l1-5h14l1 5M4 9h16v11H4zM9 20v-6h6v6',
     '/sync': 'M4 12a8 8 0 0 1 16 0M20 12a8 8 0 0 1-16 0',
+    '/backup': 'M7 18a5 5 0 0 1-.5-10 6 6 0 0 1 11.5 1.5A4 4 0 0 1 17 18zM12 10v6M9.5 13.5 12 16l2.5-2.5',
   }
 
 /**

@@ -3,6 +3,8 @@ import { GodownPicker } from '../components/GodownPicker'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { CashChange, CustomerFinder } from '../components/CustomerFinder'
 import { CashLimitNote } from '../components/CashLimitNote'
+import { LinePriceHints } from '../components/LastPrices'
+import { fitPrice, priceFor } from '../lib/wholesale'
 import { billSeconds } from '../lib/billTimer'
 import { GST_STATES } from '../lib/states'
 import { nameMatches, splitQuantity } from '../lib/nameMatch'
@@ -257,7 +259,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const unpriced = cart.some((l) => !(l.unitPrice > 0))
   // Discounts: a line sold below its item's regular price. Helpers have a limit the owner sets (the server checks it too).
   const staffLimit = useShopSettings(shopId).data?.staffMaxDiscountPercent ?? 10
-  const regularOf = (l: CartLine) => products.find((p) => p.id === l.productId)?.sellingPrice ?? 0
+  // The item's price for the line's quantity: at its wholesale quantity, the wholesale price is the regular one, not a discount.
+  const regularOf = (l: CartLine) => { const p = products.find((x) => x.id === l.productId); return p ? priceFor(p, l.quantity) : 0 }
   const offOf = (l: CartLine) => { const r = regularOf(l); return r > 0 && l.unitPrice > 0 && l.unitPrice < r ? { amount: round2((r - l.unitPrice) * l.quantity), percent: Math.round(((r - l.unitPrice) / r) * 1000) / 10 } : null }
   const discountTotal = round2(cart.reduce((sum, l) => sum + (offOf(l)?.amount ?? 0), 0))
   // The owner's planned offers. A line under one is the owner's price, so the helper's limit doesn't apply to it.
@@ -347,12 +350,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     const offer = item && line.unitPrice === item.sellingPrice ? bestOffer(offers, item) : null
     if (offer && item) line = { ...line, unitPrice: offerPrice(offer, item.sellingPrice), offerId: offer.id, offerName: offer.name }
     const qty = pendingQty ?? 1
-    if (pendingQty) { line = { ...line, quantity: pendingQty }; setSearch('') }
+    if (pendingQty) { line = { ...line, quantity: pendingQty, unitPrice: fitPrice(item, pendingQty, line.unitPrice) }; setSearch('') }
     setCart((current) => {
       // A tinted tin shares its base's product but is its own line (its own shade and rate).
       const index = line.productId ? current.findIndex((l) => l.productId === line.productId && l.name === line.name) : -1
       if (index < 0) return [...current, line]
-      return current.map((l, i) => (i === index ? { ...l, quantity: round2(l.quantity + qty) } : l))
+      return current.map((l, i) => (i === index ? { ...l, quantity: round2(l.quantity + qty), unitPrice: fitPrice(item, round2(l.quantity + qty), l.unitPrice) } : l))
     })
     if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
   }
@@ -375,7 +378,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
   function setQuantity(index: number, quantity: number) {
     // A typed weight is no longer whole bags.
-    setCart((current) => (quantity <= 0 ? current.filter((_, i) => i !== index) : current.map((l, i) => (i === index ? { ...l, quantity, bags: null } : l))))
+    // Crossing the wholesale quantity moves the price to the wholesale one, or back.
+    setCart((current) => (quantity <= 0 ? current.filter((_, i) => i !== index) : current.map((l, i) => (i === index
+      ? { ...l, quantity, bags: null, unitPrice: fitPrice(products.find((p) => p.id === l.productId), quantity, l.unitPrice) } : l))))
   }
 
   /** A medicine sold loose: so many tablets of a strip, as that fraction of the strip at the strip's price. */
@@ -717,6 +722,25 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 const net = l.unitPrice / (1 + (garmentRate(p.hsnCode, p.gstRate, l.unitPrice) ?? 0) / 100)
                 const margin = ((net - p.costPrice) / net) * 100
                 return margin < 5 ? <p className={`text-xs font-semibold ${margin <= 0 ? 'text-due' : 'text-warn'}`}>{t(margin <= 0 ? 'pmonth.belowCost' : 'pmonth.thinMargin', { percent: Math.round(margin * 10) / 10 })}</p> : null
+              })()}
+              {(() => {
+                // Wholesale: say when the line is at it, or how many more bring it.
+                const p = l.productId ? products.find((x) => x.id === l.productId) : null
+                if (!p?.wholesalePrice || !p.wholesaleMinQty) return null
+                const at = l.quantity >= p.wholesaleMinQty && l.unitPrice === p.wholesalePrice
+                return (
+                  <p className={`mt-1 text-xs font-semibold ${at ? 'text-brand-strong' : 'text-muted'}`}>
+                    {at ? <span className="rounded-full bg-brand-soft px-2 py-0.5">📦 {t('wholesale.applied', { price: formatRupees(p.wholesalePrice) })}</span>
+                      : t('wholesale.from', { price: formatRupees(p.wholesalePrice), qty: p.wholesaleMinQty, unit: t(`units.${l.unit}`, { count: p.wholesaleMinQty }) })}
+                  </p>
+                )
+              })()}
+              {(() => {
+                const p = l.productId ? products.find((x) => x.id === l.productId) : null
+                return p ? (
+                  <LinePriceHints productId={p.id} customerId={customerId} isOwner={isOwner} price={l.unitPrice} cost={p.costPrice}
+                    gstRate={garmentRate(p.hsnCode, p.gstRate, l.unitPrice)} unitLabel={t(`units.${l.unit}`)} onPick={(price) => setPrice(i, price)} />
+                ) : null
               })()}
               {(() => {
                 // A clothes line priced above ₹2,500 a piece is billed at 18%: say so, so the higher total isn't a surprise.

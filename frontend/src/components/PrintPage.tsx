@@ -6,9 +6,32 @@ import { getPaper, pageRule, setPaper, type Paper } from '../lib/paper'
 import type { ReceiptRow } from '../lib/escpos'
 
 /** A print page: back, print, WhatsApp and the paper choice (A4, 80 mm, 58 mm roll), then the shop's header and the content. */
-export function Page({ title, subtitle, shareText, phone, children, receipt }: { title: string; subtitle: string; shareText: string; phone: string | null; children: ReactNode; receipt?: () => ReceiptRow[] }) {
+export function Page({ title, subtitle, shareText, phone, children, receipt, pdfName, logo, theme, corner, tools }: {
+  title: string; subtitle: string; shareText: string; phone: string | null; children: ReactNode; receipt?: () => ReceiptRow[]; pdfName?: string
+  /** The shop's logo (a data URL), beside its name. */
+  logo?: string | null
+  /** The bill's print style: classic (plain), modern (coloured band) or compact (small type, more on a page). */
+  theme?: string | null
+  /** Top right of the header: "Original for recipient" and the like. */
+  corner?: ReactNode
+  /** Extra controls in the toolbar (not printed). */
+  tools?: ReactNode
+}) {
   const { t } = useTranslation()
   const [btState, setBtState] = useState<string | null>(null)
+  const [pdfState, setPdfState] = useState<'busy' | 'saved' | 'failed' | null>(null)
+  /** The bill as a PDF file, straight into WhatsApp (phone share sheet), or saved where the browser can't share files. */
+  async function pdfShare() {
+    setPdfState('busy')
+    try {
+      const { receiptPdf, sharePdf } = await import('../lib/billPdf')
+      const file = await receiptPdf(receipt!(), pdfName ?? title)
+      const how = await sharePdf(file, shareText)
+      setPdfState(how === 'saved' ? 'saved' : null)
+    } catch {
+      setPdfState('failed')
+    }
+  }
   // Straight to a Bluetooth thermal printer, where the browser can (Chrome on Android and computers; not iPhone).
   const bt = !!receipt && typeof navigator !== 'undefined' && 'bluetooth' in navigator
   async function btPrint(choose: boolean) {
@@ -53,21 +76,32 @@ export function Page({ title, subtitle, shareText, phone, children, receipt }: {
         <button onClick={() => history.back()} className="h-11 rounded-xl border border-line px-4 font-semibold transition hover:bg-[#f6faf9]" aria-label={t('a11y.back')}>←</button>
         <button onClick={() => window.print()} className="flex h-11 items-center gap-1.5 rounded-xl bg-brand px-4 font-semibold text-white shadow-sm hover:bg-brand-strong"><span aria-hidden>🖨️</span>{t('print.printPdf')}</button>
         <a href={whatsAppLink(phone, shareText)} target="_blank" rel="noreferrer" className="flex h-11 items-center gap-1.5 rounded-xl bg-[#15803d] px-4 font-semibold text-white shadow-sm hover:bg-green-800"><span aria-hidden>💬</span>{t('print.share')}</a>
+        {receipt && <button disabled={pdfState === 'busy'} onClick={() => void pdfShare()} className="flex h-11 items-center gap-1.5 rounded-xl border-2 border-[#15803d] bg-white px-4 font-semibold text-[#15803d] shadow-sm hover:bg-green-50 disabled:opacity-50"><span aria-hidden>📄</span>{t('print.pdfShare')}</button>}
         {bt && <button onClick={() => void btPrint(false)} className="flex h-11 items-center gap-1.5 rounded-xl bg-slate-800 px-4 font-semibold text-white shadow-sm hover:bg-slate-900"><span aria-hidden>🧾</span>{t('btPrint.button')}</button>}
         <select aria-label={t('paper.label')} value={paper} onChange={(e) => { const next = e.target.value as Paper; setPaper(next); choosePaper(next) }} className="h-11 rounded-xl border border-line bg-white px-2 font-semibold transition hover:bg-[#f6faf9]">
           <option value="a4">{t('paper.a4')}</option>
           <option value="80">{t('paper.r80')}</option>
           <option value="58">{t('paper.r58')}</option>
         </select>
+        {tools}
       </div>
+      {pdfState === 'saved' && (
+        <p role="status" className="mb-3 flex flex-wrap items-center gap-3 text-sm print:hidden">{t('print.pdfSaved')}
+          <a href={whatsAppLink(phone, shareText)} target="_blank" rel="noreferrer" className="font-semibold text-[#15803d] underline">{t('print.pdfOpenWa')}</a></p>
+      )}
+      {pdfState === 'failed' && <p role="status" className="mb-3 text-sm text-due print:hidden">{t('print.pdfFailed')}</p>}
       {bt && btState && (
         <p role="status" className="mb-3 flex flex-wrap items-center gap-3 text-sm print:hidden">{btState}
           <button onClick={() => void btPrint(true)} className="font-semibold text-brand underline">{t('btPrint.change')}</button></p>
       )}
-      <div ref={roll} className={paper === 'a4' ? '' : `receipt receipt-${paper}`}>
-        <header className="mb-4 border-b-2 border-black pb-3">
-          <h1 className="text-2xl font-extrabold">{title}</h1>
-          <p className="text-base">{subtitle}</p>
+      <div ref={roll} className={`${paper === 'a4' ? '' : `receipt receipt-${paper}`} print-theme-${theme ?? 'classic'}`}>
+        <header className="print-head mb-4 flex items-start gap-3 border-b-2 border-black pb-3">
+          {logo && <img src={logo} alt="" className="print-logo h-16 w-16 shrink-0 object-contain" />}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-extrabold">{title}</h1>
+            <p className="text-base">{subtitle}</p>
+          </div>
+          {corner && <div className="shrink-0 text-right text-xs font-bold uppercase">{corner}</div>}
         </header>
         {children}
       </div>

@@ -56,6 +56,12 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
   const { products } = useProducts(shopId)
   const masterUpdates = useQuery({ queryKey: [shopId, 'master-updates'], queryFn: () => api<{ changes: unknown[] }>('/v1/master-items/updates'), enabled: isOwner, retry: false, staleTime: 600_000 }).data
   const lowCount = products.filter((p) => p.isLow).length
+  // Same key as the backup screen, so taking a backup there clears this at once.
+  const backup = useQuery({
+    queryKey: [shopId, 'backup-status'], queryFn: () => api<{ lastBackupAt: string | null; empty: boolean }>('/v1/shop/backup-status'), enabled: isOwner, retry: false, staleTime: 60_000,
+    select: (s) => ({ ...s, days: s.lastBackupAt ? Math.floor((Date.now() - new Date(s.lastBackupAt).getTime()) / 86_400_000) : null }),
+  }).data
+  const backupDays = backup?.days ?? null
 
   return (
     <div className="pb-4">
@@ -95,6 +101,9 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
       )}
       {isOwner && products.length === 0 && (
         <Alert to="/items/pick" icon="🚀" tone="bg-brand text-white ring-teal-800">{t('pick.start')}</Alert>
+      )}
+      {isOwner && backup && !backup.empty && (backupDays == null || backupDays > 7) && (
+        <Alert to="/backup" icon="💾" tone="bg-warn-soft text-warn-ink ring-amber-200">{backupDays == null ? t('backup.homeNever') : t('backup.homeOld', { count: backupDays })}</Alert>
       )}
       {lowCount > 0 && <Alert to="/items" icon="📦" tone="bg-orange-50 text-orange-800 ring-orange-200">{t('stock.lowCount', { count: lowCount })}</Alert>}
 
