@@ -2,6 +2,7 @@ using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
 using GroceryKhata.Api.Persistence;
+using GroceryKhata.Api.Shops;
 using Microsoft.EntityFrameworkCore;
 using static GroceryKhata.Api.Common.Problems;
 
@@ -71,6 +72,25 @@ public static class Festivals
             On((2025, 12, 25), (2026, 12, 25), (2027, 12, 25))),
     ];
 
+    /// <summary>
+    /// What a clothes shop sells more of before each festival: festive and ethnic wear, kids' outfits, and winter wear
+    /// around Sankranti and Christmas. Added to the list above for a shop that sells clothes (its type or an extra trade).
+    /// </summary>
+    private static readonly Dictionary<string, string[]> ClothesWords = new()
+    {
+        ["sankranti"] = ["kurta", "कुर्ता", "kurti", "कुर्ती", "saree", "sari", "साड़ी", "shawl", "शॉल", "sweater", "स्वेटर", "jacket", "जैकेट", "thermal", "muffler", "cap", "veshti", "dhoti", "धोती", "pyjama", "पजामा"],
+        ["holi"] = ["kurta", "कुर्ता", "pyjama", "पजामा", "kurti", "कुर्ती", "t-shirt", "tshirt", "chikan", "chikankari", "dupatta", "दुपट्टा", "white"],
+        ["eid_fitr"] = ["kurta", "कुर्ता", "pathani", "पठानी", "sherwani", "शेरवानी", "pyjama", "पजामा", "salwar", "सलवार", "suit", "सूट", "kurti", "कुर्ती", "sharara", "शरारा", "gharara", "dupatta", "दुपट्टा", "hijab", "abaya", "burqa", "topi", "टोपी", "mojari", "jutti", "kids", "frock"],
+        ["raksha_bandhan"] = ["kurta", "कुर्ता", "kurti", "कुर्ती", "saree", "sari", "साड़ी", "suit", "सूट", "lehenga", "लहंगा", "dupatta", "दुपट्टा", "shirt", "kids", "frock"],
+        ["janmashtami"] = ["kids", "frock", "dhoti", "धोती", "kurta", "कुर्ता", "dupatta", "दुपट्टा", "krishna", "dress"],
+        ["ganesh"] = ["saree", "sari", "साड़ी", "nauvari", "kurta", "कुर्ता", "kurti", "कुर्ती", "dhoti", "धोती", "pyjama", "पजामा", "dupatta", "दुपट्टा", "nehru", "jacket"],
+        ["navratri"] = ["chaniya", "choli", "चोली", "lehenga", "लहंगा", "ghagra", "घाघरा", "kediyu", "kedia", "dupatta", "दुपट्टा", "odhni", "ओढ़नी", "chunri", "saree", "sari", "साड़ी", "kurti", "कुर्ती", "kurta", "कुर्ता", "dhoti", "धोती", "garba", "jacket"],
+        ["karwa_chauth"] = ["saree", "sari", "साड़ी", "lehenga", "लहंगा", "suit", "सूट", "kurti", "कुर्ती", "dupatta", "दुपट्टा", "chunri", "चुनरी", "anarkali", "sharara"],
+        ["diwali"] = ["saree", "sari", "साड़ी", "lehenga", "लहंगा", "kurti", "कुर्ती", "kurta", "कुर्ता", "sherwani", "शेरवानी", "nehru", "suit", "सूट", "salwar", "anarkali", "sharara", "dupatta", "दुपट्टा", "shirt", "jeans", "t-shirt", "kids", "frock", "dress", "blazer", "ethnic"],
+        ["chhath"] = ["saree", "sari", "साड़ी", "dhoti", "धोती", "kurta", "कुर्ता", "pyjama", "पजामा", "gamchha", "गमछा", "petticoat", "blouse"],
+        ["christmas"] = ["sweater", "स्वेटर", "jacket", "जैकेट", "hoodie", "sweatshirt", "shawl", "शॉल", "thermal", "muffler", "gloves", "coat", "blazer", "dress", "party", "jeans", "frock", "kids", "cap"],
+    };
+
     public static IEndpointRouteBuilder MapFestivals(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/festivals").WithTags("Items").RequireAuthorization(AppPolicies.ShopMember);
@@ -133,6 +153,9 @@ public static class Festivals
             return [];
         }
 
+        // A shop that sells clothes (its type or an extra trade) also gets the festive-wear lists.
+        var shop = await db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => new { s.Type, s.ExtraTypes }).FirstOrDefaultAsync(ct);
+        var clothes = shop is not null && (shop.Type == ShopType.Clothes || ShopTypes.Parse(shop.ExtraTypes).Contains(ShopType.Clothes));
         var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService)
             .Select(p => new { p.Id, p.Name, p.Category, p.Unit, p.Stock }).ToListAsync(ct);
         var onOrder = (await db.PurchaseOrderLines.AsNoTracking()
@@ -189,7 +212,7 @@ public static class Festivals
                 var since = IndiaTime.Day(today.AddDays(-28)).Start;
                 var recent = await db.StockMovements.AsNoTracking().Where(m => m.Kind == StockMovementKind.Sale && m.OccurredAt >= since)
                     .GroupBy(m => m.ProductId).Select(g => new { g.Key, Sold = -g.Sum(m => m.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Sold, ct);
-                foreach (var p in products.Where(p => Matches(f, p.Name)))
+                foreach (var p in products.Where(p => Matches(f, p.Name, clothes)))
                 {
                     var usual = decimal.Round(recent.GetValueOrDefault(p.Id) / 2, 3);
                     var coming = onOrder.GetValueOrDefault(p.Id);
@@ -211,9 +234,10 @@ public static class Festivals
     /// A word of the festival's list at the start of a word in the item's name. Not the category: "Atta, rice, dal" would
     /// pull in every pulse for Chhath.
     /// </summary>
-    private static bool Matches(Festival f, string name)
+    private static bool Matches(Festival f, string name, bool clothes)
     {
         var text = $" {name} ".ToLowerInvariant();
-        return f.Words.Any(w => text.Contains(' ' + w.ToLowerInvariant(), StringComparison.Ordinal));
+        var words = clothes && ClothesWords.TryGetValue(f.Key, out var wear) ? f.Words.Concat(wear) : f.Words;
+        return words.Any(w => text.Contains(' ' + w.ToLowerInvariant(), StringComparison.Ordinal));
     }
 }

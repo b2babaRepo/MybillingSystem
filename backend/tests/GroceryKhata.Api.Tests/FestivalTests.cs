@@ -76,6 +76,28 @@ public sealed class FestivalTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_clothes_shop_gets_festive_wear_for_diwali_and_a_kirana_does_not()
+    {
+        using var app = At(2027, 10, 10);
+        var phone = ApiFactory.NewPhone();
+        var fashion = app.CreateClient();
+        var auth = await (await fashion.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Sitara Fashion", fullName = "Neha Sitara", phone, password = "secret123", language = "hi", type = "clothes" })).ReadAsync<AuthResponse>();
+        fashion.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var saree = await ItemAsync(fashion, "Banarasi Saree", 3m);
+        var kurta = await ItemAsync(fashion, "Men Kurta Pyjama Set", 5m);
+        await ItemAsync(fashion, "Socks pack", 20m);
+
+        var diwali = (await fashion.GetJsonAsync<List<FestivalDto>>("/api/v1/festivals/upcoming")).Single(f => f.Key == "diwali");
+        Assert.Equal("usual_items", diwali.Basis);
+        Assert.Equal(new[] { saree, kurta }.Order(), diwali.Items.Select(i => i.ProductId).Order());
+
+        var (kirana, _) = await ShopAsync(app);
+        await ItemAsync(kirana, "Banarasi Saree", 3m);
+        Assert.Empty((await kirana.GetJsonAsync<List<FestivalDto>>("/api/v1/festivals/upcoming")).Single(f => f.Key == "diwali").Items);
+    }
+
+    [Fact]
     public async Task Last_years_run_up_picks_the_items_that_sold_more_and_suggests_what_to_order()
     {
         string phone;
