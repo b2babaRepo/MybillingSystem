@@ -58,7 +58,8 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
     }
   }
 
-  const due = (suppliers.data ?? []).reduce((sum, s) => sum + s.due, 0)
+  const due = (suppliers.data ?? []).reduce((sum, s) => sum + Math.max(0, s.due), 0)
+  const theyOwe = (suppliers.data ?? []).reduce((sum, s) => sum + Math.max(0, -s.due), 0)
   const sum = (key: 'days0To15' | 'days16To30' | 'over30') => (suppliers.data ?? []).reduce((total, s) => total + (s[key] ?? 0), 0)
   // Who to pay first: the oldest unpaid bills at the top, then the biggest dues.
   const anyOff = (suppliers.data ?? []).some((s) => s.isActive === false)
@@ -70,6 +71,7 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
       <section className="rounded-card bg-white p-4 shadow-sm">
         <span className="text-sm font-semibold text-muted">{t('suppliers.totalDue')}</span>
         <p className="text-2xl font-extrabold text-due">{formatRupees(due)}</p>
+        {theyOwe > 0 && <p className="text-sm text-muted">{t('supplier2.theyOweTotal', { amount: formatRupees(theyOwe) })}</p>}
         {due > 0 && (
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
             <span className="rounded-xl bg-blue-50 p-2 text-blue-800"><span className="block text-xs">{t('suppliers.age0')}</span><b>{formatRupees(sum('days0To15'))}</b></span>
@@ -281,7 +283,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       <section className="flex items-center justify-between rounded-card bg-white p-4 shadow-sm">
         <span className="flex min-w-0 flex-col"><span className="truncate text-lg font-bold">{s?.name}</span>
           <span className="flex gap-3 text-sm"><button onClick={startEdit} className={`min-h-11 ${btn.link}`}>{t('supplier2.edit')}</button>
-          <button onClick={() => navigate(`/print/supplier/${id}`)} className={`min-h-11 ${btn.link}`}>{t('supplier2.statement')}</button></span></span><span className="text-right text-xl font-extrabold text-due">{s ? formatRupees(Math.abs(s.due)) : '–'}{s && s.due !== 0 && <span className="block text-xs font-normal text-muted">{t(s.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>
+          <button onClick={() => document.getElementById('supplier-statement')?.scrollIntoView({ behavior: 'smooth' })} className={`min-h-11 ${btn.link}`}>{t('supplier2.statement')}</button></span></span><span className="text-right text-xl font-extrabold text-due">{s ? formatRupees(Math.abs(s.due)) : '–'}{s && s.due !== 0 && <span className="block text-xs font-normal text-muted">{t(s.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>
       </section>
 
       {editing && (
@@ -298,6 +300,46 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
           </div>
         </section>
       )}
+
+      <section id="supplier-statement" className="flex scroll-mt-4 flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-bold">{t('supplier2.statement')}</h2>
+          <button onClick={() => navigate(`/print/supplier/${id}`)} className={`min-h-11 text-sm ${btn.link}`}>🖨 {t('supplier2.printShare')}</button>
+        </div>
+        <div className="flex gap-2">
+          {(['all', 'bills', 'payments'] as const).map((v) => <button key={v} onClick={() => setView(v)} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${view === v ? 'bg-brand text-white shadow-sm' : 'border border-line'}`}>{t(`supplier2.${v}`)}</button>)}
+        </div>
+        {shown.length === 0 && <p className="text-sm text-muted">{t('supplier2.noLines')}</p>}
+        <ul className="flex flex-col">
+          {shown.map((e) => (
+            <li key={e.id} className="border-b border-line py-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex min-w-0 flex-col">
+                  <span>{new Date(e.occurredAt).toLocaleDateString(shownLocale())} · {t(`supplier2.kind.${e.kind}`)}{e.note && e.kind !== 'bill_cancelled' ? ` ${e.note.replace(/^Credit note\s*/, '')}` : ''}{e.mode ? ` · ${t(e.mode)}` : ''}{e.reference ? ` ${e.reference}` : ''}</span>
+                  {e.dueOn && <span className="text-xs text-muted">{t('supplier2.due', { date: new Date(e.dueOn).toLocaleDateString(shownLocale()) })}</span>}
+                </span>
+                <span className="shrink-0 text-right"><span className={`block font-semibold ${e.cancelled ? 'line-through' : ''}`}>{e.amount < 0 ? '−' : ''}{formatRupees(Math.abs(e.amount))}</span>
+                  <span className="block text-xs text-muted">{t('supplier2.balance')} {formatRupees(Math.abs(e.balance))}{e.balance !== 0 ? ` · ${t(e.balance > 0 ? 'heads.weOwe' : 'heads.theyOwe')}` : ''}</span></span>
+              </div>
+              {e.purchaseId && e.amount > 0 && (
+                <div className="flex gap-3">
+                  <button onClick={() => setOpenBill(openBill === e.purchaseId ? null : e.purchaseId)} aria-expanded={openBill === e.purchaseId} className={`min-h-11 text-xs ${btn.link}`}>{t('suppliers.billLine')} {openBill === e.purchaseId ? '▴' : '▾'}</button>
+                  {!e.cancelled && <button onClick={() => void cancelBill(e.purchaseId!)} className="min-h-11 text-xs font-semibold text-due">{t('suppliers.cancelBill')}</button>}
+                </div>
+              )}
+              {openBill === e.purchaseId && e.amount > 0 && bill && (
+                <div className="mb-1 rounded-xl bg-[#f1f5f4] p-2 text-xs">
+                  {bill.lines.map((l, i) => (
+                    <p key={i} className="flex justify-between gap-2"><span>{l.name} × {l.quantity}{l.freeQuantity > 0 ? ` + ${t('supplier2.free', { qty: l.freeQuantity })}` : ''}{l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}</span><span>{formatRupees(l.taxable + l.gst)}</span></p>
+                  ))}
+                  {bill.extra !== 0 && <p className="flex justify-between gap-2"><span>{t('supplier2.extraLine')}</span><span>{formatRupees(bill.extra)}</span></p>}
+                  <LotView shopId={shopId} purchaseId={e.purchaseId!} />
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
 
       {detail.data && !detail.data.entries.some((e) => e.kind === 'opening') && (
         <details className="rounded-card bg-white p-4 shadow-sm">
@@ -430,41 +472,6 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
 
       <ReturnsPanel shopId={shopId} supplierId={id} products={products} />
 
-      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
-        <div className="flex gap-2">
-          {(['all', 'bills', 'payments'] as const).map((v) => <button key={v} onClick={() => setView(v)} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${view === v ? 'bg-brand text-white shadow-sm' : 'border border-line'}`}>{t(`supplier2.${v}`)}</button>)}
-        </div>
-        {shown.length === 0 && <p className="text-sm text-muted">{t('supplier2.noLines')}</p>}
-        <ul className="flex flex-col">
-          {shown.map((e) => (
-            <li key={e.id} className="border-b border-line py-2 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex min-w-0 flex-col">
-                  <span>{new Date(e.occurredAt).toLocaleDateString(shownLocale())} · {t(`supplier2.kind.${e.kind}`)}{e.note && e.kind !== 'bill_cancelled' ? ` ${e.note.replace(/^Credit note\s*/, '')}` : ''}{e.mode ? ` · ${t(e.mode)}` : ''}{e.reference ? ` ${e.reference}` : ''}</span>
-                  {e.dueOn && <span className="text-xs text-muted">{t('supplier2.due', { date: new Date(e.dueOn).toLocaleDateString(shownLocale()) })}</span>}
-                </span>
-                <span className="shrink-0 text-right"><span className={`block font-semibold ${e.cancelled ? 'line-through' : ''}`}>{e.amount < 0 ? '−' : ''}{formatRupees(Math.abs(e.amount))}</span>
-                  <span className="block text-xs text-muted">{t('supplier2.balance')} {formatRupees(Math.abs(e.balance))}{e.balance !== 0 ? ` · ${t(e.balance > 0 ? 'heads.weOwe' : 'heads.theyOwe')}` : ''}</span></span>
-              </div>
-              {e.purchaseId && e.amount > 0 && (
-                <div className="flex gap-3">
-                  <button onClick={() => setOpenBill(openBill === e.purchaseId ? null : e.purchaseId)} aria-expanded={openBill === e.purchaseId} className={`min-h-11 text-xs ${btn.link}`}>{t('suppliers.billLine')} {openBill === e.purchaseId ? '▴' : '▾'}</button>
-                  {!e.cancelled && <button onClick={() => void cancelBill(e.purchaseId!)} className="min-h-11 text-xs font-semibold text-due">{t('suppliers.cancelBill')}</button>}
-                </div>
-              )}
-              {openBill === e.purchaseId && e.amount > 0 && bill && (
-                <div className="mb-1 rounded-xl bg-[#f1f5f4] p-2 text-xs">
-                  {bill.lines.map((l, i) => (
-                    <p key={i} className="flex justify-between gap-2"><span>{l.name} × {l.quantity}{l.freeQuantity > 0 ? ` + ${t('supplier2.free', { qty: l.freeQuantity })}` : ''}{l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}</span><span>{formatRupees(l.taxable + l.gst)}</span></p>
-                  ))}
-                  {bill.extra !== 0 && <p className="flex justify-between gap-2"><span>{t('supplier2.extraLine')}</span><span>{formatRupees(bill.extra)}</span></p>}
-                  <LotView shopId={shopId} purchaseId={e.purchaseId!} />
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
     </div>
   )
 }
