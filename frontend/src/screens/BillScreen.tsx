@@ -302,6 +302,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     try {
       const s = await api<{ id: string; noteNo: string; amount: number; balance: number; status: string; validTill: string; customerId: string | null; usedOnBillNo: string | null }>(`/v1/exchange-slips/find?no=${encodeURIComponent(slipNo.trim())}&code=${encodeURIComponent(slipCode.trim())}`)
       if (s.status === 'used') setSlipError(t('slip.used', { bill: s.usedOnBillNo ?? '' }))
+      else if (s.status === 'cancelled') setSlipError(t('slip.cancelled'))
       else if (s.status === 'expired') setSlipError(t('slip.expired', { date: new Date(`${s.validTill}T00:00`).toLocaleDateString(shownLocale()) }))
       else {
         const ex = { noteId: s.id, noteNo: s.noteNo, total: s.balance, customerId: s.customerId }

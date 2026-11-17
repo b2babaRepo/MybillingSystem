@@ -504,7 +504,7 @@ function SlipPrint({ shopName, noteId }: { shopName: string; noteId: string }) {
   const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00` : iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
   return (
     <Page title={shopName} subtitle={`${t('slip.title')} · ${s.noteNo}`} phone={s.customerPhone}
-      shareText={t('slip.share', { shop: shopName, note: s.noteNo, amount: s.balance, date: day(s.validTill) })}
+      shareText={t('slip.share', { shop: shopName, note: s.noteNo, code: s.code ?? '', amount: s.balance, date: day(s.validTill) })}
       receipt={() => [
         { text: t('slip.title'), bold: true, align: 'center' },
         { text: s.noteNo, bold: true, align: 'center' },
