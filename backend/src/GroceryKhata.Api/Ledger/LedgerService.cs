@@ -440,7 +440,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 if (request.ExchangeNoteId is { } noteId)
                 {
                     exchange = await db.CreditNotes.AsNoTracking().SingleOrDefaultAsync(n => n.Id == noteId, cancellationToken);
-                    if (exchange is not { ForExchange: true, ExchangeBillId: null })
+                    if (exchange is not { ForExchange: true } || exchange.Spent >= exchange.Total)
                     {
                         errors[nameof(request.ExchangeNoteId)] = ["That exchange credit was already used, or isn't for an exchange."];
                         exchange = null;
@@ -457,7 +457,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     }
                 }
 
-                var exchangeCredit = exchange is null ? 0m : Math.Min(exchange.Total, total);
+                // Only what's left on the slip; more than this bill stays on the slip for next time (no cash change).
+                var exchangeCredit = exchange is null ? 0m : Math.Min(exchange.Total - exchange.Spent, total);
                 var due = total - exchangeCredit;
                 if (request.PaidAmount < 0 || decimal.Round(request.PaidAmount, 2) != request.PaidAmount || request.PaidAmount > due)
                 {
@@ -642,8 +643,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 await db.SaveChangesAsync(cancellationToken);
 
                 // One update decides which bill gets the credit: two tills can't both spend it.
-                if (exchange is not null && await db.CreditNotes.Where(n => n.Id == exchange.Id && n.ExchangeBillId == null)
-                        .ExecuteUpdateAsync(s => s.SetProperty(n => n.ExchangeBillId, bill.Id), cancellationToken) == 0)
+                if (exchange is not null && await db.CreditNotes.Where(n => n.Id == exchange.Id && n.Spent == exchange.Spent && n.Spent + exchangeCredit <= n.Total)
+                        .ExecuteUpdateAsync(s => s.SetProperty(n => n.ExchangeBillId, bill.Id).SetProperty(n => n.Spent, n => n.Spent + exchangeCredit), cancellationToken) == 0)
                 {
                     return LedgerResult<BillDto>.Conflicted("That exchange credit was just used on another bill.");
                 }

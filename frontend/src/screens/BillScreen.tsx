@@ -299,11 +299,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     setSlipBusy(true)
     setSlipError('')
     try {
-      const s = await api<{ id: string; noteNo: string; amount: number; status: string; validTill: string; customerId: string | null; usedOnBillNo: string | null }>(`/v1/exchange-slips/find?no=${encodeURIComponent(slipNo.trim())}`)
+      const s = await api<{ id: string; noteNo: string; amount: number; balance: number; status: string; validTill: string; customerId: string | null; usedOnBillNo: string | null }>(`/v1/exchange-slips/find?no=${encodeURIComponent(slipNo.trim())}`)
       if (s.status === 'used') setSlipError(t('slip.used', { bill: s.usedOnBillNo ?? '' }))
       else if (s.status === 'expired') setSlipError(t('slip.expired', { date: new Date(`${s.validTill}T00:00`).toLocaleDateString(shownLocale()) }))
       else {
-        const ex = { noteId: s.id, noteNo: s.noteNo, total: s.amount, customerId: s.customerId }
+        const ex = { noteId: s.id, noteNo: s.noteNo, total: s.balance, customerId: s.customerId }
         startExchange(ex)
         setExchangeState(ex)
         if (s.customerId) setCustomerId(s.customerId)
@@ -765,7 +765,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               <span>{t('exchange.credit', { note: exchange!.noteNo })}</span><span>− {formatRupees(exchangeCredit)}</span>
             </div>
           )}
-          {exchange && exchange.total > total && total > 0 && <p className="mt-1 text-sm font-semibold text-warn-ink">{t('exchange.change', { amount: formatRupees(round2(exchange.total - total)) })}</p>}
+          {exchange && exchange.total > total && total > 0 && <p className="mt-1 text-sm font-semibold text-brand-deep">{t('exchange.leftOnSlip', { amount: formatRupees(round2(exchange.total - total)), note: exchange.noteNo })}</p>}
           {discountTotal > 0 && (
             <div className="mt-2 flex justify-between text-sm font-semibold text-brand-strong">
               <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>

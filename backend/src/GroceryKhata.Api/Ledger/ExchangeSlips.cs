@@ -6,9 +6,9 @@ namespace GroceryKhata.Api.Ledger;
 
 /// <summary>
 /// An exchange slip: the credit note of goods taken back for an exchange, which any counter can use to pay for new goods.
-/// <see cref="Status"/> is "open" (can be used), "used" (on <see cref="UsedOnBillNo"/>) or "expired".
+/// <see cref="Status"/> is "open" (<see cref="Balance"/> left to use), "used" (all of it; last on <see cref="UsedOnBillNo"/>) or "expired".
 /// </summary>
-public sealed record ExchangeSlip(Guid Id, string NoteNo, decimal Amount, DateTimeOffset IssuedAt, DateOnly ValidTill, string Status,
+public sealed record ExchangeSlip(Guid Id, string NoteNo, decimal Amount, decimal Balance, DateTimeOffset IssuedAt, DateOnly ValidTill, string Status,
     string BillNo, Guid? CustomerId, string? CustomerName, string? CustomerPhone, string? UsedOnBillNo);
 
 public static class ExchangeSlips
@@ -64,14 +64,14 @@ public static class ExchangeSlips
     {
         var rows = await notes.Select(n => new
         {
-            n.Id, n.FinancialYear, n.Number, n.Total, n.OccurredAt, n.CustomerId, n.ExchangeBillId,
+            n.Id, n.FinancialYear, n.Number, n.Total, n.Spent, n.OccurredAt, n.CustomerId, n.ExchangeBillId,
             Bill = db.Bills.Where(b => b.Id == n.BillId).Select(b => new { b.FinancialYear, b.Number }).FirstOrDefault(),
             Used = db.Bills.Where(b => b.Id == n.ExchangeBillId).Select(b => new { b.FinancialYear, b.Number }).FirstOrDefault(),
             Customer = db.Customers.Where(c => c.Id == n.CustomerId).Select(c => new { c.Name, c.Phone }).FirstOrDefault(),
         }).ToListAsync(ct);
         var now = clock.GetUtcNow();
-        return rows.Select(r => new ExchangeSlip(r.Id, $"CN/{r.FinancialYear}/{r.Number:D4}", r.Total, r.OccurredAt, ValidTill(r.OccurredAt),
-            r.ExchangeBillId is not null ? "used" : Expired(r.OccurredAt, now) ? "expired" : "open",
+        return rows.Select(r => new ExchangeSlip(r.Id, $"CN/{r.FinancialYear}/{r.Number:D4}", r.Total, r.Total - r.Spent, r.OccurredAt, ValidTill(r.OccurredAt),
+            r.Spent >= r.Total ? "used" : Expired(r.OccurredAt, now) ? "expired" : "open",
             r.Bill is null ? "" : $"{r.Bill.FinancialYear}/{r.Bill.Number:D4}", r.CustomerId, r.Customer?.Name, r.Customer?.Phone,
             r.Used is null ? null : $"{r.Used.FinancialYear}/{r.Used.Number:D4}")).ToList();
     }

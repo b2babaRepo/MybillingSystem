@@ -4599,6 +4599,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
 
+                    b.Property<decimal>("Spent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("spent");
+
                     b.Property<decimal>("Total")
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)")

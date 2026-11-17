@@ -478,7 +478,7 @@ export function BillLinkPage({ path }: { path: string }) {
 /** The exchange slip the customer carries to a billing counter: its number and QR bring the credit onto the new bill. */
 function SlipPrint({ shopName, noteId }: { shopName: string; noteId: string }) {
   const { t } = useTranslation()
-  const query = useServer<{ id: string; noteNo: string; amount: number; issuedAt: string; validTill: string; status: string; billNo: string; customerName: string | null; customerPhone: string | null; usedOnBillNo: string | null }>(['slip', noteId], `/v1/exchange-slips/find?no=${noteId}`)
+  const query = useServer<{ id: string; noteNo: string; amount: number; balance: number; issuedAt: string; validTill: string; status: string; billNo: string; customerName: string | null; customerPhone: string | null; usedOnBillNo: string | null }>(['slip', noteId], `/v1/exchange-slips/find?no=${noteId}`)
   const [qr, setQr] = useState<string | null>(null)
   const s = query.data
   useEffect(() => { if (s) void QRCode.toDataURL(s.id, { width: 240, margin: 1 }).then(setQr) }, [s])
@@ -487,11 +487,11 @@ function SlipPrint({ shopName, noteId }: { shopName: string; noteId: string }) {
   const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00` : iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
   return (
     <Page title={shopName} subtitle={`${t('slip.title')} · ${s.noteNo}`} phone={s.customerPhone}
-      shareText={t('slip.share', { shop: shopName, note: s.noteNo, amount: s.amount, date: day(s.validTill) })}
+      shareText={t('slip.share', { shop: shopName, note: s.noteNo, amount: s.balance, date: day(s.validTill) })}
       receipt={() => [
         { text: t('slip.title'), bold: true, align: 'center' },
         { text: s.noteNo, bold: true, align: 'center' },
-        { text: `${t('slip.amount')}: ${formatRupees(s.amount)}`, bold: true },
+        { text: `${t('slip.amount')}: ${formatRupees(s.balance)}`, bold: true },
         { text: `${t('slip.validTill')}: ${day(s.validTill)}` },
         { text: `${t('slip.againstBill')}: ${s.billNo}` },
         ...(s.customerName ? [{ text: `${s.customerName}${s.customerPhone ? ` ${s.customerPhone}` : ''}` }] : []),
@@ -499,7 +499,8 @@ function SlipPrint({ shopName, noteId }: { shopName: string; noteId: string }) {
       <div className="flex flex-col items-center gap-2 text-center">
         <p className="text-sm font-bold uppercase tracking-wide">{t('slip.title')}</p>
         <p className="text-2xl font-extrabold">{s.noteNo}</p>
-        <p className="text-3xl font-extrabold">{formatRupees(s.amount)}</p>
+        <p className="text-3xl font-extrabold">{formatRupees(s.balance)}</p>
+        {s.balance < s.amount && s.balance > 0 && <p className="text-sm">{t('slip.leftOf', { amount: formatRupees(s.amount), bill: s.usedOnBillNo ?? '' })}</p>}
         {qr && <img src={qr} alt={s.noteNo} className="h-40 w-40" />}
         <p>{t('slip.validTill')}: <b>{day(s.validTill)}</b></p>
         <p className="text-sm">{t('slip.againstBill')}: {s.billNo} · {day(s.issuedAt)}</p>

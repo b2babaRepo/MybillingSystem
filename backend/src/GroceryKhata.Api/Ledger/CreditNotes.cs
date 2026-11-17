@@ -38,7 +38,11 @@ public sealed class CreditNote : Entity, ITenantOwned
     /// <summary>How a walk-in's refund went back: cash, UPI, card or bank. Null for a khata customer or an exchange.</summary>
     public PaymentMode? RefundMode { get; set; }
 
+    /// <summary>The last bill this exchange credit paid for.</summary>
     public Guid? ExchangeBillId { get; set; }
+
+    /// <summary>How much of the exchange credit bills have used: the rest stays on the slip for another bill.</summary>
+    public decimal Spent { get; set; }
 
     public DateTimeOffset OccurredAt { get; set; }
 

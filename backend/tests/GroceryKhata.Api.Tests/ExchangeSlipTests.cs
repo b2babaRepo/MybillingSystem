@@ -41,6 +41,26 @@ public sealed class ExchangeSlipTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task What_a_smaller_bill_leaves_stays_on_the_slip_for_the_next_bill_instead_of_cash_change()
+    {
+        var (shop, _) = await api.SignUpAsync("Slip Balance Store");
+        var sale = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Kurti", quantity = 1m, unitPrice = 699m } }, paidAmount = 699m, paymentMode = "cash" })).ReadAsync<BillDto>();
+        var note = await (await shop.PostJsonAsync($"/api/v1/bills/{sale.Id}/credit-notes", new { id = Guid.CreateVersion7(), reason = "Exchange", lines = new[] { new { lineNo = 1, quantity = 1m } }, exchange = true, restock = false })).ReadAsync<CreditNoteDto>();
+
+        // A ₹599 frock: the slip pays all of it, nothing to pay, ₹100 stays on the slip.
+        var frock = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Frock", quantity = 1m, unitPrice = 599m } }, paidAmount = 0m, paymentMode = "cash", exchangeNoteId = note.Id })).ReadAsync<BillDto>();
+        Assert.Equal(599m, frock.ExchangeCredit);
+        var slip = await shop.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={note.Id}");
+        Assert.Equal(("open", 100m, 699m, frock.BillNo), (slip.Status, slip.Balance, slip.Amount, slip.UsedOnBillNo));
+
+        // Next visit: a ₹1,499 saree, the slip's ₹100 off, ₹1,399 to pay; then the slip is used up.
+        var saree = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Saree", quantity = 1m, unitPrice = 1499m } }, paidAmount = 1399m, paymentMode = "cash", exchangeNoteId = note.Id })).ReadAsync<BillDto>();
+        Assert.Equal(100m, saree.ExchangeCredit);
+        slip = await shop.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={note.Id}");
+        Assert.Equal(("used", 0m), (slip.Status, slip.Balance));
+    }
+
+    [Fact]
     public void A_slip_lasts_ninety_days_by_india_date()
     {
         var issued = new DateTimeOffset(2026, 11, 17, 20, 0, 0, TimeSpan.Zero); // 18 Nov 1:30 am in India

@@ -6,14 +6,14 @@ import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 
-interface Slip { id: string; noteNo: string; amount: number; issuedAt: string; validTill: string; status: 'open' | 'used' | 'expired'; billNo: string; customerName: string | null; customerPhone: string | null; usedOnBillNo: string | null }
+interface Slip { id: string; noteNo: string; amount: number; balance: number; issuedAt: string; validTill: string; status: 'open' | 'used' | 'expired'; billNo: string; customerName: string | null; customerPhone: string | null; usedOnBillNo: string | null }
 
 /** Every exchange slip: open ones (credit still owed to customers) first, then used and expired. */
 export function ExchangeSlipsScreen({ shopId }: { shopId: string }) {
   const { t } = useTranslation()
   const slips = useQuery({ queryKey: [shopId, 'exchange-slips'], queryFn: () => api<Slip[]>('/v1/exchange-slips') })
   const list = slips.data ?? []
-  const openTotal = list.filter((s) => s.status === 'open').reduce((n, s) => n + s.amount, 0)
+  const openTotal = list.filter((s) => s.status === 'open').reduce((n, s) => n + s.balance, 0)
   const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00` : iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
   const tag = { open: 'bg-brand-soft text-brand-deep', used: 'bg-line/60 text-muted', expired: 'bg-due-soft text-due' }
   return (
@@ -34,7 +34,8 @@ export function ExchangeSlipsScreen({ shopId }: { shopId: string }) {
                 <span className="truncate text-sm">{s.customerName ?? '—'}{s.customerPhone ? ` · ${s.customerPhone}` : ''}</span>
                 <span className="text-xs text-muted">{day(s.issuedAt)} · {s.billNo} · {s.status === 'used' ? t('slip.usedOn', { bill: s.usedOnBillNo ?? '' }) : `${t('slip.validTill')} ${day(s.validTill)}`}</span>
               </span>
-              <b className={s.status === 'open' ? '' : 'text-muted'}>{formatRupees(s.amount)}</b>
+              <span className="flex flex-col items-end"><b className={s.status === 'open' ? '' : 'text-muted'}>{formatRupees(s.status === 'open' ? s.balance : s.amount)}</b>
+                {s.status === 'open' && s.balance < s.amount && <span className="text-xs text-muted">{t('slip.ofAmount', { amount: formatRupees(s.amount) })}</span>}</span>
             </button>
           ))}
         </div>
