@@ -181,14 +181,14 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
   }
 
   return (
-    <section className="mt-6 flex flex-col gap-2 print:hidden">
+    <section id="bill-actions" className="mt-6 flex scroll-mt-4 flex-col gap-2 print:hidden">
       {notes.data?.map((n) => (
         <p key={n.id} className="flex justify-between text-sm"><span>{n.noteNo} · {new Date(n.occurredAt).toLocaleDateString(shownLocale())} · {n.reason}</span><span>−{formatRupees(n.total)}</span></p>
       ))}
       {!open ? (
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => { setExchange(true); setReason(t('exchange.reason')); setOpen(true) }} className="h-11 rounded-xl bg-brand font-semibold text-white">{t('exchange.start')}</button>
-          <button onClick={() => { setExchange(false); setOpen(true) }} className="h-11 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">{t('creditNote.start')}</button>
+          <button onClick={() => { setExchange(true); setReason(t('exchange.reason')); setOpen(true) }} className="min-h-11 rounded-xl bg-brand px-2 py-2 font-semibold leading-tight text-white">{t('exchange.start')}</button>
+          <button onClick={() => { setExchange(false); setOpen(true) }} className="min-h-11 rounded-xl border border-line px-2 py-2 font-semibold leading-tight transition hover:bg-[#f6faf9]">{t('creditNote.start')}</button>
         </div>
       ) : (
         <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
@@ -284,6 +284,15 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
   const url = link.data ? `${window.location.origin}/#/b/${link.data.shopSlug}/${link.data.billId}?t=${link.data.token}` : null
   return (
     <>
+      {/* A customer back with an item: the actions are under the bill, so take them straight there. */}
+      {!view.bill.cancelledAt && (
+        <div className="mx-auto max-w-2xl px-4 pt-3 print:hidden">
+          <button onClick={() => document.getElementById('bill-actions')?.scrollIntoView({ behavior: 'smooth' })}
+            className="flex min-h-11 w-full items-center justify-between rounded-xl bg-warn-soft px-4 text-left text-sm font-semibold text-warn-ink">
+            <span>↩ {t('findBill.actions')}</span><span aria-hidden>↓</span>
+          </button>
+        </div>
+      )}
       <BillDocument shopName={shopName} bill={view.bill} customerName={view.customer?.name ?? null} phone={view.customer?.phone ?? null} link={url} onCancel={() => void cancel()} />
       {!view.bill.customerId && !view.bill.cancelledAt && (
         <div className="mx-auto max-w-2xl bg-white px-4 pb-4"><AttachCustomer shopId={shopId} billId={billId} occurredAt={view.bill.occurredAt} cash={cash} onDone={() => { setAttached(true); void query.refetch() }} /></div>

@@ -100,6 +100,7 @@ const TableBookingsScreen = lazy(() => import('./screens/TableBookingsScreen').t
 const BookingsScreen = lazy(() => import('./screens/BookingsScreen').then((module) => ({ default: module.BookingsScreen })))
 const JobsScreen = lazy(() => import('./screens/JobsScreen').then((module) => ({ default: module.JobsScreen })))
 const SaleOrdersScreen = lazy(() => import('./screens/SaleOrdersScreen').then((module) => ({ default: module.SaleOrdersScreen })))
+const FindBillScreen = lazy(() => import('./screens/FindBillScreen').then((module) => ({ default: module.FindBillScreen })))
 const EstimatesScreen = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatesScreen })))
 const EstimatePrint = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatePrint })))
 const OffersScreen = lazy(() => import('./screens/OffersScreen').then((module) => ({ default: module.OffersScreen })))
@@ -279,6 +280,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const medical = trades.includes('medical')
   const sideGroups: { key: string; title: string; add?: { path: string; label: string }; links: { path: string; label: string }[] }[] = [
     { key: 'sell', title: t('menu.sell'), add: { path: '/bill', label: t('menu.addBill') }, links: [
+      { path: '/find-bill', label: t('findBill.title') },
       { path: '/estimates', label: t('estimate.link') },
       { path: '/sale-orders', label: t('saleOrder.link') },
       { path: '/holds', label: t('holds.link') },
@@ -497,6 +499,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <BookingsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/jobs' ? (
           <JobsScreen shopId={shopId} isOwner={isOwner} />
+        ) : path === '/find-bill' ? (
+          <FindBillScreen shopId={shopId} />
         ) : path === '/estimates' ? (
           <EstimatesScreen shopId={shopId} />
         ) : path === '/sale-orders' ? (

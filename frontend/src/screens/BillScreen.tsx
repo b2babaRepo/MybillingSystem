@@ -454,6 +454,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           <button onClick={() => { endExchange(); setExchangeState(null) }} className={`min-h-9 px-2 text-xs ${btn.link}`}>{t('exchange.cancel')}</button>
         </div>
       )}
+      {!exchange && (
+        <button type="button" onClick={() => navigate('/find-bill')} className={`-my-1 min-h-10 self-start text-sm ${btn.link}`}>↩ {t('findBill.link')}</button>
+      )}
       <div className="flex gap-2">
         <span className="relative min-w-0 flex-1">
         <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-muted">🔍</span>
