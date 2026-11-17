@@ -23,7 +23,19 @@ public sealed class CreditNote : Entity, ITenantOwned
 
     public string FinancialYear { get; set; } = "";
 
-    public string NoteNo => $"CN/{FinancialYear}/{Number:D4}";
+    public string NoteNo => No(FinancialYear, Number, TaxFree);
+
+    /// <summary>"CN/.." a GST credit note; "RN/.." a return note, for a bill without GST (no GSTIN, or a composition bill of supply).</summary>
+    public static string No(string year, int number, bool taxFree) => $"{(taxFree ? "RN" : "CN")}/{year}/{number:D4}";
+
+    /// <summary>The bill had no GST to take back: the note is a plain return note, not a tax credit note.</summary>
+    public bool TaxFree { get; set; }
+
+    /// <summary>An exchange slip's secret 4 digits, printed on it and in its QR: the number alone can't be used.</summary>
+    public string? SlipCode { get; set; }
+
+    /// <summary>The owner cancelled the exchange slip (lost, or given by mistake): what's left on it can't be used.</summary>
+    public DateTimeOffset? SlipCancelledAt { get; set; }
 
     public required string Reason { get; set; }
 
@@ -187,6 +199,8 @@ public static class CreditNotes
             Id = request.Id, BillId = billId, CustomerId = bill.CustomerId, FinancialYear = year, Number = number, Reason = reason!,
             Total = total, Restocked = request.Restock, OccurredAt = now, CreatedByUserId = userId, Lines = lines, ForExchange = request.Exchange,
             RefundMode = request.Exchange || bill.CustomerId is not null ? null : refundMode,
+            TaxFree = bill.Gstin is null || bill.BillOfSupply,
+            SlipCode = request.Exchange ? ExchangeSlips.NewCode() : null,
         };
         db.CreditNotes.Add(note);
         if (request.Exchange)

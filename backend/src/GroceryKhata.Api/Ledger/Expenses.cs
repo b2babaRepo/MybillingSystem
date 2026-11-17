@@ -46,7 +46,7 @@ public static class Kharcha
         [ExpenseCategory.Purchase, ExpenseCategory.Home, ExpenseCategory.Tax, ExpenseCategory.Loan, ExpenseCategory.Equipment, ExpenseCategory.Deposit, ExpenseCategory.Advance];
 
     /// <summary>A walk-in refund on a credit note: already counted as a return, so never kharcha.</summary>
-    public static bool IsReturnRefund(string? note) => note is not null && note.StartsWith("Refund CN/", StringComparison.Ordinal);
+    public static bool IsReturnRefund(string? note) => note is not null && (note.StartsWith("Refund CN/", StringComparison.Ordinal) || note.StartsWith("Refund RN/", StringComparison.Ordinal));
 
     /// <summary>A running cost of the shop, which lowers profit.</summary>
     public static bool IsRunningCost(ExpenseCategory category, string? note) => !OutsideProfit.Contains(category) && !IsReturnRefund(note);
@@ -178,7 +178,7 @@ public static class ExpenseEndpoints
         // Summed in the database, on the same rule as Kharcha.IsRunningCost.
         var previousMonth = db.Expenses.AsNoTracking().Where(e => e.OccurredAt >= prevStart && e.OccurredAt < prevEnd && e.StruckAt == null);
         decimal? previous = !await previousMonth.AnyAsync(ct) ? null : await previousMonth
-            .Where(e => !Kharcha.OutsideProfit.Contains(e.Category) && (e.Note == null || !e.Note.StartsWith("Refund CN/")))
+            .Where(e => !Kharcha.OutsideProfit.Contains(e.Category) && (e.Note == null || !(e.Note.StartsWith("Refund CN/") || e.Note.StartsWith("Refund RN/"))))
             .SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
 
         return TypedResults.Ok(new ExpenseMonthDto(
@@ -192,7 +192,7 @@ public static class ExpenseEndpoints
         var (start, end) = IndiaTime.Day(day);
         var lines = await (from e in db.Expenses.AsNoTracking()
                            // A refund on a credit note isn't kharcha: it shows in the cash book as a refund, not on this page.
-                           where e.OccurredAt >= start && e.OccurredAt < end && (e.Note == null || !e.Note.StartsWith("Refund CN/"))
+                           where e.OccurredAt >= start && e.OccurredAt < end && (e.Note == null || !(e.Note.StartsWith("Refund CN/") || e.Note.StartsWith("Refund RN/")))
                            join u in db.Users.AsNoTracking() on e.CreatedByUserId equals u.Id into users
                            from u in users.DefaultIfEmpty()
                            orderby e.OccurredAt, e.CreatedAt

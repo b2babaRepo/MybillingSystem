@@ -440,7 +440,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 if (request.ExchangeNoteId is { } noteId)
                 {
                     exchange = await db.CreditNotes.AsNoTracking().SingleOrDefaultAsync(n => n.Id == noteId, cancellationToken);
-                    if (exchange is not { ForExchange: true } || exchange.Spent >= exchange.Total)
+                    if (exchange is not { ForExchange: true, SlipCancelledAt: null } || exchange.Spent >= exchange.Total)
                     {
                         errors[nameof(request.ExchangeNoteId)] = ["That exchange credit was already used, or isn't for an exchange."];
                         exchange = null;
@@ -448,6 +448,11 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     else if (await ExchangeSlips.DaysAsync(db, cancellationToken) is var slipDays && ExchangeSlips.Expired(exchange.OccurredAt, clock.GetUtcNow(), slipDays))
                     {
                         errors[nameof(request.ExchangeNoteId)] = [$"This exchange slip ran out on {ExchangeSlips.ValidTill(exchange.OccurredAt, slipDays):d MMM yyyy} ({slipDays} days)."];
+                        exchange = null;
+                    }
+                    else if (!isOwner && Math.Min(exchange.Total - exchange.Spent, total) > await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.ExchangeSlipHelperMax).SingleAsync(cancellationToken))
+                    {
+                        errors[nameof(request.ExchangeNoteId)] = ["An exchange slip this big needs the shop owner: ask them to make this bill."];
                         exchange = null;
                     }
                     else if (exchange.CustomerId is { } creditOwner && creditOwner != request.CustomerId)
@@ -947,7 +952,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
             await db.BillPrescriptions.AsNoTracking().Where(r => r.BillId == id)
                 .Select(r => new PrescriptionRequest(r.DoctorName, r.DoctorAddress, r.DoctorRegNo, r.PatientName, r.PatientAddress, r.PrescribedOn)).SingleOrDefaultAsync(cancellationToken),
             bill.ExchangeCredit,
-            bill.ExchangeNoteId is { } exchangeId ? (await db.CreditNotes.AsNoTracking().Where(n => n.Id == exchangeId).Select(n => new { n.FinancialYear, n.Number }).SingleOrDefaultAsync(cancellationToken)) is { } x ? $"CN/{x.FinancialYear}/{x.Number:D4}" : null : null,
+            bill.ExchangeNoteId is { } exchangeId ? (await db.CreditNotes.AsNoTracking().Where(n => n.Id == exchangeId).Select(n => new { n.FinancialYear, n.Number, n.TaxFree }).SingleOrDefaultAsync(cancellationToken)) is { } x ? CreditNote.No(x.FinancialYear, x.Number, x.TaxFree) : null : null,
             bill.PlaceOfSupply, Payments: bill.Parts(), Counter: bill.Counter);
     }
 

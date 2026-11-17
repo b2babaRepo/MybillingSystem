@@ -52,6 +52,9 @@ public sealed class Shop : Entity
     /// <summary>How many days an exchange slip can be used (big chains: Max 90, Westside 180).</summary>
     public int ExchangeSlipDays { get; set; } = 90;
 
+    /// <summary>A helper can use an exchange slip up to this much; more needs the owner.</summary>
+    public decimal ExchangeSlipHelperMax { get; set; } = 5000m;
+
     /// <summary>False when the shop is closed; its members can no longer sign in to it.</summary>
     public bool IsActive { get; set; } = true;
 

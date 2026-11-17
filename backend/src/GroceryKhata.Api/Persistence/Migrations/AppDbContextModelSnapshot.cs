@@ -4599,10 +4599,22 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
 
+                    b.Property<DateTimeOffset?>("SlipCancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("slip_cancelled_at");
+
+                    b.Property<string>("SlipCode")
+                        .HasColumnType("text")
+                        .HasColumnName("slip_code");
+
                     b.Property<decimal>("Spent")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("spent");
+
+                    b.Property<bool>("TaxFree")
+                        .HasColumnType("boolean")
+                        .HasColumnName("tax_free");
 
                     b.Property<decimal>("Total")
                         .HasPrecision(12, 2)
@@ -9281,6 +9293,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<int>("ExchangeSlipDays")
                         .HasColumnType("integer")
                         .HasColumnName("exchange_slip_days");
+
+                    b.Property<decimal>("ExchangeSlipHelperMax")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("exchange_slip_helper_max");
 
                     b.PrimitiveCollection<string[]>("ExtraTypes")
                         .IsRequired()

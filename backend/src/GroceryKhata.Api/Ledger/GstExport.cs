@@ -166,7 +166,7 @@ public static class GstExport
         var customers = await db.Customers.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => (c.Name, c.Gstin), ct);
         var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.GstComposition, s.Gstin, s.TallyLedgers }).SingleAsync(ct);
         // Returns from order disputes have no credit note: they still need one from the CA.
-        var returns = await db.LedgerEntries.AsNoTracking().CountAsync(e => e.Kind == LedgerEntryKind.Return && e.OccurredAt >= start && e.OccurredAt < end && (e.Note == null || !e.Note.StartsWith("CN/")), ct);
+        var returns = await db.LedgerEntries.AsNoTracking().CountAsync(e => e.Kind == LedgerEntryKind.Return && e.OccurredAt >= start && e.OccurredAt < end && (e.Note == null || !(e.Note.StartsWith("CN/") || e.Note.StartsWith("RN/"))), ct);
         // Buying and spending. Supplier payments also write a "Supplier payment" kharcha line, and a credit-note refund is in the
         // credit note, so those lines are left out of the kharcha here: nothing goes into Tally twice.
         var purchases = await db.Purchases.AsNoTracking().Include(p => p.Lines).Where(p => p.OccurredAt >= start && p.OccurredAt < end && p.CancelledAt == null).OrderBy(p => p.OccurredAt).ToListAsync(ct);
@@ -188,7 +188,7 @@ public static class GstExport
         var users = await db.Users.AsNoTracking().Where(u => makers.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName, ct);
         var suppliers = await db.Suppliers.AsNoTracking().Where(x => supplierIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => (x.Name, x.Gstin), ct);
         var expenses = await db.Expenses.AsNoTracking()
-            .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && (e.Note == null || (e.Note != "Supplier payment" && !e.Note.StartsWith("Refund CN/"))))
+            .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && (e.Note == null || (e.Note != "Supplier payment" && !(e.Note.StartsWith("Refund CN/") || e.Note.StartsWith("Refund RN/")))))
             .OrderBy(e => e.OccurredAt).ToListAsync(ct);
         return new MonthData(all.Where(b => b.CancelledAt == null).ToList(), all.Where(b => b.CancelledAt != null).ToList(), customers, shop.GstComposition, shop.Gstin, returns, notes, receipts, LedgerNames(shop.TallyLedgers),
             purchases, payments, suppliers, expenses, credits, paidFreight, unpaid, sources, noteBills, users,

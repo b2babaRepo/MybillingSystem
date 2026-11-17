@@ -199,7 +199,9 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
           <p className="text-xs text-muted">{t('slip.otherCounter')}</p>
         </div>
       )}
-      {!open ? (
+      {lines.every((l, i) => l.quantity - back(i + 1) <= 0) ? (
+        <p className="text-sm text-muted">{t('creditNote.allBack')}</p>
+      ) : !open ? (
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => { setExchange(true); setReason(t('exchange.reason')); setOpen(true) }} className="min-h-11 rounded-xl bg-brand px-2 py-2 font-semibold leading-tight text-white">{t('exchange.start')}</button>
           <button onClick={() => { setExchange(false); setOpen(true) }} className="min-h-11 rounded-xl border border-line px-2 py-2 font-semibold leading-tight transition hover:bg-[#f6faf9]">{t('creditNote.start')}</button>
@@ -478,10 +480,25 @@ export function BillLinkPage({ path }: { path: string }) {
 /** The exchange slip the customer carries to a billing counter: its number and QR bring the credit onto the new bill. */
 function SlipPrint({ shopName, noteId }: { shopName: string; noteId: string }) {
   const { t } = useTranslation()
-  const query = useServer<{ id: string; noteNo: string; amount: number; balance: number; issuedAt: string; validTill: string; status: string; billNo: string; customerName: string | null; customerPhone: string | null; usedOnBillNo: string | null }>(['slip', noteId], `/v1/exchange-slips/find?no=${noteId}`)
+  const query = useServer<{ id: string; noteNo: string; amount: number; balance: number; issuedAt: string; validTill: string; status: string; billNo: string; customerName: string | null; customerPhone: string | null; usedOnBillNo: string | null; code: string | null }>(['slip', noteId], `/v1/exchange-slips/${noteId}`)
   const [qr, setQr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
   const s = query.data
-  useEffect(() => { if (s) void QRCode.toDataURL(s.id, { width: 240, margin: 1 }).then(setQr) }, [s])
+  // The QR carries the slip and its secret code: a scan at any counter brings it straight onto the bill.
+  useEffect(() => { if (s) void QRCode.toDataURL(`GKSLIP:${s.id}:${s.code ?? ''}`, { width: 240, margin: 1 }).then(setQr) }, [s])
+  async function act(path: string, body: object) {
+    setBusy(true)
+    try { await api(`/v1/exchange-slips/${noteId}/${path}`, 'POST', body); await query.refetch() } catch (e) { await tell(e instanceof Error ? e.message : t('error')) } finally { setBusy(false) }
+  }
+  async function newCode() {
+    const phone = s?.customerPhone ? (await ask(t('slip.askPhone')))?.trim() : ''
+    if (phone === undefined || phone === null) return
+    await act('new-code', { phone })
+  }
+  async function cancelSlip() {
+    const reason = (await ask(t('slip.askCancel')))?.trim()
+    if (reason) await act('cancel', { reason })
+  }
   if (query.isError) return <Problem error={query.error} />
   if (!s) return <p className="p-6">…</p>
   const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00` : iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
@@ -491,6 +508,7 @@ function SlipPrint({ shopName, noteId }: { shopName: string; noteId: string }) {
       receipt={() => [
         { text: t('slip.title'), bold: true, align: 'center' },
         { text: s.noteNo, bold: true, align: 'center' },
+        { text: `${t('slip.code')}: ${s.code ?? ''}`, bold: true, align: 'center' },
         { text: `${t('slip.amount')}: ${formatRupees(s.balance)}`, bold: true },
         { text: `${t('slip.validTill')}: ${day(s.validTill)}` },
         { text: `${t('slip.againstBill')}: ${s.billNo}` },
@@ -499,15 +517,25 @@ function SlipPrint({ shopName, noteId }: { shopName: string; noteId: string }) {
       <div className="flex flex-col items-center gap-2 text-center">
         <p className="text-sm font-bold uppercase tracking-wide">{t('slip.title')}</p>
         <p className="text-2xl font-extrabold">{s.noteNo}</p>
+        <p className="text-lg">{t('slip.code')}: <b className="tracking-[0.3em]">{s.code}</b></p>
         <p className="text-3xl font-extrabold">{formatRupees(s.balance)}</p>
         {s.balance < s.amount && s.balance > 0 && <p className="text-sm">{t('slip.leftOf', { amount: formatRupees(s.amount), bill: s.usedOnBillNo ?? '' })}</p>}
         {qr && <img src={qr} alt={s.noteNo} className="h-40 w-40" />}
         <p>{t('slip.validTill')}: <b>{day(s.validTill)}</b></p>
         <p className="text-sm">{t('slip.againstBill')}: {s.billNo} · {day(s.issuedAt)}</p>
         {s.customerName && <p className="text-sm">{s.customerName}{s.customerPhone ? ` · ${s.customerPhone}` : ''}</p>}
-        {s.status !== 'open' && <p className="font-bold text-due">{s.status === 'used' ? t('slip.used', { bill: s.usedOnBillNo ?? '' }) : t('slip.expired', { date: day(s.validTill) })}</p>}
+        {s.status !== 'open' && <p className="font-bold text-due">{s.status === 'used' ? t('slip.used', { bill: s.usedOnBillNo ?? '' }) : s.status === 'cancelled' ? t('slip.cancelled') : t('slip.expired', { date: day(s.validTill) })}</p>}
         <p className="mt-2 text-xs">{t('slip.terms')}</p>
       </div>
+      {s.status === 'open' && (
+        <div className="mt-6 flex flex-col gap-2 print:hidden">
+          <p className="text-sm text-muted">{t('slip.lostHint')}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button disabled={busy} onClick={() => void newCode()} className="min-h-11 rounded-xl border border-line px-2 py-2 font-semibold leading-tight">{t('slip.newCode')}</button>
+            <button disabled={busy} onClick={() => void cancelSlip()} className="min-h-11 rounded-xl border border-line px-2 py-2 font-semibold leading-tight text-due">{t('slip.cancel')}</button>
+          </div>
+        </div>
+      )}
     </Page>
   )
 }

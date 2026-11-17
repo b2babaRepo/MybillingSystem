@@ -30,6 +30,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     staffMaxDiscountPercent: String(initial.staffMaxDiscountPercent ?? 10),
     staffMaxWriteOff: String(initial.staffMaxWriteOff ?? 1000),
     exchangeSlipDays: String(initial.exchangeSlipDays ?? 90),
+    exchangeSlipHelperMax: String(initial.exchangeSlipHelperMax ?? 5000),
   })
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
@@ -38,7 +39,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   async function save() {
     setMessage('')
     try {
-      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, extraTypes: extra.filter((x) => x !== form.type) })
+      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, extraTypes: extra.filter((x) => x !== form.type) })
       queryClient.setQueryData([shopId, 'settings'], saved)
       setMessage(t('settings.saved'))
     } catch (err) {
@@ -93,6 +94,11 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
           <span className="mb-1 block text-sm font-semibold text-muted">{t('slip.daysLabel')}</span>
           <input value={form.exchangeSlipDays} onChange={(e) => setForm({ ...form, exchangeSlipDays: e.target.value })} inputMode="numeric" className="h-12 w-28 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /> {t('slip.days')}
           <span className="mt-1 block text-xs text-muted">{t('slip.daysHint')}</span>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-muted">{t('slip.helperMax')}</span>
+          ₹ <input value={form.exchangeSlipHelperMax} onChange={(e) => setForm({ ...form, exchangeSlipHelperMax: e.target.value })} inputMode="decimal" className="h-12 w-32 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
+          <span className="mt-1 block text-xs text-muted">{t('slip.helperMaxHint')}</span>
         </label>
         {!SERVICE_TYPES.includes(form.type as ShopType) && (
           <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!!form.deliversGoods} onChange={(e) => setForm({ ...form, deliversGoods: e.target.checked ? 'yes' : '' })} className="h-5 w-5" />

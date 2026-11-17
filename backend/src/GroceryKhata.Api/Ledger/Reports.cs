@@ -313,7 +313,7 @@ public static class ReportEndpoints
         decimal WithoutGst(BillLine l) => !taxed.Contains(l.BillId) ? l.Amount : l.TaxableValue ?? (l.GstRate is > 0 ? decimal.Round(l.Amount / (1 + (l.GstRate.Value / 100)), 2) : l.Amount);
         // Returns without a credit note (order disputes): goods never reached the customer, so the whole refund is lost.
         var returns = -await db.LedgerEntries.AsNoTracking().Where(e => e.Kind == LedgerEntryKind.Return && e.OccurredAt >= start && e.OccurredAt < end
-            && (e.Note == null || !e.Note.StartsWith("CN/"))).SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
+            && (e.Note == null || !(e.Note.StartsWith("CN/") || e.Note.StartsWith("RN/")))).SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
         // Credit notes: the sale (without its GST) is undone; goods put back on the shelf keep their cost, so only the margin goes.
         var notes = await db.CreditNotes.AsNoTracking().Include(n => n.Lines).Where(n => n.OccurredAt >= start && n.OccurredAt < end).ToListAsync(ct);
         foreach (var note in notes)
@@ -352,7 +352,7 @@ public static class ReportEndpoints
         var outstanding = await db.Customers.AsNoTracking().Where(c => c.Balance > 0).SumAsync(c => (decimal?)c.Balance, ct) ?? 0m;
         var spent = await db.Expenses.AsNoTracking()
             // A walk-in refund on a credit note is already counted as a return (Kharcha.IsReturnRefund).
-            .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && (e.Note == null || !e.Note.StartsWith("Refund CN/")))
+            .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && (e.Note == null || !(e.Note.StartsWith("Refund CN/") || e.Note.StartsWith("Refund RN/"))))
             .GroupBy(e => e.Category).Select(g => new { g.Key, Total = g.Sum(e => e.Amount) })
             .ToDictionaryAsync(g => g.Key, g => g.Total, ct);
         decimal Spent(ExpenseCategory c) => spent.GetValueOrDefault(c);

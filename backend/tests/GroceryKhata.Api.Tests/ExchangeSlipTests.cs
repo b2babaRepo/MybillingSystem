@@ -23,15 +23,22 @@ public sealed class ExchangeSlipTests(ApiFactory api)
         var sale = await (await owner.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = kurti, quantity = 1m, unitPrice = 699m } }, paidAmount = 699m, paymentMode = "cash" })).ReadAsync<BillDto>();
         var note = await (await owner.PostJsonAsync($"/api/v1/bills/{sale.Id}/credit-notes", new { id = Guid.CreateVersion7(), reason = "Exchange", lines = new[] { new { lineNo = 1, quantity = 1m } }, exchange = true })).ReadAsync<CreditNoteDto>();
 
-        // Counter two types the slip number (or scans its QR, which is the id).
-        var slip = await counter2.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={Uri.EscapeDataString(note.NoteNo)}");
-        Assert.Equal((note.Id, 699m, "open", sale.BillNo), (slip.Id, slip.Amount, slip.Status, slip.BillNo));
-        Assert.Equal(note.Id, (await counter2.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={note.Id}")).Id);
-        Assert.Equal(HttpStatusCode.NotFound, (await counter2.GetAsync("/api/v1/exchange-slips/find?no=9999")).StatusCode);
+        // The owner's copy carries the slip's secret code; counter two types the number with it, or scans the QR.
+        var code = (await owner.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/{note.Id}")).Code!;
+        Assert.Matches("^[0-9]{4}$", code);
+        var slip = await counter2.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={Uri.EscapeDataString(note.NoteNo)}&code={code}");
+        Assert.Equal((note.Id, 699m, "open", sale.BillNo, (string?)null), (slip.Id, slip.Amount, slip.Status, slip.BillNo, slip.Code));
+        Assert.Equal(note.Id, (await counter2.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={Uri.EscapeDataString($"GKSLIP:{note.Id}:{code}")}")).Id);
+        // The number alone, or with a wrong code, finds nothing: slip numbers can't be guessed.
+        var wrong = code == "0000" ? "1111" : "0000";
+        Assert.Equal(HttpStatusCode.NotFound, (await counter2.GetAsync($"/api/v1/exchange-slips/find?no={Uri.EscapeDataString(note.NoteNo)}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await counter2.GetAsync($"/api/v1/exchange-slips/find?no={Uri.EscapeDataString(note.NoteNo)}&code={wrong}")).StatusCode);
+        // Helpers don't get the slips list or the code.
+        Assert.Equal(HttpStatusCode.Forbidden, (await counter2.GetAsync($"/api/v1/exchange-slips/{note.Id}")).StatusCode);
 
         // A ₹1,499 saree: the slip pays ₹699, ₹800 to pay.
         var newBill = await (await counter2.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Saree", quantity = 1m, unitPrice = 1499m } }, paidAmount = 800m, paymentMode = "cash", exchangeNoteId = slip.Id })).ReadAsync<BillDto>();
-        var used = await owner.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={note.Id}");
+        var used = await owner.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/{note.Id}");
         Assert.Equal(("used", newBill.BillNo), (used.Status, used.UsedOnBillNo));
 
         // The same slip again, at any counter: refused.
@@ -50,14 +57,60 @@ public sealed class ExchangeSlipTests(ApiFactory api)
         // A ₹599 frock: the slip pays all of it, nothing to pay, ₹100 stays on the slip.
         var frock = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Frock", quantity = 1m, unitPrice = 599m } }, paidAmount = 0m, paymentMode = "cash", exchangeNoteId = note.Id })).ReadAsync<BillDto>();
         Assert.Equal(599m, frock.ExchangeCredit);
-        var slip = await shop.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={note.Id}");
+        var slip = await shop.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/{note.Id}");
         Assert.Equal(("open", 100m, 699m, frock.BillNo), (slip.Status, slip.Balance, slip.Amount, slip.UsedOnBillNo));
 
         // Next visit: a ₹1,499 saree, the slip's ₹100 off, ₹1,399 to pay; then the slip is used up.
         var saree = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Saree", quantity = 1m, unitPrice = 1499m } }, paidAmount = 1399m, paymentMode = "cash", exchangeNoteId = note.Id })).ReadAsync<BillDto>();
         Assert.Equal(100m, saree.ExchangeCredit);
-        slip = await shop.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={note.Id}");
+        slip = await shop.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/{note.Id}");
         Assert.Equal(("used", 0m), (slip.Status, slip.Balance));
+    }
+
+    [Fact]
+    public async Task A_lost_slip_gets_a_new_code_after_the_mobile_matches_and_the_owner_can_cancel_a_slip()
+    {
+        var (owner, _) = await api.SignUpAsync("Lost Slip Store");
+        var customer = await (await owner.PostJsonAsync("/api/v1/customers", new { id = Guid.CreateVersion7(), name = "Meena", phone = "9811100099" })).ReadAsync<CustomerDto>();
+        var sale = await (await owner.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), customerId = customer.Id, lines = new[] { new { name = "Kurti", quantity = 1m, unitPrice = 699m } }, paidAmount = 699m, paymentMode = "cash" })).ReadAsync<BillDto>();
+        var note = await (await owner.PostJsonAsync($"/api/v1/bills/{sale.Id}/credit-notes", new { id = Guid.CreateVersion7(), reason = "Exchange", lines = new[] { new { lineNo = 1, quantity = 1m } }, exchange = true, restock = false })).ReadAsync<CreditNoteDto>();
+        // A shop without a GSTIN: a return note, not a GST credit note.
+        Assert.StartsWith("RN/", note.NoteNo);
+        var old = (await owner.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/{note.Id}")).Code!;
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await owner.PostJsonAsync($"/api/v1/exchange-slips/{note.Id}/new-code", new { phone = "9000000000" })).StatusCode);
+        var fresh = await (await owner.PostJsonAsync($"/api/v1/exchange-slips/{note.Id}/new-code", new { phone = "+91 98111 00099" })).ReadAsync<ExchangeSlip>();
+        Assert.NotNull(fresh.Code);
+        if (fresh.Code != old)
+        {
+            Assert.Equal(HttpStatusCode.NotFound, (await owner.GetAsync($"/api/v1/exchange-slips/find?no={note.Id}&code={old}")).StatusCode);
+        }
+
+        Assert.Equal(note.Id, (await owner.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={note.Id}&code={fresh.Code}")).Id);
+
+        var cancelled = await (await owner.PostJsonAsync($"/api/v1/exchange-slips/{note.Id}/cancel", new { reason = "Given by mistake" })).ReadAsync<ExchangeSlip>();
+        Assert.Equal(("cancelled", 0m), (cancelled.Status, cancelled.Balance));
+        var bill = await owner.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), customerId = customer.Id, lines = new[] { new { name = "Saree", quantity = 1m, unitPrice = 1499m } }, paidAmount = 1499m, paymentMode = "cash", exchangeNoteId = note.Id });
+        Assert.Equal(HttpStatusCode.BadRequest, bill.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_helper_can_not_use_a_slip_above_the_shops_limit()
+    {
+        var (owner, _) = await api.SignUpAsync("Slip Limit Store");
+        (await owner.PutJsonAsync("/api/v1/shop", new { name = "Slip Limit Store", exchangeSlipHelperMax = 500m })).EnsureSuccessStatusCode();
+        var phone = ApiFactory.NewPhone();
+        (await owner.PostJsonAsync("/api/v1/shop/staff", new { name = "Raju", phone, pin = "4826" })).EnsureSuccessStatusCode();
+        var auth = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-in", new { phone, password = "4826" })).ReadAsync<AuthResponse>();
+        var helper = api.CreateClient();
+        helper.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+
+        var sale = await (await owner.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Kurti", quantity = 1m, unitPrice = 699m } }, paidAmount = 699m, paymentMode = "cash" })).ReadAsync<BillDto>();
+        var note = await (await owner.PostJsonAsync($"/api/v1/bills/{sale.Id}/credit-notes", new { id = Guid.CreateVersion7(), reason = "Exchange", lines = new[] { new { lineNo = 1, quantity = 1m } }, exchange = true, restock = false })).ReadAsync<CreditNoteDto>();
+
+        var big = await helper.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Saree", quantity = 1m, unitPrice = 1499m } }, paidAmount = 800m, paymentMode = "cash", exchangeNoteId = note.Id });
+        Assert.Equal(HttpStatusCode.BadRequest, big.StatusCode);
+        (await owner.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Saree", quantity = 1m, unitPrice = 1499m } }, paidAmount = 800m, paymentMode = "cash", exchangeNoteId = note.Id })).EnsureSuccessStatusCode();
     }
 
     [Fact]
@@ -70,7 +123,7 @@ public sealed class ExchangeSlipTests(ApiFactory api)
 
         var sale = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Kurti", quantity = 1m, unitPrice = 699m } }, paidAmount = 699m, paymentMode = "cash" })).ReadAsync<BillDto>();
         var note = await (await shop.PostJsonAsync($"/api/v1/bills/{sale.Id}/credit-notes", new { id = Guid.CreateVersion7(), reason = "Exchange", lines = new[] { new { lineNo = 1, quantity = 1m } }, exchange = true, restock = false })).ReadAsync<CreditNoteDto>();
-        var slip = await shop.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={note.Id}");
+        var slip = await shop.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/{note.Id}");
         Assert.Equal(ExchangeSlips.ValidTill(slip.IssuedAt, 180), slip.ValidTill);
     }
 

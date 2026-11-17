@@ -293,13 +293,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // An exchange slip from another counter: its number (or QR) brings its credit and its customer onto this bill.
   const [slipOpen, setSlipOpen] = useState(false)
   const [slipNo, setSlipNo] = useState('')
+  const [slipCode, setSlipCode] = useState('')
   const [slipError, setSlipError] = useState('')
   const [slipBusy, setSlipBusy] = useState(false)
   async function applySlip() {
     setSlipBusy(true)
     setSlipError('')
     try {
-      const s = await api<{ id: string; noteNo: string; amount: number; balance: number; status: string; validTill: string; customerId: string | null; usedOnBillNo: string | null }>(`/v1/exchange-slips/find?no=${encodeURIComponent(slipNo.trim())}`)
+      const s = await api<{ id: string; noteNo: string; amount: number; balance: number; status: string; validTill: string; customerId: string | null; usedOnBillNo: string | null }>(`/v1/exchange-slips/find?no=${encodeURIComponent(slipNo.trim())}&code=${encodeURIComponent(slipCode.trim())}`)
       if (s.status === 'used') setSlipError(t('slip.used', { bill: s.usedOnBillNo ?? '' }))
       else if (s.status === 'expired') setSlipError(t('slip.expired', { date: new Date(`${s.validTill}T00:00`).toLocaleDateString(shownLocale()) }))
       else {
@@ -309,6 +310,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         if (s.customerId) setCustomerId(s.customerId)
         setSlipOpen(false)
         setSlipNo('')
+        setSlipCode('')
       }
     } catch (e) {
       setSlipError(e instanceof ApiError && e.status === 404 ? t('slip.notFound') : e instanceof Error ? e.message : t('error'))
@@ -493,7 +495,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           <span className="text-sm text-muted">{t('slip.useHint')}</span>
           <div className="flex gap-2">
             <Input autoFocus value={slipNo} onChange={(e) => setSlipNo(e.target.value)} placeholder="CN/2026-27/0003" aria-label={t('slip.number')} className="min-w-0 flex-1" />
-            <Button type="submit" busy={slipBusy} disabled={!slipNo.trim()}>{t('slip.apply')}</Button>
+            {!slipNo.trim().toUpperCase().startsWith('GKSLIP:') && (
+              <Input value={slipCode} onChange={(e) => setSlipCode(e.target.value.replace(/\D/g, '').slice(0, 4))} inputMode="numeric" placeholder={t('slip.code')} aria-label={t('slip.code')} className="w-20" />
+            )}
+            <Button type="submit" busy={slipBusy} disabled={!slipNo.trim() || (!slipNo.trim().toUpperCase().startsWith('GKSLIP:') && slipCode.length !== 4)}>{t('slip.apply')}</Button>
           </div>
           {slipError && <p className="text-sm text-due">{slipError}</p>}
         </form>

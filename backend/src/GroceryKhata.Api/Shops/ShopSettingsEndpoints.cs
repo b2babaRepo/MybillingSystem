@@ -6,10 +6,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Shops;
 
-public sealed record ShopSettingsDto(string Name, string Slug, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType Type = ShopType.Kirana, string? Gstin = null, bool GstComposition = false, IReadOnlyList<ShopType>? ExtraTypes = null, decimal StaffMaxDiscountPercent = 10m, bool? DeliversGoods = null, decimal StaffMaxWriteOff = 1000m, int ExchangeSlipDays = 90);
+public sealed record ShopSettingsDto(string Name, string Slug, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType Type = ShopType.Kirana, string? Gstin = null, bool GstComposition = false, IReadOnlyList<ShopType>? ExtraTypes = null, decimal StaffMaxDiscountPercent = 10m, bool? DeliversGoods = null, decimal StaffMaxWriteOff = 1000m, int ExchangeSlipDays = 90, decimal ExchangeSlipHelperMax = 5000m);
 
 /// <summary><see cref="Type"/>: null keeps the shop's trade.</summary>
-public sealed record ShopSettingsUpdate(string? Name, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType? Type = null, string? Gstin = null, bool? GstComposition = null, IReadOnlyList<ShopType>? ExtraTypes = null, decimal? StaffMaxDiscountPercent = null, bool? DeliversGoods = null, decimal? StaffMaxWriteOff = null, int? ExchangeSlipDays = null);
+public sealed record ShopSettingsUpdate(string? Name, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType? Type = null, string? Gstin = null, bool? GstComposition = null, IReadOnlyList<ShopType>? ExtraTypes = null, decimal? StaffMaxDiscountPercent = null, bool? DeliversGoods = null, decimal? StaffMaxWriteOff = null, int? ExchangeSlipDays = null, decimal? ExchangeSlipHelperMax = null);
 
 /// <summary>The shop's own details: name, where it is, UPI ID and reminder wording. Everyone reads; the owner changes.</summary>
 public static partial class ShopSettingsEndpoints
@@ -25,7 +25,7 @@ public static partial class ShopSettingsEndpoints
     private static async Task<IResult> GetAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
         await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId)
             .SingleOrDefaultAsync(ct) is { } s
-            ? TypedResults.Ok(new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate, s.Type, s.Gstin, s.GstComposition, ShopTypes.Parse(s.ExtraTypes), s.StaffMaxDiscountPercent, s.DeliversGoods, s.StaffMaxWriteOff, s.ExchangeSlipDays))
+            ? TypedResults.Ok(new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate, s.Type, s.Gstin, s.GstComposition, ShopTypes.Parse(s.ExtraTypes), s.StaffMaxDiscountPercent, s.DeliversGoods, s.StaffMaxWriteOff, s.ExchangeSlipDays, s.ExchangeSlipHelperMax))
             : TypedResults.NotFound();
 
     private static async Task<IResult> UpdateAsync(ShopSettingsUpdate request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
@@ -55,6 +55,11 @@ public static partial class ShopSettingsEndpoints
         if (gstin is not null && !Ledger.GstExport.IsValidGstin(gstin))
         {
             errors[nameof(request.Gstin)] = ["This GSTIN isn't valid: check each letter and digit (the last one is a check digit)."];
+        }
+
+        if (request.ExchangeSlipHelperMax is < 0 or > 10_000_000)
+        {
+            errors[nameof(request.ExchangeSlipHelperMax)] = ["Set the helper exchange slip limit between ₹0 and ₹1 crore."];
         }
 
         if (request.ExchangeSlipDays is < 1 or > 730)
@@ -90,12 +95,13 @@ public static partial class ShopSettingsEndpoints
         shop.StaffMaxDiscountPercent = request.StaffMaxDiscountPercent ?? shop.StaffMaxDiscountPercent;
         shop.StaffMaxWriteOff = request.StaffMaxWriteOff ?? shop.StaffMaxWriteOff;
         shop.ExchangeSlipDays = request.ExchangeSlipDays ?? shop.ExchangeSlipDays;
+        shop.ExchangeSlipHelperMax = request.ExchangeSlipHelperMax ?? shop.ExchangeSlipHelperMax;
         if (request.ExtraTypes is { } extra)
         {
             shop.ExtraTypes = extra.Where(x => x != shop.Type).Distinct().Select(ShopTypes.Name).ToArray();
         }
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.Type, shop.Gstin, shop.GstComposition, ShopTypes.Parse(shop.ExtraTypes), shop.StaffMaxDiscountPercent, shop.DeliversGoods, shop.StaffMaxWriteOff, shop.ExchangeSlipDays));
+        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.Type, shop.Gstin, shop.GstComposition, ShopTypes.Parse(shop.ExtraTypes), shop.StaffMaxDiscountPercent, shop.DeliversGoods, shop.StaffMaxWriteOff, shop.ExchangeSlipDays, shop.ExchangeSlipHelperMax));
     }
 
     private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();

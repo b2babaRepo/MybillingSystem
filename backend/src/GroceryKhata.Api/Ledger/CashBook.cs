@@ -116,7 +116,7 @@ public static class CashBookEndpoints
         // Money out: the day's kharcha (struck lines don't count).
         lines.AddRange(await db.Expenses.AsNoTracking()
             .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && e.TripId == null)
-            .Select(e => new CashBookLine(e.OccurredAt, e.Note != null && e.Note.StartsWith("Refund CN/") ? CashBookSource.Refund : CashBookSource.Expense, e.Note ?? e.Category.ToString(), e.Mode, -e.Amount, null))
+            .Select(e => new CashBookLine(e.OccurredAt, e.Note != null && (e.Note.StartsWith("Refund CN/") || e.Note.StartsWith("Refund RN/")) ? CashBookSource.Refund : CashBookSource.Expense, e.Note ?? e.Category.ToString(), e.Mode, -e.Amount, null))
             .ToListAsync(ct));
         // Technicians' trip cash: the advance leaves the drawer the day it is given; what they hand back comes in at settlement.
         lines.AddRange(await (from e in db.TripEntries.AsNoTracking()
