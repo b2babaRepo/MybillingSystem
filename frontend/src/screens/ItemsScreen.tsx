@@ -6,7 +6,7 @@ import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { GST_RATES } from '../lib/gst'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, PendingDot, Sheet } from '../components/ui'
+import { Button, Field, PendingDot, Select, Sheet } from '../components/ui'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Product, Unit } from '../lib/types'
@@ -374,6 +374,10 @@ function ReceiveSizesSheet({ shopId, styleName, items, onClose }: { shopId: stri
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const queryClient = useQueryClient()
+  const [supplierId, setSupplierId] = useState('')
+  // Owner only: helpers get an empty list and stock goes in by hand.
+  const suppliers = useQuery({ queryKey: [shopId, 'suppliers', 'pick'], queryFn: () => api<{ id: string; name: string; isActive?: boolean }[]>('/v1/suppliers'), retry: false }).data ?? []
+  const category = items[0]?.category
   const total = Object.values(qty).reduce((n, v) => n + (Number(v) || 0), 0)
   const priceChanged = Number(price) > 0 && items.some((p) => p.sellingPrice !== Number(price))
   async function save() {
@@ -390,6 +394,19 @@ function ReceiveSizesSheet({ shopId, styleName, items, onClose }: { shopId: stri
       }
     }
 
+    if (supplierId && total > 0) {
+      try {
+        await api('/v1/goods-receipts', 'POST', { id: crypto.randomUUID(), supplierId, note: null,
+          lines: items.filter((p) => Number(qty[p.id]) > 0).map((p) => ({ productId: p.id, quantity: Number(qty[p.id]), bags: null })) })
+        await queryClient.invalidateQueries({ queryKey: [shopId] })
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t('error'))
+        setBusy(false)
+        return
+      }
+      onClose()
+      return
+    }
     for (const p of items) {
       const n = Number(qty[p.id]) || 0
       if (n > 0) await addStockMovement(shopId, { id: p.id, name: p.name }, 'purchase', n, null, Number(cost) > 0 ? Number(cost) : null, null)
@@ -414,11 +431,24 @@ function ReceiveSizesSheet({ shopId, styleName, items, onClose }: { shopId: stri
           <span className="mb-1 block text-sm font-semibold text-muted">{t('styles.priceAll')}</span>
           <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" placeholder="₹" className="h-12 w-40 rounded-xl border border-line px-3 text-lg" />
         </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-muted">{t('styles.costEach')}</span>
-          <input value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" className="h-12 w-40 rounded-xl border border-line px-3 text-lg" />
-        </label>
+        {!supplierId && (
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-muted">{t('styles.costEach')}</span>
+            <input value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" className="h-12 w-40 rounded-xl border border-line px-3 text-lg" />
+          </label>
+        )}
       </div>
+      <p className="mt-3 text-sm"><span className="text-muted">{t('stock.inCategory')}: </span><b>{category || t('stock.noCategory')}</b></p>
+      {suppliers.length > 0 && (
+        <label className="mt-2 block">
+          <span className="mb-1 block text-sm font-semibold text-muted">{t('stock.fromSupplier')}</span>
+          <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full text-base">
+            <option value="">{t('stock.noSupplier')}</option>
+            {suppliers.filter((x) => x.isActive !== false).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </Select>
+          <span className="mt-1 block text-xs text-muted">{t(supplierId ? 'stock.supplierHint' : 'stock.byHandHint')}</span>
+        </label>
+      )}
       {error && <p className="mt-2 text-sm text-due">{error}</p>}
       <div className="mt-4 grid grid-cols-[1fr_2fr] gap-2">
         <Button type="button" tone="plain" onClick={onClose}>{t('cancel')}</Button>
