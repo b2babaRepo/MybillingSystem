@@ -22,6 +22,9 @@ public sealed class PushDevice : Entity, ITenantOwned
     public required string Auth { get; set; }
 
     public DateTimeOffset? LastSentAt { get; set; }
+
+    /// <summary>The app's language on that phone ("en", "hi", "gu"), so the morning note comes in it.</summary>
+    public string? Language { get; set; }
 }
 
 /// <summary>The server's Web Push (VAPID) key pair: made once and kept, so phones that subscribed keep receiving.</summary>
@@ -34,7 +37,7 @@ public sealed class PushKey
     public required string PrivateKey { get; set; }
 }
 
-public sealed record PushSubscribeRequest(string? Endpoint, string? P256dh, string? Auth);
+public sealed record PushSubscribeRequest(string? Endpoint, string? P256dh, string? Auth, string? Language = null);
 
 /// <summary><see cref="NameEn"/>, <see cref="NameHi"/>: the item's list names, so the app shows the one for its language.</summary>
 public sealed record OrderTodayItem(Guid ProductId, string Name, decimal Stock, decimal? DaysLeft, decimal Suggested, int LeadDays, string? NameEn = null, string? NameHi = null);
@@ -101,9 +104,16 @@ public static class StockAlerts
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["Endpoint"] = ["This phone's notification details are not valid."] });
         }
 
-        if (!await db.PushDevices.AnyAsync(d => d.Endpoint == endpoint, ct))
+        var language = request.Language is "hi" or "gu" ? request.Language : "en";
+        if (await db.PushDevices.FirstOrDefaultAsync(d => d.Endpoint == endpoint, ct) is { } known)
         {
-            db.PushDevices.Add(new PushDevice { UserId = user.UserId()!.Value, Endpoint = endpoint, P256dh = request.P256dh, Auth = request.Auth });
+            // Already signed up: the app sends this again when its language changes.
+            known.Language = language;
+            await db.SaveChangesAsync(ct);
+        }
+        else
+        {
+            db.PushDevices.Add(new PushDevice { UserId = user.UserId()!.Value, Endpoint = endpoint, P256dh = request.P256dh, Auth = request.Auth, Language = language });
             try
             {
                 await db.SaveChangesAsync(ct);
@@ -157,30 +167,28 @@ public static class StockAlerts
         // Holds past their date stay held (the owner decides), so the morning note says how many are waiting.
         var overdue = (await StockHolds.AllAsync(db, clock, ct)).Count(h => h.Overdue);
         var (dueTomorrow, dueToday, late) = await GoodsTracking.RemindersAsync(db, clock, ct);
-        var goods = string.Join(", ", new[]
-        {
-            late > 0 ? $"{late} order{(late == 1 ? "" : "s")} late" : null,
-            dueToday > 0 ? $"{dueToday} due today" : null,
-            dueTomorrow > 0 ? $"{dueTomorrow} due tomorrow" : null,
-        }.Where(x => x is not null));
         // A festival within three weeks with items to stock up on: worth a morning note of its own.
         var festival = await Catalogue.Festivals.PromptAsync(db, clock, 21, ct);
-        if (today.Count == 0 && overdue == 0 && goods.Length == 0 && festival is null && !always)
+        if (today.Count == 0 && overdue == 0 && late + dueToday + dueTomorrow == 0 && festival is null && !always)
         {
             return 0;
         }
 
-        var names = string.Join(", ", today.Items.Take(4).Select(i => i.DaysLeft is { } d && i.Stock > 0 ? $"{i.Name} ({Math.Floor(d)} days)" : $"{i.Name} (out)"));
-        var payload = JsonSerializer.Serialize(new
+        // Only the festival to tell about: open its list instead of What to order.
+        var url = today.Count == 0 && overdue == 0 && late + dueToday + dueTomorrow == 0 && festival is not null ? "/#/festivals" : "/#/reorder";
+        var payloads = new Dictionary<string, string>();
+        string PayloadFor(string? language)
         {
-            title = today.Count == 0 ? "Stock is fine today" : $"Order today: {today.Count} item{(today.Count == 1 ? "" : "s")}",
-            body = (today.Count == 0 ? "Nothing is running out." : names + (today.Count > 4 ? $" and {today.Count - 4} more" : ""))
-                + (overdue > 0 ? $" · {overdue} held item{(overdue == 1 ? "" : "s")} past the date" : "")
-                + (goods.Length > 0 ? $" · Goods: {goods}" : "")
-                + (festival is { } f ? $" · {f.Name} {(f.DaysLeft == 0 ? "today" : f.DaysLeft == 1 ? "tomorrow" : $"in {f.DaysLeft} days")}: stock up {f.Items} item{(f.Items == 1 ? "" : "s")}" : ""),
-            // Only the festival to tell about: open its list instead of What to order.
-            url = today.Count == 0 && overdue == 0 && goods.Length == 0 && festival is not null ? "/#/festivals" : "/#/reorder",
-        });
+            var lang = language is "hi" or "gu" ? language : "en";
+            if (!payloads.TryGetValue(lang, out var p))
+            {
+                var (title, body) = Message(lang, today, overdue, (late, dueToday, dueTomorrow), festival is { } f ? (f.Name, f.DaysLeft, f.Items) : null);
+                payloads[lang] = p = JsonSerializer.Serialize(new { title, body, url });
+            }
+
+            return p;
+        }
+
         var keys = await KeysAsync(db, ct);
         var vapid = new VapidDetails("mailto:support@groceryKhata.app", keys.PublicKey, keys.PrivateKey);
         using var client = new WebPushClient();
@@ -189,7 +197,7 @@ public static class StockAlerts
         {
             try
             {
-                await client.SendNotificationAsync(new PushSubscription(device.Endpoint, device.P256dh, device.Auth), payload, vapid, ct);
+                await client.SendNotificationAsync(new PushSubscription(device.Endpoint, device.P256dh, device.Auth), PayloadFor(device.Language), vapid, ct);
                 device.LastSentAt = clock.GetUtcNow();
                 sent++;
             }
@@ -205,6 +213,57 @@ public static class StockAlerts
 
         await db.SaveChangesAsync(ct);
         return sent;
+    }
+
+    /// <summary>
+    /// The morning note in the phone's language ("en", "hi" or "gu"). Item names: the Hindi list name on Hindi phones,
+    /// otherwise the English one (the lists have no Gujarati names), falling back to the shop's own name for the item.
+    /// </summary>
+    public static (string Title, string Body) Message(string lang, OrderTodayDto today, int overdue, (int Late, int Today, int Tomorrow) goods, (string Name, int DaysLeft, int Items)? festival)
+    {
+        var hi = lang == "hi";
+        var gu = lang == "gu";
+        string Name(OrderTodayItem i) => (hi ? i.NameHi : i.NameEn) ?? i.Name;
+        string Left(OrderTodayItem i) => i.DaysLeft is { } d && i.Stock > 0
+            ? $"{Name(i)} ({Math.Floor(d)} {(hi ? "दिन" : gu ? "દિવસ" : "days")})"
+            : $"{Name(i)} ({(hi ? "खत्म" : gu ? "ખતમ" : "out")})";
+        string S(int n) => n == 1 ? "" : "s";
+
+        var n = today.Count;
+        var title = n == 0
+            ? (hi ? "आज स्टॉक ठीक है" : gu ? "આજે સ્ટોક બરાબર છે" : "Stock is fine today")
+            : (hi ? $"आज ऑर्डर करें: {n} सामान" : gu ? $"આજે ઓર્ડર કરો: {n} વસ્તુ" : $"Order today: {n} item{S(n)}");
+        var body = n == 0
+            ? (hi ? "कुछ खत्म नहीं हो रहा।" : gu ? "કંઈ ખૂટતું નથી." : "Nothing is running out.")
+            : string.Join(", ", today.Items.Take(4).Select(Left))
+              + (n > 4 ? (hi ? $" और {n - 4} और" : gu ? $" અને બીજી {n - 4}" : $" and {n - 4} more") : "");
+        if (overdue > 0)
+        {
+            body += hi ? $" · {overdue} रोका सामान तारीख पार" : gu ? $" · {overdue} રોકેલી વસ્તુ તારીખ વીતી" : $" · {overdue} held item{S(overdue)} past the date";
+        }
+
+        var g = string.Join(", ", new[]
+        {
+            goods.Late > 0 ? (hi ? $"{goods.Late} ऑर्डर लेट" : gu ? $"{goods.Late} ઓર્ડર મોડા" : $"{goods.Late} order{S(goods.Late)} late") : null,
+            goods.Today > 0 ? (hi ? $"{goods.Today} आज आने हैं" : gu ? $"{goods.Today} આજે આવશે" : $"{goods.Today} due today") : null,
+            goods.Tomorrow > 0 ? (hi ? $"{goods.Tomorrow} कल आने हैं" : gu ? $"{goods.Tomorrow} કાલે આવશે" : $"{goods.Tomorrow} due tomorrow") : null,
+        }.Where(x => x is not null));
+        if (g.Length > 0)
+        {
+            body += (hi ? " · माल: " : gu ? " · માલ: " : " · Goods: ") + g;
+        }
+
+        if (festival is { } f)
+        {
+            var when = f.DaysLeft == 0 ? (hi ? "आज" : gu ? "આજે" : "today")
+                : f.DaysLeft == 1 ? (hi ? "कल" : gu ? "કાલે" : "tomorrow")
+                : hi ? $"{f.DaysLeft} दिन में" : gu ? $"{f.DaysLeft} દિવસમાં" : $"in {f.DaysLeft} days";
+            body += hi ? $" · {f.Name} {when}: {f.Items} सामान का स्टॉक भरें"
+                : gu ? $" · {f.Name} {when}: {f.Items} વસ્તુનો સ્ટોક ભરો"
+                : $" · {f.Name} {when}: stock up {f.Items} item{S(f.Items)}";
+        }
+
+        return (title, body);
     }
 }
 

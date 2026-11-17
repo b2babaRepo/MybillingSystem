@@ -7060,6 +7060,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("endpoint");
 
+                    b.Property<string>("Language")
+                        .HasColumnType("text")
+                        .HasColumnName("language");
+
                     b.Property<DateTimeOffset?>("LastSentAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_sent_at");

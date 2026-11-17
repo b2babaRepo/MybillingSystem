@@ -1,5 +1,5 @@
 import { itemName } from '../lib/itemName'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
@@ -22,10 +22,22 @@ function keyBytes(base64: string) {
  * switch to get it as a phone notification every morning at 8.
  */
 export function OrderToday() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const today = useQuery({ queryKey: ['order-today'], queryFn: () => api<{ count: number; items: Item[] }>('/v1/stock/order-today'), staleTime: 300_000 }).data
   const [on, setOn] = useState(() => { try { return localStorage.getItem(KEY) === '1' } catch { return false } })
   const [note, setNote] = useState<string | null>(null)
+
+  // The morning note comes in the app's language: tell the server again whenever it changes.
+  useEffect(() => {
+    if (!on || !('serviceWorker' in navigator)) return
+    void (async () => {
+      try {
+        const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription()
+        const json = sub?.toJSON()
+        if (json?.endpoint) await api('/v1/push/subscribe', 'POST', { endpoint: json.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth, language: i18n.language })
+      } catch { /* tried again next time */ }
+    })()
+  }, [on, i18n.language])
 
   async function turnOn() {
     setNote(null)
@@ -35,7 +47,7 @@ export function OrderToday() {
       const reg = await navigator.serviceWorker.ready
       const sub = (await reg.pushManager.getSubscription()) ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) })
       const json = sub.toJSON()
-      await api('/v1/push/subscribe', 'POST', { endpoint: json.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth })
+      await api('/v1/push/subscribe', 'POST', { endpoint: json.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth, language: i18n.language })
       try { localStorage.setItem(KEY, '1') } catch { /* no storage */ }
       setOn(true)
       setNote(t('orderToday.onNote'))
