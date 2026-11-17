@@ -445,9 +445,9 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                         errors[nameof(request.ExchangeNoteId)] = ["That exchange credit was already used, or isn't for an exchange."];
                         exchange = null;
                     }
-                    else if (ExchangeSlips.Expired(exchange.OccurredAt, clock.GetUtcNow()))
+                    else if (await ExchangeSlips.DaysAsync(db, cancellationToken) is var slipDays && ExchangeSlips.Expired(exchange.OccurredAt, clock.GetUtcNow(), slipDays))
                     {
-                        errors[nameof(request.ExchangeNoteId)] = [$"This exchange slip ran out on {ExchangeSlips.ValidTill(exchange.OccurredAt):d MMM yyyy} ({ExchangeSlips.ValidDays} days)."];
+                        errors[nameof(request.ExchangeNoteId)] = [$"This exchange slip ran out on {ExchangeSlips.ValidTill(exchange.OccurredAt, slipDays):d MMM yyyy} ({slipDays} days)."];
                         exchange = null;
                     }
                     else if (exchange.CustomerId is { } creditOwner && creditOwner != request.CustomerId)

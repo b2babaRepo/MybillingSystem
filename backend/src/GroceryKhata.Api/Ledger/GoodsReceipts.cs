@@ -188,7 +188,7 @@ public static class GoodsReceipts
         // input tax on the bill (a regular shop, a supplier with a valid GSTIN), at the items' rates weighted by their kilograms.
         // It goes in as a supplier credit note, so the GST export reverses that input tax and Tally gets a Debit Note.
         var taxable = decimal.Round(shortKg * request.RatePerKg, 2);
-        var composition = await db.Shops.AsNoTracking().Select(s => s.GstComposition).FirstOrDefaultAsync(ct);
+        var composition = await db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.GstComposition).FirstOrDefaultAsync(ct);
         var supplierGstin = await db.Suppliers.AsNoTracking().Where(s => s.Id == receipt.SupplierId).Select(s => s.Gstin).FirstOrDefaultAsync(ct);
         var weighed = lines.Select(l => (Kg: kinds.GetValueOrDefault(l.ProductId) is { } k ? Units.Kg(k.Unit, k.WeightKg, l.Quantity) ?? 0 : 0, Rate: kinds.GetValueOrDefault(l.ProductId)?.GstRate ?? 0)).ToList();
         var gstRate = !composition && GstExport.IsValidGstin(supplierGstin) && expected > 0 ? weighed.Sum(w => w.Kg * w.Rate) / expected : 0;

@@ -22,6 +22,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     private Guid CurrentShopId => tenant.ShopId;
 
+    /// <summary>The shop this request works in (Shops itself is not filtered by shop).</summary>
+    public Guid ShopIdNow => tenant.ShopId;
+
     private Guid CurrentUserId => tenant.UserId;
 
     public DbSet<ShoppingList> ShoppingLists => Set<ShoppingList>();

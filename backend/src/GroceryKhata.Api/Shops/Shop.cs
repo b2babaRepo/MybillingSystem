@@ -49,6 +49,9 @@ public sealed class Shop : Entity
     /// <summary>The most a helper may write off (damage, loss, a count) at cost in one go; more needs the owner.</summary>
     public decimal StaffMaxWriteOff { get; set; } = 1000m;
 
+    /// <summary>How many days an exchange slip can be used (big chains: Max 90, Westside 180).</summary>
+    public int ExchangeSlipDays { get; set; } = 90;
+
     /// <summary>False when the shop is closed; its members can no longer sign in to it.</summary>
     public bool IsActive { get; set; } = true;
 

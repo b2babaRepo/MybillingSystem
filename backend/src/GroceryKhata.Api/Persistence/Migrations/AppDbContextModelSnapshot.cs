@@ -9278,6 +9278,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(80)")
                         .HasColumnName("district");
 
+                    b.Property<int>("ExchangeSlipDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("exchange_slip_days");
+
                     b.PrimitiveCollection<string[]>("ExtraTypes")
                         .IsRequired()
                         .HasColumnType("text[]")

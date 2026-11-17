@@ -420,8 +420,8 @@ public static class PurchaseOrders
         var kinds = await db.Products.AsNoTracking().Where(p => lineItems.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => new { p.Unit, p.WeightKg }, ct);
         // Kilograms of the lines whose weight is known (paid and free units); blank when none is, never pieces counted as kg.
         decimal? Kg(IEnumerable<PurchaseLine> lines) => lines.Select(l => kinds.GetValueOrDefault(l.ProductId) is { } k ? Catalogue.Units.Kg(k.Unit, k.WeightKg, l.Quantity + l.FreeQuantity) : null).Sum() is > 0 and var kg ? decimal.Round(kg, 3) : null;
-        var composition = await db.Shops.AsNoTracking().Select(s => s.GstComposition).FirstOrDefaultAsync(ct);
-        var shopGstin = await db.Shops.AsNoTracking().Select(s => s.Gstin).FirstOrDefaultAsync(ct);
+        var composition = await db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.GstComposition).FirstOrDefaultAsync(ct);
+        var shopGstin = await db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.Gstin).FirstOrDefaultAsync(ct);
         var csv = new StringBuilder("Date,Bill no,Supplier,Supplier GSTIN,Supplier state,GST rate %,Taxable value,CGST,SGST,IGST,Input tax claimable,Freight and round-off,Bill total,Status,Weight (kg)\n");
         decimal tTaxable = 0, tCgst = 0, tSgst = 0, tIgst = 0, tExtra = 0, tTotal = 0, tKg = 0;
         foreach (var bill in bills)

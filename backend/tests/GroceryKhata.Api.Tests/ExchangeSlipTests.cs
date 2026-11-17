@@ -61,8 +61,23 @@ public sealed class ExchangeSlipTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task The_shop_sets_how_many_days_its_slips_last()
+    {
+        var (shop, _) = await api.SignUpAsync("Slip Days Store");
+        Assert.Equal(90, (await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop")).ExchangeSlipDays);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutJsonAsync("/api/v1/shop", new { name = "Slip Days Store", exchangeSlipDays = 0 })).StatusCode);
+        (await shop.PutJsonAsync("/api/v1/shop", new { name = "Slip Days Store", exchangeSlipDays = 180 })).EnsureSuccessStatusCode();
+
+        var sale = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Kurti", quantity = 1m, unitPrice = 699m } }, paidAmount = 699m, paymentMode = "cash" })).ReadAsync<BillDto>();
+        var note = await (await shop.PostJsonAsync($"/api/v1/bills/{sale.Id}/credit-notes", new { id = Guid.CreateVersion7(), reason = "Exchange", lines = new[] { new { lineNo = 1, quantity = 1m } }, exchange = true, restock = false })).ReadAsync<CreditNoteDto>();
+        var slip = await shop.GetJsonAsync<ExchangeSlip>($"/api/v1/exchange-slips/find?no={note.Id}");
+        Assert.Equal(ExchangeSlips.ValidTill(slip.IssuedAt, 180), slip.ValidTill);
+    }
+
+    [Fact]
     public void A_slip_lasts_ninety_days_by_india_date()
     {
+        Assert.Equal(new DateOnly(2026, 11, 25), ExchangeSlips.ValidTill(new DateTimeOffset(2026, 11, 18, 6, 0, 0, TimeSpan.Zero), 7));
         var issued = new DateTimeOffset(2026, 11, 17, 20, 0, 0, TimeSpan.Zero); // 18 Nov 1:30 am in India
         Assert.Equal(new DateOnly(2027, 2, 16), ExchangeSlips.ValidTill(issued));
         Assert.False(ExchangeSlips.Expired(issued, new DateTimeOffset(2027, 2, 16, 18, 0, 0, TimeSpan.Zero)));

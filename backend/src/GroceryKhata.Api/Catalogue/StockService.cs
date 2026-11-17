@@ -495,7 +495,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     }
 
     private Task<decimal> WriteOffLimitAsync(CancellationToken ct) =>
-        db.Shops.AsNoTracking().Select(s => s.StaffMaxWriteOff).FirstAsync(ct);
+        db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.StaffMaxWriteOff).FirstAsync(ct);
 
     private async Task<StockMovement> RecordAsync(
         Guid id, Guid productId, StockMovementKind kind, decimal quantity, StockReason? reason, decimal? costPrice, string? note,

@@ -87,6 +87,7 @@ export interface ShopSettings {
   staffMaxDiscountPercent?: number
   /** The most a helper may write off at cost in one go (₹). */
   staffMaxWriteOff?: number
+  exchangeSlipDays?: number
   /** Bills offer delivery. Null: not chosen yet, the trade decides. */
   deliversGoods?: boolean | null
   extraTypes?: ShopType[] | null

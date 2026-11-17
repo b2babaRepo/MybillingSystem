@@ -13,14 +13,16 @@ public sealed record ExchangeSlip(Guid Id, string NoteNo, decimal Amount, decima
 
 public static class ExchangeSlips
 {
-    /// <summary>How long a slip can be used, like the big clothing chains' 90-day credit notes.</summary>
+    /// <summary>How long a slip can be used unless the shop sets its own (<see cref="Shops.Shop.ExchangeSlipDays"/>), like the big clothing chains' 90-day credit notes.</summary>
     public const int ValidDays = 90;
+
+    public static Task<int> DaysAsync(AppDbContext db, CancellationToken ct) => db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.ExchangeSlipDays).FirstAsync(ct);
 
     private static readonly TimeSpan India = TimeSpan.FromHours(5.5);
 
-    public static DateOnly ValidTill(DateTimeOffset issuedAt) => DateOnly.FromDateTime(issuedAt.ToOffset(India).DateTime).AddDays(ValidDays);
+    public static DateOnly ValidTill(DateTimeOffset issuedAt, int days = ValidDays) => DateOnly.FromDateTime(issuedAt.ToOffset(India).DateTime).AddDays(days);
 
-    public static bool Expired(DateTimeOffset issuedAt, DateTimeOffset now) => DateOnly.FromDateTime(now.ToOffset(India).DateTime) > ValidTill(issuedAt);
+    public static bool Expired(DateTimeOffset issuedAt, DateTimeOffset now, int days = ValidDays) => DateOnly.FromDateTime(now.ToOffset(India).DateTime) > ValidTill(issuedAt, days);
 
     public static IEndpointRouteBuilder MapExchangeSlips(this IEndpointRouteBuilder app)
     {
@@ -53,7 +55,7 @@ public static class ExchangeSlips
         // The slips register: every exchange slip of the last 120 days, open ones first.
         group.MapGet("", async (AppDbContext db, TimeProvider clock, CancellationToken ct) =>
         {
-            var since = clock.GetUtcNow().AddDays(-(ValidDays + 30));
+            var since = clock.GetUtcNow().AddDays(-(await DaysAsync(db, ct) + 30));
             var all = await ListAsync(db, clock, db.CreditNotes.AsNoTracking().Where(n => n.ForExchange && n.OccurredAt >= since), ct);
             return Results.Ok(all.OrderBy(s => s.Status != "open").ThenByDescending(s => s.IssuedAt).ToList());
         });
@@ -70,8 +72,9 @@ public static class ExchangeSlips
             Customer = db.Customers.Where(c => c.Id == n.CustomerId).Select(c => new { c.Name, c.Phone }).FirstOrDefault(),
         }).ToListAsync(ct);
         var now = clock.GetUtcNow();
-        return rows.Select(r => new ExchangeSlip(r.Id, $"CN/{r.FinancialYear}/{r.Number:D4}", r.Total, r.Total - r.Spent, r.OccurredAt, ValidTill(r.OccurredAt),
-            r.Spent >= r.Total ? "used" : Expired(r.OccurredAt, now) ? "expired" : "open",
+        var days = await DaysAsync(db, ct);
+        return rows.Select(r => new ExchangeSlip(r.Id, $"CN/{r.FinancialYear}/{r.Number:D4}", r.Total, r.Total - r.Spent, r.OccurredAt, ValidTill(r.OccurredAt, days),
+            r.Spent >= r.Total ? "used" : Expired(r.OccurredAt, now, days) ? "expired" : "open",
             r.Bill is null ? "" : $"{r.Bill.FinancialYear}/{r.Bill.Number:D4}", r.CustomerId, r.Customer?.Name, r.Customer?.Phone,
             r.Used is null ? null : $"{r.Used.FinancialYear}/{r.Used.Number:D4}")).ToList();
     }
