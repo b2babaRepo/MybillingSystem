@@ -81,6 +81,14 @@ public sealed record DiscountReport(string Month, decimal ByHand, decimal ByOffe
 public sealed record ItemMarginReport(string Month, decimal Sales, decimal Profit, decimal ProfitCoverage, IReadOnlyList<ItemMargin> Items);
 
 /// <summary>
+/// One row of profit grouped another way: a customer (<see cref="Id"/> null for walk-in sales), a bill or a category.
+/// <see cref="Profit"/> counts only lines with a cost, as in the item report; <see cref="Uncosted"/> is the sale without one.
+/// </summary>
+public sealed record ProfitRow(string Key, Guid? Id, string Name, string? Detail, int Bills, decimal Sales, decimal? Cost, decimal? Profit, decimal? MarginPercent, decimal Uncosted, DateTimeOffset? At = null);
+
+public sealed record ProfitByReport(string Month, string By, decimal Sales, decimal Profit, IReadOnlyList<ProfitRow> Rows);
+
+/// <summary>
 /// One month at a glance. <see cref="EstimatedProfit"/> counts only bill lines whose item has a cost price;
 /// <see cref="ProfitCoverage"/> says what share of sales that is, so a low number reads as "add cost prices".
 /// </summary>
@@ -221,6 +229,7 @@ public static class ReportEndpoints
         group.MapGet("/reports/staff", StaffSalesAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/discounts", DiscountsAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         group.MapGet("/reports/items", ItemMarginsAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
+        group.MapGet("/reports/profit-by", ProfitByAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Reports);
         return app;
     }
 
@@ -462,6 +471,61 @@ public static class ReportEndpoints
         var detail = cut.OrderByDescending(c => c.l.OfferId == null).ThenByDescending(c => c.Discount).Take(300)
             .Select(c => new DiscountLine(c.l.OccurredAt, c.l.BillNo, c.l.Name, c.l.Quantity, c.l.ListPrice!.Value, c.l.UnitPrice, c.Discount, names.GetValueOrDefault(c.l.Seller), c.l.OfferName)).ToList();
         return TypedResults.Ok(new DiscountReport($"{period.Year:D4}-{period.Month:D2}", cashiers.Sum(c => c.ByHand), cashiers.Sum(c => c.ByOffer), cashiers, detail));
+    }
+
+    /// <summary>
+    /// The month's profit by customer ("party"), by bill or by category: who and what earns the money. Sales are without
+    /// GST, cost is what each line cost when sold (else the item's cost today), and cancelled bills don't count. Returns
+    /// (credit notes) are in the month's profit and the item report, not here.
+    /// </summary>
+    private static async Task<IResult> ProfitByAsync(string? month, string? by, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (ParseOrThisMonth(month, clock) is not { } period)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
+        }
+
+        var grouping = (by ?? "party").ToLowerInvariant();
+        if (grouping is not ("party" or "bill" or "category"))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["by"] = ["Group by party, bill or category."] });
+        }
+
+        var (start, end) = IndiaTime.Month(period.Year, period.Month);
+        var bills = await db.Bills.AsNoTracking().Include(b => b.Lines)
+            .Where(b => b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null).ToListAsync(ct);
+        var productIds = bills.SelectMany(b => b.Lines).Where(l => l.ProductId != null).Select(l => l.ProductId!.Value).Distinct().ToList();
+        var products = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).Select(p => new { p.Id, p.CostPrice, p.Category }).ToDictionaryAsync(p => p.Id, ct);
+        var customerIds = bills.Where(b => b.CustomerId != null).Select(b => b.CustomerId!.Value).Distinct().ToList();
+        var customers = await db.Customers.AsNoTracking().Where(c => customerIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name, ct);
+        decimal? Cost(BillLine l) => l.UnitCost ?? (l.ProductId is { } id && products.TryGetValue(id, out var p) ? p.CostPrice : null);
+        var taxed = bills.Where(b => b.Gstin != null && !b.BillOfSupply).Select(b => b.Id).ToHashSet();
+        decimal WithoutGst(BillLine l) => !taxed.Contains(l.BillId) ? l.Amount : l.TaxableValue ?? (l.GstRate is > 0 ? decimal.Round(l.Amount / (1 + (l.GstRate.Value / 100)), 2) : l.Amount);
+
+        var lines = bills.SelectMany(b => b.Lines.Select(l => (Bill: b, Line: l))).ToList();
+        ProfitRow Row(string key, Guid? id, string name, string? detail, IReadOnlyCollection<(Bill Bill, BillLine Line)> part)
+        {
+            var sales = part.Sum(x => WithoutGst(x.Line));
+            var costed = part.Where(x => Cost(x.Line) is not null).ToList();
+            decimal? cost = costed.Count == 0 ? null : costed.Sum(x => Money.LineAmount(x.Line.Quantity, Cost(x.Line)!.Value));
+            var costedSales = costed.Sum(x => WithoutGst(x.Line));
+            decimal? profit = cost is null ? null : costedSales - cost;
+            decimal? margin = profit is null || costedSales == 0 ? null : decimal.Round(profit.Value / costedSales * 100, 1);
+            return new ProfitRow(key, id, name, detail, part.Select(x => x.Bill.Id).Distinct().Count(), sales, cost, profit, margin, sales - costedSales);
+        }
+
+        var rows = grouping switch
+        {
+            "party" => lines.GroupBy(x => x.Bill.CustomerId)
+                .Select(g => Row(g.Key?.ToString() ?? "walk-in", g.Key, g.Key is { } cid ? customers.GetValueOrDefault(cid, "?") : "", null, g.ToList())),
+            "bill" => lines.GroupBy(x => x.Bill)
+                .Select(g => Row(g.Key.Id.ToString(), g.Key.Id, g.Key.BillNo, g.Key.CustomerId is { } cid ? customers.GetValueOrDefault(cid) : null, g.ToList())
+                    with { At = g.Key.OccurredAt }),
+            _ => lines.GroupBy(x => x.Line.ProductId is { } pid && products.TryGetValue(pid, out var p) && !string.IsNullOrWhiteSpace(p.Category) ? p.Category!.Trim() : "")
+                .Select(g => Row(g.Key, null, g.Key, null, g.ToList())),
+        };
+        var list = rows.OrderByDescending(r => r.Profit ?? decimal.MinValue).ThenByDescending(r => r.Sales).ToList();
+        return TypedResults.Ok(new ProfitByReport($"{period.Year:D4}-{period.Month:D2}", grouping, list.Sum(r => r.Sales), list.Sum(r => r.Profit ?? 0), list));
     }
 
     private static async Task<IResult> ItemMarginsAsync(string? month, AppDbContext db, TimeProvider clock, CancellationToken ct)

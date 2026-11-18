@@ -75,6 +75,33 @@ public sealed class HardeningTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Profit_is_reported_by_customer_bill_and_category_from_each_line_cost()
+    {
+        var (shop, _) = await api.SignUpAsync("Profit Store");
+        var soap = Guid.NewGuid();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = soap, name = "Soap", unit = "piece", sellingPrice = 40m, costPrice = 30m, category = "Toiletries", openingStock = 50m })).EnsureSuccessStatusCode();
+        var ramesh = await KhataTests.CreateCustomerAsync(shop, "Ramesh");
+        // Ramesh: 5 soaps (₹50 profit); a walk-in: 2 soaps (₹20) and a loose item with no cost.
+        (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), customerId = ramesh, lines = new[] { new { productId = soap, name = "Soap", quantity = 5m, unitPrice = 40m } }, paidAmount = 0m })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new object[] { new { productId = soap, name = "Soap", quantity = 2m, unitPrice = 40m }, new { name = "Bag", quantity = 1m, unitPrice = 10m } }, paidAmount = 90m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+
+        var party = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/reports/profit-by?by=party")).RootElement;
+        Assert.Equal(70m, party.GetProperty("profit").GetDecimal());
+        var rows = party.GetProperty("rows").EnumerateArray().ToList();
+        Assert.Equal("Ramesh", rows[0].GetProperty("name").GetString());
+        Assert.Equal(50m, rows[0].GetProperty("profit").GetDecimal());
+        Assert.Equal(10m, rows[1].GetProperty("uncosted").GetDecimal());
+
+        var bills = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/reports/profit-by?by=bill")).RootElement.GetProperty("rows");
+        Assert.Equal(2, bills.GetArrayLength());
+        var category = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/reports/profit-by?by=category")).RootElement.GetProperty("rows")[0];
+        Assert.Equal("Toiletries", category.GetProperty("name").GetString());
+        Assert.Equal(70m, category.GetProperty("profit").GetDecimal());
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.GetAsync("/api/v1/reports/profit-by?by=colour")).StatusCode);
+    }
+
+    [Fact]
     public async Task Credit_days_give_dues_a_due_date_and_an_overdue_amount_and_old_dues_split_by_age()
     {
         var (shop, _) = await api.SignUpAsync("Ageing Store");

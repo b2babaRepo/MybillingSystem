@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import type { Unit } from '../lib/types'
 import { navigate } from '../router'
+import { ProfitByList, type ProfitBy } from '../components/ProfitByList'
 
 interface ItemMargin { productId: string | null; name: string; quantity: number; unit: Unit; sales: number; cost: number | null; profit: number | null; marginPercent: number | null }
 interface ItemMarginReport { month: string; sales: number; profit: number; profitCoverage: number; items: ItemMargin[] }
@@ -33,6 +34,8 @@ export function ItemMarginScreen({ shopId }: { shopId: string }) {
   const now = thisMonth()
   const [month, setMonth] = useState(now)
   const [sort, setSort] = useState<Sort>('profit')
+  // Profit by item (this screen's own list), or by customer, bill or category.
+  const [view, setView] = useState<'item' | ProfitBy>('item')
   const report = useQuery({ queryKey: [shopId, 'item-margins', month], queryFn: () => api<ItemMarginReport>(`/v1/reports/items?month=${month}`) })
   const data = report.data
   const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(localeOf(i18n.language), { month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -49,8 +52,16 @@ export function ItemMarginScreen({ shopId }: { shopId: string }) {
         <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= now} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
       </div>
 
-      {report.isError && <p className="text-due">{report.error.message}</p>}
-      {data && (
+      <div className="grid grid-cols-4 gap-1 rounded-[14px] bg-white p-1" role="tablist" aria-label={t('profitBy.title')}>
+        {(['item', 'party', 'bill', 'category'] as const).map((v) => (
+          <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}
+            className={`min-h-11 rounded-[10px] text-sm font-semibold ${view === v ? 'bg-ink text-white' : 'text-muted'}`}>{t(`profitBy.tab.${v}`)}</button>
+        ))}
+      </div>
+      {view !== 'item' && <ProfitByList shopId={shopId} month={month} by={view} />}
+
+      {view === 'item' && report.isError && <p className="text-due">{report.error.message}</p>}
+      {view === 'item' && data && (
         <>
           <div className="grid grid-cols-2 gap-2">
             <div className="flex flex-col rounded-card bg-white p-3 shadow-sm print:shadow-none"><span className="text-xs text-muted">{t('margin.sales')}</span><span className="text-xl font-extrabold">{formatRupees(data.sales)}</span></div>

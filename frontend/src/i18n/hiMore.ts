@@ -936,6 +936,11 @@ export const hiMore: TextsMore = {
     state: { open: 'खुला', part: 'कुछ दिया', delivered: 'पूरा दिया', closed: 'बंद', cancelled: 'रद्द' },
     save: 'बिक्री ऑर्डर सेव करें', needCustomer: 'पहले ग्राहक चुनें', saved: 'बिक्री ऑर्डर #{{number}} सेव: सामान ग्राहक के लिए रखा।', fromOrder: 'ऑर्डर #{{number}} दे रहे हैं: कुछ ही देना हो तो मात्रा बदलें।', promised: '{{qty}} ऑर्डर पर रखा', free: '{{qty}} बेचने को खाली' },
   pos: { byGstin: "खरीदार का GSTIN {{state}} का है: इस बिल पर IGST लगेगा।", followsGstin: "टैक्स का राज्य खरीदार के GSTIN से तय होता है: {{state}}।", label: 'कहाँ भेजा', here: '{{state}} (यही राज्य)', igst: '{{state}} भेजा जा रहा है: इस बिल पर IGST लगेगा।', print: 'आपूर्ति का स्थान' },
+  profitBy: {
+    title: 'मुनाफ़ा किसके हिसाब से', tab: { item: 'सामान', party: 'ग्राहक', bill: 'बिल', category: 'श्रेणी' },
+    walkIn: 'बिना ग्राहक के (नकद)', noCategory: 'बिना श्रेणी', bills_one: '{{count}} बिल', bills_other: '{{count}} बिल',
+    uncosted: '{{amount}} की बिक्री का ख़रीद दाम नहीं: मुनाफ़े में नहीं गिना',
+  },
   creditDays: {
     label: 'कितने दिन में देगा', days_one: '{{count}} दिन', days_other: '{{count}} दिन', none: 'कोई तय दिन नहीं', set: 'तय करें', clear: 'हटाएँ',
     hint: 'हर उधार इतने दिन बाद देय होगा: बकाया सूची में देर वाला दिखेगा, और उधार बिल पर देने की तारीख छपेगी।',

@@ -934,6 +934,11 @@ export const enMore = {
     state: { open: 'Open', part: 'Part delivered', delivered: 'Delivered', closed: 'Closed', cancelled: 'Cancelled' },
     save: 'Save as sale order', needCustomer: 'Choose the customer first', saved: 'Sale order #{{number}} saved: items held for the customer.', fromOrder: 'Delivering order #{{number}}: change quantities for a part delivery.', promised: '{{qty}} promised on orders', free: '{{qty}} free to sell' },
   pos: { byGstin: "Buyer's GSTIN is from {{state}}: this bill charges IGST.", followsGstin: "The tax state comes from the buyer's GSTIN: {{state}}.", label: 'Delivered to', here: '{{state}} (this state)', igst: 'Going to {{state}}: this bill charges IGST.', print: 'Place of supply' },
+  profitBy: {
+    title: 'Profit by', tab: { item: 'Item', party: 'Customer', bill: 'Bill', category: 'Category' },
+    walkIn: 'Walk-in (no customer)', noCategory: 'No category', bills_one: '{{count}} bill', bills_other: '{{count}} bills',
+    uncosted: '{{amount}} of sales without a cost price: not in the profit',
+  },
   creditDays: {
     label: 'Pays within', days_one: '{{count}} day', days_other: '{{count}} days', none: 'No credit terms', set: 'Set', clear: 'Remove',
     hint: 'Each udhaar falls due this many days later: the dues list shows what is overdue, and credit bills print the due date.',
