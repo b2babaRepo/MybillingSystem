@@ -486,7 +486,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }, [])
 
   return (
-    <div className="flex flex-col gap-3 p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:gap-4">
+    <div className="flex flex-col gap-3 p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,52%)]">
       {/* Desktop: items on the left, the bill on the right (always in view). A phone shows them one under the other. */}
       <div className="flex flex-col gap-3 lg:col-start-1">
       {exchange && (
@@ -679,11 +679,19 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             )}
           </div>
         )}
+        {/* On a wide screen the bill is a table, like a printed invoice: one row per item, every number in its column. */}
+        {cart.length > 0 && (
+          <div className={`hidden border-b border-line pb-1.5 text-xs font-semibold uppercase tracking-wide text-muted xl:grid ${DESK_COLS}`}>
+            <span>#</span><span>{t('print.item')}</span><span className="text-center">{t('print.qty')}</span><span className="text-right">{t('print.rate')}</span>
+            <span className="text-right">{t('billTable.disc')}</span><span className="text-right">GST %</span><span className="text-right">{t('print.amount')}</span>
+          </div>
+        )}
         {cart.map((l, i) => (
-          <div key={`${l.productId ?? l.name}-${i}`} className="flex items-center gap-2 border-b border-[#edf2f1] py-2 last:border-0 lg:py-1.5 lg:[&>button]:h-8 lg:[&>button]:w-8">
-            <div className="min-w-0 flex-1 lg:flex lg:flex-wrap lg:items-center lg:gap-x-2 lg:[&>div:not(:first-child)]:basis-full lg:[&>p]:basis-full">
+          <div key={`${l.productId ?? l.name}-${i}`} className={`flex items-center gap-2 border-b border-[#edf2f1] py-2 last:border-0 lg:py-1.5 lg:[&>button]:h-8 lg:[&>button]:w-8 xl:grid xl:items-start ${DESK_COLS}`}>
+            <span className="hidden pt-1.5 text-sm text-muted xl:block">{i + 1}</span>
+            <div className="min-w-0 flex-1 lg:flex lg:flex-wrap lg:items-center lg:gap-x-2 xl:pt-1 lg:[&>div:not(:first-child)]:basis-full lg:[&>p]:basis-full">
               <div className="font-semibold">{l.name}{(() => { const s = products.find((p) => p.id === l.productId)?.schedule; return s && s !== 'g' ? <span className="ml-1 whitespace-nowrap rounded bg-due-soft px-1 text-xs text-due">{t('rx.badge', { schedule: s.toUpperCase() })}</span> : null })()}</div>
-              <label className="flex items-center gap-1 text-xs text-muted">
+              <label className="flex items-center gap-1 text-xs text-muted xl:hidden">
                 ₹
                 <input
                   value={l.unitPrice || ''}
@@ -778,12 +786,19 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                   className={`min-h-11 text-xs ${btn.link}`}>{t('bars.button', { kg: tmtKgPerBar(l.name) })}</button>
               )}
             </div>
-            <span className="flex shrink-0 items-center gap-0.5 rounded-xl bg-[#edf2f1] p-0.5">
-              <button aria-label="−" className={`h-10 w-10 rounded-lg text-xl active:scale-95 lg:h-8 lg:w-8 ${btn.outline}`} onClick={() => setQuantity(i, round2(l.quantity - 1))}>−</button>
+            <span className="flex shrink-0 items-center gap-0.5 rounded-xl bg-[#edf2f1] p-0.5 xl:bg-transparent xl:p-0">
+              <button aria-label="−" className={`h-10 w-10 rounded-lg text-xl active:scale-95 lg:h-8 lg:w-8 xl:hidden ${btn.outline}`} onClick={() => setQuantity(i, round2(l.quantity - 1))}>−</button>
               <QuantityInput value={l.quantity} onChange={(q) => setQuantity(i, q)} label={`${t('quantity')}: ${l.name}`} />
-              <button aria-label="+" className={`h-10 w-10 rounded-lg text-xl active:scale-95 lg:h-8 lg:w-8 ${btn.solid}`} onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
+              <button aria-label="+" className={`h-10 w-10 rounded-lg text-xl active:scale-95 lg:h-8 lg:w-8 xl:hidden ${btn.solid}`} onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
             </span>
-            <div className="w-20 text-right font-bold">{formatRupees(round2(l.quantity * l.unitPrice))}</div>
+            {/* Desk columns: rate, discount % off the regular price, GST %. Enter goes back to the item search for the next one. */}
+            <input value={l.unitPrice || ''} onChange={(e) => setPrice(i, Number(e.target.value) || 0)} inputMode="decimal" aria-label={`${t('print.rate')}: ${l.name}`}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchRef.current?.focus() } }}
+              className={`hidden h-8 w-full rounded-md border px-1.5 text-right xl:block ${l.unitPrice > 0 ? 'border-line' : 'border-udhaar'}`} />
+            <PercentInput percent={offOf(l)?.percent ?? 0} disabled={!(regularOf(l) > 0)} label={`${t('billTable.disc')}: ${l.name}`}
+              onChange={(pct) => setPrice(i, round2(regularOf(l) * (1 - pct / 100)))} onEnter={() => searchRef.current?.focus()} />
+            <span className="hidden pt-1.5 text-right text-sm xl:block">{(() => { const p = products.find((x) => x.id === l.productId); const r = p ? garmentRate(p.hsnCode, p.gstRate, l.unitPrice) : null; return r == null ? '—' : `${r}%` })()}</span>
+            <div className="w-20 text-right font-bold xl:w-auto xl:pt-1.5">{formatRupees(round2(l.quantity * l.unitPrice))}</div>
           </div>
         ))}
         {cart.length > 0 && (<>
@@ -1143,6 +1158,31 @@ function billReceipt(
  * Typed quantities stay as typed ("0.", "" while typing), so weights like 0.5 kg or 245.5 kg can be entered; the line
  * only changes once the text is a number above 0.
  */
+/** The desk table's columns: #, item (with its notes under it), qty stepper, rate, disc %, GST %, amount. */
+const DESK_COLS = 'xl:grid-cols-[1.25rem_minmax(0,1fr)_4rem_4.5rem_3.5rem_3rem_5.5rem] xl:gap-x-2'
+
+/**
+ * A discount % box (desk table only): its own text while typing, so "12.5" can be typed although the line's price is
+ * rounded to paise each time. Shows the line's current discount when not being typed in.
+ */
+function PercentInput({ percent, onChange, onEnter, label, disabled }: { percent: number; onChange: (pct: number) => void; onEnter: () => void; label: string; disabled: boolean }) {
+  const [text, setText] = useState<string | null>(null)
+  return (
+    <input
+      value={text ?? (percent ? String(percent) : '')}
+      disabled={disabled}
+      onFocus={() => setText(percent ? String(percent) : '')}
+      onBlur={() => setText(null)}
+      onChange={(e) => { const next = e.target.value.replace(/[^\d.]/g, ''); setText(next); const pct = Number(next); if (pct >= 0 && pct < 100) onChange(pct) }}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter() } }}
+      inputMode="decimal"
+      aria-label={label}
+      placeholder="0"
+      className="hidden h-8 w-full rounded-md border border-line px-1.5 text-right disabled:opacity-40 xl:block"
+    />
+  )
+}
+
 function QuantityInput({ value, onChange, label }: { value: number; onChange: (q: number) => void; label: string }) {
   const [text, setText] = useState(String(value))
   useEffect(() => { if (Number(text) !== value) setText(String(value)) }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1152,7 +1192,7 @@ function QuantityInput({ value, onChange, label }: { value: number; onChange: (q
       onChange={(e) => { const next = e.target.value.replace(/[^\d.]/g, ''); setText(next); if (Number(next) > 0) onChange(Number(next)) }}
       inputMode="decimal"
       aria-label={label}
-      className="h-10 w-14 rounded-lg bg-transparent text-center text-lg font-bold outline-none focus:bg-white focus:ring-2 focus:ring-brand-line/30 lg:h-8"
+      className="h-10 w-14 rounded-lg bg-transparent text-center text-lg font-bold outline-none focus:bg-white focus:ring-2 focus:ring-brand-line/30 lg:h-8 xl:w-full xl:border xl:border-line xl:bg-white xl:text-base"
     />
   )
 }

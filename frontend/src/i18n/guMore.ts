@@ -459,6 +459,7 @@ const guMoreB = {
   staffLimits: { title: 'આ સહાયકને રોકો', udhaar: 'ઉધાર આપવાથી', cancel: 'બિલ રદ કરવા કે માલ પાછો લેવાથી', items: 'વસ્તુ, ભાવ કે સ્ટોક બદલવાથી', purchases: 'સપ્લાયર બિલ નાખવાથી', expenses: 'ખર્ચ લખવાથી', reports: 'રિપોર્ટ, રોકડ ચોપડો અને નફો-નુકસાન જોવાથી' },
   counter: { label: 'આ કાઉન્ટરનું નામ', hint: 'આ ફોન કે કમ્પ્યૂટર પર બનેલાં બિલ પર દેખાય છે, જેમ કે "કાઉન્ટર 2".', save: 'સેવ કરો' },
   pos: { byGstin: 'ખરીદનારનો GSTIN {{state}} નો છે: આ બિલ IGST લે છે.', followsGstin: 'ટેક્સનું રાજ્ય ખરીદનારના GSTIN પરથી આવે છે: {{state}}.', label: 'અહીં પહોંચાડ્યું', here: '{{state}} (આ રાજ્ય)', igst: '{{state}} જાય છે: આ બિલ IGST લે છે.', print: 'પુરવઠાનું સ્થળ' },
+  billTable: { disc: 'છૂટ %' },
   billList: {
     title: 'વેચાણનાં બિલ', period: 'સમય', periods: { today: 'આજે', month: 'આ મહિને', last3: 'છેલ્લા 3 મહિના', custom: 'તારીખ પસંદ કરો' },
     received: 'મળ્યા', due: 'બાકી', total_one: 'કુલ · {{count}} બિલ', total_other: 'કુલ · {{count}} બિલ',
