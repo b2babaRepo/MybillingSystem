@@ -1,3 +1,4 @@
+using GroceryKhata.Api.Shops;
 using System.Security.Claims;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
@@ -108,7 +109,7 @@ public static class CreditNotes
     {
         var group = app.MapGroup("/api/v1/bills/{billId:guid}/credit-notes").WithTags("Khata").RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("", ListAsync);
-        group.MapPost("", AddAsync);
+        group.MapPost("", AddAsync).RequireBillPasscode();
         return app;
     }
 

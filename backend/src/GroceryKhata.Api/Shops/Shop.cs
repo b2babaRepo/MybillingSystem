@@ -38,6 +38,12 @@ public sealed class Shop : Entity
     public string? UpiId { get; set; }
 
     /// <summary>
+    /// The hash of the shop's bill passcode: when set, cancelling a bill, taking goods back on a credit note, cancelling an
+    /// exchange slip or a supplier bill asks for it, whoever is signed in. Null: no passcode.
+    /// </summary>
+    public string? BillPasscodeHash { get; set; }
+
+    /// <summary>
     /// The shop's own WhatsApp reminder wording, with {name}, {amount}, {shop} and {upi} filled in per
     /// customer. Null: the app's default Hinglish text.
     /// </summary>

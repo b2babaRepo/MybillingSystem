@@ -9325,6 +9325,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("bank_opening_date");
 
+                    b.Property<string>("BillPasscodeHash")
+                        .HasColumnType("text")
+                        .HasColumnName("bill_passcode_hash");
+
                     b.Property<string>("BlockedReason")
                         .HasColumnType("text")
                         .HasColumnName("blocked_reason");

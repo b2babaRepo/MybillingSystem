@@ -48,6 +48,7 @@ async function fetchOrThrow(path: string, method: string, body: unknown, token?:
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         // The phone's clock: the server puts entry times right when it is wrong.
         'X-Client-Time': new Date().toISOString(),
+        ...(billPasscode ? { 'X-Bill-Passcode': billPasscode } : {}),
       },
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     })
@@ -131,6 +132,40 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
   // 204 No Content: nothing to read (an action done, or nothing there yet).
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
+}
+
+/** The bill passcode typed for the action being sent: only while {@link withBillPasscode} retries it. */
+let billPasscode: string | null = null
+
+/** The server wants the shop's bill passcode for this action (cancel a bill, a return…). */
+export const needsBillPasscode = (error: unknown): error is ApiError => error instanceof ApiError && error.status === 403 && error.problem?.type === 'bill-passcode'
+
+/**
+ * Runs an action that undoes money. When the shop has a bill passcode, the server refuses it at first: then the
+ * passcode is asked for and the action sent again with it. Closing the prompt ends it with the server's refusal.
+ */
+export async function withBillPasscode<T>(run: () => Promise<T>, askPasscode: (wrongBefore: boolean) => Promise<string | null>): Promise<T> {
+  try {
+    return await run()
+  } catch (refused) {
+    if (!needsBillPasscode(refused)) throw refused
+    let last: ApiError = refused
+    // Two tries at typing it; the server locks it after five wrong ones.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const code = (await askPasscode(attempt > 0))?.trim()
+      if (!code) throw last
+      billPasscode = code
+      try {
+        return await run()
+      } catch (again) {
+        if (!needsBillPasscode(again)) throw again
+        last = again
+      } finally {
+        billPasscode = null
+      }
+    }
+    throw last
+  }
 }
 
 /** Sign-in calls go without a token and save the session they return. */

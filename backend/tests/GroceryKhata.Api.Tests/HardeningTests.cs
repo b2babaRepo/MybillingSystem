@@ -75,6 +75,45 @@ public sealed class HardeningTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_bill_passcode_guards_cancelling_a_bill_and_needs_the_old_one_to_change()
+    {
+        var (shop, _) = await api.SignUpAsync("Passcode Store");
+        async Task<Guid> NewBillAsync()
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/bills", new { id, lines = new[] { new { name = "Atta", quantity = 1m, unitPrice = 50m } }, paidAmount = 50m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+            return id;
+        }
+
+        // No passcode: cancelling works as before.
+        Assert.True((await shop.PostJsonAsync($"/api/v1/bills/{await NewBillAsync()}/cancel", new { reason = "Wrong item" })).IsSuccessStatusCode);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/shop/bill-passcode", new { passcode = "1234" })).StatusCode);
+        (await shop.PutAsJsonAsync("/api/v1/shop/bill-passcode", new { passcode = "4826" })).EnsureSuccessStatusCode();
+        Assert.True(JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/bill-passcode")).RootElement.GetProperty("set").GetBoolean());
+
+        var bill = await NewBillAsync();
+        var bare = await shop.PostJsonAsync($"/api/v1/bills/{bill}/cancel", new { reason = "Wrong item" });
+        Assert.Equal(HttpStatusCode.Forbidden, bare.StatusCode);
+        Assert.Equal("bill-passcode", JsonDocument.Parse(await bare.Content.ReadAsStringAsync()).RootElement.GetProperty("type").GetString());
+
+        async Task<HttpResponseMessage> CancelWithAsync(string code)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/bills/{bill}/cancel") { Content = JsonContent.Create(new { reason = "Wrong item" }) };
+            request.Headers.Add("X-Bill-Passcode", code);
+            return await shop.SendAsync(request);
+        }
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await CancelWithAsync("1111")).StatusCode);
+        Assert.True((await CancelWithAsync("4826")).IsSuccessStatusCode);
+
+        // Changing or removing it needs the one in use.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/shop/bill-passcode", new { passcode = (string?)null })).StatusCode);
+        (await shop.PutAsJsonAsync("/api/v1/shop/bill-passcode", new { passcode = (string?)null, current = "4826" })).EnsureSuccessStatusCode();
+        Assert.False(JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/bill-passcode")).RootElement.GetProperty("set").GetBoolean());
+    }
+
+    [Fact]
     public async Task Profit_is_reported_by_customer_bill_and_category_from_each_line_cost()
     {
         var (shop, _) = await api.SignUpAsync("Profit Store");

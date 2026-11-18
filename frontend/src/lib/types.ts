@@ -298,6 +298,8 @@ export interface BillView {
 }
 
 export interface ProblemDetails {
+  /** What kind of problem: "bill-passcode" when an action needs the shop's bill passcode. */
+  type?: string
   title?: string
   detail?: string
   errors?: Record<string, string[]>

@@ -8,6 +8,7 @@ import { buildReminder, DEFAULT_REMINDER, SHOP_TYPES, useShopSettings, type Shop
 
 /** The shop's name and place, its UPI ID, and the reminder wording, with a live preview. */
 import { PrintLookPanel } from './PrintLookPanel'
+import { PasscodesPanel } from './PasscodesPanel'
 
 export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const settings = useShopSettings(shopId)
@@ -126,6 +127,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
         {message && <p className="text-sm text-muted">{message}</p>}
       </fieldset>
       {isOwner && <PrintLookPanel />}
+      {isOwner && <PasscodesPanel />}
     </div>
   )
 }

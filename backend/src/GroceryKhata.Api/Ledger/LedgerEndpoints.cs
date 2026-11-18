@@ -1,3 +1,4 @@
+using GroceryKhata.Api.Shops;
 using System.Security.Claims;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
@@ -67,7 +68,7 @@ public static class LedgerEndpoints
 
         group.MapPost("/bills/{id:guid}/cancel", async (Guid id, CancelBillRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
             (await ledger.CancelBillAsync(id, request, user.UserId()!.Value, ct)).ToHttp($"/api/v1/bills/{id}"))
-            .RequireAuthorization(AppPolicies.ShopOwner);
+            .RequireAuthorization(AppPolicies.ShopOwner).RequireBillPasscode();
 
         group.MapGet("/ledger/reconcile/stock", ReconcileStockAsync).RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("/ledger/reconcile", (LedgerService ledger, CancellationToken ct) => ledger.ReconcileAsync(ct))

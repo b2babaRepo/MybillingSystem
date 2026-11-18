@@ -17,6 +17,7 @@ import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { confirmAsk } from '../components/Ask'
+import { guarded } from '../lib/billPasscode'
 import { OrdersPanel, ReturnsPanel, ReceiptsPanel, type GoodsReceipt, SupplierImport, type PurchaseOrder } from './SupplierOrders'
 
 interface Supplier { id: string; name: string; phone: string | null; due: number; days0To15?: number; days16To30?: number; over30?: number; oldestDays?: number; gstin?: string | null; address?: string | null; paymentDays?: number | null; isActive?: boolean }
@@ -251,7 +252,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
     setAgainst(null)
     setPhotoNote(null)
   })
-  const cancelBill = async (purchaseId: string) => { if ((await confirmAsk(t('suppliers.cancelConfirm')))) void run(() => api(`/v1/suppliers/purchases/${purchaseId}/cancel`, 'POST', {})) }
+  const cancelBill = async (purchaseId: string) => { if ((await confirmAsk(t('suppliers.cancelConfirm')))) void run(() => guarded(() => api(`/v1/suppliers/purchases/${purchaseId}/cancel`, 'POST', {}))) }
   const startEdit = () => setEditing(s ? { name: s.name, phone: s.phone ?? '', gstin: s.gstin ?? '', address: s.address ?? '', days: s.paymentDays ? String(s.paymentDays) : '', active: s.isActive !== false } : null)
   const saveDetails = () => run(async () => {
     await api(`/v1/suppliers/${id}`, 'PUT', { id, name: editing!.name.trim(), phone: editing!.phone.trim() || null, gstin: editing!.gstin.trim(), address: editing!.address.trim(), paymentDays: Number(editing!.days) || 0, isActive: editing!.active })

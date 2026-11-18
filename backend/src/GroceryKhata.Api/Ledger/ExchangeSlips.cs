@@ -1,3 +1,4 @@
+using GroceryKhata.Api.Shops;
 using System.Security.Cryptography;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
@@ -113,7 +114,7 @@ public static class ExchangeSlips
             var updated = await db.CreditNotes.Where(n => n.Id == id && n.ForExchange && n.SlipCancelledAt == null)
                 .ExecuteUpdateAsync(s => s.SetProperty(n => n.SlipCancelledAt, clock.GetUtcNow()).SetProperty(n => n.Reason, n => n.Reason + " · Slip cancelled: " + reason), ct);
             return updated == 0 ? Results.NotFound() : Results.Ok((await ListAsync(db, clock, db.CreditNotes.AsNoTracking().Where(n => n.Id == id), true, ct))[0]);
-        }).RequireAuthorization(AppPolicies.ShopOwner);
+        }).RequireAuthorization(AppPolicies.ShopOwner).RequireBillPasscode();
         return app;
     }
 

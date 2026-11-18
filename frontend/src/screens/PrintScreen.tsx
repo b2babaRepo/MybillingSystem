@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { rupeesInWords } from '../lib/inWords'
+import { guarded } from '../lib/billPasscode'
 import { gstSummary, gstUnsetAmount, storedSummary } from '../lib/gst'
 import { listOps } from '../lib/outbox'
 import { provisionalBill } from '../lib/provisionalBill'
@@ -172,10 +173,11 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
   async function save() {
     setMessage('')
     try {
-      const note = await api<{ id: string; noteNo: string; total: number }>(`/v1/bills/${billId}/credit-notes`, 'POST', {
+      const body = {
         id: crypto.randomUUID(), reason: reason.trim(), restock, exchange, refundMode: !customerId && !exchange ? refundMode : undefined, serials: serials.split(/[\s,]+/).filter(Boolean),
         lines: Object.entries(qty).filter(([, q]) => Number(q) > 0).map(([lineNo, q]) => ({ lineNo: Number(lineNo), quantity: Number(q) })),
-      })
+      }
+      const note = await guarded(() => api<{ id: string; noteNo: string; total: number }>(`/v1/bills/${billId}/credit-notes`, 'POST', body))
       setQty({}); setReason(''); setSerials(''); setOpen(false)
       // Exchange: bill the new goods here, or print a slip the customer takes to another counter.
       if (exchange) { setTaken({ noteId: note.id, noteNo: note.noteNo, total: note.total, customerId }); await notes.refetch(); return }
@@ -292,7 +294,7 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
     const reason = (await ask(t('print.cancelReason')))?.trim()
     if (!reason) return
     try {
-      await api(`/v1/bills/${billId}/cancel`, 'POST', { reason })
+      await guarded(() => api(`/v1/bills/${billId}/cancel`, 'POST', { reason }))
       await query.refetch()
     } catch (err) {
       void tell(err instanceof Error ? err.message : t('error'))
@@ -508,7 +510,7 @@ function SlipPrint({ shopName, noteId }: { shopName: string; noteId: string }) {
   useEffect(() => { if (s) void QRCode.toDataURL(`GKSLIP:${s.id}:${s.code ?? ''}`, { width: 240, margin: 1 }).then(setQr) }, [s])
   async function act(path: string, body: object) {
     setBusy(true)
-    try { await api(`/v1/exchange-slips/${noteId}/${path}`, 'POST', body); await query.refetch() } catch (e) { await tell(e instanceof Error ? e.message : t('error')) } finally { setBusy(false) }
+    try { await guarded(() => api(`/v1/exchange-slips/${noteId}/${path}`, 'POST', body)); await query.refetch() } catch (e) { await tell(e instanceof Error ? e.message : t('error')) } finally { setBusy(false) }
   }
   async function newCode() {
     const phone = s?.customerPhone ? (await ask(t('slip.askPhone')))?.trim() : ''

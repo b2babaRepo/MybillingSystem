@@ -1,3 +1,4 @@
+using GroceryKhata.Api.Shops;
 using System.Security.Claims;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
@@ -253,7 +254,7 @@ public static class SupplierEndpoints
         group.MapPost("/purchases/{id:guid}/charges", AddChargesAsync);
         group.MapGet("/lots", LotsAsync);
         group.MapPut("/{id:guid}", ChangeAsync);
-        group.MapPost("/purchases/{id:guid}/cancel", CancelPurchaseAsync);
+        group.MapPost("/purchases/{id:guid}/cancel", CancelPurchaseAsync).RequireBillPasscode();
         return app;
     }
 
