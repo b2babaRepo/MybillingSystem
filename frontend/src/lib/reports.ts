@@ -101,6 +101,10 @@ export interface ShopSettings {
   staffMaxWriteOff?: number
   exchangeSlipDays?: number
   exchangeSlipHelperMax?: number
+  /** Put before new bill numbers ("MB" → MB/2026-27/0001). Null: none. */
+  billPrefix?: string | null
+  /** The shop's own extra bill fields ("PO no.", "Doctor"): up to 4 labels. */
+  billFields?: string[]
   /** Bills offer delivery. Null: not chosen yet, the trade decides. */
   deliversGoods?: boolean | null
   extraTypes?: ShopType[] | null

@@ -568,7 +568,7 @@ export const enMore = {
     loading: 'Loading',
   },
   print: {
-    billTo: 'Bill to: {{who}}', printNow: 'Print bill', 
+    billTo: 'Bill to: {{who}}', billToHead: 'Bill to', detailsHead: 'Bill details', walkIn: 'Walk-in customer', balanceDue: 'Balance due', printNow: 'Print bill', 
     billNo: 'No. {{no}}',
     taxInvoice: 'Tax invoice',
     gstTitle: 'GST in these prices',
@@ -934,6 +934,12 @@ export const enMore = {
     state: { open: 'Open', part: 'Part delivered', delivered: 'Delivered', closed: 'Closed', cancelled: 'Cancelled' },
     save: 'Save as sale order', needCustomer: 'Choose the customer first', saved: 'Sale order #{{number}} saved: items held for the customer.', fromOrder: 'Delivering order #{{number}}: change quantities for a part delivery.', promised: '{{qty}} promised on orders', free: '{{qty}} free to sell' },
   pos: { byGstin: "Buyer's GSTIN is from {{state}}: this bill charges IGST.", followsGstin: "The tax state comes from the buyer's GSTIN: {{state}}.", label: 'Delivered to', here: '{{state}} (this state)', igst: 'Going to {{state}}: this bill charges IGST.', print: 'Place of supply' },
+  billSetup: {
+    prefix: 'Bill number prefix', looksLike: 'New bills: {{no}}',
+    prefixHint: '1 to 3 letters or digits (your shop\'s initials). Bills already made keep their number; numbering goes on as before.',
+    fields: 'Your own bill fields', fieldsHint: 'Up to 4, filled on the bill screen and printed on the bill. Leave empty for none.',
+    example0: 'PO no.', example1: 'Doctor', example2: 'Delivery date', example3: 'Site',
+  },
   passcode: {
     title: 'Passcodes', on: 'On', off: 'Off', set: 'Set passcode', change: 'Change', remove: 'Remove',
     appTitle: 'App passcode on this phone', appHint: 'The app opens locked and locks again after 2 minutes away, so whoever picks up the phone can\'t see the khata.',

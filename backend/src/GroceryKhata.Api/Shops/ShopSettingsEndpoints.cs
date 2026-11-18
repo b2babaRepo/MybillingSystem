@@ -6,10 +6,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Shops;
 
-public sealed record ShopSettingsDto(string Name, string Slug, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType Type = ShopType.Kirana, string? Gstin = null, bool GstComposition = false, IReadOnlyList<ShopType>? ExtraTypes = null, decimal StaffMaxDiscountPercent = 10m, bool? DeliversGoods = null, decimal StaffMaxWriteOff = 1000m, int ExchangeSlipDays = 90, decimal ExchangeSlipHelperMax = 5000m);
+public sealed record ShopSettingsDto(string Name, string Slug, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType Type = ShopType.Kirana, string? Gstin = null, bool GstComposition = false, IReadOnlyList<ShopType>? ExtraTypes = null, decimal StaffMaxDiscountPercent = 10m, bool? DeliversGoods = null, decimal StaffMaxWriteOff = 1000m, int ExchangeSlipDays = 90, decimal ExchangeSlipHelperMax = 5000m, string? BillPrefix = null, IReadOnlyList<string>? BillFields = null);
 
 /// <summary><see cref="Type"/>: null keeps the shop's trade.</summary>
-public sealed record ShopSettingsUpdate(string? Name, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType? Type = null, string? Gstin = null, bool? GstComposition = null, IReadOnlyList<ShopType>? ExtraTypes = null, decimal? StaffMaxDiscountPercent = null, bool? DeliversGoods = null, decimal? StaffMaxWriteOff = null, int? ExchangeSlipDays = null, decimal? ExchangeSlipHelperMax = null);
+public sealed record ShopSettingsUpdate(string? Name, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType? Type = null, string? Gstin = null, bool? GstComposition = null, IReadOnlyList<ShopType>? ExtraTypes = null, decimal? StaffMaxDiscountPercent = null, bool? DeliversGoods = null, decimal? StaffMaxWriteOff = null, int? ExchangeSlipDays = null, decimal? ExchangeSlipHelperMax = null,
+    // Null keeps them (older apps); "" / an empty list clears them.
+    string? BillPrefix = null, IReadOnlyList<string>? BillFields = null);
 
 /// <summary>The shop's own details: name, where it is, UPI ID and reminder wording. Everyone reads; the owner changes.</summary>
 public static partial class ShopSettingsEndpoints
@@ -25,7 +27,7 @@ public static partial class ShopSettingsEndpoints
     private static async Task<IResult> GetAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
         await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId)
             .SingleOrDefaultAsync(ct) is { } s
-            ? TypedResults.Ok(new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate, s.Type, s.Gstin, s.GstComposition, ShopTypes.Parse(s.ExtraTypes), s.StaffMaxDiscountPercent, s.DeliversGoods, s.StaffMaxWriteOff, s.ExchangeSlipDays, s.ExchangeSlipHelperMax))
+            ? TypedResults.Ok(new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate, s.Type, s.Gstin, s.GstComposition, ShopTypes.Parse(s.ExtraTypes), s.StaffMaxDiscountPercent, s.DeliversGoods, s.StaffMaxWriteOff, s.ExchangeSlipDays, s.ExchangeSlipHelperMax, s.BillPrefix, Ledger.BillFields.Labels(s.BillFields)))
             : TypedResults.NotFound();
 
     private static async Task<IResult> UpdateAsync(ShopSettingsUpdate request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
@@ -77,6 +79,18 @@ public static partial class ShopSettingsEndpoints
             errors[nameof(request.StaffMaxDiscountPercent)] = ["Set the staff discount limit between 0 and 100%."];
         }
 
+        var prefix = request.BillPrefix is null ? null : Ledger.BillFields.CleanPrefix(request.BillPrefix);
+        if (request.BillPrefix is not null && prefix is null)
+        {
+            errors[nameof(request.BillPrefix)] = ["A bill-number prefix is 1 to 3 letters or digits, like MB."];
+        }
+
+        var fieldLabels = request.BillFields is null ? null : Ledger.BillFields.CleanLabels(request.BillFields);
+        if (request.BillFields is not null && fieldLabels is null)
+        {
+            errors[nameof(request.BillFields)] = [$"Up to {Ledger.BillFields.MaxFields} bill fields, each under {Ledger.BillFields.MaxLabel} letters."];
+        }
+
         if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(errors);
@@ -96,12 +110,15 @@ public static partial class ShopSettingsEndpoints
         shop.StaffMaxWriteOff = request.StaffMaxWriteOff ?? shop.StaffMaxWriteOff;
         shop.ExchangeSlipDays = request.ExchangeSlipDays ?? shop.ExchangeSlipDays;
         shop.ExchangeSlipHelperMax = request.ExchangeSlipHelperMax ?? shop.ExchangeSlipHelperMax;
+        // New bills take the prefix; bills already made keep theirs.
+        if (prefix is not null) shop.BillPrefix = prefix.Length == 0 ? null : prefix;
+        if (fieldLabels is not null) shop.BillFields = Ledger.BillFields.LabelsJson(fieldLabels);
         if (request.ExtraTypes is { } extra)
         {
             shop.ExtraTypes = extra.Where(x => x != shop.Type).Distinct().Select(ShopTypes.Name).ToArray();
         }
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.Type, shop.Gstin, shop.GstComposition, ShopTypes.Parse(shop.ExtraTypes), shop.StaffMaxDiscountPercent, shop.DeliversGoods, shop.StaffMaxWriteOff, shop.ExchangeSlipDays, shop.ExchangeSlipHelperMax));
+        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.Type, shop.Gstin, shop.GstComposition, ShopTypes.Parse(shop.ExtraTypes), shop.StaffMaxDiscountPercent, shop.DeliversGoods, shop.StaffMaxWriteOff, shop.ExchangeSlipDays, shop.ExchangeSlipHelperMax, shop.BillPrefix, Ledger.BillFields.Labels(shop.BillFields)));
     }
 
     private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();

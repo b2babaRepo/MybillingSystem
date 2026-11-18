@@ -87,10 +87,21 @@ body {
 .receipt td, .receipt th { padding: 1px 2px 1px 0 !important; overflow-wrap: break-word; }
 /* Like a shop receipt: the item's name on its own line, its numbers on the line below. */
 .receipt .bill-lines tr { display: grid; grid-template-columns: 1fr auto auto; column-gap: 0.8em; }
-.receipt .bill-lines :is(th, td):first-child { grid-column: 1 / -1; }
+.receipt .bill-lines :is(th, td):first-child, .receipt .bill-lines .cell-item { grid-column: 1 / -1; }
 .receipt-58 .bill-lines tr { grid-template-columns: 1fr auto; }
 .receipt .mt-4, .receipt .mt-6 { margin-top: 0.5em; }
-.receipt-58 .bill-lines :is(th, td):nth-child(3) { display: none; } /* 58 mm can't hold four columns: quantity and amount stay */
+.receipt-58 .bill-lines .cell-rate { display: none; } /* 58 mm can't hold four columns: quantity and amount stay */
+/* The A4 bill's extra columns (#, GST % and ₹) stay off a roll: its GST shows under each item instead. */
+.receipt .bill-lines .a4-only { display: none; }
+.bill-lines .roll-only { display: none; }
+.receipt .bill-lines .roll-only { display: inline; }
+.receipt :is(.bill-parties, .bill-sums) { grid-template-columns: 1fr; gap: 0.4em; }
+.receipt .bill-details { text-align: left; }
+/* On a roll the header stacks: logo, shop name, then the copy label, all centred, so the name keeps the full width. */
+.receipt .print-head { flex-direction: column; align-items: center; text-align: center; gap: 0.3em; }
+.receipt .print-head > div { text-align: center; }
+/* Doubled class: beats the Modern style's teal for .text-xl, so the Total stays white on its teal bar. */
+.print-theme-modern .print-total.print-total { background: #0f766e; color: #fff; }
 /* A statement on a roll: the date and details on one line, the three amounts under them. */
 .receipt .ledger tr { display: grid; grid-template-columns: auto 1fr 1fr; column-gap: 0.6em; }
 .receipt .ledger :is(th, td):nth-child(2) { grid-column: 2 / -1; }

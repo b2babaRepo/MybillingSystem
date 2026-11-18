@@ -34,6 +34,8 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     staffMaxWriteOff: String(initial.staffMaxWriteOff ?? 1000),
     exchangeSlipDays: String(initial.exchangeSlipDays ?? 90),
     exchangeSlipHelperMax: String(initial.exchangeSlipHelperMax ?? 5000),
+    billPrefix: initial.billPrefix ?? '',
+    billFields: [0, 1, 2, 3].map((i) => initial.billFields?.[i] ?? ''),
   })
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
@@ -42,7 +44,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   async function save() {
     setMessage('')
     try {
-      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, extraTypes: extra.filter((x) => x !== form.type) })
+      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, billPrefix: form.billPrefix.trim(), billFields: form.billFields.map((f) => f.trim()).filter(Boolean), extraTypes: extra.filter((x) => x !== form.type) })
       queryClient.setQueryData([shopId, 'settings'], saved)
       setMessage(t('settings.saved'))
     } catch (err) {
@@ -84,6 +86,25 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
           <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!!form.gstComposition} onChange={(e) => setForm({ ...form, gstComposition: e.target.checked ? 'yes' : '' })} className="h-5 w-5" />
             <span>{t('settings.composition')}</span></label>
         )}
+        {/* Bill number prefix and the shop's own bill fields. */}
+        <div className="flex flex-col gap-2 rounded-2xl border border-line p-3">
+          <label className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-muted">{t('billSetup.prefix')}</span>
+            <input value={form.billPrefix} onChange={(e) => setForm({ ...form, billPrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) })} maxLength={3} placeholder="MB"
+              className="h-12 w-24 rounded-xl border border-line bg-white px-3 text-lg font-bold uppercase outline-none focus:border-brand-line" />
+            <span className="text-sm text-muted">{t('billSetup.looksLike', { no: `${form.billPrefix ? `${form.billPrefix}/` : ''}2026-27/0001` })}</span>
+          </label>
+          <p className="text-xs text-muted">{t('billSetup.prefixHint')}</p>
+          <span className="text-sm font-semibold text-muted">{t('billSetup.fields')}</span>
+          <div className="grid grid-cols-2 gap-2">
+            {form.billFields.map((f, i) => (
+              <input key={i} value={f} maxLength={30} aria-label={`${t('billSetup.fields')} ${i + 1}`} placeholder={t(`billSetup.example${i}`)}
+                onChange={(e) => setForm({ ...form, billFields: form.billFields.map((x, j) => (j === i ? e.target.value : x)) })}
+                className="h-11 rounded-xl border border-line bg-white px-3 outline-none focus:border-brand-line" />
+            ))}
+          </div>
+          <p className="text-xs text-muted">{t('billSetup.fieldsHint')}</p>
+        </div>
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-muted">{t('discount.limitLabel')}</span>
           <input value={form.staffMaxDiscountPercent} onChange={(e) => setForm({ ...form, staffMaxDiscountPercent: e.target.value })} inputMode="decimal" className="h-12 w-28 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /> %

@@ -293,6 +293,8 @@ export interface BillView {
     print?: BillPrint | null
     /** The khata part is due on this day ("2026-12-01"). */
     dueOn?: string | null
+    /** The shop's own extra fields as filled on this bill. */
+    fields?: { label: string; value: string }[] | null
   }
   customer: Customer | null
 }

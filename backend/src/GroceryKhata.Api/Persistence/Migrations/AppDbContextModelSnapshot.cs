@@ -3742,6 +3742,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("exchange_note_id");
 
+                    b.Property<string>("Fields")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("fields");
+
                     b.Property<string>("FinancialYear")
                         .IsRequired()
                         .HasMaxLength(7)
@@ -3783,6 +3787,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasMaxLength(2)
                         .HasColumnType("character varying(2)")
                         .HasColumnName("place_of_supply");
+
+                    b.Property<string>("Prefix")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("prefix");
 
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
@@ -9325,9 +9334,18 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("bank_opening_date");
 
+                    b.Property<string>("BillFields")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("bill_fields");
+
                     b.Property<string>("BillPasscodeHash")
                         .HasColumnType("text")
                         .HasColumnName("bill_passcode_hash");
+
+                    b.Property<string>("BillPrefix")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("bill_prefix");
 
                     b.Property<string>("BlockedReason")
                         .HasColumnType("text")

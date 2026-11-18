@@ -172,6 +172,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [loose, setLoose] = useState<false | { name: string; unit: Unit }>(false)
   const settings = useShopSettings(shopId).data
   const shopType = settings?.type ?? 'kirana'
+  // The shop's own extra bill fields and what was typed in them for this bill.
+  const billFieldLabels = settings?.billFields ?? []
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const types = shopTypes(settings)
   const [extras, setExtras] = useState({ site: '', vehicleNumber: '', painterId: '' })
   // A GST shop delivering to another state: the place of supply is that state, so the bill charges IGST.
@@ -408,7 +411,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       payments: split ? [{ mode: 'cash', amount: cashPaid }, { mode: splitWith, amount: upiPaid, reference: splitWith === 'upi' ? reference : null }]
         : reference ? [{ mode: 'upi', amount: paidAmount, reference }] : undefined, placeOfSupply: (picksState && deliveredTo) || null, entrySeconds: billSeconds(startedAt.current, Date.now()), withoutGst: picksState && withoutGst, godownId: fromGodown || null,
       prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
+      fields: billFieldLabels.map((label) => ({ label, value: (fieldValues[label] ?? '').trim() })).filter((f) => f.value),
     })
+    setFieldValues({})
     setRx({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
     setPicked({})
     setSavedId(result.id)
@@ -884,6 +889,17 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             <p className="rounded-xl bg-brand-soft px-3 py-2 text-sm"><span className="text-muted">{t('slip.customer')}: </span><b>{customer.name}</b>{customer.phone ? ` · ${customer.phone}` : ''} <span className="text-muted">({t('slip.fromSlip', { note: exchange.noteNo })})</span></p>
           ) : (
           <CustomerFinder customers={customers} selected={customer} onKhata={customer ? round2(due - paidAmount) : 0} onPick={pickCustomer} onNameLater={() => addCustomer(shopId, '', '', true)} onCreate={(name, phone) => addCustomer(shopId, name, phone)} />
+          )}
+          {/* The shop's own bill fields (Settings): PO no., doctor, delivery date… printed on the bill. */}
+          {billFieldLabels.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              {billFieldLabels.map((label) => (
+                <label key={label} className="flex flex-col gap-1 text-xs font-semibold text-muted">{label}
+                  <input value={fieldValues[label] ?? ''} maxLength={100} onChange={(e) => setFieldValues({ ...fieldValues, [label]: e.target.value })}
+                    className="h-11 rounded-xl border border-line bg-white px-3 text-base font-normal text-ink outline-none focus:border-brand-line" />
+                </label>
+              ))}
+            </div>
           )}
           {customer && (
             <>

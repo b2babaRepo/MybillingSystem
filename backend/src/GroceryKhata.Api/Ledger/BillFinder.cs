@@ -40,11 +40,10 @@ public static class BillFinder
         var text = q?.Trim() ?? "";
         if (text.Length > 0)
         {
-            // "0042", "42" or "2026-27/0042": the bill number. Digits also match a mobile number.
-            var slash = text.LastIndexOf('/');
-            var numberPart = slash >= 0 ? text[(slash + 1)..] : text;
-            int? number = int.TryParse(numberPart, out var n) && n > 0 ? n : null;
-            var year = slash > 0 ? text[..slash] : null;
+            // "0042", "42", "2026-27/0042" or "MB/2026-27/0042": the bill number. Digits also match a mobile number.
+            var parts = text.Split('/');
+            int? number = int.TryParse(parts[^1], out var n) && n > 0 ? n : null;
+            var year = parts.Length >= 2 ? parts[^2] : null;
             var like = $"%{text.Replace("%", "").Replace("_", "")}%";
             bills = bills.Where(b =>
                 (number != null && b.Number == number && (year == null || b.FinancialYear == year))
@@ -55,12 +54,12 @@ public static class BillFinder
         var found = await bills.OrderByDescending(b => b.OccurredAt).Take(50)
             .Select(b => new
             {
-                b.Id, b.FinancialYear, b.Number, b.OccurredAt, b.Total, Cancelled = b.CancelledAt != null,
+                b.Id, b.Prefix, b.FinancialYear, b.Number, b.OccurredAt, b.Total, Cancelled = b.CancelledAt != null,
                 Customer = db.Customers.Where(c => c.Id == b.CustomerId).Select(c => new { c.Name, c.Phone }).FirstOrDefault(),
                 Lines = b.Lines.Count,
                 Names = b.Lines.OrderBy(l => l.LineNo).Select(l => l.Name).Take(3).ToList(),
             }).ToListAsync(ct);
-        return found.Select(b => new FoundBill(b.Id, $"{b.FinancialYear}/{b.Number:D4}", b.OccurredAt, b.Total, b.Customer?.Name, b.Customer?.Phone,
+        return found.Select(b => new FoundBill(b.Id, Bill.No(b.Prefix, b.FinancialYear, b.Number), b.OccurredAt, b.Total, b.Customer?.Name, b.Customer?.Phone,
             b.Lines, string.Join(", ", b.Names) + (b.Lines > 3 ? $" +{b.Lines - 3}" : ""), b.Cancelled)).ToList();
     }
 }

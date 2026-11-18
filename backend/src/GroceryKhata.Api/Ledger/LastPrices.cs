@@ -31,14 +31,14 @@ public static class LastPrices
     private static async Task<IResult> GetAsync(Guid id, Guid? customerId, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
     {
         var sold = db.BillLines.AsNoTracking().Where(l => l.ProductId == id)
-            .Join(db.Bills.AsNoTracking().Where(b => b.CancelledAt == null), l => l.BillId, b => b.Id, (l, b) => new { l.UnitPrice, l.Quantity, b.OccurredAt, b.FinancialYear, b.Number, b.CustomerId });
+            .Join(db.Bills.AsNoTracking().Where(b => b.CancelledAt == null), l => l.BillId, b => b.Id, (l, b) => new { l.UnitPrice, l.Quantity, b.OccurredAt, b.Prefix, b.FinancialYear, b.Number, b.CustomerId });
 
         var customer = customerId is { } cid
             ? (await sold.Where(s => s.CustomerId == cid).OrderByDescending(s => s.OccurredAt).Take(Count).ToListAsync(ct))
-                .Select(s => new PastPrice(s.UnitPrice, s.Quantity, s.OccurredAt, $"{s.FinancialYear}/{s.Number:D4}")).ToList()
+                .Select(s => new PastPrice(s.UnitPrice, s.Quantity, s.OccurredAt, Bill.No(s.Prefix, s.FinancialYear, s.Number))).ToList()
             : [];
         var anyone = (await sold.OrderByDescending(s => s.OccurredAt).Take(Count).ToListAsync(ct))
-            .Select(s => new PastPrice(s.UnitPrice, s.Quantity, s.OccurredAt, $"{s.FinancialYear}/{s.Number:D4}")).ToList();
+            .Select(s => new PastPrice(s.UnitPrice, s.Quantity, s.OccurredAt, Bill.No(s.Prefix, s.FinancialYear, s.Number))).ToList();
 
         List<PastPrice>? bought = null;
         if (LedgerEndpoints.IsOwner(user))

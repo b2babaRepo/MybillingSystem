@@ -191,8 +191,20 @@ public sealed class Bill : Entity, ITenantOwned
     /// <summary>"2026-27".</summary>
     public string FinancialYear { get; set; } = "";
 
-    /// <summary>"2026-27/0457", as printed.</summary>
-    public string BillNo => $"{FinancialYear}/{Number:D4}";
+    /// <summary>
+    /// The shop's bill-number prefix when this bill was made ("MB"), kept on the bill so a later change of prefix never
+    /// renumbers bills already given. Null: none. The numbering (1, 2, 3… in the year) is the same with or without it.
+    /// </summary>
+    public string? Prefix { get; set; }
+
+    /// <summary>"2026-27/0457" or "MB/2026-27/0457", as printed.</summary>
+    public string BillNo => No(Prefix, FinancialYear, Number);
+
+    /// <summary>A bill number as printed: at most 16 characters, as GST invoices must be (a prefix is at most 3).</summary>
+    public static string No(string? prefix, string year, int number) => prefix is null ? $"{year}/{number:D4}" : $"{prefix}/{year}/{number:D4}";
+
+    /// <summary>The shop's own extra bill fields as filled on this bill (PO no., doctor…): JSON [{label, value}]. Null: none.</summary>
+    public string? Fields { get; set; }
 
     public decimal PaidAmount { get; set; }
 

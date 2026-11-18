@@ -43,6 +43,12 @@ public sealed class Shop : Entity
     /// </summary>
     public string? BillPasscodeHash { get; set; }
 
+    /// <summary>Put before every new bill number ("MB" → MB/2026-27/0001): 1 to 3 capital letters or digits. Null: none.</summary>
+    public string? BillPrefix { get; set; }
+
+    /// <summary>The shop's own extra fields on bills ("PO no.", "Doctor", "Delivery date"): a JSON list of up to 4 labels. Null: none.</summary>
+    public string? BillFields { get; set; }
+
     /// <summary>
     /// The shop's own WhatsApp reminder wording, with {name}, {amount}, {shop} and {upi} filled in per
     /// customer. Null: the app's default Hinglish text.

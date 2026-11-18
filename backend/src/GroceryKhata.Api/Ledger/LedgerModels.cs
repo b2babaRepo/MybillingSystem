@@ -64,7 +64,9 @@ public sealed record BillRequest(
     // The counter (device) it was made on, as named on that device.
     string? Counter = null,
     // Handed out from this godown rather than the shop shelf: the goods move out of the godown with the bill.
-    Guid? GodownId = null);
+    Guid? GodownId = null,
+    // The shop's own extra bill fields as filled in (PO no., doctor…).
+    IReadOnlyList<BillFieldValue>? Fields = null);
 
 /// <summary>For Schedule H, H1 and X medicines: who prescribed them and for whom, as the drug rules ask.</summary>
 public sealed record PrescriptionRequest(string? DoctorName, string? DoctorAddress, string? DoctorRegNo, string? PatientName, string? PatientAddress, DateOnly? PrescribedOn);
@@ -119,7 +121,9 @@ public sealed record BillDto(
     string? Counter = null,
     Shops.BillPrintDto? Print = null,
     // The khata part of the bill is due on this day (the customer's credit days after the bill). Null: no terms.
-    DateOnly? DueOn = null);
+    DateOnly? DueOn = null,
+    // The shop's own extra fields as filled on this bill.
+    IReadOnlyList<BillFieldValue>? Fields = null);
 
 public sealed record CancelBillRequest(string? Reason);
 

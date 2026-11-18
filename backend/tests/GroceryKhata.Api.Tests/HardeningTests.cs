@@ -75,6 +75,40 @@ public sealed class HardeningTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_bill_prefix_goes_on_new_bills_only_and_the_shops_own_fields_print_on_the_bill()
+    {
+        var (shop, _) = await api.SignUpAsync("Prefix Store");
+        async Task<JsonElement> BillAsync(object? fields = null)
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/bills", new { id, lines = new[] { new { name = "Atta", quantity = 1m, unitPrice = 50m } }, paidAmount = 50m, paymentMode = "cash", fields })).EnsureSuccessStatusCode();
+            return JsonDocument.Parse(await shop.GetStringAsync($"/api/v1/bills/{id}")).RootElement.GetProperty("bill");
+        }
+
+        var before = await BillAsync();
+        Assert.DoesNotContain("PS/", before.GetProperty("billNo").GetString());
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Prefix Store", billPrefix = "ABCD" })).StatusCode);
+        (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Prefix Store", billPrefix = "ps", billFields = new[] { "PO no.", " ", "Site" } })).EnsureSuccessStatusCode();
+        var settings = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop")).RootElement;
+        Assert.Equal("PS", settings.GetProperty("billPrefix").GetString());
+        Assert.Equal(["PO no.", "Site"], settings.GetProperty("billFields").EnumerateArray().Select(f => f.GetString()));
+
+        var after = await BillAsync(new[] { new { label = "PO no.", value = "4471" }, new { label = "Site", value = " " } });
+        var number = after.GetProperty("billNo").GetString()!;
+        Assert.StartsWith("PS/", number);
+        Assert.True(number.Length <= 16);
+        var fields = after.GetProperty("fields").EnumerateArray().ToList();
+        Assert.Single(fields); // the blank one is dropped
+        Assert.Equal("4471", fields[0].GetProperty("value").GetString());
+
+        // The old bill keeps its number; the new one is found by its full number.
+        Assert.Equal(before.GetProperty("billNo").GetString(), JsonDocument.Parse(await shop.GetStringAsync($"/api/v1/bills/{before.GetProperty("id").GetGuid()}")).RootElement.GetProperty("bill").GetProperty("billNo").GetString());
+        var found = JsonDocument.Parse(await shop.GetStringAsync($"/api/v1/bills/find?q={Uri.EscapeDataString(number)}")).RootElement;
+        Assert.Contains(found.EnumerateArray(), b => b.GetProperty("billNo").GetString() == number);
+    }
+
+    [Fact]
     public async Task A_bill_passcode_guards_cancelling_a_bill_and_needs_the_old_one_to_change()
     {
         var (shop, _) = await api.SignUpAsync("Passcode Store");

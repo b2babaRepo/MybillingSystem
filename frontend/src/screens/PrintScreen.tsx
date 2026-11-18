@@ -352,6 +352,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
     rows.push({ text: title, align: 'center', bold: true }, { text: when, align: 'center' })
     if (customerName || phone) rows.push({ text: t('print.billTo', { who: [customerName, phone].filter(Boolean).join(' · ') }) })
     if (bill.buyerGstin) rows.push({ text: `${t('print.buyerGstin')} ${bill.buyerGstin}` })
+    for (const f of bill.fields ?? []) rows.push({ text: `${f.label}: ${f.value}` })
     if (bill.cancelledAt) rows.push({ text: t('print.cancelled'), align: 'center', big: true })
     rows.push({ rule: true })
     for (const l of bill.lines) {
@@ -373,7 +374,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
   }
 
   return (
-    <Page title={shopName} subtitle={`${bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')}${bill.billNo ? ` ${t('print.billNo', { no: bill.billNo })}` : ''} · ${when}${bill.counter ? ` · ${bill.counter}` : ''}${customerName ? ` · ${customerName}` : ''}`} shareText={share} phone={phone} receipt={() => billReceipt()} pdfName={`${shopName} ${bill.billNo ?? when}`}
+    <Page title={shopName} subtitle={bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')} shareText={share} phone={phone} receipt={() => billReceipt()} pdfName={`${shopName} ${bill.billNo ?? when}`}
       logo={look?.logo} theme={look?.theme} corner={copy !== 'none' ? t(`print.copy.${copy}`) : null}
       tools={(
         <select aria-label={t('print.copy.label')} value={copy} onChange={(e) => setCopy(e.target.value as typeof copy)} className="h-11 rounded-xl border border-line bg-white px-2 font-semibold transition hover:bg-[#f6faf9]">
@@ -381,49 +382,102 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
         </select>
       )}>
       {bill.billOfSupply && <p className="mb-2 text-sm font-semibold">{t('print.compositionNote')}</p>}
-      {bill.shopAddress && <p className="mb-2 text-sm">{bill.shopAddress}</p>}
-      {(customerName || phone) && <p className="mb-2 text-sm font-semibold">{t('print.billTo', { who: [customerName, phone].filter(Boolean).join(' · ') })}</p>}
+      {(bill.shopAddress || gstin) && <p className="mb-3 text-sm">{[bill.shopAddress, gstin && `GSTIN ${gstin}`].filter(Boolean).join(' · ')}</p>}
       {gstin && !bill.shopAddress && <p className="mb-2 text-sm font-semibold text-due print:hidden">{t('print.shopAddressMissing')}</p>}
       {bill.cancelledAt && <p className="mb-3 border-2 border-black p-2 text-center font-extrabold">{t('print.cancelled')}{bill.cancelReason && ` · ${bill.cancelReason}`}</p>}
       {bill.prescription && <PrescriptionPhoto billId={bill.id} />}
       {bill.prescription && <p className="mb-2 text-sm">{t('rx.prescribedBy', { doctor: [bill.prescription.doctorName, bill.prescription.doctorRegNo].filter(Boolean).join(', '), patient: bill.prescription.patientName })}</p>}
-      {(gstin || bill.site || bill.vehicleNumber) && (
-        <p className="mb-3 text-sm">
-          {[gstin && `GSTIN ${gstin}`, bill.buyerGstin && `${t('print.buyerGstin')} ${bill.buyerGstin}`, gstin && !bill.billOfSupply && stateLabel(bill.placeOfSupply) && `${t('pos.print')}: ${stateLabel(bill.placeOfSupply)}`, bill.site && `${t('trade.site')}: ${bill.site}`, bill.vehicleNumber && `${t('trade.vehicle')}: ${bill.vehicleNumber}`].filter(Boolean).join(' · ')}
-        </p>
-      )}
-      {bill.buyerAddress && <p className="mb-3 text-sm">{t('print.buyerAddress')}: {bill.buyerAddress}</p>}
+      {/* Who it is for on the left, the bill's own details on the right, as on a printed invoice. */}
+      <div className="bill-parties mb-3 grid grid-cols-2 gap-4 text-sm">
+        <div className="flex flex-col">
+          <span className="text-xs font-bold uppercase tracking-wide text-gray-600">{t('print.billToHead')}</span>
+          {customerName || phone ? <>
+            {customerName && <span className="text-base font-bold">{customerName}</span>}
+            {phone && <span>{phone}</span>}
+            {bill.buyerGstin && <span>{t('print.buyerGstin')} {bill.buyerGstin}</span>}
+            {bill.buyerAddress && <span>{bill.buyerAddress}</span>}
+          </> : <span>{t('print.walkIn')}</span>}
+        </div>
+        <div className="bill-details flex flex-col text-right">
+          <span className="text-xs font-bold uppercase tracking-wide text-gray-600">{t('print.detailsHead')}</span>
+          {bill.billNo && <span className="text-base font-bold">{t('print.billNo', { no: bill.billNo })}</span>}
+          <span>{when}</span>
+          {gstin && !bill.billOfSupply && stateLabel(bill.placeOfSupply) && <span>{t('pos.print')}: {stateLabel(bill.placeOfSupply)}</span>}
+          {bill.site && <span>{t('trade.site')}: {bill.site}</span>}
+          {bill.vehicleNumber && <span>{t('trade.vehicle')}: {bill.vehicleNumber}</span>}
+          {bill.fields?.map((f) => <span key={f.label}>{f.label}: {f.value}</span>)}
+          {bill.counter && <span className="text-gray-600">{bill.counter}</span>}
+        </div>
+      </div>
       {bill.buyerGstin && !bill.buyerAddress && <p className="mb-3 text-sm font-semibold text-due print:hidden">{t('print.buyerAddressMissing')}</p>}
       {gstin && !bill.buyerGstin && bill.total >= 50000 && !bill.buyerAddress && <p className="mb-3 text-sm font-semibold text-due print:hidden">{t('print.bigBillAddress')}</p>}
-      <table className="bill-lines w-full border-collapse text-[15px]">
-        <thead>
-          <tr className="border-b border-black text-left">
-            <th className="py-1.5">{t('print.item')}</th><th className="text-right">{t('print.qty')}</th><th className="text-right">{t('print.rate')}</th><th className="text-right">{t('print.amount')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {bill.lines.map((l, i) => (
-            <tr key={i} className="border-b border-gray-300">
-              <td className="py-1.5 pr-2">{l.printName ?? l.name}{l.batch && <span className="block text-xs text-gray-600">{l.batch.startsWith('S/N') ? l.batch : `Batch ${l.batch}`}</span>}{l.hsnCode && <span className="block text-xs text-gray-600">HSN {l.hsnCode}{gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}</span>}</td>
-              <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`, { count: l.quantity })}{l.bags ? <span className="block text-xs text-gray-600">{t('bag.inBags', { count: l.bags })}</span> : null}</td>
-              <td className="text-right whitespace-nowrap">{formatRupees(l.unitPrice)}</td>
-              <td className="text-right whitespace-nowrap">{formatRupees(l.amount)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="mt-4 flex flex-col gap-1 border-t-2 border-black pt-2 text-lg">
-        {(() => {
-          // What the customer saved against the items' regular prices, from the prices the server kept on each line.
-          const saved = Math.round(bill.lines.reduce((sum, l) => sum + (l.listPrice != null && l.listPrice > l.unitPrice ? (l.listPrice - l.unitPrice) * l.quantity : 0), 0) * 100) / 100
-          return saved > 0 ? <p className="flex justify-between text-sm font-semibold"><span>{t('discount.saved')}</span><span>{formatRupees(saved)}</span></p> : null
-        })()}
-        <p className="flex justify-between text-xl font-extrabold"><span>{t('print.total')}</span><span>{formatRupees(bill.total)}</span></p>
-        {(bill.exchangeCredit ?? 0) > 0 && <p className="flex justify-between text-sm font-semibold"><span>{t('exchange.credit', { note: bill.exchangeNoteNo ?? '' })}</span><span>− {formatRupees(bill.exchangeCredit!)}</span></p>}
-        {(bill.payments?.length ?? 0) > 0 ? bill.payments!.map((p) => <p key={p.mode} className="flex justify-between"><span>{t('print.paid')} ({t(p.mode)}{'reference' in p && p.reference ? ` · UTR ${p.reference}` : ''})</span><span>{formatRupees(p.amount)}</span></p>) : <p className="flex justify-between"><span>{t('print.paid')}{bill.paymentMode && ` (${t(bill.paymentMode)})`}</span><span>{formatRupees(bill.paidAmount)}</span></p>}
-        {bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.onKhata')}</span><span>{formatRupees(bill.onKhata)}</span></p>}
-        {bill.dueOn && bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.dueBy')}</span><span>{new Date(`${bill.dueOn}T00:00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}</span></p>}
-        <p className="text-sm"><span className="font-semibold">{t('print.inWords')}:</span> {rupeesInWords(bill.total)}</p>
+      {(() => {
+        // GST on each line: stored when billed, else worked out from the rate (prices include GST).
+        const lineGst = (l: BillView['bill']['lines'][number]) => (l.cgst ?? 0) + (l.sgst ?? 0) + (l.igst ?? 0) || (l.gstRate ? Math.round((l.amount - l.amount / (1 + l.gstRate / 100)) * 100) / 100 : 0)
+        const showTax = gst.length > 0
+        const sameUnit = bill.lines.every((l) => l.unit === bill.lines[0]?.unit)
+        const totalQty = Math.round(bill.lines.reduce((s, l) => s + l.quantity, 0) * 1000) / 1000
+        const totalGst = Math.round(bill.lines.reduce((s, l) => s + lineGst(l), 0) * 100) / 100
+        return (
+          <table className="bill-lines w-full border-collapse text-[15px]">
+            <thead>
+              <tr className="bill-head border-b border-black text-left">
+                <th className="a4-only w-8 py-1.5">#</th>
+                <th className="cell-item py-1.5">{t('print.item')}</th>
+                <th className="text-right">{t('print.qty')}</th>
+                <th className="cell-rate text-right">{t('print.rate')}</th>
+                {showTax && <th className="a4-only text-right">GST %</th>}
+                {showTax && <th className="a4-only text-right">GST ₹</th>}
+                <th className="text-right">{t('print.amount')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bill.lines.map((l, i) => (
+                <tr key={i} className="border-b border-gray-300 align-top">
+                  <td className="a4-only py-1.5 text-gray-600">{i + 1}</td>
+                  <td className="cell-item py-1.5 pr-2">{l.printName ?? l.name}{l.batch && <span className="block text-xs text-gray-600">{l.batch.startsWith('S/N') ? l.batch : `Batch ${l.batch}`}</span>}{l.hsnCode && <span className="block text-xs text-gray-600">HSN {l.hsnCode}<span className="roll-only">{gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}</span></span>}</td>
+                  <td className="py-1.5 text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`, { count: l.quantity })}{l.bags ? <span className="block text-xs text-gray-600">{t('bag.inBags', { count: l.bags })}</span> : null}</td>
+                  <td className="cell-rate py-1.5 text-right whitespace-nowrap">{formatRupees(l.unitPrice)}</td>
+                  {showTax && <td className="a4-only py-1.5 text-right whitespace-nowrap">{l.gstRate != null ? `${l.gstRate}%` : '—'}</td>}
+                  {showTax && <td className="a4-only py-1.5 text-right whitespace-nowrap">{formatRupees(lineGst(l))}</td>}
+                  <td className="py-1.5 text-right whitespace-nowrap">{formatRupees(l.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-b-2 border-black font-bold">
+                <td className="a4-only" />
+                <td className="cell-item py-1.5">{t('print.total')}</td>
+                <td className="py-1.5 text-right whitespace-nowrap">{sameUnit && bill.lines.length > 0 ? `${totalQty} ${t(`units.${bill.lines[0].unit}`, { count: totalQty })}` : ''}</td>
+                <td className="cell-rate" />
+                {showTax && <td className="a4-only" />}
+                {showTax && <td className="a4-only py-1.5 text-right whitespace-nowrap">{formatRupees(totalGst)}</td>}
+                <td className="py-1.5 text-right whitespace-nowrap">{formatRupees(bill.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        )
+      })()}
+      {/* Amount in words on the left; what was paid and what is still due on the right. */}
+      <div className="bill-sums mt-4 grid grid-cols-2 items-start gap-4">
+        <div className="rounded-md bg-gray-100 p-2 text-sm">
+          <p className="font-semibold">{t('print.inWords')}</p>
+          <p>{rupeesInWords(bill.total)}</p>
+        </div>
+        <div className="flex flex-col gap-1">
+          {gst.length > 0 && <p className="flex justify-between text-sm"><span>{t('print.taxable')}</span><span>{formatRupees(gst.reduce((s, g) => s + g.taxable, 0))}</span></p>}
+          {gst.length > 0 && <p className="flex justify-between text-sm"><span>GST</span><span>{formatRupees(gst.reduce((s, g) => s + g.cgst + g.sgst + g.igst, 0))}</span></p>}
+          {(() => {
+            // What the customer saved against the items' regular prices, from the prices the server kept on each line.
+            const saved = Math.round(bill.lines.reduce((sum, l) => sum + (l.listPrice != null && l.listPrice > l.unitPrice ? (l.listPrice - l.unitPrice) * l.quantity : 0), 0) * 100) / 100
+            return saved > 0 ? <p className="flex justify-between text-sm font-semibold"><span>{t('discount.saved')}</span><span>{formatRupees(saved)}</span></p> : null
+          })()}
+          <p className="print-total flex justify-between rounded-md bg-[#e6f2f0] px-2 py-1 text-xl font-extrabold"><span>{t('print.total')}</span><span>{formatRupees(bill.total)}</span></p>
+          {(bill.exchangeCredit ?? 0) > 0 && <p className="flex justify-between text-sm font-semibold"><span>{t('exchange.credit', { note: bill.exchangeNoteNo ?? '' })}</span><span>− {formatRupees(bill.exchangeCredit!)}</span></p>}
+          {(bill.payments?.length ?? 0) > 0 ? bill.payments!.map((p) => <p key={p.mode} className="flex justify-between"><span>{t('print.paid')} ({t(p.mode)}{'reference' in p && p.reference ? ` · UTR ${p.reference}` : ''})</span><span>{formatRupees(p.amount)}</span></p>) : <p className="flex justify-between"><span>{t('print.paid')}{bill.paymentMode && ` (${t(bill.paymentMode)})`}</span><span>{formatRupees(bill.paidAmount)}</span></p>}
+          <p className="flex justify-between font-bold"><span>{t('print.balanceDue')}</span><span>{formatRupees(bill.onKhata)}</span></p>
+          {bill.dueOn && bill.onKhata > 0 && <p className="flex justify-between font-semibold"><span>{t('print.dueBy')}</span><span>{new Date(`${bill.dueOn}T00:00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}</span></p>}
+        </div>
       </div>
       {gst.length > 0 && (
         <table className="mt-4 w-full border-collapse text-sm">

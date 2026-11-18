@@ -569,6 +569,16 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                         request.PlaceOfSupply?.Trim());
                 }
 
+                // The shop's own bill fields as filled in, and its prefix as it is today (kept on the bill).
+                var (fieldsJson, fieldsProblem) = BillFields.ValuesJson(request.Fields);
+                if (fieldsProblem is not null)
+                {
+                    return LedgerResult<BillDto>.Invalid(new Dictionary<string, string[]> { [nameof(request.Fields)] = [fieldsProblem] });
+                }
+
+                bill.Fields = fieldsJson;
+                bill.Prefix = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.BillPrefix).SingleAsync(cancellationToken);
+
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
                 (bill.FinancialYear, bill.Number) = await NextBillNumberAsync(cancellationToken);
                 db.Bills.Add(bill);
@@ -700,7 +710,8 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     lines.Select(l => new BillLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount, l.GstRate, l.HsnCode, l.TaxableValue, l.Cgst, l.Sgst, l.Igst, l.Batch, l.ListPrice, l.PrintName, l.Bags)).ToList(),
                     balance, bill.Site, bill.VehicleNumber, bill.PainterId, bill.BillNo, bill.Gstin, BuyerGstin: bill.BuyerGstin, BillOfSupply: bill.BillOfSupply,
                     Prescription: prescription is null ? null : new PrescriptionRequest(prescription.DoctorName, prescription.DoctorAddress, prescription.DoctorRegNo, prescription.PatientName, prescription.PatientAddress, prescription.PrescribedOn),
-                    ExchangeCredit: bill.ExchangeCredit, ExchangeNoteNo: exchange?.NoteNo, PlaceOfSupply: bill.PlaceOfSupply, Payments: bill.Parts(), Counter: bill.Counter));
+                    ExchangeCredit: bill.ExchangeCredit, ExchangeNoteNo: exchange?.NoteNo, PlaceOfSupply: bill.PlaceOfSupply, Payments: bill.Parts(), Counter: bill.Counter,
+                    Fields: BillFields.Values(bill.Fields)));
             });
 
     /// <summary>
@@ -961,7 +972,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 .Select(r => new PrescriptionRequest(r.DoctorName, r.DoctorAddress, r.DoctorRegNo, r.PatientName, r.PatientAddress, r.PrescribedOn)).SingleOrDefaultAsync(cancellationToken),
             bill.ExchangeCredit,
             bill.ExchangeNoteId is { } exchangeId ? (await db.CreditNotes.AsNoTracking().Where(n => n.Id == exchangeId).Select(n => new { n.FinancialYear, n.Number, n.TaxFree }).SingleOrDefaultAsync(cancellationToken)) is { } x ? CreditNote.No(x.FinancialYear, x.Number, x.TaxFree) : null : null,
-            bill.PlaceOfSupply, Payments: bill.Parts(), Counter: bill.Counter);
+            bill.PlaceOfSupply, Payments: bill.Parts(), Counter: bill.Counter, Fields: BillFields.Values(bill.Fields));
     }
 
     private Task<decimal> BalanceAsync(Guid customerId, CancellationToken cancellationToken) =>

@@ -125,15 +125,15 @@ public static class ExchangeSlips
         var rows = await notes.Select(n => new
         {
             n.Id, n.FinancialYear, n.Number, n.TaxFree, n.Total, n.Spent, n.OccurredAt, n.CustomerId, n.ExchangeBillId, n.SlipCode, n.SlipCancelledAt,
-            Bill = db.Bills.Where(b => b.Id == n.BillId).Select(b => new { b.FinancialYear, b.Number }).FirstOrDefault(),
-            Used = db.Bills.Where(b => b.Id == n.ExchangeBillId).Select(b => new { b.FinancialYear, b.Number }).FirstOrDefault(),
+            Bill = db.Bills.Where(b => b.Id == n.BillId).Select(b => new { b.Prefix, b.FinancialYear, b.Number }).FirstOrDefault(),
+            Used = db.Bills.Where(b => b.Id == n.ExchangeBillId).Select(b => new { b.Prefix, b.FinancialYear, b.Number }).FirstOrDefault(),
             Customer = db.Customers.Where(c => c.Id == n.CustomerId).Select(c => new { c.Name, c.Phone }).FirstOrDefault(),
         }).ToListAsync(ct);
         var now = clock.GetUtcNow();
         var days = await DaysAsync(db, ct);
         return rows.Select(r => new ExchangeSlip(r.Id, CreditNote.No(r.FinancialYear, r.Number, r.TaxFree), r.Total, r.SlipCancelledAt is null ? r.Total - r.Spent : 0, r.OccurredAt, ValidTill(r.OccurredAt, days),
             r.SlipCancelledAt is not null ? "cancelled" : r.Spent >= r.Total ? "used" : Expired(r.OccurredAt, now, days) ? "expired" : "open",
-            r.Bill is null ? "" : $"{r.Bill.FinancialYear}/{r.Bill.Number:D4}", r.CustomerId, r.Customer?.Name, r.Customer?.Phone,
-            r.Used is null ? null : $"{r.Used.FinancialYear}/{r.Used.Number:D4}", withCode ? r.SlipCode : null)).ToList();
+            r.Bill is null ? "" : Bill.No(r.Bill.Prefix, r.Bill.FinancialYear, r.Bill.Number), r.CustomerId, r.Customer?.Name, r.Customer?.Phone,
+            r.Used is null ? null : Bill.No(r.Used.Prefix, r.Used.FinancialYear, r.Used.Number), withCode ? r.SlipCode : null)).ToList();
     }
 }

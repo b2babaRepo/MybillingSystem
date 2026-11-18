@@ -570,7 +570,7 @@ export const hiMore: TextsMore = {
     loading: 'लदाई',
   },
   print: {
-    billTo: 'ग्राहक: {{who}}', printNow: 'बिल छापें', 
+    billTo: 'ग्राहक: {{who}}', billToHead: 'ग्राहक', detailsHead: 'बिल की जानकारी', walkIn: 'नकद ग्राहक', balanceDue: 'बाकी रकम', printNow: 'बिल छापें', 
     billNo: 'नं. {{no}}',
     taxInvoice: 'टैक्स इनवॉइस',
     gstTitle: 'इन दामों में GST',
@@ -936,6 +936,12 @@ export const hiMore: TextsMore = {
     state: { open: 'खुला', part: 'कुछ दिया', delivered: 'पूरा दिया', closed: 'बंद', cancelled: 'रद्द' },
     save: 'बिक्री ऑर्डर सेव करें', needCustomer: 'पहले ग्राहक चुनें', saved: 'बिक्री ऑर्डर #{{number}} सेव: सामान ग्राहक के लिए रखा।', fromOrder: 'ऑर्डर #{{number}} दे रहे हैं: कुछ ही देना हो तो मात्रा बदलें।', promised: '{{qty}} ऑर्डर पर रखा', free: '{{qty}} बेचने को खाली' },
   pos: { byGstin: "खरीदार का GSTIN {{state}} का है: इस बिल पर IGST लगेगा।", followsGstin: "टैक्स का राज्य खरीदार के GSTIN से तय होता है: {{state}}।", label: 'कहाँ भेजा', here: '{{state}} (यही राज्य)', igst: '{{state}} भेजा जा रहा है: इस बिल पर IGST लगेगा।', print: 'आपूर्ति का स्थान' },
+  billSetup: {
+    prefix: 'बिल नंबर के आगे', looksLike: 'नए बिल: {{no}}',
+    prefixHint: '1 से 3 अक्षर या अंक (दुकान के नाम के पहले अक्षर)। पुराने बिलों के नंबर वही रहेंगे; गिनती पहले जैसी चलती रहेगी।',
+    fields: 'बिल पर आपके अपने खाने', fieldsHint: 'ज़्यादा से ज़्यादा 4, बिल बनाते समय भरें और बिल पर छपेंगे। न चाहिए तो खाली छोड़ें।',
+    example0: 'PO नंबर', example1: 'डॉक्टर', example2: 'डिलीवरी की तारीख', example3: 'साइट',
+  },
   passcode: {
     title: 'पासकोड', on: 'चालू', off: 'बंद', set: 'पासकोड लगाएँ', change: 'बदलें', remove: 'हटाएँ',
     appTitle: 'इस फ़ोन पर ऐप का पासकोड', appHint: 'ऐप खुलते ही और 2 मिनट बाहर रहने पर फिर से लॉक होगा, ताकि फ़ोन उठाने वाला खाता न देख सके।',

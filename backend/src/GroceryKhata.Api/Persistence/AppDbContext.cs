@@ -410,6 +410,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         {
             b.ToTable("shops");
             b.Property(s => s.State).HasMaxLength(80);
+            b.Property(s => s.BillPrefix).HasMaxLength(3);
+            b.Property(s => s.BillFields).HasColumnType("jsonb");
             b.Property(s => s.BankAccounts).HasColumnType("jsonb");
             b.Property(s => s.District).HasMaxLength(80);
             b.Property(s => s.City).HasMaxLength(80);
@@ -1494,6 +1496,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         {
             b.ToTable("bills");
             b.Property(x => x.Payments).HasColumnType("jsonb");
+            b.Property(x => x.Prefix).HasMaxLength(3);
+            b.Property(x => x.Fields).HasColumnType("jsonb");
             b.HasTenantKey();
             b.HasIndex(x => new { x.ShopId, x.OccurredAt });
             b.HasTenantForeignKey<Bill, Customer>(nameof(Bill.CustomerId));

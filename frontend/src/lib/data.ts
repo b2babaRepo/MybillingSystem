@@ -210,7 +210,7 @@ export async function saveBill(
   paidAmount: number,
   paymentMode: PaymentMode,
   /** Other trades: the site, the vehicle, the painter. */
-  extras: { withoutGst?: boolean; payments?: { mode: PaymentMode; amount: number; reference?: string | null }[]; site?: string | null; vehicleNumber?: string | null; painterId?: string | null; prescription?: { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null } | null; serials?: { productId: string; serialNo: string }[]; exchangeNoteId?: string | null; exchangeCredit?: number; placeOfSupply?: string | null; entrySeconds?: number | null; godownId?: string | null } = {},
+  extras: { withoutGst?: boolean; payments?: { mode: PaymentMode; amount: number; reference?: string | null }[]; site?: string | null; vehicleNumber?: string | null; painterId?: string | null; prescription?: { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null } | null; serials?: { productId: string; serialNo: string }[]; exchangeNoteId?: string | null; exchangeCredit?: number; placeOfSupply?: string | null; entrySeconds?: number | null; godownId?: string | null; fields?: { label: string; value: string }[] } = {},
 ) {
   const id = uuidv7()
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
