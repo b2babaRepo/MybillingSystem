@@ -934,6 +934,14 @@ export const enMore = {
     state: { open: 'Open', part: 'Part delivered', delivered: 'Delivered', closed: 'Closed', cancelled: 'Cancelled' },
     save: 'Save as sale order', needCustomer: 'Choose the customer first', saved: 'Sale order #{{number}} saved: items held for the customer.', fromOrder: 'Delivering order #{{number}}: change quantities for a part delivery.', promised: '{{qty}} promised on orders', free: '{{qty}} free to sell' },
   pos: { byGstin: "Buyer's GSTIN is from {{state}}: this bill charges IGST.", followsGstin: "The tax state comes from the buyer's GSTIN: {{state}}.", label: 'Delivered to', here: '{{state}} (this state)', igst: 'Going to {{state}}: this bill charges IGST.', print: 'Place of supply' },
+  billList: {
+    title: 'Sale bills', period: 'Period', periods: { today: 'Today', month: 'This month', last3: 'Last 3 months', custom: 'Pick dates' },
+    received: 'Received', due: 'Due', total_one: 'Total · {{count}} bill', total_other: 'Total · {{count}} bills',
+    status: { all: 'All', paid: 'Paid', partial: 'Partial', due: 'Due', cancelled: 'Cancelled' },
+    dueAmount: '{{amount}} due', print: 'Print', share: 'Share on WhatsApp', excel: 'Download for Excel',
+    shareText: 'Bill {{no}}: {{total}}. Still due: {{due}}.', more: 'Showing the latest 200. Pick a shorter period or search to see others.',
+    colDate: 'Date', colNo: 'Bill no.', colParty: 'Customer', colItems: 'Items', colTotal: 'Total', colDue: 'Due', colStatus: 'Status',
+  },
   billSetup: {
     prefix: 'Bill number prefix', looksLike: 'New bills: {{no}}',
     prefixHint: '1 to 3 letters or digits (your shop\'s initials). Bills already made keep their number; numbering goes on as before.',

@@ -282,7 +282,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
   const medical = trades.includes('medical')
   const sideGroups: { key: string; title: string; add?: { path: string; label: string }; links: { path: string; label: string }[] }[] = [
     { key: 'sell', title: t('menu.sell'), add: { path: '/bill', label: t('menu.addBill') }, links: [
-      { path: '/find-bill', label: t('findBill.title') },
+      { path: '/find-bill', label: t('billList.title') },
       { path: '/exchange-slips', label: t('slip.register') },
       { path: '/estimates', label: t('estimate.link') },
       { path: '/sale-orders', label: t('saleOrder.link') },

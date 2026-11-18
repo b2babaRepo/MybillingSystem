@@ -75,6 +75,42 @@ public sealed class HardeningTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task The_bill_list_shows_each_bills_due_today_with_khata_payments_clearing_the_oldest_first()
+    {
+        var (shop, _) = await api.SignUpAsync("Bill List Store");
+        var ramesh = await KhataTests.CreateCustomerAsync(shop, "Ramesh");
+        async Task<Guid> BillAsync(Guid? customer, decimal total, decimal paid, int daysAgo)
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/bills", new { id, customerId = customer, lines = new[] { new { name = "Atta", quantity = 1m, unitPrice = total } },
+                paidAmount = paid, paymentMode = "cash", occurredAt = DateTimeOffset.UtcNow.AddDays(-daysAgo) })).EnsureSuccessStatusCode();
+            return id;
+        }
+
+        var old = await BillAsync(ramesh, 300m, 0m, 3);       // all on khata, 3 days ago
+        var newer = await BillAsync(ramesh, 500m, 100m, 1);   // ₹400 on khata
+        var walkIn = await BillAsync(null, 200m, 200m, 0);    // paid at the counter
+        var gone = await BillAsync(ramesh, 50m, 0m, 0);
+        (await shop.PostJsonAsync($"/api/v1/bills/{gone}/cancel", new { reason = "Wrong bill" })).EnsureSuccessStatusCode();
+        // Ramesh pays ₹350 on his khata: it clears the old bill (300) and 50 of the newer one.
+        (await shop.PostJsonAsync("/api/v1/khata-entries", new { id = Guid.CreateVersion7(), customerId = ramesh, type = "payment", amount = 350m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+
+        var list = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/bills/list")).RootElement;
+        JsonElement Row(Guid id) => list.GetProperty("bills").EnumerateArray().Single(b => b.GetProperty("id").GetGuid() == id);
+        Assert.Equal("paid", Row(old).GetProperty("status").GetString());
+        Assert.Equal("partial", Row(newer).GetProperty("status").GetString());
+        Assert.Equal(350m, Row(newer).GetProperty("due").GetDecimal());
+        Assert.Equal("paid", Row(walkIn).GetProperty("status").GetString());
+        Assert.Equal("cancelled", Row(gone).GetProperty("status").GetString());
+        Assert.Equal(1000m, list.GetProperty("total").GetDecimal()); // cancelled bill left out
+        Assert.Equal(350m, list.GetProperty("due").GetDecimal());
+        Assert.Equal(650m, list.GetProperty("received").GetDecimal());
+
+        var partial = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/bills/list?status=partial")).RootElement.GetProperty("bills");
+        Assert.Equal(newer, Assert.Single(partial.EnumerateArray()).GetProperty("id").GetGuid());
+    }
+
+    [Fact]
     public async Task A_bill_prefix_goes_on_new_bills_only_and_the_shops_own_fields_print_on_the_bill()
     {
         var (shop, _) = await api.SignUpAsync("Prefix Store");

@@ -936,6 +936,14 @@ export const hiMore: TextsMore = {
     state: { open: 'खुला', part: 'कुछ दिया', delivered: 'पूरा दिया', closed: 'बंद', cancelled: 'रद्द' },
     save: 'बिक्री ऑर्डर सेव करें', needCustomer: 'पहले ग्राहक चुनें', saved: 'बिक्री ऑर्डर #{{number}} सेव: सामान ग्राहक के लिए रखा।', fromOrder: 'ऑर्डर #{{number}} दे रहे हैं: कुछ ही देना हो तो मात्रा बदलें।', promised: '{{qty}} ऑर्डर पर रखा', free: '{{qty}} बेचने को खाली' },
   pos: { byGstin: "खरीदार का GSTIN {{state}} का है: इस बिल पर IGST लगेगा।", followsGstin: "टैक्स का राज्य खरीदार के GSTIN से तय होता है: {{state}}।", label: 'कहाँ भेजा', here: '{{state}} (यही राज्य)', igst: '{{state}} भेजा जा रहा है: इस बिल पर IGST लगेगा।', print: 'आपूर्ति का स्थान' },
+  billList: {
+    title: 'बिक्री के बिल', period: 'समय', periods: { today: 'आज', month: 'इस महीने', last3: 'पिछले 3 महीने', custom: 'तारीख चुनें' },
+    received: 'मिला', due: 'बाकी', total_one: 'कुल · {{count}} बिल', total_other: 'कुल · {{count}} बिल',
+    status: { all: 'सब', paid: 'पूरा मिला', partial: 'कुछ बाकी', due: 'बाकी', cancelled: 'रद्द' },
+    dueAmount: '{{amount}} बाकी', print: 'प्रिंट', share: 'WhatsApp पर भेजें', excel: 'Excel के लिए डाउनलोड',
+    shareText: 'बिल {{no}}: {{total}}। बाकी: {{due}}।', more: 'आख़िरी 200 दिख रहे हैं। बाकी देखने के लिए छोटा समय चुनें या खोजें।',
+    colDate: 'तारीख', colNo: 'बिल नंबर', colParty: 'ग्राहक', colItems: 'सामान', colTotal: 'कुल', colDue: 'बाकी', colStatus: 'स्थिति',
+  },
   billSetup: {
     prefix: 'बिल नंबर के आगे', looksLike: 'नए बिल: {{no}}',
     prefixHint: '1 से 3 अक्षर या अंक (दुकान के नाम के पहले अक्षर)। पुराने बिलों के नंबर वही रहेंगे; गिनती पहले जैसी चलती रहेगी।',
