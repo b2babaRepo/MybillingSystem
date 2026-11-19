@@ -4385,6 +4385,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("kind");
 
+                    b.Property<Guid?>("LoanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("loan_id");
+
                     b.Property<string>("Note")
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
@@ -6132,6 +6136,136 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ShopId", "CustomerId", "OccurredAt");
 
                     b.ToTable("ledger_entries", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.Loan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal?>("Emi")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("emi");
+
+                    b.Property<string>("Lender")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("lender");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<decimal>("RatePercent")
+                        .HasPrecision(6, 3)
+                        .HasColumnType("numeric(6,3)")
+                        .HasColumnName("rate_percent");
+
+                    b.Property<string>("ReceivedInto")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("received_into");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateOnly>("StartedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("started_on");
+
+                    b.Property<DateTimeOffset?>("StruckAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("struck_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.ToTable("loans", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.LoanPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal>("Interest")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("interest");
+
+                    b.Property<Guid?>("InterestExpenseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("interest_expense_id");
+
+                    b.Property<Guid>("LoanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("loan_id");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("mode");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<decimal>("Principal")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("principal");
+
+                    b.Property<Guid?>("PrincipalExpenseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("principal_expense_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset?>("StruckAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("struck_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "LoanId");
+
+                    b.ToTable("loan_payments", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Machine", b =>

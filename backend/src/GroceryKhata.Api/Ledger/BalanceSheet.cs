@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Claims;
 using GroceryKhata.Api.Billing;
 using GroceryKhata.Api.Catalogue;
@@ -142,7 +142,8 @@ public static class BalanceSheet
             var opening = (await SheetAsync(eve, user, db, tenant, entitlements, clock, ct)).Capital;
             var pnl = await ReportEndpoints.BuildProfitLossAsync(db, clock, fyStart, ct);
             var (from, to) = (IndiaTime.Day(new DateOnly(fyStart, 4, 1)).Start, IndiaTime.Day(today).End);
-            var moves = await db.CashMoves.AsNoTracking().Where(m => m.OccurredAt >= from && m.OccurredAt < to && m.StruckAt == null)
+            // A loan's money arriving is borrowed, not the owner's own: it stays out of "brought in".
+            var moves = await db.CashMoves.AsNoTracking().Where(m => m.OccurredAt >= from && m.OccurredAt < to && m.StruckAt == null && m.LoanId == null)
                 .GroupBy(m => m.Kind).Select(g => new { g.Key, Total = g.Sum(m => m.Amount) }).ToListAsync(ct);
             var broughtIn = moves.Where(m => m.Key == CashMoveKind.Added).Sum(m => m.Total);
             var takenHome = pnl.TakenHome + moves.Where(m => m.Key == CashMoveKind.Removed).Sum(m => m.Total);
@@ -202,6 +203,8 @@ public static class BalanceSheet
         var items = await db.Set<BalanceItem>().AsNoTracking().Where(i => i.Since <= day && (i.Until == null || i.Until > day))
             .OrderBy(i => i.Kind).ThenBy(i => i.Name).Select(i => new BalanceItemDto(i.Id, i.Kind, i.Name, i.Amount, i.Since, i.Until)).ToListAsync(ct);
         decimal Sum(BalanceItemKind kind) => items.Where(i => i.Kind == kind).Sum(i => i.Amount);
+        // Loan accounts (with their EMIs) owe what is left of them; loans typed in by hand are the items above.
+        var loanAccounts = await Loans.OutstandingAsync(db, day, ct);
 
         // This month's GST still to pay (the GST page's working); earlier months are taken as paid on time.
         var gst = Value<GstMonthDto>(await GstExport.MonthAsync(day.ToString("yyyy-MM", CultureInfo.InvariantCulture), db, tenant, entitlements, clock, ct))?.Payable;
@@ -213,10 +216,10 @@ public static class BalanceSheet
         var supplierAdvances = -suppliers.Where(b => b < 0).Sum();
 
         var assets = cash + bank + (stock?.Value ?? 0) + customersOwe + supplierAdvances + Sum(BalanceItemKind.FixedAsset) + Sum(BalanceItemKind.OtherAsset);
-        var liabilities = suppliersOwed + customerAdvances + Sum(BalanceItemKind.Loan) + Sum(BalanceItemKind.OtherLiability) + gstToPay;
+        var liabilities = suppliersOwed + customerAdvances + Sum(BalanceItemKind.Loan) + loanAccounts + Sum(BalanceItemKind.OtherLiability) + gstToPay;
         return new BalanceSheetDto(day, cash, bank, stock?.Value ?? 0, customersOwe, supplierAdvances, assets,
             suppliersOwed, customerAdvances, liabilities, assets - liabilities, customers.Count(b => b > 0), suppliers.Count(b => b > 0), stock?.Unvalued ?? 0,
-            Sum(BalanceItemKind.FixedAsset), Sum(BalanceItemKind.OtherAsset), Sum(BalanceItemKind.Loan), Sum(BalanceItemKind.OtherLiability), gstToPay, items);
+            Sum(BalanceItemKind.FixedAsset), Sum(BalanceItemKind.OtherAsset), Sum(BalanceItemKind.Loan) + loanAccounts, Sum(BalanceItemKind.OtherLiability), gstToPay, items);
     }
 
     private static T? Value<T>(IResult result) where T : class => result is IValueHttpResult { Value: T value } ? value : null;

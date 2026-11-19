@@ -259,7 +259,7 @@ export const en = {
     empty: 'Nothing written on this page yet.',
     strikeAsk: 'Strike out "{{what}}" ({{amount}})? It stays on the page, crossed out.',
     hint: 'Tap a line to strike it out. Cash lines come out of the drawer in the cash book; stock bought and money taken home stay out of profit.',
-    cat: { tea: 'Tea & snacks (chai)', transport: 'Transport (auto, bhada)', rent: 'Rent', electricity: 'Electricity (bijli)', salary: 'Salary', purchase: 'Stock bought (maal)', packaging: 'Bags & packing (thaili)', repair: 'Repair', home: 'Taken home (ghar)', other: 'Other', tax: 'Tax paid', loan: 'Loan EMI', equipment: 'Equipment', deposit: 'Bank deposit', advance: 'Staff advance' },
+    cat: { tea: 'Tea & snacks (chai)', transport: 'Transport (auto, bhada)', rent: 'Rent', electricity: 'Electricity (bijli)', salary: 'Salary', purchase: 'Stock bought (maal)', packaging: 'Bags & packing (thaili)', repair: 'Repair', home: 'Taken home (ghar)', other: 'Other', tax: 'Tax paid', loan: 'Loan EMI', equipment: 'Equipment', deposit: 'Bank deposit', advance: 'Staff advance', interest: 'Interest on loans' },
   },
   shopType: {
     label: 'Type of shop',

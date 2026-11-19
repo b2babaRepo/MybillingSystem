@@ -1,4 +1,4 @@
-using GroceryKhata.Api.Billing;
+﻿using GroceryKhata.Api.Billing;
 using System.Globalization;
 using System.Text;
 using GroceryKhata.Api.Catalogue;
@@ -805,6 +805,7 @@ public static class ReportEndpoints
         ExpenseCategory.Home => "Taken home",
         ExpenseCategory.Tax => "Tax paid",
         ExpenseCategory.Loan => "Loan EMI",
+        ExpenseCategory.Interest => "Interest on loans",
         ExpenseCategory.Equipment => "Equipment bought",
         ExpenseCategory.Deposit => "Cash to bank",
         ExpenseCategory.Advance => "Staff advance",

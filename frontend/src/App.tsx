@@ -76,6 +76,7 @@ const PaintersScreen = lazy(() => import('./screens/PaintersScreen').then((modul
 const GstExportScreen = lazy(() => import('./screens/GstExportScreen').then((module) => ({ default: module.GstExportScreen })))
 const PickItemsScreen = lazy(() => import('./screens/PickItemsScreen').then((module) => ({ default: module.PickItemsScreen })))
 const ProfitLossScreen = lazy(() => import('./screens/ProfitLossScreen').then((module) => ({ default: module.ProfitLossScreen })))
+const LoansScreen = lazy(() => import('./screens/LoansScreen').then((module) => ({ default: module.LoansScreen })))
 const DataCheckScreen = lazy(() => import('./screens/DataCheckScreen').then((module) => ({ default: module.DataCheckScreen })))
 const TrialBalanceScreen = lazy(() => import('./screens/YearReportsScreen').then((module) => ({ default: module.TrialBalanceScreen })))
 const GstAnnualScreen = lazy(() => import('./screens/YearReportsScreen').then((module) => ({ default: module.GstAnnualScreen })))
@@ -329,6 +330,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
       { path: '/cashbook', label: t('side.cashbook') },
       ...(isOwner ? [{ path: '/cashledger', label: t('cashLedger.title') }] : []),
       ...(isOwner ? [{ path: '/bankbook', label: t('bankBook.title') }] : []),
+      ...(isOwner ? [{ path: '/loans', label: t('loans.link') }] : []),
       { path: '/cheques', label: t('cheques.link') },
       { path: '/expenses', label: t('side.expenses') },
     ] },
@@ -471,6 +473,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
           <ItemMarginScreen shopId={shopId} />
         ) : path === '/pnl' && isOwner ? (
           <ProfitLossScreen />
+        ) : path === '/loans' && isOwner ? (
+          <LoansScreen shopId={shopId} />
         ) : path === '/verify-data' && isOwner ? (
           <DataCheckScreen shopId={shopId} />
         ) : path === '/trial-balance' && isOwner ? (

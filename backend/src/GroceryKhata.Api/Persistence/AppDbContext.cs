@@ -214,6 +214,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<GroceryKhata.Api.Ledger.PurchaseUpload> PurchaseUploads => Set<GroceryKhata.Api.Ledger.PurchaseUpload>();
 
+    public DbSet<GroceryKhata.Api.Ledger.Loan> Loans => Set<GroceryKhata.Api.Ledger.Loan>();
+
+    public DbSet<GroceryKhata.Api.Ledger.LoanPayment> LoanPayments => Set<GroceryKhata.Api.Ledger.LoanPayment>();
+
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
 
     public DbSet<ProductSerial> ProductSerials => Set<ProductSerial>();
@@ -1273,6 +1277,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Gstin).HasMaxLength(15);
             b.Property(p => p.FssaiNo).HasMaxLength(40);
             b.HasIndex(p => p.ShopId).IsUnique();
+        });
+
+        modelBuilder.Entity<GroceryKhata.Api.Ledger.Loan>(b =>
+        {
+            b.ToTable("loans");
+            b.HasTenantKey();
+            b.Property(l => l.Lender).HasMaxLength(80);
+            b.Property(l => l.Note).HasMaxLength(200);
+            b.Property(l => l.Amount).HasPrecision(14, 2);
+            b.Property(l => l.RatePercent).HasPrecision(6, 3);
+            b.Property(l => l.Emi).HasPrecision(14, 2);
+            b.Property(l => l.ReceivedInto).HasConversion<string>().HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<GroceryKhata.Api.Ledger.LoanPayment>(b =>
+        {
+            b.ToTable("loan_payments");
+            b.HasTenantKey();
+            b.Property(p => p.Principal).HasPrecision(14, 2);
+            b.Property(p => p.Interest).HasPrecision(14, 2);
+            b.HasIndex(p => new { p.ShopId, p.LoanId });
         });
 
         modelBuilder.Entity<GroceryKhata.Api.Ledger.PurchaseUpload>(b =>

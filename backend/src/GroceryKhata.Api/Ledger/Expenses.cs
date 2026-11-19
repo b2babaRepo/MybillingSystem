@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using GroceryKhata.Api.Common;
@@ -36,6 +36,9 @@ public enum ExpenseCategory
     Deposit,
     /// <summary>An advance to staff, taken back from their salary later.</summary>
     Advance,
+
+    /// <summary>Interest on a business loan: the cost part of an EMI, so it counts against profit (the principal part is <see cref="Loan"/>).</summary>
+    Interest,
 }
 
 /// <summary>What "kharcha" means, the same on the kharcha page, the month report and its downloads.</summary>

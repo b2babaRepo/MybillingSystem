@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Claims;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
@@ -38,6 +38,9 @@ public sealed class CashMove : Entity, ITenantOwned
     public string? BankAccount { get; set; }
 
     public DateTimeOffset OccurredAt { get; set; }
+
+    /// <summary>Money a loan brought in (see <see cref="Loans"/>): not the owner's own money.</summary>
+    public Guid? LoanId { get; set; }
 
     public Guid CreatedByUserId { get; set; }
 

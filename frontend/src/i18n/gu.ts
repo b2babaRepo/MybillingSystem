@@ -261,7 +261,7 @@ export const gu: Texts = {
     empty: 'આ પાના પર હજી કંઈ લખ્યું નથી.',
     strikeAsk: '"{{what}}" ({{amount}}) છેકી નાખવું છે? તે પાના પર છેકેલું રહેશે.',
     hint: 'છેકવા માટે લીટી પર ટેપ કરો. રોકડની લીટી રોકડ ચોપડામાં ગલ્લામાંથી બાદ થાય છે; ખરીદેલો માલ અને ઘરે લીધેલા પૈસા નફામાં ગણાતા નથી.',
-    cat: { tea: 'ચા-નાસ્તો', transport: 'રિક્ષા / ભાડું', rent: 'ભાડું (દુકાન)', electricity: 'વીજળી', salary: 'પગાર', purchase: 'માલ (સ્ટોક)', packaging: 'થેલી / પેકિંગ', repair: 'રિપેર', home: 'ઘર', other: 'બીજું', tax: 'ભરેલો ટેક્સ', loan: 'લોન EMI', equipment: 'સાધન', deposit: 'બેંકમાં જમા', advance: 'સ્ટાફ એડવાન્સ' },
+    cat: { tea: 'ચા-નાસ્તો', transport: 'રિક્ષા / ભાડું', rent: 'ભાડું (દુકાન)', electricity: 'વીજળી', salary: 'પગાર', purchase: 'માલ (સ્ટોક)', packaging: 'થેલી / પેકિંગ', repair: 'રિપેર', home: 'ઘર', other: 'બીજું', tax: 'ભરેલો ટેક્સ', loan: 'લોન EMI', equipment: 'સાધન', deposit: 'બેંકમાં જમા', advance: 'સ્ટાફ એડવાન્સ', interest: 'લોનનું વ્યાજ' },
   },
   shopType: {
     label: 'દુકાનનો પ્રકાર',

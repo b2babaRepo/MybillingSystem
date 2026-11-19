@@ -261,7 +261,7 @@ export const hi: Texts = {
     empty: 'इस पन्ने पर अभी कुछ नहीं लिखा।',
     strikeAsk: '"{{what}}" ({{amount}}) काटें? पन्ने पर कटा हुआ दिखेगा।',
     hint: 'लाइन काटने के लिए उस पर टैप करें। नकद खर्च रोकड़ में गल्ले से घटता है; माल और घर का खर्च मुनाफ़े में नहीं गिना जाता।',
-    cat: { tea: 'चाय-नाश्ता', transport: 'ऑटो / भाड़ा', rent: 'किराया', electricity: 'बिजली', salary: 'तनख्वाह', purchase: 'माल', packaging: 'थैली / पैकिंग', repair: 'मरम्मत', home: 'घर', other: 'अन्य', tax: 'टैक्स भरा', loan: 'लोन किस्त', equipment: 'सामान (फ्रिज, मशीन)', deposit: 'बैंक में जमा', advance: 'स्टाफ़ एडवांस' },
+    cat: { tea: 'चाय-नाश्ता', transport: 'ऑटो / भाड़ा', rent: 'किराया', electricity: 'बिजली', salary: 'तनख्वाह', purchase: 'माल', packaging: 'थैली / पैकिंग', repair: 'मरम्मत', home: 'घर', other: 'अन्य', tax: 'टैक्स भरा', loan: 'लोन किस्त', equipment: 'सामान (फ्रिज, मशीन)', deposit: 'बैंक में जमा', advance: 'स्टाफ़ एडवांस', interest: 'लोन का ब्याज' },
   },
   shopType: {
     label: 'दुकान का प्रकार',

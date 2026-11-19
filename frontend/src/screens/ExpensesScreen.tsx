@@ -15,7 +15,7 @@ import { navigate } from '../router'
 import { confirmAsk } from '../components/Ask'
 
 export type ExpenseCategory = 'tea' | 'transport' | 'rent' | 'electricity' | 'salary' | 'purchase' | 'packaging' | 'repair' | 'home' | 'other'
-  | 'tax' | 'loan' | 'equipment' | 'deposit' | 'advance'
+  | 'tax' | 'loan' | 'equipment' | 'deposit' | 'advance' | 'interest'
 
 /** Money out that is not a running cost, so it never lowers profit. The server keeps the same list. */
 export const OUTSIDE_PROFIT: ExpenseCategory[] = ['purchase', 'home', 'tax', 'loan', 'equipment', 'deposit', 'advance']
@@ -103,7 +103,7 @@ interface Guess {
 }
 
 const ICONS: Record<ExpenseCategory, string> = {
-  tea: '☕', transport: '🛺', rent: '🏠', electricity: '💡', salary: '👷', purchase: '📦', packaging: '🛍️', repair: '🔧', home: '👪', other: '📝', tax: '🧾', loan: '🏦', equipment: '🧊', deposit: '🏧', advance: '🤝',
+  tea: '☕', transport: '🛺', rent: '🏠', electricity: '💡', salary: '👷', purchase: '📦', packaging: '🛍️', repair: '🔧', home: '👪', other: '📝', tax: '🧾', loan: '🏦', equipment: '🧊', deposit: '🏧', advance: '🤝', interest: '💸',
 }
 const QUICK: ExpenseCategory[] = ['tea', 'transport', 'packaging', 'salary', 'purchase', 'electricity', 'rent', 'home']
 const ALL = Object.keys(ICONS) as ExpenseCategory[]

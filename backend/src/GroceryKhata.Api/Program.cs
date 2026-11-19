@@ -141,6 +141,7 @@ app.MapReports();
 app.MapBalanceSheet();
 app.MapYearReports();
 app.MapDataChecks();
+app.MapLoans();
 app.MapShopSettings();
 app.MapShopData();
 app.MapStaff();
