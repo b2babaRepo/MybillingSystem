@@ -938,7 +938,7 @@ export const enMore = {
   billTable: { disc: 'Disc %' },
   billPreview: { toggle: 'Preview', note: 'Live preview: this is how the bill will print. The number comes when it is saved.', empty: 'Add items to see the bill as it will print.' },
   creditSwitch: { label: 'Paid now or on khata', cash: 'Cash', credit: 'Credit (udhaar)', needCustomer: 'Credit: choose or add the customer (whose khata?). The whole bill goes on their khata; change the amount paid below if they pay part now.' },
-  billList: {
+  billList: { sortBy: 'Sort by {{col}}', filterBy: 'Filter {{col}}', atLeast: 'at least ₹', clearFilters: 'Clear filters', shownOf: '{{shown}} of {{count}} bills',
     title: 'Sale bills', period: 'Period', periods: { today: 'Today', month: 'This month', last3: 'Last 3 months', custom: 'Pick dates' },
     received: 'Received', due: 'Due', total_one: 'Total · {{count}} bill', total_other: 'Total · {{count}} bills',
     status: { all: 'All', paid: 'Paid', partial: 'Partial', due: 'Due', cancelled: 'Cancelled' },

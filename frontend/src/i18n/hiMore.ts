@@ -940,7 +940,7 @@ export const hiMore: TextsMore = {
   billTable: { disc: 'छूट %' },
   billPreview: { toggle: 'झलक', note: 'झलक: बिल ऐसे छपेगा। बिल नंबर सेव करने पर मिलेगा।', empty: 'सामान जोड़ें, बिल कैसा छपेगा यहाँ दिखेगा।' },
   creditSwitch: { label: 'अभी पैसे या खाते में', cash: 'नकद', credit: 'उधार', needCustomer: 'उधार: ग्राहक चुनें या जोड़ें (किसके खाते में?)। पूरा बिल उनके खाते में जाएगा; कुछ अभी दें तो नीचे रकम बदलें।' },
-  billList: {
+  billList: { sortBy: '{{col}} से क्रम लगाएँ', filterBy: '{{col}} से छाँटें', atLeast: 'कम से कम ₹', clearFilters: 'फ़िल्टर हटाएँ', shownOf: '{{count}} में से {{shown}} बिल',
     title: 'बिक्री के बिल', period: 'समय', periods: { today: 'आज', month: 'इस महीने', last3: 'पिछले 3 महीने', custom: 'तारीख चुनें' },
     received: 'मिला', due: 'बाकी', total_one: 'कुल · {{count}} बिल', total_other: 'कुल · {{count}} बिल',
     status: { all: 'सब', paid: 'पूरा मिला', partial: 'कुछ बाकी', due: 'बाकी', cancelled: 'रद्द' },

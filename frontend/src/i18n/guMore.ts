@@ -463,7 +463,7 @@ const guMoreB = {
   billTable: { disc: 'છૂટ %' },
   billPreview: { toggle: 'ઝલક', note: 'ઝલક: બિલ આ રીતે છપાશે. બિલ નંબર સેવ કરતાં મળશે.', empty: 'માલ ઉમેરો, બિલ કેવું છપાશે અહીં દેખાશે.' },
   creditSwitch: { label: 'હમણાં પૈસા કે ખાતામાં', cash: 'રોકડ', credit: 'ઉધાર', needCustomer: 'ઉધાર: ગ્રાહક પસંદ કરો કે ઉમેરો (કોના ખાતામાં?). આખું બિલ તેમના ખાતામાં જશે; થોડા હમણાં આપે તો નીચે રકમ બદલો.' },
-  billList: {
+  billList: { sortBy: '{{col}} પ્રમાણે ક્રમ', filterBy: '{{col}} પ્રમાણે ગાળો', atLeast: 'ઓછામાં ઓછા ₹', clearFilters: 'ફિલ્ટર કાઢો', shownOf: '{{count}} માંથી {{shown}} બિલ',
     title: 'વેચાણનાં બિલ', period: 'સમય', periods: { today: 'આજે', month: 'આ મહિને', last3: 'છેલ્લા 3 મહિના', custom: 'તારીખ પસંદ કરો' },
     received: 'મળ્યા', due: 'બાકી', total_one: 'કુલ · {{count}} બિલ', total_other: 'કુલ · {{count}} બિલ',
     status: { all: 'બધાં', paid: 'પૂરા મળ્યા', partial: 'થોડા બાકી', due: 'બાકી', cancelled: 'રદ' },
