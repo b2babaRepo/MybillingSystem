@@ -228,6 +228,7 @@ const guMoreB = {
     transport: 'વાહતુક',
     loading: 'લોડિંગ',
   },
+  quick: { call: 'કૉલ કરો', sms: 'SMS', smsRemind: 'SMSથી યાદ અપાવો', whatsapp: 'WhatsApp', statement: 'આ મહિનાનું સ્ટેટમેન્ટ', history: 'હિસાબ જુઓ', hello: 'નમસ્તે {{name}}, {{shop}} તરફથી.' },
   upload: {
     sentToWa: 'લિંક તમારા WhatsApp પર મોકલી (નંબરના છેલ્લા {{last}}).', sendWa: 'લિંક WhatsApp પર મોકલો', waText: 'સપ્લાયર બિલના ફોટા દુકાનને મોકલો: {{link}}',
     typeInstead: 'તમે તેને ટાઇપ કરી શકો છો.', typeTitle: 'આ બિલ ટાઇપ કરો', typeIn: 'ટાઇપ કરવા સપ્લાયર બિલ ખોલો', typeHappens: 'સપ્લાયરનું બિલ આ ફોટો કે PDF સાથે ખુલશે. લાઇનો ટાઇપ કરી સેવ દબાવો: સ્ટોક અને સપ્લાયરનું ખાતું હંમેશની જેમ બદલાશે.', billBeside: 'અપલોડ કરેલું બિલ: નીચે તેની લાઇનો ટાઇપ કરો.',

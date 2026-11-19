@@ -567,6 +567,7 @@ export const enMore = {
     transport: 'Transport',
     loading: 'Loading',
   },
+  quick: { call: 'Call', sms: 'SMS', smsRemind: 'SMS reminder', whatsapp: 'WhatsApp', statement: "This month's statement", history: 'Go to history', hello: 'Namaste {{name}}, from {{shop}}.' },
   upload: {
     sentToWa: 'Link sent to your WhatsApp (number ending {{last}}).', sendWa: 'Send the link on WhatsApp', waText: 'Send supplier bill photos to the shop: {{link}}',
     typeInstead: 'You can type it in instead.', typeTitle: 'Type this bill in', typeIn: 'Open the supplier bill to type in', typeHappens: "Opens the supplier's bill with this photo or PDF beside it. Type the lines and press Save: stock and the supplier's khata update as usual.", billBeside: 'The uploaded bill: type its lines below.',

@@ -196,7 +196,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
         {/* A thin band in the balance's colour: red owes, green advance, grey settled. */}
         <div className={`h-1.5 ${customer.balance > 0 ? 'bg-due' : customer.balance < 0 ? 'bg-jama' : 'bg-line'}`} />
         <div className="flex flex-col gap-3 p-4">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
           <div aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-xl font-bold text-brand-strong">
             {customer.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}
           </div>
@@ -208,6 +208,24 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
               </a>
             )}
           </div>
+          {/* The actions used most, beside the name: call, SMS, WhatsApp (the dues reminder when they owe), this month's statement, the history. */}
+          {!customer.isNew && (() => {
+            const owes = customer.balance > 0
+            const text = owes ? reminder : t('quick.hello', { name: customer.name, shop: shopName })
+            const markReminded = () => { if (owes) void request(`/v1/customers/${customer.id}/reminded`, 'POST').catch(() => {}) }
+            const icon = 'flex h-11 w-11 items-center justify-center rounded-full text-lg ring-1 transition hover:scale-105'
+            return (
+              <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto sm:justify-end">
+                {customer.phone && <a href={`tel:${customer.phone}`} aria-label={t('quick.call')} title={t('quick.call')} className={`${icon} bg-[#edf2f1] ring-line`}>📞</a>}
+                {customer.phone && <a href={`sms:${customer.phone}?body=${encodeURIComponent(text)}`} onClick={markReminded} aria-label={owes ? t('quick.smsRemind') : t('quick.sms')} title={owes ? t('quick.smsRemind') : t('quick.sms')} className={`${icon} bg-orange-50 ring-orange-200`}>✉️</a>}
+                <a href={whatsAppLink(customer.phone, text)} target="_blank" rel="noreferrer" onClick={markReminded} aria-label={owes ? t('remind') : t('quick.whatsapp')} title={owes ? t('remind') : t('quick.whatsapp')}
+                  className={`${icon} relative bg-green-50 ring-green-300`}>💬{owes && <span aria-hidden className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-due ring-2 ring-white" />}</a>
+                <button type="button" onClick={() => navigate(`/print/statement/${customer.id}/${monthKey(0)}`)} aria-label={t('quick.statement')} title={t('quick.statement')} className={`${icon} bg-blue-50 ring-blue-200`}>🧾</button>
+                <button type="button" onClick={() => { setTab('history'); setTimeout(() => document.querySelector('[role="tablist"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }}
+                  aria-label={t('quick.history')} title={t('quick.history')} className={`${icon} bg-white ring-line`}>📜</button>
+              </div>
+            )
+          })()}
           </div>
           <div className="flex items-center justify-between gap-3">
             {isOwner && !customer.isNew ? (

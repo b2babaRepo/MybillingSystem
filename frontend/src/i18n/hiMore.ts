@@ -569,6 +569,7 @@ export const hiMore: TextsMore = {
     transport: 'भाड़ा',
     loading: 'लदाई',
   },
+  quick: { call: 'कॉल करें', sms: 'SMS', smsRemind: 'SMS से याद दिलाएँ', whatsapp: 'WhatsApp', statement: 'इस महीने का स्टेटमेंट', history: 'हिसाब देखें', hello: 'नमस्ते {{name}}, {{shop}} से।' },
   upload: {
     sentToWa: 'लिंक आपके WhatsApp पर भेजा गया (नंबर के आखिर में {{last}})।', sendWa: 'लिंक WhatsApp पर भेजें', waText: 'सप्लायर बिल की फ़ोटो दुकान को भेजें: {{link}}',
     typeInstead: 'आप इसे टाइप कर सकते हैं।', typeTitle: 'यह बिल टाइप करें', typeIn: 'टाइप करने के लिए सप्लायर बिल खोलें', typeHappens: 'सप्लायर का बिल इस फ़ोटो या PDF के साथ खुलेगा। लाइनें टाइप करके सेव दबाएँ: स्टॉक और सप्लायर का खाता हमेशा की तरह बदलेगा।', billBeside: 'अपलोड किया बिल: नीचे इसकी लाइनें टाइप करें।',
