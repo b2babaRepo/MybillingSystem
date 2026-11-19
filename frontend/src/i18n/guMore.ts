@@ -229,6 +229,7 @@ const guMoreB = {
     loading: 'લોડિંગ',
   },
   khataTable: { title: 'લેવડ-દેવડ', type: 'પ્રકાર', number: 'બિલ નં.', date: 'તારીખ', mode: 'રીત', udhaar: 'ઉધાર (+)', jama: 'જમા (−)', balance: 'બાકી', status: 'સ્થિતિ', note: 'નોંધ', sale: 'વેચાણ બિલ', filter: { all: 'બધું', udhaar: 'ઉધાર', jama: 'જમા', other: 'પરત અને કાઢેલાં' } },
+  custDetails: { title: 'ગ્રાહકની વિગત', hint: 'ઉધાર મર્યાદા, GSTIN, સરનામું, ચુકવણીના દિવસ', limit: 'મર્યાદા {{amount}}', days_one: '{{count}} દિવસમાં ચુકવણી', days_other: '{{count}} દિવસમાં ચુકવણી', open: 'બદલો', close: 'બંધ કરો' },
   quick: { call: 'કૉલ કરો', sms: 'SMS', smsRemind: 'SMSથી યાદ અપાવો', whatsapp: 'WhatsApp', statement: 'આ મહિનાનું સ્ટેટમેન્ટ', history: 'હિસાબ જુઓ', hello: 'નમસ્તે {{name}}, {{shop}} તરફથી.' },
   upload: {
     sentToWa: 'લિંક તમારા WhatsApp પર મોકલી (નંબરના છેલ્લા {{last}}).', sendWa: 'લિંક WhatsApp પર મોકલો', waText: 'સપ્લાયર બિલના ફોટા દુકાનને મોકલો: {{link}}',

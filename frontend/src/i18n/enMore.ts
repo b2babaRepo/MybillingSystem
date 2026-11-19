@@ -568,6 +568,7 @@ export const enMore = {
     loading: 'Loading',
   },
   khataTable: { title: 'Transactions', type: 'Type', number: 'Bill no.', date: 'Date', mode: 'Mode', udhaar: 'Udhaar (+)', jama: 'Jama (−)', balance: 'Balance', status: 'Status', note: 'Note', sale: 'Sale bill', filter: { all: 'All', udhaar: 'Udhaar', jama: 'Jama', other: 'Returns & removals' } },
+  custDetails: { title: 'Customer details', hint: 'Credit limit, GSTIN, address, days to pay', limit: 'Limit {{amount}}', days_one: 'Pays within {{count}} day', days_other: 'Pays within {{count}} days', open: 'Edit', close: 'Close' },
   quick: { call: 'Call', sms: 'SMS', smsRemind: 'SMS reminder', whatsapp: 'WhatsApp', statement: "This month's statement", history: 'Go to history', hello: 'Namaste {{name}}, from {{shop}}.' },
   upload: {
     sentToWa: 'Link sent to your WhatsApp (number ending {{last}}).', sendWa: 'Send the link on WhatsApp', waText: 'Send supplier bill photos to the shop: {{link}}',

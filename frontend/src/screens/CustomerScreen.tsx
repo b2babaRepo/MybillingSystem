@@ -66,6 +66,10 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
     return () => clearTimeout(timer)
   }, [lastSaved])
 
+  // Open or shut, as the shop last left it on this device.
+  const [detailsOpen, setDetailsOpen] = useState(() => { try { return localStorage.getItem('gk-cust-details') === '1' } catch { return false } })
+  const keepDetailsOpen = (open: boolean) => { setDetailsOpen(open); try { localStorage.setItem('gk-cust-details', open ? '1' : '0') } catch { /* no storage */ } }
+
   if (!customer) return <p className="p-4 text-muted">…</p>
 
   const value = Number(amount)
@@ -242,12 +246,31 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
         {isOwner && customer.nameLater && !customer.isNew && <div className="px-4 pb-4"><MoveInto from={customer.id} customers={customers.filter((c) => c.id !== customer.id && !c.nameLater)} onMoved={async (to) => { await queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] }); navigate(`/c/${to}`) }} /></div>}
       </div>
 
-      {settings.data?.type && settings.data.type !== 'kirana' && (
-        <Suspense fallback={null}>
-          <CustomerTradePanel shopId={shopId} customer={customer} isOwner={isOwner} />
-        </Suspense>
+      {/* The customer's settings (credit limit, GST and address for bills, how many days they pay in) fold away, so the money and the transactions come first. */}
+      {((settings.data?.type && settings.data.type !== 'kirana') || !customer.isNew) && (
+        <details className="group rounded-card bg-white shadow-sm" open={detailsOpen} onToggle={(e) => keepDetailsOpen((e.target as HTMLDetailsElement).open)}>
+          <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-2 [&::-webkit-details-marker]:hidden">
+            <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#edf2f1]">⚙️</span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <b>{t('custDetails.title')}</b>
+              <span className="truncate text-xs text-muted">{[
+                customer.creditLimit ? t('custDetails.limit', { amount: formatRupees(customer.creditLimit) }) : null,
+                customer.creditDays ? t('custDetails.days', { count: customer.creditDays }) : null,
+              ].filter(Boolean).join(' · ') || t('custDetails.hint')}</span>
+            </span>
+            <span className="text-sm font-semibold text-brand group-open:hidden">{t('custDetails.open')}</span>
+            <span className="hidden text-sm font-semibold text-muted group-open:inline">{t('custDetails.close')}</span>
+          </summary>
+          <div className="flex flex-col gap-3 px-3 pb-3">
+            {settings.data?.type && settings.data.type !== 'kirana' && (
+              <Suspense fallback={null}>
+                <CustomerTradePanel shopId={shopId} customer={customer} isOwner={isOwner} />
+              </Suspense>
+            )}
+            {!customer.isNew && <CreditDays shopId={shopId} customerId={customer.id} days={customer.creditDays} isOwner={isOwner} />}
+          </div>
+        </details>
       )}
-      {!customer.isNew && <CreditDays shopId={shopId} customerId={customer.id} days={customer.creditDays} isOwner={isOwner} />}
 
       {customer.balance > 0 && (
         <div className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm">

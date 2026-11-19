@@ -570,6 +570,7 @@ export const hiMore: TextsMore = {
     loading: 'लदाई',
   },
   khataTable: { title: 'लेन-देन', type: 'प्रकार', number: 'बिल नं.', date: 'तारीख', mode: 'तरीका', udhaar: 'उधार (+)', jama: 'जमा (−)', balance: 'बाकी', status: 'स्थिति', note: 'नोट', sale: 'बिक्री बिल', filter: { all: 'सब', udhaar: 'उधार', jama: 'जमा', other: 'वापसी और हटाए' } },
+  custDetails: { title: 'ग्राहक की जानकारी', hint: 'उधार सीमा, GSTIN, पता, भुगतान के दिन', limit: 'सीमा {{amount}}', days_one: '{{count}} दिन में भुगतान', days_other: '{{count}} दिन में भुगतान', open: 'बदलें', close: 'बंद करें' },
   quick: { call: 'कॉल करें', sms: 'SMS', smsRemind: 'SMS से याद दिलाएँ', whatsapp: 'WhatsApp', statement: 'इस महीने का स्टेटमेंट', history: 'हिसाब देखें', hello: 'नमस्ते {{name}}, {{shop}} से।' },
   upload: {
     sentToWa: 'लिंक आपके WhatsApp पर भेजा गया (नंबर के आखिर में {{last}})।', sendWa: 'लिंक WhatsApp पर भेजें', waText: 'सप्लायर बिल की फ़ोटो दुकान को भेजें: {{link}}',
