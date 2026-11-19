@@ -569,6 +569,7 @@ export const hiMore: TextsMore = {
     transport: 'भाड़ा',
     loading: 'लदाई',
   },
+  billTabs: { label: 'खुले बिल', current: 'नया बिल', new: 'एक और बिल शुरू करें', newHint: 'यह बिल अपने टैब में खुला रहेगा और नया बिल शुरू होगा' },
   print: {
     billTo: 'ग्राहक: {{who}}', billToHead: 'ग्राहक', detailsHead: 'बिल की जानकारी', walkIn: 'नकद ग्राहक', balanceDue: 'बाकी रकम', printNow: 'बिल छापें', 
     billNo: 'नं. {{no}}',

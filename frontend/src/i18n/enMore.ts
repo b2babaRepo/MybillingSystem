@@ -567,6 +567,7 @@ export const enMore = {
     transport: 'Transport',
     loading: 'Loading',
   },
+  billTabs: { label: 'Open bills', current: 'New bill', new: 'Start another bill', newHint: 'Keeps this bill open in its tab and starts a new one' },
   print: {
     billTo: 'Bill to: {{who}}', billToHead: 'Bill to', detailsHead: 'Bill details', walkIn: 'Walk-in customer', balanceDue: 'Balance due', printNow: 'Print bill', 
     billNo: 'No. {{no}}',

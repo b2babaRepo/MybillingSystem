@@ -689,8 +689,20 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
       </div>
       <div className="flex flex-col gap-3 lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto">
+      {/* On a computer every open bill is a tab: the one being made, the held ones, and + for another customer. */}
+      <div role="tablist" aria-label={t('billTabs.label')} className="hidden flex-wrap items-end gap-1 border-b-2 border-brand xl:flex">
+        <span role="tab" aria-selected className="max-w-56 truncate rounded-t-xl bg-brand px-4 py-2 text-sm font-bold text-white">
+          {(customers.find((c) => c.id === customerId)?.name ?? t('billTabs.current'))}{cart.length > 0 ? ` · ${formatRupees(round2(cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}` : ''}
+        </span>
+        {held.map((h, i) => (
+          <button key={h.at} role="tab" aria-selected={false} onClick={() => resumeBill(i)} className="max-w-56 truncate rounded-t-xl border border-b-0 border-line bg-white px-4 py-2 text-sm font-semibold hover:bg-brand-soft">
+            {(customers.find((c) => c.id === h.customerId)?.name ?? t('hold.walkIn'))} · {formatRupees(round2(h.cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}
+          </button>
+        ))}
+        <button type="button" onClick={holdBill} disabled={cart.length === 0} title={t('billTabs.newHint')} aria-label={t('billTabs.new')} className="rounded-t-xl px-3 py-2 text-lg font-bold text-brand hover:bg-brand-soft disabled:opacity-40">+</button>
+      </div>
       {held.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-[14px] bg-warn-soft p-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 rounded-[14px] bg-warn-soft p-2 text-sm xl:hidden">
           <span className="font-semibold text-warn-ink">{t('hold.held', { count: held.length })}</span>
           {held.map((h, i) => (
             <button key={h.at} onClick={() => resumeBill(i)} className="min-h-9 rounded-full border border-amber-300 bg-white px-3 font-semibold">

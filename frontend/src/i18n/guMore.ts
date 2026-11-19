@@ -228,6 +228,7 @@ const guMoreB = {
     transport: 'વાહતુક',
     loading: 'લોડિંગ',
   },
+  billTabs: { label: 'ખુલ્લાં બિલ', current: 'નવું બિલ', new: 'બીજું બિલ શરૂ કરો', newHint: 'આ બિલ તેના ટૅબમાં ખુલ્લું રહેશે અને નવું બિલ શરૂ થશે' },
   print: {
     billTo: 'બિલ કોને: {{who}}', billToHead: 'બિલ કોને', detailsHead: 'બિલની વિગત', walkIn: 'રોકડ ગ્રાહક', balanceDue: 'બાકી રકમ', printNow: 'બિલ છાપો',
     billNo: 'નં. {{no}}',
