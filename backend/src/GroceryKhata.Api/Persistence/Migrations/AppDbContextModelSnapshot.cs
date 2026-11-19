@@ -9135,6 +9135,70 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("order_lines", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Planner.ShopWhatsApp", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AccessToken")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("access_token");
+
+                    b.Property<DateTimeOffset>("ConnectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("connected_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DisplayNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("display_number");
+
+                    b.Property<string>("PhoneNumberId")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("phone_number_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset?>("TestSentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("test_sent_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("VerifiedName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("verified_name");
+
+                    b.Property<string>("WabaId")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("waba_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId")
+                        .IsUnique();
+
+                    b.ToTable("shop_whatsapp", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Planner.ShoppingList", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9229,6 +9293,24 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ListId");
 
                     b.ToTable("shopping_list_items", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Planner.WhatsAppNumber", b =>
+                {
+                    b.Property<string>("PhoneNumberId")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("phone_number_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.HasKey("PhoneNumberId");
+
+                    b.HasIndex("ShopId");
+
+                    b.ToTable("whatsapp_numbers", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Shops.Market", b =>

@@ -216,6 +216,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<GroceryKhata.Api.Ledger.Loan> Loans => Set<GroceryKhata.Api.Ledger.Loan>();
 
+    public DbSet<GroceryKhata.Api.Planner.ShopWhatsApp> ShopWhatsApps => Set<GroceryKhata.Api.Planner.ShopWhatsApp>();
+
+    public DbSet<GroceryKhata.Api.Planner.WhatsAppNumber> WhatsAppNumbers => Set<GroceryKhata.Api.Planner.WhatsAppNumber>();
+
     public DbSet<GroceryKhata.Api.Ledger.LoanPayment> LoanPayments => Set<GroceryKhata.Api.Ledger.LoanPayment>();
 
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
@@ -1277,6 +1281,25 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Gstin).HasMaxLength(15);
             b.Property(p => p.FssaiNo).HasMaxLength(40);
             b.HasIndex(p => p.ShopId).IsUnique();
+        });
+
+        modelBuilder.Entity<GroceryKhata.Api.Planner.ShopWhatsApp>(b =>
+        {
+            b.ToTable("shop_whatsapp");
+            b.HasTenantKey();
+            b.Property(w => w.WabaId).HasMaxLength(40);
+            b.Property(w => w.PhoneNumberId).HasMaxLength(40);
+            b.Property(w => w.DisplayNumber).HasMaxLength(30);
+            b.Property(w => w.VerifiedName).HasMaxLength(120);
+            b.HasIndex(w => w.ShopId).IsUnique();
+        });
+
+        modelBuilder.Entity<GroceryKhata.Api.Planner.WhatsAppNumber>(b =>
+        {
+            b.ToTable("whatsapp_numbers");
+            b.HasKey(n => n.PhoneNumberId);
+            b.Property(n => n.PhoneNumberId).HasMaxLength(40);
+            b.HasIndex(n => n.ShopId);
         });
 
         modelBuilder.Entity<GroceryKhata.Api.Ledger.Loan>(b =>

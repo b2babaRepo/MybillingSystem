@@ -662,6 +662,17 @@ export const enMore = {
   remTable: { phone: 'Phone', owes: 'Owes', last: 'Last reminded', ready: 'Ready to send', send: 'Send', total_one: '{{count}} customer', total_other: '{{count}} customers' },
   medTable: { expired: 'Expired', soon: 'Within 30 days', later: 'Later', settled: 'Settled', sent: 'Sent back', loss: 'Loss' },
   h1Table: { sr: 'Sr.', bill: 'Bill no.', medicine: 'Medicine', qty: 'Qty', reg: 'Reg. no.' },
+  waBiz: {
+    title: 'Your WhatsApp Business number', hint: "Connect the shop's own WhatsApp number the official way, so bills and reminders can go from it automatically.",
+    step1: 'Sign in with Facebook and choose or create your WhatsApp Business account.', step2: 'Pick the number (a new number, or one not used in the WhatsApp app).', step3: 'Meta checks it with an SMS or call code. Nothing reads your personal chats.',
+    connect: 'Connect WhatsApp Business', connecting: 'Connecting…', change: 'Change number', test: 'Send a test message', disconnect: 'Disconnect',
+    connected: 'Connected. Send a test message to check it works.', testSent: 'Test sent to your phone from the shop number.',
+    cancelled: 'The WhatsApp window was closed before finishing.', notFinished: 'The steps in the WhatsApp window were not finished. Try again.', sdkFailed: "Facebook's sign-in could not open. Allow pop-ups and try again.",
+    disconnectConfirm: 'Disconnect this WhatsApp number from the shop? Messages will no longer go from it.',
+    since: 'Connected {{date}}', lastTest: 'last test {{date}}', quality: 'Quality: {{q}}', q: { GREEN: 'High', YELLOW: 'Medium', RED: 'Low', UNKNOWN: 'Not rated yet' },
+    cost: 'Free to connect. Meta charges per message the shop starts (about ₹0.12 for a bill or reminder, about ₹0.86 for an offer); replies to customers within 24 hours are free.',
+    notSetUp: 'Connecting a WhatsApp Business number will be available soon. Until then, the WhatsApp buttons open WhatsApp with the message ready.',
+  },
   quick: { call: 'Call', sms: 'SMS', smsRemind: 'SMS reminder', whatsapp: 'WhatsApp', statement: "This month's statement", history: 'Go to history', hello: 'Namaste {{name}}, from {{shop}}.' },
   upload: {
     sentToWa: 'Link sent to your WhatsApp (number ending {{last}}).', sendWa: 'Send the link on WhatsApp', waText: 'Send supplier bill photos to the shop: {{link}}',

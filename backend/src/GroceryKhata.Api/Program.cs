@@ -48,6 +48,7 @@ builder.Services.AddScoped<StockService>();
 builder.Services.AddOrderReading(builder.Configuration);
 builder.Services.AddAiPrivacy(builder.Configuration);
 builder.Services.AddWhatsAppOrders(builder.Configuration);
+builder.Services.AddWhatsAppSignup(builder.Configuration);
 builder.Services.AddBalanceChecks();
 builder.Services.AddStockAlerts();
 builder.Services.AddBilling();
@@ -216,6 +217,7 @@ app.MapProductImages();
 app.MapOrderDrafts();
 app.MapAiPrivacy();
 app.MapWhatsAppOrders();
+app.MapWhatsAppSignup();
 
 app.Run();
 

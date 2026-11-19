@@ -664,6 +664,17 @@ export const hiMore: TextsMore = {
   remTable: { phone: 'फ़ोन', owes: 'बाकी', last: 'पिछली याद', ready: 'भेजने को तैयार', send: 'भेजें', total_one: '{{count}} ग्राहक', total_other: '{{count}} ग्राहक' },
   medTable: { expired: 'एक्सपायर', soon: '30 दिन में', later: 'बाद में', settled: 'निपटा', sent: 'वापस भेजा', loss: 'नुकसान' },
   h1Table: { sr: 'क्र.', bill: 'बिल नं.', medicine: 'दवा', qty: 'मात्रा', reg: 'रजि. नं.' },
+  waBiz: {
+    title: 'आपका WhatsApp Business नंबर', hint: 'दुकान का अपना WhatsApp नंबर आधिकारिक तरीके से जोड़ें, ताकि बिल और याद दिलाने के संदेश उसी से अपने आप जा सकें।',
+    step1: 'Facebook से लॉगिन करें और अपना WhatsApp Business खाता चुनें या बनाएँ।', step2: 'नंबर चुनें (नया नंबर, या जो WhatsApp ऐप में चालू न हो)।', step3: 'Meta SMS या कॉल कोड से जाँचेगा। आपकी निजी चैट कोई नहीं पढ़ता।',
+    connect: 'WhatsApp Business जोड़ें', connecting: 'जोड़ रहे हैं…', change: 'नंबर बदलें', test: 'टेस्ट संदेश भेजें', disconnect: 'हटाएँ',
+    connected: 'जुड़ गया। ठीक चल रहा है यह देखने के लिए टेस्ट संदेश भेजें।', testSent: 'दुकान के नंबर से आपके फ़ोन पर टेस्ट भेजा।',
+    cancelled: 'WhatsApp की विंडो पूरा होने से पहले बंद हो गई।', notFinished: 'WhatsApp की विंडो के कदम पूरे नहीं हुए। फिर कोशिश करें।', sdkFailed: 'Facebook लॉगिन नहीं खुला। पॉप-अप की अनुमति देकर फिर कोशिश करें।',
+    disconnectConfirm: 'यह WhatsApp नंबर दुकान से हटाएँ? इससे संदेश नहीं जाएँगे।',
+    since: '{{date}} को जुड़ा', lastTest: 'पिछला टेस्ट {{date}}', quality: 'गुणवत्ता: {{q}}', q: { GREEN: 'अच्छी', YELLOW: 'मध्यम', RED: 'कम', UNKNOWN: 'अभी रेटिंग नहीं' },
+    cost: 'जोड़ना मुफ़्त है। दुकान के भेजे हर संदेश पर Meta पैसा लेता है (बिल या याद दिलाने पर लगभग ₹0.12, ऑफ़र पर लगभग ₹0.86); 24 घंटे में ग्राहक को जवाब मुफ़्त है।',
+    notSetUp: 'WhatsApp Business नंबर जोड़ना जल्द आएगा। तब तक WhatsApp बटन संदेश तैयार करके WhatsApp खोलते हैं।',
+  },
   quick: { call: 'कॉल करें', sms: 'SMS', smsRemind: 'SMS से याद दिलाएँ', whatsapp: 'WhatsApp', statement: 'इस महीने का स्टेटमेंट', history: 'हिसाब देखें', hello: 'नमस्ते {{name}}, {{shop}} से।' },
   upload: {
     sentToWa: 'लिंक आपके WhatsApp पर भेजा गया (नंबर के आखिर में {{last}})।', sendWa: 'लिंक WhatsApp पर भेजें', waText: 'सप्लायर बिल की फ़ोटो दुकान को भेजें: {{link}}',

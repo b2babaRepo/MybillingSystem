@@ -323,6 +323,17 @@ const guMoreB = {
   remTable: { phone: 'ફોન', owes: 'બાકી', last: 'છેલ્લી યાદ', ready: 'મોકલવા તૈયાર', send: 'મોકલો', total_one: '{{count}} ગ્રાહક', total_other: '{{count}} ગ્રાહકો' },
   medTable: { expired: 'એક્સપાયર', soon: '30 દિવસમાં', later: 'પછી', settled: 'પતાવ્યું', sent: 'પાછું મોકલ્યું', loss: 'નુકસાન' },
   h1Table: { sr: 'ક્ર.', bill: 'બિલ નં.', medicine: 'દવા', qty: 'જથ્થો', reg: 'રજિ. નં.' },
+  waBiz: {
+    title: 'તમારો WhatsApp Business નંબર', hint: 'દુકાનનો પોતાનો WhatsApp નંબર સત્તાવાર રીતે જોડો, જેથી બિલ અને યાદ સંદેશા તેનાથી આપમેળે જઈ શકે.',
+    step1: 'Facebookથી લૉગિન કરો અને તમારું WhatsApp Business ખાતું પસંદ કરો કે બનાવો.', step2: 'નંબર પસંદ કરો (નવો નંબર, કે જે WhatsApp ઍપમાં ચાલુ ન હોય).', step3: 'Meta SMS કે કૉલ કોડથી તપાસશે. તમારી અંગત ચૅટ કોઈ વાંચતું નથી.',
+    connect: 'WhatsApp Business જોડો', connecting: 'જોડી રહ્યા છીએ…', change: 'નંબર બદલો', test: 'ટેસ્ટ સંદેશો મોકલો', disconnect: 'કાઢો',
+    connected: 'જોડાઈ ગયું. બરાબર ચાલે છે તે જોવા ટેસ્ટ સંદેશો મોકલો.', testSent: 'દુકાનના નંબરથી તમારા ફોન પર ટેસ્ટ મોકલ્યો.',
+    cancelled: 'WhatsAppની વિન્ડો પૂરું થતાં પહેલાં બંધ થઈ.', notFinished: 'WhatsAppની વિન્ડોનાં પગલાં પૂરાં ન થયાં. ફરી પ્રયત્ન કરો.', sdkFailed: 'Facebook લૉગિન ન ખૂલ્યું. પૉપ-અપની મંજૂરી આપી ફરી પ્રયત્ન કરો.',
+    disconnectConfirm: 'આ WhatsApp નંબર દુકાનમાંથી કાઢીએ? તેનાથી સંદેશા નહીં જાય.',
+    since: '{{date}}એ જોડાયું', lastTest: 'છેલ્લો ટેસ્ટ {{date}}', quality: 'ગુણવત્તા: {{q}}', q: { GREEN: 'સારી', YELLOW: 'મધ્યમ', RED: 'ઓછી', UNKNOWN: 'હજી રેટિંગ નથી' },
+    cost: 'જોડવું મફત છે. દુકાને મોકલેલા દરેક સંદેશા પર Meta પૈસા લે છે (બિલ કે યાદ પર લગભગ ₹0.12, ઑફર પર લગભગ ₹0.86); 24 કલાકમાં ગ્રાહકને જવાબ મફત છે.',
+    notSetUp: 'WhatsApp Business નંબર જોડવાનું જલદી આવશે. ત્યાં સુધી WhatsApp બટન સંદેશો તૈયાર કરી WhatsApp ખોલે છે.',
+  },
   quick: { call: 'કૉલ કરો', sms: 'SMS', smsRemind: 'SMSથી યાદ અપાવો', whatsapp: 'WhatsApp', statement: 'આ મહિનાનું સ્ટેટમેન્ટ', history: 'હિસાબ જુઓ', hello: 'નમસ્તે {{name}}, {{shop}} તરફથી.' },
   upload: {
     sentToWa: 'લિંક તમારા WhatsApp પર મોકલી (નંબરના છેલ્લા {{last}}).', sendWa: 'લિંક WhatsApp પર મોકલો', waText: 'સપ્લાયર બિલના ફોટા દુકાનને મોકલો: {{link}}',

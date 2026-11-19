@@ -137,6 +137,12 @@ public static class WhatsAppOrders
         {
             try
             {
+                // A message to a shop's own connected number is between that shop and its customer, not a household order.
+                if (await WhatsAppSignup.IsShopNumberAsync(db, phoneNumberId, ct))
+                {
+                    continue;
+                }
+
                 // Taken once: a resent message changes no row and is skipped.
                 var messageId = message.TryGetProperty("id", out var id) ? id.GetString() : null;
                 var now = clock.GetUtcNow();
