@@ -76,6 +76,8 @@ const PaintersScreen = lazy(() => import('./screens/PaintersScreen').then((modul
 const GstExportScreen = lazy(() => import('./screens/GstExportScreen').then((module) => ({ default: module.GstExportScreen })))
 const PickItemsScreen = lazy(() => import('./screens/PickItemsScreen').then((module) => ({ default: module.PickItemsScreen })))
 const ProfitLossScreen = lazy(() => import('./screens/ProfitLossScreen').then((module) => ({ default: module.ProfitLossScreen })))
+const TrialBalanceScreen = lazy(() => import('./screens/YearReportsScreen').then((module) => ({ default: module.TrialBalanceScreen })))
+const GstAnnualScreen = lazy(() => import('./screens/YearReportsScreen').then((module) => ({ default: module.GstAnnualScreen })))
 const BalanceSheetScreen = lazy(() => import('./screens/BalanceSheetScreen').then((module) => ({ default: module.BalanceSheetScreen })))
 const ClientCardsScreen = lazy(() => import('./screens/ClientCardsScreen').then((module) => ({ default: module.ClientCardsScreen })))
 const BridalScreen = lazy(() => import('./screens/BridalScreen').then((module) => ({ default: module.BridalScreen })))
@@ -340,7 +342,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
     { key: 'reports', title: t('menu.reports'), links: [
       { path: '/reports', label: t('side.reports') },
       { path: '/sales-by', label: t('sl.salesByShort') },
-      ...(isOwner ? [{ path: '/pnl', label: t('side.pnl') }, { path: '/balance-sheet', label: t('rv.balance') }, { path: '/gst', label: 'GST' }, { path: '/discounts', label: t('disc.title') }] : []),
+      ...(isOwner ? [{ path: '/pnl', label: t('side.pnl') }, { path: '/balance-sheet', label: t('rv.balance') }, { path: '/trial-balance', label: t('yearRep.tbLink') }, { path: '/gst', label: 'GST' }, { path: '/gst-annual', label: t('yearRep.gstLink') }, { path: '/discounts', label: t('disc.title') }] : []),
     ] },
     { key: 'more', title: t('menu.more'), links: [
       ...(isOwner ? [{ path: '/store', label: t('menu.store') }] : []),
@@ -468,6 +470,10 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
           <ItemMarginScreen shopId={shopId} />
         ) : path === '/pnl' && isOwner ? (
           <ProfitLossScreen />
+        ) : path === '/trial-balance' && isOwner ? (
+          <TrialBalanceScreen shopId={shopId} />
+        ) : path === '/gst-annual' && isOwner ? (
+          <GstAnnualScreen shopId={shopId} />
         ) : path === '/balance-sheet' && isOwner ? (
           <BalanceSheetScreen shopId={shopId} />
         ) : path === '/client-cards' ? (

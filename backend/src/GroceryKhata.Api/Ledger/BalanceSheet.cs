@@ -176,7 +176,7 @@ public static class BalanceSheet
         return decimal.Round(stock + khata - owed + bank, 2);
     }
 
-    private static async Task<BalanceSheetDto> SheetAsync(DateOnly day, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, Entitlements entitlements, TimeProvider clock, CancellationToken ct)
+    internal static async Task<BalanceSheetDto> SheetAsync(DateOnly day, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, Entitlements entitlements, TimeProvider clock, CancellationToken ct)
     {
         var text = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var end = IndiaTime.Day(day).End;

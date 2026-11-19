@@ -139,6 +139,7 @@ app.MapOrders();
 app.MapStore();
 app.MapReports();
 app.MapBalanceSheet();
+app.MapYearReports();
 app.MapShopSettings();
 app.MapShopData();
 app.MapStaff();
