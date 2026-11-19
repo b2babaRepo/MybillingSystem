@@ -660,6 +660,8 @@ export const enMore = {
   gtcTable: { late: 'Late by', moved: 'Moved', toCome: 'To come', stage: 'Stage', pick: 'Click an order to chase it, note a call or record the lorry.' },
   slipTable: { no: 'Slip no.', issued: 'Issued', from: 'From bill', amount: 'Amount', left: 'Still open' },
   remTable: { phone: 'Phone', owes: 'Owes', last: 'Last reminded', ready: 'Ready to send', send: 'Send', total_one: '{{count}} customer', total_other: '{{count}} customers' },
+  medTable: { expired: 'Expired', soon: 'Within 30 days', later: 'Later', settled: 'Settled', sent: 'Sent back', loss: 'Loss' },
+  h1Table: { sr: 'Sr.', bill: 'Bill no.', medicine: 'Medicine', qty: 'Qty', reg: 'Reg. no.' },
   quick: { call: 'Call', sms: 'SMS', smsRemind: 'SMS reminder', whatsapp: 'WhatsApp', statement: "This month's statement", history: 'Go to history', hello: 'Namaste {{name}}, from {{shop}}.' },
   upload: {
     sentToWa: 'Link sent to your WhatsApp (number ending {{last}}).', sendWa: 'Send the link on WhatsApp', waText: 'Send supplier bill photos to the shop: {{link}}',

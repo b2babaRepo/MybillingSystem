@@ -6,6 +6,7 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
+import { DataTable } from '../components/DataTable'
 
 interface Batch { id: string; batchNo: string; expiry: string; mrp: number; costPrice: number | null; quantity: number; expired: boolean; daysLeft: number }
 interface Expiring { id: string; productName: string; batchNo: string; expiry: string; quantity: number; value: number; expired: boolean; daysLeft: number }
@@ -20,7 +21,7 @@ export function MedicineStockScreen({ shopId }: { shopId: string }) {
   const expiring = useQuery({ queryKey: [shopId, 'batches', 'expiring', days], queryFn: () => api<Expiring[]>(`/v1/batches/expiring?days=${days}`) }).data ?? []
   const lost = expiring.filter((e) => e.expired).reduce((s, e) => s + e.value, 0)
   return (
-    <div className="flex flex-col gap-3 p-4 pb-28">
+    <div className="flex flex-col gap-3 p-4 pb-28 lg:mx-auto lg:w-full lg:max-w-5xl">
       <Receive shopId={shopId} />
       <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <div className="flex items-center justify-between gap-2">
@@ -32,8 +33,24 @@ export function MedicineStockScreen({ shopId }: { shopId: string }) {
         <p className="text-xs text-muted">{t('batches.expiringHint')}</p>
         {lost > 0 && <p className="rounded-xl bg-due-soft p-2 text-sm font-semibold text-due">{t('batches.expiredValue', { value: formatRupees(lost) })}</p>}
         {expiring.length === 0 && <p className="text-sm text-muted">{t('batches.noneExpiring')}</p>}
+        {expiring.length > 0 && (
+          <div className="hidden lg:block">
+            <DataTable label={t('batches.expiring')} rows={expiring} rowKey={(e) => e.id} download={`expiring-${days}-days`} defaultSort={{ key: 'expiry', dir: 1 }}
+              columns={[
+                { key: 'name', header: t('batches.medicine'), sortValue: (e) => e.productName, filter: { kind: 'text', value: (e) => e.productName }, render: (e) => <span className="font-semibold">{e.productName}</span>, csv: (e) => e.productName },
+                { key: 'batch', header: t('batches.batchNo'), width: 'w-32', sortValue: (e) => e.batchNo, filter: { kind: 'text', value: (e) => e.batchNo }, render: (e) => <span className="font-mono text-xs">{e.batchNo}</span>, csv: (e) => e.batchNo },
+                { key: 'expiry', header: t('batches.expiry'), width: 'w-28', sortValue: (e) => e.expiry, render: (e) => month(e.expiry), csv: (e) => e.expiry },
+                { key: 'qty', header: t('batches.quantity'), align: 'right', width: 'w-20', sortValue: (e) => e.quantity, render: (e) => e.quantity, csv: (e) => e.quantity },
+                { key: 'value', header: t('stockTable.value'), align: 'right', width: 'w-28', sortValue: (e) => e.value, render: (e) => <b>{formatRupees(e.value)}</b>, csv: (e) => e.value },
+                { key: 'left', header: t('reorderTable.daysLeft'), width: 'w-36', sortValue: (e) => e.daysLeft,
+                  filter: { kind: 'select', value: (e) => (e.expired ? 'expired' : e.daysLeft <= 30 ? 'soon' : 'later'), options: (['expired', 'soon', 'later'] as const).map((k) => ({ value: k, label: t(`medTable.${k}`) })) },
+                  render: (e) => <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${e.expired ? 'bg-due-soft text-due' : e.daysLeft <= 30 ? 'bg-warn-soft text-warn' : 'bg-[#edf2f1] text-muted'}`}>{e.expired ? t('batches.expired') : t('batches.daysLeft', { count: e.daysLeft })}</span>, csv: (e) => (e.expired ? -1 : e.daysLeft) },
+              ]}
+              footer={[t('supTable.items', { count: expiring.length }), '', '', String(expiring.reduce((n, e) => n + e.quantity, 0)), formatRupees(expiring.reduce((n, e) => n + e.value, 0)), '']} />
+          </div>
+        )}
         {expiring.map((e) => (
-          <div key={e.id} className={`flex justify-between gap-2 rounded-xl p-2 text-sm ${e.expired ? 'bg-due-soft' : e.daysLeft <= 30 ? 'bg-warn-soft' : 'bg-ground'}`}>
+          <div key={e.id} className={`lg:hidden flex justify-between gap-2 rounded-xl p-2 text-sm ${e.expired ? 'bg-due-soft' : e.daysLeft <= 30 ? 'bg-warn-soft' : 'bg-ground'}`}>
             <span><b>{e.productName}</b><span className="block text-xs">{t('batches.batchLine', { batch: e.batchNo, month: month(e.expiry), qty: e.quantity })} · {e.expired ? t('batches.expired') : t('batches.daysLeft', { count: e.daysLeft })}</span></span>
             <span className="shrink-0 font-semibold">{formatRupees(e.value)}</span>
           </div>
@@ -79,11 +96,25 @@ function Receive({ shopId }: { shopId: string }) {
       </select>
       {productId && (
         <>
-          {batches.map((b) => (
-            <p key={b.id} className={`flex justify-between text-sm ${b.expired ? 'text-due' : ''}`}>
-              <span>{t('batches.batchLine', { batch: b.batchNo, month: month(b.expiry), qty: b.quantity })}{b.expired ? ` · ${t('batches.expired')}` : ''}</span><span>MRP {formatRupees(b.mrp)}</span>
-            </p>
-          ))}
+          {batches.length > 0 && (
+            <table className="w-full border-collapse overflow-hidden rounded-xl text-sm">
+              <thead className="bg-brand-soft text-left text-xs uppercase tracking-wide">
+                <tr><th className="px-2 py-1.5">{t('batches.batchNo')}</th><th className="px-2 py-1.5">{t('batches.expiry')}</th><th className="px-2 py-1.5 text-right">{t('batches.quantity')}</th>
+                  <th className="px-2 py-1.5 text-right">MRP</th><th className="px-2 py-1.5 text-right">{t('batches.cost')}</th></tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {batches.map((b) => (
+                  <tr key={b.id} className={b.expired ? 'bg-due-soft text-due' : b.daysLeft <= 30 ? 'bg-warn-soft' : ''}>
+                    <td className="px-2 py-1.5 font-mono text-xs">{b.batchNo}</td>
+                    <td className="px-2 py-1.5">{month(b.expiry)}{b.expired ? ` · ${t('batches.expired')}` : ''}</td>
+                    <td className="px-2 py-1.5 text-right">{b.quantity}</td>
+                    <td className="px-2 py-1.5 text-right">{formatRupees(b.mrp)}</td>
+                    <td className="px-2 py-1.5 text-right">{b.costPrice != null ? formatRupees(b.costPrice) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <Field label={t('batches.batchNo')} value={d.batchNo} onChange={set('batchNo')} />
             <Field label={t('batches.expiry')} type="month" value={d.expiry} onChange={set('expiry')} />

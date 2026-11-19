@@ -321,6 +321,8 @@ const guMoreB = {
   gtcTable: { late: 'કેટલું મોડું', moved: 'તારીખ બદલી', toCome: 'આવવાનું બાકી', stage: 'સ્થિતિ', pick: 'ઑર્ડર પર ક્લિક કરો: યાદ અપાવો, કૉલ લખો કે ગાડી નોંધો.' },
   slipTable: { no: 'સ્લિપ નં.', issued: 'ક્યારે આપી', from: 'કયા બિલથી', amount: 'રકમ', left: 'બાકી' },
   remTable: { phone: 'ફોન', owes: 'બાકી', last: 'છેલ્લી યાદ', ready: 'મોકલવા તૈયાર', send: 'મોકલો', total_one: '{{count}} ગ્રાહક', total_other: '{{count}} ગ્રાહકો' },
+  medTable: { expired: 'એક્સપાયર', soon: '30 દિવસમાં', later: 'પછી', settled: 'પતાવ્યું', sent: 'પાછું મોકલ્યું', loss: 'નુકસાન' },
+  h1Table: { sr: 'ક્ર.', bill: 'બિલ નં.', medicine: 'દવા', qty: 'જથ્થો', reg: 'રજિ. નં.' },
   quick: { call: 'કૉલ કરો', sms: 'SMS', smsRemind: 'SMSથી યાદ અપાવો', whatsapp: 'WhatsApp', statement: 'આ મહિનાનું સ્ટેટમેન્ટ', history: 'હિસાબ જુઓ', hello: 'નમસ્તે {{name}}, {{shop}} તરફથી.' },
   upload: {
     sentToWa: 'લિંક તમારા WhatsApp પર મોકલી (નંબરના છેલ્લા {{last}}).', sendWa: 'લિંક WhatsApp પર મોકલો', waText: 'સપ્લાયર બિલના ફોટા દુકાનને મોકલો: {{link}}',

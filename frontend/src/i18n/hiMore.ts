@@ -662,6 +662,8 @@ export const hiMore: TextsMore = {
   gtcTable: { late: 'कितनी देर', moved: 'तारीख बदली', toCome: 'आना बाकी', stage: 'स्थिति', pick: 'ऑर्डर पर क्लिक करें: याद दिलाएँ, कॉल लिखें या गाड़ी दर्ज करें।' },
   slipTable: { no: 'स्लिप नं.', issued: 'कब दी', from: 'किस बिल से', amount: 'रकम', left: 'बाकी' },
   remTable: { phone: 'फ़ोन', owes: 'बाकी', last: 'पिछली याद', ready: 'भेजने को तैयार', send: 'भेजें', total_one: '{{count}} ग्राहक', total_other: '{{count}} ग्राहक' },
+  medTable: { expired: 'एक्सपायर', soon: '30 दिन में', later: 'बाद में', settled: 'निपटा', sent: 'वापस भेजा', loss: 'नुकसान' },
+  h1Table: { sr: 'क्र.', bill: 'बिल नं.', medicine: 'दवा', qty: 'मात्रा', reg: 'रजि. नं.' },
   quick: { call: 'कॉल करें', sms: 'SMS', smsRemind: 'SMS से याद दिलाएँ', whatsapp: 'WhatsApp', statement: 'इस महीने का स्टेटमेंट', history: 'हिसाब देखें', hello: 'नमस्ते {{name}}, {{shop}} से।' },
   upload: {
     sentToWa: 'लिंक आपके WhatsApp पर भेजा गया (नंबर के आखिर में {{last}})।', sendWa: 'लिंक WhatsApp पर भेजें', waText: 'सप्लायर बिल की फ़ोटो दुकान को भेजें: {{link}}',
