@@ -19,6 +19,8 @@ import { bestOffer, isRunning, offerPrice, useOffers } from '../lib/offers'
 import { cameraPossible, normBarcode } from '../lib/barcode'
 const UnknownBarcode = lazy(() => import('../components/UnknownBarcode').then((module) => ({ default: module.UnknownBarcode })))
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
+// The printed bill's own code, loaded only when a computer turns the live preview on.
+const BillPreview = lazy(() => import('./PrintScreen').then((module) => ({ default: module.BillPreview })))
 import { enqueue } from '../lib/outbox'
 import { useTranslation } from 'react-i18next'
 import { ItemCard } from '../components/ItemCard'
@@ -27,7 +29,7 @@ import { Button, Field, Input, Sheet, btn } from '../components/ui'
 import { addCustomer, saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import { round2 } from '../lib/local'
-import type { PaymentMode, Unit } from '../lib/types'
+import type { BillPrint, BillView, PaymentMode, Unit } from '../lib/types'
 import { useShopSettings, shopTypes, isTrade, sendsToSites, upiUri } from '../lib/reports'
 import { navigate } from '../router'
 import { useSerialsInStock } from '../lib/serials'
@@ -474,6 +476,33 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     return { amount: round2(l.quantity * l.unitPrice), gstRate: item ? garmentRate(item.hsnCode, item.gstRate, l.unitPrice) : null }
   }), taxState !== shopState), [cart, products, taxState, shopState])
   const [taxOpen, setTaxOpen] = useState(false)
+  // A computer's live preview of the bill as it will print, in place of the item tiles while on. Remembered on this device.
+  const [preview, setPreview] = useState(() => { try { return localStorage.getItem('gk-bill-preview') === '1' } catch { return false } })
+  const togglePreview = () => setPreview((on) => { try { localStorage.setItem('gk-bill-preview', on ? '0' : '1') } catch { /* no storage */ } return !on })
+  const previewLook = useQuery({ queryKey: ['print-look'], queryFn: () => api<BillPrint>('/v1/shop/print'), enabled: preview, staleTime: 300_000, retry: false })
+  const [previewAt] = useState(() => new Date().toISOString())
+  const previewBill = useMemo((): BillView['bill'] => {
+    const gstin = settings?.gstin && !withoutGst ? settings.gstin : null
+    return {
+      id: 'preview', customerId: customer?.id ?? null, total, paidAmount, onKhata: customer ? round2(due - paidAmount) : 0, paymentMode: paidAmount > 0 ? mode : null,
+      occurredAt: previewAt, customerBalance: null, billNo: null, gstin, billOfSupply: !!gstin && !!settings?.gstComposition,
+      placeOfSupply: taxState, shopAddress: settings?.address ?? null, print: previewLook.data ?? null, exchangeCredit,
+      site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null,
+      fields: billFieldLabels.map((label) => ({ label, value: (fieldValues[label] ?? '').trim() })).filter((f) => f.value),
+      // What goes on khata is due the customer's credit days from today, as the saved bill will say.
+      dueOn: customer?.creditDays && due - paidAmount > 0
+        ? (() => { const d = new Date(previewAt); d.setDate(d.getDate() + customer.creditDays!); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })() : null,
+      lines: cart.map((l) => {
+        const p = products.find((x) => x.id === l.productId)
+        const regular = regularOf(l)
+        return {
+          productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice, amount: round2(l.quantity * l.unitPrice),
+          gstRate: gstin && p ? garmentRate(p.hsnCode, p.gstRate, l.unitPrice) : null, hsnCode: p?.hsnCode ?? null,
+          printName: billNameFor(p), listPrice: regular > l.unitPrice ? regular : null, bags: l.bags ?? null,
+        }
+      }),
+    }
+  }, [cart, products, customer, total, paidAmount, due, mode, settings, withoutGst, taxState, previewLook.data, exchangeCredit, extras, billFieldLabels, fieldValues, previewAt]) // eslint-disable-line react-hooks/exhaustive-deps
   // Credit with no customer yet can't be saved: whose khata would it go on?
   const canSave = total > 0 && !unpriced && !rxMissing && !serialsMissing && !overLimit && !(creditAsked && !customer)
   // Desktop keys: F2 search, F4 amount paid, Ctrl+Enter save, Esc clear search, ? the key list.
@@ -553,6 +582,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           className="h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-4 text-[17px] shadow-sm outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10"
         />
         </span>
+        <button onClick={togglePreview} aria-pressed={preview} title={t('billPreview.toggle')}
+          className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold xl:flex ${preview ? 'border-brand bg-brand-soft text-brand-strong' : 'border-line bg-white text-muted'}`}>👁 {t('billPreview.toggle')}</button>
         <button onClick={() => setKeysHelp((v) => !v)} aria-label={t('keys.title')} title={t('keys.title')} className="hidden h-12 w-12 shrink-0 rounded-[14px] border border-line bg-white font-bold text-muted lg:block">?</button>
         {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className={`flex h-12 shrink-0 items-center gap-1.5 rounded-2xl px-4 ${btn.solid}`}><span aria-hidden>📷</span>{t('barcodeBill.scan')}</button>}
       </div>
@@ -576,7 +607,20 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         <Suspense fallback={null}><UnknownBarcode shopId={shopId} code={scanMiss} products={products} onClose={() => setScanMiss(null)}
           onItem={(p) => { add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice }); setScanMiss(null); setSearch('') }} /></Suspense>
       )}
-      <div className="grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+      {/* The bill as it will print, live, in place of the tiles (computer only). The search box above still adds items. */}
+      {preview && (
+        <div className="hidden xl:block">
+          <p className="mb-2 text-sm font-semibold text-muted">{cart.length > 0 ? t('billPreview.note') : t('billPreview.empty')}</p>
+          {cart.length > 0 && (
+            <div className="overflow-hidden rounded-card shadow-md ring-1 ring-line">
+              <Suspense fallback={<p className="p-6 text-muted">…</p>}>
+                <BillPreview shopName={shopName} bill={previewBill} customerName={customer?.name || null} phone={customer?.phone ?? null} />
+              </Suspense>
+            </div>
+          )}
+        </div>
+      )}
+      <div className={`grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 ${preview ? 'xl:hidden' : ''}`}>
         {groups.map((entry) => entry.kind === 'style' ? (
           <ItemCard
             key={`style-${entry.name}`}

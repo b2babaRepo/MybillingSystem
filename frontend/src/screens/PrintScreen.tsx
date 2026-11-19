@@ -328,7 +328,7 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
 }
 
 /** The bill itself, for the shop and, with no onCancel, for whoever opens its link. */
-function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: { shopName: string; bill: BillView['bill']; customerName: string | null; phone: string | null; link: string | null; onCancel?: () => void }) {
+function BillDocument({ shopName, bill, customerName, phone, link, onCancel, bare }: { shopName: string; bill: BillView['bill']; customerName: string | null; phone: string | null; link: string | null; onCancel?: () => void; bare?: boolean }) {
   const { t } = useTranslation()
   const gstin = bill.gstin
   const when = new Date(bill.occurredAt).toLocaleString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -375,7 +375,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
 
   return (
     <Page title={shopName} subtitle={bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')} shareText={share} phone={phone} receipt={() => billReceipt()} pdfName={`${shopName} ${bill.billNo ?? when}`}
-      logo={look?.logo} theme={look?.theme} corner={copy !== 'none' ? t(`print.copy.${copy}`) : null}
+      logo={look?.logo} theme={look?.theme} corner={copy !== 'none' ? t(`print.copy.${copy}`) : null} bare={bare}
       tools={(
         <select aria-label={t('print.copy.label')} value={copy} onChange={(e) => setCopy(e.target.value as typeof copy)} className="h-11 rounded-xl border border-line bg-white px-2 font-semibold transition hover:bg-[#f6faf9]">
           {(['none', 'original', 'duplicate', 'triplicate'] as const).map((c) => <option key={c} value={c}>{t(`print.copy.${c === 'none' ? 'noLabel' : c}`)}</option>)}
@@ -531,6 +531,14 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel }: {
       {onCancel && !bill.cancelledAt && <button onClick={onCancel} className="mt-6 h-11 w-full rounded-xl border border-line font-semibold text-due print:hidden">{t('print.cancelBill')}</button>}
     </Page>
   )
+}
+
+/**
+ * The bill being made, drawn exactly as it will print (A4, the shop's logo, style and terms), beside the bill screen on a
+ * computer. No number yet: the server gives that when the bill is saved.
+ */
+export function BillPreview({ shopName, bill, customerName, phone }: { shopName: string; bill: BillView['bill']; customerName: string | null; phone: string | null }) {
+  return <BillDocument shopName={shopName} bill={bill} customerName={customerName} phone={phone} link={null} bare />
 }
 
 /** #/b/{shop}/{bill}?t={token}: a bill anyone holding the link can open, print or save as a PDF. No account needed. */

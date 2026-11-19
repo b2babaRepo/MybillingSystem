@@ -6,7 +6,7 @@ import { getPaper, pageRule, setPaper, type Paper } from '../lib/paper'
 import type { ReceiptRow } from '../lib/escpos'
 
 /** A print page: back, print, WhatsApp and the paper choice (A4, 80 mm, 58 mm roll), then the shop's header and the content. */
-export function Page({ title, subtitle, shareText, phone, children, receipt, pdfName, logo, theme, corner, tools }: {
+export function Page({ title, subtitle, shareText, phone, children, receipt, pdfName, logo, theme, corner, tools, bare }: {
   title: string; subtitle: string; shareText: string; phone: string | null; children: ReactNode; receipt?: () => ReceiptRow[]; pdfName?: string
   /** The shop's logo (a data URL), beside its name. */
   logo?: string | null
@@ -16,6 +16,8 @@ export function Page({ title, subtitle, shareText, phone, children, receipt, pdf
   corner?: ReactNode
   /** Extra controls in the toolbar (not printed). */
   tools?: ReactNode
+  /** Just the page, as a preview inside another screen: no toolbar, no full-screen height, A4 layout. */
+  bare?: boolean
 }) {
   const { t } = useTranslation()
   const [btState, setBtState] = useState<string | null>(null)
@@ -66,12 +68,15 @@ export function Page({ title, subtitle, shareText, phone, children, receipt, pdf
   // Opened with "Print" from the bill screen: show the print dialog straight away, once.
   useEffect(() => {
     let auto = false
+    // A preview inside the bill screen never prints by itself, nor uses up a print asked of the real bill page.
+    if (bare) return
     try { auto = sessionStorage.getItem('gk-autoprint') === '1'; sessionStorage.removeItem('gk-autoprint') } catch { /* no storage */ }
-    if (auto) setTimeout(() => window.print(), 300)
-  }, [])
+    if (auto && !bare) setTimeout(() => window.print(), 300)
+  }, [bare])
   return (
-    <div data-light className="mx-auto min-h-dvh max-w-2xl bg-white p-6 text-black print:m-0 print:min-h-0 print:max-w-none print:p-0">
-      {rule && <style>{rule}</style>}
+    <div data-light className={bare ? 'bg-white p-5 text-black' : 'mx-auto min-h-dvh max-w-2xl bg-white p-6 text-black print:m-0 print:min-h-0 print:max-w-none print:p-0'}>
+      {rule && !bare && <style>{rule}</style>}
+      {!bare && <>
       <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 flex flex-wrap gap-2 border-b border-line bg-white/95 px-6 py-3 backdrop-blur print:hidden">
         <button onClick={() => history.back()} className="h-11 rounded-xl border border-line px-4 font-semibold transition hover:bg-[#f6faf9]" aria-label={t('a11y.back')}>←</button>
         <button onClick={() => window.print()} className="flex h-11 items-center gap-1.5 rounded-xl bg-brand px-4 font-semibold text-white shadow-sm hover:bg-brand-strong"><span aria-hidden>🖨️</span>{t('print.printPdf')}</button>
@@ -94,7 +99,8 @@ export function Page({ title, subtitle, shareText, phone, children, receipt, pdf
         <p role="status" className="mb-3 flex flex-wrap items-center gap-3 text-sm print:hidden">{btState}
           <button onClick={() => void btPrint(true)} className="font-semibold text-brand underline">{t('btPrint.change')}</button></p>
       )}
-      <div ref={roll} className={`${paper === 'a4' ? '' : `receipt receipt-${paper}`} print-theme-${theme ?? 'classic'}`}>
+      </>}
+      <div ref={roll} className={`${paper === 'a4' || bare ? '' : `receipt receipt-${paper}`} print-theme-${theme ?? 'classic'}`}>
         <header className="print-head mb-4 flex items-start gap-3 border-b-2 border-black pb-3">
           {logo && <img src={logo} alt="" className="print-logo h-16 w-16 shrink-0 object-contain" />}
           <div className="min-w-0 flex-1">
