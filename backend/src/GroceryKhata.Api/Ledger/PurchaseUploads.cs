@@ -18,7 +18,7 @@ public sealed class PurchaseUpload : Entity, ITenantOwned
 {
     public Guid ShopId { get; set; }
 
-    /// <summary>The photo as a data URL (JPEG, PNG or WebP), at most <see cref="OrderDrafts.MaxImageBytes"/>.</summary>
+    /// <summary>The photo or PDF as a data URL (JPEG, PNG, WebP or PDF), at most <see cref="OrderDrafts.MaxImageBytes"/>.</summary>
     public required string Image { get; set; }
 
     /// <summary>"computer" or "phone".</summary>
@@ -83,9 +83,9 @@ public static class PurchaseUploads
 
     private static async Task<IResult> AddAsync(PurchaseUploadRequest request, string source, AppDbContext db, CancellationToken ct)
     {
-        if (OrderDrafts.ParseImage(request.ImageDataUrl).MediaType is null)
+        if (OrderDrafts.ParseImageOrPdf(request.ImageDataUrl).MediaType is null)
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["ImageDataUrl"] = ["Send a JPEG, PNG or WebP photo under 1.5 MB."] });
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["ImageDataUrl"] = ["Send a JPEG, PNG or WebP photo, or a PDF, under 1.5 MB."] });
         }
 
         if (await db.PurchaseUploads.CountAsync(u => u.UsedAt == null, ct) >= MaxWaiting)

@@ -33,6 +33,12 @@ public sealed class PurchaseUploadTests(ApiFactory api)
         var after = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/suppliers/uploads")).RootElement.EnumerateArray().Single(u => u.GetProperty("id").GetGuid() == first);
         Assert.NotEqual(JsonValueKind.Null, after.GetProperty("usedAt").ValueKind);
 
+        // A PDF bill is taken too; any other kind of file isn't.
+        var pdf = "data:application/pdf;base64," + Convert.ToBase64String("%PDF-1.4\n%%EOF"u8.ToArray());
+        (await shop.PostJsonAsync("/api/v1/suppliers/uploads", new { imageDataUrl = pdf })).EnsureSuccessStatusCode();
+        var text = "data:text/plain;base64," + Convert.ToBase64String("hello"u8.ToArray());
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/suppliers/uploads", new { imageDataUrl = text })).StatusCode);
+
         // Another shop sees none of them.
         var (other, _) = await api.SignUpAsync("Other Upload Store");
         Assert.Empty(JsonDocument.Parse(await other.GetStringAsync("/api/v1/suppliers/uploads")).RootElement.EnumerateArray());

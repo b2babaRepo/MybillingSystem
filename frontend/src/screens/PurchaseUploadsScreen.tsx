@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { confirmAsk } from '../components/Ask'
 import { shownLocale } from '../i18n'
 import { api, request } from '../lib/api'
-import { shrinkPhoto } from '../lib/images'
+import { billFile } from '../lib/billFile'
 import { navigate } from '../router'
 import { UPLOAD_DRAFT_KEY, type InvoiceDraft } from './SuppliersScreen'
 
@@ -13,11 +13,20 @@ interface Upload { id: string; source: 'computer' | 'phone'; createdAt: string; 
 interface Link { slug: string; expires: number; token: string }
 interface Supplier { id: string; name: string; isActive?: boolean }
 
+/** Open a PDF bill in a new tab (browsers won't open a data: PDF link directly). */
+function openPdf(dataUrl: string) {
+  const bytes = Uint8Array.from(atob(dataUrl.split(',')[1]), (c) => c.charCodeAt(0))
+  window.open(URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })), '_blank', 'noopener')
+}
+
 const when = (iso: string) => new Date(iso).toLocaleString(shownLocale(), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 
 /** A waiting photo's picture, fetched only when it is on screen. */
 function Thumb({ id }: { id: string }) {
   const image = useQuery({ queryKey: ['purchase-upload', id], queryFn: () => api<{ imageDataUrl: string }>(`/v1/suppliers/uploads/${id}`), staleTime: Infinity }).data
+  if (image?.imageDataUrl.startsWith('data:application/pdf')) {
+    return <button type="button" onClick={() => openPdf(image.imageDataUrl)} className="flex h-20 w-16 shrink-0 flex-col items-center justify-center rounded-lg border border-line bg-[#fff4f2] text-xs font-bold text-due"><span aria-hidden className="text-2xl">📄</span>PDF</button>
+  }
   return image ? <a href={image.imageDataUrl} target="_blank" rel="noreferrer"><img src={image.imageDataUrl} alt="" className="h-20 w-16 shrink-0 rounded-lg border border-line object-cover" /></a>
     : <span className="h-20 w-16 shrink-0 rounded-lg bg-[#edf2f1]" />
 }
@@ -49,7 +58,7 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
     let sent = 0
     try {
       for (const file of [...files]) {
-        await api('/v1/suppliers/uploads', 'POST', { imageDataUrl: await shrinkPhoto(file, 1600, 1_200_000, false) })
+        await api('/v1/suppliers/uploads', 'POST', { imageDataUrl: await billFile(file, t('upload.pdfTooBig')) })
         sent++
       }
       setMessage(t('upload.sent', { count: sent }))
@@ -138,7 +147,7 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
           <p className="text-sm text-muted">{t('upload.computerHint')}</p>
           <label className={`mt-auto flex min-h-12 cursor-pointer items-center justify-center rounded-2xl border-2 border-brand px-4 font-semibold text-brand ${busy === 'upload' ? 'opacity-50' : ''}`}>
             {busy === 'upload' ? t('upload.sending') : t('upload.choose')}
-            <input type="file" accept="image/*" multiple className="hidden" disabled={busy === 'upload'}
+            <input type="file" accept="image/*,application/pdf" multiple className="hidden" disabled={busy === 'upload'}
               onChange={(e) => { const files = e.target.files; if (files?.length) void fromComputer(files); e.target.value = '' }} />
           </label>
         </section>
@@ -223,18 +232,20 @@ export function PhoneUploadPage({ path }: { path: string }) {
   const match = path.match(/^\/up\/([^/?]+)\?e=(\d+)&t=([0-9a-f]+)/)
   const [sent, setSent] = useState(0)
   const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle')
+  const [problem, setProblem] = useState<string | null>(null)
   const expired = !match || Number(match[2]) * 1000 < Date.now()
 
   async function send(files: FileList) {
     setState('busy')
     try {
       for (const file of [...files]) {
-        await api(`/v1/upload/${match![1]}?e=${match![2]}&t=${match![3]}`, 'POST', { imageDataUrl: await shrinkPhoto(file, 1600, 1_200_000, false) })
+        await api(`/v1/upload/${match![1]}?e=${match![2]}&t=${match![3]}`, 'POST', { imageDataUrl: await billFile(file, t('upload.pdfTooBig')) })
         setSent((n) => n + 1)
       }
       setState('idle')
-    } catch {
+    } catch (e) {
       setState('failed')
+      setProblem(e instanceof Error && e.message === t('upload.pdfTooBig') ? e.message : null)
     }
   }
 
@@ -249,10 +260,10 @@ export function PhoneUploadPage({ path }: { path: string }) {
         </label>
         <label className={`flex min-h-14 cursor-pointer items-center justify-center rounded-2xl border-2 border-brand px-4 font-semibold text-brand ${state === 'busy' ? 'opacity-50' : ''}`}>
           🖼 {t('upload.pickPhotos')}
-          <input type="file" accept="image/*" multiple className="hidden" disabled={state === 'busy'} onChange={(e) => { if (e.target.files?.length) void send(e.target.files); e.target.value = '' }} />
+          <input type="file" accept="image/*,application/pdf" multiple className="hidden" disabled={state === 'busy'} onChange={(e) => { if (e.target.files?.length) void send(e.target.files); e.target.value = '' }} />
         </label>
         {sent > 0 && <p role="status" className="rounded-xl bg-brand-soft p-3 font-semibold text-brand-deep">✓ {t('upload.phoneSent', { count: sent })}</p>}
-        {state === 'failed' && <p role="status" className="rounded-xl bg-due-soft p-3 text-due">{t('upload.phoneFailed')}</p>}
+        {state === 'failed' && <p role="status" className="rounded-xl bg-due-soft p-3 text-due">{problem ?? t('upload.phoneFailed')}</p>}
       </>}
     </div>
   )

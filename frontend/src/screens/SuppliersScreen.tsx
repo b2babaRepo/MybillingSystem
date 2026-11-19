@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, btn } from '../components/ui'
 import { NetworkError, api, request } from '../lib/api'
-import { shrinkPhoto } from '../lib/images'
+import { billFile } from '../lib/billFile'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
@@ -167,7 +167,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
     setMessage('')
     setReading(true)
     try {
-      applyDraft(await api<InvoiceDraft>('/v1/suppliers/purchases/photo', 'POST', { imageDataUrl: await shrinkPhoto(file, 1600, 1_200_000, false) }))
+      applyDraft(await api<InvoiceDraft>('/v1/suppliers/purchases/photo', 'POST', { imageDataUrl: await billFile(file, t('upload.pdfTooBig')) }))
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
     } finally {
@@ -418,7 +418,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
         {ai?.canReadPhotos && (ai.consentedAt ? (
           <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-brand font-bold text-brand-strong ${reading ? 'opacity-50' : ''}`}>
             📷 {reading ? t('invoicePhoto.reading') : t('invoicePhoto.button')}
-            <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={reading}
+            <input type="file" accept="image/*,application/pdf" capture="environment" className="sr-only" disabled={reading}
               onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void readPhoto(file) }} />
           </label>
         ) : (
