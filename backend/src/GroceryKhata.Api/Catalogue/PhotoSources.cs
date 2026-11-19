@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
@@ -34,10 +34,16 @@ public static class PhotoResize
 /// <summary>A pack photo found by barcode: the product's name and the front photo's bytes.</summary>
 public sealed record BarcodePhoto(string? Name, byte[] Image);
 
-/// <summary>Looks up a packaged product's front photo by its barcode.</summary>
+/// <summary>A packaged product's details found by barcode, to fill in a new item: <see cref="Name"/> is brand, product and pack together.</summary>
+public sealed record BarcodeDetails(string Name, string? Brand, string? Product, string? Pack);
+
+/// <summary>Looks up a packaged product's front photo (and its details) by its barcode.</summary>
 public interface IBarcodePhotos
 {
     Task<BarcodePhoto?> FindAsync(string barcode, CancellationToken ct);
+
+    /// <summary>The product's brand, name and pack size. Null: not known (or not looked up).</summary>
+    Task<BarcodeDetails?> DetailsAsync(string barcode, CancellationToken ct) => Task.FromResult<BarcodeDetails?>(null);
 }
 
 /// <summary>
@@ -70,6 +76,19 @@ public sealed class OpenFoodFactsPhotos(IHttpClientFactory http, ILogger<OpenFoo
         logger.LogInformation("Open Food Facts photo found for {Barcode}", barcode);
         return new BarcodePhoto(product.TryGetProperty("product_name", out var n) ? n.GetString() : null, bytes);
     }
+
+    public async Task<BarcodeDetails?> DetailsAsync(string barcode, CancellationToken ct)
+    {
+        var client = http.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(15);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("GroceryKhata/1.0");
+        using var response = await client.GetAsync($"https://world.openfoodfacts.org/api/v2/product/{barcode}.json?fields=product_name,product_name_en,brands,quantity", ct);
+        if (!response.IsSuccessStatusCode) return null;
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        if (!doc.RootElement.TryGetProperty("product", out var p)) return null;
+        string? Text(string field) => p.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.String && v.GetString()?.Trim() is { Length: > 0 } x ? x : null;
+        return PhotoSources.Details(Text("product_name") ?? Text("product_name_en"), Text("brands"), Text("quantity"));
+    }
 }
 
 public sealed record BarcodePhotoRequest(string? Barcode);
@@ -85,10 +104,45 @@ public static class PhotoSources
     {
         var shop = app.MapGroup("/api/v1/products/{id:guid}/image").WithTags("Items").RequireAuthorization(AppPolicies.ShopMember);
         shop.MapPost("/barcode", FromBarcodeAsync);
+        app.MapGet("/api/v1/barcodes/{code}", LookupAsync).WithTags("Items").RequireAuthorization(AppPolicies.ShopMember);
         shop.MapDelete("/reports", KeepAsync);
         // Anyone looking at the online store can say a photo is wrong; the shop decides.
         app.MapPost("/api/v1/images/{shopId:guid}/{productId:guid}/report", ReportAsync).WithTags("Items").AllowAnonymous();
         return app;
+    }
+
+    /// <summary>
+    /// A new item's name from what the barcode database knows: the first brand (unless the name already says it), the
+    /// product, and the pack ("Tata Salt 1 kg"). Each part is kept short; null when there is no product name.
+    /// </summary>
+    public static BarcodeDetails? Details(string? product, string? brands, string? pack)
+    {
+        static string? Short(string? s, int max) => s is null ? null : s.Trim() is { Length: > 0 } t ? t[..Math.Min(t.Length, max)].Trim() : null;
+        var name = Short(product, 80);
+        if (name is null) return null;
+        var brand = Short(brands?.Split(',')[0], 40);
+        var size = Short(pack, 20);
+        var parts = new List<string>();
+        if (brand is not null && !name.Contains(brand, StringComparison.OrdinalIgnoreCase)) parts.Add(brand);
+        parts.Add(name);
+        // A name that already gives a size ("Masala 70g") keeps it; the pack only fills in one that doesn't.
+        if (size is not null && !name.Contains(size, StringComparison.OrdinalIgnoreCase) && !name.Any(char.IsAsciiDigit)) parts.Add(size);
+        return new BarcodeDetails(string.Join(' ', parts)[..Math.Min(string.Join(' ', parts).Length, 120)], brand, name, size);
+    }
+
+    /// <summary>What a barcode is, from Open Food Facts, to fill in a new item. 204: not known there.</summary>
+    private static async Task<IResult> LookupAsync(string code, IBarcodePhotos photos, ILogger<IBarcodePhotos> logger, CancellationToken ct)
+    {
+        if (CleanBarcode(code) is not { } barcode) return Invalid("Barcode", "Enter the 8 or 13 digits under the barcode.");
+        try
+        {
+            return await photos.DetailsAsync(barcode, ct) is { } details ? TypedResults.Ok(details) : TypedResults.NoContent();
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            logger.LogInformation(exception, "Barcode lookup failed for {Barcode}", barcode);
+            return TypedResults.NoContent();
+        }
     }
 
     /// <summary>Barcodes on Indian packs are EAN-13 (890…) or EAN-8; UPC-A from imports is 12 digits.</summary>
