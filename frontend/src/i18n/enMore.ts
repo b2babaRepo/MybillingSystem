@@ -935,6 +935,7 @@ export const enMore = {
     save: 'Save as sale order', needCustomer: 'Choose the customer first', saved: 'Sale order #{{number}} saved: items held for the customer.', fromOrder: 'Delivering order #{{number}}: change quantities for a part delivery.', promised: '{{qty}} promised on orders', free: '{{qty}} free to sell' },
   pos: { byGstin: "Buyer's GSTIN is from {{state}}: this bill charges IGST.", followsGstin: "The tax state comes from the buyer's GSTIN: {{state}}.", label: 'Delivered to', here: '{{state}} (this state)', igst: 'Going to {{state}}: this bill charges IGST.', print: 'Place of supply' },
   billTable: { disc: 'Disc %' },
+  creditSwitch: { label: 'Paid now or on khata', cash: 'Cash', credit: 'Credit (udhaar)', needCustomer: 'Credit: choose or add the customer (whose khata?). The whole bill goes on their khata; change the amount paid below if they pay part now.' },
   billList: {
     title: 'Sale bills', period: 'Period', periods: { today: 'Today', month: 'This month', last3: 'Last 3 months', custom: 'Pick dates' },
     received: 'Received', due: 'Due', total_one: 'Total · {{count}} bill', total_other: 'Total · {{count}} bills',

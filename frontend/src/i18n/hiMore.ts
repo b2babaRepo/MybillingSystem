@@ -937,6 +937,7 @@ export const hiMore: TextsMore = {
     save: 'बिक्री ऑर्डर सेव करें', needCustomer: 'पहले ग्राहक चुनें', saved: 'बिक्री ऑर्डर #{{number}} सेव: सामान ग्राहक के लिए रखा।', fromOrder: 'ऑर्डर #{{number}} दे रहे हैं: कुछ ही देना हो तो मात्रा बदलें।', promised: '{{qty}} ऑर्डर पर रखा', free: '{{qty}} बेचने को खाली' },
   pos: { byGstin: "खरीदार का GSTIN {{state}} का है: इस बिल पर IGST लगेगा।", followsGstin: "टैक्स का राज्य खरीदार के GSTIN से तय होता है: {{state}}।", label: 'कहाँ भेजा', here: '{{state}} (यही राज्य)', igst: '{{state}} भेजा जा रहा है: इस बिल पर IGST लगेगा।', print: 'आपूर्ति का स्थान' },
   billTable: { disc: 'छूट %' },
+  creditSwitch: { label: 'अभी पैसे या खाते में', cash: 'नकद', credit: 'उधार', needCustomer: 'उधार: ग्राहक चुनें या जोड़ें (किसके खाते में?)। पूरा बिल उनके खाते में जाएगा; कुछ अभी दें तो नीचे रकम बदलें।' },
   billList: {
     title: 'बिक्री के बिल', period: 'समय', periods: { today: 'आज', month: 'इस महीने', last3: 'पिछले 3 महीने', custom: 'तारीख चुनें' },
     received: 'मिला', due: 'बाकी', total_one: 'कुल · {{count}} बिल', total_other: 'कुल · {{count}} बिल',

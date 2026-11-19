@@ -205,6 +205,17 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     if (customerId && id !== customerId) setDelivery()
     stateOffered.current = ''
     setCustomerId(id)
+    // Credit was chosen first: the customer just picked takes the whole bill on khata.
+    if (id && creditAsked) { setPaid('0'); setCreditAsked(false) }
+    if (!id) setCreditAsked(false)
+  }
+  /** Credit chosen before a customer: the bill waits for one (Save is held), then goes fully on their khata. */
+  const [creditAsked, setCreditAsked] = useState(false)
+  /** The top switch: Cash (paid now) or Credit (on the customer's khata). */
+  function chooseCredit(credit: boolean) {
+    if (!credit) { setPaid(null); setCreditAsked(false); return }
+    if (customerId) setPaid('0')
+    else { setCreditAsked(true); setTimeout(() => document.getElementById('bill-customer')?.focus(), 0) }
   }
   // Where this customer's tax goes, whatever this shop has chosen about delivery. Online only: offline it's the shop's state.
   const buyer = useQuery({
@@ -414,6 +425,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       fields: billFieldLabels.map((label) => ({ label, value: (fieldValues[label] ?? '').trim() })).filter((f) => f.value),
     })
     setFieldValues({})
+    setCreditAsked(false)
     setRx({ doctorName: '', doctorAddress: '', doctorRegNo: '', patientName: '', patientAddress: '' })
     setPicked({})
     setSavedId(result.id)
@@ -462,7 +474,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     return { amount: round2(l.quantity * l.unitPrice), gstRate: item ? garmentRate(item.hsnCode, item.gstRate, l.unitPrice) : null }
   }), taxState !== shopState), [cart, products, taxState, shopState])
   const [taxOpen, setTaxOpen] = useState(false)
-  const canSave = total > 0 && !unpriced && !rxMissing && !serialsMissing && !overLimit
+  // Credit with no customer yet can't be saved: whose khata would it go on?
+  const canSave = total > 0 && !unpriced && !rxMissing && !serialsMissing && !overLimit && !(creditAsked && !customer)
   // Desktop keys: F2 search, F4 amount paid, Ctrl+Enter save, Esc clear search, ? the key list.
   function allOnKhata() {
     if (customer) setPaid('0')
@@ -894,6 +907,18 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
 
       {cart.length > 0 && (
         <div className="space-y-4 rounded-card bg-white p-4 shadow-sm">
+          {/* The first choice on a bill, as on a paper bill book: paid now, or on the customer's khata. */}
+          {(() => {
+            const credit = creditAsked || (!!customer && paidAmount < due)
+            const seg = (on: boolean, tone: string) => `flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl text-base font-bold transition ${on ? tone : 'text-muted hover:bg-white'}`
+            return (
+              <div role="radiogroup" aria-label={t('creditSwitch.label')} className="flex gap-1 rounded-2xl bg-[#edf2f1] p-1">
+                <button role="radio" aria-checked={!credit} onClick={() => chooseCredit(false)} className={seg(!credit, 'bg-white text-green-800 shadow-sm ring-1 ring-green-600/30')}>💵 {t('creditSwitch.cash')}</button>
+                <button role="radio" aria-checked={credit} onClick={() => chooseCredit(true)} className={seg(credit, 'bg-white text-due shadow-sm ring-1 ring-red-600/30')}>📒 {t('creditSwitch.credit')}</button>
+              </div>
+            )
+          })()}
+          {creditAsked && !customer && <p className="text-sm font-semibold text-due">{t('creditSwitch.needCustomer')}</p>}
           {/* From an exchange slip: the customer is the slip's (or a walk-in), so don't ask again unless the shop wants a name. */}
           {exchange && !customer && !askCustomer ? (
             <p className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-brand-soft px-3 py-2 text-sm">
