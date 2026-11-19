@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ItemPicker } from '../components/ItemPicker'
 import { ListDetail } from '../components/ListDetail'
 import { enqueue } from '../lib/outbox'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, btn } from '../components/ui'
 import { NetworkError, api, request } from '../lib/api'
@@ -187,14 +187,23 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
   }
   // A bill uploaded from the computer or a phone, already read on the Uploaded bills page: fill this supplier's bill with it.
   const [fromUpload, setFromUpload] = useState<string | null>(null)
+  const uploaded = useQuery({ queryKey: ['purchase-upload', fromUpload], queryFn: () => api<{ imageDataUrl: string }>(`/v1/suppliers/uploads/${fromUpload}`), enabled: !!fromUpload, staleTime: Infinity }).data
+  // A PDF shows from a blob address: browsers won't show a data: PDF in a frame.
+  const pdfUrl = useMemo(() => {
+    if (!uploaded?.imageDataUrl.startsWith('data:application/pdf')) return null
+    const bytes = Uint8Array.from(atob(uploaded.imageDataUrl.split(',')[1]), (c) => c.charCodeAt(0))
+    return URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+  }, [uploaded])
+  useEffect(() => () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl) }, [pdfUrl])
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(UPLOAD_DRAFT_KEY)
       if (!raw) return
-      const picked = JSON.parse(raw) as { uploadId: string; supplierId: string; draft: InvoiceDraft }
+      const picked = JSON.parse(raw) as { uploadId: string; supplierId: string; draft: InvoiceDraft | null }
       if (picked.supplierId !== id) return
       sessionStorage.removeItem(UPLOAD_DRAFT_KEY)
-      applyDraft(picked.draft)
+      // Read by the AI: its lines go in. Not read: the bill shows beside the form to type from.
+      if (picked.draft) applyDraft(picked.draft)
       setFromUpload(picked.uploadId)
       setTimeout(() => document.getElementById('supplier-bill')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
     } catch (e) {
@@ -431,6 +440,14 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
               <button onClick={() => void agree()} className={`h-11 rounded-xl ${btn.solid}`}>{t('expense.consentYes')}</button>
               <button onClick={() => setAskConsent(false)} className="h-11 rounded-xl border border-line font-semibold">{t('expense.consentNo')}</button>
             </div>
+          </div>
+        )}
+        {fromUpload && uploaded && (
+          <div className="flex flex-col gap-2 rounded-xl border border-line bg-[#f6faf9] p-2 text-sm">
+            <p className="font-semibold">{t('upload.billBeside')}</p>
+            {pdfUrl
+              ? <iframe title={t('upload.billBeside')} src={pdfUrl} className="h-[28rem] w-full rounded-lg border border-line bg-white" />
+              : <a href={uploaded.imageDataUrl} target="_blank" rel="noreferrer"><img src={uploaded.imageDataUrl} alt={t('upload.billBeside')} className="max-h-[28rem] w-full rounded-lg border border-line bg-white object-contain" /></a>}
           </div>
         )}
         {photoNote && (

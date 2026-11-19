@@ -46,9 +46,10 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
   const ai = useQuery({ queryKey: ['ai-status'], queryFn: () => api<{ consentedAt: string | null; canReadPhotos: boolean }>('/v1/me/ai') }).data
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
-  const [read, setRead] = useState<{ uploadId: string; draft: InvoiceDraft; supplierId: string } | null>(null)
+  const [read, setRead] = useState<{ uploadId: string; draft: InvoiceDraft | null; supplierId: string } | null>(null)
   const [link, setLink] = useState<{ url: string; qr: string; until: number } | null>(null)
   const refresh = () => queryClient.invalidateQueries({ queryKey: [shopId, 'purchase-uploads'] })
+  const aiReads = !!ai?.canReadPhotos && !!ai.consentedAt
   const waiting = (list.data ?? []).filter((u) => !u.usedAt)
   const done = (list.data ?? []).filter((u) => u.usedAt)
 
@@ -90,6 +91,8 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
 
   async function makePurchase(u: Upload) {
     setMessage('')
+    // No AI reading (off, or not agreed to): pick the supplier and type the lines in beside the bill.
+    if (!aiReads) { setRead({ uploadId: u.id, draft: null, supplierId: '' }); return }
     setBusy(u.id)
     try {
       const { imageDataUrl } = await api<{ imageDataUrl: string }>(`/v1/suppliers/uploads/${u.id}`)
@@ -97,7 +100,9 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
       if (draft.lines.length === 0) throw new Error(t('invoicePhoto.nothing'))
       setRead({ uploadId: u.id, draft, supplierId: draft.supplierId ?? '' })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      // It couldn't be read: the owner can still type it in.
+      setMessage(`${e instanceof Error ? e.message : t('error')} ${t('upload.typeInstead')}`)
+      setRead({ uploadId: u.id, draft: null, supplierId: '' })
     } finally {
       setBusy(null)
     }
@@ -113,7 +118,7 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
   async function goToBill() {
     if (!read) return
     try {
-      const supplierId = read.supplierId === 'new' ? await newSupplier(read.draft.supplierName ?? t('upload.unknownSupplier')) : read.supplierId
+      const supplierId = read.supplierId === 'new' ? await newSupplier(read.draft?.supplierName ?? t('upload.unknownSupplier')) : read.supplierId
       sessionStorage.setItem(UPLOAD_DRAFT_KEY, JSON.stringify({ uploadId: read.uploadId, supplierId, draft: read.draft }))
       sessionStorage.setItem('gk-open-supplier', supplierId)
       navigate('/suppliers')
@@ -182,19 +187,21 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
 
       {read && (
         <section className="flex flex-col gap-2 rounded-card border-2 border-brand bg-white p-4 shadow-sm">
-          <h2 className="font-bold">{t('upload.readTitle', { count: read.draft.lines.length })}</h2>
-          <p className="text-sm text-muted">{[read.draft.supplierName, read.draft.billNo && t('upload.billNo', { no: read.draft.billNo }), read.draft.grandTotal != null && `₹${read.draft.grandTotal}`].filter(Boolean).join(' · ')}</p>
+          {read.draft ? <>
+            <h2 className="font-bold">{t('upload.readTitle', { count: read.draft.lines.length })}</h2>
+            <p className="text-sm text-muted">{[read.draft.supplierName, read.draft.billNo && t('upload.billNo', { no: read.draft.billNo }), read.draft.grandTotal != null && `₹${read.draft.grandTotal}`].filter(Boolean).join(' · ')}</p>
+          </> : <h2 className="font-bold">{t('upload.typeTitle')}</h2>}
           <label className="text-sm"><span className="mb-1 block font-semibold text-muted">{t('upload.whichSupplier')}</span>
             <select value={read.supplierId} onChange={(e) => setRead({ ...read, supplierId: e.target.value })} className="h-11 w-full rounded-xl border border-line bg-white px-2">
               <option value="">{t('upload.pickSupplier')}</option>
               {suppliers.filter((s) => s.isActive !== false).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              {read.draft.supplierName && <option value="new">{t('upload.addSupplier', { name: read.draft.supplierName })}</option>}
+              {read.draft?.supplierName && <option value="new">{t('upload.addSupplier', { name: read.draft.supplierName })}</option>}
             </select></label>
           <div className="flex flex-wrap gap-2">
-            <button disabled={!read.supplierId} onClick={() => void goToBill()} className="min-h-12 flex-1 rounded-2xl bg-brand px-4 font-semibold text-white disabled:opacity-40">{t('upload.checkAndSave')}</button>
+            <button disabled={!read.supplierId} onClick={() => void goToBill()} className="min-h-12 flex-1 rounded-2xl bg-brand px-4 font-semibold text-white disabled:opacity-40">{read.draft ? t('upload.checkAndSave') : t('upload.typeIn')}</button>
             <button onClick={() => setRead(null)} className="min-h-12 rounded-2xl border border-line px-4 font-semibold">{t('cancel')}</button>
           </div>
-          <p className="text-xs text-muted">{t('upload.whatHappens')}</p>
+          <p className="text-xs text-muted">{read.draft ? t('upload.whatHappens') : t('upload.typeHappens')}</p>
         </section>
       )}
 
@@ -208,7 +215,7 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
               <b>{u.source === 'phone' ? `📱 ${t('upload.fromPhone')}` : `💻 ${t('upload.fromComputer')}`}</b>
               <span className="text-muted">{when(u.createdAt)}</span>
             </span>
-            <button disabled={!!busy || !ai?.consentedAt} onClick={() => void makePurchase(u)} className="min-h-11 rounded-xl bg-brand px-3 text-sm font-semibold text-white disabled:opacity-40">
+            <button disabled={!!busy} onClick={() => void makePurchase(u)} className="min-h-11 rounded-xl bg-brand px-3 text-sm font-semibold text-white disabled:opacity-40">
               {busy === u.id ? t('invoicePhoto.reading') : t('upload.make')}</button>
             <button onClick={() => void remove(u)} aria-label={t('upload.delete')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-line text-due">🗑</button>
           </div>
