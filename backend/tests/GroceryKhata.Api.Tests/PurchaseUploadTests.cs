@@ -1,6 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using GroceryKhata.Api.Ledger;
+using GroceryKhata.Api.Planner;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GroceryKhata.Api.Tests;
 
@@ -43,5 +46,44 @@ public sealed class PurchaseUploadTests(ApiFactory api)
         var (other, _) = await api.SignUpAsync("Other Upload Store");
         Assert.Empty(JsonDocument.Parse(await other.GetStringAsync("/api/v1/suppliers/uploads")).RootElement.EnumerateArray());
         Assert.Equal(HttpStatusCode.NotFound, (await other.GetAsync($"/api/v1/suppliers/uploads/{first}")).StatusCode);
+    }
+
+    private sealed class FakeWhatsApp : IWhatsAppClient
+    {
+        public List<(string To, string Template, IReadOnlyList<string> Parameters)> Sent { get; } = [];
+
+        public Task<(byte[] Data, string MediaType)> DownloadMediaAsync(string mediaId, CancellationToken ct) => throw new NotSupportedException();
+
+        public Task SendTextAsync(string phoneNumberId, string to, string body, CancellationToken ct) => throw new NotSupportedException();
+
+        public Task SendTemplateAsync(string phoneNumberId, string to, string template, string language, IReadOnlyList<string> parameters, CancellationToken ct)
+        {
+            Sent.Add((to, template, parameters));
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task The_upload_link_goes_to_the_owners_own_whatsapp_when_a_template_is_set_up()
+    {
+        var whatsapp = new FakeWhatsApp();
+        using var app = api.WithWebHostBuilder(b => b
+            .UseSetting("Whatsapp:PhoneNumberId", "1234").UseSetting("Whatsapp:UploadLinkTemplate", "bill_upload_link")
+            .ConfigureTestServices(s => s.AddSingleton<IWhatsAppClient>(whatsapp)));
+        var phone = ApiFactory.NewPhone();
+        var (_, auth) = await api.SignUpAsync("WhatsApp Upload Store", phone);
+        var shop = app.CreateClient();
+        shop.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", auth.AccessToken);
+
+        var link = await (await shop.PostJsonAsync("/api/v1/suppliers/uploads/link", new { appUrl = "https://app.example.in/" })).ReadAsync<PurchaseUploadLinkDto>();
+        Assert.Equal(phone[^4..], link.SentTo);
+        var sent = Assert.Single(whatsapp.Sent);
+        Assert.EndsWith(phone, sent.To);
+        Assert.Equal("bill_upload_link", sent.Template);
+        Assert.Equal($"https://app.example.in/#/up/{link.Slug}?e={link.Expires}&t={link.Token}", Assert.Single(sent.Parameters));
+
+        // Without the WhatsApp set-up the QR still works and nothing claims to be sent.
+        var (plain, _) = await api.SignUpAsync("Plain Upload Store");
+        Assert.Null((await (await plain.PostJsonAsync("/api/v1/suppliers/uploads/link", new { appUrl = "https://app.example.in/" })).ReadAsync<PurchaseUploadLinkDto>()).SentTo);
     }
 }

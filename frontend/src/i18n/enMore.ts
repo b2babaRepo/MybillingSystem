@@ -568,6 +568,7 @@ export const enMore = {
     loading: 'Loading',
   },
   upload: {
+    sentToWa: 'Link sent to your WhatsApp (number ending {{last}}).', sendWa: 'Send the link on WhatsApp', waText: 'Send supplier bill photos to the shop: {{link}}',
     typeInstead: 'You can type it in instead.', typeTitle: 'Type this bill in', typeIn: 'Open the supplier bill to type in', typeHappens: "Opens the supplier's bill with this photo or PDF beside it. Type the lines and press Save: stock and the supplier's khata update as usual.", billBeside: 'The uploaded bill: type its lines below.',
     pdfTooBig: 'This PDF is over 1.5 MB. Send a smaller PDF, or a photo of the bill.',
     link: 'Upload purchase bills', title: 'Uploaded purchase bills', hint: "Send a supplier's bill photo from this computer or your phone. It waits here until you make a purchase from it: the lines are read for you, you check them, and saving adds the stock and the supplier's bill to their khata.",

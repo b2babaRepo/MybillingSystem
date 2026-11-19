@@ -6,11 +6,12 @@ import { confirmAsk } from '../components/Ask'
 import { shownLocale } from '../i18n'
 import { api, request } from '../lib/api'
 import { billFile } from '../lib/billFile'
+import { whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import { UPLOAD_DRAFT_KEY, type InvoiceDraft } from './SuppliersScreen'
 
 interface Upload { id: string; source: 'computer' | 'phone'; createdAt: string; usedAt: string | null }
-interface Link { slug: string; expires: number; token: string }
+interface Link { slug: string; expires: number; token: string; sentTo: string | null }
 interface Supplier { id: string; name: string; isActive?: boolean }
 
 /** Open a PDF bill in a new tab (browsers won't open a data: PDF link directly). */
@@ -47,7 +48,7 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [read, setRead] = useState<{ uploadId: string; draft: InvoiceDraft | null; supplierId: string } | null>(null)
-  const [link, setLink] = useState<{ url: string; qr: string; until: number } | null>(null)
+  const [link, setLink] = useState<{ url: string; qr: string; until: number; sentTo: string | null } | null>(null)
   const refresh = () => queryClient.invalidateQueries({ queryKey: [shopId, 'purchase-uploads'] })
   const aiReads = !!ai?.canReadPhotos && !!ai.consentedAt
   const waiting = (list.data ?? []).filter((u) => !u.usedAt)
@@ -74,9 +75,9 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
   async function openPhone() {
     setMessage('')
     try {
-      const l = await api<Link>('/v1/suppliers/uploads/link', 'POST', {})
+      const l = await api<Link>('/v1/suppliers/uploads/link', 'POST', { appUrl: `${location.origin}${location.pathname}` })
       const url = `${location.origin}${location.pathname}#/up/${l.slug}?e=${l.expires}&t=${l.token}`
-      setLink({ url, qr: await QRCode.toDataURL(url, { width: 360, margin: 2, color: { dark: '#10201d', light: '#ffffff' } }), until: l.expires * 1000 })
+      setLink({ url, qr: await QRCode.toDataURL(url, { width: 360, margin: 2, color: { dark: '#10201d', light: '#ffffff' } }), until: l.expires * 1000, sentTo: l.sentTo })
       setPhoneOpen(true)
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
@@ -168,7 +169,9 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
                 <li>{t('upload.step1')}</li>
                 <li>{t('upload.step2')}</li>
                 <li>{t('upload.step3')}</li>
+                {link.sentTo && <li className="mt-1 list-none font-semibold text-[#15803d]">✓ {t('upload.sentToWa', { last: link.sentTo })}</li>}
                 <li className="mt-1 list-none text-xs">{t('upload.linkLife')}</li>
+                <li className="list-none"><a href={whatsAppLink(null, t('upload.waText', { link: link.url }))} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-1 font-semibold text-[#15803d] underline">💬 {t('upload.sendWa')}</a></li>
                 <li className="list-none"><button onClick={() => void navigator.clipboard?.writeText(link.url)} className="min-h-10 font-semibold text-brand underline">{t('upload.copyLink')}</button></li>
               </ol>
             </div>

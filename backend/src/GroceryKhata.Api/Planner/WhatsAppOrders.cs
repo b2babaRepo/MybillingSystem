@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,6 +15,12 @@ public interface IWhatsAppClient
     Task<(byte[] Data, string MediaType)> DownloadMediaAsync(string mediaId, CancellationToken ct);
 
     Task SendTextAsync(string phoneNumberId, string to, string body, CancellationToken ct);
+
+    /// <summary>
+    /// A message the business starts (outside a customer's 24-hour reply window) must use a template Meta approved.
+    /// <paramref name="parameters"/> fill the template body's {{1}}, {{2}}… in order.
+    /// </summary>
+    Task SendTemplateAsync(string phoneNumberId, string to, string template, string language, IReadOnlyList<string> parameters, CancellationToken ct);
 }
 
 /// <summary>Graph API calls with the business's access token. The version is a setting (Whatsapp:GraphVersion).</summary>
@@ -36,6 +42,25 @@ public sealed class GraphWhatsAppClient(HttpClient http, string token, string ve
         using var fileResponse = await http.SendAsync(file, ct);
         fileResponse.EnsureSuccessStatusCode();
         return (await fileResponse.Content.ReadAsByteArrayAsync(ct), type);
+    }
+
+    public async Task SendTemplateAsync(string phoneNumberId, string to, string template, string language, IReadOnlyList<string> parameters, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"https://graph.facebook.com/{version}/{Uri.EscapeDataString(phoneNumberId)}/messages")
+        {
+            Content = JsonContent.Create(new
+            {
+                messaging_product = "whatsapp", to, type = "template",
+                template = new
+                {
+                    name = template, language = new { code = language },
+                    components = new[] { new { type = "body", parameters = parameters.Select(p => new { type = "text", text = p }).ToArray() } },
+                },
+            }),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var response = await http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task SendTextAsync(string phoneNumberId, string to, string body, CancellationToken ct)

@@ -1,3 +1,4 @@
+﻿using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using GroceryKhata.Api.Common;
@@ -35,7 +36,11 @@ public sealed record PurchaseUploadRequest(string ImageDataUrl);
 public sealed record PurchaseUploadDto(Guid Id, string Source, DateTimeOffset CreatedAt, DateTimeOffset? UsedAt, Guid? PurchaseId);
 
 /// <summary>The link a phone opens from the QR code: the shop, when it stops working, and its signature.</summary>
-public sealed record PurchaseUploadLinkDto(string Slug, long Expires, string Token);
+/// <summary><see cref="SentTo"/>: the last 4 digits of the owner's WhatsApp number the link went to; null when it wasn't sent.</summary>
+public sealed record PurchaseUploadLinkDto(string Slug, long Expires, string Token, string? SentTo = null);
+
+/// <summary>Where the phone page is (the app's address as the computer sees it), so the WhatsApp message can carry the whole link.</summary>
+public sealed record PurchaseUploadLinkRequest(string? AppUrl);
 
 public sealed record PurchaseUploadUsedRequest(Guid? PurchaseId);
 
@@ -66,11 +71,38 @@ public static class PurchaseUploads
     public static string Token(string key, string slug, long expires) =>
         Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(key), Encoding.UTF8.GetBytes($"upload:{slug}:{expires}")))[..32].ToLowerInvariant();
 
-    private static IResult MakeLink(AppDbContext db, ITenantContext tenant, IOptions<Billing.BillingOptions> options, TimeProvider clock)
+    /// <summary>
+    /// Makes the QR link and, like Vyapar, sends it to the owner's own WhatsApp so the phone can open it from there.
+    /// Sending needs the WhatsApp Business number (Whatsapp:PhoneNumberId) and an approved template
+    /// (Whatsapp:UploadLinkTemplate, its body's {{1}} is the link). Without them, or if WhatsApp refuses, the QR still works.
+    /// </summary>
+    private static async Task<IResult> MakeLink(
+        PurchaseUploadLinkRequest? request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, IOptions<Billing.BillingOptions> options, TimeProvider clock,
+        IConfiguration configuration, IServiceProvider services, ILogger<PurchaseUpload> logger, CancellationToken ct)
     {
         var slug = db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.Slug).Single();
         var expires = clock.GetUtcNow().Add(LinkLife).ToUnixTimeSeconds();
-        return TypedResults.Ok(new PurchaseUploadLinkDto(slug, expires, Token(options.Value.BillLinkKey, slug, expires)));
+        var token = Token(options.Value.BillLinkKey, slug, expires);
+        string? sentTo = null;
+        var numberId = configuration["Whatsapp:PhoneNumberId"];
+        var template = configuration["Whatsapp:UploadLinkTemplate"];
+        if (services.GetService<IWhatsAppClient>() is { } whatsapp && !string.IsNullOrWhiteSpace(numberId) && !string.IsNullOrWhiteSpace(template)
+            && Uri.TryCreate(request?.AppUrl, UriKind.Absolute, out var app) && app.Scheme is "https" or "http"
+            && user.UserId() is { } userId && await db.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => u.Phone).SingleOrDefaultAsync(ct) is { Length: >= 10 } phone)
+        {
+            var link = $"{app.GetLeftPart(UriPartial.Path)}#/up/{slug}?e={expires}&t={token}";
+            try
+            {
+                await whatsapp.SendTemplateAsync(numberId, phone.TrimStart('+'), template, configuration["Whatsapp:UploadLinkLanguage"] ?? "en", [link], ct);
+                sentTo = phone[^4..];
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                logger.LogWarning(exception, "Upload link could not be sent on WhatsApp");
+            }
+        }
+
+        return TypedResults.Ok(new PurchaseUploadLinkDto(slug, expires, token, sentTo));
     }
 
     private static async Task<IResult> ListAsync(AppDbContext db, CancellationToken ct) =>
