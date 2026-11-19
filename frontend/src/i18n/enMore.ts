@@ -567,6 +567,7 @@ export const enMore = {
     transport: 'Transport',
     loading: 'Loading',
   },
+  khataTable: { title: 'Transactions', type: 'Type', number: 'Bill no.', date: 'Date', mode: 'Mode', udhaar: 'Udhaar (+)', jama: 'Jama (−)', balance: 'Balance', status: 'Status', note: 'Note', sale: 'Sale bill', filter: { all: 'All', udhaar: 'Udhaar', jama: 'Jama', other: 'Returns & removals' } },
   quick: { call: 'Call', sms: 'SMS', smsRemind: 'SMS reminder', whatsapp: 'WhatsApp', statement: "This month's statement", history: 'Go to history', hello: 'Namaste {{name}}, from {{shop}}.' },
   upload: {
     sentToWa: 'Link sent to your WhatsApp (number ending {{last}}).', sendWa: 'Send the link on WhatsApp', waText: 'Send supplier bill photos to the shop: {{link}}',

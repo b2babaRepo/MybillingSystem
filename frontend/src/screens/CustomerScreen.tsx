@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keypad } from '../components/Keypad'
 import { KhataHistory } from '../components/KhataHistory'
+import { KhataTable } from '../components/KhataTable'
 import { Balance, Button } from '../components/ui'
 import { addKhataEntry, reverseEntry, undoEntry, useCustomers, useStatement } from '../lib/data'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -342,12 +343,22 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
 
       {tab === 'history' && (
         <>
+          {/* A computer gets the register table (opened from a disputed entry: the list, which rings it); a phone the card list. */}
+          {!focusEntryId && (
+            <div className="hidden lg:block">
+              <KhataTable entries={entries} customerName={customer.name}
+                canRemove={(e) => !e.billId && (isOwner || Date.now() - new Date(e.occurredAt).getTime() <= REMOVAL_WINDOW_MS)}
+                onRemove={(e) => void remove(e)} />
+            </div>
+          )}
+          <div className={focusEntryId ? '' : 'lg:hidden'}>
           <KhataHistory
             entries={entries}
             focusEntryId={focusEntryId}
             canRemove={(e) => !e.billId && (isOwner || Date.now() - new Date(e.occurredAt).getTime() <= REMOVAL_WINDOW_MS)}
             onRemove={(e) => void remove(e)}
           />
+          </div>
           {!customer.isNew && (
             <div className="grid grid-cols-2 gap-2">
               {[0, -1].map((offset) => {

@@ -191,6 +191,8 @@ export interface BillSummary {
   total: number
   paid: number
   items: { id: string; name: string; quantity: number; unit: Unit; unitPrice: number; amount: number }[]
+  /** The bill's printed number, e.g. 2026-27/0001. */
+  billNo?: string | null
 }
 
 export interface Statement {

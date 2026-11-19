@@ -1,4 +1,4 @@
-using GroceryKhata.Api.Catalogue;
+﻿using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -833,7 +833,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         var billIds = entries.Where(e => e.BillId != null).Select(e => e.BillId!.Value).Distinct().ToList();
         var bills = await db.Bills.AsNoTracking().Include(b => b.Lines).Where(b => billIds.Contains(b.Id))
             .ToDictionaryAsync(b => b.Id, b => new BillSummary(b.Total, b.PaidAmount,
-                b.Lines.OrderBy(l => l.LineNo).Select(l => new BillItem(l.Id, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList(), b.Site), cancellationToken);
+                b.Lines.OrderBy(l => l.LineNo).Select(l => new BillItem(l.Id, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Amount)).ToList(), b.Site, Bill.No(b.Prefix, b.FinancialYear, b.Number)), cancellationToken);
 
         // Who wrote each line: a removal shows the name of the person who removed it.
         var userIds = entries.Select(e => e.CreatedByUserId).Distinct().ToList();

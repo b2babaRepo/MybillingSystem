@@ -1,4 +1,4 @@
-using GroceryKhata.Api.Catalogue;
+﻿using GroceryKhata.Api.Catalogue;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -167,7 +167,7 @@ public sealed record DisputeItemView(
     DateTimeOffset? ResolvedAt);
 
 /// <summary>What was bought on a bill, so the khata shows the items behind each udhaar, not just an amount.</summary>
-public sealed record BillSummary(decimal Total, decimal Paid, IReadOnlyList<BillItem> Items, string? Site = null);
+public sealed record BillSummary(decimal Total, decimal Paid, IReadOnlyList<BillItem> Items, string? Site = null, string? BillNo = null);
 
 public sealed record BillItem(Guid Id, string Name, decimal Quantity, Catalogue.Unit Unit, decimal UnitPrice, decimal Amount);
 
