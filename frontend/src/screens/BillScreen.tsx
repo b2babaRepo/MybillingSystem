@@ -510,14 +510,20 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     if (customer) setPaid('0')
     else document.getElementById('bill-customer')?.focus()
   }
-  const keys = useRef({ save, canSave, printSaved, canPrint: false, allOnKhata })
-  keys.current = { save, canSave, printSaved, canPrint: !!saved && cart.length === 0, allOnKhata }
+  // F9: a discount on the whole bill. F8: take off the item added last. F7: keep this bill in its tab and start another.
+  function billDiscount() { if (cart.length > 0 && !billOff) setOffForm((f) => f ?? { value: '', percent: false }) }
+  function removeLast() { setCart((current) => current.slice(0, -1)) }
+  const keys = useRef({ save, canSave, printSaved, canPrint: false, allOnKhata, billDiscount, removeLast, holdBill })
+  keys.current = { save, canSave, printSaved, canPrint: !!saved && cart.length === 0, allOnKhata, billDiscount, removeLast, holdBill }
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)
       if (e.key === 'F2') { e.preventDefault(); searchRef.current?.focus(); searchRef.current?.select() }
       else if (e.key === 'F3') { e.preventDefault(); document.getElementById('bill-customer')?.focus() }
       else if (e.key === 'F6') { e.preventDefault(); keys.current.allOnKhata() }
+      else if (e.key === 'F9') { e.preventDefault(); keys.current.billDiscount() }
+      else if (e.key === 'F8') { e.preventDefault(); keys.current.removeLast() }
+      else if (e.key === 'F7') { e.preventDefault(); keys.current.holdBill() }
       else if (e.key === 'F4') { e.preventDefault(); const el = document.getElementById('bill-paid') as HTMLInputElement | null; if (el) { el.focus(); el.select() } else document.getElementById('bill-save')?.focus() }
       else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (keys.current.canSave) void keys.current.save() }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p' && keys.current.canPrint) { e.preventDefault(); keys.current.printSaved() }
@@ -584,14 +590,15 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         </span>
         <button onClick={togglePreview} aria-pressed={preview} title={t('billPreview.toggle')}
           className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold xl:flex ${preview ? 'border-brand bg-brand-soft text-brand-strong' : 'border-line bg-white text-muted'}`}>👁 {t('billPreview.toggle')}</button>
-        <button onClick={() => setKeysHelp((v) => !v)} aria-label={t('keys.title')} title={t('keys.title')} className="hidden h-12 w-12 shrink-0 rounded-[14px] border border-line bg-white font-bold text-muted lg:block">?</button>
+        <button onClick={() => setKeysHelp((v) => !v)} aria-pressed={keysHelp} title={`${t('keys.title')} (?)`}
+          className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold lg:flex ${keysHelp ? 'border-brand bg-brand-soft text-brand-strong' : 'border-line bg-white text-muted'}`}>⌨ {t('keys.button')}</button>
         {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className={`flex h-12 shrink-0 items-center gap-1.5 rounded-2xl px-4 ${btn.solid}`}><span aria-hidden>📷</span>{t('barcodeBill.scan')}</button>}
       </div>
       {keysHelp && (
         <div className="hidden rounded-[14px] bg-white p-3 text-sm lg:block">
           <p className="mb-1 font-bold">{t('keys.title')}</p>
           <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted">
-            {[['F2', t('keys.search')], ['Enter', t('keys.add')], ['F3', t('keys.customer')], ['F6', t('keys.khata')], ['F4', t('keys.paid')], ['Ctrl + Enter', t('keys.save')], ['Ctrl + P', t('keys.print')], ['2*', t('keys.qty')], ['Esc', t('keys.clear')], ['?', t('keys.toggle')]].map(([k, label]) => (
+            {[['F2', t('keys.search')], ['Enter', t('keys.add')], ['F3', t('keys.customer')], ['F6', t('keys.khata')], ['F4', t('keys.paid')], ['F9', t('keys.discount')], ['F8', t('keys.removeLast')], ['F7', t('keys.newBill')], ['Ctrl + Enter', t('keys.save')], ['Ctrl + P', t('keys.print')], ['2*', t('keys.qty')], ['Esc', t('keys.clear')], ['?', t('keys.toggle')]].map(([k, label]) => (
               <li key={k}><kbd className="mr-2 rounded border border-line bg-[#f1f5f4] px-1.5 font-mono text-xs text-ink">{k}</kbd>{label}</li>
             ))}
           </ul>
