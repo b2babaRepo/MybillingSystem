@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Balance, Button, Field, PendingDot, Sheet } from '../components/ui'
 import { addCustomer, useCustomers } from '../lib/data'
-import { formatPhone } from '../lib/format'
+import { formatPhone, formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import { OpenDisputesBanner } from '../components/OpenDisputesBanner'
 
@@ -65,7 +65,39 @@ export function CustomersScreen({ shopId, selectedId, isOwner = false }: { shopI
         )}
       </div>
       {!isLoading && customers.length === 0 && <p className="py-8 text-center text-muted">{t('noCustomers')}</p>}
-      <ul className="divide-y divide-[#edf2f1] rounded-card bg-white">
+      {/* A computer: a register-style table, Party | Amount, sorted by clicking a head, with what is owed in all at the foot. */}
+      {shown.length > 0 && (
+        <table className="hidden w-full border-collapse overflow-hidden rounded-card bg-white text-sm shadow-sm lg:table">
+          <thead className="bg-brand-soft text-left text-xs uppercase tracking-wide text-ink">
+            <tr>
+              <th className="px-3 py-2"><button onClick={() => setSort('az')} className="flex items-center gap-1 font-bold uppercase" aria-label={t('custTable.sortName')}>{t('custTable.party')}<span aria-hidden className="text-muted">{sort === 'az' ? '▲' : '↕'}</span></button></th>
+              <th className="px-3 py-2 text-right"><button onClick={() => setSort('due')} className="ml-auto flex items-center gap-1 font-bold uppercase" aria-label={t('custTable.sortAmount')}>{t('custTable.amount')}<span aria-hidden className="text-muted">{sort === 'due' ? '▼' : '↕'}</span></button></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {shown.map((c) => (
+              <tr key={c.id} onClick={() => navigate(`/c/${c.id}`)} aria-current={selectedId === c.id ? 'true' : undefined}
+                className={`cursor-pointer hover:bg-[#f6faf9] ${selectedId === c.id ? 'bg-brand-soft' : ''}`}>
+                <td className="px-3 py-2.5">
+                  <span className="flex items-center gap-1.5 font-semibold">{c.name}{c.pending > 0 && <PendingDot />}</span>
+                  {c.phone && <span className="block text-xs text-muted">{formatPhone(c.phone)}</span>}
+                </td>
+                <td className={`whitespace-nowrap px-3 py-2.5 text-right font-bold ${c.balance > 0 ? 'text-due' : c.balance < 0 ? 'text-jama' : 'text-muted'}`}>
+                  {formatRupees(Math.abs(c.balance))}
+                  {c.balance !== 0 && <span className="block text-[11px] font-normal">{c.balance > 0 ? t('custTable.owes') : t('custTable.advance')}</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-ink font-bold">
+              <td className="px-3 py-2">{t('custTable.total', { count: shown.length })}</td>
+              <td className="px-3 py-2 text-right text-due">{formatRupees(shown.reduce((n, c) => n + Math.max(0, c.balance), 0))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      )}
+      <ul className="divide-y divide-[#edf2f1] rounded-card bg-white lg:hidden">
         {shown.map((c) => (
           <li key={c.id}>
             <button aria-current={selectedId === c.id ? 'true' : undefined} className={`flex min-h-16 w-full items-center gap-3 px-3.5 py-3 text-left active:bg-slate-50 lg:hover:bg-[#f6faf9] ${selectedId === c.id ? 'lg:bg-brand-soft' : ''}`} onClick={() => navigate(`/c/${c.id}`)}>
