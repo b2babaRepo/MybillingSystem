@@ -53,6 +53,12 @@ async function loadLanguage(language: Language) {
 }
 
 /** Adds a screen's own text on top of the main files, once. A language it doesn't have falls back to English. */
+/** A language's full text, loaded without switching the app to it (a poster in Hindi while the app is in English). */
+export async function ensureLanguage(language: Language) {
+  await loadLanguage(language)
+  i18n.addResourceBundle(language, 'translation', await moreLoaders[language](), true, false)
+}
+
 export function addText(text: Record<'en' | 'hi', Record<string, unknown>> & { gu?: Record<string, unknown> }) {
   for (const language of ['en', 'hi', 'gu'] as const) if (text[language]) i18n.addResourceBundle(language, 'translation', text[language]!, true, false)
 }

@@ -108,6 +108,7 @@ const EstimatePrint = lazy(() => import('./screens/EstimatesScreen').then((modul
 const OffersScreen = lazy(() => import('./screens/OffersScreen').then((module) => ({ default: module.OffersScreen })))
 const PurchaseUploadsScreen = lazy(() => import('./screens/PurchaseUploadsScreen').then((module) => ({ default: module.PurchaseUploadsScreen })))
 const PhoneUploadPage = lazy(() => import('./screens/PurchaseUploadsScreen').then((module) => ({ default: module.PhoneUploadPage })))
+const PostersScreen = lazy(() => import('./screens/PostersScreen').then((module) => ({ default: module.PostersScreen })))
 const SuppliersScreen = lazy(() => import('./screens/SuppliersScreen').then((module) => ({ default: module.SuppliersScreen })))
 const ProfileScreen = lazy(() => import('./screens/ProfileScreen').then((module) => ({ default: module.ProfileScreen })))
 const MyPlanScreen = lazy(() => import('./screens/MyPlanScreen').then((module) => ({ default: module.MyPlanScreen })))
@@ -299,6 +300,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
       { path: '/holds', label: t('holds.link') },
       { path: '/reports/day', label: t('menu.dayBook') },
       ...(isOwner ? [{ path: '/offers', label: t('offers.link') }] : []),
+      ...(isOwner ? [{ path: '/posters', label: t('posters.link') }] : []),
     ] },
     { key: 'people', title: t('menu.people'), add: { path: '/khata', label: t('menu.addCustomer') }, links: [
       { path: '/dues', label: t('side.dues') },
@@ -524,6 +526,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <EstimatesScreen shopId={shopId} />
         ) : path === '/sale-orders' ? (
           <SaleOrdersScreen />
+        ) : path === '/posters' && isOwner ? (
+          <PostersScreen shopId={shopId} shopName={shopName} />
         ) : path === '/offers' && isOwner ? (
           <OffersScreen shopId={shopId} />
         ) : path === '/suppliers' ? (
