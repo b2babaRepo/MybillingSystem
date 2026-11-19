@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { parseStatement } from '../lib/statementImport'
+import { DataTable } from '../components/DataTable'
 
 interface Receipt {
   id: string
@@ -37,6 +38,8 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
   const [problems, setProblems] = useState<string[]>([])
   const [message, setMessage] = useState('')
   const [statement, setStatement] = useState('')
+  // Desktop: the money waiting to be matched as a table; the one picked opens below to match it.
+  const [openId, setOpenId] = useState<string | null>(null)
   const parsed = parseStatement(statement)
   const statementTotal = parsed.rows.reduce((sum, r) => sum + r.amount, 0)
 
@@ -109,7 +112,24 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
       )}
       {message && <p className="text-sm font-semibold text-due">{message}</p>}
       {tray.data?.length === 0 && <p className="py-6 text-center text-muted">{t('receipts.empty')}</p>}
-      {tray.data?.map((r) => <ReceiptCard key={r.id} shopId={shopId} receipt={r} isOwner={isOwner} run={run} />)}
+      {(tray.data?.length ?? 0) > 0 && (
+        <div className="hidden lg:block">
+          <DataTable label={t('receipts.link')} rows={tray.data!} rowKey={(x) => x.id} selectedKey={openId} onRowClick={(x) => setOpenId(openId === x.id ? null : x.id)} download="money-received"
+            columns={[
+              { key: 'date', header: t('cashTable.date'), width: 'w-28', sortValue: (x) => x.receivedAt, render: (x) => new Date(x.receivedAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }), csv: (x) => x.receivedAt.slice(0, 10) },
+              { key: 'left', header: t('rcTable.left'), align: 'right', width: 'w-32', sortValue: (x) => x.left, render: (x) => <b>{formatRupees(x.left)}</b>, csv: (x) => x.left },
+              { key: 'amount', header: t('rcTable.received'), align: 'right', width: 'w-32', sortValue: (x) => x.amount, render: (x) => <span className="text-muted">{formatRupees(x.amount)}</span>, csv: (x) => x.amount },
+              { key: 'payer', header: t('rcTable.payer'), sortValue: (x) => x.payerName ?? '', filter: { kind: 'text', value: (x) => `${x.payerName ?? ''} ${x.utr ?? ''}` }, render: (x) => x.payerName ?? '—', csv: (x) => x.payerName ?? '' },
+              { key: 'utr', header: 'UTR', width: 'w-40', render: (x) => <span className="font-mono text-xs">{x.utr ?? '—'}</span>, csv: (x) => x.utr ?? '' },
+              { key: 'hint', header: t('rcTable.hint'), width: 'w-56',
+                render: (x) => (x.suggestion ? <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-semibold text-brand-strong">→ {x.suggestion.name}</span>
+                  : x.already ? <span className="rounded-full bg-warn-soft px-2 py-0.5 text-xs font-semibold text-warn">{x.already.kind === 'sale' ? t('rcTable.sale') : t('rcTable.entered', { name: x.already.customerName ?? '' })}</span> : <span className="text-xs text-muted">{t('rcTable.toMatch')}</span>) },
+            ]}
+            footer={[t('yearRep.total'), formatRupees(tray.data!.reduce((n, x) => n + x.left, 0)), formatRupees(tray.data!.reduce((n, x) => n + x.amount, 0)), '', '', '']} />
+          {!openId && <p className="mt-2 px-1 text-xs text-muted">{t('rcTable.pick')}</p>}
+        </div>
+      )}
+      {tray.data?.map((r) => <div key={r.id} className={openId === r.id ? '' : 'lg:hidden'}><ReceiptCard shopId={shopId} receipt={r} isOwner={isOwner} run={run} /></div>)}
     </div>
   )
 }

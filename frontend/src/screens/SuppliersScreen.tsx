@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field, btn } from '../components/ui'
 import { NetworkError, api, request } from '../lib/api'
 import { billFile } from '../lib/billFile'
+import { DataTable } from '../components/DataTable'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
@@ -89,7 +90,22 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
         <input type="search" aria-label={t('supplier2.search')} placeholder={t('supplier2.search')} value={search} onChange={(e) => setSearch(e.target.value)} className="h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-3 shadow-sm outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
       </span>
       {anyOff && <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} className="h-5 w-5" />{t('supplier2.showOff')}</label>}
-      <ul className="flex flex-col gap-2">
+      {/* A computer: Supplier | Owed, like the customer list, with the oldest unpaid bill. */}
+      {ordered.length > 0 && (
+        <div className="hidden lg:block">
+          <DataTable label={t('suppliers.title')} rows={ordered} rowKey={(x) => x.id} selectedKey={openId} onRowClick={(x) => setOpenId(x.id)} download="suppliers"
+            columns={[
+              { key: 'name', header: t('poTable.supplier'), sortValue: (x) => x.name,
+                render: (x) => <span className="flex flex-col"><span className="font-semibold">{x.name}{x.isActive === false ? ` · ${t('supplier2.off')}` : ''}</span>{x.phone && <span className="text-xs text-muted">{x.phone}</span>}</span>, csv: (x) => x.name },
+              { key: 'oldest', header: t('supTable.oldest'), align: 'right', width: 'w-24', sortValue: (x) => (x.due > 0 ? x.oldestDays ?? 0 : null),
+                render: (x) => (x.due > 0 && (x.oldestDays ?? 0) > 0 ? <span className={(x.oldestDays ?? 0) > 30 ? 'font-semibold text-due' : (x.oldestDays ?? 0) > 15 ? 'text-udhaar' : 'text-muted'}>{t('supTable.days', { count: x.oldestDays })}</span> : '—'), csv: (x) => (x.due > 0 ? x.oldestDays ?? '' : '') },
+              { key: 'due', header: t('supTable.owed'), align: 'right', width: 'w-32', sortValue: (x) => x.due,
+                render: (x) => <span className={`font-bold ${x.due > 0 ? 'text-due' : x.due < 0 ? 'text-jama' : 'text-muted'}`}>{formatRupees(Math.abs(x.due))}{x.due !== 0 && <span className="block text-[11px] font-normal">{t(x.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>, csv: (x) => x.due },
+            ]}
+            footer={[t('supTable.total', { count: ordered.length }), '', formatRupees(ordered.reduce((n, x) => n + Math.max(0, x.due), 0))]} />
+        </div>
+      )}
+      <ul className="flex flex-col gap-2 lg:hidden">
         {ordered.map((s) => (
           <li key={s.id}>
             <button onClick={() => setOpenId(s.id)} aria-current={openId === s.id ? 'true' : undefined} className={`flex min-h-16 w-full items-center gap-3 rounded-card bg-white px-3 py-2 text-left shadow-sm transition hover:bg-[#f6faf9] lg:hover:shadow-md ${openId === s.id ? 'lg:ring-2 lg:ring-brand' : ''}`}>

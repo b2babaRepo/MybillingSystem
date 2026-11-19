@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
+import { DataTable } from '../components/DataTable'
 
 type Movement = 'dead' | 'slow' | 'new' | 'fast' | 'none'
 interface Item { productId: string; name: string; category: string | null; unit: string; stock: number; value: number | null; sales90: number; sold90: number; daysSinceSale: number | null; daysSinceIn: number | null; movement: Movement; rank: 'A' | 'B' | 'C'; daysOfCover: number | null }
@@ -24,7 +25,7 @@ export function StockHealthScreen({ shopId }: { shopId: string }) {
   const max = Math.max(1, ...(h?.ageing ?? []).map((a) => a.value))
 
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3 p-4 lg:mx-auto lg:w-full lg:max-w-6xl">
       <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h1 className="text-xl font-bold">🩺 {t('sh.title')}</h1>
         <p className="text-sm text-muted">{t('sh.hint')}</p>
@@ -61,8 +62,30 @@ export function StockHealthScreen({ shopId }: { shopId: string }) {
       </div>
       {health.isError && <p className="text-sm text-due">{t('error')}</p>}
       {h && items.length === 0 && <p className="py-6 text-center text-muted">{t('sh.none')}</p>}
+      {items.length > 0 && (
+        <div className="hidden lg:block">
+          <DataTable label={t('sh.title')} rows={items} rowKey={(i) => i.productId} download="stock-health" onRowClick={(i) => navigate(`/p/${i.productId}`)} defaultSort={{ key: 'value', dir: -1 }}
+            columns={[
+              { key: 'name', header: t('stock.colItem'), sortValue: (i) => i.name, filter: { kind: 'text', value: (i) => i.name }, render: (i) => <span className="font-semibold">{i.name}</span>, csv: (i) => i.name },
+              { key: 'cat', header: t('items2.colCategory'), width: 'w-36', sortValue: (i) => i.category ?? '', render: (i) => <span className="text-muted">{i.category ?? '—'}</span>, csv: (i) => i.category ?? '' },
+              { key: 'rank', header: t('shTable.rank'), align: 'center', width: 'w-20', sortValue: (i) => i.rank,
+                filter: { kind: 'select', value: (i) => i.rank, options: ['A', 'B', 'C'].map((x) => ({ value: x, label: x })) }, render: (i) => <span className="rounded bg-slate-100 px-1.5 text-xs font-bold">{i.rank}</span>, csv: (i) => i.rank },
+              { key: 'move', header: t('shTable.movement'), width: 'w-32', sortValue: (i) => i.movement,
+                filter: { kind: 'select', value: (i) => i.movement, options: (['dead', 'slow', 'new', 'fast'] as const).map((m) => ({ value: m, label: t(`sh.m.${m}`) })) },
+                render: (i) => <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${TONE[i.movement]}`}>{t(`sh.m.${i.movement}`)}</span>, csv: (i) => t(`sh.m.${i.movement}`) },
+              { key: 'stock', header: t('items2.colStock'), align: 'right', width: 'w-24', sortValue: (i) => i.stock, render: (i) => `${i.stock} ${i.unit}`, csv: (i) => i.stock },
+              { key: 'value', header: t('stockTable.value'), align: 'right', width: 'w-28', sortValue: (i) => i.value, render: (i) => <b>{i.value == null ? '—' : formatRupees(i.value)}</b>, csv: (i) => i.value ?? '' },
+              { key: 'sold', header: t('shTable.sold'), align: 'right', width: 'w-24', sortValue: (i) => i.sold90, render: (i) => i.sold90, csv: (i) => i.sold90 },
+              { key: 'sales', header: t('shTable.sales'), align: 'right', width: 'w-28', sortValue: (i) => i.sales90, render: (i) => formatRupees(i.sales90), csv: (i) => i.sales90 },
+              { key: 'last', header: t('shTable.last'), align: 'right', width: 'w-28', sortValue: (i) => i.daysSinceSale,
+                render: (i) => (i.daysSinceSale == null ? <span className="text-due">{t('sh.neverSold')}</span> : t('supTable.days', { count: i.daysSinceSale })), csv: (i) => i.daysSinceSale ?? '' },
+              { key: 'cover', header: t('shTable.cover'), align: 'right', width: 'w-24', sortValue: (i) => i.daysOfCover, render: (i) => (i.daysOfCover == null ? '—' : t('supTable.days', { count: i.daysOfCover })), csv: (i) => i.daysOfCover ?? '' },
+            ]}
+            footer={[t('supTable.items', { count: items.length }), '', '', '', '', formatRupees(items.reduce((n, i) => n + (i.value ?? 0), 0)), '', formatRupees(items.reduce((n, i) => n + i.sales90, 0)), '', '']} />
+        </div>
+      )}
       {items.map((i) => (
-        <button key={i.productId} onClick={() => navigate(`/p/${i.productId}`)} className="flex items-center justify-between gap-2 rounded-2xl bg-white p-3 text-left shadow-sm hover:bg-[#f6faf9]">
+        <button key={i.productId} onClick={() => navigate(`/p/${i.productId}`)} className="lg:hidden flex items-center justify-between gap-2 rounded-2xl bg-white p-3 text-left shadow-sm hover:bg-[#f6faf9]">
           <span className="flex min-w-0 flex-col">
             <b className="truncate">{i.name} <span className="ml-1 rounded bg-slate-100 px-1 text-[11px] text-muted">{i.rank}</span></b>
             <span className="text-xs text-muted">

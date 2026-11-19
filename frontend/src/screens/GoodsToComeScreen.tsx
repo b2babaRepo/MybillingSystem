@@ -8,6 +8,7 @@ import { shrinkPhoto } from '../lib/images'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { OPEN_SUPPLIER_KEY } from './OrdersPlacedScreen'
 import { navigate } from '../router'
+import { DataTable } from '../components/DataTable'
 
 type Channel = 'call' | 'whatsapp' | 'visit'
 interface Shipment { id: string; dispatchedOn: string | null; expectedOn: string | null; transporter: string | null; lrNo: string | null; vehicleNo: string | null; ewayBillNo: string | null; ewayValidUntil: string | null; freight: number | null; freightPaidBy: 'shop' | 'supplier' | null; arrived: boolean; hasPhoto?: boolean }
@@ -85,7 +86,7 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
 
   const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3 p-4 lg:mx-auto lg:w-full lg:max-w-5xl">
       <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h1 className="text-xl font-bold">⏳ {t('gtc.title')}</h1>
         <p className="text-sm text-muted">{t('gtc.hint')}</p>
@@ -93,12 +94,33 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
       </section>
       {message && <p className="text-sm text-due">{message}</p>}
       {coming.data && data.length === 0 && <p className="py-6 text-center text-muted">{t('gtc.none')}</p>}
+      {data.length > 0 && (
+        <div className="hidden lg:block">
+          <DataTable label={t('gtc.title')} rows={data} rowKey={(o) => o.id} selectedKey={open} onRowClick={(o) => { setOpen(open === o.id ? null : o.id); setLot(null) }} download="goods-to-come"
+            defaultSort={{ key: 'late', dir: -1 }}
+            columns={[
+              { key: 'supplier', header: t('poTable.supplier'), sortValue: (o) => o.supplier, filter: { kind: 'text', value: (o) => o.supplier }, render: (o) => <span className="font-semibold">{o.supplier}</span>, csv: (o) => o.supplier },
+              { key: 'no', header: t('estTable.no'), width: 'w-20', sortValue: (o) => o.number, render: (o) => `#${o.number}`, csv: (o) => o.number },
+              { key: 'expected', header: t('poTable.expected'), width: 'w-28', sortValue: (o) => o.expectedOn ?? '', render: (o) => (o.expectedOn ? day(o.expectedOn) : '—'), csv: (o) => o.expectedOn ?? '' },
+              { key: 'late', header: t('gtcTable.late'), align: 'right', width: 'w-24', sortValue: (o) => o.daysLate ?? 0,
+                render: (o) => ((o.daysLate ?? 0) > 0 ? <span className="font-semibold text-due">{t('supTable.days', { count: o.daysLate })}</span> : o.expectedOn === todayIso() ? <span className="text-warn">{t('gtc.dueToday')}</span> : '—'), csv: (o) => o.daysLate ?? '' },
+              { key: 'moved', header: t('gtcTable.moved'), align: 'right', width: 'w-20', sortValue: (o) => o.promiseMoves, render: (o) => o.promiseMoves || '—', csv: (o) => o.promiseMoves },
+              { key: 'items', header: t('estTable.items'), align: 'right', width: 'w-20', sortValue: (o) => o.items, render: (o) => o.items, csv: (o) => o.items },
+              { key: 'pending', header: t('gtcTable.toCome'), align: 'right', width: 'w-24', sortValue: (o) => o.pending, render: (o) => <b>{o.pending}</b>, csv: (o) => o.pending },
+              { key: 'value', header: t('poTable.value'), align: 'right', width: 'w-28', sortValue: (o) => o.value, render: (o) => (o.value > 0 ? formatRupees(o.value) : '—'), csv: (o) => o.value },
+              { key: 'stage', header: t('gtcTable.stage'), width: 'w-32', sortValue: (o) => o.stage,
+                filter: { kind: 'select', value: (o) => o.stage, options: [...new Set(data.map((o) => o.stage))].map((st) => ({ value: st, label: t(`gtc.stage.${st}`) })) },
+                render: (o) => <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-semibold text-brand-strong">{t(`gtc.stage.${o.stage}`)}</span>, csv: (o) => t(`gtc.stage.${o.stage}`) },
+            ]} />
+          {!open && <p className="mt-2 px-1 text-xs text-muted">{t('gtcTable.pick')}</p>}
+        </div>
+      )}
       {data.map((o) => {
         const isOpen = open === o.id
         const isLate = (o.daysLate ?? 0) > 0
         const snoozed = !!o.snoozedUntil && o.snoozedUntil >= todayIso()
         return (
-          <section key={o.id} className={`flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm ${isLate ? 'ring-1 ring-red-200' : ''}`}>
+          <section key={o.id} className={`flex-col gap-2 rounded-card bg-white p-4 shadow-sm ${isLate ? 'ring-1 ring-red-200' : ''} ${isOpen ? 'flex' : 'flex lg:hidden'}`}>
             <button onClick={() => { setOpen(isOpen ? null : o.id); setLot(null) }} className="flex items-start justify-between gap-2 text-left">
               <span className="flex min-w-0 flex-col">
                 <b>{o.supplier} · {t('supplier2.orderNo', { number: o.number })}</b>

@@ -26,13 +26,22 @@ Date: 19 Nov 2026. All 53 pages in the side menu were checked on a computer (140
 | **Items** | Table with cost, margin, days left, barcode | Name/barcode, category, stock |
 | Dues, Day report, Reports, Discounts, Godowns, Staff sales | Upgraded through the shared table | Sort, Excel where set |
 
-## Still cards on a computer (next, in order)
+## Done in the second round
 
-1. **Money received** (receipts tray): date, customer, amount, mode, matched / not.
-2. **Goods to come** and **Check goods in**: supplier, order, item, expected, came.
-3. **Suppliers list**: name, phone, owed, oldest due, last bill (like the customer table).
-4. **Stock health**, **Sales by category**: already numbers per row, easy wins.
-5. **Reminders**, **Disputes**, **Holds**, **Exchange slips**, **Lots**: short registers.
-6. Medical pages (**Medicine stock**, **Returns**, **H1 register**): registers by law, worth a printable table.
+| Page | Now on a computer | Filters |
+|---|---|---|
+| Suppliers list | Supplier · Oldest due · Owed, total we owe | Sort, Excel |
+| Stock health | Item, category, rank, movement, stock, value, sold and sales (90 days), last sold, cover | Item, rank, movement |
+| Sales by category / supplier / customer | Name, sales, share bar, quantity, bills, profit, totals | Name |
+| Money received | Table of what is waiting; clicking one opens its match card | Payer or UTR |
+| Goods to come | Table, most overdue first; clicking an order opens chase, calls and lorry | Supplier, stage |
+| Exchange slips | Register with amount, still open, valid till, status | Slip no., customer, status |
+| Reminders | Everyone owing: ready to send, or why left alone; Send / Agreed / Stop in the row | Customer, status |
 
-Pages that are forms or single summaries (Settings, Online store, Backup, Sync, Posters, P&L statement, GST month, Verify my data) do not need a table.
+## Still cards on a computer
+
+- **Disputes**, **Holds**: short lists, rarely long enough to need a table.
+- **Check goods in**: a receiving form (counted quantities per line), not a list.
+- Medical pages (**Medicine stock**, **Returns**, **H1 register**): registers by law, worth a printable table next.
+
+Pages that are forms or single summaries (Settings, Online store, Backup, Sync, Posters, P&L statement, GST month, Verify my data) do not need a table. **Landed cost by bill** already shows a table per bill.
