@@ -663,6 +663,7 @@ export const enMore = {
   medTable: { expired: 'Expired', soon: 'Within 30 days', later: 'Later', settled: 'Settled', sent: 'Sent back', loss: 'Loss' },
   h1Table: { sr: 'Sr.', bill: 'Bill no.', medicine: 'Medicine', qty: 'Qty', reg: 'Reg. no.' },
   waBiz: {
+    templates: 'Message templates (Meta approves these once)', tpl: { bill: 'Bill', reminder: 'Payment reminder', statement: 'Khata statement' }, tplStatus: { APPROVED: 'Approved', PENDING: 'Waiting for Meta', REJECTED: 'Rejected', MISSING: 'Not asked yet', PAUSED: 'Paused', DISABLED: 'Disabled' }, ask: 'Ask Meta to approve', asking: 'Asking…', noPublicUrl: 'The server needs its public https address set before templates can be made.', pendingHint: 'Meta usually decides in minutes, sometimes within a day. Sending works once a template is approved.',
     title: 'Your WhatsApp Business number', hint: "Connect the shop's own WhatsApp number the official way, so bills and reminders can go from it automatically.",
     step1: 'Sign in with Facebook and choose or create your WhatsApp Business account.', step2: 'Pick the number (a new number, or one not used in the WhatsApp app).', step3: 'Meta checks it with an SMS or call code. Nothing reads your personal chats.',
     connect: 'Connect WhatsApp Business', connecting: 'Connecting…', change: 'Change number', test: 'Send a test message', disconnect: 'Disconnect',
@@ -673,6 +674,11 @@ export const enMore = {
     cost: 'Free to connect. Meta charges per message the shop starts (about ₹0.12 for a bill or reminder, about ₹0.86 for an offer); replies to customers within 24 hours are free.',
     notSetUp: 'Connecting a WhatsApp Business number will be available soon. Until then, the WhatsApp buttons open WhatsApp with the message ready.',
   },
+  waSend: { bill: 'Send from shop WhatsApp', reminder: 'Reminder from shop WhatsApp', statement: 'Statement from shop WhatsApp', sending: 'Sending…', sent: 'Sent from the shop number.' },
+  waInbox: { link: 'WhatsApp inbox', title: 'WhatsApp inbox', empty: 'No messages yet. Customers who write to the shop number appear here.', pick: 'Pick a conversation.', you: 'You', khata: 'Open khata',
+    lastBill: 'Send last bill', type: 'Type a reply', send: 'Send', windowClosed: 'WhatsApp allows a typed reply only within 24 hours of the customer\'s last message. Send a bill, reminder or statement instead.',
+    windowOpen: 'Typed replies allowed until {{time}}', notConnected: 'Connect the shop\'s WhatsApp Business number in Settings to see customers\' messages here.', toSettings: 'Go to Settings',
+    kind: { bill: 'Bill', reminder: 'Reminder', statement: 'Statement', test: 'Test' }, status: { sent: 'Sent', delivered: 'Delivered', read: 'Read', failed: 'Failed', received: 'Received' } },
   quick: { call: 'Call', sms: 'SMS', smsRemind: 'SMS reminder', whatsapp: 'WhatsApp', statement: "This month's statement", history: 'Go to history', hello: 'Namaste {{name}}, from {{shop}}.' },
   upload: {
     sentToWa: 'Link sent to your WhatsApp (number ending {{last}}).', sendWa: 'Send the link on WhatsApp', waText: 'Send supplier bill photos to the shop: {{link}}',

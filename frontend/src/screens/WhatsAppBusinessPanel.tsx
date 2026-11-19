@@ -121,6 +121,7 @@ export function WhatsAppBusinessPanel() {
             <button disabled={busy} onClick={() => void connect()} className="min-h-11 rounded-xl border border-line px-4 font-semibold disabled:opacity-50">{t('waBiz.change')}</button>
             <button onClick={() => void disconnect()} className="min-h-11 px-2 text-sm font-semibold text-due underline">{t('waBiz.disconnect')}</button>
           </div>
+          <Templates />
         </div>
       ) : config.enabled ? (
         <>
@@ -134,5 +135,51 @@ export function WhatsAppBusinessPanel() {
       ) : <p className="rounded-xl bg-[#f6faf9] p-3 text-sm text-muted">{t('waBiz.notSetUp')}</p>}
       {message && <p role="status" className={`rounded-xl p-2 text-sm font-semibold ${message.ok ? 'bg-brand-soft text-brand-deep' : 'bg-due-soft text-due'}`}>{message.text}</p>}
     </section>
+  )
+}
+
+interface TemplateStatus { key: string; name: string; status: string; reason: string | null }
+
+/**
+ * The shop's three message templates (bill, payment reminder, khata statement) and Meta's verdict on each. A message
+ * the shop starts can only use an approved template, so this is what turns on "Send from shop WhatsApp".
+ */
+function Templates() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const list = useQuery({ queryKey: ['wa-templates'], queryFn: () => api<{ canCreate: boolean; templates: TemplateStatus[] }>('/v1/whatsapp/business/templates'), retry: false })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const data = list.data
+  const missing = data?.templates.some((x) => x.status === 'MISSING' || x.status === 'REJECTED')
+  async function ask() {
+    setBusy(true)
+    setError('')
+    try {
+      await api('/v1/whatsapp/business/templates', 'POST', {})
+      await queryClient.invalidateQueries({ queryKey: ['wa-templates'] })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const tone = (s: string) => (s === 'APPROVED' ? 'bg-green-50 text-green-800' : s === 'PENDING' ? 'bg-warn-soft text-warn' : s === 'MISSING' ? 'bg-[#edf2f1] text-muted' : 'bg-due-soft text-due')
+  return (
+    <div className="mt-2 flex flex-col gap-2 border-t border-line pt-2">
+      <p className="text-sm font-bold">{t('waBiz.templates')}</p>
+      {list.isError && <p className="text-xs text-due">{list.error.message}</p>}
+      {data?.templates.map((x) => (
+        <p key={x.name} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span>{t(`waBiz.tpl.${x.key}`)}</span>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${tone(x.status)}`} title={x.reason ?? undefined}>{t(`waBiz.tplStatus.${x.status}`, { defaultValue: x.status })}</span>
+        </p>
+      ))}
+      {data && missing && (data.canCreate
+        ? <button disabled={busy} onClick={() => void ask()} className="min-h-11 self-start rounded-xl bg-brand px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? t('waBiz.asking') : t('waBiz.ask')}</button>
+        : <p className="text-xs text-muted">{t('waBiz.noPublicUrl')}</p>)}
+      {data && !missing && data.templates.some((x) => x.status === 'PENDING') && <p className="text-xs text-muted">{t('waBiz.pendingHint')}</p>}
+      {error && <p className="text-xs text-due">{error}</p>}
+    </div>
   )
 }

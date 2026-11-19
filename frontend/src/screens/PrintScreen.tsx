@@ -1,3 +1,4 @@
+import { SendFromShop } from '../components/ShopWhatsApp'
 import { shownLocale } from '../i18n'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import QRCode from 'qrcode'
@@ -376,11 +377,12 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel, bar
   return (
     <Page title={shopName} subtitle={bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')} shareText={share} phone={phone} receipt={() => billReceipt()} pdfName={`${shopName} ${bill.billNo ?? when}`}
       logo={look?.logo} theme={look?.theme} corner={copy !== 'none' ? t(`print.copy.${copy}`) : null} bare={bare}
-      tools={(
+      tools={(<>
+        {bill.customerId && onCancel && <SendFromShop kind="bill" billId={bill.id} />}
         <select aria-label={t('print.copy.label')} value={copy} onChange={(e) => setCopy(e.target.value as typeof copy)} className="h-11 rounded-xl border border-line bg-white px-2 font-semibold transition hover:bg-[#f6faf9]">
           {(['none', 'original', 'duplicate', 'triplicate'] as const).map((c) => <option key={c} value={c}>{t(`print.copy.${c === 'none' ? 'noLabel' : c}`)}</option>)}
         </select>
-      )}>
+      </>)}>
       {bill.billOfSupply && <p className="mb-2 text-sm font-semibold">{t('print.compositionNote')}</p>}
       {(bill.shopAddress || gstin) && <p className="mb-3 text-sm">{[bill.shopAddress, gstin && `GSTIN ${gstin}`].filter(Boolean).join(' · ')}</p>}
       {gstin && !bill.shopAddress && <p className="mb-2 text-sm font-semibold text-due print:hidden">{t('print.shopAddressMissing')}</p>}

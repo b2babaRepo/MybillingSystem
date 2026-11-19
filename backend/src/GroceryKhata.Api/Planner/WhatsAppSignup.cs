@@ -73,8 +73,20 @@ public interface IMetaSignup
 
     Task<WhatsAppPhoneInfo> PhoneAsync(string phoneNumberId, string token, CancellationToken ct);
 
-    /// <summary>Sends one approved template (with no parameters), such as Meta's own "hello_world".</summary>
-    Task SendTemplateAsync(string phoneNumberId, string token, string to, string template, string language, CancellationToken ct);
+    /// <summary>
+    /// Sends one approved template: <paramref name="parameters"/> fill its body's {{1}}, {{2}}...; <paramref name="buttonSuffix"/>
+    /// ends its link button's address (null: no button). Returns Meta's message id.
+    /// </summary>
+    Task<string> SendTemplateAsync(string phoneNumberId, string token, string to, string template, string language, IReadOnlyList<string> parameters, string? buttonSuffix, CancellationToken ct);
+
+    /// <summary>A free-text message: allowed only within 24 hours of the customer's last message. Returns Meta's message id.</summary>
+    Task<string> SendTextAsync(string phoneNumberId, string token, string to, string text, CancellationToken ct);
+
+    /// <summary>The account's templates and Meta's verdict on each (APPROVED, PENDING, REJECTED...).</summary>
+    Task<IReadOnlyList<WaTemplateStatus>> TemplatesAsync(string wabaId, string token, CancellationToken ct);
+
+    /// <summary>Asks Meta to approve a template; its button links to <paramref name="buttonBase"/> plus a part given when sending.</summary>
+    Task CreateTemplateAsync(string wabaId, string token, WaTemplateDef template, string buttonBase, CancellationToken ct);
 }
 
 public sealed class GraphMetaSignup(HttpClient http, string appId, string appSecret, string version) : IMetaSignup
@@ -122,9 +134,44 @@ public sealed class GraphMetaSignup(HttpClient http, string appId, string appSec
         return new WhatsAppPhoneInfo(Text("display_phone_number"), Text("verified_name"), Text("quality_rating"));
     }
 
-    public async Task SendTemplateAsync(string phoneNumberId, string token, string to, string template, string language, CancellationToken ct) =>
-        (await PostAsync($"{Uri.EscapeDataString(phoneNumberId)}/messages",
-            new { messaging_product = "whatsapp", to, type = "template", template = new { name = template, language = new { code = language } } }, token, ct)).Dispose();
+    private static string MessageId(JsonDocument doc) => doc.RootElement.GetProperty("messages")[0].GetProperty("id").GetString()!;
+
+    public async Task<string> SendTemplateAsync(string phoneNumberId, string token, string to, string template, string language, IReadOnlyList<string> parameters, string? buttonSuffix, CancellationToken ct)
+    {
+        var components = new List<object>();
+        if (parameters.Count > 0) components.Add(new { type = "body", parameters = parameters.Select(p => new { type = "text", text = p }).ToArray() });
+        if (buttonSuffix is not null) components.Add(new { type = "button", sub_type = "url", index = "0", parameters = new[] { new { type = "text", text = buttonSuffix } } });
+        using var doc = await PostAsync($"{Uri.EscapeDataString(phoneNumberId)}/messages",
+            new { messaging_product = "whatsapp", to, type = "template", template = new { name = template, language = new { code = language }, components } }, token, ct);
+        return MessageId(doc);
+    }
+
+    public async Task<string> SendTextAsync(string phoneNumberId, string token, string to, string text, CancellationToken ct)
+    {
+        using var doc = await PostAsync($"{Uri.EscapeDataString(phoneNumberId)}/messages", new { messaging_product = "whatsapp", to, type = "text", text = new { body = text } }, token, ct);
+        return MessageId(doc);
+    }
+
+    public async Task<IReadOnlyList<WaTemplateStatus>> TemplatesAsync(string wabaId, string token, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url($"{Uri.EscapeDataString(wabaId)}/message_templates?fields=name,status,rejected_reason&limit=100"));
+        request.Headers.Authorization = new("Bearer", token);
+        using var doc = await ReadAsync(await http.SendAsync(request, ct), ct);
+        return doc.RootElement.GetProperty("data").EnumerateArray()
+            .Select(t => new WaTemplateStatus("", t.GetProperty("name").GetString()!, t.GetProperty("status").GetString() ?? "", t.TryGetProperty("rejected_reason", out var r) ? r.GetString() : null))
+            .ToList();
+    }
+
+    public async Task CreateTemplateAsync(string wabaId, string token, WaTemplateDef template, string buttonBase, CancellationToken ct)
+    {
+        var components = new List<object> { new { type = "BODY", text = template.Body, example = new { body_text = new[] { template.Examples } } } };
+        if (template.ButtonText is not null)
+        {
+            components.Add(new { type = "BUTTONS", buttons = new[] { new { type = "URL", text = template.ButtonText, url = buttonBase + "{{1}}", example = new[] { buttonBase + "b/sharma-kirana/0193f1a2?t=abc" } } } });
+        }
+
+        (await PostAsync($"{Uri.EscapeDataString(wabaId)}/message_templates", new { name = template.Name, language = "en", category = "UTILITY", components }, token, ct)).Dispose();
+    }
 }
 
 /// <summary>
@@ -272,7 +319,7 @@ public static class WhatsAppSignup
 
         try
         {
-            await meta.SendTemplateAsync(row.PhoneNumberId, protection.CreateProtector(Purpose).Unprotect(row.AccessToken), to.TrimStart('+'), "hello_world", "en_US", ct);
+            await meta.SendTemplateAsync(row.PhoneNumberId, protection.CreateProtector(Purpose).Unprotect(row.AccessToken), to.TrimStart('+'), "hello_world", "en_US", [], null, ct);
         }
         catch (HttpRequestException e)
         {

@@ -23,6 +23,7 @@ The code is in place (Settings → "Your WhatsApp Business number"). The **Conne
 | `Whatsapp:AppSecret` | The app secret (also checks webhook signatures) |
 | `Whatsapp:EmbeddedSignupConfigId` | The Configuration ID from step 4 |
 | `Whatsapp:GraphVersion` | Optional, default `v23.0` |
+| `Whatsapp:PublicAppUrl` | The app's public https address, e.g. `https://app.<your-domain>/`. The message templates' View bill / View khata buttons point here; templates can't be made without it. |
 | `DataProtection:KeysPath` | **Required in production:** a folder on a kept volume (e.g. `/var/lib/grocery-khata/keys`). The shops' WhatsApp tokens are encrypted with keys kept here; without it, a restart or new container makes every shop reconnect. Back this folder up with the database. |
 
 Keep `AppSecret` in user-secrets or an environment variable, never in a committed file.
@@ -35,7 +36,9 @@ Keep `AppSecret` in user-secrets or an environment variable, never in a committe
 
 Settings → **Connect WhatsApp Business** → signs in with Facebook → picks or creates a WhatsApp Business account → picks a number (a new number, or one not in use in the WhatsApp app) → Meta sends a code by SMS or call → done. Then **Send a test message** sends Meta's `hello_world` template from the shop's number to the owner's phone.
 
-## 5. What this first version does and does not do
+## 5. What a shop can do once connected
 
-- Does: connect, show number / business name / quality rating, test message, change number, disconnect; token encrypted, never sent to the browser; a number can belong to only one shop; messages to a shop's number are not treated as household orders.
-- Not yet: sending bills, reminders and statements from the shop's number (needs per-shop message templates approved by Meta: "bill", "payment reminder", "statement"), and a shop inbox for customers' replies ("send my last invoice"). These are the next steps once a real shop is connected.
+- **Settings → Message templates:** "Ask Meta to approve" requests three templates (bill, payment reminder, khata statement). Each shows Approved / Waiting for Meta / Rejected.
+- **Send from shop WhatsApp:** on the bill page (bills with a customer) and the customer page (reminder when they owe, statement). Each send is logged; Meta's sent / delivered / read / failed reports update it.
+- **WhatsApp inbox** (Customers menu): what customers write to the shop's number, matched to the khata by phone; the shop's sent messages with ticks; Send last bill / statement / reminder; typed replies only within 24 hours of the customer's last message (Meta's rule).
+- Templates are English only for now; Hindi and Gujarati templates can be added the same way.

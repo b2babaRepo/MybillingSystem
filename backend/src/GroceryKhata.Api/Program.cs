@@ -218,6 +218,7 @@ app.MapOrderDrafts();
 app.MapAiPrivacy();
 app.MapWhatsAppOrders();
 app.MapWhatsAppSignup();
+app.MapWhatsAppShopMessages();
 
 app.Run();
 

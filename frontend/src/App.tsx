@@ -76,6 +76,7 @@ const PaintersScreen = lazy(() => import('./screens/PaintersScreen').then((modul
 const GstExportScreen = lazy(() => import('./screens/GstExportScreen').then((module) => ({ default: module.GstExportScreen })))
 const PickItemsScreen = lazy(() => import('./screens/PickItemsScreen').then((module) => ({ default: module.PickItemsScreen })))
 const ProfitLossScreen = lazy(() => import('./screens/ProfitLossScreen').then((module) => ({ default: module.ProfitLossScreen })))
+const WhatsAppInboxScreen = lazy(() => import('./screens/WhatsAppInboxScreen').then((module) => ({ default: module.WhatsAppInboxScreen })))
 const LoansScreen = lazy(() => import('./screens/LoansScreen').then((module) => ({ default: module.LoansScreen })))
 const DataCheckScreen = lazy(() => import('./screens/DataCheckScreen').then((module) => ({ default: module.DataCheckScreen })))
 const TrialBalanceScreen = lazy(() => import('./screens/YearReportsScreen').then((module) => ({ default: module.TrialBalanceScreen })))
@@ -311,6 +312,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
       { path: '/dues', label: t('side.dues') },
       { path: '/receipts', label: t('side.receipts') },
       { path: '/reminders', label: t('menu.reminders') },
+      { path: '/wa-inbox', label: t('waInbox.link') },
       { path: '/disputes', label: t('menu.disputes') },
     ] },
     ...(isOwner ? [{ key: 'buy', title: t('menu.buy'), add: { path: '/suppliers', label: t('menu.addPurchase') }, links: [
@@ -473,6 +475,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
           <ItemMarginScreen shopId={shopId} />
         ) : path === '/pnl' && isOwner ? (
           <ProfitLossScreen />
+        ) : path === '/wa-inbox' ? (
+          <WhatsAppInboxScreen shopId={shopId} />
         ) : path === '/loans' && isOwner ? (
           <LoansScreen shopId={shopId} />
         ) : path === '/verify-data' && isOwner ? (

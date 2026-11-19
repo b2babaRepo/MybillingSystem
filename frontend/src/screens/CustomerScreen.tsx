@@ -1,3 +1,4 @@
+import { SendFromShop } from '../components/ShopWhatsApp'
 import { shownLocale } from '../i18n'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -323,6 +324,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
         </div>
       )}
 
+      {!customer.isNew && customer.phone && <div className="flex flex-wrap gap-2">{customer.balance > 0 && <SendFromShop kind="reminder" customerId={customer.id} />}<SendFromShop kind="statement" customerId={customer.id} /></div>}
       {!customer.isNew && <KhataLinkCard customer={customer} shopName={shopName} isOwner={isOwner} />}
 
       <div role="tablist" className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 shadow-sm">

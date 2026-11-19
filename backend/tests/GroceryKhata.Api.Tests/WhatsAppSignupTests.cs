@@ -27,11 +27,17 @@ public sealed class WhatsAppSignupTests(ApiFactory api)
         public Task<WhatsAppPhoneInfo> PhoneAsync(string phoneNumberId, string token, CancellationToken ct) =>
             Task.FromResult(new WhatsAppPhoneInfo("+91 98765 43210", "Sharma Kirana", "GREEN"));
 
-        public Task SendTemplateAsync(string phoneNumberId, string token, string to, string template, string language, CancellationToken ct)
+        public Task<string> SendTemplateAsync(string phoneNumberId, string token, string to, string template, string language, IReadOnlyList<string> parameters, string? buttonSuffix, CancellationToken ct)
         {
             Calls.Add($"send:{phoneNumberId}:{to}:{template}:{token}");
-            return Task.CompletedTask;
+            return Task.FromResult("wamid.1");
         }
+
+        public Task<string> SendTextAsync(string phoneNumberId, string token, string to, string text, CancellationToken ct) => Task.FromResult("wamid.t");
+
+        public Task<IReadOnlyList<WaTemplateStatus>> TemplatesAsync(string wabaId, string token, CancellationToken ct) => Task.FromResult<IReadOnlyList<WaTemplateStatus>>([]);
+
+        public Task CreateTemplateAsync(string wabaId, string token, WaTemplateDef template, string buttonBase, CancellationToken ct) => Task.CompletedTask;
     }
 
     [Fact]

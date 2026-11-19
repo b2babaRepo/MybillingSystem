@@ -665,6 +665,7 @@ export const hiMore: TextsMore = {
   medTable: { expired: 'एक्सपायर', soon: '30 दिन में', later: 'बाद में', settled: 'निपटा', sent: 'वापस भेजा', loss: 'नुकसान' },
   h1Table: { sr: 'क्र.', bill: 'बिल नं.', medicine: 'दवा', qty: 'मात्रा', reg: 'रजि. नं.' },
   waBiz: {
+    templates: 'संदेश टेम्पलेट (Meta एक बार मंज़ूर करता है)', tpl: { bill: 'बिल', reminder: 'भुगतान याद', statement: 'खाता स्टेटमेंट' }, tplStatus: { APPROVED: 'मंज़ूर', PENDING: 'Meta की राह', REJECTED: 'नामंज़ूर', MISSING: 'अभी नहीं माँगा', PAUSED: 'रुका', DISABLED: 'बंद' }, ask: 'Meta से मंज़ूरी माँगें', asking: 'माँग रहे हैं…', noPublicUrl: 'टेम्पलेट बनाने से पहले सर्वर का https पता सेट होना चाहिए।', pendingHint: 'Meta आमतौर पर कुछ मिनट में, कभी एक दिन में फ़ैसला करता है। मंज़ूरी के बाद भेजना चलेगा।',
     title: 'आपका WhatsApp Business नंबर', hint: 'दुकान का अपना WhatsApp नंबर आधिकारिक तरीके से जोड़ें, ताकि बिल और याद दिलाने के संदेश उसी से अपने आप जा सकें।',
     step1: 'Facebook से लॉगिन करें और अपना WhatsApp Business खाता चुनें या बनाएँ।', step2: 'नंबर चुनें (नया नंबर, या जो WhatsApp ऐप में चालू न हो)।', step3: 'Meta SMS या कॉल कोड से जाँचेगा। आपकी निजी चैट कोई नहीं पढ़ता।',
     connect: 'WhatsApp Business जोड़ें', connecting: 'जोड़ रहे हैं…', change: 'नंबर बदलें', test: 'टेस्ट संदेश भेजें', disconnect: 'हटाएँ',
@@ -675,6 +676,11 @@ export const hiMore: TextsMore = {
     cost: 'जोड़ना मुफ़्त है। दुकान के भेजे हर संदेश पर Meta पैसा लेता है (बिल या याद दिलाने पर लगभग ₹0.12, ऑफ़र पर लगभग ₹0.86); 24 घंटे में ग्राहक को जवाब मुफ़्त है।',
     notSetUp: 'WhatsApp Business नंबर जोड़ना जल्द आएगा। तब तक WhatsApp बटन संदेश तैयार करके WhatsApp खोलते हैं।',
   },
+  waSend: { bill: 'दुकान के WhatsApp से भेजें', reminder: 'दुकान के WhatsApp से याद दिलाएँ', statement: 'दुकान के WhatsApp से स्टेटमेंट', sending: 'भेज रहे हैं…', sent: 'दुकान के नंबर से भेजा।' },
+  waInbox: { link: 'WhatsApp इनबॉक्स', title: 'WhatsApp इनबॉक्स', empty: 'अभी कोई संदेश नहीं। दुकान के नंबर पर लिखने वाले ग्राहक यहाँ दिखेंगे।', pick: 'कोई बातचीत चुनें।', you: 'आप', khata: 'खाता खोलें',
+    lastBill: 'आख़िरी बिल भेजें', type: 'जवाब लिखें', send: 'भेजें', windowClosed: 'WhatsApp ग्राहक के आख़िरी संदेश के 24 घंटे तक ही लिखा जवाब भेजने देता है। बिल, याद या स्टेटमेंट भेजें।',
+    windowOpen: '{{time}} तक लिखा जवाब भेज सकते हैं', notConnected: 'ग्राहकों के संदेश देखने के लिए सेटिंग में दुकान का WhatsApp Business नंबर जोड़ें।', toSettings: 'सेटिंग पर जाएँ',
+    kind: { bill: 'बिल', reminder: 'याद', statement: 'स्टेटमेंट', test: 'टेस्ट' }, status: { sent: 'भेजा', delivered: 'पहुँचा', read: 'पढ़ा', failed: 'नहीं गया', received: 'मिला' } },
   quick: { call: 'कॉल करें', sms: 'SMS', smsRemind: 'SMS से याद दिलाएँ', whatsapp: 'WhatsApp', statement: 'इस महीने का स्टेटमेंट', history: 'हिसाब देखें', hello: 'नमस्ते {{name}}, {{shop}} से।' },
   upload: {
     sentToWa: 'लिंक आपके WhatsApp पर भेजा गया (नंबर के आखिर में {{last}})।', sendWa: 'लिंक WhatsApp पर भेजें', waText: 'सप्लायर बिल की फ़ोटो दुकान को भेजें: {{link}}',

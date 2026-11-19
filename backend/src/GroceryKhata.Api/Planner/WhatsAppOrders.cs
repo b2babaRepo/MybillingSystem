@@ -131,6 +131,16 @@ public static class WhatsAppOrders
         }
 
         using var doc = JsonDocument.Parse(body);
+        // Shops' own numbers first: their customers' messages and delivery reports go to that shop's inbox.
+        try
+        {
+            await WhatsAppShopMessages.TakeAsync(doc.RootElement, services.GetRequiredService<IServiceScopeFactory>(), clock, ct);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "WhatsApp message for a shop could not be stored");
+        }
+
         var whatsapp = services.GetService<IWhatsAppClient>();
         var speech = services.GetService<ISpeechReader>();
         foreach (var (phoneNumberId, message) in Messages(doc.RootElement))
