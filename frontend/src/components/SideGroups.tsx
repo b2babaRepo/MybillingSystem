@@ -21,6 +21,7 @@ const ICONS: Record<string, string> = {
     '/expenses': 'M4 7h16v12H4zM16 13h.01',
     '/reports': 'M4 20V10M10 20V4M16 20v-7M22 20H2',
     '/pnl': 'M3 17l6-6 4 4 8-8M15 7h6v6',
+    '/verify-data': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM8.5 12l2.5 2.5L16 9.5',
     '/trial-balance': 'M4 5h16M4 12h16M4 19h16M12 5v14',
     '/gst-annual': 'M6 3h12v18H6zM9 8h6M9 12h6M9 16h3',
     '/gst': 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 9h6M9 13h6',

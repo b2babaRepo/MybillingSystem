@@ -618,6 +618,18 @@ export const enMore = {
     t17: 'Table 17: HSN summary of sales', qty: 'Qty', tax: 'Tax', noHsn: 'No HSN codes on this year\'s bills.',
     gstNote: 'A working aid built from your bills and supplier bills. Tax paid assumes each month\'s 3B was filed as the app worked it out.',
   },
+  dataCheck: {
+    link: 'Verify my data', title: 'Verify my data', hint: 'Rechecks your khata, stock and bills and lists anything that does not add up.', checking: 'Checking…', again: 'Check again',
+    allGood: 'Everything adds up.', found_one: '{{count}} thing needs a look.', found_other: '{{count}} things need a look.', at: 'Checked {{time}}',
+    open: 'Open', twice: 'used twice', missing: 'missing', more: 'and {{count}} more', readOnly: 'This check only reads your data. Nothing is changed.',
+    checks: {
+      khata: { title: 'Khata balances', ok_one: '{{count}} customer: balance matches the entries.', ok_other: '{{count}} customers: every balance matches the entries.', bad_one: '{{count}} customer\'s balance does not match the entries.', bad_other: '{{count}} customers\' balances do not match the entries.', detail: 'shows {{stored}}, entries add to {{expected}}', fix: 'Call support with these names: the entries are kept, the balance can be put right.' },
+      stock: { title: 'Stock counts', ok_one: '{{count}} item: stock matches its movements.', ok_other: '{{count}} items: stock matches their movements.', bad_one: '{{count}} item\'s stock does not match its movements.', bad_other: '{{count}} items\' stock does not match their movements.', detail: 'shows {{stored}}, movements add to {{expected}}', fix: 'Count these items and enter the count on the stock page, or call support.' },
+      billNumbers: { title: 'Bill numbers', ok_one: '{{count}} bill: no number repeated or missing.', ok_other: '{{count}} bills: no number repeated or missing.', bad_one: '{{count}} bill number is repeated or missing.', bad_other: '{{count}} bill numbers are repeated or missing.', detail: '', fix: 'GST wants an unbroken series. Tell your CA about these numbers.' },
+      billPaid: { title: 'Money on bills', ok_one: '{{count}} bill: paid amounts are right.', ok_other: '{{count}} bills: paid amounts are right.', bad_one: '{{count}} bill shows more paid than its total.', bad_other: '{{count}} bills show more paid than their total.', detail: 'paid {{stored}} of {{expected}}', fix: 'Open the bill and check what was paid.' },
+      noCost: { title: 'Items without a cost price', ok_one: 'Your item has a cost price.', ok_other: 'All {{count}} items have a cost price.', bad_one: '{{count}} item has no cost price.', bad_other: '{{count}} items have no cost price.', detail: '', fix: 'Profit cannot be worked out on these. Add their cost on the item page.' },
+    },
+  },
   quick: { call: 'Call', sms: 'SMS', smsRemind: 'SMS reminder', whatsapp: 'WhatsApp', statement: "This month's statement", history: 'Go to history', hello: 'Namaste {{name}}, from {{shop}}.' },
   upload: {
     sentToWa: 'Link sent to your WhatsApp (number ending {{last}}).', sendWa: 'Send the link on WhatsApp', waText: 'Send supplier bill photos to the shop: {{link}}',

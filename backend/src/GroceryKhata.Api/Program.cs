@@ -140,6 +140,7 @@ app.MapStore();
 app.MapReports();
 app.MapBalanceSheet();
 app.MapYearReports();
+app.MapDataChecks();
 app.MapShopSettings();
 app.MapShopData();
 app.MapStaff();
