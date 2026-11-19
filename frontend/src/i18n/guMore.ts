@@ -304,6 +304,8 @@ const guMoreB = {
     undoConfirm: '{{amount}}ની આ EMI કાઢીએ? લોન, રોકડ અને બૅન્ક પહેલાં જેવાં થઈ જશે.', removeLoan: 'આ લોન કાઢો (ભૂલથી ઉમેરાઈ)', removeConfirm: '{{lender}}ની લોન કાઢીએ? તેનાથી આવેલા પૈસા પણ હિસાબમાંથી નીકળી જશે.',
     howItCounts: 'વ્યાજનો ભાગ નફા-નુકસાનમાં "લોનનું વ્યાજ" તરીકે જાય છે, મુદ્દલ નહીં. બાકી રકમ બૅલેન્સ શીટ પર લોનમાં દેખાય છે.',
   },
+  reorderTable: { out: 'ખતમ', some: 'થોડું બાકી', item: 'વસ્તુ', medicine: 'દવા', stock: 'સ્ટોકમાં', sold: 'વેચાયું (30 દિવસ)', daysLeft: 'દિવસ બાકી', rate: 'છેલ્લો ભાવ', order: 'મંગાવવું', amount: 'રકમ', total_one: '{{count}} વસ્તુ મંગાવવી', total_other: '{{count}} વસ્તુઓ મંગાવવી' },
+  stockTable: { noMatch: 'ફિલ્ટરથી અહીં કંઈ મળ્યું નહીં.', done: 'ગણ્યા', todo: 'હજી નથી ગણ્યા', differs: 'હિસાબથી જુદા', books: 'હિસાબમાં', lastIn: 'છેલ્લે આવ્યું', value: 'મૂલ્ય (કિંમતે)', counted: '{{count}}માંથી {{done}} ગણ્યા' },
   quick: { call: 'કૉલ કરો', sms: 'SMS', smsRemind: 'SMSથી યાદ અપાવો', whatsapp: 'WhatsApp', statement: 'આ મહિનાનું સ્ટેટમેન્ટ', history: 'હિસાબ જુઓ', hello: 'નમસ્તે {{name}}, {{shop}} તરફથી.' },
   upload: {
     sentToWa: 'લિંક તમારા WhatsApp પર મોકલી (નંબરના છેલ્લા {{last}}).', sendWa: 'લિંક WhatsApp પર મોકલો', waText: 'સપ્લાયર બિલના ફોટા દુકાનને મોકલો: {{link}}',

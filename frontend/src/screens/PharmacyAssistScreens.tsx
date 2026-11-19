@@ -1,11 +1,12 @@
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, request } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { shrinkPhoto } from '../lib/images'
 import { pct } from '../components/SupplierPanels'
+import { compareCells, filterBox, nextSort, SortHead, type Sort } from '../components/TableHead'
 
 interface Refill { customerId: string; customerName: string; phone: string | null; productId: string; medicine: string; lastQuantity: number; lastBought: string; everyDays: number; dueOn: string; daysLate: number }
 interface ReorderOption { supplierId: string; name: string; phone: string | null; lastRate: number | null; leadDays: number | null; fillRate: number | null; preferred: boolean }
@@ -50,6 +51,10 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
   const [splitting, setSplitting] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const [saved, setSaved] = useState<Record<string, string>>({})
+  // Desktop table: sort by a column, filter by name and by what is left.
+  type ColKey = 'item' | 'stock' | 'sold' | 'days' | 'rate' | 'amount'
+  const [sort, setSort] = useState<Sort<ColKey>>({ key: 'days', up: true })
+  const [filter, setFilter] = useState({ item: '', left: '' })
 
   const lines = (groups ?? []).flatMap((g) => g.lines.map((l) => ({ ...l, home: g.supplierId })))
   const people = new Map<string, { name: string; phone: string | null }>()
@@ -87,24 +92,9 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
       {shown.map((g) => {
         const who = g.supplierId ? people.get(g.supplierId) : undefined
         const rateOf = (l: (typeof lines)[number]) => (l.options ?? []).find((o) => o.supplierId === g.supplierId)?.lastRate ?? (l.home === g.supplierId ? l.lastRate : null)
-        const toOrder = g.rows.map((r) => ({ productId: r.line.productId, medicine: r.line.medicine, order: Number(r.qty) || 0, rate: rateOf(r.line) })).filter((l) => l.order > 0)
-        const message = t('reorder.message', { shop: shopName, lines: toOrder.map((l) => `${l.medicine} × ${l.order}`).join('\n') })
-        return (
-          <section key={g.supplierId ?? 'none'} className="flex flex-col gap-2 rounded-card bg-white p-3">
-            <h3 className="font-bold">{who?.name ?? t(general ? 'reorder.noSupplierAll' : 'reorder.noSupplier')}</h3>
-            {g.rows.map(({ line: l, part, qty }) => {
-              const parts = partsOf(l)
-              const rate = rateOf(l)
-              return (
-                <div key={`${l.productId}-${part}`} className="flex flex-col gap-1 border-t border-[#edf2f1] pt-2 text-sm first-of-type:border-t-0">
-                  <div className="grid grid-cols-[1fr_5rem] items-center gap-2">
-                    <span><b>{l.medicine}</b>{parts.length > 1 && <span className="ml-1 rounded-full bg-warn-soft px-1.5 text-[11px] font-semibold text-warn">{t('rs.splitOf', { total: l.suggested })}</span>}
-                      <span className="block text-xs text-muted">{t('reorder.line', { stock: l.stock, sold: l.soldLast30Days })}{rate != null ? ` · ${formatRupees(rate)}` : ''}{l.daysLeft != null ? ` · ${t('orderToday.daysLeft', { count: Math.floor(l.daysLeft) })}` : ''}</span>
-                    </span>
-                    <input aria-label={`${t('reorder.qty')}: ${l.medicine}`} value={qty} inputMode="decimal"
-                      onChange={(e) => setParts(l.productId, parts.map((p, i) => (i === part ? { ...p, qty: e.target.value } : p)))} className="h-11 rounded-lg border border-line px-2" />
-                  </div>
-                  {(l.options?.length ?? 0) > 0 && (
+        // Other suppliers for one item: move it there, or split it half and half.
+        const split = (l: (typeof lines)[number], part: number, qty: string, parts: Part[]) => (l.options?.length ?? 0) > 0 && (
+
                     splitting === `${l.productId}-${part}` ? (
                       <div className="flex flex-col gap-1 rounded-xl bg-[#f6faf9] p-2">
                         {l.options!.map((o) => (
@@ -125,10 +115,98 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
                         <button onClick={() => setSplitting(null)} className="self-end text-xs font-semibold text-muted">{t('cancel')}</button>
                       </div>
                     ) : <button onClick={() => setSplitting(`${l.productId}-${part}`)} className="self-start text-xs font-semibold text-brand">⇄ {t('rs.otherSuppliers', { count: l.options!.length })}</button>
-                  )}
+                  
+        )
+        const toOrder = g.rows.map((r) => ({ productId: r.line.productId, medicine: r.line.medicine, order: Number(r.qty) || 0, rate: rateOf(r.line) })).filter((l) => l.order > 0)
+        const message = t('reorder.message', { shop: shopName, lines: toOrder.map((l) => `${l.medicine} × ${l.order}`).join('\n') })
+        return (
+          <section key={g.supplierId ?? 'none'} className="flex flex-col gap-2 rounded-card bg-white p-3">
+            <h3 className="font-bold">{who?.name ?? t(general ? 'reorder.noSupplierAll' : 'reorder.noSupplier')}</h3>
+            {/* A computer: the order as a table, one row per item, with what it comes to. */}
+            <table className="hidden w-full border-collapse text-sm lg:table">
+              <thead className="bg-brand-soft text-left text-xs tracking-wide">
+                <tr className="align-top">
+                  <th className="w-8 px-2 py-2 uppercase">#</th>
+                  <th className="px-2 py-2"><SortHead label={t(general ? 'reorderTable.item' : 'reorderTable.medicine')} active={sort.key === 'item'} up={sort.up} onClick={() => setSort(nextSort(sort, 'item', true))} sortLabel={t('billList.sortBy', { col: t(general ? 'reorderTable.item' : 'reorderTable.medicine') })}>
+                    <input value={filter.item} onChange={(e) => setFilter({ ...filter, item: e.target.value })} aria-label={t('billList.filterBy', { col: t(general ? 'reorderTable.item' : 'reorderTable.medicine') })} className={filterBox} /></SortHead></th>
+                  <th className="w-28 px-2 py-2 text-right"><SortHead right label={t('reorderTable.stock')} active={sort.key === 'stock'} up={sort.up} onClick={() => setSort(nextSort(sort, 'stock', false))} sortLabel={t('billList.sortBy', { col: t('reorderTable.stock') })}>
+                    <select value={filter.left} onChange={(e) => setFilter({ ...filter, left: e.target.value })} aria-label={t('billList.filterBy', { col: t('reorderTable.stock') })} className={filterBox}>
+                      <option value="">{t('billList.status.all')}</option><option value="out">{t('reorderTable.out')}</option><option value="some">{t('reorderTable.some')}</option>
+                    </select></SortHead></th>
+                  <th className="px-2 py-2 text-right"><SortHead right label={t('reorderTable.sold')} active={sort.key === 'sold'} up={sort.up} onClick={() => setSort(nextSort(sort, 'sold', false))} sortLabel={t('billList.sortBy', { col: t('reorderTable.sold') })} /></th>
+                  <th className="px-2 py-2 text-right"><SortHead right label={t('reorderTable.daysLeft')} active={sort.key === 'days'} up={sort.up} onClick={() => setSort(nextSort(sort, 'days', false))} sortLabel={t('billList.sortBy', { col: t('reorderTable.daysLeft') })} /></th>
+                  <th className="px-2 py-2 text-right"><SortHead right label={t('reorderTable.rate')} active={sort.key === 'rate'} up={sort.up} onClick={() => setSort(nextSort(sort, 'rate', false))} sortLabel={t('billList.sortBy', { col: t('reorderTable.rate') })} /></th>
+                  <th className="w-28 px-2 py-2 text-right uppercase">{t('reorderTable.order')}</th>
+                  <th className="px-2 py-2 text-right"><SortHead right label={t('reorderTable.amount')} active={sort.key === 'amount'} up={sort.up} onClick={() => setSort(nextSort(sort, 'amount', false))} sortLabel={t('billList.sortBy', { col: t('reorderTable.amount') })} /></th>
+                  <th className="px-2 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {g.rows
+                  .filter(({ line: l }) => (!filter.item || l.medicine.toLowerCase().includes(filter.item.toLowerCase()))
+                    && (!filter.left || (filter.left === 'out' ? l.stock <= 0 : l.stock > 0)))
+                  .sort((a, b) => {
+                    const val = (x: (typeof g.rows)[number]) => {
+                      const rt = rateOf(x.line)
+                      return sort.key === 'item' ? x.line.medicine : sort.key === 'stock' ? x.line.stock : sort.key === 'sold' ? x.line.soldLast30Days
+                        : sort.key === 'days' ? (x.line.daysLeft ?? null) : sort.key === 'rate' ? rt : rt != null ? (Number(x.qty) || 0) * rt : null
+                    }
+                    const c = compareCells(val(a), val(b))
+                    return sort.up ? c : -c
+                  })
+                  .map(({ line: l, part, qty }, n) => {
+                  const parts = partsOf(l)
+                  const rate = rateOf(l)
+                  const amount = rate != null ? (Number(qty) || 0) * rate : null
+                  return (
+                    <Fragment key={`${l.productId}-${part}`}>
+                      <tr className={l.stock <= 0 ? 'bg-due-soft/40' : ''}>
+                        <td className="px-2 py-2 text-muted">{n + 1}</td>
+                        <td className="px-2 py-2 font-semibold">{l.medicine}{parts.length > 1 && <span className="ml-1 rounded-full bg-warn-soft px-1.5 text-[11px] font-semibold text-warn">{t('rs.splitOf', { total: l.suggested })}</span>}</td>
+                        <td className={`px-2 py-2 text-right ${l.stock <= 0 ? 'font-semibold text-due' : ''}`}>{l.stock}</td>
+                        <td className="px-2 py-2 text-right">{l.soldLast30Days}</td>
+                        <td className="px-2 py-2 text-right">{l.daysLeft != null ? Math.floor(l.daysLeft) : '—'}</td>
+                        <td className="px-2 py-2 text-right">{rate != null ? formatRupees(rate) : '—'}</td>
+                        <td className="px-2 py-1.5 text-right">
+                          <input aria-label={`${t('reorder.qty')}: ${l.medicine}`} value={qty} inputMode="decimal"
+                            onChange={(e) => setParts(l.productId, parts.map((p, i) => (i === part ? { ...p, qty: e.target.value } : p)))} className="h-9 w-24 rounded-lg border border-line px-2 text-right" />
+                        </td>
+                        <td className="px-2 py-2 text-right font-semibold">{amount != null ? formatRupees(amount) : '—'}</td>
+                        <td className="px-2 py-2 text-right">{(l.options?.length ?? 0) > 0 && splitting !== `${l.productId}-${part}` && (
+                          <button onClick={() => setSplitting(`${l.productId}-${part}`)} title={t('rs.otherSuppliers', { count: l.options!.length })} className="whitespace-nowrap text-xs font-semibold text-brand">⇄ {l.options!.length}</button>)}</td>
+                      </tr>
+                      {splitting === `${l.productId}-${part}` && <tr><td colSpan={9} className="px-2 pb-2">{split(l, part, qty, parts)}</td></tr>}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-ink font-bold">
+                  <td colSpan={6} className="px-2 py-2">{t('reorderTable.total', { count: toOrder.length })}</td>
+                  <td className="px-2 py-2 text-right">{toOrder.reduce((n, l) => n + l.order, 0)}</td>
+                  <td className="px-2 py-2 text-right">{formatRupees(toOrder.reduce((n, l) => n + (l.rate ?? 0) * l.order, 0))}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+            <div className="flex flex-col gap-2 lg:hidden">
+            {g.rows.map(({ line: l, part, qty }) => {
+              const parts = partsOf(l)
+              const rate = rateOf(l)
+              return (
+                <div key={`${l.productId}-${part}`} className="flex flex-col gap-1 border-t border-[#edf2f1] pt-2 text-sm first-of-type:border-t-0">
+                  <div className="grid grid-cols-[1fr_5rem] items-center gap-2">
+                    <span><b>{l.medicine}</b>{parts.length > 1 && <span className="ml-1 rounded-full bg-warn-soft px-1.5 text-[11px] font-semibold text-warn">{t('rs.splitOf', { total: l.suggested })}</span>}
+                      <span className="block text-xs text-muted">{t('reorder.line', { stock: l.stock, sold: l.soldLast30Days })}{rate != null ? ` · ${formatRupees(rate)}` : ''}{l.daysLeft != null ? ` · ${t('orderToday.daysLeft', { count: Math.floor(l.daysLeft) })}` : ''}</span>
+                    </span>
+                    <input aria-label={`${t('reorder.qty')}: ${l.medicine}`} value={qty} inputMode="decimal"
+                      onChange={(e) => setParts(l.productId, parts.map((p, i) => (i === part ? { ...p, qty: e.target.value } : p)))} className="h-11 rounded-lg border border-line px-2" />
+                  </div>
+                  {split(l, part, qty, parts)}
                 </div>
               )
             })}
+            </div>
             {g.supplierId && toOrder.length > 0 && <button onClick={() => void saveOrder(g.supplierId!, toOrder)} className="h-11 rounded-xl border-2 border-brand font-semibold text-brand-strong">{t('supplier2.saveAsOrder')}</button>}
             {(who?.phone || !g.supplierId) && toOrder.length > 0
               ? <a href={whatsAppLink(who?.phone ?? null, message)} target="_blank" rel="noreferrer" className="flex h-11 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('reorder.send')}</a>

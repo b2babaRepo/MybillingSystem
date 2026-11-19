@@ -74,13 +74,63 @@ export function BalanceSheetScreen({ shopId }: { shopId: string }) {
   return (
     <ReportShell page="balance" title={t('bs.title')} isOwner view={view} onView={setView}
       ticks={sheet ? [{ label: t('bs.assets'), value: formatRupees(sheet.totalAssets) }, { label: t('bs.liabilities'), value: formatRupees(sheet.totalLiabilities) }, { label: t('bs.capital'), value: formatRupees(sheet.capital) }] : []}>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4 lg:max-w-5xl">
         <label className="flex flex-col gap-1 text-sm font-semibold text-muted">{t('bs.on')}
           <Input type="date" value={on} max={indiaToday()} onChange={(e) => e.target.value && setOn(e.target.value)} className="text-base text-ink" />
         </label>
         {!sheet ? <p className="text-muted">…</p> : (
           <>
-            <Card>
+            {/* A computer: the balance sheet as it is printed, liabilities and capital on the left, assets on the right. */}
+            {(() => {
+              type Line = { label: string; amount: number; note?: string; go?: () => void }
+              const lineFor = (label: string, amount: number, path: string | null, note?: string): Line => ({ label, amount, note, go: path ? () => navigate(path) : undefined })
+              const itemLine = (i: Item): Line => ({ label: i.name, amount: i.amount, note: t(`bs.kind.${i.kind}`), go: () => setForm({ id: i.id, kind: i.kind, name: i.name, amount: String(i.amount), since: i.since }) })
+              const left: Line[] = [
+                { label: t('bs.capital'), amount: sheet.capital, note: t('bs.tableCapitalNote') },
+                lineFor(t('bs.suppliersOwed'), sheet.suppliersOwed, '/suppliers', t('bs.suppliers', { count: sheet.suppliersOwedCount })),
+                ...(sheet.customerAdvances > 0 ? [lineFor(t('bs.customerAdvances'), sheet.customerAdvances, '/khata')] : []),
+                ...(sheet.gstToPay > 0 ? [lineFor(t('bs.gstToPay'), sheet.gstToPay, '/gst')] : []),
+                ...(sheet.loans - sheet.items.filter((i) => i.kind === 'loan').reduce((n, i) => n + i.amount, 0) > 0.005 ? [lineFor(t('bs.loanAccounts'), sheet.loans - sheet.items.filter((i) => i.kind === 'loan').reduce((n, i) => n + i.amount, 0), '/loans')] : []),
+                ...sheet.items.filter((i) => !isAsset(i.kind)).map(itemLine),
+              ]
+              const right: Line[] = [
+                lineFor(t('bs.cash'), sheet.cash, '/cashledger'),
+                lineFor(t('bs.bank'), sheet.bank, '/bankbook'),
+                lineFor(t('bs.stock'), sheet.stock, '/stock-statement', sheet.unvaluedItems > 0 ? t('bs.unvalued', { count: sheet.unvaluedItems }) : t('bs.atCost')),
+                lineFor(t('bs.customersOwe'), sheet.customersOwe, '/dues', t('bs.people', { count: sheet.customersOwing })),
+                ...(sheet.supplierAdvances > 0 ? [lineFor(t('bs.supplierAdvances'), sheet.supplierAdvances, '/suppliers')] : []),
+                ...sheet.items.filter((i) => isAsset(i.kind)).map(itemLine),
+              ]
+              const rows = Math.max(left.length, right.length)
+              const cells = (l: Line | undefined) => l ? <>
+                <td className="border-r border-line px-3 py-2">
+                  {l.go ? <button onClick={l.go} className="text-left font-semibold hover:text-brand hover:underline">{l.label}</button> : <span className="font-semibold">{l.label}</span>}
+                  {l.note && <span className="block text-xs text-muted">{l.note}</span>}
+                </td>
+                <td className="border-r border-line px-3 py-2 text-right tabular-nums">{formatRupees(l.amount)}</td>
+              </> : <><td className="border-r border-line" /><td className="border-r border-line" /></>
+              return (
+                <table className="hidden w-full table-fixed border-collapse overflow-hidden rounded-card bg-white text-sm shadow-sm lg:table">
+                  <caption className="pb-2 text-left text-sm text-muted">{t('bs.asOf', { day })}</caption>
+                  <thead className="bg-brand-soft text-left text-xs uppercase tracking-wide">
+                    <tr>
+                      <th className="border-r border-line px-3 py-2">{t('bs.tableLeft')}</th><th className="w-36 border-r border-line px-3 py-2 text-right">{t('bs.tableAmount')}</th>
+                      <th className="border-r border-line px-3 py-2">{t('bs.tableRight')}</th><th className="w-36 px-3 py-2 text-right">{t('bs.tableAmount')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {Array.from({ length: rows }, (_, i) => <tr key={i}>{cells(left[i])}{cells(right[i])}</tr>)}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-ink text-base font-extrabold">
+                      <td className="border-r border-line px-3 py-2">{t('yearRep.total')}</td><td className="border-r border-line px-3 py-2 text-right tabular-nums">{formatRupees(sheet.totalLiabilities + sheet.capital)}</td>
+                      <td className="border-r border-line px-3 py-2">{t('yearRep.total')}</td><td className="px-3 py-2 text-right tabular-nums">{formatRupees(sheet.totalAssets)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )
+            })()}
+            <Card className="lg:hidden">
               <h2 className="flex justify-between text-lg font-bold"><span>{t('bs.assets')}</span><span className="tabular-nums text-jama">{formatRupees(sheet.totalAssets)}</span></h2>
               <p className="mb-1 text-xs text-muted">{t('bs.assetsHint')}</p>
               {row(t('bs.cash'), sheet.cash, '/cashledger')}
@@ -90,7 +140,7 @@ export function BalanceSheetScreen({ shopId }: { shopId: string }) {
               {sheet.supplierAdvances > 0 && row(t('bs.supplierAdvances'), sheet.supplierAdvances, '/suppliers')}
               {sheet.items.filter((i) => isAsset(i.kind)).map(itemRow)}
             </Card>
-            <Card>
+            <Card className="lg:hidden">
               <h2 className="flex justify-between text-lg font-bold"><span>{t('bs.liabilities')}</span><span className="tabular-nums text-due">{formatRupees(sheet.totalLiabilities)}</span></h2>
               <p className="mb-1 text-xs text-muted">{t('bs.liabilitiesHint')}</p>
               {row(t('bs.suppliersOwed'), sheet.suppliersOwed, '/suppliers', t('bs.suppliers', { count: sheet.suppliersOwedCount }))}

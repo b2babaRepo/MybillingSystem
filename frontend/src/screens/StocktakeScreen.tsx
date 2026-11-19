@@ -8,6 +8,7 @@ import { useProducts } from '../lib/data'
 import { uuidv7 } from '../lib/ids'
 import { shownLocale } from '../i18n'
 import { itemName } from '../lib/itemName'
+import { compareCells, filterBox, nextSort, SortHead, type Sort } from '../components/TableHead'
 
 interface LastIn { productId: string; at: string; quantity: number; supplier: string | null; byHand: boolean }
 
@@ -29,6 +30,11 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
     ;(g[key] ??= []).push(p)
     return g
   }, {})).sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
+  // Desktop count sheet: sort by a column, filter by name and by what has been counted.
+  type ColKey = 'item' | 'books' | 'diff' | 'value'
+  const [sort, setSort] = useState<Sort<ColKey>>({ key: 'item', up: true })
+  const [filter, setFilter] = useState({ item: '', show: '' })
+  const diffOf = (p: (typeof products)[number]) => { const c = counts[p.id]?.trim(); return c && !isNaN(Number(c)) ? Math.round((Number(c) - p.stock) * 1000) / 1000 : null }
   const [result, setResult] = useState('')
   const [busy, setBusy] = useState(false)
   const counted = Object.entries(counts).filter(([, v]) => v.trim() !== '' && Number(v) >= 0)
@@ -56,7 +62,73 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
       {groups.map(([category, items]) => (
       <section key={category} className="flex flex-col gap-1">
       <h2 className="px-1 text-sm font-bold text-muted">{category || t('stock.noCategory')} · {items.length}</h2>
-      <ul className="divide-y divide-[#edf2f1] rounded-card bg-white">
+      {/* A computer: a count sheet, one row per item, the difference and what it is worth as you type. */}
+      <table className="hidden w-full table-fixed border-collapse overflow-hidden rounded-card bg-white text-sm lg:table">
+        <thead className="bg-brand-soft text-left text-xs tracking-wide">
+          <tr className="align-top">
+            <th className="w-10 px-3 py-2 uppercase">#</th>
+            <th className="px-2 py-2"><SortHead label={t('stock.colItem')} active={sort.key === 'item'} up={sort.up} onClick={() => setSort(nextSort(sort, 'item', true))} sortLabel={t('billList.sortBy', { col: t('stock.colItem') })}>
+              <input value={filter.item} onChange={(e) => setFilter({ ...filter, item: e.target.value })} aria-label={t('billList.filterBy', { col: t('stock.colItem') })} className={filterBox} /></SortHead></th>
+            <th className="w-28 px-2 py-2 text-right"><SortHead right label={t('stockTable.books')} active={sort.key === 'books'} up={sort.up} onClick={() => setSort(nextSort(sort, 'books', false))} sortLabel={t('billList.sortBy', { col: t('stockTable.books') })} /></th>
+            <th className="w-56 px-2 py-2 uppercase">{t('stockTable.lastIn')}</th>
+            <th className="w-32 px-2 py-2 text-right uppercase">{t('stock.counted')}
+              <select value={filter.show} onChange={(e) => setFilter({ ...filter, show: e.target.value })} aria-label={t('billList.filterBy', { col: t('stock.counted') })} className={filterBox}>
+                <option value="">{t('billList.status.all')}</option><option value="done">{t('stockTable.done')}</option><option value="todo">{t('stockTable.todo')}</option><option value="differs">{t('stockTable.differs')}</option>
+              </select></th>
+            <th className="w-24 px-2 py-2 text-right"><SortHead right label={t('stock.colDiff')} active={sort.key === 'diff'} up={sort.up} onClick={() => setSort(nextSort(sort, 'diff', false))} sortLabel={t('billList.sortBy', { col: t('stock.colDiff') })} /></th>
+            <th className="w-32 px-3 py-2 text-right"><SortHead right label={t('stockTable.value')} active={sort.key === 'value'} up={sort.up} onClick={() => setSort(nextSort(sort, 'value', false))} sortLabel={t('billList.sortBy', { col: t('stockTable.value') })} /></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line">
+          {items.every((p) => !((!filter.item || itemName(p).toLowerCase().includes(filter.item.toLowerCase()))
+            && (!filter.show || (filter.show === 'done' ? diffOf(p) != null : filter.show === 'todo' ? diffOf(p) == null : (diffOf(p) ?? 0) !== 0))))
+            && <tr><td colSpan={7} className="px-3 py-2 text-center text-xs text-muted">{t('stockTable.noMatch')}</td></tr>}
+          {items
+            .filter((p) => (!filter.item || itemName(p).toLowerCase().includes(filter.item.toLowerCase()))
+              && (!filter.show || (filter.show === 'done' ? diffOf(p) != null : filter.show === 'todo' ? diffOf(p) == null : (diffOf(p) ?? 0) !== 0)))
+            .sort((a, b) => {
+              const val = (p: (typeof items)[number]) => sort.key === 'item' ? itemName(p) : sort.key === 'books' ? p.stock
+                : sort.key === 'diff' ? diffOf(p) : diffOf(p) != null && p.costPrice ? diffOf(p)! * p.costPrice : null
+              const c = compareCells(val(a), val(b))
+              return sort.up ? c : -c
+            })
+            .map((p, n) => {
+            const c = counts[p.id]?.trim()
+            const diff = c && !isNaN(Number(c)) ? Math.round((Number(c) - p.stock) * 1000) / 1000 : null
+            const value = diff != null && p.costPrice ? Math.round(diff * p.costPrice * 100) / 100 : null
+            const l = lastIn.get(p.id)
+            const when = l ? new Date(l.at).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) : null
+            return (
+              <tr key={p.id} className={diff != null && diff !== 0 ? (diff < 0 ? 'bg-due-soft/40' : 'bg-green-50/60') : ''}>
+                <td className="px-3 py-1.5 text-muted">{n + 1}</td>
+                <td className="truncate px-2 py-1.5 font-semibold" title={itemName(p)}>{itemName(p)}</td>
+                <td className={`whitespace-nowrap px-2 py-1.5 text-right ${p.stock < 0 ? 'font-semibold text-due' : ''}`}>{p.stock} {t(`units.${p.unit}`, { count: p.stock })}</td>
+                <td className="px-2 py-1.5 text-xs text-muted">{l && when ? (l.byHand ? <span className="text-warn">{t('stock.lastInHand', { date: when, qty: l.quantity })}</span> : t('stock.lastIn', { date: when, qty: l.quantity, supplier: l.supplier })) : '—'}</td>
+                <td className="px-2 py-1 text-right">
+                  <input value={counts[p.id] ?? ''} onChange={(e) => setCounts({ ...counts, [p.id]: e.target.value })} inputMode="decimal"
+                    aria-label={`${t('stock.counted')}: ${p.name}`} className="h-9 w-24 rounded-lg border border-line px-2 text-right" />
+                </td>
+                <td className={`px-2 py-1.5 text-right font-bold ${diff == null ? 'text-muted' : diff < 0 ? 'text-due' : diff > 0 ? 'text-brand-strong' : 'text-muted'}`}>{diff == null ? '—' : diff > 0 ? `+${diff}` : diff}</td>
+                <td className={`px-3 py-1.5 text-right ${value == null ? 'text-muted' : value < 0 ? 'text-due' : value > 0 ? 'text-jama' : 'text-muted'}`}>{value == null ? '—' : `${value > 0 ? '+' : ''}${formatRupees(value)}`}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+        <tfoot>
+          {(() => {
+            const done = items.filter((p) => counts[p.id]?.trim() && !isNaN(Number(counts[p.id])))
+            const worth = done.reduce((sum, p) => sum + (p.costPrice ? (Number(counts[p.id]) - p.stock) * p.costPrice : 0), 0)
+            return (
+              <tr className="border-t-2 border-ink font-bold">
+                <td colSpan={4} className="px-3 py-2">{t('stockTable.counted', { done: done.length, count: items.length })}</td>
+                <td /><td />
+                <td className={`px-3 py-2 text-right ${worth < 0 ? 'text-due' : worth > 0 ? 'text-jama' : ''}`}>{worth > 0 ? '+' : ''}{formatRupees(Math.round(worth * 100) / 100)}</td>
+              </tr>
+            )
+          })()}
+        </tfoot>
+      </table>
+      <ul className="divide-y divide-[#edf2f1] rounded-card bg-white lg:hidden">
         <li aria-hidden className="flex items-center gap-3 px-4 py-1.5 text-xs font-semibold text-muted">
           <span className="flex-1">{t('stock.colItem')}</span><span className="w-24 text-right">{t('stock.counted')}</span><span className="hidden w-20 text-right lg:block">{t('stock.colDiff')}</span>
         </li>
