@@ -106,6 +106,8 @@ const FindBillScreen = lazy(() => import('./screens/FindBillScreen').then((modul
 const EstimatesScreen = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatesScreen })))
 const EstimatePrint = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatePrint })))
 const OffersScreen = lazy(() => import('./screens/OffersScreen').then((module) => ({ default: module.OffersScreen })))
+const PurchaseUploadsScreen = lazy(() => import('./screens/PurchaseUploadsScreen').then((module) => ({ default: module.PurchaseUploadsScreen })))
+const PhoneUploadPage = lazy(() => import('./screens/PurchaseUploadsScreen').then((module) => ({ default: module.PhoneUploadPage })))
 const SuppliersScreen = lazy(() => import('./screens/SuppliersScreen').then((module) => ({ default: module.SuppliersScreen })))
 const ProfileScreen = lazy(() => import('./screens/ProfileScreen').then((module) => ({ default: module.ProfileScreen })))
 const MyPlanScreen = lazy(() => import('./screens/MyPlanScreen').then((module) => ({ default: module.MyPlanScreen })))
@@ -133,6 +135,14 @@ export default function App() {
     return (
       <Suspense fallback={<Loading />}>
         <StoreApp path={path} />
+      </Suspense>
+    )
+  }
+  // A supplier's bill photo from the shop's phone, through the QR on Uploaded bills: no sign-in.
+  if (path.startsWith('/up/')) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <PhoneUploadPage path={path} />
       </Suspense>
     )
   }
@@ -298,6 +308,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
     ] },
     ...(isOwner ? [{ key: 'buy', title: t('menu.buy'), add: { path: '/suppliers', label: t('menu.addPurchase') }, links: [
       { path: '/suppliers', label: t('side.suppliers') },
+      { path: '/purchase-uploads', label: t('upload.link') },
       { path: '/reorder', label: t('reorder.link') },
       { path: '/orders-placed', label: t('po.link') },
       { path: '/goods-to-come', label: t('gtc.link') },
@@ -507,6 +518,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
           <ExchangeSlipsScreen shopId={shopId} />
         ) : path === '/find-bill' ? (
           <FindBillScreen shopId={shopId} />
+        ) : path === '/purchase-uploads' && isOwner ? (
+          <PurchaseUploadsScreen shopId={shopId} />
         ) : path === '/estimates' ? (
           <EstimatesScreen shopId={shopId} />
         ) : path === '/sale-orders' ? (

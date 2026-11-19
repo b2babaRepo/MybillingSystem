@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
@@ -211,6 +211,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<PharmacyProfile> PharmacyProfiles => Set<PharmacyProfile>();
 
     public DbSet<PrintLook> PrintLooks => Set<PrintLook>();
+
+    public DbSet<GroceryKhata.Api.Ledger.PurchaseUpload> PurchaseUploads => Set<GroceryKhata.Api.Ledger.PurchaseUpload>();
 
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
 
@@ -1271,6 +1273,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Gstin).HasMaxLength(15);
             b.Property(p => p.FssaiNo).HasMaxLength(40);
             b.HasIndex(p => p.ShopId).IsUnique();
+        });
+
+        modelBuilder.Entity<GroceryKhata.Api.Ledger.PurchaseUpload>(b =>
+        {
+            b.ToTable("purchase_uploads");
+            b.HasTenantKey();
+            b.Property(u => u.Source).HasMaxLength(10);
+            b.HasIndex(u => new { u.ShopId, u.UsedAt });
         });
 
         modelBuilder.Entity<PrintLook>(b =>

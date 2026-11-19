@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ItemPicker } from '../components/ItemPicker'
 import { ListDetail } from '../components/ListDetail'
 import { enqueue } from '../lib/outbox'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, btn } from '../components/ui'
 import { NetworkError, api, request } from '../lib/api'
@@ -29,10 +29,13 @@ interface BillDetail { billNo: string | null; total: number; extra: number; line
 interface Row { text?: string; productId: string; quantity: string; unitCost: string; bags?: string; basis?: 'unit' | 'quintal' | 'bag' | 'kg'; batchNo: string; expiry: string; mrp: string; free: string; discount: string; gst: string; read?: string; problems?: string[] }
 
 /** What the AI read off a distributor's bill photo, matched and checked by the server. Nothing is saved from it directly. */
-interface InvoiceDraft {
-  supplierName: string | null; billNo: string | null; grandTotal: number | null; linesTotal: number; totalDiffers: boolean
+export interface InvoiceDraft {
+  supplierName: string | null; supplierId: string | null; billNo: string | null; grandTotal: number | null; linesTotal: number; totalDiffers: boolean
   lines: { read: { name: string; batchNo: string | null; expiryMonth: string | null; mrp: number | null; quantity: number | null; freeQuantity: number | null; rate: number | null; discountPercent: number | null; gstRate: number | null }; productId: string | null; problems: string[] }[]
 }
+
+/** Where the Uploaded bills page leaves a read bill for its supplier's page: read once, then cleared. */
+export const UPLOAD_DRAFT_KEY = 'gk-upload-draft'
 
 /** Who the shop buys from and what it owes them: add a supplier's bill (stock goes up), or pay them. Needs a connection. */
 export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; shopName?: string }) {
@@ -164,7 +167,15 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
     setMessage('')
     setReading(true)
     try {
-      const draft = await api<InvoiceDraft>('/v1/suppliers/purchases/photo', 'POST', { imageDataUrl: await shrinkPhoto(file, 1600, 1_200_000, false) })
+      applyDraft(await api<InvoiceDraft>('/v1/suppliers/purchases/photo', 'POST', { imageDataUrl: await shrinkPhoto(file, 1600, 1_200_000, false) }))
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setReading(false)
+    }
+  }
+  /** The read bill's lines into the rows, for the owner to check. */
+  function applyDraft(draft: InvoiceDraft) {
       if (draft.lines.length === 0) throw new Error(t('invoicePhoto.nothing'))
       const n = (v: number | null) => (v == null ? '' : String(v))
       setRows(draft.lines.map((l) => ({
@@ -173,12 +184,24 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       })))
       if (draft.billNo) setBillNo(draft.billNo)
       setPhotoNote({ printed: draft.grandTotal, lines: draft.linesTotal, differs: draft.totalDiffers })
+  }
+  // A bill uploaded from the computer or a phone, already read on the Uploaded bills page: fill this supplier's bill with it.
+  const [fromUpload, setFromUpload] = useState<string | null>(null)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(UPLOAD_DRAFT_KEY)
+      if (!raw) return
+      const picked = JSON.parse(raw) as { uploadId: string; supplierId: string; draft: InvoiceDraft }
+      if (picked.supplierId !== id) return
+      sessionStorage.removeItem(UPLOAD_DRAFT_KEY)
+      applyDraft(picked.draft)
+      setFromUpload(picked.uploadId)
+      setTimeout(() => document.getElementById('supplier-bill')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
-    } finally {
-      setReading(false)
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
   const agree = async () => {
     await request('/v1/me/ai/consent', 'POST', { agree: true })
     await queryClient.invalidateQueries({ queryKey: ['ai-status'] })
@@ -242,6 +265,8 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       })),
     }, `${s?.name ?? ''} · ${formatRupees(total)}`)
     if (!saved) queuedNote = t('suppliers.queued')
+    // The uploaded photo is now a purchase: it leaves the waiting list.
+    if (fromUpload) { await api(`/v1/suppliers/uploads/${fromUpload}/used`, 'POST', { purchaseId: null }).catch(() => undefined); setFromUpload(null) }
     setRows([empty])
     setFromReceipts([])
     setBillNo('')

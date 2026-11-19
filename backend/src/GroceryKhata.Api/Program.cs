@@ -1,4 +1,4 @@
-using GroceryKhata.Api.Teams;
+﻿using GroceryKhata.Api.Teams;
 using GroceryKhata.Api.Agents;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -145,6 +145,7 @@ app.MapBalanceChecks();
 app.MapExpenses();
 app.MapBillPhotos();
 app.MapInvoicePhotos();
+app.MapPurchaseUploads();
 GroceryKhata.Api.Ledger.PartyImport.MapPartyImport(app);
 GroceryKhata.Api.Ledger.Receipts.MapReceipts(app);
 GroceryKhata.Api.Ledger.Reminders.MapReminders(app);

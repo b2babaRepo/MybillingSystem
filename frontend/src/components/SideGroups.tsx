@@ -24,6 +24,7 @@ const ICONS: Record<string, string> = {
     '/gst': 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 9h6M9 13h6',
     '/stocktake': 'M9 5h6M9 3h6v4H9zM5 5h2v16h10V5h2M9 12l2 2 4-4',
     '/estimates': 'M14 3H6v18h12V7zM14 3v4h4M9 13h6M9 17h4',
+    '/purchase-uploads': 'M12 16V4M7 9l5-5 5 5M4 16v4h16v-4',
     '/suppliers': 'M3 6h11v10H3zM14 9h4l3 3v4h-7',
     '/reorder': 'M4 4h2l2 11h11l2-8H7M10 20h.01M17 20h.01',
     '/offers': 'M3 12V3h9l9 9-9 9zM7.5 7.5h.01',
