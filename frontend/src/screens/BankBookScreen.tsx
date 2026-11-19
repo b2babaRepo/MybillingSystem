@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees, indiaToday } from '../lib/format'
 import { navigate } from '../router'
+import { DataTable } from '../components/DataTable'
 
 type Source = 'bill' | 'bill_cancelled' | 'khata_payment' | 'reversal' | 'expense' | 'deposit'
 interface Line { at: string; source: Source; who: string; mode: 'cash' | 'upi' | 'card' | 'cheque' | 'bank'; amount: number; reference: string | null; balance: number; billId: string | null }
@@ -56,7 +57,7 @@ export function BankBookScreen({ shopId }: { shopId: string }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4 lg:max-w-5xl">
       <div className="flex w-fit gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
         <button onClick={() => navigate('/cashbook')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('bankBook.cashBook')}</button>
         <button onClick={() => navigate('/cashledger')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('cashLedger.title')}</button>
@@ -108,8 +109,29 @@ export function BankBookScreen({ shopId }: { shopId: string }) {
             {error && <p className="text-due">{error}</p>}
           </section>
 
+          {/* A computer: the bank book as a passbook-style table. */}
+          {data.lines.length > 0 && (
+            <div className="hidden lg:block">
+              <DataTable label={t('bankBook.title')} rows={data.lines.map((l, i) => ({ ...l, n: i }))} rowKey={(l) => String(l.n)} download={`bank-book-${month}`}
+                onRowClick={(l) => { if (l.billId) navigate(`/print/bill/${l.billId}`) }}
+                columns={[
+                  { key: 'at', header: t('cashTable.date'), width: 'w-36', sortValue: (l) => l.at, render: (l) => when(l.at), csv: (l) => new Date(l.at).toLocaleString() },
+                  { key: 'type', header: t('cashTable.type'), width: 'w-40', sortValue: (l) => t(`bankBook.sources.${l.source}`),
+                    filter: { kind: 'select', value: (l) => l.source, options: [...new Set(data.lines.map((l) => l.source))].map((src) => ({ value: src, label: t(`bankBook.sources.${src}`) })) },
+                    render: (l) => <span className="font-semibold">{t(`bankBook.sources.${l.source}`)}</span>, csv: (l) => t(`bankBook.sources.${l.source}`) },
+                  { key: 'who', header: t('cashTable.party'), sortValue: (l) => l.who || '', filter: { kind: 'text', value: (l) => l.who ?? '' }, render: (l) => l.who || '—', csv: (l) => l.who ?? '' },
+                  { key: 'mode', header: t('loans.paidBy'), width: 'w-28', filter: { kind: 'select', value: (l) => (l.source === 'deposit' ? 'galla' : l.mode), options: [...new Set(data.lines.map((l) => (l.source === 'deposit' ? 'galla' : l.mode)))].map((m) => ({ value: m, label: m === 'galla' ? t('bankBook.fromGalla') : t(m) })) },
+                    render: (l) => (l.source === 'deposit' ? t('bankBook.fromGalla') : t(l.mode)), csv: (l) => (l.source === 'deposit' ? t('bankBook.fromGalla') : t(l.mode)) },
+                  { key: 'ref', header: t('bankTable.ref'), width: 'w-32', filter: { kind: 'text', value: (l) => l.reference ?? '' }, render: (l) => l.reference ?? '—', csv: (l) => l.reference ?? '' },
+                  { key: 'in', header: t('bankTable.in'), align: 'right', width: 'w-28', sortValue: (l) => (l.amount > 0 ? l.amount : null), render: (l) => <span className="font-semibold text-jama">{l.amount > 0 ? formatRupees(l.amount) : ''}</span>, csv: (l) => (l.amount > 0 ? l.amount : '') },
+                  { key: 'out', header: t('bankTable.out'), align: 'right', width: 'w-28', sortValue: (l) => (l.amount < 0 ? -l.amount : null), render: (l) => <span className="font-semibold text-udhaar">{l.amount < 0 ? formatRupees(-l.amount) : ''}</span>, csv: (l) => (l.amount < 0 ? -l.amount : '') },
+                  { key: 'bal', header: t('cashTable.balance'), align: 'right', width: 'w-32', render: (l) => formatRupees(l.balance), csv: (l) => l.balance },
+                ]}
+                footer={[t('bankTable.totals', { opening: formatRupees(data.opening) }), '', '', '', '', formatRupees(data.in), formatRupees(data.out), formatRupees(data.closing)]} />
+            </div>
+          )}
           {data.lines.length === 0 ? <p className="text-muted">{t('bankBook.empty')}</p> : (
-            <ul className="flex flex-col divide-y divide-line rounded-[20px] bg-white">
+            <ul className="flex flex-col divide-y divide-line rounded-[20px] bg-white lg:hidden">
               {data.lines.map((l, i) => (
                 <li key={i} className="flex items-center gap-3 p-3 text-sm">
                   <div className="flex flex-1 flex-col">

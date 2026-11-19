@@ -10,6 +10,7 @@ import { formatRupees, indiaToday } from '../lib/format'
 import type { BillPrint, Unit } from '../lib/types'
 import { rupeesInWords } from '../lib/inWords'
 import { navigate } from '../router'
+import { DataTable } from '../components/DataTable'
 
 export interface Estimate {
   id: string
@@ -56,11 +57,33 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-4 pb-24">
+    <div className="flex flex-col gap-3 p-4 pb-24 lg:mx-auto lg:w-full lg:max-w-5xl">
       <p className="text-sm text-muted">{t('estimate.hint')}</p>
       {list.length === 0 && <p className="rounded-card bg-white p-4 text-sm text-muted">{t('estimate.none')}</p>}
+      {list.length > 0 && (
+        <div className="hidden lg:block">
+          <DataTable label={t('estimate.link')} rows={list} rowKey={(e) => e.id} download="estimates" defaultSort={{ key: 'no', dir: -1 }}
+            onRowClick={(e) => navigate(`/print/estimate/${e.id}`)}
+            columns={[
+              { key: 'no', header: t('estTable.no'), width: 'w-20', sortValue: (e) => e.number, render: (e) => <b>#{e.number}</b>, csv: (e) => e.number },
+              { key: 'date', header: t('cashTable.date'), width: 'w-28', sortValue: (e) => e.createdAt, render: (e) => day(e.createdAt), csv: (e) => e.createdAt.slice(0, 10) },
+              { key: 'who', header: t('chequeTable.customer'), sortValue: (e) => who(e), filter: { kind: 'text', value: (e) => who(e) }, render: (e) => who(e), csv: (e) => who(e) },
+              { key: 'items', header: t('estTable.items'), align: 'right', width: 'w-20', sortValue: (e) => e.lines.length, render: (e) => e.lines.length, csv: (e) => e.lines.length },
+              { key: 'total', header: t('estTable.total'), align: 'right', width: 'w-32', sortValue: (e) => e.total, render: (e) => <b>{formatRupees(e.total)}</b>, csv: (e) => e.total },
+              { key: 'until', header: t('estTable.until'), width: 'w-28', sortValue: (e) => e.validUntil, render: (e) => day(e.validUntil), csv: (e) => e.validUntil },
+              { key: 'state', header: t('chequeTable.status'), width: 'w-28', sortValue: (e) => state(e),
+                filter: { kind: 'select', value: (e) => state(e), options: (['open', 'expired', 'billed', 'cancelled'] as const).map((st) => ({ value: st, label: t(`estimate.state.${st}`) })) },
+                render: (e) => <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${state(e) === 'open' ? 'bg-brand-soft text-brand-strong' : 'bg-[#f1f5f4] text-muted'}`}>{t(`estimate.state.${state(e)}`)}</span>, csv: (e) => t(`estimate.state.${state(e)}`) },
+              { key: 'act', header: '', width: 'w-48', render: (e) => (state(e) === 'open' || state(e) === 'expired') ? (
+                <span className="flex justify-end gap-3" onClick={(ev) => ev.stopPropagation()}>
+                  <button onClick={() => bill(e)} className="text-xs font-semibold text-brand underline">{t('estimate.makeBill')}</button>
+                  <button onClick={() => void cancel(e)} className="text-xs text-due underline">{t('estimate.cancel')}</button>
+                </span>) : null },
+            ]} />
+        </div>
+      )}
       {list.map((e) => (
-        <section key={e.id} className="flex flex-col gap-1 rounded-card bg-white p-4 text-sm">
+        <section key={e.id} className="flex flex-col gap-1 rounded-card bg-white p-4 text-sm lg:hidden">
           <p className="flex items-center justify-between gap-2">
             <b className="text-base">{t('estimate.number', { number: e.number })} · {who(e)}</b>
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${state(e) === 'open' ? 'bg-brand-soft text-brand-strong' : 'bg-[#f1f5f4] text-muted'}`}>{t(`estimate.state.${state(e)}`)}</span>

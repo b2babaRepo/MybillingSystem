@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import type { Unit } from '../lib/types'
 import { navigate } from '../router'
+import { DataTable } from '../components/DataTable'
 
 interface Line { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number; delivered: number; pending: number; inStock: number | null; shortBy: number }
 interface SaleOrder { id: string; number: number; customerId: string | null; party: string | null; lines: Line[]; total: number; pendingValue: number; dueOn: string | null; note: string | null; state: 'open' | 'part' | 'delivered' | 'closed' | 'cancelled'; bills: number; createdAt: string }
@@ -27,6 +28,8 @@ export function SaleOrdersScreen() {
   const [all, setAll] = useState(false)
   const orders = useQuery({ queryKey: ['sale-orders', all], queryFn: () => api<SaleOrder[]>(`/v1/sale-orders${all ? '' : '?open=true'}`) })
   const [message, setMessage] = useState<string | null>(null)
+  // Desktop: the register on top; the order picked in it opens below with its items.
+  const [openId, setOpenId] = useState<string | null>(null)
 
   function deliver(o: SaleOrder) {
     const lines = o.lines.filter((l) => l.pending > 0).map((l) => ({ productId: l.productId, name: l.name, quantity: l.pending, unit: l.unit, unitPrice: l.unitPrice }))
@@ -48,7 +51,7 @@ export function SaleOrdersScreen() {
   const data = orders.data ?? []
   const shortOrders = data.filter((o) => o.lines.some((l) => l.shortBy > 0)).length
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3 p-4 lg:mx-auto lg:w-full lg:max-w-5xl">
       <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h1 className="text-xl font-bold">📦 {t('saleOrder.title')}</h1>
         <p className="text-sm text-muted">{t('saleOrder.hint')}</p>
@@ -63,8 +66,31 @@ export function SaleOrdersScreen() {
       </section>
       {message && <p className="text-sm text-due">{message}</p>}
       {orders.data && data.length === 0 && <p className="py-6 text-center text-muted">{t('saleOrder.none')}</p>}
+      {data.length > 0 && (
+        <div className="hidden lg:block">
+          <DataTable label={t('saleOrder.title')} rows={data} rowKey={(o) => o.id} download="sale-orders" selectedKey={openId}
+            onRowClick={(o) => setOpenId(openId === o.id ? null : o.id)}
+            columns={[
+              { key: 'no', header: t('estTable.no'), width: 'w-20', sortValue: (o) => o.number, render: (o) => <b>#{o.number}</b>, csv: (o) => o.number },
+              { key: 'date', header: t('cashTable.date'), width: 'w-28', sortValue: (o) => o.createdAt, render: (o) => new Date(o.createdAt).toLocaleDateString(), csv: (o) => o.createdAt.slice(0, 10) },
+              { key: 'party', header: t('chequeTable.customer'), sortValue: (o) => o.party ?? '', filter: { kind: 'text', value: (o) => o.party ?? '' }, render: (o) => o.party ?? '—', csv: (o) => o.party ?? '' },
+              { key: 'due', header: t('soTable.due'), width: 'w-28', sortValue: (o) => o.dueOn ?? '', render: (o) => o.dueOn ?? '—', csv: (o) => o.dueOn ?? '' },
+              { key: 'items', header: t('estTable.items'), align: 'right', width: 'w-20', sortValue: (o) => o.lines.length,
+                render: (o) => <>{o.lines.length}{o.lines.some((l) => l.shortBy > 0) && <span className="ml-1 rounded-full bg-due-soft px-1.5 text-[11px] font-semibold text-due">{t('soTable.short')}</span>}</>, csv: (o) => o.lines.length },
+              { key: 'total', header: t('estTable.total'), align: 'right', width: 'w-28', sortValue: (o) => o.total, render: (o) => formatRupees(o.total), csv: (o) => o.total },
+              { key: 'pending', header: t('soTable.toGo'), align: 'right', width: 'w-28', sortValue: (o) => o.pendingValue, render: (o) => <b>{formatRupees(o.pendingValue)}</b>, csv: (o) => o.pendingValue },
+              { key: 'state', header: t('chequeTable.status'), width: 'w-28', sortValue: (o) => o.state,
+                filter: { kind: 'select', value: (o) => o.state, options: [...new Set(data.map((o) => o.state))].map((st) => ({ value: st, label: t(`saleOrder.state.${st}`) })) },
+                render: (o) => <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${TONE[o.state]}`}>{t(`saleOrder.state.${o.state}`)}</span>, csv: (o) => t(`saleOrder.state.${o.state}`) },
+              { key: 'act', header: '', width: 'w-24', render: (o) => (o.state === 'open' || o.state === 'part')
+                ? <button onClick={(ev) => { ev.stopPropagation(); deliver(o) }} className="text-xs font-semibold text-brand underline">🚚 {t('saleOrder.deliver')}</button> : null },
+            ]}
+            footer={[t('yearRep.total'), '', '', '', '', formatRupees(data.reduce((n, o) => n + o.total, 0)), formatRupees(data.reduce((n, o) => n + o.pendingValue, 0)), '', '']} />
+          {!openId && <p className="mt-2 px-1 text-xs text-muted">{t('soTable.pick')}</p>}
+        </div>
+      )}
       {data.map((o) => (
-        <section key={o.id} className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
+        <section key={o.id} className={`flex-col gap-2 rounded-card bg-white p-4 shadow-sm ${openId === o.id ? 'flex' : 'flex lg:hidden'}`}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <span className="flex flex-col">
               <b>{t('saleOrder.number', { number: o.number })} · {o.party ?? '—'}</b>

@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { formatRupees, indiaToday } from '../lib/format'
 import { uuidv7 } from '../lib/ids'
 import { navigate } from '../router'
+import { compareCells, filterBox, nextSort, SortHead, type Sort } from '../components/TableHead'
 
 interface Line { at: string; source: string; who: string; amount: number; balance: number; moveId: string | null; billId: string | null }
 interface Day { date: string; in: number; out: number; closing: number; counted: number | null; difference: number | null }
@@ -42,6 +43,36 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
   const bankMove = kind === 'to_bank' || kind === 'from_bank'
   const needsNote = kind === 'added' || kind === 'removed'
   const ready = !!kind && Number(amount) > 0 && (!needsNote || note.trim().length > 0)
+  // Desktop cash book: sort by a column, filter by type, party and which way the money went.
+  type ColKey = 'at' | 'type' | 'who' | 'in' | 'out'
+  const [sort, setSort] = useState<Sort<ColKey>>({ key: 'at', up: true })
+  const [filter, setFilter] = useState({ type: '', who: '', way: '' })
+  const typeOf = (l: Pick<Line, 'source'>) => t(`book.sources.${l.source}`, { defaultValue: t(`cashLedger.sources.${l.source}`, { defaultValue: l.source }) })
+  const rows = (data?.lines ?? []).map((l, i) => ({ ...l, n: i + 1 }))
+    .filter((l) => (!filter.type || l.source === filter.type) && (!filter.who || (l.who ?? '').toLowerCase().includes(filter.who.toLowerCase()))
+      && (!filter.way || (filter.way === 'in' ? l.amount > 0 : l.amount < 0)))
+    .sort((a, b) => {
+      const val = (l: Line) => sort.key === 'at' ? l.at : sort.key === 'type' ? typeOf(l) : sort.key === 'who' ? (l.who || null) : sort.key === 'in' ? (l.amount > 0 ? l.amount : null) : (l.amount < 0 ? -l.amount : null)
+      const c = compareCells(val(a), val(b))
+      return sort.up ? c : -c
+    })
+  const filtered = !!(filter.type || filter.who || filter.way)
+  const sources = [...new Set((data?.lines ?? []).map((l) => l.source))]
+
+  /** The month's cash book as a CSV for Excel (the BOM keeps the rupee sign and Hindi intact). */
+  function download() {
+    if (!data) return
+    const cell = (v: string | number) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v))
+    const table: (string | number)[][] = [[t('cashTable.date'), t('cashTable.type'), t('cashTable.party'), t('cashTable.in'), t('cashTable.out'), t('cashTable.balance')],
+      [data.from, t('cashTable.openingRow'), '', '', '', data.opening],
+      ...data.lines.map((l) => [new Date(l.at).toLocaleString(), typeOf(l), l.who ?? '', l.amount > 0 ? l.amount : '', l.amount < 0 ? -l.amount : '', l.balance]),
+      [data.to, t('cashTable.closingRow'), '', data.in, data.out, data.closing]]
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob(['\ufeff' + table.map((row) => row.map(cell).join(',')).join('\n')], { type: 'text/csv' }))
+    a.download = `cash-ledger-${month}.csv`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
+  }
 
   async function save() {
     if (!ready || !kind) return
@@ -64,7 +95,7 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4 lg:max-w-5xl">
       <div className="flex w-fit flex-wrap gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
         <button onClick={() => navigate('/cashbook')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('bankBook.cashBook')}</button>
         <span className="flex h-10 items-center rounded-xl bg-white px-4 font-semibold text-brand-strong shadow-sm ring-1 ring-brand/20">{t('cashLedger.title')}</span>
@@ -112,8 +143,71 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
         {error && <p className="text-due">{error}</p>}
       </section>
 
+      {data && data.lines.length > 0 && (
+        <div className="hidden flex-col gap-2 lg:flex">
+          <div className="flex items-center justify-between">
+            <h2 className="px-1 font-bold">{t('cashTable.title', { month: label })}</h2>
+            <button onClick={download} className="min-h-9 text-sm font-semibold text-brand underline">⬇ {t('billList.excel')}</button>
+          </div>
+          <table className="w-full table-fixed border-collapse overflow-hidden rounded-card bg-white text-sm shadow-sm">
+            <thead className="bg-brand-soft text-left text-xs tracking-wide">
+              <tr className="align-top">
+                <th className="w-10 px-3 py-2 uppercase">#</th>
+                <th className="w-40 px-2 py-2"><SortHead label={t('cashTable.date')} active={sort.key === 'at'} up={sort.up} onClick={() => setSort(nextSort(sort, 'at', true))} sortLabel={t('billList.sortBy', { col: t('cashTable.date') })} /></th>
+                <th className="w-44 px-2 py-2"><SortHead label={t('cashTable.type')} active={sort.key === 'type'} up={sort.up} onClick={() => setSort(nextSort(sort, 'type', true))} sortLabel={t('billList.sortBy', { col: t('cashTable.type') })}>
+                  <select value={filter.type} onChange={(e) => setFilter({ ...filter, type: e.target.value })} aria-label={t('billList.filterBy', { col: t('cashTable.type') })} className={filterBox}>
+                    <option value="">{t('billList.status.all')}</option>
+                    {sources.map((src) => <option key={src} value={src}>{typeOf({ source: src })}</option>)}
+                  </select></SortHead></th>
+                <th className="px-2 py-2"><SortHead label={t('cashTable.party')} active={sort.key === 'who'} up={sort.up} onClick={() => setSort(nextSort(sort, 'who', true))} sortLabel={t('billList.sortBy', { col: t('cashTable.party') })}>
+                  <input value={filter.who} onChange={(e) => setFilter({ ...filter, who: e.target.value })} aria-label={t('billList.filterBy', { col: t('cashTable.party') })} className={filterBox} /></SortHead></th>
+                <th className="w-32 px-2 py-2 text-right"><SortHead right label={t('cashTable.in')} active={sort.key === 'in'} up={sort.up} onClick={() => setSort(nextSort(sort, 'in', false))} sortLabel={t('billList.sortBy', { col: t('cashTable.in') })}>
+                  <select value={filter.way} onChange={(e) => setFilter({ ...filter, way: e.target.value })} aria-label={t('billList.filterBy', { col: t('cashTable.way') })} className={filterBox}>
+                    <option value="">{t('cashTable.both')}</option><option value="in">{t('cashTable.onlyIn')}</option><option value="out">{t('cashTable.onlyOut')}</option>
+                  </select></SortHead></th>
+                <th className="w-32 px-2 py-2 text-right"><SortHead right label={t('cashTable.out')} active={sort.key === 'out'} up={sort.up} onClick={() => setSort(nextSort(sort, 'out', false))} sortLabel={t('billList.sortBy', { col: t('cashTable.out') })} /></th>
+                <th className="w-32 px-2 py-2 text-right uppercase">{t('cashTable.balance')}</th>
+                <th className="w-24 px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {!filtered && sort.key === 'at' && sort.up && (
+                <tr className="bg-[#f6faf9] font-semibold">
+                  <td className="px-3 py-2" /><td className="px-2 py-2">{new Date(`${data.from}T00:00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}</td>
+                  <td className="px-2 py-2" colSpan={2}>{t('cashTable.openingRow')}</td><td /><td /><td className="px-2 py-2 text-right">{formatRupees(data.opening)}</td><td />
+                </tr>
+              )}
+              {rows.length === 0 && <tr><td colSpan={8} className="px-3 py-3 text-center text-muted">{t('stockTable.noMatch')}</td></tr>}
+              {rows.map((l) => (
+                <tr key={`${l.n}-${l.at}`} className="hover:bg-[#f6faf9]">
+                  <td className="px-3 py-2 text-muted">{l.n}</td>
+                  <td className="whitespace-nowrap px-2 py-2">{when(l.at)}</td>
+                  <td className="px-2 py-2 font-semibold">{typeOf(l)}</td>
+                  <td className="truncate px-2 py-2" title={l.who}>{l.who || '—'}</td>
+                  <td className="px-2 py-2 text-right font-semibold text-jama">{l.amount > 0 ? formatRupees(l.amount) : ''}</td>
+                  <td className="px-2 py-2 text-right font-semibold text-udhaar">{l.amount < 0 ? formatRupees(-l.amount) : ''}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{formatRupees(l.balance)}</td>
+                  <td className="px-3 py-2 text-right">
+                    {l.billId ? <button onClick={() => navigate(`/print/bill/${l.billId}`)} className="text-xs font-semibold text-brand underline">{t('cashTable.openBill')}</button>
+                      : l.moveId ? <button onClick={() => void strike(l.moveId!)} className="text-xs text-muted underline">{t('expense.remove')}</button> : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-ink font-bold">
+                <td colSpan={4} className="px-3 py-2">{filtered ? t('cashTable.shown', { count: rows.length }) : t('cashTable.closingRow')}</td>
+                <td className="px-2 py-2 text-right text-jama">{formatRupees(filtered ? rows.reduce((n, l) => n + Math.max(0, l.amount), 0) : data.in)}</td>
+                <td className="px-2 py-2 text-right text-udhaar">{formatRupees(filtered ? rows.reduce((n, l) => n + Math.max(0, -l.amount), 0) : data.out)}</td>
+                <td className="px-2 py-2 text-right">{filtered ? '' : formatRupees(data.closing)}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
       {data && (data.lines.length === 0 ? <p className="text-muted">{t('cashLedger.empty')}</p> : (
-        <ul className="flex flex-col divide-y divide-line rounded-[20px] bg-white">
+        <ul className="flex flex-col divide-y divide-line rounded-[20px] bg-white lg:hidden">
           {data.lines.map((l, i) => (
             <li key={i} className="flex items-center gap-3 p-3 text-sm">
               <div className="flex flex-1 flex-col">

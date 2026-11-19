@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
+import { DataTable } from '../components/DataTable'
 import { isLate, type PurchaseOrder } from './SupplierOrders'
 
 /** The suppliers screen opens this supplier once, when it is set. */
@@ -52,7 +53,7 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3 p-4 lg:mx-auto lg:w-full lg:max-w-5xl">
       <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl font-bold">🧾 {t('po.title')}</h1>
@@ -85,12 +86,33 @@ export function OrdersPlacedScreen({ shopId }: { shopId: string }) {
       </section>
       {orders.isError && <p className="text-sm text-due">{t('error')}</p>}
       {orders.data && shown.length === 0 && <p className="py-6 text-center text-muted">{t('po.none')}</p>}
+      {shown.length > 0 && (
+        <div className="hidden lg:block">
+          <DataTable label={t('po.title')} rows={shown} rowKey={(o) => o.id} download="orders-placed" onRowClick={(o) => openSupplier(o.supplierId)}
+            columns={[
+              { key: 'date', header: t('cashTable.date'), width: 'w-24', sortValue: (o) => o.createdAt, render: (o) => new Date(o.createdAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }), csv: (o) => o.createdAt.slice(0, 10) },
+              { key: 'no', header: t('estTable.no'), width: 'w-20', sortValue: (o) => o.number, render: (o) => <b>#{o.number}</b>, csv: (o) => o.number },
+              { key: 'supplier', header: t('poTable.supplier'), sortValue: (o) => o.supplierName, filter: { kind: 'text', value: (o) => o.supplierName }, render: (o) => <span className="font-semibold">{o.supplierName}</span>, csv: (o) => o.supplierName },
+              { key: 'expected', header: t('poTable.expected'), width: 'w-28', sortValue: (o) => o.expectedOn ?? '',
+                render: (o) => <span className={isLate(o) ? 'font-semibold text-due' : ''}>{o.expectedOn ? new Date(o.expectedOn).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }) : '—'}{isLate(o) && ` · ${t('poTable.late')}`}</span>, csv: (o) => o.expectedOn ?? '' },
+              { key: 'items', header: t('estTable.items'), align: 'right', width: 'w-20', sortValue: (o) => o.lines.length, render: (o) => o.lines.length, csv: (o) => o.lines.length },
+              { key: 'came', header: t('poTable.came'), width: 'w-36', sortValue: (o) => { const ord = o.lines.reduce((n, l) => n + l.quantity, 0); return ord ? o.lines.reduce((n, l) => n + Math.min(l.received, l.quantity), 0) / ord : 0 },
+                render: (o) => { const ord = o.lines.reduce((n, l) => n + l.quantity, 0); const came = o.lines.reduce((n, l) => n + Math.min(l.received, l.quantity), 0)
+                  return <span className="flex items-center gap-2"><span className="h-2 w-16 overflow-hidden rounded-full bg-[#edf2f1]"><span className="block h-full bg-teal-600" style={{ width: `${ord ? (came / ord) * 100 : 0}%` }} /></span><span className="text-xs text-muted">{came}/{ord}</span></span> } },
+              { key: 'value', header: t('poTable.value'), align: 'right', width: 'w-28', sortValue: (o) => value(o), render: (o) => (value(o) > 0 ? formatRupees(value(o)) : '—'), csv: (o) => value(o) },
+              { key: 'state', header: t('chequeTable.status'), width: 'w-36', sortValue: (o) => state(o),
+                filter: { kind: 'select', value: (o) => state(o), options: [...new Set(all.map(state))].map((st) => ({ value: st, label: t(`po.state.${st}`) })) },
+                render: (o) => <span className="flex flex-wrap gap-1"><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${TONE[state(o)]}`}>{t(`po.state.${state(o)}`)}</span>
+                  {stageLabel(o) && <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-800">{t(`gtc.stage.${stageLabel(o)}`)}</span>}</span>, csv: (o) => t(`po.state.${state(o)}`) },
+            ]} />
+        </div>
+      )}
       {shown.map((o) => {
         const ordered = o.lines.reduce((s, l) => s + l.quantity, 0)
         const came = o.lines.reduce((s, l) => s + Math.min(l.received, l.quantity), 0)
         const s = state(o)
         return (
-          <button key={o.id} onClick={() => openSupplier(o.supplierId)} className="flex flex-col gap-2 rounded-card bg-white p-4 text-left shadow-sm hover:bg-[#f6faf9]">
+          <button key={o.id} onClick={() => openSupplier(o.supplierId)} className="flex flex-col gap-2 rounded-card bg-white p-4 text-left shadow-sm hover:bg-[#f6faf9] lg:hidden">
             <span className="flex w-full items-start justify-between gap-2">
               <span className="flex flex-col">
                 <b>{o.supplierName} · {t('supplier2.orderNo', { number: o.number })}</b>

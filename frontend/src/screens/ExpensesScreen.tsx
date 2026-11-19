@@ -13,6 +13,7 @@ import { KharchaMonth, MissingRegular } from './KharchaMonth'
 import { MeterCard } from './MeterCard'
 import { navigate } from '../router'
 import { confirmAsk } from '../components/Ask'
+import { DataTable } from '../components/DataTable'
 
 export type ExpenseCategory = 'tea' | 'transport' | 'rent' | 'electricity' | 'salary' | 'purchase' | 'packaging' | 'repair' | 'home' | 'other'
   | 'tax' | 'loan' | 'equipment' | 'deposit' | 'advance' | 'interest'
@@ -245,7 +246,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
   }
 
   return (
-    <div className="flex flex-col gap-3 p-4 lg:mx-auto lg:max-w-3xl">
+    <div className="flex flex-col gap-3 p-4 lg:mx-auto lg:max-w-3xl xl:max-w-5xl">
       {viewSwitch}
       <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
@@ -353,7 +354,28 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
             <div><div className="text-xs text-muted">{t('expense.upiOut')}</div><div className="text-lg font-extrabold">{formatRupees(upiOut)}</div></div>
             <div><div className="text-xs text-muted">{t('expense.total')}</div><div className="text-lg font-extrabold">{formatRupees(live.reduce((sum, l) => sum + l.amount, 0))}</div></div>
           </div>
-          <ul className="border-l-2 border-red-300 pl-3" style={{ backgroundImage: 'repeating-linear-gradient(transparent 0 55px, #e8dfc8 55px 56px)' }}>
+          {/* A computer: the day's kharcha as a table to sort, filter and download; a phone keeps the notebook page. */}
+          <div className="hidden p-3 lg:block">
+            <DataTable label={t('expense.total')} rows={lines} rowKey={(l) => l.id} download={`kharcha-${day}`}
+              onRowClick={(l) => { if (!l.struckAt) void strike(l) }}
+              empty={<p className="p-3 text-muted">{t('expense.empty')}</p>}
+              columns={[
+                { key: 'time', header: t('cashTable.date'), width: 'w-28', sortValue: (l) => l.occurredAt,
+                  render: (l) => new Date(l.occurredAt).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' }), csv: (l) => new Date(l.occurredAt).toLocaleString() },
+                { key: 'heading', header: t('expense.heading'), sortValue: (l) => t(`expense.cat.${l.category}`),
+                  filter: { kind: 'select', value: (l) => l.category, options: [...new Set(lines.map((l) => l.category))].map((c) => ({ value: c, label: t(`expense.cat.${c}`) })) },
+                  render: (l) => <span className={l.struckAt ? 'text-muted line-through' : 'font-semibold'}>{ICONS[l.category]} {t(`expense.cat.${l.category}`)}</span>, csv: (l) => t(`expense.cat.${l.category}`) },
+                { key: 'note', header: t('expense.note'), filter: { kind: 'text', value: (l) => l.note ?? '' },
+                  render: (l) => <span className={l.struckAt ? 'text-muted line-through' : ''}>{l.note ?? '—'}{'pending' in l ? ` · ⏳ ${t('expense.waiting')}` : ''}</span>, csv: (l) => l.note ?? '' },
+                { key: 'mode', header: t('loans.paidBy'), width: 'w-28', filter: { kind: 'select', value: (l) => l.mode, options: [...new Set(lines.map((l) => l.mode))].map((m) => ({ value: m, label: t(m) })) },
+                  render: (l) => t(l.mode), csv: (l) => t(l.mode) },
+                { key: 'by', header: t('expenseTable.by'), width: 'w-36', sortValue: (l) => l.by ?? '', render: (l) => l.by ?? '—', csv: (l) => l.by ?? '' },
+                { key: 'amount', header: t('expense.amount'), align: 'right', width: 'w-32', sortValue: (l) => l.amount,
+                  render: (l) => <b className={l.struckAt ? 'text-muted line-through' : ''}>{formatRupees(l.amount)}</b>, csv: (l) => (l.struckAt ? 0 : l.amount) },
+              ]}
+              footer={[t('yearRep.total'), '', '', '', '', formatRupees(live.reduce((sum, l) => sum + l.amount, 0))]} />
+          </div>
+          <ul className="border-l-2 border-red-300 pl-3 lg:hidden" style={{ backgroundImage: 'repeating-linear-gradient(transparent 0 55px, #e8dfc8 55px 56px)' }}>
             {lines.length === 0 && <li className="flex min-h-14 items-center pr-3 text-muted">{t('expense.empty')}</li>}
             {lines.map((line) => (
               <li key={line.id}>

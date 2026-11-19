@@ -28,7 +28,7 @@ describe('DataTable', () => {
     const html = renderToStaticMarkup(
       <DataTable rows={rows} rowKey={(r) => r.id} columns={columns} renderCard={(r) => <p>card {r.name}</p>} />)
     expect(html).toContain('lg:hidden')
-    expect(html).toContain('hidden lg:block')
+    expect(html).toContain('hidden lg:flex')
     expect(html).toContain('card Sunita Devi')
   })
 

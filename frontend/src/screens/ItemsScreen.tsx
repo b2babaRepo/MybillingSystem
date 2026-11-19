@@ -18,6 +18,7 @@ import { isOutToday } from '../lib/local'
 import { imageUrl } from '../lib/images'
 import { itemArt } from '../lib/itemArt'
 import { UnitSelect } from './BillScreen'
+import { DataTable } from '../components/DataTable'
 
 interface SuggestedItem { id: number; trade: string; category: string; name: string; nameHi: string | null; packSizes: string[]; imageAt?: string | null; popular?: boolean }
 
@@ -153,7 +154,39 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
         </div>
       )}
       {isOwner && filter === 'out' && <button onClick={() => void stopCounting()} className="min-h-11 rounded-xl border border-line bg-white px-3 text-left text-sm font-semibold text-brand-strong">{t('stock.stopCountingEmpty')}</button>}
-      <ul className={`divide-y divide-[#edf2f1] overflow-hidden rounded-card bg-white shadow-sm ${filter === 'suggested' ? 'hidden' : ''}`}>
+      {/* A computer: every item as a row to sort, filter and download. */}
+      {filter !== 'suggested' && shown.length > 0 && (() => {
+        const stockState = (p: Product) => (p.isService || p.uncounted ? 'uncounted' : p.stock <= 0 ? 'out' : p.isLow ? 'low' : 'ok')
+        const margin = (p: Product) => (p.costPrice && p.sellingPrice > 0 ? Math.round(((p.sellingPrice - p.costPrice) / p.sellingPrice) * 1000) / 10 : null)
+        const daysLeft = (p: Product) => ((p.dailySales ?? 0) > 0 && p.stock > 0 ? Math.floor(p.stock / p.dailySales!) : null)
+        return (
+          <div className="hidden lg:block">
+            <DataTable label={t('items2.colName')} rows={shown} rowKey={(p) => p.id} download="items" onRowClick={(p) => navigate(`/p/${p.id}`)}
+              columns={[
+                { key: 'pic', header: '', width: 'w-12', render: (p) => { const th = imageUrl(shopId, p.id, p.imageAt, 'thumb'); const art = itemArt({ name: p.name })
+                  return th ? <img src={th} alt="" loading="lazy" width={36} height={36} className="h-9 w-9 rounded-lg border border-line bg-white object-contain" />
+                    : <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-lg text-lg" style={{ background: art.tint }}>{art.emoji}</span> } },
+                { key: 'name', header: t('items2.colName'), sortValue: (p) => itemName(p), filter: { kind: 'text', value: (p) => `${itemName(p)} ${p.barcode ?? ''}` },
+                  render: (p) => <span className="flex items-center gap-2 font-semibold">{itemName(p)}{p.pending && <PendingDot />}</span>, csv: (p) => itemName(p) },
+                { key: 'cat', header: t('items2.colCategory'), width: 'w-40', sortValue: (p) => p.category ?? '',
+                  filter: { kind: 'select', value: (p) => p.category ?? '', options: categories.map((c) => ({ value: c, label: c })) },
+                  render: (p) => <span className="text-muted">{p.category ?? '—'}</span>, csv: (p) => p.category ?? '' },
+                { key: 'price', header: t('items2.colPrice'), align: 'right', width: 'w-28', sortValue: (p) => p.sellingPrice,
+                  render: (p) => (p.sellingPrice > 0 ? <><b>{formatRupees(p.sellingPrice)}</b><span className="text-xs text-muted">/{t(`units.${p.unit}`)}</span></> : <span className="text-xs font-semibold text-udhaar">{t('stock.noPrice')}</span>), csv: (p) => p.sellingPrice },
+                { key: 'cost', header: t('itemTable.cost'), align: 'right', width: 'w-24', sortValue: (p) => p.costPrice ?? null, render: (p) => (p.costPrice ? formatRupees(p.costPrice) : '—'), csv: (p) => p.costPrice ?? '' },
+                { key: 'margin', header: t('itemTable.margin'), align: 'right', width: 'w-24', sortValue: (p) => margin(p),
+                  render: (p) => { const m = margin(p); return m == null ? '—' : <span className={m < 0 ? 'font-semibold text-due' : m < 5 ? 'text-warn' : ''}>{m}%</span> }, csv: (p) => margin(p) ?? '' },
+                { key: 'stock', header: t('items2.colStock'), align: 'right', width: 'w-32', sortValue: (p) => (p.uncounted || p.isService ? null : p.stock),
+                  filter: { kind: 'select', value: stockState, options: (['out', 'low', 'ok', 'uncounted'] as const).map((st) => ({ value: st, label: t(`itemTable.stock.${st}`) })) },
+                  render: (p) => <span className="flex justify-end"><StockPill product={p} /></span>, csv: (p) => (p.uncounted ? '' : p.stock) },
+                { key: 'days', header: t('reorderTable.daysLeft'), align: 'right', width: 'w-24', sortValue: (p) => daysLeft(p),
+                  render: (p) => { const d = daysLeft(p); return d == null ? '—' : <span className={d <= 3 ? 'font-semibold text-due' : d <= 10 ? 'text-warn' : ''}>{d}</span> }, csv: (p) => daysLeft(p) ?? '' },
+                { key: 'barcode', header: t('itemTable.barcode'), width: 'w-36', render: (p) => <span className="font-mono text-xs text-muted">{p.barcode ?? '—'}</span>, csv: (p) => p.barcode ?? '' },
+              ]} />
+          </div>
+        )
+      })()}
+      <ul className={`divide-y divide-[#edf2f1] overflow-hidden rounded-card bg-white shadow-sm lg:hidden ${filter === 'suggested' ? 'hidden' : ''}`}>
         {shown.length > 0 && (
           <li aria-hidden className="hidden items-center gap-3 bg-[#f6faf9] px-3 py-2 text-[13px] font-semibold text-muted lg:flex">
             <span className="w-[52px] shrink-0" />

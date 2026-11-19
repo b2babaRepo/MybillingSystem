@@ -6,6 +6,7 @@ import { ask, confirmAsk } from '../components/Ask'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
+import { DataTable } from '../components/DataTable'
 
 interface Cheque {
   id: string; customerId: string; customer: string; amount: number; chequeNo: string | null; bank: string | null; chequeDate: string | null
@@ -75,9 +76,36 @@ export function ChequesScreen({ isOwner }: { isOwner: boolean }) {
   )
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-3 p-4">
+    <div className="mx-auto flex max-w-2xl flex-col gap-3 p-4 lg:max-w-5xl">
       <h1 className="text-xl font-bold">{t('cheques.title')}</h1>
       {error && <p className="rounded-xl bg-due-soft p-3 text-sm text-red-800">{error}</p>}
+      {/* A computer: every cheque in one register, waiting ones first. */}
+      {data && data.cheques.length > 0 && (
+        <div className="hidden lg:block">
+          <p className="mb-2 font-semibold">{t('cheques.pending')}{data.pendingCount > 0 ? ` · ${formatRupees(data.pendingAmount)}` : ''}</p>
+          <DataTable label={t('cheques.title')} rows={[...pending, ...done]} rowKey={(c) => c.id} download="cheques"
+            columns={[
+              { key: 'received', header: t('chequeTable.received'), width: 'w-28', sortValue: (c) => c.receivedAt, render: (c) => day(c.receivedAt), csv: (c) => c.receivedAt.slice(0, 10) },
+              { key: 'customer', header: t('chequeTable.customer'), sortValue: (c) => c.customer, filter: { kind: 'text', value: (c) => c.customer },
+                render: (c) => <button className="text-left font-semibold hover:text-brand hover:underline" onClick={() => navigate(`/c/${c.customerId}`)}>{c.customer}</button>, csv: (c) => c.customer },
+              { key: 'no', header: t('chequeTable.no'), width: 'w-28', filter: { kind: 'text', value: (c) => c.chequeNo ?? '' }, render: (c) => c.chequeNo ?? '—', csv: (c) => c.chequeNo ?? '' },
+              { key: 'bank', header: t('chequeTable.bank'), width: 'w-36', sortValue: (c) => c.bank ?? '', filter: { kind: 'text', value: (c) => c.bank ?? '' }, render: (c) => c.bank ?? '—', csv: (c) => c.bank ?? '' },
+              { key: 'dated', header: t('chequeTable.dated'), width: 'w-32', sortValue: (c) => c.chequeDate ?? '',
+                render: (c) => <>{c.chequeDate ? day(c.chequeDate) : '—'}{c.status === 'pending' && c.chequeDate && c.chequeDate > today && <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-warn">{t('cheques.postDated')}</span>}</>, csv: (c) => c.chequeDate ?? '' },
+              { key: 'amount', header: t('expense.amount'), align: 'right', width: 'w-32', sortValue: (c) => c.amount, render: (c) => <b>{formatRupees(c.amount)}</b>, csv: (c) => c.amount },
+              { key: 'status', header: t('chequeTable.status'), width: 'w-36', sortValue: (c) => c.status,
+                filter: { kind: 'select', value: (c) => c.status, options: (['pending', 'cleared', 'bounced'] as const).map((st) => ({ value: st, label: t(`cheques.status.${st}`) })) },
+                render: (c) => <span className={`rounded-full px-2 text-xs font-bold ${c.status === 'cleared' ? 'bg-green-50 text-green-800' : c.status === 'bounced' ? 'bg-due-soft text-due' : 'bg-warn-soft text-warn'}`} title={c.bounceNote ?? undefined}>
+                  {t(`cheques.status.${c.status}`)}{c.settledAt ? ` · ${day(c.settledAt)}` : ''}</span>, csv: (c) => t(`cheques.status.${c.status}`) },
+              { key: 'act', header: '', width: 'w-44', render: (c) => c.status === 'pending' && isOwner ? (
+                <span className="flex justify-end gap-1">
+                  <button disabled={busy === c.id} onClick={() => void settle(c, true)} className="h-8 rounded-lg bg-jama px-2 text-xs font-semibold text-white disabled:opacity-50">{t('cheques.clear')}</button>
+                  <button disabled={busy === c.id} onClick={() => void settle(c, false)} className="h-8 rounded-lg border border-line px-2 text-xs font-semibold text-udhaar disabled:opacity-50">{t('cheques.bounce')}</button>
+                </span>) : null },
+            ]} />
+        </div>
+      )}
+      <div className="flex flex-col gap-3 lg:hidden">
       <h2 className="font-semibold">{t('cheques.pending')}{data && data.pendingCount > 0 ? ` · ${formatRupees(data.pendingAmount)}` : ''}</h2>
       {data && pending.length === 0 && <p className="text-muted">{t('cheques.none')}</p>}
       <ul className="flex flex-col gap-2">{pending.map(row)}</ul>
@@ -87,6 +115,8 @@ export function ChequesScreen({ isOwner }: { isOwner: boolean }) {
           <ul className="flex flex-col gap-2">{done.map(row)}</ul>
         </>
       )}
+      </div>
+      {data && data.cheques.length === 0 && <p className="hidden text-muted lg:block">{t('cheques.none')}</p>}
     </div>
   )
 }
