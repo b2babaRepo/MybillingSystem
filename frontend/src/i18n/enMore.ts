@@ -600,6 +600,7 @@ export const enMore = {
       newstock: { title: 'New stock has arrived', sub: 'Come and see the latest range' },
     },
   },
+  caAccess: { add: 'Give read-only access', role: 'Accountant (CA)', badge: 'Accountant · read-only', hint: 'Your CA signs in with this phone number (SMS code) and sees your reports, GST, khata and books. They cannot change anything. At most 2.', added: 'Accountant added. They can sign in with this number and see your books, read-only.', banner: 'Read-only access to {{shop}}: you can see everything, but cannot change anything.' },
   quick: { call: 'Call', sms: 'SMS', smsRemind: 'SMS reminder', whatsapp: 'WhatsApp', statement: "This month's statement", history: 'Go to history', hello: 'Namaste {{name}}, from {{shop}}.' },
   upload: {
     sentToWa: 'Link sent to your WhatsApp (number ending {{last}}).', sendWa: 'Send the link on WhatsApp', waText: 'Send supplier bill photos to the shop: {{link}}',

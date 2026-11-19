@@ -11,7 +11,7 @@ interface Staff {
   userId: string
   name: string
   phone: string
-  role: 'owner' | 'staff'
+  role: 'owner' | 'staff' | 'accountant'
   isActive: boolean
   hasPin: boolean
   commissionPercent?: number | null
@@ -63,7 +63,7 @@ export function StaffScreen() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [pin, setPin] = useState('')
-  const [role, setRole] = useState<'staff' | 'owner'>('staff')
+  const [role, setRole] = useState<'staff' | 'owner' | 'accountant'>('staff')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -86,7 +86,7 @@ export function StaffScreen() {
     setName('')
     setPhone('')
     setPin('')
-  }, role === 'owner' ? t('staff.ownerAdded') : t('staff.added'))
+  }, role === 'owner' ? t('staff.ownerAdded') : role === 'accountant' ? t('caAccess.added') : t('staff.added'))
 
   async function changePin(s: Staff) {
     const next = (await ask(t('staff.newPinAsk', { name: s.name })))?.trim()
@@ -113,13 +113,13 @@ export function StaffScreen() {
                 <span className="text-[17px] font-bold">{s.name}</span>
                 <span className="text-sm text-muted">{formatPhone(s.phone)}</span>
               </span>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${s.role === 'owner' ? 'bg-brand-soft text-brand-strong' : s.isActive ? 'bg-[#edf2f1]' : 'bg-due-soft text-due'}`}>
-                {s.role === 'owner' ? t('staff.owner') : s.isActive ? t('staff.helper') : t('staff.off')}
+              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${s.role === 'owner' ? 'bg-brand-soft text-brand-strong' : s.role === 'accountant' && s.isActive ? 'bg-blue-50 text-blue-800' : s.isActive ? 'bg-[#edf2f1]' : 'bg-due-soft text-due'}`}>
+                {s.role === 'owner' ? t('staff.owner') : !s.isActive ? t('staff.off') : s.role === 'accountant' ? t('caAccess.badge') : t('staff.helper')}
               </span>
             </div>
-            <Commission staff={s} onSaved={() => void staff.refetch()} />
+            {s.role !== 'accountant' && <Commission staff={s} onSaved={() => void staff.refetch()} />}
             {s.role === 'staff' && s.isActive && <Limits staff={s} onSaved={() => void staff.refetch()} />}
-            {(s.role === 'staff' || staff.data!.filter((x) => x.role === 'owner' && x.isActive).length > 1 || !s.isActive) && (
+            {(s.role !== 'owner' || staff.data!.filter((x) => x.role === 'owner' && x.isActive).length > 1 || !s.isActive) && (
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {s.role === 'staff' ? <button disabled={busy} onClick={() => changePin(s)} className="min-h-11 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">🔑 {t('staff.changePin')}</button> : <span />}
                 <button disabled={busy} onClick={() => setActive(s, !s.isActive)}
@@ -136,19 +136,19 @@ export function StaffScreen() {
         <h2 className="text-lg font-bold">{t('staff.addTitle')}</h2>
         <Field label={t('staff.name')} value={name} onChange={(e) => setName(e.target.value)} />
         <Field label={t('staff.phone')} value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
-        <div role="radiogroup" aria-label={t('staff.roleLabel')} className="grid grid-cols-2 gap-2">
-          {(['staff', 'owner'] as const).map((r) => (
+        <div role="radiogroup" aria-label={t('staff.roleLabel')} className="grid grid-cols-3 gap-2">
+          {(['staff', 'owner', 'accountant'] as const).map((r) => (
             <button key={r} type="button" role="radio" aria-checked={role === r} onClick={() => setRole(r)}
-              className={`min-h-12 rounded-xl font-semibold ${role === r ? 'bg-brand text-white' : 'border border-line'}`}>{r === 'owner' ? t('staff.owner') : t('staff.helper')}</button>
+              className={`min-h-12 rounded-xl font-semibold ${role === r ? 'bg-brand text-white' : 'border border-line'}`}>{r === 'owner' ? t('staff.owner') : r === 'accountant' ? t('caAccess.role') : t('staff.helper')}</button>
           ))}
         </div>
         {role === 'staff' ? <>
           <Field label={t('staff.pin')} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" />
           <p className="-mt-2 text-xs text-muted">{t('staff.pinHint')}</p>
-        </> : <p className="text-xs text-muted">{t('staff.ownerHint')}</p>}
-        <p className="text-xs text-muted">{t('staff.planLimit')}</p>
+        </> : <p className="text-xs text-muted">{role === 'accountant' ? t('caAccess.hint') : t('staff.ownerHint')}</p>}
+        {role !== 'accountant' && <p className="text-xs text-muted">{t('staff.planLimit')}</p>}
         <Button disabled={busy || name.trim().length < 2 || phone.trim().length < 10 || (role === 'staff' && pin.length < 4)} onClick={() => void add()}>
-          {t('staff.add')}
+          {role === 'accountant' ? t('caAccess.add') : t('staff.add')}
         </Button>
       </section>
     </div>

@@ -1,4 +1,4 @@
-using GroceryKhata.Api.Common;
+﻿using GroceryKhata.Api.Common;
 
 namespace GroceryKhata.Api.Identity;
 
@@ -74,6 +74,9 @@ public enum ShopRole
 {
     Owner,
     Staff,
+
+    /// <summary>The shop's CA or accountant: sees what the owner sees (reports, GST, books), changes nothing.</summary>
+    Accountant,
 }
 
 /// <summary>

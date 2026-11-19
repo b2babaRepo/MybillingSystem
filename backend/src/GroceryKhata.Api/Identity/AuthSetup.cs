@@ -1,4 +1,4 @@
-using System.Threading.RateLimiting;
+﻿using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -66,7 +66,9 @@ public static class AuthSetup
                 .RequireAuthenticatedUser()
                 .RequireClaim(AppClaims.ShopId)
                 .RequireClaim(AppClaims.MembershipId)
-                .RequireClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner)))
+                // The owner; or the shop's accountant, only to read (what the owner sees, never a change).
+                .RequireAssertion(context => context.User.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))
+                    || (context.User.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Accountant)) && context.Resource is HttpContext http && ReadOnlyAccess.IsRead(http.Request.Method))))
             .AddPolicy(AppPolicies.PlatformAdmin, policy => policy
                 .RequireAuthenticatedUser()
                 .AddRequirements(new Shops.PlatformAdminRequirement()))

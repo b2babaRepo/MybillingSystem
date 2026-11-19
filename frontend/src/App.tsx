@@ -228,11 +228,12 @@ export default function App() {
   const shop = session.memberships.find((m) => m.shopId === session.shopId)
   return (
     <Shop shopId={session.shopId} shopName={shop?.shopName ?? ''} shopSlug={shop?.shopSlug ?? ''} userName={session.user.fullName}
-      isOwner={session.role === 'owner'} onHousehold={() => switchTo(true)} />
+      isOwner={session.role === 'owner' || session.role === 'accountant'} readOnly={session.role === 'accountant'} onHousehold={() => switchTo(true)} />
   )
 }
 
-function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { shopId: string; shopName: string; shopSlug: string; userName: string; isOwner: boolean; onHousehold: () => void }) {
+/** `readOnly`: the shop's accountant (CA). They see the owner's screens; the server refuses any change they send. */
+function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false, onHousehold }: { shopId: string; shopName: string; shopSlug: string; userName: string; isOwner: boolean; readOnly?: boolean; onHousehold: () => void }) {
   const { t } = useTranslation()
   const path = usePath()
   const { pending, failed, state } = useOutbox(shopId)
@@ -420,6 +421,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, onHousehold }: { 
 
       {/* Desktop width: billing and the item list use the room; the other pages stay a readable width. */}
       <main className={`${menuOpen ? 'lg:ml-60' : 'lg:ml-16'} lg:mx-auto ${path === '/bill' || path === '/items' || path === '/items/pick' || path === '/khata' || path === '/dues' || path === '/inbox' || path === '/suppliers' || path === '/settings' || path === '/settings/staff' || customerMatch || orderMatch ? 'lg:max-w-6xl 2xl:max-w-[1500px]' : 'lg:max-w-4xl xl:max-w-5xl'}`}>
+        {readOnly && <p role="status" className="sticky top-14 z-20 mx-4 mt-3 rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-900 ring-1 ring-blue-200">🔒 {t('caAccess.banner', { shop: shopName })}</p>}
         {/* Keyed by screen: a page change shows the loading state at once, never the previous screen lingering. */}
         <Suspense key={customerMatch ? '/khata' : orderMatch ? '/inbox' : path} fallback={<Loading />}>
         {customerMatch ? (

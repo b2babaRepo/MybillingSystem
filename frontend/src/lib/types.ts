@@ -1,6 +1,6 @@
 // Shapes of the API's JSON (camelCase, enums in snake_case). Keep in step with backend/src/GroceryKhata.Api.
 
-export type ShopRole = 'owner' | 'staff'
+export type ShopRole = 'owner' | 'staff' | 'accountant'
 /** A platform admin's role: super (everything), approver (approve and block shops), support (notes, unlocking). */
 export type AdminRole = 'super' | 'approver' | 'support' | 'billing' | 'agent_manager'
 
