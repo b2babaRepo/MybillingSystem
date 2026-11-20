@@ -73,13 +73,15 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
   // Who to pay first: the oldest unpaid bills at the top, then the biggest dues.
   const anyOff = (suppliers.data ?? []).some((s) => s.isActive === false)
   const ordered = (suppliers.data ?? []).filter((s) => (showOff || s.isActive !== false) && s.name.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => (b.due > 0 ? 1 : 0) - (a.due > 0 ? 1 : 0) || (b.oldestDays ?? 0) - (a.oldestDays ?? 0) || b.due - a.due)
+  const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
   // Desktop: the supplier list stays on the left with the open supplier beside it; a phone shows one at a time.
   return (
     <ListDetail hasDetail={!!openId} detail={openId && <SupplierPage shopId={shopId} shopName={shopName} id={openId} onBack={() => setOpenId(null)} />} placeholder={t('suppliers.pick')} list={
     <div className="flex flex-col gap-3 p-4">
-      <div className="flex flex-wrap gap-2">
-        <button onClick={() => { setShowAdd(!showAdd); setShowImport(false) }} aria-expanded={showAdd} className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-4 font-bold ${btn.solid}`}><span aria-hidden className="text-xl leading-none">+</span>{t('suppliers.add')}</button>
-        <button onClick={() => { setShowImport(!showImport); setShowAdd(false) }} aria-expanded={showImport} className="min-h-11 rounded-xl border border-line bg-white px-4 text-sm font-semibold">{t('sup3.import')}</button>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="mr-auto text-xl font-extrabold">{t('suppliers.title')}</h1>
+        <button onClick={() => { setShowImport(!showImport); setShowAdd(false) }} aria-expanded={showImport} className={`flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm ${btn.outline}`}>{icon('M12 15V3M7 8l5-5 5 5M4 15v5h16v-5', 16)}{t('sup3.import')}</button>
+        <button onClick={() => { setShowAdd(!showAdd); setShowImport(false) }} aria-expanded={showAdd} className={`flex min-h-11 items-center gap-1.5 rounded-xl px-4 ${btn.solid}`}><span aria-hidden className="text-xl leading-none">+</span>{t('suppliers.add')}</button>
       </div>
       {showAdd && (
         <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
@@ -90,16 +92,39 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
         </section>
       )}
       {showImport && <SupplierImport shopId={shopId} open />}
+      {/* What is owed both ways, at a glance, as on the khata list. */}
       <div className="grid grid-cols-2 gap-2">
-        <section className="rounded-card bg-white p-3 shadow-sm">
-          <span className="text-xs font-semibold text-muted">{t('suppliers.totalDue')}</span>
-          <p className={`text-xl font-extrabold ${due > 0 ? 'text-due' : 'text-muted'}`}>{formatRupees(due)}</p>
+        <section className="flex min-h-[80px] flex-col justify-between rounded-card bg-due-soft p-3 shadow-sm ring-1 ring-black/5">
+          <span className="text-xs font-semibold text-due">{t('suppliers.totalDue')}</span>
+          <b className="text-xl text-due">{formatRupees(due)}</b>
         </section>
-        <section className="rounded-card bg-white p-3 shadow-sm">
-          <span className="text-xs font-semibold text-muted">{t('sup3.theyOwe')}</span>
-          <p className={`text-xl font-extrabold ${theyOwe > 0 ? 'text-jama' : 'text-muted'}`}>{formatRupees(theyOwe)}</p>
-          {theyOwe > 0 && <span className="text-[11px] text-muted">{t('sup3.theyOweHint')}</span>}
+        <section className="flex min-h-[80px] flex-col justify-between rounded-card bg-green-50 p-3 shadow-sm ring-1 ring-black/5">
+          <span className="text-xs font-semibold text-emerald-800">{t('sup3.theyOwe')}</span>
+          <b className="text-xl text-jama">{formatRupees(theyOwe)}</b>
+          {theyOwe > 0 && <span className="text-[11px] text-emerald-800">{t('sup3.theyOweHint')}</span>}
         </section>
+        <section className="flex min-h-[80px] flex-col justify-between rounded-card bg-white p-3 shadow-sm ring-1 ring-black/5">
+          <span className="text-xs font-semibold text-muted">{t('sup4.owing')}</span>
+          <b className="text-2xl">{(suppliers.data ?? []).filter((x) => x.due > 0).length}</b>
+        </section>
+        <section className="flex min-h-[80px] flex-col justify-between rounded-card bg-white p-3 shadow-sm ring-1 ring-black/5">
+          <span className="text-xs font-semibold text-muted">{t('sup4.all')}</span>
+          <b className="text-2xl">{(suppliers.data ?? []).filter((x) => x.isActive !== false).length}</b>
+        </section>
+      </div>
+      {/* The buying jobs, each in its own colour with a line icon on a white dot. */}
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { to: '/purchase-uploads', label: t('upload.link'), d: 'M12 15V3M7 8l5-5 5 5M4 15v5h16v-5', tone: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
+          { to: '/reorder', label: t('reorder.link'), d: 'M3 4h2l2.5 11h11L21 7H6M9 20h.01M18 20h.01', tone: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' },
+          { to: '/orders-placed', label: t('po.link'), d: 'M9 3h6v3H9zM6 5h3M15 5h3v16H6V5M9 13l2 2 4-4', tone: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]' },
+          { to: '/goods-to-come', label: t('gtc.link'), d: 'M2 6h13v11H2zM15 10h4l3 3v4h-7M6 20h.01M18 20h.01', tone: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
+        ].map((x) => (
+          <button key={x.to} onClick={() => navigate(x.to)} className={`flex min-h-[52px] items-center gap-2.5 rounded-2xl px-3 text-left text-sm font-bold transition active:scale-[0.98] ${x.tone}`}>
+            <span aria-hidden className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-white">{icon(x.d)}</span>
+            <span className="leading-tight">{x.label}</span>
+          </button>
+        ))}
       </div>
       {due > 0 && (
         <div className="grid grid-cols-3 gap-2 text-center">
@@ -132,7 +157,7 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
         {ordered.map((s) => (
           <li key={s.id}>
             <button onClick={() => setOpenId(s.id)} aria-current={openId === s.id ? 'true' : undefined} className={`flex min-h-16 w-full items-center gap-3 rounded-card bg-white px-3 py-2 text-left shadow-sm transition hover:bg-[#f6faf9] lg:hover:shadow-md ${openId === s.id ? 'lg:ring-2 lg:ring-brand' : ''}`}>
-              <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.due > 0 ? 'bg-due-soft text-due' : 'bg-[#edf2f1] text-muted'}`}>{s.name.split(/s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}</span>
+              <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.due > 0 ? 'bg-due-soft text-due' : s.due < 0 ? 'bg-green-50 text-jama' : 'bg-[#edf2f1] text-muted'}`}>{s.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}</span>
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate font-bold">{s.name}{s.isActive === false ? ` · ${t('supplier2.off')}` : ''}</span>
                 {s.due > 0 && (s.oldestDays ?? 0) > 0 && (
