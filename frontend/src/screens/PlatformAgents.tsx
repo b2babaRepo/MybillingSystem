@@ -21,7 +21,7 @@ const TABS: FieldAgentStatus[] = ['applied', 'approved', 'blocked', 'rejected']
 export function AgentsPanel() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const [tab, setTab] = useState<FieldAgentStatus>('applied')
   const agents = useQuery({ queryKey: ['platform', 'agents', tab], queryFn: () => api<FieldAgent[]>(`/v1/platform/agents?status=${tab}`), enabled: open })
   const waiting = useQuery({ queryKey: ['platform', 'agents', 'applied'], queryFn: () => api<FieldAgent[]>('/v1/platform/agents?status=applied') }).data?.length ?? 0
@@ -50,7 +50,7 @@ export function AgentsPanel() {
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
         <h2 className="text-lg font-bold">{t('agentsAdmin.title', { count: waiting })}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
         <p className="text-sm text-muted">{t('agentsAdmin.hint')}</p>
@@ -163,7 +163,7 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
   const review = role !== 'billing'
   const money = role === 'super' || role === 'billing'
   const first = review ? 'submitted' : 'payment'
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const [tab, setTab] = useState<(typeof REG_TABS)[number]>(first)
   const list = useQuery({ queryKey: ['platform', 'registrations', tab], queryFn: () => api<Registration[]>(`/v1/platform/registrations?status=${tab}`), enabled: open })
   const waiting = useQuery({ queryKey: ['platform', 'registrations', first], queryFn: () => api<Registration[]>(`/v1/platform/registrations?status=${first}`) }).data?.length ?? 0
@@ -188,7 +188,7 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
         <h2 className="text-lg font-bold">{t('registrations.title', { count: waiting })}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-ground p-1 text-xs font-semibold">
@@ -241,7 +241,7 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
 export function PerformancePanel({ role }: { role: AdminRole }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const rows = useQuery({ queryKey: ['platform', 'agent-performance'], queryFn: () => api<AgentPerformanceRow[]>('/v1/platform/agent-performance'), enabled: open })
   const pays = role === 'super' || role === 'billing'
   const [message, setMessage] = useState<string | null>(null)
@@ -264,7 +264,7 @@ export function PerformancePanel({ role }: { role: AdminRole }) {
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
         <h2 className="text-lg font-bold">{t('performance.title')}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
         <p className="text-sm text-muted">{t('performance.hint')}</p>

@@ -1,6 +1,6 @@
 import { SHOP_TYPES, type ShopType } from '../lib/reports'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BackIcon } from '../components/Icons'
 import { Button, btn } from '../components/ui'
@@ -91,6 +91,30 @@ export function PlatformScreen() {
     setStatus(next)
     setPlan('')
   }
+  const SECTION_ICON: Record<Section, string> = {
+    shops: 'M4 9l1-5h14l1 5M4 9h16v11H4zM9 20v-6h6v6', plans: 'M3 6h18v12H3zM3 10h18M7 15h3',
+    markets: 'M12 21s7-6 7-11a7 7 0 10-14 0c0 5 7 11 7 11zM12 8a2 2 0 100 4 2 2 0 000-4', items: 'M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01',
+    agents: 'M9 11a4 4 0 100-8 4 4 0 000 8zM2 21v-1a7 7 0 0114 0v1M17 3a4 4 0 010 8M22 21v-1a7 7 0 00-4-6', ai: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z',
+    admins: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+  }
+  const queryClient = useQueryClient()
+  // Shop ticks for approving several at once (new shops only).
+  const [picked, setPicked] = useState<string[]>([])
+  const [hideTest, setHideTest] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const canApprove = role === 'super' || role === 'approver'
+  const isTest = (s: ShopRow) => /\b(test|qa)\b|\(test\)/i.test(s.name)
+  const shown = (shops.data ?? []).filter((s) => !hideTest || !isTest(s))
+  async function approve(ids: string[]) {
+    setBulkBusy(true)
+    try {
+      for (const id of ids) await request(`/v1/platform/shops/${id}/approve`, 'POST', {})
+      setPicked([])
+      await queryClient.invalidateQueries({ queryKey: ['platform'] })
+    } finally {
+      setBulkBusy(false)
+    }
+  }
   const sections: { id: Section; label: string; show: boolean }[] = [
     { id: 'shops', label: t('platform.title'), show: true },
     { id: 'plans', label: t('platformNav.plans'), show: seesBilling },
@@ -104,7 +128,7 @@ export function PlatformScreen() {
   return (
     <div className="min-h-dvh bg-ground">
       <div className="mx-auto flex max-w-6xl flex-col pb-10 lg:flex-row">
-        <nav aria-label={t('platform.title')} className="z-10 bg-slate-800 text-white lg:sticky lg:top-0 lg:h-dvh lg:w-60 lg:shrink-0 lg:p-3">
+        <nav aria-label={t('platform.title')} className="z-10 bg-[#13241f] text-white lg:sticky lg:top-0 lg:h-dvh lg:w-60 lg:shrink-0 lg:p-3">
           <div className="flex items-center gap-2 px-4 py-3 lg:px-2">
             <button onClick={() => navigate('/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}><BackIcon /></button>
             <span className="text-lg font-bold">{t('platformNav.brand')}</span>
@@ -112,7 +136,11 @@ export function PlatformScreen() {
           <div className="flex gap-1 overflow-x-auto px-3 pb-2 lg:flex-col lg:overflow-visible lg:px-0">
             {sections.filter((x) => x.show).map((x) => (
               <button key={x.id} onClick={() => setSection(x.id)} aria-current={section === x.id ? 'page' : undefined}
-                className={`min-h-11 shrink-0 rounded-xl px-3 text-left font-semibold ${section === x.id ? 'bg-brand' : 'text-slate-200'}`}>{x.label}</button>
+                className={`flex min-h-11 shrink-0 items-center gap-3 rounded-xl px-3 text-left font-semibold transition ${section === x.id ? 'bg-brand text-white' : 'text-[#cfe0db] hover:bg-white/10'}`}>
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={SECTION_ICON[x.id]} /></svg>
+                <span className="flex-1">{x.label}</span>
+                {x.id === 'shops' && !!overview.data?.awaitingApproval && <span className="rounded-full bg-amber-400 px-2 text-xs font-extrabold text-amber-950">{overview.data.awaitingApproval}</span>}
+              </button>
             ))}
           </div>
         </nav>
@@ -122,20 +150,27 @@ export function PlatformScreen() {
             <h1 className="text-2xl font-extrabold">{t('platform.title')}</h1>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
               {tiles.map((x) => {
-                const body = <><div className="text-2xl font-extrabold tabular-nums">{x.value ?? '–'}</div><div className="text-xs">{x.label}</div></>
-                const style = `rounded-2xl p-3 text-left ${x.urgent ? 'bg-amber-100 text-warn-ink' : 'bg-white'}`
+                const body = <><div className="text-[28px] leading-none font-extrabold tabular-nums">{x.value ?? '–'}</div><div className="text-[13px] font-bold">{x.label}</div></>
+                const tones = ['bg-[#e3f2ee] text-[#0b5e4f]', 'bg-[#fde8ec] text-[#be123c]', 'bg-[#e8effd] text-[#1d4ed8]', 'bg-[#f1eafd] text-[#6d28d9]', 'bg-[#e0f2fe] text-[#0369a1]']
+                const style = `flex min-h-[84px] flex-col-reverse justify-between rounded-[18px] p-3 text-left transition ${x.urgent ? 'bg-[#b45309] text-white shadow-lg shadow-[#b45309]/30' : tones[Math.max(0, tiles.indexOf(x) - 1) % tones.length]}`
                 return x.onClick ? <button key={x.label} onClick={x.onClick} className={style}>{body}</button> : <div key={x.label} className={style}>{body}</div>
               })}
             </div>
             {role !== 'support' && <NewShop canBill={seesBilling} />}
             <section className="flex flex-col gap-3 rounded-2xl bg-white p-3">
               <label className="sr-only" htmlFor="platform-search">{t('platform.search')}</label>
-              <input id="platform-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('platform.searchWithId')}
-                className="min-h-12 rounded-2xl border border-line bg-white px-4" />
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="relative min-w-0 flex-1 basis-64">
+                  <span aria-hidden className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-muted"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-3.5-3.5" /></svg></span>
+                  <input id="platform-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('platform.searchWithId')}
+                    className="min-h-12 w-full rounded-2xl border border-line bg-[#f6faf9] pr-4 pl-11" />
+                </span>
+                <label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={hideTest} onChange={(e) => setHideTest(e.target.checked)} className="h-5 w-5" />{t('plat3.hideTest')}</label>
+              </div>
               <div role="tablist" className="grid grid-cols-4 gap-1 text-sm font-semibold">
                 {(['new', 'active', 'blocked', 'all'] as const).map((x) => (
                   <button key={x} role="tab" aria-selected={status === x} onClick={() => setStatus(x)}
-                    className={`min-h-11 rounded-xl ${status === x ? 'bg-brand text-white' : 'bg-ground'}`}>{t(`platform.tab.${x}`)}</button>
+                    className={`min-h-11 rounded-xl transition ${status === x ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'bg-ground text-muted hover:text-ink'}`}>{t(`platform.tab.${x}`)}</button>
                 ))}
               </div>
               <div className="flex flex-wrap gap-2" aria-label={t('plans.filter')}>
@@ -150,28 +185,67 @@ export function PlatformScreen() {
               </div>
             </section>
 
-            {shops.data?.length === 0 && <p className="p-6 text-center text-muted">{t('platform.none')}</p>}
-            <ul className="flex flex-col gap-2">
-              {shops.data?.map((s) => (
-                <li key={s.id} className="rounded-2xl bg-white">
-                  <button onClick={() => setOpenId(openId === s.id ? null : s.id)} aria-expanded={openId === s.id} className="flex w-full items-start gap-3 p-4 text-left">
-                    <span className="flex min-w-0 flex-1 flex-col lg:grid lg:grid-cols-[2fr_1fr_1fr] lg:gap-3">
-                      <span className="min-w-0">
-                        <span className="block truncate text-[17px] font-bold">{s.name}{s.shopCode && <span className="ml-2 font-mono text-xs font-semibold text-muted">{s.shopCode}</span>}</span>
-                        <span className="block truncate text-sm text-muted">{[s.area, formatDateTime(s.createdAt)].filter(Boolean).join(' · ')}</span>
-                      </span>
-                      <span className="truncate text-sm text-muted">{[s.ownerName, formatPhone(s.ownerPhone)].filter(Boolean).join(' · ')}</span>
-                      <span className="text-sm text-muted">
-                        {s.planCode && (s.planStatus === 'trial' ? t('plan2.status.trial') : `${plans.find((p) => p.code === s.planCode)?.name ?? s.planCode}${s.planStatus === 'active' || s.planStatus === 'grace' ? ` ${t('billing.paidTag')}` : ''}`)}
-                        {s.planEndsAt && ` · ${t('billing.until', { date: new Date(s.planEndsAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) })}`}
-                      </span>
-                    </span>
-                    <StatusChip shop={s} />
-                  </button>
-                  {openId === s.id && <ShopDetail id={s.id} role={role} />}
-                </li>
-              ))}
-            </ul>
+            {shops.data?.length === 0 && <p className="rounded-2xl bg-white p-6 text-center text-muted">{t('platform.none')}</p>}
+            {canApprove && picked.length > 0 && (
+              <div className="sticky top-2 z-10 flex flex-wrap items-center gap-3 rounded-2xl bg-[#13241f] px-4 py-2.5 text-white shadow-lg">
+                <b>{t('plat3.ticked', { count: picked.length })}</b>
+                <button disabled={bulkBusy} onClick={() => void approve(picked)} className="min-h-10 rounded-xl bg-green-400 px-4 font-bold text-green-950 disabled:opacity-50">{t('plat3.approveAll')}</button>
+                <button onClick={() => setPicked([])} className="ml-auto min-h-10 px-2 text-sm font-semibold underline">{t('plat3.clear')}</button>
+              </div>
+            )}
+            {shown.length > 0 && (
+              <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
+                <table className="w-full min-w-[820px] border-collapse text-sm">
+                  <thead className="bg-[#f6faf9] text-left text-[11px] tracking-wide text-muted uppercase">
+                    <tr>
+                      <th className="w-10 px-3 py-2.5">{canApprove && <input type="checkbox" aria-label={t('plat3.tickAll')} className="h-5 w-5"
+                        checked={shown.some((x) => !x.approvedAt && x.isActive) && shown.filter((x) => !x.approvedAt && x.isActive).every((x) => picked.includes(x.id))}
+                        onChange={(e) => setPicked(e.target.checked ? shown.filter((x) => !x.approvedAt && x.isActive).map((x) => x.id) : [])} />}</th>
+                      <th className="px-2 py-2.5">{t('plat3.shop')}</th>
+                      <th className="px-2 py-2.5">{t('plat3.owner')}</th>
+                      <th className="px-2 py-2.5">{t('plat3.plan')}</th>
+                      <th className="px-2 py-2.5">{t('plat3.status')}</th>
+                      <th className="px-3 py-2.5 text-right">{t('plat3.action')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shown.map((s) => {
+                      const waiting = s.isActive && !s.approvedAt
+                      return (
+                        <Fragment key={s.id}>
+                          <tr className={`border-t border-line ${openId === s.id || picked.includes(s.id) ? 'bg-[#eef7f4]' : 'hover:bg-[#f6faf9]'}`}>
+                            <td className="px-3 py-2.5">{canApprove && waiting && <input type="checkbox" aria-label={t('plat3.tick', { name: s.name })} checked={picked.includes(s.id)} className="h-5 w-5"
+                              onChange={(e) => setPicked(e.target.checked ? [...picked, s.id] : picked.filter((x) => x !== s.id))} />}</td>
+                            <td className="px-2 py-2.5">
+                              <button onClick={() => setOpenId(openId === s.id ? null : s.id)} aria-expanded={openId === s.id} className="flex items-center gap-2.5 text-left">
+                                <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-extrabold text-brand">{s.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}</span>
+                                <span className="flex min-w-0 flex-col">
+                                  <span className="flex flex-wrap items-center gap-1.5"><b>{s.name}</b>{isTest(s) && <span className="rounded-full bg-[#edf2f1] px-2 text-[11px] font-bold text-muted">{t('plat3.test')}</span>}</span>
+                                  <span className="text-xs text-muted">{[s.shopCode, s.area, formatDateTime(s.createdAt)].filter(Boolean).join(' · ')}</span>
+                                </span>
+                              </button>
+                            </td>
+                            <td className="px-2 py-2.5"><span className="flex flex-col"><span className="font-semibold">{s.ownerName}</span><span className="text-xs text-muted">{formatPhone(s.ownerPhone)}</span></span></td>
+                            <td className="px-2 py-2.5">
+                              <span className="flex flex-col">
+                                <span className="font-semibold">{s.planCode ? (s.planStatus === 'trial' ? t('plan2.status.trial') : `${plans.find((p) => p.code === s.planCode)?.name ?? s.planCode}${s.planStatus === 'active' || s.planStatus === 'grace' ? ` ${t('billing.paidTag')}` : ''}`) : '—'}</span>
+                                {s.planEndsAt && <span className="text-xs text-muted">{t('billing.until', { date: new Date(s.planEndsAt).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) })}</span>}
+                              </span>
+                            </td>
+                            <td className="px-2 py-2.5"><StatusChip shop={s} /></td>
+                            <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                              {canApprove && waiting && <button disabled={bulkBusy} onClick={() => void approve([s.id])} className={`mr-1.5 min-h-9 rounded-xl px-3 text-sm ${btn.solid}`}>{t('platform.approve')}</button>}
+                              <button onClick={() => setOpenId(openId === s.id ? null : s.id)} className={`min-h-9 rounded-xl px-3 text-sm ${btn.outline}`}>{openId === s.id ? t('plat3.close') : t('plat3.open')}</button>
+                            </td>
+                          </tr>
+                          {openId === s.id && <tr><td colSpan={6} className="border-t border-line bg-white"><ShopDetail id={s.id} role={role} /></td></tr>}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </>}
           {section === 'plans' && <><PlansPanel /><BillingPanel /></>}
           {section === 'markets' && <MarketsPanel />}
@@ -336,7 +410,7 @@ function MarketsPanel() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const markets = useMarkets().data ?? []
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const [draft, setDraft] = useState(emptyMarket)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -370,7 +444,7 @@ function MarketsPanel() {
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
         <h2 className="text-lg font-bold">{t('markets.title', { count: markets.length })}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
         <div className="grid grid-cols-2 gap-2">
@@ -600,10 +674,9 @@ function NewShop({ canBill }: { canBill: boolean }) {
 
   const input = 'h-12 rounded-xl border border-line bg-white px-3'
   return (
-    <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
-      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
-        <h2 className="text-lg font-bold">{t('openShop.title')}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+    <section className={`flex flex-col gap-3 ${open ? 'rounded-2xl bg-white p-4 shadow-sm' : ''}`}>
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className={`flex min-h-11 items-center gap-2 self-start rounded-xl px-4 ${open ? btn.outline : btn.solid}`}>
+        <span aria-hidden className="text-xl leading-none">{open ? '×' : '+'}</span>{t('openShop.title')}
       </button>
       {open && <>
         <p className="text-sm text-muted">{t('openShop.hint')}</p>
@@ -695,7 +768,7 @@ function ManageAdmins() {
   const [role, setRole] = useState<AdminRole>('support')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
 
   async function run(path: string, method: 'POST' | 'PUT' | 'DELETE', body?: object, done?: string) {
     setBusy(true)
@@ -716,7 +789,7 @@ function ManageAdmins() {
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
         <h2 className="text-lg font-bold">{t('admins.title')}{admins.data ? ` (${admins.data.length})` : ''}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
       <p className="text-sm text-muted">{t('admins.hint')}</p>

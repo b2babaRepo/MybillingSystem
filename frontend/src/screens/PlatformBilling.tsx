@@ -38,13 +38,14 @@ function useRun() {
   return { busy, message, run }
 }
 
-function Collapsible({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen)
+/** An admin section: open when the page opens (the section is the page now), and can be folded away. */
+function Collapsible({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true)
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
         <h2 className="text-lg font-bold">{title}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && children}
     </section>
@@ -62,7 +63,7 @@ export function AgentPanel({ role }: { role: AdminRole }) {
   const { busy, message, run } = useRun()
 
   return (
-    <Collapsible title={t('agent.title', { count: suggestions.length })} defaultOpen={suggestions.length > 0}>
+    <Collapsible title={t('agent.title', { count: suggestions.length })}>
       {briefing && (
         <div className="flex flex-col gap-1 rounded-xl bg-ground p-3 text-sm">
           <span className="font-semibold">{t('agent.week', { newShops: briefing.newShopsThisWeek, paying: briefing.paying, trials: briefing.trials, revenue: formatRupees(briefing.revenueThisMonth) })}</span>
@@ -106,7 +107,7 @@ export function BillingPanel() {
   const [newOffer, setNewOffer] = useState({ code: '', title: '', planCode: 'basic', term: 'year1' as PlanTerm, price: '', newShopsOnly: true })
 
   return (
-    <Collapsible title={t('billing.title', { count: overview?.pendingClaims.length ?? 0 })} defaultOpen={(overview?.pendingClaims.length ?? 0) > 0}>
+    <Collapsible title={t('billing.title', { count: overview?.pendingClaims.length ?? 0 })}>
       {overview && (
         <>
           <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
@@ -373,23 +374,25 @@ const ACTIONS: [RegExp, string][] = [
 /** Super admins: everything any admin changed, newest first. Written by the server; nobody can edit it. */
 export function ActivityPanel() {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const rows = useQuery({ queryKey: ['platform', 'activity'], queryFn: () => api<Activity[]>('/v1/platform/activity'), enabled: open })
   const label = (action: string) => {
     // Unblock and unlock also end in "block"/"lock": match the longer ones first.
-    const key = action.endsWith('unblock') ? 'unblock' : action.endsWith('unlock') ? 'unlock' : ACTIONS.find(([re]) => re.test(action))?.[1]
+    const key = /\/image\/?$/.test(action) ? 'photo' : action.endsWith('unblock') ? 'unblock' : action.endsWith('unlock') ? 'unlock' : ACTIONS.find(([re]) => re.test(action))?.[1]
     return key ? t(`activity.actions.${key}`) : action
   }
   const said = (d: Record<string, unknown>) => {
     const body = (d.body ?? {}) as Record<string, unknown>
-    return Object.entries(body).filter(([, v]) => v !== null && v !== '' && typeof v !== 'object').map(([k, v]) => `${k}: ${String(v)}`).join(' · ')
+    // A photo or file travels as a long data string: say what it was instead of printing it.
+    return Object.entries(body).filter(([, v]) => v !== null && v !== '' && typeof v !== 'object')
+      .map(([k, v]) => (typeof v === 'string' && (v.startsWith('data:') || v.length > 120) ? `${k}: ${t('activity.longValue')}` : `${k}: ${String(v)}`)).join(' · ')
   }
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
         <h2 className="text-lg font-bold">{t('activity.title')}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
         <p className="text-sm text-muted">{t('activity.hint')}</p>

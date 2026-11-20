@@ -163,7 +163,9 @@ export const adminText = {
       title: 'Admin activity',
       hint: 'Everything any admin changed: who, when, and what they sent. It can’t be edited.',
       none: 'Nothing yet.',
+      longValue: '(a photo or file)',
       actions: {
+        photo: 'Changed a master item photo',
         approve: 'Approved shop', block: 'Blocked shop', unblock: 'Unblocked shop', note: 'Support note', unlock: 'Unlocked a person',
         openShop: 'Opened a shop', addAdmin: 'Added admin', changeAdmin: 'Changed admin role', removeAdmin: 'Removed admin',
         confirmClaim: 'Confirmed UPI payment', rejectClaim: 'Rejected UPI payment', recordPayment: 'Recorded payment', refund: 'Refunded payment',
@@ -358,7 +360,9 @@ export const adminText = {
       title: 'एडमिन गतिविधि',
       hint: 'किसी भी एडमिन ने जो बदला: किसने, कब, और क्या भेजा। इसे बदला नहीं जा सकता।',
       none: 'अभी कुछ नहीं।',
+      longValue: '(फ़ोटो या फ़ाइल)',
       actions: {
+        photo: 'मास्टर सामान की फ़ोटो बदली',
         approve: 'दुकान मंज़ूर की', block: 'दुकान बंद की', unblock: 'दुकान फिर चालू की', note: 'सपोर्ट नोट', unlock: 'लॉक खोला',
         openShop: 'दुकान खोली', addAdmin: 'एडमिन जोड़ा', changeAdmin: 'एडमिन की भूमिका बदली', removeAdmin: 'एडमिन हटाया',
         confirmClaim: 'UPI भुगतान पक्का किया', rejectClaim: 'UPI भुगतान नहीं माना', recordPayment: 'भुगतान दर्ज किया', refund: 'रिफ़ंड किया',
