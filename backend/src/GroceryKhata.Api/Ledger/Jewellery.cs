@@ -563,7 +563,7 @@ public static class JewelleryEndpoints
             if (wastage is < 0 or > 50 || making < 0 || stoneValue < 0 || hallmark < 0) return (null, $"{name}: amounts must be zero or more.");
             var rate = l.RatePerGram ?? (rates.TryGetValue((metal, purity), out var r) ? r.SellPerGram : 0);
             if (fixedPrice is null && rate <= 0) return (null, $"Set today's {metal} rate first ({JewelleryMath.Karat(metal, purity)}).");
-            if (huid is null && metal == "gold" && fixedPrice is null) problems.Add($"{name}: no HUID. Gold jewellery must carry a BIS hallmark with HUID (pieces under 2 g and kundan/polki are exempt).");
+            if (huid is null && metal == "gold" && fixedPrice is null && gross >= 2) problems.Add($"{name}: no HUID. Gold jewellery must carry a BIS hallmark with HUID (pieces under 2 g and kundan/polki are exempt).");
             worked.Add(JewelleryMath.Line(n, l.PieceId, tag, name, metal, purity, gross, stone, decimal.Round(rate, 2), wastage, makingType, making, stoneValue, hallmark, huid, fixedPrice));
         }
 
@@ -615,6 +615,27 @@ public static class JewelleryEndpoints
         var cashLimit = Math.Max(0, JewelleryMath.CashLimit - 1 - cashToday);
         // Money already on the customer's khata as an advance (scheme instalments, order advances) pays towards this bill.
         var advance = customerId is { } who ? Math.Max(0, -(await db.Customers.AsNoTracking().Where(c => c.Id == who).Select(c => (decimal?)c.Balance).SingleOrDefaultAsync(ct) ?? 0)) : 0;
+        // Kerala: gold worth ₹10 lakh or more moved inside the state needs an e-way bill (Rule 138F).
+        if (total >= JewelleryReportEndpoints.KeralaEwayFrom)
+        {
+            var shop = await db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => new { s.State, s.Gstin }).SingleOrDefaultAsync(ct);
+            if (JewelleryReportEndpoints.IsKerala(shop?.State, shop?.Gstin)) problems.Add("Kerala: goods worth ₹10 lakh or more need an e-way bill if they are sent or carried out of the shop. Make it on the e-way bill portal.");
+        }
+
+        // PMLA: cash from this customer this financial year, with this bill's cash, may reach ₹10 lakh.
+        if (customerId is { } cashCustomer)
+        {
+            var (_, fyFrom, _) = JewelleryReportEndpoints.Year(null, clock);
+            var fyStart = IndiaTime.Day(fyFrom).Start;
+            // Cancelled bills don't count: the cash went back.
+            var yearCash = await (from j in db.JewelleryBills
+                                  join b in db.Bills on j.BillId equals b.Id
+                                  where j.CustomerId == cashCustomer && j.Mode == PaymentMode.Cash && j.CreatedAt >= fyStart && b.CancelledAt == null
+                                  select (decimal?)j.MoneyPaid).SumAsync(ct) ?? 0;
+            if (yearCash > 0 && yearCash + Math.Min(total, cashLimit) >= JewelleryReportEndpoints.PmlaLimit)
+                problems.Add($"Cash from this customer this year is ₹{yearCash:N0}. Cash of ₹10 lakh or more in a year must be kept on record and reported (PMLA): see Jewellery reports.");
+        }
+
         var quote = new JewelleryQuoteDto(worked, taxable, gst, roundOff, total, olds, oldValue, total - oldValue, total >= JewelleryMath.PanFrom, cashLimit, problems, schemeDiscount, advance);
         return (new Worked(quote, pieces), null);
     }

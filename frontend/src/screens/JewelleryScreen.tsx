@@ -9,9 +9,10 @@ import { formatRupees } from '../lib/format'
 import { GOLD_PURITIES, SILVER_PURITIES, grams, karat, type JewelleryBill, type JewelleryPiece, type JewelleryQuote, type MakingType, type Metal, type MetalRates } from '../lib/jewellery'
 import { navigate } from '../router'
 import { ApprovalsPanel, GirviPanel, OrdersPanel, SchemesPanel, type Member } from './JewelleryBookPanels'
+import { JewelleryReportsPanel } from './JewelleryReportsPanel'
 import { StonesEditor, TraysPanel, WeighButton, WorkshopPanel, stoneBody, stoneToDraft, useScales, type StoneDraft } from './JewelleryWorkshopPanels'
 
-type Tab = 'bill' | 'stock' | 'rates' | 'girvi' | 'schemes' | 'orders' | 'approvals' | 'workshop' | 'trays'
+type Tab = 'bill' | 'stock' | 'rates' | 'girvi' | 'schemes' | 'orders' | 'approvals' | 'workshop' | 'trays' | 'reports'
 const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
 const box = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3 outline-none focus:border-brand-line'
 const num = (v: string) => v.replace(/[^\d.]/g, '')
@@ -36,6 +37,7 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
     { key: 'approvals', label: t('jwl2.tabApprovals'), d: 'M14 3H6v18h12V7zM14 3v4h4M9 13l2 2 4-4', on: 'bg-[#6d28d9] text-white shadow-lg shadow-[#6d28d9]/30', off: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
     { key: 'workshop', label: t('jwl3.tabWorkshop'), d: 'M14 7l3-3 3 3-3 3zM4 20l9-9M12 4l8 8M3 13l4 4', on: 'bg-[#a1460a] text-white shadow-lg shadow-[#a1460a]/30', off: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' },
     { key: 'trays', label: t('jwl3.tabTrays'), d: 'M3 7h18v4H3zM5 11v8h14v-8M9 15h6', on: 'bg-[#33423d] text-white shadow-lg shadow-[#33423d]/30', off: 'bg-[#edf2f1] text-[#33423d] hover:bg-[#e2eae8]' },
+    { key: 'reports', label: t('jwl4.tab'), d: 'M4 20V10M10 20V4M16 20v-7M22 20H2', on: 'bg-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/30', off: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe6fc]' },
   ]
   const gold22 = rates.data?.current.find((r) => r.metal === 'gold' && r.purity === 916)
   const stampDue = useScales(shopId).filter((s) => s.isActive && s.stampedUntil && s.daysLeft <= 30)
@@ -49,7 +51,7 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
         {silver && <span className="rounded-full bg-[#edf2f1] px-3 py-1 text-sm font-bold">{t('jwl.silver')} {formatRupees(silver.sellPerGram * 1000)}/kg</span>}
         {stampDue.map((s) => <button key={s.id} onClick={() => setTab('trays')} className="rounded-full bg-due-soft px-3 py-1 text-sm font-bold text-due">{s.daysLeft < 0 ? t('jwl3.stampChipExpired', { name: s.name }) : t('jwl3.stampChip', { name: s.name, days: s.daysLeft })}</button>)}
       </div>
-      <div role="tablist" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-9">
+      <div role="tablist" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {tabs.map((x) => (
           <button key={x.key} role="tab" aria-selected={shown === x.key} onClick={() => setTab(x.key)}
             className={`flex min-h-[52px] items-center justify-center gap-2.5 rounded-2xl px-3 text-sm font-bold transition active:scale-[0.98] ${shown === x.key ? x.on : x.off}`}>
@@ -66,6 +68,7 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
       {shown === 'approvals' && <ApprovalsPanel shopId={shopId} />}
       {shown === 'workshop' && <WorkshopPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'trays' && <TraysPanel shopId={shopId} isOwner={isOwner} />}
+      {shown === 'reports' && <JewelleryReportsPanel shopId={shopId} />}
     </div>
   )
 }

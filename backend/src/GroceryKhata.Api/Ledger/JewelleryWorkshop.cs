@@ -388,11 +388,13 @@ public static class JewelleryWorkshopEndpoints
     }
 
     /// <summary>The shop's own loose metal in fine grams: opening stock, old metal bought over the counter, and what went to and came from parties.</summary>
-    private static async Task<IResult> LooseAsync(AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> LooseAsync(AppDbContext db, CancellationToken ct) => TypedResults.Ok(await LooseMetalAsync(db, ct));
+
+    internal static async Task<List<LooseMetalDto>> LooseMetalAsync(AppDbContext db, CancellationToken ct)
     {
         var moves = await db.MetalMoves.AsNoTracking().Where(m => m.LooseEffect != 0).ToListAsync(ct);
         var old = await db.OldMetalPurchases.AsNoTracking().GroupBy(o => o.Metal).Select(x => new { x.Key, Fine = x.Sum(o => o.Fine) }).ToDictionaryAsync(x => x.Key, x => x.Fine, ct);
-        return TypedResults.Ok(new[] { "gold", "silver" }.Select(metal =>
+        return [.. new[] { "gold", "silver" }.Select(metal =>
         {
             var ms = moves.Where(m => m.Metal == metal).ToList();
             var opening = ms.Where(m => m.Kind == "opening").Sum(m => m.LooseEffect);
@@ -400,7 +402,7 @@ public static class JewelleryWorkshopEndpoints
             var to = -ms.Where(m => m.LooseEffect < 0).Sum(m => m.LooseEffect);
             var bought = old.GetValueOrDefault(metal);
             return new LooseMetalDto(metal, JewelleryMath.Grams(opening), JewelleryMath.Grams(bought), JewelleryMath.Grams(from), JewelleryMath.Grams(to), JewelleryMath.Grams(opening + bought + from - to));
-        }));
+        })];
     }
 
     // ---------------- stones (called from the piece endpoints) ----------------

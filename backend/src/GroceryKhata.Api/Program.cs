@@ -222,6 +222,7 @@ app.MapWhatsAppShopMessages();
 app.MapJewellery();
 app.MapJewelleryBook();
 app.MapJewelleryWorkshop();
+app.MapJewelleryReports();
 
 app.Run();
 
