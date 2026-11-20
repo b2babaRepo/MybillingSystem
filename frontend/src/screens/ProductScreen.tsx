@@ -7,7 +7,7 @@ import { isOutToday } from '../lib/local'
 import { billNameFor } from '../lib/billNames'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, Select, Sheet, btn } from '../components/ui'
+import { Button, Drawer, Field, Select, Sheet, btn } from '../components/ui'
 import { api, request } from '../lib/api'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { ask, tell } from '../components/Ask'
@@ -29,68 +29,102 @@ const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => 
 const REASONS: StockReason[] = ['damage', 'wastage', 'lost', 'stolen', 'destroyed', 'written_off', 'gift', 'free_sample', 'weight_loss', 'return', 'count_correction', 'other']
 const ItemLedger = lazy(() => import('../components/ItemLedger').then((module) => ({ default: module.ItemLedger })))
 
-/** One item: shelf count with "goods in" and "reduce", its details, and every stock change. */
+/** One item: shelf count with coloured jobs (goods in, reduce, edit, order), then tabs for its history, details, suppliers and photo. */
 export function ProductScreen({ shopId, productId }: { shopId: string; productId: string }) {
   const { t } = useTranslation()
   const { products } = useProducts(shopId)
   const product = products.find((p) => p.id === productId)
   const [moving, setMoving] = useState<'purchase' | 'adjustment' | null>(null)
+  const [tab, setTab] = useState<'history' | 'details' | 'suppliers' | 'photo'>('history')
+  // Which coloured job is lit: Goods in until another is pressed.
+  const [act, setAct] = useState<'in' | 'out' | 'edit' | 'order'>('in')
 
   if (!product) return <p className="p-4 text-muted">…</p>
 
+  const icon = (d: string) => <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
+  const ACTIONS = {
+    in: { on: 'bg-[#0b5e4f] text-white shadow-lg shadow-[#0b5e4f]/30', off: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
+    out: { on: 'bg-[#be123c] text-white shadow-lg shadow-[#be123c]/30', off: 'bg-[#fde8ec] text-[#be123c] hover:bg-[#fbd5dd]' },
+    edit: { on: 'bg-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/30', off: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]' },
+    order: { on: 'bg-[#a1460a] text-white shadow-lg shadow-[#a1460a]/30', off: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' },
+  } as const
+  type Act = keyof typeof ACTIONS
+  const action = (key: Act) => `flex min-h-[52px] cursor-pointer items-center justify-center gap-2.5 rounded-2xl px-3 text-sm font-bold whitespace-nowrap transition active:scale-[0.98] ${act === key ? ACTIONS[key].on : ACTIONS[key].off}`
+  const dot = (key: Act, d: string) => <span aria-hidden className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full ${act === key ? 'bg-white/20' : 'bg-white'}`}>{icon(d)}</span>
+  const photo = imageUrl(shopId, product.id, product.imageAt)
+  const tabs = [
+    ...(!product.pending ? [{ key: 'history', label: t('item3.history') }] : []),
+    { key: 'details', label: t('item3.details') },
+    ...(!product.pending && !product.isService ? [{ key: 'suppliers', label: t('item3.suppliers') }] : []),
+    { key: 'photo', label: t('item3.photo') },
+  ] as { key: 'history' | 'details' | 'suppliers' | 'photo'; label: string }[]
+  const shown = tabs.some((x) => x.key === tab) ? tab : tabs[0].key
+
   return (
     <div className="flex flex-col gap-3 p-4">
-      <section className="flex items-start justify-between gap-3 rounded-card bg-white p-4">
-        <span className="flex min-w-0 flex-col">
-          <span className="text-2xl font-bold">{itemName(product)}</span>
-          <span className="text-sm text-muted">
-            {product.sellingPrice > 0 ? `${formatRupees(product.sellingPrice)}/${t(`units.${product.unit}`)}` : t('stock.noPrice')}
-            {product.category && ` · ${product.category}`}
-          </span>
-          {(product.dailySales ?? 0) > 0 && !product.isService && product.stock > 0 && (() => {
-            const days = Math.floor(product.stock / product.dailySales!)
-            return <span className={`mt-1 w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${days <= 3 ? 'bg-due-soft text-due' : days <= 10 ? 'bg-warn-soft text-warn' : 'bg-emerald-50 text-emerald-800'}`}>
-              ⏳ {coverText(t, product.stock / product.dailySales!)} · {t('sl.perDay', { qty: Math.round(product.dailySales! * 10) / 10, unit: t(`units.${product.unit}`, { count: Math.round(product.dailySales! * 10) / 10 }) })}
+      {/* What it is, how much is on the shelf, and the jobs. Each opens on its own instead of every card stacked on the page. */}
+      <section className="flex flex-col gap-4 rounded-card bg-white p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          {photo
+            ? <img src={photo} alt="" className="h-16 w-16 shrink-0 rounded-2xl border border-line object-cover" />
+            : <span aria-hidden className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-xl font-extrabold text-brand">{itemName(product).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}</span>}
+          <span className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-2xl leading-tight font-extrabold">{itemName(product)}</span>
+            <span className="text-sm text-muted">
+              {product.sellingPrice > 0 ? `${formatRupees(product.sellingPrice)}/${t(`units.${product.unit}`)}` : t('stock.noPrice')}
+              {product.category && ` · ${product.category}`}
             </span>
-          })()}
-        </span>
-        <span className="flex flex-col items-end gap-1">
-          <StockBadge product={product} large />
-          {(product.promised ?? 0) > 0 && (
-            <button onClick={() => navigate('/holds')} className="text-right text-xs font-semibold text-warn underline">
-              {t('saleOrder.promised', { qty: product.promised })} · {(() => { const free = Math.round((product.stock - (product.reserved ?? 0) - product.promised!) * 1000) / 1000; return free >= 0 ? t('saleOrder.free', { qty: free }) : <span className="text-due">{t('saleOrder.short', { qty: -free })}</span> })()}
-            </button>
-          )}
-        </span>
+            {(product.dailySales ?? 0) > 0 && !product.isService && product.stock > 0 && (() => {
+              const days = Math.floor(product.stock / product.dailySales!)
+              return <span className={`w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${days <= 3 ? 'bg-due-soft text-due' : days <= 10 ? 'bg-warn-soft text-warn' : 'bg-emerald-50 text-emerald-800'}`}>
+                {coverText(t, product.stock / product.dailySales!)} · {t('sl.perDay', { qty: Math.round(product.dailySales! * 10) / 10, unit: t(`units.${product.unit}`, { count: Math.round(product.dailySales! * 10) / 10 }) })}
+              </span>
+            })()}
+          </span>
+          <span className={`flex shrink-0 flex-col items-end gap-1 rounded-2xl px-3 py-2 ${product.isService ? '' : product.stock <= 0 ? 'bg-due-soft' : product.isLow ? 'bg-warn-soft' : 'bg-[#edf2f1]'}`}>
+            <StockBadge product={product} large />
+            {(product.promised ?? 0) > 0 && (
+              <button onClick={() => navigate('/holds')} className="text-right text-xs font-semibold text-warn underline">
+                {t('saleOrder.promised', { qty: product.promised })} · {(() => { const free = Math.round((product.stock - (product.reserved ?? 0) - product.promised!) * 1000) / 1000; return free >= 0 ? t('saleOrder.free', { qty: free }) : <span className="text-due">{t('saleOrder.short', { qty: -free })}</span> })()}
+              </button>
+            )}
+          </span>
+        </div>
+        {/* Medicines sold loose: stock is in strips, so 9.5 strips of 10 reads as 9 strips and 5 tablets, as a chemist counts it. */}
+        {product.unitsPerPack && product.stock > 0 && (() => {
+          const tablets = Math.round(product.stock * product.unitsPerPack)
+          return <p className="rounded-xl bg-[#f6faf9] px-3 py-2 font-semibold">{t('loose.inHand', { strips: Math.floor(tablets / product.unitsPerPack), tablets: tablets % product.unitsPerPack })}</p>
+        })()}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {!product.isService && <button onClick={() => { setAct('in'); setMoving('purchase') }} aria-pressed={act === 'in'} className={action('in')}>{dot('in', 'M12 5v14M5 12h14')}{t('stock.goodsIn')}</button>}
+          {!product.isService && <button onClick={() => { setAct('out'); setMoving('adjustment') }} aria-pressed={act === 'out'} className={action('out')}>{dot('out', 'M5 12h14')}{t('stock.reduce')}</button>}
+          <button onClick={() => { setAct('edit'); setTab('details') }} aria-pressed={act === 'edit'} className={action('edit')}>{dot('edit', 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4')}{t('item3.edit')}</button>
+          {!product.isService && <button onClick={() => { setAct('order'); navigate('/reorder') }} className={action('order')}>{dot('order', 'M3 4h2l2.5 11h11L21 7H6M9 20h.01M18 20h.01')}{t('item3.order')}</button>}
+        </div>
       </section>
 
       {product.bagSize ? <BagCard shopId={shopId} product={product} /> : null}
 
-      {/* Medicines sold loose: stock is in strips, so 9.5 strips of 10 reads as 9 strips and 5 tablets, as a chemist counts it. */}
-      {product.unitsPerPack && product.stock > 0 && (() => {
-        const tablets = Math.round(product.stock * product.unitsPerPack)
-        return <p className="rounded-card bg-white p-4 text-lg font-semibold">💊 {t('loose.inHand', { strips: Math.floor(tablets / product.unitsPerPack), tablets: tablets % product.unitsPerPack })}</p>
-      })()}
-
-      <PhotoCard shopId={shopId} product={product} />
-
-      <div className="grid grid-cols-2 gap-2">
-        <Button tone="payment" className="h-14" onClick={() => setMoving('purchase')}>+ {t('stock.goodsIn')}</Button>
-        <Button tone="credit" className="h-14" onClick={() => setMoving('adjustment')}>− {t('stock.reduce')}</Button>
+      <div role="tablist" aria-label={itemName(product)} className="-mx-4 flex gap-1 overflow-x-auto border-b border-line px-4 [scrollbar-width:none]">
+        {tabs.map((x) => (
+          <button key={x.key} role="tab" aria-selected={shown === x.key} onClick={() => setTab(x.key)}
+            className={`min-h-12 shrink-0 border-b-[3px] px-3 text-sm whitespace-nowrap ${shown === x.key ? 'border-brand font-bold text-brand' : 'border-transparent font-semibold text-muted hover:text-ink'}`}>{x.label}</button>
+        ))}
       </div>
 
+      {shown === 'history' && <Suspense fallback={null}><ItemLedger productId={product.id} /></Suspense>}
       {/* Keyed by the saved values, so the form shows a new cost price once a purchase syncs. */}
-      <DetailsForm
-        key={`${product.id}:${product.name}:${product.sellingPrice}:${product.costPrice}:${product.reorderLevel}:${product.category}`}
-        shopId={shopId}
-        product={product}
-      />
+      {shown === 'details' && (
+        <DetailsForm
+          key={`${product.id}:${product.name}:${product.sellingPrice}:${product.costPrice}:${product.reorderLevel}:${product.category}`}
+          shopId={shopId}
+          product={product}
+        />
+      )}
+      {shown === 'suppliers' && <ItemSuppliersCard shopId={shopId} productId={product.id} unit={product.unit} />}
+      {shown === 'photo' && <PhotoCard shopId={shopId} product={product} />}
 
-      {!product.pending && !product.isService && <ItemSuppliersCard shopId={shopId} productId={product.id} unit={product.unit} />}
-
-      {!product.pending && <Suspense fallback={null}><ItemLedger productId={product.id} /></Suspense>}
-
-      {moving && <MoveSheet shopId={shopId} product={product} kind={moving} onClose={() => setMoving(null)} />}
+      {moving && <MoveSheet shopId={shopId} product={product} kind={moving} onClose={() => { setMoving(null); setAct('in') }} />}
     </div>
   )
 }
@@ -139,7 +173,7 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
   }
 
   return (
-    <Sheet title={kind === 'purchase' ? t('stock.goodsIn') : t('stock.reduce')} onClose={onClose}>
+    <Drawer title={`${kind === 'purchase' ? t('stock.goodsIn') : t('stock.reduce')} · ${itemName(product)}`} onClose={onClose}>
       <div className="space-y-3">
         <Field
           label={`${kind === 'purchase' ? t('stock.quantityIn') : t('stock.quantityOut')} (${t(`units.${product.unit}`)})`}
@@ -189,7 +223,7 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
           {t('save')}
         </Button>
       </div>
-    </Sheet>
+    </Drawer>
   )
 }
 
