@@ -68,7 +68,7 @@ function PickRows({ products, rows, onChange, withRate, listId, withBags = false
           })()}
         </div>
       ))}
-      <button onClick={() => onChange([...rows, blank])} className="min-h-11 font-semibold text-brand">+ {t('suppliers.addRow')}</button>
+      <button onClick={() => onChange([...rows, blank])} className={`min-h-11 self-start ${btn.add}`}>+ {t('suppliers.addRow')}</button>
     </>
   )
 }
@@ -134,7 +134,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
     <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-bold">{t('supplier2.orders')}</h2>
-        {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-brand">+ {t('supplier2.newOrder')}</button>}
+        {!rows && <button onClick={() => setRows([blank])} className={`min-h-11 self-start ${btn.add}`}>+ {t('supplier2.newOrder')}</button>}
       </div>
       {orders.length === 0 && !rows && <p className="text-sm text-muted">{t('supplier2.noOrders')}</p>}
       {orders.map((o) => {
@@ -225,7 +225,7 @@ export function ReturnsPanel({ shopId, supplierId, products }: { shopId: string;
     <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-bold">{t('supplier2.returns')}</h2>
-        {!rows && <button onClick={() => setRows([blank])} className="min-h-11 font-semibold text-brand">+ {t('supplier2.returnGoods')}</button>}
+        {!rows && <button onClick={() => setRows([blank])} className={`min-h-11 self-start ${btn.add}`}>+ {t('supplier2.returnGoods')}</button>}
       </div>
       {open.map((r) => {
         const c = credit[r.id] ?? { no: '', amount: String(r.value) }
@@ -384,7 +384,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
 }
 
 /** Suppliers from a file or a paste: name, phone, GSTIN and what is owed, checked before anything is saved. */
-export function SupplierImport({ shopId }: { shopId: string }) {
+export function SupplierImport({ shopId, open = false }: { shopId: string; open?: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [text, setText] = useState('')
@@ -404,7 +404,7 @@ export function SupplierImport({ shopId }: { shopId: string }) {
   }
 
   return (
-    <details className="rounded-card bg-white p-4 shadow-sm">
+    <details open={open} className="rounded-card bg-white p-4 shadow-sm">
       <summary className="min-h-11 cursor-pointer font-bold">{t('supplier2.import')}</summary>
       <p className="mb-2 text-sm text-muted">{t('supplier2.importHint')}</p>
       <input type="file" accept=".csv,text/csv,text/plain" aria-label={t('supplier2.import')} className="mb-2 text-sm"

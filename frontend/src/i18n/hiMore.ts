@@ -676,6 +676,7 @@ export const hiMore: TextsMore = {
     cost: 'जोड़ना मुफ़्त है। दुकान के भेजे हर संदेश पर Meta पैसा लेता है (बिल या याद दिलाने पर लगभग ₹0.12, ऑफ़र पर लगभग ₹0.86); 24 घंटे में ग्राहक को जवाब मुफ़्त है।',
     notSetUp: 'WhatsApp Business नंबर जोड़ना जल्द आएगा। तब तक WhatsApp बटन संदेश तैयार करके WhatsApp खोलते हैं।',
   },
+  sup3: { printPdf: 'प्रिंट / PDF', uploadBill: 'बिल अपलोड करें', addBill: 'बिल जोड़ें', placeOrder: 'ऑर्डर दें', returnGoods: 'माल वापस', import: 'फ़ाइल से लाएँ', theyOwe: 'सप्लायर आपको देंगे', theyOweHint: 'एडवांस और क्रेडिट नोट', itemsHint: 'इस सप्लायर से क्या ख़रीदा और आख़िरी रेट।' },
   waSend: { bill: 'दुकान के WhatsApp से भेजें', reminder: 'दुकान के WhatsApp से याद दिलाएँ', statement: 'दुकान के WhatsApp से स्टेटमेंट', sending: 'भेज रहे हैं…', sent: 'दुकान के नंबर से भेजा।' },
   waInbox: { link: 'WhatsApp इनबॉक्स', title: 'WhatsApp इनबॉक्स', empty: 'अभी कोई संदेश नहीं। दुकान के नंबर पर लिखने वाले ग्राहक यहाँ दिखेंगे।', pick: 'कोई बातचीत चुनें।', you: 'आप', khata: 'खाता खोलें',
     lastBill: 'आख़िरी बिल भेजें', type: 'जवाब लिखें', send: 'भेजें', windowClosed: 'WhatsApp ग्राहक के आख़िरी संदेश के 24 घंटे तक ही लिखा जवाब भेजने देता है। बिल, याद या स्टेटमेंट भेजें।',

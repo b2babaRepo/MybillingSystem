@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ItemPicker } from '../components/ItemPicker'
-import { Button, control } from '../components/ui'
+import { Button, control, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
@@ -123,7 +123,7 @@ export function GodownsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
               </div>
             )
           })}
-          <button onClick={() => setRows([...rows, blank])} className="min-h-11 font-semibold text-brand">+ {t('suppliers.addRow')}</button>
+          <button onClick={() => setRows([...rows, blank])} className={`min-h-11 self-start ${btn.add}`}>+ {t('suppliers.addRow')}</button>
           <input aria-label={t('po.note')} placeholder={t('godown.note')} value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} className={input} />
           <div className="grid grid-cols-2 gap-2">
             <Button disabled={valid.length === 0 || from === to} onClick={() => void move()}>{t('godown.save')}</Button>

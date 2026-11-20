@@ -674,6 +674,7 @@ export const enMore = {
     cost: 'Free to connect. Meta charges per message the shop starts (about ₹0.12 for a bill or reminder, about ₹0.86 for an offer); replies to customers within 24 hours are free.',
     notSetUp: 'Connecting a WhatsApp Business number will be available soon. Until then, the WhatsApp buttons open WhatsApp with the message ready.',
   },
+  sup3: { printPdf: 'Print / PDF', uploadBill: 'Upload bill', addBill: 'Add bill', placeOrder: 'Place order', returnGoods: 'Return goods', import: 'Import from file', theyOwe: 'Suppliers owe you', theyOweHint: 'Advances and credit notes', itemsHint: 'What you have bought from this supplier and the last rate.' },
   waSend: { bill: 'Send from shop WhatsApp', reminder: 'Reminder from shop WhatsApp', statement: 'Statement from shop WhatsApp', sending: 'Sending…', sent: 'Sent from the shop number.' },
   waInbox: { link: 'WhatsApp inbox', title: 'WhatsApp inbox', empty: 'No messages yet. Customers who write to the shop number appear here.', pick: 'Pick a conversation.', you: 'You', khata: 'Open khata',
     lastBill: 'Send last bill', type: 'Type a reply', send: 'Send', windowClosed: 'WhatsApp allows a typed reply only within 24 hours of the customer\'s last message. Send a bill, reminder or statement instead.',

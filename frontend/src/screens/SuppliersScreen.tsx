@@ -9,12 +9,12 @@ import { ListDetail } from '../components/ListDetail'
 import { enqueue } from '../lib/outbox'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, btn } from '../components/ui'
+import { Button, Drawer, Field, btn } from '../components/ui'
 import { NetworkError, api, request } from '../lib/api'
 import { billFile } from '../lib/billFile'
 import { DataTable } from '../components/DataTable'
 import { useProducts } from '../lib/data'
-import { formatRupees } from '../lib/format'
+import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { confirmAsk } from '../components/Ask'
@@ -49,6 +49,8 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
   const [message, setMessage] = useState('')
   const [search, setSearch] = useState('')
   const [showOff, setShowOff] = useState(false)
+  const [showAdd, setShowAdd] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const refresh = () => queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
 
   async function add() {
@@ -57,7 +59,9 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
       const id = crypto.randomUUID()
       await api('/v1/suppliers', 'POST', { id, name: draft.name.trim(), phone: draft.phone.trim() || null })
       setDraft({ name: '', phone: '' })
+      setShowAdd(false)
       await refresh()
+      setOpenId(id)
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
     }
@@ -73,20 +77,39 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
   return (
     <ListDetail hasDetail={!!openId} detail={openId && <SupplierPage shopId={shopId} shopName={shopName} id={openId} onBack={() => setOpenId(null)} />} placeholder={t('suppliers.pick')} list={
     <div className="flex flex-col gap-3 p-4">
-      <section className="rounded-card bg-white p-4 shadow-sm">
-        <span className="text-sm font-semibold text-muted">{t('suppliers.totalDue')}</span>
-        <p className="text-2xl font-extrabold text-due">{formatRupees(due)}</p>
-        {theyOwe > 0 && <p className="text-sm text-muted">{t('supplier2.theyOweTotal', { amount: formatRupees(theyOwe) })}</p>}
-        {due > 0 && (
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <span className="rounded-xl bg-blue-50 p-2 text-blue-800"><span className="block text-xs">{t('suppliers.age0')}</span><b>{formatRupees(sum('days0To15'))}</b></span>
-            <span className="rounded-xl bg-orange-50 p-2 text-orange-800"><span className="block text-xs">{t('suppliers.age16')}</span><b>{formatRupees(sum('days16To30'))}</b></span>
-            <span className="rounded-xl bg-due-soft p-2 text-red-800"><span className="block text-xs">{t('suppliers.age30')}</span><b>{formatRupees(sum('over30'))}</b></span>
-          </div>
-        )}
-      </section>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => { setShowAdd(!showAdd); setShowImport(false) }} aria-expanded={showAdd} className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-4 font-bold ${btn.solid}`}><span aria-hidden className="text-xl leading-none">+</span>{t('suppliers.add')}</button>
+        <button onClick={() => { setShowImport(!showImport); setShowAdd(false) }} aria-expanded={showImport} className="min-h-11 rounded-xl border border-line bg-white px-4 text-sm font-semibold">{t('sup3.import')}</button>
+      </div>
+      {showAdd && (
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
+          <Field label={t('suppliers.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={120} autoFocus />
+          <Field label={t('suppliers.phone')} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} inputMode="tel" />
+          <Button disabled={draft.name.trim().length < 2} onClick={() => void add()}>{t('suppliers.add')}</Button>
+          {message && <p className="text-sm text-due">{message}</p>}
+        </section>
+      )}
+      {showImport && <SupplierImport shopId={shopId} open />}
+      <div className="grid grid-cols-2 gap-2">
+        <section className="rounded-card bg-white p-3 shadow-sm">
+          <span className="text-xs font-semibold text-muted">{t('suppliers.totalDue')}</span>
+          <p className={`text-xl font-extrabold ${due > 0 ? 'text-due' : 'text-muted'}`}>{formatRupees(due)}</p>
+        </section>
+        <section className="rounded-card bg-white p-3 shadow-sm">
+          <span className="text-xs font-semibold text-muted">{t('sup3.theyOwe')}</span>
+          <p className={`text-xl font-extrabold ${theyOwe > 0 ? 'text-jama' : 'text-muted'}`}>{formatRupees(theyOwe)}</p>
+          {theyOwe > 0 && <span className="text-[11px] text-muted">{t('sup3.theyOweHint')}</span>}
+        </section>
+      </div>
+      {due > 0 && (
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <span className="rounded-xl bg-blue-50 p-2 text-blue-800"><span className="block text-xs">{t('suppliers.age0')}</span><b>{formatRupees(sum('days0To15'))}</b></span>
+          <span className="rounded-xl bg-orange-50 p-2 text-orange-800"><span className="block text-xs">{t('suppliers.age16')}</span><b>{formatRupees(sum('days16To30'))}</b></span>
+          <span className="rounded-xl bg-due-soft p-2 text-red-800"><span className="block text-xs">{t('suppliers.age30')}</span><b>{formatRupees(sum('over30'))}</b></span>
+        </div>
+      )}
       <span className="relative block">
-        <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">🔍</span>
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
         <input type="search" aria-label={t('supplier2.search')} placeholder={t('supplier2.search')} value={search} onChange={(e) => setSearch(e.target.value)} className="h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-3 shadow-sm outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
       </span>
       {anyOff && <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} className="h-5 w-5" />{t('supplier2.showOff')}</label>}
@@ -122,14 +145,6 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
           </li>
         ))}
       </ul>
-      <SupplierImport shopId={shopId} />
-      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
-        <h2 className="font-bold">{t('suppliers.add')}</h2>
-        <Field label={t('suppliers.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={120} />
-        <Field label={t('suppliers.phone')} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} inputMode="tel" />
-        <Button disabled={draft.name.trim().length < 2} onClick={() => void add()}>{t('suppliers.add')}</Button>
-        {message && <p className="text-sm text-due">{message}</p>}
-      </section>
     </div>} />
   )
 }
@@ -156,6 +171,11 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
   const [editing, setEditing] = useState<{ name: string; phone: string; gstin: string; address: string; days: string; active: boolean } | null>(null)
   const [opening, setOpening] = useState({ amount: '', owed: true, asOf: '' })
   const [view, setView] = useState<'all' | 'bills' | 'payments'>('all')
+  // One view at a time: the tab below the header, and a drawer for paying or adding a bill.
+  const [tab, setTab] = useState<'statement' | 'orders' | 'goods' | 'returns' | 'items'>('statement')
+  const [panel, setPanel] = useState<'pay' | 'bill' | null>(null)
+  // Which of the header's jobs is lit: Pay supplier until another is pressed.
+  const [act, setAct] = useState<'pay' | 'bill' | 'upload' | 'order' | 'return'>('pay')
   const [openBill, setOpenBill] = useState<string | null>(null)
   // The order these goods came against: the bill starts as what is still to come, and saving counts it off.
   const [against, setAgainst] = useState<PurchaseOrder | null>(null)
@@ -166,12 +186,12 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
     setAgainst(order)
     setFromReceipts([receipt])
     setRows(receipt.lines.map((l) => ({ ...empty, productId: l.productId, quantity: String(l.quantity) })))
-    document.getElementById('supplier-bill')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setPanel('bill')
   }
   const goodsCame = (order: PurchaseOrder) => {
     setAgainst(order)
     setRows(order.lines.filter((l) => l.received < l.quantity).map((l) => ({ ...empty, productId: l.productId, quantity: String(l.quantity - l.received), unitCost: l.rate != null ? String(l.rate) : '' })))
-    document.getElementById('supplier-bill')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setPanel('bill')
   }
   const bill = useQuery({ queryKey: [shopId, 'suppliers', 'bill', openBill], queryFn: () => api<BillDetail>(`/v1/suppliers/purchases/${openBill}`), enabled: !!openBill }).data
   const ai = useQuery({ queryKey: ['ai-status'], queryFn: () => api<{ consentedAt: string | null; canReadPhotos: boolean }>('/v1/me/ai') }).data
@@ -221,12 +241,31 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       // Read by the AI: its lines go in. Not read: the bill shows beside the form to type from.
       if (picked.draft) applyDraft(picked.draft)
       setFromUpload(picked.uploadId)
-      setTimeout(() => document.getElementById('supplier-bill')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
+      setPanel('bill')
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+  // A photo or PDF of this supplier's bill: kept on the Uploaded bills list, read by the AI when it is on, and shown
+  // beside the bill form either way, so the owner can check or type it in.
+  const uploadBill = async (file: File) => {
+    setMessage('')
+    setReading(true)
+    try {
+      const image = await billFile(file, t('upload.pdfTooBig'))
+      const up = await api<{ id: string }>('/v1/suppliers/uploads', 'POST', { imageDataUrl: image })
+      if (ai?.canReadPhotos && ai.consentedAt) {
+        try { applyDraft(await api<InvoiceDraft>('/v1/suppliers/purchases/photo', 'POST', { imageDataUrl: image })) } catch (e) { setMessage(e instanceof Error ? e.message : t('error')) }
+      }
+      setFromUpload(up.id)
+      setPanel('bill')
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setReading(false)
+    }
+  }
   const agree = async () => {
     await request('/v1/me/ai/consent', 'POST', { agree: true })
     await queryClient.invalidateQueries({ queryKey: ['ai-status'] })
@@ -301,6 +340,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
     setCharges(noCharges)
     setAgainst(null)
     setPhotoNote(null)
+    setPanel(null)
   })
   const cancelBill = async (purchaseId: string) => { if ((await confirmAsk(t('suppliers.cancelConfirm')))) void run(() => guarded(() => api(`/v1/suppliers/purchases/${purchaseId}/cancel`, 'POST', {}))) }
   const startEdit = () => setEditing(s ? { name: s.name, phone: s.phone ?? '', gstin: s.gstin ?? '', address: s.address ?? '', days: s.paymentDays ? String(s.paymentDays) : '', active: s.isActive !== false } : null)
@@ -318,6 +358,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
     setPay('')
     setReference('')
     setPaidOn('')
+    setPanel(null)
   })
   const set = (i: number, key: keyof Row, value: string) => setRows(rows.map((r, x) => (x === i ? { ...r, [key]: value } : r)))
   // Typed names find an item; only an exact name sets it, so a half-typed word can't land on the wrong one.
@@ -328,17 +369,64 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
 
   const s = detail.data?.supplier
   const input = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
+  const modePick = (
+    <div role="group" aria-label={t('suppliers.mode')} className="flex flex-col gap-1">
+      <span className="text-sm font-medium text-muted">{t('suppliers.mode')}</span>
+      <div className="grid grid-cols-3 gap-2">
+        {(['cash', 'upi', 'bank'] as const).map((m) => (
+          <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}
+            className={`min-h-11 rounded-xl text-sm font-semibold ${mode === m ? 'border-2 border-brand bg-brand-soft text-brand' : 'border border-line bg-white'}`}>{t(m)}</button>
+        ))}
+      </div>
+    </div>
+  )
+  const initials = (s?.name ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')
+  const tabs = [
+    { key: 'statement', label: t('supplier2.statement') },
+    { key: 'orders', label: t('supplier2.orders') },
+    { key: 'goods', label: t('receipt.title') },
+    { key: 'returns', label: t('supplier2.returns') },
+    { key: 'items', label: t('rs.supplierItems') },
+  ] as const
+  const icon = (d: string) => <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
+  // Each job keeps its own colour; the one in use is filled, the rest a soft tint with the icon on a white dot.
+  const ACTIONS = {
+    pay: { on: 'bg-[#0b5e4f] text-white shadow-lg shadow-[#0b5e4f]/30', off: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
+    bill: { on: 'bg-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/30', off: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]' },
+    upload: { on: 'bg-[#6d28d9] text-white shadow-lg shadow-[#6d28d9]/30', off: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
+    order: { on: 'bg-[#a1460a] text-white shadow-lg shadow-[#a1460a]/30', off: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' },
+    return: { on: 'bg-[#be123c] text-white shadow-lg shadow-[#be123c]/30', off: 'bg-[#fde8ec] text-[#be123c] hover:bg-[#fbd5dd]' },
+  } as const
+  const action = (key: keyof typeof ACTIONS) => `flex min-h-[52px] cursor-pointer items-center justify-center gap-2.5 rounded-2xl px-3 text-sm font-bold whitespace-nowrap transition active:scale-[0.98] ${act === key ? ACTIONS[key].on : ACTIONS[key].off}`
+  const dot = (key: keyof typeof ACTIONS, d: string) => <span aria-hidden className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full ${act === key ? 'bg-white/20' : 'bg-white'}`}>{icon(d)}</span>
   return (
     <div className="flex flex-col gap-3 p-4">
-      <button onClick={onBack} className="min-h-11 self-start font-semibold text-brand">← {t('suppliers.all')}</button>
-      <section className="flex items-center justify-between rounded-card bg-white p-4 shadow-sm">
-        <span className="flex min-w-0 flex-col"><span className="truncate text-lg font-bold">{s?.name}</span>
-          <span className="flex gap-3 text-sm"><button onClick={startEdit} className={`min-h-11 ${btn.link}`}>{t('supplier2.edit')}</button>
-          <button onClick={() => document.getElementById('supplier-statement')?.scrollIntoView({ behavior: 'smooth' })} className={`min-h-11 ${btn.link}`}>{t('supplier2.statement')}</button></span></span><span className="text-right text-xl font-extrabold text-due">{s ? formatRupees(Math.abs(s.due)) : '–'}{s && s.due !== 0 && <span className="block text-xs font-normal text-muted">{t(s.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>
+      <button onClick={onBack} className="min-h-11 self-start font-semibold text-brand lg:hidden">← {t('suppliers.all')}</button>
+
+      {/* Who, what is owed, and the four jobs. Each job opens on its own instead of every form stacked on the page. */}
+      <section className="flex flex-col gap-4 rounded-card bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-soft text-lg font-extrabold text-brand">{initials}</span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-xl font-extrabold">{s?.name}</span>
+            <span className="flex flex-wrap items-center gap-x-2 text-sm text-muted">{s?.phone}{s?.phone && <span aria-hidden>·</span>}<button onClick={startEdit} className={`min-h-9 ${btn.link}`}>{t('supplier2.edit')}</button></span>
+          </span>
+          <span className={`shrink-0 text-right text-2xl font-extrabold ${s && s.due < 0 ? 'text-jama' : s && s.due > 0 ? 'text-due' : 'text-muted'}`}>{s ? formatRupees(Math.abs(s.due)) : '–'}{s && s.due !== 0 && <span className="block text-xs font-normal text-muted">{t(s.due > 0 ? 'heads.weOwe' : 'heads.theyOwe')}</span>}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+          <button onClick={() => { setAct('pay'); setPanel('pay') }} aria-pressed={act === 'pay'} className={action('pay')}>{dot('pay', 'M3 6h18v12H3zM12 9.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5')}{t('suppliers.pay')}</button>
+          <button onClick={() => { setAct('bill'); setPanel('bill') }} aria-pressed={act === 'bill'} className={action('bill')}>{dot('bill', 'M6 2h9l4 4v16H6zM9 11h7M9 15h7')}{t('sup3.addBill')}</button>
+          <label className={`${action('upload')} ${reading ? 'opacity-60' : ''}`}>{dot('upload', 'M12 15V3M7 8l5-5 5 5M4 15v5h16v-5')}{reading ? t('invoicePhoto.reading') : t('sup3.uploadBill')}
+            <input type="file" accept="image/*,application/pdf" className="sr-only" disabled={reading} aria-label={t('sup3.uploadBill')}
+              onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; setAct('upload'); if (file) void uploadBill(file) }} /></label>
+          <button onClick={() => { setAct('order'); setTab('orders') }} aria-pressed={act === 'order'} className={action('order')}>{dot('order', 'M3 4h2l2.5 11h11L21 7H6M9 20h.01M18 20h.01')}{t('sup3.placeOrder')}</button>
+          <button onClick={() => { setAct('return'); setTab('returns') }} aria-pressed={act === 'return'} className={action('return')}>{dot('return', 'M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3')}{t('sup3.returnGoods')}</button>
+        </div>
+        {message && !panel && <p role="status" className="rounded-xl bg-brand-soft p-2 text-sm font-semibold text-brand-deep">{message}</p>}
       </section>
 
       {editing && (
-        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
+        <Drawer title={t('supplier2.edit')} onClose={() => setEditing(null)}>
           <Field label={t('suppliers.name')} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} maxLength={120} />
           <Field label={t('suppliers.phone')} value={editing.phone} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} inputMode="tel" />
           <Field label={t('supplier2.gstin')} value={editing.gstin} onChange={(e) => setEditing({ ...editing, gstin: e.target.value })} maxLength={15} autoCapitalize="characters" />
@@ -349,16 +437,28 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
             <Button disabled={editing.name.trim().length < 2} onClick={() => void saveDetails()}>{t('save')}</Button>
             <button onClick={() => setEditing(null)} className="min-h-12 rounded-2xl border border-line font-semibold">{t('cancel')}</button>
           </div>
-        </section>
+        </Drawer>
       )}
 
-      <section id="supplier-statement" className="flex scroll-mt-4 flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-bold">{t('supplier2.statement')}</h2>
-          <button onClick={() => navigate(`/print/supplier/${id}`)} className={`min-h-11 text-sm ${btn.link}`}>🖨 {t('supplier2.printShare')}</button>
-        </div>
-        <div className="flex gap-2">
-          {(['all', 'bills', 'payments'] as const).map((v) => <button key={v} onClick={() => setView(v)} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${view === v ? 'bg-brand text-white shadow-sm' : 'border border-line'}`}>{t(`supplier2.${v}`)}</button>)}
+      <div role="tablist" aria-label={s?.name ?? ''} className="-mx-4 flex gap-1 overflow-x-auto border-b border-line px-4 [scrollbar-width:none]">
+        {tabs.map((x) => (
+          <button key={x.key} role="tab" aria-selected={tab === x.key} onClick={() => setTab(x.key)}
+            className={`min-h-12 shrink-0 border-b-[3px] px-3 text-sm whitespace-nowrap ${tab === x.key ? 'border-brand font-bold text-brand' : 'border-transparent font-semibold text-muted hover:text-ink'}`}>{x.label}</button>
+        ))}
+      </div>
+
+      {tab === 'statement' && (
+      <section id="supplier-statement" className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex gap-2">
+            {(['all', 'bills', 'payments'] as const).map((v) => <button key={v} onClick={() => setView(v)} className={`min-h-10 rounded-full px-4 text-sm font-semibold ${view === v ? 'bg-brand text-white shadow-sm' : 'border border-line'}`}>{t(`supplier2.${v}`)}</button>)}
+          </div>
+          <div className="inline-flex overflow-hidden rounded-full border border-line bg-white shadow-sm">
+            <button onClick={() => navigate(`/print/supplier/${id}`)} className="flex min-h-11 items-center gap-2 px-4 text-sm font-semibold hover:bg-[#f6faf9]"><span className="text-brand">{icon('M6 9V3h12v6M3 9h18v8H3zM6 14h12v7H6z')}</span>{t('sup3.printPdf')}</button>
+            <span aria-hidden className="w-px bg-line" />
+            <a href={whatsAppLink(s?.phone ?? null, t('supplier2.share', { shop: shopName, name: s?.name ?? '', amount: formatRupees(Math.abs(s?.due ?? 0)) }))} target="_blank" rel="noreferrer"
+              className="flex min-h-11 items-center gap-2 bg-[#e7f8ee] px-4 text-sm font-bold text-[#0f6a3d] hover:bg-[#d3f2e0]">{icon('M4 20l1.4-4A8 8 0 1112 20a8 8 0 01-4-1z')}WhatsApp</a>
+          </div>
         </div>
         {shown.length === 0 && <p className="text-sm text-muted">{t('supplier2.noLines')}</p>}
         <ul className="flex flex-col">
@@ -375,7 +475,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
               {e.purchaseId && e.amount > 0 && (
                 <div className="flex gap-3">
                   <button onClick={() => setOpenBill(openBill === e.purchaseId ? null : e.purchaseId)} aria-expanded={openBill === e.purchaseId} className={`min-h-11 text-xs ${btn.link}`}>{t('suppliers.billLine')} {openBill === e.purchaseId ? '▴' : '▾'}</button>
-                  {!e.cancelled && <button onClick={() => void cancelBill(e.purchaseId!)} className="min-h-11 text-xs font-semibold text-due">{t('suppliers.cancelBill')}</button>}
+                  {!e.cancelled && <button onClick={() => void cancelBill(e.purchaseId!)} className={`min-h-9 self-center text-xs ${btn.dangerOutline}`}>{t('suppliers.cancelBill')}</button>}
                 </div>
               )}
               {openBill === e.purchaseId && e.amount > 0 && bill && (
@@ -391,8 +491,9 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
           ))}
         </ul>
       </section>
-
-      {detail.data && !detail.data.entries.some((e) => e.kind === 'opening') && (
+      )}
+      {tab === 'statement' && (
+detail.data && !detail.data.entries.some((e) => e.kind === 'opening') && (
         <details className="rounded-card bg-white p-4 shadow-sm">
           <summary className="min-h-11 cursor-pointer font-bold">{t('supplier2.opening')}</summary>
           <p className="mb-2 text-sm text-muted">{t('supplier2.openingHint')}</p>
@@ -405,132 +506,130 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
           </div>
           <Button className="mt-2 w-full" disabled={!(Number(opening.amount) > 0)} onClick={() => void saveOpening()}>{t('save')}</Button>
         </details>
+      )
       )}
+      {tab === 'orders' && s && <OrdersPanel shopId={shopId} shopName={shopName} supplierId={id} phone={s.phone} products={products} onGoodsCame={goodsCame} />}
+      {tab === 'goods' && s && <ReceiptsPanel shopId={shopId} supplierId={id} products={products} onBill={billFor} />}
+      {tab === 'returns' && <ReturnsPanel shopId={shopId} supplierId={id} products={products} />}
+      {tab === 'items' && s && (<><SupplierItemsCard shopId={shopId} supplierId={id} /><p className="px-1 text-sm text-muted">{t('sup3.itemsHint')}</p></>)}
 
-      <label className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm"><span className="text-sm font-medium text-muted">{t('suppliers.mode')}</span>
-        <select value={mode} onChange={(e) => setMode(e.target.value as 'cash' | 'upi' | 'bank')} className={input}>
-          <option value="cash">{t('cash')}</option><option value="upi">{t('upi')}</option><option value="bank">{t('bank')}</option>
-        </select></label>
-
-      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
-        <h2 className="font-bold">{t('suppliers.pay')}</h2>
+      {panel === 'pay' && (
+        <Drawer title={`${t('suppliers.pay')} · ${s?.name ?? ''}`} onClose={() => setPanel(null)}>
         <div className="flex gap-2">
           <input aria-label={t('suppliers.pay')} value={pay} onChange={(e) => setPay(e.target.value)} inputMode="decimal" className={`${input} flex-1`} />
           <Button disabled={!(Number(pay) > 0)} onClick={() => void savePayment()}>{t('save')}</Button>
         </div>
         {mode === 'bank' && <Field label={t('supplier2.reference')} value={reference} onChange={(e) => setReference(e.target.value)} maxLength={40} />}
         <label className="flex items-center justify-between gap-2 text-sm"><span className="text-muted">{t('supplier2.paidOn')}</span><input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} className={input} /></label>
-      </section>
+          {modePick}
+          {message && <p role="status" className="text-sm text-muted">{message}</p>}
+        </Drawer>
+      )}
 
-      {s && <OrdersPanel shopId={shopId} shopName={shopName} supplierId={id} phone={s.phone} products={products} onGoodsCame={goodsCame} />}
-      {s && <ReceiptsPanel shopId={shopId} supplierId={id} products={products} onBill={billFor} />}
-      {s && <SupplierItemsCard shopId={shopId} supplierId={id} />}
-
-      <section id="supplier-bill" className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
-        <h2 className="font-bold">{t('suppliers.bill')}</h2>
-        {fromReceipts.length > 0 && (
-          <p className="flex items-start justify-between gap-2 rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">
-            <span>{t('receipt.onBill', { numbers: fromReceipts.map((r) => r.number).join(', #') })}</span>
-            <button onClick={() => setFromReceipts([])} className={`min-h-11 shrink-0 ${btn.link}`}>{t('receipt.clear')}</button>
-          </p>
-        )}
-        {against && (
-          <p className="flex items-start justify-between gap-2 rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">
-            <span>{t('supplier2.againstOrder', { number: against.number })}</span>
-            <button onClick={() => setAgainst(null)} className={`min-h-11 shrink-0 ${btn.link}`}>{t('supplier2.clearOrder')}</button>
-          </p>
-        )}
-        {ai?.canReadPhotos && (ai.consentedAt ? (
-          <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-brand font-bold text-brand-strong ${reading ? 'opacity-50' : ''}`}>
-            📷 {reading ? t('invoicePhoto.reading') : t('invoicePhoto.button')}
-            <input type="file" accept="image/*,application/pdf" capture="environment" className="sr-only" disabled={reading}
-              onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void readPhoto(file) }} />
-          </label>
-        ) : (
-          <button onClick={() => setAskConsent(true)} className={`min-h-12 rounded-2xl ${btn.outline}`}>📷 {t('invoicePhoto.button')}</button>
-        ))}
-        {askConsent && (
-          <div className="flex flex-col gap-2 rounded-2xl bg-warn-soft p-3 text-sm">
-            <p className="font-bold">{t('expense.consentTitle')}</p><p>{t('invoicePhoto.consent')}</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => void agree()} className={`h-11 rounded-xl ${btn.solid}`}>{t('expense.consentYes')}</button>
-              <button onClick={() => setAskConsent(false)} className="h-11 rounded-xl border border-line font-semibold">{t('expense.consentNo')}</button>
-            </div>
+      {panel === 'bill' && (
+        <Drawer title={`${t('suppliers.bill')} · ${s?.name ?? ''}`} onClose={() => setPanel(null)}>
+      {fromReceipts.length > 0 && (
+        <p className="flex items-start justify-between gap-2 rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">
+          <span>{t('receipt.onBill', { numbers: fromReceipts.map((r) => r.number).join(', #') })}</span>
+          <button onClick={() => setFromReceipts([])} className={`min-h-11 shrink-0 ${btn.link}`}>{t('receipt.clear')}</button>
+        </p>
+      )}
+      {against && (
+        <p className="flex items-start justify-between gap-2 rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">
+          <span>{t('supplier2.againstOrder', { number: against.number })}</span>
+          <button onClick={() => setAgainst(null)} className={`min-h-11 shrink-0 ${btn.link}`}>{t('supplier2.clearOrder')}</button>
+        </p>
+      )}
+      {ai?.canReadPhotos && (ai.consentedAt ? (
+        <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-brand font-bold text-brand-strong ${reading ? 'opacity-50' : ''}`}>
+          📷 {reading ? t('invoicePhoto.reading') : t('invoicePhoto.button')}
+          <input type="file" accept="image/*,application/pdf" capture="environment" className="sr-only" disabled={reading}
+            onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void readPhoto(file) }} />
+        </label>
+      ) : (
+        <button onClick={() => setAskConsent(true)} className={`min-h-12 rounded-2xl ${btn.outline}`}>📷 {t('invoicePhoto.button')}</button>
+      ))}
+      {askConsent && (
+        <div className="flex flex-col gap-2 rounded-2xl bg-warn-soft p-3 text-sm">
+          <p className="font-bold">{t('expense.consentTitle')}</p><p>{t('invoicePhoto.consent')}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => void agree()} className={`h-11 rounded-xl ${btn.solid}`}>{t('expense.consentYes')}</button>
+            <button onClick={() => setAskConsent(false)} className="h-11 rounded-xl border border-line font-semibold">{t('expense.consentNo')}</button>
           </div>
-        )}
-        {fromUpload && uploaded && (
-          <div className="flex flex-col gap-2 rounded-xl border border-line bg-[#f6faf9] p-2 text-sm">
-            <p className="font-semibold">{t('upload.billBeside')}</p>
-            {pdfUrl
-              ? <iframe title={t('upload.billBeside')} src={pdfUrl} className="h-[28rem] w-full rounded-lg border border-line bg-white" />
-              : <a href={uploaded.imageDataUrl} target="_blank" rel="noreferrer"><img src={uploaded.imageDataUrl} alt={t('upload.billBeside')} className="max-h-[28rem] w-full rounded-lg border border-line bg-white object-contain" /></a>}
-          </div>
-        )}
-        {photoNote && (
-          <p className={`rounded-xl p-2 text-sm ${photoNote.differs ? 'bg-due-soft font-semibold text-due' : 'bg-brand-soft text-brand-deep'}`}>
-            {photoNote.differs && photoNote.printed != null ? t('invoicePhoto.totalDiffers', { printed: formatRupees(photoNote.printed), lines: formatRupees(photoNote.lines) }) : t('invoicePhoto.check')}
-          </p>
-        )}
-        <Field label={t('suppliers.billNo')} value={billNo} onChange={(e) => setBillNo(e.target.value)} maxLength={40} />
-        <label className="flex items-center justify-between gap-2 text-sm"><span className="text-muted">{t('supplier2.billDate')}</span><input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} className={input} /></label>
-        {rows.map((r, i) => (
-          <div key={i} className={`grid grid-cols-2 gap-2 ${r.problems?.length ? 'rounded-xl bg-warn-soft p-2' : ''}`}>
-            {r.read && <p className="col-span-2 text-xs text-muted">{t('invoicePhoto.read', { name: r.read })}{r.problems?.length ? ` · ${r.problems.map((p) => t(`invoicePhoto.problem.${p}`)).join(', ')}` : ''}</p>}
-            {against && (() => {
-              const ordered = against.lines.find((l) => l.productId === r.productId)
-              return ordered && <p className="col-span-2 text-xs text-muted">{t('supplier2.ordered', { qty: ordered.quantity - ordered.received })}{ordered.rate != null && r.unitCost !== '' && Number(r.unitCost) !== ordered.rate ? <b className="text-due"> · {t('supplier2.rateDiffers', { rate: formatRupees(ordered.rate) })}</b> : null}</p>
-            })()}
-            {fromReceipts.length > 0 && r.productId && (() => {
-              const good = fromReceipts.flatMap((x) => x.lines).filter((l) => l.productId === r.productId).reduce((s, l) => s + l.quantity - (l.damaged ?? 0), 0)
-              return good > 0 && Number(r.quantity) > good ? <p className="col-span-2 text-xs font-semibold text-due">⚠ {t('gi.billedMore', { billed: Number(r.quantity), good })}</p> : null
-            })()}
-            <ItemPicker products={choosable} text={nameOf(r)} placeholder={t('supplier2.itemSearch')} onText={(text) => pickItem(i, text)} onPick={(p) => pickItem(i, p.name)} className="col-span-2" />
-            <input aria-label={t('suppliers.qty')} placeholder={t('suppliers.qty')} value={r.quantity} onChange={(e) => set(i, 'quantity', e.target.value)} inputMode="decimal" className={input} />
-            <input aria-label={t('suppliers.cost')} placeholder={t('suppliers.cost')} value={r.unitCost} onChange={(e) => set(i, 'unitCost', e.target.value)} inputMode="decimal" className={input} />
-            {(() => {
-              const p = products.find((x) => x.id === r.productId)
-              if (!p || (p.unit !== 'kg' && !p.bagSize && !p.weightKg)) return null
-              const unit = t(`units.${p.unit}`)
-              const pack = t(`units.${p.purchaseUnit ?? 'bag'}`)
-              return (
-                <>
-                  <select aria-label={t('bag.rateBasis')} value={r.basis ?? 'unit'} onChange={(e) => set(i, 'basis', e.target.value)} className={input}>
-                    <option value="unit">{t('bag.perUnit', { unit })}</option>
-                    {p.unit === 'kg' && <option value="quintal">{t('bag.perQuintal')}</option>}
-                    {p.unit !== 'kg' && p.weightKg ? <option value="kg">{t('bag.perUnit', { unit: t('units.kg') })}</option> : null}
-                    {p.bagSize ? <option value="bag">{p.purchaseUnit && p.purchaseUnit !== 'bag' ? t('bag.perUnit', { unit: pack }) : t('bag.ratePerBag')}</option> : null}
-                  </select>
-                  {p.bagSize ? <input aria-label={pack} placeholder={pack} value={r.bags ?? ''} onChange={(e) => { set(i, 'bags', e.target.value) }} inputMode="numeric" className={input} /> : <span />}
-                  {p.bagSize && Number(r.bags) > 0 && Number(r.quantity) > 0 ? <div className="col-span-2"><BagCheck avg={Number(r.quantity) / Number(r.bags)} size={p.bagSize} bags={Number(r.bags)} unit={unit} /></div> : null}
-                </>
-              )
-            })()}
-            {medical && (
+        </div>
+      )}
+      {fromUpload && uploaded && (
+        <div className="flex flex-col gap-2 rounded-xl border border-line bg-[#f6faf9] p-2 text-sm">
+          <p className="font-semibold">{t('upload.billBeside')}</p>
+          {pdfUrl
+            ? <iframe title={t('upload.billBeside')} src={pdfUrl} className="h-[28rem] w-full rounded-lg border border-line bg-white" />
+            : <a href={uploaded.imageDataUrl} target="_blank" rel="noreferrer"><img src={uploaded.imageDataUrl} alt={t('upload.billBeside')} className="max-h-[28rem] w-full rounded-lg border border-line bg-white object-contain" /></a>}
+        </div>
+      )}
+      {photoNote && (
+        <p className={`rounded-xl p-2 text-sm ${photoNote.differs ? 'bg-due-soft font-semibold text-due' : 'bg-brand-soft text-brand-deep'}`}>
+          {photoNote.differs && photoNote.printed != null ? t('invoicePhoto.totalDiffers', { printed: formatRupees(photoNote.printed), lines: formatRupees(photoNote.lines) }) : t('invoicePhoto.check')}
+        </p>
+      )}
+      <Field label={t('suppliers.billNo')} value={billNo} onChange={(e) => setBillNo(e.target.value)} maxLength={40} />
+      <label className="flex items-center justify-between gap-2 text-sm"><span className="text-muted">{t('supplier2.billDate')}</span><input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} className={input} /></label>
+      {rows.map((r, i) => (
+        <div key={i} className={`grid grid-cols-2 gap-2 ${r.problems?.length ? 'rounded-xl bg-warn-soft p-2' : ''}`}>
+          {r.read && <p className="col-span-2 text-xs text-muted">{t('invoicePhoto.read', { name: r.read })}{r.problems?.length ? ` · ${r.problems.map((p) => t(`invoicePhoto.problem.${p}`)).join(', ')}` : ''}</p>}
+          {against && (() => {
+            const ordered = against.lines.find((l) => l.productId === r.productId)
+            return ordered && <p className="col-span-2 text-xs text-muted">{t('supplier2.ordered', { qty: ordered.quantity - ordered.received })}{ordered.rate != null && r.unitCost !== '' && Number(r.unitCost) !== ordered.rate ? <b className="text-due"> · {t('supplier2.rateDiffers', { rate: formatRupees(ordered.rate) })}</b> : null}</p>
+          })()}
+          {fromReceipts.length > 0 && r.productId && (() => {
+            const good = fromReceipts.flatMap((x) => x.lines).filter((l) => l.productId === r.productId).reduce((s, l) => s + l.quantity - (l.damaged ?? 0), 0)
+            return good > 0 && Number(r.quantity) > good ? <p className="col-span-2 text-xs font-semibold text-due">⚠ {t('gi.billedMore', { billed: Number(r.quantity), good })}</p> : null
+          })()}
+          <ItemPicker products={choosable} text={nameOf(r)} placeholder={t('supplier2.itemSearch')} onText={(text) => pickItem(i, text)} onPick={(p) => pickItem(i, p.name)} className="col-span-2" />
+          <input aria-label={t('suppliers.qty')} placeholder={t('suppliers.qty')} value={r.quantity} onChange={(e) => set(i, 'quantity', e.target.value)} inputMode="decimal" className={input} />
+          <input aria-label={t('suppliers.cost')} placeholder={t('suppliers.cost')} value={r.unitCost} onChange={(e) => set(i, 'unitCost', e.target.value)} inputMode="decimal" className={input} />
+          {(() => {
+            const p = products.find((x) => x.id === r.productId)
+            if (!p || (p.unit !== 'kg' && !p.bagSize && !p.weightKg)) return null
+            const unit = t(`units.${p.unit}`)
+            const pack = t(`units.${p.purchaseUnit ?? 'bag'}`)
+            return (
               <>
-                <input aria-label={t('batches.batchNo')} placeholder={t('batches.batchNo')} value={r.batchNo} onChange={(e) => set(i, 'batchNo', e.target.value)} className={input} />
-                <input aria-label={t('batches.expiry')} type="month" value={r.expiry} onChange={(e) => set(i, 'expiry', e.target.value)} className={input} />
-                <input aria-label="MRP" placeholder="MRP" value={r.mrp} onChange={(e) => set(i, 'mrp', e.target.value)} inputMode="decimal" className={input} />
+                <select aria-label={t('bag.rateBasis')} value={r.basis ?? 'unit'} onChange={(e) => set(i, 'basis', e.target.value)} className={input}>
+                  <option value="unit">{t('bag.perUnit', { unit })}</option>
+                  {p.unit === 'kg' && <option value="quintal">{t('bag.perQuintal')}</option>}
+                  {p.unit !== 'kg' && p.weightKg ? <option value="kg">{t('bag.perUnit', { unit: t('units.kg') })}</option> : null}
+                  {p.bagSize ? <option value="bag">{p.purchaseUnit && p.purchaseUnit !== 'bag' ? t('bag.perUnit', { unit: pack }) : t('bag.ratePerBag')}</option> : null}
+                </select>
+                {p.bagSize ? <input aria-label={pack} placeholder={pack} value={r.bags ?? ''} onChange={(e) => { set(i, 'bags', e.target.value) }} inputMode="numeric" className={input} /> : <span />}
+                {p.bagSize && Number(r.bags) > 0 && Number(r.quantity) > 0 ? <div className="col-span-2"><BagCheck avg={Number(r.quantity) / Number(r.bags)} size={p.bagSize} bags={Number(r.bags)} unit={unit} /></div> : null}
               </>
-            )}
-            <input aria-label={t('batches.free')} placeholder={t('batches.free')} value={r.free} onChange={(e) => set(i, 'free', e.target.value)} inputMode="decimal" className={input} />
-                <input aria-label={t('returns.discount')} placeholder={t('returns.discount')} value={r.discount} onChange={(e) => set(i, 'discount', e.target.value)} inputMode="decimal" className={input} />
-                <select aria-label={t('pmonth.purchaseGst')} value={r.gst} onChange={(e) => set(i, 'gst', e.target.value)} className={input}>
-                  <option value="">{t('pmonth.purchaseGst')}</option>{['0', '5', '12', '18', '28', '40'].map((g) => <option key={g} value={g}>GST {g}%</option>)}
-            </select>
-          </div>
-        ))}
-        <button onClick={() => setRows([...rows, empty])} className="min-h-11 font-semibold text-brand">+ {t('suppliers.addRow')}</button>
-        <Field label={t('supplier2.extra')} value={extra} onChange={(e) => setExtra(e.target.value)} inputMode="text" />
-        <ChargesEditor value={charges} onChange={setCharges} hasExtra={Number(extra) > 0} />
-        <GodownPicker shopId={shopId} value={godown} onChange={setGodown} label="in" />
-        <p className="flex justify-between font-bold"><span>{t('print.total')}</span><span>{formatRupees(total)}</span></p>
-        <Field label={t('suppliers.paidNow')} value={paid} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
-        <Button disabled={valid.length === 0} onClick={() => void saveBill()}>{t('suppliers.saveBill')}</Button>
-      </section>
-      {message && <p className="text-sm text-muted">{message}</p>}
-
-      <ReturnsPanel shopId={shopId} supplierId={id} products={products} />
-
+            )
+          })()}
+          {medical && (
+            <>
+              <input aria-label={t('batches.batchNo')} placeholder={t('batches.batchNo')} value={r.batchNo} onChange={(e) => set(i, 'batchNo', e.target.value)} className={input} />
+              <input aria-label={t('batches.expiry')} type="month" value={r.expiry} onChange={(e) => set(i, 'expiry', e.target.value)} className={input} />
+              <input aria-label="MRP" placeholder="MRP" value={r.mrp} onChange={(e) => set(i, 'mrp', e.target.value)} inputMode="decimal" className={input} />
+            </>
+          )}
+          <input aria-label={t('batches.free')} placeholder={t('batches.free')} value={r.free} onChange={(e) => set(i, 'free', e.target.value)} inputMode="decimal" className={input} />
+              <input aria-label={t('returns.discount')} placeholder={t('returns.discount')} value={r.discount} onChange={(e) => set(i, 'discount', e.target.value)} inputMode="decimal" className={input} />
+              <select aria-label={t('pmonth.purchaseGst')} value={r.gst} onChange={(e) => set(i, 'gst', e.target.value)} className={input}>
+                <option value="">{t('pmonth.purchaseGst')}</option>{['0', '5', '12', '18', '28', '40'].map((g) => <option key={g} value={g}>GST {g}%</option>)}
+          </select>
+        </div>
+      ))}
+      <button onClick={() => setRows([...rows, empty])} className={`min-h-11 self-start ${btn.add}`}>+ {t('suppliers.addRow')}</button>
+      <Field label={t('supplier2.extra')} value={extra} onChange={(e) => setExtra(e.target.value)} inputMode="text" />
+      <ChargesEditor value={charges} onChange={setCharges} hasExtra={Number(extra) > 0} />
+      <GodownPicker shopId={shopId} value={godown} onChange={setGodown} label="in" />
+      <p className="flex justify-between font-bold"><span>{t('print.total')}</span><span>{formatRupees(total)}</span></p>
+      <Field label={t('suppliers.paidNow')} value={paid} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" />
+      <Button disabled={valid.length === 0} onClick={() => void saveBill()}>{t('suppliers.saveBill')}</Button>
+          {modePick}
+          {message && <p role="status" className="text-sm text-muted">{message}</p>}
+        </Drawer>
+      )}
     </div>
   )
 }
