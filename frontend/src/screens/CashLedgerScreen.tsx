@@ -98,31 +98,43 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4 lg:max-w-5xl">
       <div className="flex w-fit flex-wrap gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
         <button onClick={() => navigate('/cashbook')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('bankBook.cashBook')}</button>
-        <span className="flex h-10 items-center rounded-xl bg-white px-4 font-semibold text-brand-strong shadow-sm ring-1 ring-brand/20">{t('cashLedger.title')}</span>
+        <span className="flex h-10 items-center rounded-xl bg-brand px-4 font-semibold text-white shadow-md shadow-teal-900/20">{t('cashLedger.title')}</span>
         <button onClick={() => navigate('/bankbook')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('bankBook.title')}</button>
       </div>
       <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
-        <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
-        <span className="text-lg font-bold">{label}</span>
-        <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= monthOf(today)} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
+        <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t('book.previous')} className="flex h-11 w-11 items-center justify-center rounded-xl hover:bg-[#f1f5f4]"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M15 18l-6-6 6-6" /></svg></button>
+        <span className="flex items-center gap-2 text-lg font-bold"><span className="text-brand"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M4 5h16v15H4zM4 9h16M8 3v4M16 3v4" /></svg></span>{label}</span>
+        <button onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= monthOf(today)} aria-label={t('book.next')} className="flex h-11 w-11 items-center justify-center rounded-xl hover:bg-[#f1f5f4] disabled:opacity-30"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M9 6l6 6-6 6" /></svg></button>
       </div>
       {ledger.isError && <p className="text-due">{ledger.error.message}</p>}
       {data && (
-        <section className="grid grid-cols-2 gap-2 rounded-[20px] bg-white p-4 text-sm sm:grid-cols-4">
-          <span className="flex flex-col"><span className="text-muted">{t('bankBook.opening')}</span><b className="text-lg">{formatRupees(data.opening)}</b></span>
-          <span className="flex flex-col"><span className="text-muted">{t('bankBook.in')}</span><b className="text-lg text-jama">+{formatRupees(data.in)}</b></span>
-          <span className="flex flex-col"><span className="text-muted">{t('bankBook.out')}</span><b className="text-lg text-udhaar">−{formatRupees(data.out)}</b></span>
-          <span className="flex flex-col"><span className="text-muted">{t('cashLedger.inHand')}</span><b className="text-lg">{formatRupees(data.closing)}</b></span>
-          <p className="col-span-2 text-xs text-muted sm:col-span-4">{data.openingCountedOn ? t('cashLedger.openingFrom', { date: data.openingCountedOn }) : t('cashLedger.noCount')}</p>
+        <section className="flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <span className="flex min-h-[76px] flex-col justify-between rounded-card bg-white p-3 shadow-sm ring-1 ring-black/5"><span className="text-xs font-semibold text-muted">{t('bankBook.opening')}</span><b className="text-xl">{formatRupees(data.opening)}</b></span>
+            <span className="flex min-h-[76px] flex-col justify-between rounded-card bg-emerald-50 p-3 shadow-sm ring-1 ring-black/5"><span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M12 19V5M5 12l7-7 7 7" /></svg>{t('bankBook.in')}</span><b className="text-xl text-jama">+{formatRupees(data.in)}</b></span>
+            <span className="flex min-h-[76px] flex-col justify-between rounded-card bg-due-soft p-3 shadow-sm ring-1 ring-black/5"><span className="flex items-center gap-1.5 text-xs font-semibold text-due"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M12 5v14M5 12l7 7 7-7" /></svg>{t('bankBook.out')}</span><b className="text-xl text-due">−{formatRupees(data.out)}</b></span>
+            <span className="flex min-h-[76px] flex-col justify-between rounded-card bg-[#0b5e4f] p-3 text-white shadow-md shadow-[#0b5e4f]/25"><span className="flex items-center gap-1.5 text-xs font-semibold text-white/85"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 7h18v13H3zM3 7l3-4h12l3 4M9 12h6" /></svg>{t('cashLedger.inHand')}</span><b className="text-xl">{formatRupees(data.closing)}</b></span>
+          </div>
+          <p className="px-1 text-xs text-muted">{data.openingCountedOn ? t('cashLedger.openingFrom', { date: data.openingCountedOn }) : t('cashLedger.noCount')}</p>
         </section>
       )}
 
-      <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4 text-sm">
-        <b>{t('cashLedger.move')}</b>
-        <div className="flex flex-wrap gap-2">
-          {(['added', 'removed', 'to_bank', 'from_bank'] as const).map((k) => (
-            <button key={k} onClick={() => setKind(kind === k ? null : k)} aria-pressed={kind === k}
-              className={`min-h-11 rounded-xl px-3 font-semibold ${kind === k ? 'bg-brand text-white shadow-sm' : 'border border-line bg-white'}`}>{t(`cashLedger.kinds.${k}`)}</button>
+      <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4 text-sm shadow-sm">
+        <b className="text-base">{t('cashLedger.move')}</b>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {([
+            { k: 'added', d: 'M12 5v14M5 12h14', on: 'bg-[#0b5e4f] text-white shadow-lg shadow-[#0b5e4f]/30', off: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
+            { k: 'removed', d: 'M5 12h14', on: 'bg-[#be123c] text-white shadow-lg shadow-[#be123c]/30', off: 'bg-[#fde8ec] text-[#be123c] hover:bg-[#fbd5dd]' },
+            { k: 'to_bank', d: 'M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 21h18', on: 'bg-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/30', off: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]' },
+            { k: 'from_bank', d: 'M3 7h18v13H3zM3 7l3-4h12l3 4M12 10v6M9.5 13.5L12 16l2.5-2.5', on: 'bg-[#6d28d9] text-white shadow-lg shadow-[#6d28d9]/30', off: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
+          ] as const).map((x) => (
+            <button key={x.k} onClick={() => setKind(kind === x.k ? null : x.k)} aria-pressed={kind === x.k}
+              className={`flex min-h-[52px] items-center gap-2.5 rounded-2xl px-3 text-left font-bold transition active:scale-[0.98] ${kind === x.k ? x.on : x.off}`}>
+              <span aria-hidden className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full ${kind === x.k ? 'bg-white/20' : 'bg-white'}`}>
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={x.d} /></svg>
+              </span>
+              <span className="leading-tight">{t(`cashLedger.kinds.${x.k}`)}</span>
+            </button>
           ))}
         </div>
         {kind && (
@@ -147,7 +159,7 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
         <div className="hidden flex-col gap-2 lg:flex">
           <div className="flex items-center justify-between">
             <h2 className="px-1 font-bold">{t('cashTable.title', { month: label })}</h2>
-            <button onClick={download} className="min-h-9 text-sm font-semibold text-brand underline">⬇ {t('billList.excel')}</button>
+            <button onClick={download} className={`flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm ${btn.outline}`}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M12 3v12M7 10l5 5 5-5M4 15v5h16v-5" /></svg>{t('billList.excel')}</button>
           </div>
           <table className="w-full table-fixed border-collapse overflow-hidden rounded-card bg-white text-sm shadow-sm">
             <thead className="bg-brand-soft text-left text-xs tracking-wide">
