@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Keypad } from '../components/Keypad'
 import { KhataHistory } from '../components/KhataHistory'
 import { KhataTable } from '../components/KhataTable'
-import { Balance, Button, btn } from '../components/ui'
+import { Balance, Button, Drawer, btn } from '../components/ui'
 import { addKhataEntry, reverseEntry, undoEntry, useCustomers, useStatement } from '../lib/data'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, request } from '../lib/api'
@@ -55,7 +55,10 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
   const [note, setNote] = useState('')
   const [lastSaved, setLastSaved] = useState<Saved | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [tab, setTab] = useState<'history' | 'entry'>('history')
+  const [tab, setTab] = useState<'history' | 'statements' | 'details'>('history')
+  // A drawer for taking money or giving on credit; which coloured action is lit (none pressed yet: the likely one).
+  const [panel, setPanel] = useState<'pay' | 'entry-pay' | 'entry-credit' | null>(null)
+  const [act, setAct] = useState<'pay' | 'credit' | 'remind' | 'statement' | 'bill' | null>(null)
   const [part, setPart] = useState('')
   const [upiRef, setUpiRef] = useState('')
   const [cheque, setCheque] = useState({ no: '', bank: '', date: '' })
@@ -67,9 +70,6 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
     return () => clearTimeout(timer)
   }, [lastSaved])
 
-  // Open or shut, as the shop last left it on this device.
-  const [detailsOpen, setDetailsOpen] = useState(() => { try { return localStorage.getItem('gk-cust-details') === '1' } catch { return false } })
-  const keepDetailsOpen = (open: boolean) => { setDetailsOpen(open); try { localStorage.setItem('gk-cust-details', open ? '1' : '0') } catch { /* no storage */ } }
 
   if (!customer) return <p className="p-4 text-muted">…</p>
 
@@ -196,177 +196,90 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
 
   const reminder = buildReminder(settings.data?.reminderTemplate, { name: customer.name, amount: customer.balance, shop: shopName, upi: settings.data?.upiId ?? null, slug: settings.data?.slug })
 
+  const owes = customer.balance > 0
+  const markReminded = () => { if (owes) void request(`/v1/customers/${customer.id}/reminded`, 'POST').catch(() => {}) }
+  const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
+  // Each job keeps its own colour, as on the supplier page; the one in use is filled, the rest a soft tint.
+  const ACTIONS = {
+    pay: { on: 'bg-[#0b5e4f] text-white shadow-lg shadow-[#0b5e4f]/30', off: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
+    credit: { on: 'bg-[#a1460a] text-white shadow-lg shadow-[#a1460a]/30', off: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' },
+    remind: { on: 'bg-[#0f6a3d] text-white shadow-lg shadow-[#0f6a3d]/30', off: 'bg-[#e7f8ee] text-[#0f6a3d] hover:bg-[#d3f2e0]' },
+    statement: { on: 'bg-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/30', off: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]' },
+    bill: { on: 'bg-[#6d28d9] text-white shadow-lg shadow-[#6d28d9]/30', off: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
+  } as const
+  type Act = keyof typeof ACTIONS
+  const lit: Act = act ?? (owes ? 'pay' : 'credit')
+  const action = (key: Act) => `flex min-h-[52px] cursor-pointer items-center justify-center gap-2.5 rounded-2xl px-3 text-sm font-bold whitespace-nowrap transition active:scale-[0.98] ${lit === key ? ACTIONS[key].on : ACTIONS[key].off}`
+  const dot = (key: Act, d: string) => <span aria-hidden className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full ${lit === key ? 'bg-white/20' : 'bg-white'}`}>{icon(d)}</span>
+  const showDetails = (settings.data?.type && settings.data.type !== 'kirana') || !customer.isNew
+  const tabs = [
+    { key: 'history', label: t('ledgerView.history') },
+    ...(!customer.isNew ? [{ key: 'statements', label: t('cust3.statements') }] : []),
+    ...(showDetails ? [{ key: 'details', label: t('custDetails.title') }] : []),
+  ] as { key: 'history' | 'statements' | 'details'; label: string }[]
+  const closeAfterSave = () => setPanel(null)
+  const entryForm = (only?: 'credit' | 'payment') => (
+    <div className="flex flex-col">
+      <div className="mb-2.5 h-[76px] rounded-card bg-white px-5 text-right text-[44px] leading-[76px] font-extrabold">₹{amount || '0'}</div>
+      <Keypad value={amount} onChange={setAmount} />
+      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('note')} maxLength={200}
+        className="mt-2.5 h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-brand-line" />
+      {only !== 'credit' && <div className="mt-2">{modeButtons}</div>}
+      <div className={`mt-3 grid gap-2 ${only ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        {only !== 'payment' && <Button tone="credit" className="h-14" disabled={!valid} onClick={() => void save('credit').then(closeAfterSave)}>+ {t('credit')}</Button>}
+        {only !== 'credit' && <Button tone="payment" className="h-14" disabled={!valid || !chequeOk} onClick={() => void save('payment').then(closeAfterSave)}>− {t('payment')}</Button>}
+      </div>
+    </div>
+  )
+
   return (
     <div className="flex flex-col gap-3 p-4">
-      <div className="overflow-hidden rounded-card bg-white shadow-sm">
-        {/* A thin band in the balance's colour: red owes, green advance, grey settled. */}
-        <div className={`h-1.5 ${customer.balance > 0 ? 'bg-due' : customer.balance < 0 ? 'bg-jama' : 'bg-line'}`} />
-        <div className="flex flex-col gap-3 p-4">
-          <div className="flex flex-wrap items-center gap-3">
-          <div aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-xl font-bold text-brand-strong">
+      {/* Who, what they owe, and the five jobs. Each opens on its own instead of every form stacked on the page. */}
+      <section className="flex flex-col gap-4 rounded-card bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xl font-extrabold text-brand">
             {customer.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="truncate text-2xl font-bold">{customer.name}</div>
-            {customer.phone && (
-              <a href={`tel:${customer.phone}`} className="flex w-fit items-center gap-1.5 text-muted hover:text-brand-strong">
-                <span aria-hidden className="flex h-6 w-6 items-center justify-center rounded-full bg-[#edf2f1] text-xs">📞</span>{formatPhone(customer.phone)}
-              </a>
-            )}
-          </div>
-          {/* The actions used most, beside the name: call, SMS, WhatsApp (the dues reminder when they owe), this month's statement, the history. */}
-          {!customer.isNew && (() => {
-            const owes = customer.balance > 0
-            const text = owes ? reminder : t('quick.hello', { name: customer.name, shop: shopName })
-            const markReminded = () => { if (owes) void request(`/v1/customers/${customer.id}/reminded`, 'POST').catch(() => {}) }
-            const icon = 'flex h-11 w-11 items-center justify-center rounded-full text-lg ring-1 transition hover:scale-105'
-            return (
-              <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto sm:justify-end">
-                {customer.phone && <a href={`tel:${customer.phone}`} aria-label={t('quick.call')} title={t('quick.call')} className={`${icon} bg-[#edf2f1] ring-line`}>📞</a>}
-                {customer.phone && <a href={`sms:${customer.phone}?body=${encodeURIComponent(text)}`} onClick={markReminded} aria-label={owes ? t('quick.smsRemind') : t('quick.sms')} title={owes ? t('quick.smsRemind') : t('quick.sms')} className={`${icon} bg-orange-50 ring-orange-200`}>✉️</a>}
-                <a href={whatsAppLink(customer.phone, text)} target="_blank" rel="noreferrer" onClick={markReminded} aria-label={owes ? t('remind') : t('quick.whatsapp')} title={owes ? t('remind') : t('quick.whatsapp')}
-                  className={`${icon} relative bg-green-50 ring-green-300`}>💬{owes && <span aria-hidden className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-due ring-2 ring-white" />}</a>
-                <button type="button" onClick={() => navigate(`/print/statement/${customer.id}/${monthKey(0)}`)} aria-label={t('quick.statement')} title={t('quick.statement')} className={`${icon} bg-blue-50 ring-blue-200`}>🧾</button>
-                <button type="button" onClick={() => { setTab('history'); setTimeout(() => document.querySelector('[role="tablist"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }}
-                  aria-label={t('quick.history')} title={t('quick.history')} className={`${icon} bg-white ring-line`}>📜</button>
-              </div>
-            )
-          })()}
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            {isOwner && !customer.isNew ? (
-              <button onClick={() => void correctDetails()} className="flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-brand/30 bg-brand-soft/60 px-3.5 text-sm font-semibold text-brand-strong hover:bg-brand-soft">
-                <span aria-hidden>✎</span>{t('customerEdit.button')}
-              </button>
-            ) : <span />}
-          <div className={`rounded-2xl px-4 py-2.5 ${customer.balance > 0 ? 'bg-due-soft' : customer.balance < 0 ? 'bg-green-50' : 'bg-[#edf2f1]'}`}>
-            <Balance amount={customer.balance} large />
-          </div>
-          </div>
-        </div>
-        {isOwner && customer.nameLater && !customer.isNew && <div className="px-4 pb-4"><MoveInto from={customer.id} customers={customers.filter((c) => c.id !== customer.id && !c.nameLater)} onMoved={async (to) => { await queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] }); navigate(`/c/${to}`) }} /></div>}
-      </div>
-
-      {/* The customer's settings (credit limit, GST and address for bills, how many days they pay in) fold away, so the money and the transactions come first. */}
-      {((settings.data?.type && settings.data.type !== 'kirana') || !customer.isNew) && (
-        <details className="group rounded-card bg-white shadow-sm" open={detailsOpen} onToggle={(e) => keepDetailsOpen((e.target as HTMLDetailsElement).open)}>
-          <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-2 [&::-webkit-details-marker]:hidden">
-            <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#edf2f1]">⚙️</span>
-            <span className="flex min-w-0 flex-1 flex-col">
-              <b>{t('custDetails.title')}</b>
-              <span className="truncate text-xs text-muted">{[
-                customer.creditLimit ? t('custDetails.limit', { amount: formatRupees(customer.creditLimit) }) : null,
-                customer.creditDays ? t('custDetails.days', { count: customer.creditDays }) : null,
-              ].filter(Boolean).join(' · ') || t('custDetails.hint')}</span>
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-2xl font-extrabold">{customer.name}</span>
+            <span className="flex flex-wrap items-center gap-x-2 text-sm text-muted">
+              {customer.phone && <a href={`tel:${customer.phone}`} className="hover:text-brand-strong">{formatPhone(customer.phone)}</a>}
+              {customer.phone && isOwner && !customer.isNew && <span aria-hidden>·</span>}
+              {isOwner && !customer.isNew && <button onClick={() => void correctDetails()} className={`min-h-9 ${btn.link}`}>{t('customerEdit.button')}</button>}
             </span>
-            <span className="text-sm font-semibold text-brand group-open:hidden">{t('custDetails.open')}</span>
-            <span className="hidden text-sm font-semibold text-muted group-open:inline">{t('custDetails.close')}</span>
-          </summary>
-          <div className="flex flex-col gap-3 px-3 pb-3">
-            {settings.data?.type && settings.data.type !== 'kirana' && (
-              <Suspense fallback={null}>
-                <CustomerTradePanel shopId={shopId} customer={customer} isOwner={isOwner} />
-              </Suspense>
-            )}
-            {!customer.isNew && <CreditDays shopId={shopId} customerId={customer.id} days={customer.creditDays} isOwner={isOwner} />}
+          </span>
+          <div className={`shrink-0 rounded-2xl px-4 py-2 ${owes ? 'bg-due-soft' : customer.balance < 0 ? 'bg-green-50' : 'bg-[#edf2f1]'}`}><Balance amount={customer.balance} large /></div>
+        </div>
+        {customer.phone && !customer.isNew && (
+          <div className="flex gap-2">
+            <a href={`tel:${customer.phone}`} aria-label={t('quick.call')} title={t('quick.call')} className="flex h-11 w-11 items-center justify-center rounded-full bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]">{icon('M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2')}</a>
+            <a href={`sms:${customer.phone}?body=${encodeURIComponent(owes ? reminder : t('quick.hello', { name: customer.name, shop: shopName }))}`} onClick={markReminded} aria-label={owes ? t('quick.smsRemind') : t('quick.sms')} title={owes ? t('quick.smsRemind') : t('quick.sms')}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]">{icon('M4 4h16v12H8l-4 4zM8 9h8M8 12h5')}</a>
           </div>
-        </details>
-      )}
+        )}
+        {!customer.isNew && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+            <button onClick={() => { setAct('pay'); setPanel(owes ? 'pay' : 'entry-pay') }} aria-pressed={lit === 'pay'} className={action('pay')}>{dot('pay', 'M3 6h18v12H3zM12 9.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5')}{t('cust3.takePayment')}</button>
+            <button onClick={() => { setAct('credit'); setPanel('entry-credit') }} aria-pressed={lit === 'credit'} className={action('credit')}>{dot('credit', 'M12 5v14M5 12h14')}{t('cust3.giveCredit')}</button>
+            <a href={whatsAppLink(customer.phone, owes ? reminder : t('quick.hello', { name: customer.name, shop: shopName }))} target="_blank" rel="noreferrer" onClick={() => { setAct('remind'); markReminded() }} className={action('remind')}>{dot('remind', 'M4 20l1.4-4A8 8 0 1112 20a8 8 0 01-4-1z')}{owes ? t('cust3.remind') : 'WhatsApp'}</a>
+            <button onClick={() => { setAct('statement'); navigate(`/print/statement/${customer.id}/${monthKey(0)}`) }} className={action('statement')}>{dot('statement', 'M6 2h9l4 4v16H6zM9 11h7M9 15h7')}{t('cust3.statement')}</button>
+            <button onClick={() => { setAct('bill'); navigate('/bill') }} className={action('bill')}>{dot('bill', 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6')}{t('cust3.newBill')}</button>
+          </div>
+        )}
+        {customer.isNew && entryForm()}
+        {isOwner && customer.nameLater && !customer.isNew && <MoveInto from={customer.id} customers={customers.filter((c) => c.id !== customer.id && !c.nameLater)} onMoved={async (to) => { await queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] }); navigate(`/c/${to}`) }} />}
+      </section>
 
-      {customer.balance > 0 && (
-        <div className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm">
-          {modeButtons}
-          <Button tone="payment" className="h-14 text-lg shadow-md shadow-green-900/15" disabled={!chequeOk} onClick={() => void settleAll()}>
-            ✓ {t('ledgerView.settleAll', { amount: formatRupees(customer.balance) })}
-          </Button>
-          <div className="flex flex-col gap-2 rounded-2xl bg-[#f6faf9] p-3 ring-1 ring-line">
-            <span className="text-sm font-semibold text-muted">{t('ledgerView.partPay')}</span>
-            <div className="grid grid-cols-4 gap-2">
-              {[25, 50, 75, 90].map((percent) => {
-                const share = Math.round((customer.balance * percent) / 100)
-                return (
-                  <button
-                    key={percent}
-                    onClick={() => setPart(String(share))}
-                    aria-pressed={part === String(share)}
-                    className={`flex min-h-12 flex-col items-center justify-center rounded-xl text-sm font-semibold transition ${part === String(share) ? 'bg-brand text-white shadow-sm' : 'bg-white text-ink ring-1 ring-line hover:ring-brand-line/40'}`}
-                  >
-                    {percent}%<span className="text-xs font-normal">{formatRupees(share)}</span>
-                  </button>
-                )
-              })}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={part}
-                onChange={(e) => setPart(e.target.value.replace(/[^\d.]/g, ''))}
-                inputMode="decimal"
-                placeholder={t('ledgerView.partPlaceholder')}
-                aria-label={t('ledgerView.partPay')}
-                className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-lg font-bold outline-none focus:border-brand-line focus:ring-4 focus:ring-brand-line/10"
-              />
-              <Button tone="payment" className="h-12 px-4" disabled={!partValid || !chequeOk} onClick={() => void payPart()}>
-                {t('ledgerView.partSave')}
-              </Button>
-            </div>
-            {partValue > 0 && (
-              <p className={`text-sm font-semibold ${partValid ? 'text-muted' : 'text-due'}`}>
-                {partValid
-                  ? t('ledgerView.remaining', { amount: formatRupees(Math.round((customer.balance - partValue) * 100) / 100) })
-                  : t('ledgerView.tooMuch')}
-              </p>
-            )}
-          </div>
-          <a className="flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-[#15803d] bg-green-50 font-bold text-[#15803d] hover:bg-green-100" href={whatsAppLink(customer.phone, reminder)} target="_blank" rel="noreferrer"
-            onClick={() => void request(`/v1/customers/${customer.id}/reminded`, 'POST').catch(() => {})}>
-            <span aria-hidden>💬</span>{t('remind')}
-          </a>
+      {!customer.isNew && (
+        <div role="tablist" aria-label={customer.name} className="-mx-4 flex gap-1 overflow-x-auto border-b border-line px-4 [scrollbar-width:none]">
+          {tabs.map((x) => (
+            <button key={x.key} role="tab" aria-selected={tab === x.key} onClick={() => setTab(x.key)}
+              className={`min-h-12 shrink-0 border-b-[3px] px-3 text-sm whitespace-nowrap ${tab === x.key ? 'border-brand font-bold text-brand' : 'border-transparent font-semibold text-muted hover:text-ink'}`}>{x.label}</button>
+          ))}
         </div>
       )}
 
-      {!customer.isNew && customer.phone && <div className="flex flex-wrap gap-2">{customer.balance > 0 && <SendFromShop kind="reminder" customerId={customer.id} />}<SendFromShop kind="statement" customerId={customer.id} /></div>}
-      {!customer.isNew && <KhataLinkCard customer={customer} shopName={shopName} isOwner={isOwner} />}
-
-      <div role="tablist" className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 shadow-sm">
-        {(['history', 'entry'] as const).map((k) => (
-          <button
-            key={k}
-            role="tab"
-            aria-selected={tab === k}
-            onClick={() => setTab(k)}
-            className={`h-11 rounded-xl font-semibold transition ${tab === k ? 'bg-brand text-white shadow-sm' : 'text-muted hover:bg-[#f6faf9]'}`}
-          >
-            {t(`ledgerView.${k}`)}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'entry' && (
-        <div className="flex flex-col">
-          <div className="mb-2.5 h-[76px] rounded-card bg-white px-5 text-right text-[44px] leading-[76px] font-extrabold">
-            ₹{amount || '0'}
-          </div>
-          <Keypad value={amount} onChange={setAmount} />
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder={t('note')}
-            maxLength={200}
-            className="mt-2.5 h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-brand-line"
-          />
-          <div className="mt-2">{modeButtons}</div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <Button tone="credit" className="h-16" disabled={!valid} onClick={() => save('credit')}>
-              + {t('credit')}
-            </Button>
-            <Button tone="payment" className="h-16" disabled={!valid || !chequeOk} onClick={() => save('payment')}>
-              − {t('payment')}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {tab === 'history' && (
+      {tab === 'history' && !customer.isNew && (
         <>
           {/* A computer gets the register table (opened from a disputed entry: the list, which rings it); a phone the card list. */}
           {!focusEntryId && (
@@ -377,27 +290,79 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
             </div>
           )}
           <div className={focusEntryId ? '' : 'lg:hidden'}>
-          <KhataHistory
-            entries={entries}
-            focusEntryId={focusEntryId}
-            canRemove={(e) => !e.billId && (isOwner || Date.now() - new Date(e.occurredAt).getTime() <= REMOVAL_WINDOW_MS)}
-            onRemove={(e) => void remove(e)}
-          />
+            <KhataHistory entries={entries} focusEntryId={focusEntryId}
+              canRemove={(e) => !e.billId && (isOwner || Date.now() - new Date(e.occurredAt).getTime() <= REMOVAL_WINDOW_MS)}
+              onRemove={(e) => void remove(e)} />
           </div>
-          {!customer.isNew && (
+        </>
+      )}
+
+      {tab === 'statements' && !customer.isNew && (
+        <div className="flex flex-col gap-3">
+          <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
+            <h2 className="font-bold">{t('print.monthStatement')}</h2>
             <div className="grid grid-cols-2 gap-2">
               {[0, -1].map((offset) => {
                 const month = monthKey(offset)
                 return (
-                  <button key={month} onClick={() => navigate(`/print/statement/${customer.id}/${month}`)} className="min-h-12 rounded-2xl border border-line bg-white px-2 font-semibold">
-                    {t('print.monthStatement')} · {monthLabel(month)}
+                  <button key={month} onClick={() => navigate(`/print/statement/${customer.id}/${month}`)} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 ${btn.outline}`}>
+                    {icon('M6 9V3h12v6M3 9h18v8H3zM6 14h12v7H6z')}{monthLabel(month)}
                   </button>
                 )
               })}
             </div>
-          )}
-        </>
+            {customer.phone && <div className="flex flex-wrap gap-2">{owes && <SendFromShop kind="reminder" customerId={customer.id} />}<SendFromShop kind="statement" customerId={customer.id} /></div>}
+          </section>
+          <KhataLinkCard customer={customer} shopName={shopName} isOwner={isOwner} />
+        </div>
       )}
+
+      {tab === 'details' && showDetails && (
+        <div className="flex flex-col gap-3">
+          {settings.data?.type && settings.data.type !== 'kirana' && (
+            <Suspense fallback={null}>
+              <CustomerTradePanel shopId={shopId} customer={customer} isOwner={isOwner} />
+            </Suspense>
+          )}
+          {!customer.isNew && <CreditDays shopId={shopId} customerId={customer.id} days={customer.creditDays} isOwner={isOwner} />}
+        </div>
+      )}
+
+      {panel === 'pay' && (
+        <Drawer title={`${t('cust3.takePayment')} · ${customer.name}`} onClose={() => setPanel(null)}>
+          {modeButtons}
+          <Button tone="payment" className="h-14 text-lg" disabled={!chequeOk} onClick={() => void settleAll().then(closeAfterSave)}>
+            ✓ {t('ledgerView.settleAll', { amount: formatRupees(customer.balance) })}
+          </Button>
+          <div className="flex flex-col gap-2 rounded-2xl bg-white p-3 ring-1 ring-line">
+            <span className="text-sm font-semibold text-muted">{t('ledgerView.partPay')}</span>
+            <div className="grid grid-cols-4 gap-2">
+              {[25, 50, 75, 90].map((percent) => {
+                const share = Math.round((customer.balance * percent) / 100)
+                return (
+                  <button key={percent} onClick={() => setPart(String(share))} aria-pressed={part === String(share)}
+                    className={`flex min-h-12 flex-col items-center justify-center rounded-xl text-sm font-semibold transition ${part === String(share) ? 'bg-brand text-white shadow-sm' : 'bg-white text-ink ring-1 ring-line hover:ring-brand-line/40'}`}>
+                    {percent}%<span className="text-xs font-normal">{formatRupees(share)}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex gap-2">
+              <input value={part} onChange={(e) => setPart(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" placeholder={t('ledgerView.partPlaceholder')} aria-label={t('ledgerView.partPay')}
+                className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-lg font-bold outline-none focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
+              <Button tone="payment" className="h-12 px-4" disabled={!partValid || !chequeOk} onClick={() => void payPart().then(closeAfterSave)}>{t('ledgerView.partSave')}</Button>
+            </div>
+            {partValue > 0 && (
+              <p className={`text-sm font-semibold ${partValid ? 'text-muted' : 'text-due'}`}>
+                {partValid ? t('ledgerView.remaining', { amount: formatRupees(Math.round((customer.balance - partValue) * 100) / 100) }) : t('ledgerView.tooMuch')}
+              </p>
+            )}
+          </div>
+          <button onClick={() => setPanel('entry-pay')} className={`min-h-11 self-start ${btn.link}`}>{t('cust3.otherAmount')}</button>
+        </Drawer>
+      )}
+      {panel === 'entry-pay' && <Drawer title={`${t('cust3.takePayment')} · ${customer.name}`} onClose={() => setPanel(null)}>{entryForm('payment')}</Drawer>}
+      {panel === 'entry-credit' && <Drawer title={`${t('cust3.giveCredit')} · ${customer.name}`} onClose={() => setPanel(null)}>{entryForm('credit')}</Drawer>}
 
       {notice && (
         <div className="fixed inset-x-4 bottom-24 z-10 lg:bottom-8 mx-auto flex max-w-[34rem] flex-col gap-2 rounded-2xl bg-ink p-4 text-white shadow-lg">
