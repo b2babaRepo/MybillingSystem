@@ -1,12 +1,12 @@
 import { SHOP_TYPES, type ShopType } from '../lib/reports'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, Fragment } from 'react'
+import { lazy, Suspense, useState, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BackIcon } from '../components/Icons'
 import { Button, btn } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatDateTime, formatPhone } from '../lib/format'
-import { useSession } from '../lib/data'
+import { useOutbox, useSession } from '../lib/data'
 import { ActivityPanel, AgentPanel, BillingPanel, PlansPanel, ShopBillingPanel } from './PlatformBilling'
 import { usePlans } from '../lib/billing'
 import { AgentsPanel, AgentsSummary, PerformancePanel, RegistrationsPanel } from './PlatformAgents'
@@ -17,6 +17,9 @@ import { ask, confirmAsk } from '../components/Ask'
 addText(adminText)
 import type { AdminRole } from '../lib/types'
 import { navigate } from '../router'
+import { getSession, setSession } from '../lib/session'
+
+const AccountMenu = lazy(() => import('../components/AccountMenu').then((module) => ({ default: module.AccountMenu })))
 import { shrinkPhoto } from '../lib/images'
 
 interface MarketRow { id: string; name: string; state: string | null; district: string | null; city: string | null; village: string | null; isActive: boolean; shops: number }
@@ -54,7 +57,16 @@ type Section = 'shops' | 'plans' | 'markets' | 'items' | 'agents' | 'ai' | 'admi
 export function PlatformScreen() {
   const { t } = useTranslation()
   // What this admin may do; the server checks the same on every request (a session from before roles counts as super).
-  const role: AdminRole = useSession()?.user.platformRole ?? 'super'
+  const session = useSession()
+  const role: AdminRole = session?.user.platformRole ?? 'super'
+  // An admin who also runs a shop may have bills not yet sent: warn before signing out, as the shop screens do.
+  const { pending, failed } = useOutbox(session?.shopId ?? '')
+  async function signOut() {
+    if (pending + failed > 0 && !(await confirmAsk(t('unsyncedSignOut', { count: pending + failed })))) return
+    void request('/v1/auth/sign-out', 'POST', { refreshToken: getSession()?.refreshToken }).catch(() => {})
+    setSession(null)
+    navigate('/')
+  }
   const [status, setStatus] = useState<Status>('new')
   const [q, setQ] = useState('')
   const [plan, setPlan] = useState('')
@@ -132,7 +144,16 @@ export function PlatformScreen() {
         <nav aria-label={t('platform.title')} className="z-10 bg-[#13241f] text-white lg:sticky lg:top-0 lg:h-dvh lg:w-60 lg:shrink-0 lg:p-3">
           <div className="flex items-center gap-2 px-4 py-3 lg:px-2">
             <button onClick={() => navigate('/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}><BackIcon /></button>
-            <span className="text-lg font-bold">{t('platformNav.brand')}</span>
+            <span className="flex-1 text-lg font-bold">{t('platformNav.brand')}</span>
+            {session && (
+              <Suspense fallback={<span className="h-11 w-11 shrink-0 rounded-full bg-amber-400" aria-hidden="true" />}>
+                <AccountMenu name={session.user.fullName} role={t('platformNav.role')} unsynced={pending + failed} onSignOut={() => void signOut()}
+                  actions={[
+                    // Profile is a shop screen, so both show only to an admin who also runs a shop.
+                    ...(session.memberships.length > 0 ? [{ label: t('platformNav.toShop'), onClick: () => navigate('/') }, { label: t('profile.title'), onClick: () => navigate('/profile') }] : []),
+                  ]} />
+              </Suspense>
+            )}
           </div>
           <div className="flex gap-1 overflow-x-auto px-3 pb-2 lg:flex-col lg:overflow-visible lg:px-0">
             {sections.filter((x) => x.show).map((x) => (
