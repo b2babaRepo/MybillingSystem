@@ -1076,14 +1076,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               const on = upiPart === null && mode === m
               return (
                 <button key={m} onClick={() => { setMode(m); setUpiPart(null) }} aria-pressed={on}
-                  className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${on ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}>
+                  className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${on ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}>
                   <span aria-hidden className="text-lg leading-none">{m === 'cash' ? '💵' : m === 'upi' ? '📱' : '💳'}</span>{t(m)}
                 </button>
               )
             })}
             {paidAmount > 0 && (
               <button onClick={() => { setMode('cash'); setUpiPart(upiPart === null ? '' : null) }} aria-pressed={upiPart !== null}
-                className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${upiPart !== null ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}>
+                className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${upiPart !== null ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}>
                 <span aria-hidden className="text-lg leading-none">➗</span>{t('split.button')}
               </button>
             )}

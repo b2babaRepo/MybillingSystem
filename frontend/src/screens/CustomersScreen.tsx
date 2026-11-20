@@ -44,7 +44,7 @@ export function CustomersScreen({ shopId, selectedId, isOwner = false }: { shopI
               key={key}
               onClick={() => setSort(key)}
               aria-pressed={sort === key}
-              className={`h-10 rounded-xl text-[15px] font-semibold transition ${sort === key ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}
+              className={`h-10 rounded-xl text-[15px] font-semibold transition ${sort === key ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}
             >
               {t(`sort.${key}`)}
             </button>

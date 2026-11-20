@@ -29,7 +29,7 @@ export function SalesByScreen() {
         </div>
         <div className="grid grid-cols-3 gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
           {(['category', 'supplier', 'customer'] as const).map((k) => (
-            <button key={k} onClick={() => setBy(k)} aria-pressed={by === k} className={`h-10 rounded-xl font-semibold transition ${by === k ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}>{t(`sl.byWhat.${k}`)}</button>
+            <button key={k} onClick={() => setBy(k)} aria-pressed={by === k} className={`h-10 rounded-xl font-semibold transition ${by === k ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}>{t(`sl.byWhat.${k}`)}</button>
           ))}
         </div>
         {by === 'supplier' && <p className="text-xs text-muted">{t('rs.salesShare')}</p>}

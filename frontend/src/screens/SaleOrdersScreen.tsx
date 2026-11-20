@@ -58,7 +58,7 @@ export function SaleOrdersScreen() {
         <p className="text-sm text-muted">{t('saleOrder.hint')}</p>
         <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
           {([false, true] as const).map((v) => (
-            <button key={String(v)} onClick={() => setAll(v)} aria-pressed={all === v} className={`h-10 rounded-xl font-semibold transition ${all === v ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}>{t(v ? 'saleOrder.all' : 'saleOrder.open')}</button>
+            <button key={String(v)} onClick={() => setAll(v)} aria-pressed={all === v} className={`h-10 rounded-xl font-semibold transition ${all === v ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}>{t(v ? 'saleOrder.all' : 'saleOrder.open')}</button>
           ))}
         </div>
         {!all && data.length > 0 && (

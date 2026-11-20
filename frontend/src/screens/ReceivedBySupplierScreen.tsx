@@ -57,7 +57,7 @@ export function ReceivedBySupplierScreen({ shopId }: { shopId: string }) {
         </div>
         <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
           {(['grid', 'score'] as const).map((k) => (
-            <button key={k} onClick={() => setTab(k)} aria-pressed={tab === k} className={`h-10 rounded-xl font-semibold ${tab === k ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted'}`}>{t(`rs.tab.${k}`)}</button>
+            <button key={k} onClick={() => setTab(k)} aria-pressed={tab === k} className={`h-10 rounded-xl font-semibold ${tab === k ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`rs.tab.${k}`)}</button>
           ))}
         </div>
         {tab === 'grid' ? (

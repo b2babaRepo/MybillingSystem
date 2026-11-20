@@ -34,6 +34,20 @@ export function AppLockGate({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer)
   }, [waiting])
 
+  // A computer's keys work on the lock too: digits, Backspace, Enter to open.
+  const keys = useRef<{ press: (d: string) => void; back: () => void; open: () => void }>({ press: () => {}, back: () => {}, open: () => {} })
+  useEffect(() => {
+    if (!signedIn || !locked) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); keys.current.press(e.key) }
+      else if (e.key === 'Backspace') { e.preventDefault(); keys.current.back() }
+      else if (e.key === 'Enter') { e.preventDefault(); keys.current.open() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [signedIn, locked])
+
   if (!signedIn || !locked) return <>{children}</>
 
   async function check(value: string) {
@@ -52,6 +66,7 @@ export function AppLockGate({ children }: { children: ReactNode }) {
     setPin(next)
     if (next.length >= 4) void appLockMatches(next).then((ok) => { if (ok || next.length === 6) void check(next) })
   }
+  keys.current = { press, back: () => setPin(pin.slice(0, -1)), open: () => { if (pin.length >= 4 && !waiting) void check(pin) } }
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-5 bg-brand p-6 text-white">

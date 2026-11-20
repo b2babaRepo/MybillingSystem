@@ -148,7 +148,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
             key={m}
             onClick={() => setMode(m)}
             aria-pressed={mode === m}
-            className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${mode === m ? 'bg-white text-brand-strong shadow-sm ring-1 ring-brand/20' : 'text-muted hover:text-ink'}`}
+            className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${mode === m ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}
           >
             <span aria-hidden className="text-lg leading-none">{m === 'cash' ? '💵' : m === 'upi' ? '📱' : m === 'card' ? '💳' : '🏦'}</span>{t(m)}
           </button>
@@ -221,7 +221,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
   const entryForm = (only?: 'credit' | 'payment') => (
     <div className="flex flex-col">
       <div className="mb-2.5 h-[76px] rounded-card bg-white px-5 text-right text-[44px] leading-[76px] font-extrabold">₹{amount || '0'}</div>
-      <Keypad value={amount} onChange={setAmount} keyboard />
+      <Keypad value={amount} onChange={setAmount} />
       <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('note')} maxLength={200}
         className="mt-2.5 h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-brand-line" />
       {only !== 'credit' && <div className="mt-2">{modeButtons}</div>}
