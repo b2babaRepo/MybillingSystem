@@ -1,6 +1,6 @@
 import { btn } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, request } from '../lib/api'
 import { BADGE_ICON, isValidAadhaar, type AgentPerformanceRow, type FieldAgent, type FieldAgentStatus, type Registration } from '../lib/agents'
@@ -18,7 +18,28 @@ const TABS: FieldAgentStatus[] = ['applied', 'approved', 'blocked', 'rejected']
  * Field agents (super and agent-manager admins): applications to check, approved agents with their codes, blocked and
  * rejected ones. Approving asks the manager to confirm they saw the Aadhaar card; the app only checks the number's form.
  */
-export function AgentsPanel() {
+/**
+ * The field agents page at a glance: what is waiting to be checked, who is working, and commission owed. Uses the
+ * same lists as the panels below, so nothing is fetched twice.
+ */
+export function AgentsSummary({ showMoney }: { showMoney: boolean }) {
+  const { t } = useTranslation()
+  const applied = useQuery({ queryKey: ['platform', 'agents', 'applied'], queryFn: () => api<FieldAgent[]>('/v1/platform/agents?status=applied') }).data?.length
+  const approved = useQuery({ queryKey: ['platform', 'agents', 'approved'], queryFn: () => api<FieldAgent[]>('/v1/platform/agents?status=approved') }).data?.length
+  const shops = useQuery({ queryKey: ['platform', 'registrations', 'submitted'], queryFn: () => api<Registration[]>('/v1/platform/registrations?status=submitted') }).data?.length
+  const due = useQuery({ queryKey: ['platform', 'agent-performance'], queryFn: () => api<AgentPerformanceRow[]>('/v1/platform/agent-performance'), enabled: showMoney }).data?.reduce((n, r) => n + r.commissionDue, 0)
+  const card = 'flex min-h-[84px] flex-col justify-between rounded-[18px] p-3'
+  return (
+    <div className={`grid grid-cols-2 gap-2 ${showMoney ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
+      <div className={`${card} ${applied ? 'bg-[#b45309] text-white shadow-lg shadow-[#b45309]/30' : 'bg-[#fdf1e3] text-[#a1460a]'}`}><span className="text-[13px] font-bold">{t('plat6.agentsToCheck')}</span><b className="text-[28px] leading-none">{applied ?? '–'}</b></div>
+      <div className={`${card} bg-[#e8effd] text-[#1d4ed8]`}><span className="text-[13px] font-bold">{t('plat6.shopsToCheck')}</span><b className="text-[28px] leading-none">{shops ?? '–'}</b></div>
+      <div className={`${card} bg-[#e3f2ee] text-[#0b5e4f]`}><span className="text-[13px] font-bold">{t('plat6.approvedAgents')}</span><b className="text-[28px] leading-none">{approved ?? '–'}</b></div>
+      {showMoney && <div className={`${card} bg-[#f1eafd] text-[#6d28d9]`}><span className="text-[13px] font-bold">{t('plat6.commissionDue')}</span><b className="text-2xl leading-none">{due == null ? '–' : formatRupees(due)}</b></div>}
+    </div>
+  )
+}
+
+export function AgentsPanel({ addRequest = 0 }: { addRequest?: number }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(true)
@@ -28,6 +49,8 @@ export function AgentsPanel() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  // The page header's "Add an agent" opens the form here.
+  useEffect(() => { if (addRequest > 0) setAdding(true) }, [addRequest])
   const empty = { fullName: '', phone: '', address: '', market: '', aadhaar: '', upiId: '' }
   const [form, setForm] = useState(empty)
 
@@ -131,9 +154,7 @@ export function AgentsPanel() {
               <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold" onClick={() => setAdding(false)}>{t('plans.cancel')}</button>
             </div>
           </div>
-        ) : (
-          <button onClick={() => setAdding(true)} className={`min-h-11 self-start ${btn.add}`}>+ {t('agentsAdmin.addTitle')}</button>
-        )}
+        ) : null}
         {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       </>}
     </section>

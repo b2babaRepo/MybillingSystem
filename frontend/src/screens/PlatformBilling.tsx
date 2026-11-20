@@ -64,6 +64,11 @@ export function AgentPanel({ role }: { role: AdminRole }) {
 
   return (
     <Collapsible title={t('agent.title', { count: suggestions.length })}>
+      {role === 'super' && (
+        <button disabled={busy} onClick={() => void run(() => api('/v1/platform/agent/run', 'POST', {}), t('agent.ran'))} className={`flex min-h-11 items-center gap-2 self-end rounded-xl px-4 -mt-1 ${btn.outline}`}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M4 12a8 8 0 0114-5l2 2M20 4v5h-5M20 12a8 8 0 01-14 5l-2-2M4 20v-5h5" /></svg>{t('agent.runNow')}
+        </button>
+      )}
       {briefing && (
         <div className="flex flex-col gap-3 rounded-[20px] bg-[#13241f] p-4 text-white">
           <span className="flex items-center gap-2 font-bold"><span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" /></svg></span>{t('plat5.week')}</span>
@@ -95,11 +100,6 @@ export function AgentPanel({ role }: { role: AdminRole }) {
           </li>
         ))}
       </ul>
-      {role === 'super' && (
-        <button disabled={busy} onClick={() => void run(() => api('/v1/platform/agent/run', 'POST', {}), t('agent.ran'))} className="min-h-11 self-start rounded-xl border border-line px-3 text-sm font-semibold">
-          {t('agent.runNow')}
-        </button>
-      )}
       {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
     </Collapsible>
   )
@@ -400,6 +400,19 @@ export function ActivityPanel() {
       .map(([k, v]) => (typeof v === 'string' && (v.startsWith('data:') || v.length > 120) ? `${k}: ${t('activity.longValue')}` : `${k}: ${String(v)}`)).join(' · ')
   }
 
+  // Each change with a small coloured icon by its kind, and filters by admin and kind.
+  const kindOf = (action: string) => (/\/image\/?$|master-items/.test(action) ? 'items' : /admins/.test(action) ? 'admins' : /plans|offers|claims|payments|refund|complimentary|hold|release/.test(action) ? 'money' : /agent/.test(action) ? 'agents' : 'shops')
+  const KIND: Record<string, [string, string]> = {
+    shops: ['M4 9l1-5h14l1 5M4 9h16v11H4zM9 20v-6h6v6', 'bg-[#e8effd] text-[#1d4ed8]'],
+    money: ['M3 6h18v12H3zM3 10h18M7 15h3', 'bg-[#fdf1e3] text-[#a1460a]'],
+    items: ['M3 4h18v16H3zM3 16l5-5 5 5 3-3 5 5M15 9h.01', 'bg-[#e3f2ee] text-[#0b5e4f]'],
+    admins: ['M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', 'bg-[#f1eafd] text-[#6d28d9]'],
+    agents: ['M9 11a4 4 0 100-8 4 4 0 000 8zM2 21v-1a7 7 0 0114 0v1', 'bg-[#e0f2fe] text-[#0369a1]'],
+  }
+  const [who, setWho] = useState('')
+  const [kind, setKind] = useState('')
+  const shown = (rows.data ?? []).filter((r) => (!who || r.admin === who) && (!kind || kindOf(r.action) === kind))
+
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
@@ -407,16 +420,30 @@ export function ActivityPanel() {
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
-        <p className="text-sm text-muted">{t('activity.hint')}</p>
-        {rows.data?.length === 0 && <p className="text-sm text-muted">{t('activity.none')}</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="mr-auto text-sm text-muted">{t('activity.hint')}</p>
+          <select aria-label={t('plat6.byAdmin')} value={who} onChange={(e) => setWho(e.target.value)} className="h-10 rounded-xl border border-line bg-white px-2 text-sm">
+            <option value="">{t('plat6.allAdmins')}</option>{[...new Set((rows.data ?? []).map((r) => r.admin))].map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <select aria-label={t('plat6.byKind')} value={kind} onChange={(e) => setKind(e.target.value)} className="h-10 rounded-xl border border-line bg-white px-2 text-sm">
+            <option value="">{t('plat6.allChanges')}</option>{Object.keys(KIND).map((k) => <option key={k} value={k}>{t(`plat6.kind.${k}`)}</option>)}
+          </select>
+        </div>
+        {shown.length === 0 && <p className="text-sm text-muted">{t('activity.none')}</p>}
         <ul className="flex flex-col divide-y divide-[#edf2f1] text-sm">
-          {rows.data?.map((r) => (
-            <li key={r.id} className="flex flex-col py-2">
-              <span className="font-semibold">{label(r.action)}{r.shopName ? ` · ${r.shopName}` : ''}</span>
-              <span className="text-xs text-muted">{r.admin} · {formatDateTime(r.at)}</span>
-              {said(r.detail) && <span className="text-xs">{said(r.detail)}</span>}
-            </li>
-          ))}
+          {shown.map((r) => {
+            const [d, tone] = KIND[kindOf(r.action)]
+            return (
+              <li key={r.id} className="flex items-start gap-3 py-2.5">
+                <span aria-hidden className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${tone}`}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg></span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="font-semibold">{label(r.action)}{r.shopName ? ` · ${r.shopName}` : ''}</span>
+                  <span className="text-xs text-muted">{r.admin} · {formatDateTime(r.at)}</span>
+                  {said(r.detail) && <span className="text-xs break-words">{said(r.detail)}</span>}
+                </span>
+              </li>
+            )
+          })}
         </ul>
       </>}
     </section>

@@ -9,7 +9,7 @@ import { formatDateTime, formatPhone } from '../lib/format'
 import { useSession } from '../lib/data'
 import { ActivityPanel, AgentPanel, BillingPanel, PlansPanel, ShopBillingPanel } from './PlatformBilling'
 import { usePlans } from '../lib/billing'
-import { AgentsPanel, PerformancePanel, RegistrationsPanel } from './PlatformAgents'
+import { AgentsPanel, AgentsSummary, PerformancePanel, RegistrationsPanel } from './PlatformAgents'
 import { addText, shownLocale } from '../i18n'
 import { adminText } from '../i18n/admin'
 import { ask, confirmAsk } from '../components/Ask'
@@ -102,6 +102,7 @@ export function PlatformScreen() {
   const [picked, setPicked] = useState<string[]>([])
   const [hideTest, setHideTest] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [addAgent, setAddAgent] = useState(0)
   const canApprove = role === 'super' || role === 'approver'
   const isTest = (s: ShopRow) => /\b(test|qa)\b|\(test\)/i.test(s.name)
   const shown = (shops.data ?? []).filter((s) => !hideTest || !isTest(s))
@@ -251,8 +252,15 @@ export function PlatformScreen() {
           {section === 'markets' && <MarketsPanel />}
           {section === 'items' && <MasterItemsPanel />}
           {section === 'agents' && <>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="mr-auto text-2xl font-extrabold">{t('platformNav.agents')}</h1>
+              {(role === 'super' || role === 'agent_manager') && <button onClick={() => setAddAgent((n) => n + 1)} className={`min-h-11 rounded-xl px-4 ${btn.solid}`}>+ {t('agentsAdmin.addTitle')}</button>}
+            </div>
+            <AgentsSummary showMoney={role === 'super' || role === 'agent_manager' || role === 'billing'} />
+            <div className="grid items-start gap-3 xl:grid-cols-2">
             {role !== 'support' && <RegistrationsPanel role={role} />}
-            {(role === 'super' || role === 'agent_manager') && <AgentsPanel />}
+            {(role === 'super' || role === 'agent_manager') && <AgentsPanel addRequest={addAgent} />}
+            </div>
             {(role === 'super' || role === 'agent_manager' || role === 'billing') && <PerformancePanel role={role} />}
           </>}
           {section === 'ai' && <AgentPanel role={role} />}
@@ -527,6 +535,10 @@ function MasterItemsPanel() {
   const [q, setQ] = useState('')
   const empty = { name: '', nameHi: '', category: '', unit: 'piece', gst: '', hsn: '', packs: '' }
   const [draft, setDraft] = useState(empty)
+  const [importing, setImporting] = useState(false)
+  const [unitFilter, setUnitFilter] = useState('')
+  const [gstFilter, setGstFilter] = useState('')
+  const [noPhotoOnly, setNoPhotoOnly] = useState(false)
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<number | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -551,6 +563,9 @@ function MasterItemsPanel() {
     setDraft({ ...empty, category: draft.category, unit: draft.unit })
     setEditing(null)
   })
+  const view = rows.filter((r) => (!unitFilter || r.unit === unitFilter)
+    && (!gstFilter || (gstFilter === 'none' ? r.gstRate == null : r.gstRate === Number(gstFilter)))
+    && (!noPhotoOnly || !r.imageAt))
   const [csv, setCsv] = useState('')
   const importCsv = () => run(async () => {
     const r = await api<{ added: number; updated: number; problems: string[] }>('/v1/platform/master-items/import', 'POST', { trade, text: csv })
@@ -564,6 +579,7 @@ function MasterItemsPanel() {
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="mr-auto text-lg font-bold">{t('masterItems.title')} · {t('masterItems.count', { count: rows.length })}</h2>
+        <button onClick={() => setImporting(!importing)} aria-expanded={importing} className={`flex min-h-11 items-center gap-2 rounded-xl px-4 ${btn.outline}`}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M12 15V3M7 8l5-5 5 5M4 15v5h16v-5" /></svg>{t('masterItems.import')}</button>
         <button onClick={() => { setAdding(!adding || editing !== null); setEditing(null); setDraft(empty) }} className={`min-h-11 rounded-xl px-4 ${adding && editing === null ? btn.outline : btn.solid}`}>{adding && editing === null ? t('cancel') : `+ ${t('masterItems.add')}`}</button>
       </div>
       {/* What needs work in this trade's list, at a glance. */}
@@ -583,6 +599,18 @@ function MasterItemsPanel() {
         <span aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-3.5-3.5" /></svg></span>
         <input aria-label={t('masterItems.search')} placeholder={t('masterItems.search')} value={q} onChange={(e) => setQ(e.target.value)} className={`${input} w-full bg-[#f6faf9] pl-10`} />
       </span>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-[11px] font-bold tracking-wide text-muted uppercase">{t('masterItems.unit')}
+          <select value={unitFilter} onChange={(e) => setUnitFilter(e.target.value)} className="h-10 rounded-xl border border-line bg-white px-2 text-sm font-medium normal-case text-ink">
+            <option value="">{t('plat6.all')}</option>{[...new Set(rows.map((r) => r.unit))].map((u) => <option key={u} value={u}>{t(`units.${u}`)}</option>)}
+          </select></label>
+        <label className="flex flex-col gap-1 text-[11px] font-bold tracking-wide text-muted uppercase">GST
+          <select value={gstFilter} onChange={(e) => setGstFilter(e.target.value)} className="h-10 rounded-xl border border-line bg-white px-2 text-sm font-medium normal-case text-ink">
+            <option value="">{t('plat6.all')}</option><option value="none">{t('plat5.gstNotSet')}</option>{['0', '5', '18', '40'].map((g) => <option key={g} value={g}>{g}%</option>)}
+          </select></label>
+        <label className="flex min-h-10 items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={noPhotoOnly} onChange={(e) => setNoPhotoOnly(e.target.checked)} className="h-5 w-5" />{t('plat6.noPhotoOnly')}</label>
+        {(unitFilter || gstFilter || noPhotoOnly) && <span className="text-sm text-muted">{t('plat6.showing', { shown: view.length, total: rows.length })}</span>}
+      </div>
       {(adding || editing !== null) && <div className="grid grid-cols-2 gap-2 rounded-xl bg-ground p-2 ring-2 ring-brand/30">
         <input aria-label={t('masterItems.name')} placeholder={t('masterItems.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={input} />
         <input aria-label={t('masterItems.nameHi')} placeholder={t('masterItems.nameHi')} value={draft.nameHi} onChange={(e) => setDraft({ ...draft, nameHi: e.target.value })} className={input} />
@@ -598,12 +626,12 @@ function MasterItemsPanel() {
         <Button className="col-span-2" disabled={draft.name.trim().length < 2 || draft.category.trim().length < 2} onClick={() => void save()}>{editing ? t('save') : t('masterItems.add')}</Button>
       </div>}
       <SuggestionsQueue onDone={() => void queryClient.invalidateQueries({ queryKey: ['platform', 'master'] })} />
-      <details className="rounded-xl bg-ground p-2">
-        <summary className="min-h-11 cursor-pointer font-semibold">{t('masterItems.import')}</summary>
+      {importing && <div className="flex flex-col gap-2 rounded-xl bg-ground p-3 ring-2 ring-brand/30">
+        <b>{t('masterItems.import')}</b>
         <p className="text-xs text-muted">{t('masterItems.importHint')}</p>
         <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={6} placeholder={'Toor dal, तूर दाल, Dal, kg, 5, 0713, 500 g|1 kg'} className="mt-2 w-full rounded-xl border border-line p-2 font-mono text-sm" />
         <Button disabled={!csv.trim()} onClick={() => void importCsv()}>{t('masterItems.importButton')}</Button>
-      </details>
+      </div>}
       {message && <p className="whitespace-pre-line text-sm text-due">{message}</p>}
       <label className="flex flex-col gap-1 text-xs text-muted">{t('masterItems.creditLabel')}
         <input value={photoCredit} onChange={(e) => setPhotoCredit(e.target.value)} maxLength={120} placeholder="Unsplash: name" className="h-10 rounded-xl border border-line bg-white px-3 text-sm text-ink" />
@@ -614,7 +642,7 @@ function MasterItemsPanel() {
             <tr><th className="w-16 px-3 py-2.5">{t('plat5.photo')}</th><th className="px-2 py-2.5">{t('plat5.item')}</th><th className="px-2 py-2.5">{t('masterItems.category')}</th><th className="px-2 py-2.5">{t('masterItems.unit')}</th><th className="px-2 py-2.5">{t('plat5.gstHsn')}</th><th className="px-2 py-2.5">{t('plat5.sizes')}</th><th className="px-3 py-2.5 text-right" /></tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {view.map((r) => (
               <tr key={r.id} className={`border-t border-line ${r.isActive ? '' : 'opacity-50'} ${editing === r.id ? 'bg-[#eef7f4]' : 'hover:bg-[#f6faf9]'}`}>
                 <td className="px-3 py-1.5"><MasterPhoto row={r} run={run} credit={photoCredit} /></td>
                 <td className="px-2 py-1.5"><span className="flex flex-col"><b>{r.name}</b>{r.nameHi && <span className="text-xs text-muted">{r.nameHi}</span>}</span></td>
@@ -635,7 +663,7 @@ function MasterItemsPanel() {
         </table>
       </div>
       <ul className="flex max-h-[32rem] flex-col overflow-y-auto lg:hidden">
-        {rows.map((r) => (
+        {view.map((r) => (
           <li key={r.id} className={`flex items-center gap-2 border-t border-line py-1 text-sm ${r.isActive ? '' : 'opacity-50'}`}>
             <MasterPhoto row={r} run={run} credit={photoCredit} />
             <span className="min-w-0 flex-1 truncate">{r.name}{r.nameHi ? ` · ${r.nameHi}` : ''}<span className="block text-xs text-muted">{r.category} · {t(`units.${r.unit}`)}{r.gstRate != null ? ` · ${r.gstRate}%` : ''}{r.hsnCode ? ` · ${r.hsnCode}` : ''}{r.packSizes.length ? ` · ${r.packSizes.join(' / ')}` : ''}</span></span>
@@ -819,6 +847,7 @@ function ManageAdmins() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [open, setOpen] = useState(true)
+  const [giving, setGiving] = useState(false)
 
   async function run(path: string, method: 'POST' | 'PUT' | 'DELETE', body?: object, done?: string) {
     setBusy(true)
@@ -872,8 +901,9 @@ function ManageAdmins() {
           </li>
         ))}
       </ul>
-      <div className="flex flex-col gap-2 rounded-xl bg-ground p-3">
-        <span className="font-semibold">{t('admins.addTitle')}</span>
+      {!giving && <button onClick={() => setGiving(true)} className={`min-h-11 self-start rounded-xl px-4 ${btn.solid}`}>+ {t('admins.addTitle')}</button>}
+      {giving && <div className="flex flex-col gap-2 rounded-xl bg-ground p-3 ring-2 ring-brand/30">
+        <span className="flex items-center justify-between font-semibold">{t('admins.addTitle')}<button onClick={() => setGiving(false)} className={`min-h-9 text-sm ${btn.link}`}>{t('cancel')}</button></span>
         <label className="sr-only" htmlFor="admin-phone">{t('staff.phone')}</label>
         <input id="admin-phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder={t('staff.phone')}
           className="h-12 rounded-xl border border-line bg-white px-3" />
@@ -884,7 +914,7 @@ function ManageAdmins() {
         <Button disabled={busy || phone.trim().length < 10} onClick={() => void run('/v1/platform/admins', 'POST', { phone: phone.trim(), role }, t('admins.added'))}>
           {t('admins.add')}
         </Button>
-      </div>
+      </div>}
       {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       </>}
     </section>
