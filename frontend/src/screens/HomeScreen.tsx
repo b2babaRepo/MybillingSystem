@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { lazy, Suspense } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -33,7 +34,7 @@ function Digest() {
   if (!d || (d.oldDueCustomers === 0 && d.supplierDue <= 0)) return null
   return (
     <section className="mx-4 mt-4 flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm ring-1 ring-amber-100">
-      <h2 className="flex items-center gap-2 font-bold"><span aria-hidden>🔔</span>{t('digest.title')}</h2>
+      <h2 className="flex items-center gap-2 font-bold"><span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-full bg-warn-soft text-warn"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 16V11a6 6 0 0112 0v5l2 2H4zM10 21h4" /></svg></span>{t('digest.title')}</h2>
       {d.oldDueCustomers > 0 && (
         <button onClick={() => navigate('/dues')} className="flex min-h-11 items-center justify-between text-left">
           <span>{t('digest.oldDues', { count: d.oldDueCustomers })}</span><span className="font-bold text-due">{formatRupees(d.oldDueAmount)}</span>
@@ -81,10 +82,10 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
       </section>
 
       <section className="mx-4 mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Action label={t('newBill')} to="/bill" primary icon={<BillIcon size={28} />} />
-        <Action label={t('addUdhaar')} to="/khata" icon={<PlusIcon size={28} className="text-udhaar" />} />
-        <Action label={t('receivePayment')} to="/khata" icon={<PaymentIcon size={28} className="text-jama" />} />
-        <Action label={t('customers')} to="/khata" icon={<CustomersIcon size={28} className="text-blue-700" />} />
+        <Action label={t('newBill')} to="/bill" tone="bg-[#0b5e4f] text-white shadow-lg shadow-[#0b5e4f]/30 hover:bg-[#084a3e]" dot="bg-white/20" icon={<BillIcon size={26} />} />
+        <Action label={t('addUdhaar')} to="/khata" tone="bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]" icon={<PlusIcon size={26} />} />
+        <Action label={t('receivePayment')} to="/khata" tone="bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]" icon={<PaymentIcon size={26} />} />
+        <Action label={t('customers')} to="/khata" tone="bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]" icon={<CustomersIcon size={26} />} />
       </section>
 
       {isOwner && <PlanBanner shopId={shopId} />}
@@ -97,34 +98,34 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
 
       {/* What needs a look first: master-list updates, getting started, low stock. */}
       {isOwner && (masterUpdates?.changes.length ?? 0) > 0 && (
-        <Alert to="/items/pick" icon="🔄" tone="bg-warn-soft text-warn-ink ring-amber-200">{t('pick.updatesBanner')} ({masterUpdates!.changes.length})</Alert>
+        <Alert to="/items/pick" icon="M4 12a8 8 0 0114-5l2 2M20 4v5h-5M20 12a8 8 0 01-14 5l-2-2M4 20v-5h5" tone="bg-warn-soft text-warn-ink ring-amber-200">{t('pick.updatesBanner')} ({masterUpdates!.changes.length})</Alert>
       )}
       {isOwner && products.length === 0 && (
-        <Alert to="/items/pick" icon="🚀" tone="bg-brand text-white ring-teal-800">{t('pick.start')}</Alert>
+        <Alert to="/items/pick" icon="M12 2c3 3 4 7 3 11l-3 3-3-3c-1-4 0-8 3-11zM9 13l-4 1 2 3M15 13l4 1-2 3M12 16v5" tone="bg-brand text-white ring-teal-800">{t('pick.start')}</Alert>
       )}
       {isOwner && backup && !backup.empty && (backupDays == null || backupDays > 7) && (
-        <Alert to="/backup" icon="💾" tone="bg-warn-soft text-warn-ink ring-amber-200">{backupDays == null ? t('backup.homeNever') : t('backup.homeOld', { count: backupDays })}</Alert>
+        <Alert to="/backup" icon="M5 3h11l3 3v15H5zM8 3v5h7V3M8 21v-6h8v6" tone="bg-warn-soft text-warn-ink ring-amber-200">{backupDays == null ? t('backup.homeNever') : t('backup.homeOld', { count: backupDays })}</Alert>
       )}
-      {lowCount > 0 && <Alert to="/items" icon="📦" tone="bg-orange-50 text-orange-800 ring-orange-200">{t('stock.lowCount', { count: lowCount })}</Alert>}
+      {lowCount > 0 && <Alert to="/items" icon="M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10" tone="bg-orange-50 text-orange-800 ring-orange-200">{t('stock.lowCount', { count: lowCount })}</Alert>}
 
       {/* Every other page as one card of tiles, instead of a long stack of rows. */}
       <section className="mx-4 mt-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-        <Tile to="/cashbook" icon="📒" tone="bg-emerald-50">{t('book.todayLink')}</Tile>
+        <Tile to="/cashbook" icon="M5 4h14v16H5zM9 4v16" tone="bg-emerald-50 text-emerald-700">{t('book.todayLink')}</Tile>
         <KharchaRow shopId={shopId} />
-        <Tile to="/dues" icon="📞" tone="bg-due-soft">{t('dues.link')}</Tile>
+        <Tile to="/dues" icon="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2" tone="bg-due-soft text-due">{t('dues.link')}</Tile>
         {/* Owner screens: helpers (staff) don't see them; the server refuses them too. */}
-        {isOwner && <Tile to="/reports" icon="📊" tone="bg-blue-50">{t('reports.link')}</Tile>}
-        <Tile to="/store" icon="🛒" tone="bg-violet-50">{t('myStore.link')}</Tile>
-        {types.includes('lodge') && <Tile to="/rooms" icon="🛏️" tone="bg-sky-50">{t('rooms.link')}</Tile>}
-        {types.includes('restaurant') && <Tile to="/tables" icon="🍽️" tone="bg-warn-soft">{t('tables.link')}</Tile>}
-        {types.includes('banquet') && <Tile to="/bookings" icon="🎉" tone="bg-pink-50">{t('bookings.link')}</Tile>}
-        {(types.includes('woodwork') || types.includes('sales_service')) && <Tile to="/jobs" icon="🛠️" tone="bg-slate-100">{t('jobs.link')}</Tile>}
-        {isOwner && types.some((x) => COMMISSION_TYPES.includes(x)) && <Tile to="/painters" icon="🎨" tone="bg-warn-soft">{t('painters.link')}</Tile>}
-        {isOwner && isTrade(types) && <Tile to="/rates" icon="🏷️" tone="bg-brand-soft">{t('rates.link')}</Tile>}
-        {isOwner && <Tile to="/suppliers" icon="🚚" tone="bg-orange-50">{t('side.suppliers')}</Tile>}
-        {isOwner && <Tile to="/reorder" icon="📋" tone="bg-cyan-50">{t('reorder.link')}</Tile>}
-        {isOwner && <Tile to="/offers" icon="🏷️" tone="bg-rose-50">{t('offers.link')}</Tile>}
-        {isOwner && <Tile to="/settings" icon="⚙️" tone="bg-slate-100">{t('settings.link')}</Tile>}
+        {isOwner && <Tile to="/reports" icon="M4 20V10M10 20V4M16 20v-7M22 20H2" tone="bg-blue-50 text-blue-700">{t('reports.link')}</Tile>}
+        <Tile to="/store" icon="M4 9l1-5h14l1 5M4 9h16v11H4zM9 20v-6h6v6" tone="bg-violet-50 text-violet-700">{t('myStore.link')}</Tile>
+        {types.includes('lodge') && <Tile to="/rooms" icon="M3 18V7M3 13h18v5M21 18v-5a3 3 0 00-3-3h-7v3" tone="bg-sky-50 text-sky-700">{t('rooms.link')}</Tile>}
+        {types.includes('restaurant') && <Tile to="/tables" icon="M7 3v8M5 3v5a2 2 0 004 0V3M7 11v10M17 3c-2 2-2 6 0 8v10" tone="bg-warn-soft text-warn">{t('tables.link')}</Tile>}
+        {types.includes('banquet') && <Tile to="/bookings" icon="M3 21l5-14 9 9zM14 4l1 2M19 5l-2 2M20 10l-2-1" tone="bg-pink-50 text-pink-700">{t('bookings.link')}</Tile>}
+        {(types.includes('woodwork') || types.includes('sales_service')) && <Tile to="/jobs" icon="M14 6a4 4 0 005 5l-8 8-3-3 8-8a4 4 0 01-2-2zM5 19l-2 2" tone="bg-slate-100 text-slate-700">{t('jobs.link')}</Tile>}
+        {isOwner && types.some((x) => COMMISSION_TYPES.includes(x)) && <Tile to="/painters" icon="M12 3a9 9 0 100 18c1 0 2-1 1-2-1-2 0-3 2-3h2a4 4 0 004-4 9 9 0 00-9-9zM7.5 11h.01M10 7h.01M15 7h.01" tone="bg-warn-soft text-warn">{t('painters.link')}</Tile>}
+        {isOwner && isTrade(types) && <Tile to="/rates" icon="M3 3h8l10 10-8 8L3 11zM8 8h.01" tone="bg-brand-soft text-brand">{t('rates.link')}</Tile>}
+        {isOwner && <Tile to="/suppliers" icon="M2 6h13v11H2zM15 10h4l3 3v4h-7M6 20h.01M18 20h.01" tone="bg-orange-50 text-orange-700">{t('side.suppliers')}</Tile>}
+        {isOwner && <Tile to="/reorder" icon="M9 3h6v3H9zM6 5h3M15 5h3v16H6V5M9 12h6M9 16h4" tone="bg-cyan-50 text-cyan-700">{t('reorder.link')}</Tile>}
+        {isOwner && <Tile to="/offers" icon="M3 3h8l10 10-8 8L3 11zM8 8h.01" tone="bg-rose-50 text-rose-700">{t('offers.link')}</Tile>}
+        {isOwner && <Tile to="/settings" icon="M12 9a3 3 0 100 6 3 3 0 000-6zM12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" tone="bg-slate-100 text-slate-700">{t('settings.link')}</Tile>}
       </section>
 
       <Suspense fallback={null}>
@@ -137,7 +138,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
       <section className="mx-4 mt-4 flex flex-col rounded-card bg-white px-4 py-3.5 shadow-sm">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold">{t('topDues')}</h2>
-          <button className="min-h-11 px-1 text-sm font-semibold text-brand" onClick={() => navigate('/khata')}>
+          <button className={`min-h-9 rounded-full px-3 text-sm ${btn.outline}`} onClick={() => navigate('/khata')}>
             {t('seeAll')}
           </button>
         </div>
@@ -174,35 +175,31 @@ function Split({ label, amount, className }: { label: string; amount: number | u
   )
 }
 
-/** A page on Home: an icon in a soft coloured square, the page's name, and a chevron. */
+/** A page on Home: a line icon in a soft coloured square, the page's name, and a chevron. `icon` is the icon's path. */
 function Tile({ to, icon, tone, children, sub }: { to: string; icon: string; tone: string; children: ReactNode; sub?: ReactNode }) {
   return (
     <button onClick={() => navigate(to)} className="flex min-h-16 items-center gap-3 rounded-2xl bg-white p-3 text-left text-[15px] font-semibold leading-snug shadow-sm transition hover:bg-[#f6faf9] active:scale-[0.98]">
-      <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${tone}`}>{icon}</span>
+      <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone}`}><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg></span>
       <span className="flex min-w-0 flex-1 flex-col">{children}{sub}</span>
       <span aria-hidden className="text-muted">›</span>
     </button>
   )
 }
 
-/** Something to act on, shown above the tiles. */
+/** Something to act on, shown above the tiles. `icon` is a line icon's path. */
 function Alert({ to, icon, tone, children }: { to: string; icon: string; tone: string; children: ReactNode }) {
   return (
     <button onClick={() => navigate(to)} className={`mx-4 mt-3 flex min-h-14 w-[calc(100%-2rem)] items-center gap-3 rounded-card px-4 text-left font-semibold ring-1 ${tone}`}>
-      <span aria-hidden className="text-xl">{icon}</span><span className="flex-1">{children}</span><span aria-hidden>→</span>
+      <span aria-hidden className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-white/80 text-current"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg></span><span className="flex-1">{children}</span><span aria-hidden>→</span>
     </button>
   )
 }
 
-function Action({ label, to, icon, primary = false }: { label: string; to: string; icon: ReactNode; primary?: boolean }) {
+/** One of the four main jobs, in its own colour (as on the customer page): the icon on a white dot, the name under it. */
+function Action({ label, to, icon, tone, dot = 'bg-white' }: { label: string; to: string; icon: ReactNode; tone: string; dot?: string }) {
   return (
-    <button
-      onClick={() => navigate(to)}
-      className={`flex min-h-[96px] flex-col justify-between rounded-card p-4 text-left transition active:scale-[0.98] ${
-        primary ? 'bg-gradient-to-br from-teal-600 to-teal-800 text-white shadow-md shadow-teal-900/20' : 'bg-white text-ink shadow-sm ring-1 ring-line hover:bg-[#f6faf9]'
-      }`}
-    >
-      <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${primary ? 'bg-white/15' : 'bg-[#edf2f1]'}`}>{icon}</span>
+    <button onClick={() => navigate(to)} className={`flex min-h-[100px] flex-col justify-between rounded-[20px] p-4 text-left transition active:scale-[0.98] ${tone}`}>
+      <span className={`flex h-12 w-12 items-center justify-center rounded-full ${dot}`}>{icon}</span>
       <span className="text-lg font-bold">{label}</span>
     </button>
   )
@@ -232,7 +229,7 @@ function BalanceAlert() {
   if (!check.data || check.data.mismatches === 0) return null
   return (
     <div className="mx-4 mt-4 flex flex-col gap-2 rounded-card bg-due-soft p-4 text-due ring-1 ring-red-200">
-      <span className="font-bold">⚠ {t('balanceCheck.title', { count: check.data.mismatches })}</span>
+      <span className="flex items-center gap-2 font-bold"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l10 18H2zM12 10v4M12 17h.01" /></svg>{t('balanceCheck.title', { count: check.data.mismatches })}</span>
       {check.data.details.slice(0, 3).map((d) => (
         <button key={d.customerId} onClick={() => navigate(`/c/${d.customerId}`)} className="text-left text-sm underline">
           {t('balanceCheck.line', { name: d.name, stored: formatRupees(d.storedBalance), entries: formatRupees(d.sumOfEntries) })}
@@ -277,7 +274,7 @@ function KharchaRow({ shopId }: { shopId: string }) {
   const previous = useQuery({ queryKey: [shopId, 'expenses', 'month', last], queryFn: () => api<{ shopKharcha: number; count: number }>(`/v1/expenses/month?month=${last}`), enabled: firstWeek, staleTime: 600_000 }).data
   return (
     <>
-      <Tile to="/expenses" icon="🧾" tone="bg-warn-soft" sub={current && <span className="text-xs font-normal text-muted">{t('kharchaMonth.homeThisMonth', { amount: formatRupees(current.shopKharcha) })}</span>}>{t('expense.link')}</Tile>
+      <Tile to="/expenses" icon="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4" tone="bg-warn-soft text-warn" sub={current && <span className="text-xs font-normal text-muted">{t('kharchaMonth.homeThisMonth', { amount: formatRupees(current.shopKharcha) })}</span>}>{t('expense.link')}</Tile>
       {firstWeek && previous && previous.count > 0 && (
         <button onClick={() => navigate('/expenses/month')} className="col-span-full flex min-h-12 items-center justify-between rounded-2xl bg-brand-soft px-4 text-left font-semibold text-brand-deep ring-1 ring-teal-100">
           <span>{t('kharchaMonth.lastMonthReady', { month: new Date(`${last}-01T00:00:00`).toLocaleDateString(shownLocale(), { month: 'long' }), amount: formatRupees(previous.shopKharcha) })}</span>
