@@ -335,6 +335,7 @@ const guMoreB = {
     cost: 'જોડવું મફત છે. દુકાને મોકલેલા દરેક સંદેશા પર Meta પૈસા લે છે (બિલ કે યાદ પર લગભગ ₹0.12, ઑફર પર લગભગ ₹0.86); 24 કલાકમાં ગ્રાહકને જવાબ મફત છે.',
     notSetUp: 'WhatsApp Business નંબર જોડવાનું જલદી આવશે. ત્યાં સુધી WhatsApp બટન સંદેશો તૈયાર કરી WhatsApp ખોલે છે.',
   },
+  khata3: { toGet: 'તમને મળશે', owing: 'જેમના બાકી', advance: 'એડવાન્સ જમા', all: 'બધા ગ્રાહકો', import: 'ફાઇલમાંથી લાવો' },
   items3: { total: 'બધી વસ્તુઓ', value: 'સ્ટોકની કિંમત (પડતર પર)' },
   item3: { history: 'સ્ટોક હિસાબ', details: 'માહિતી અને ભાવ', suppliers: 'સપ્લાયર', photo: 'ફોટો અને બારકોડ', edit: 'માહિતી બદલો', order: 'વધુ મંગાવો' },
   cust3: { remind: 'યાદ અપાવો', statement: 'સ્ટેટમેન્ટ', takePayment: 'પૈસા લો', giveCredit: 'ઉધાર આપો', newBill: 'નવું બિલ', statements: 'સ્ટેટમેન્ટ અને લિંક', otherAmount: 'બીજી રકમ લખો' },

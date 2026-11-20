@@ -674,6 +674,7 @@ export const enMore = {
     cost: 'Free to connect. Meta charges per message the shop starts (about ₹0.12 for a bill or reminder, about ₹0.86 for an offer); replies to customers within 24 hours are free.',
     notSetUp: 'Connecting a WhatsApp Business number will be available soon. Until then, the WhatsApp buttons open WhatsApp with the message ready.',
   },
+  khata3: { toGet: 'You will get', owing: 'Customers owing', advance: 'Advance held', all: 'All customers', import: 'Bring from a file' },
   items3: { total: 'All items', value: 'Stock value (at cost)' },
   item3: { history: 'Stock history', details: 'Details and price', suppliers: 'Suppliers', photo: 'Photo and barcode', edit: 'Edit details', order: 'Order more' },
   cust3: { remind: 'Remind', statement: 'Statement', takePayment: 'Take payment', giveCredit: 'Give on credit', newBill: 'New bill', statements: 'Statements and link', otherAmount: 'Type another amount' },

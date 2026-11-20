@@ -676,6 +676,7 @@ export const hiMore: TextsMore = {
     cost: 'जोड़ना मुफ़्त है। दुकान के भेजे हर संदेश पर Meta पैसा लेता है (बिल या याद दिलाने पर लगभग ₹0.12, ऑफ़र पर लगभग ₹0.86); 24 घंटे में ग्राहक को जवाब मुफ़्त है।',
     notSetUp: 'WhatsApp Business नंबर जोड़ना जल्द आएगा। तब तक WhatsApp बटन संदेश तैयार करके WhatsApp खोलते हैं।',
   },
+  khata3: { toGet: 'आपको मिलेगा', owing: 'जिन पर बाक़ी', advance: 'एडवांस जमा', all: 'सभी ग्राहक', import: 'फ़ाइल से लाएँ' },
   items3: { total: 'सभी सामान', value: 'स्टॉक की क़ीमत (लागत पर)' },
   item3: { history: 'स्टॉक हिसाब', details: 'जानकारी और दाम', suppliers: 'सप्लायर', photo: 'फ़ोटो और बारकोड', edit: 'जानकारी बदलें', order: 'और मँगाएँ' },
   cust3: { remind: 'याद दिलाएँ', statement: 'स्टेटमेंट', takePayment: 'पैसे लें', giveCredit: 'उधार दें', newBill: 'नया बिल', statements: 'स्टेटमेंट और लिंक', otherAmount: 'दूसरी रकम लिखें' },
