@@ -139,7 +139,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
       </section>
 
       {toCheck > 0 && (
-        <p className="rounded-[14px] bg-warn-soft p-3 text-sm font-semibold text-amber-950">🤖 {t('aiShop.summary', { count: toCheck })}</p>
+        <p className="rounded-[14px] bg-warn-soft p-3 text-sm font-semibold text-amber-950"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1 inline align-[-3px]"><path d="M12 3l10 18H2zM12 10v4M12 17h.01" /></svg>{t('aiShop.summary', { count: toCheck })}</p>
       )}
       <ul className="flex flex-col gap-2">
         {order.lines.map((l) => {
@@ -156,7 +156,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
                   </span>
                   {l.aiConfidence && (
                     <span className={`mt-1 w-fit rounded-full px-2 py-0.5 text-[11px] font-bold ${AI_CHIP[l.aiConfidence]}`}>
-                      🤖 {t(`aiShop.${l.aiConfidence}`)}
+                      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1 inline align-[-3px]"><path d="M12 3l10 18H2zM12 10v4M12 17h.01" /></svg>{t(`aiShop.${l.aiConfidence}`)}
                     </span>
                   )}
                   {l.preference && (
