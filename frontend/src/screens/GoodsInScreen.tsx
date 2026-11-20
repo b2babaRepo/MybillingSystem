@@ -144,7 +144,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
                     <select aria-label={t('gi.why')} value={x.reason} onChange={(e) => setShorts({ ...shorts, lines: shorts.lines.map((y, j) => (j === i ? { ...y, reason: e.target.value } : y)) })} className="h-10 rounded-xl border border-line bg-white px-2 text-sm">
                       {REASONS.map((r) => <option key={r} value={r}>{t(`gi.reason.${r}`)}</option>)}
                     </select>
-                    <button onClick={() => void closeShort(i)} className="h-10 rounded-xl border border-line px-3 text-sm font-semibold text-due hover:bg-due-soft">{t('gi.closeShort')}</button>
+                    <button onClick={() => void closeShort(i)} className={`h-10 px-3 text-sm hover:bg-due-soft ${btn.dangerOutline}`}>{t('gi.closeShort')}</button>
                   </>
                 )}
               </div>
@@ -228,7 +228,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
           <div key={e.productId} className="flex items-center gap-2 text-sm">
             <span className="min-w-0 flex-1 truncate font-semibold">{e.name}</span>
             <input aria-label={t('gi.came')} value={e.came} onChange={(ev) => setExtras(extras.map((x, j) => (j === i ? { ...x, came: ev.target.value } : x)))} inputMode="decimal" placeholder={t('gi.came')} className="h-11 w-20 rounded-xl border border-line px-2 text-right" />
-            <button aria-label={t('remove')} onClick={() => setExtras(extras.filter((_, j) => j !== i))} className="h-11 px-2 text-due">✕</button>
+            <button aria-label={t('remove')} onClick={() => setExtras(extras.filter((_, j) => j !== i))} className={`h-11 ${btn.dangerOutline}`}>✕</button>
           </div>
         ))}
         <ItemPicker products={products} text={extraText} placeholder={t('supplier2.itemSearch')} onText={addExtra} onPick={(p) => addExtra(p.name)} />

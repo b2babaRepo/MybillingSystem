@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatPhone, formatRupees, whatsAppLink } from '../lib/format'
@@ -78,7 +78,7 @@ export function TableBookingsScreen({ shopId, shopName }: { shopId: string; shop
                 <Button tone="plain" className="h-11 px-3 text-sm" onClick={() => void run(`${b.id}/status`, { status: 'no_show' })}>{t('tables.noShow')}</Button>
                 {b.customerId && <Button tone="plain" className="h-11 px-3 text-sm" onClick={() => setDepositFor(depositFor === b.id ? null : b.id)}>{t('tables.takeDeposit')}</Button>}
                 {b.phone && <a href={whatsAppLink(b.phone, reminder(b))} target="_blank" rel="noreferrer" className="flex h-11 items-center rounded-xl bg-[#15803d] px-3 text-sm font-semibold text-white">{t('tables.remind')}</a>}
-                <button onClick={async () => { if ((await confirmAsk(t('tables.cancelConfirm')))) void run(`${b.id}/status`, { status: 'cancelled' }) }} className="h-11 px-2 text-sm font-semibold text-due">{t('tables.cancel')}</button>
+                <button onClick={async () => { if ((await confirmAsk(t('tables.cancelConfirm')))) void run(`${b.id}/status`, { status: 'cancelled' }) }} className={`h-11 text-sm ${btn.dangerOutline}`}>{t('tables.cancel')}</button>
               </div>
             )}
             {depositFor === b.id && (

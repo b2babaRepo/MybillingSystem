@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -92,7 +93,7 @@ function LoanCard({ shopId, loan }: { shopId: string; loan: Loan }) {
         <span className="rounded-xl bg-[#f6faf9] p-2"><span className="block text-xs text-muted">{t('loans.emis')}</span><b>{loan.payments}</b></span>
       </div>
       {loan.outstanding > 0 && (paying ? <PayEmi loan={loan} onDone={() => void refresh()} />
-        : <button onClick={() => setPaying(true)} className="min-h-12 rounded-xl bg-brand font-semibold text-white">+ {t('loans.payEmi')}{loan.emi ? ` · ${formatRupees(loan.emi)}` : ''}</button>)}
+        : <button onClick={() => setPaying(true)} className={`min-h-12 rounded-xl ${btn.solid}`}>+ {t('loans.payEmi')}{loan.emi ? ` · ${formatRupees(loan.emi)}` : ''}</button>)}
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="min-h-10 self-start text-sm font-semibold text-brand underline">{open ? t('loans.hide') : t('loans.statement')}</button>
       {open && statement.data && (
         <div className="overflow-x-auto">
@@ -112,7 +113,7 @@ function LoanCard({ shopId, loan }: { shopId: string; loan: Loan }) {
               ))}
             </tbody>
           </table>
-          {loan.payments === 0 && <button onClick={() => void remove()} className="mt-2 min-h-10 text-sm text-due underline">{t('loans.removeLoan')}</button>}
+          {loan.payments === 0 && <button onClick={() => void remove()} className={`mt-2 min-h-10 text-sm ${btn.dangerOutline}`}>{t('loans.removeLoan')}</button>}
         </div>
       )}
     </section>
@@ -175,7 +176,7 @@ export function LoansScreen({ shopId }: { shopId: string }) {
             <button onClick={() => setAdding(false)} className="min-h-12 rounded-xl border border-line px-4 font-semibold">{t('cancel')}</button>
           </div>
         </section>
-      ) : <button onClick={() => setAdding(true)} className="min-h-12 rounded-xl border-2 border-brand font-semibold text-brand">+ {t('loans.addTitle')}</button>}
+      ) : <button onClick={() => setAdding(true)} className={`min-h-12 ${btn.add}`}>+ {t('loans.addTitle')}</button>}
       <p className="text-xs text-muted">{t('loans.howItCounts')}</p>
     </div>
   )

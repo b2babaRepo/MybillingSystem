@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -67,7 +68,7 @@ export function MeterCard({ shopId }: { shopId: string }) {
         <div className="grid grid-cols-[1fr_auto] gap-2">
           <input aria-label={t('meter.today')} placeholder={t('meter.today')} value={value} onChange={(e) => setValue(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal"
             className="h-12 min-w-0 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
-          <button disabled={busy || value === '' || !(typed >= 0) || (lower && !reset)} onClick={() => void save()} className="h-12 rounded-xl bg-brand px-4 font-bold text-white disabled:opacity-40">{t('meter.save')}</button>
+          <button disabled={busy || value === '' || !(typed >= 0) || (lower && !reset)} onClick={() => void save()} className={`h-12 px-4 rounded-xl ${btn.solid}`}>{t('meter.save')}</button>
         </div>
         {last && value !== '' && !lower && typed > last.reading && (
           <p className="font-semibold text-brand-strong">{t('meter.preview', { units: num((typed - last.reading) * last.factor), days: Math.max(1, Math.round((Date.parse(todayIso()) - Date.parse(last.day)) / 86_400_000)) })}</p>

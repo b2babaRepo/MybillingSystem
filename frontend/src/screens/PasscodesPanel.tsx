@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -62,8 +63,8 @@ export function PasscodesPanel() {
         </span>
       </div>
       <div className="flex gap-2">
-        <button onClick={set} className="min-h-11 flex-1 rounded-xl bg-brand px-3 font-semibold text-white">{t(on ? 'passcode.change' : 'passcode.set')}</button>
-        {on && <button onClick={remove} className="min-h-11 rounded-xl border border-line px-3 font-semibold text-due">{t('passcode.remove')}</button>}
+        <button onClick={set} className={`min-h-11 flex-1 px-3 rounded-xl ${btn.solid}`}>{t(on ? 'passcode.change' : 'passcode.set')}</button>
+        {on && <button onClick={remove} className={`min-h-11 px-3 ${btn.dangerOutline}`}>{t('passcode.remove')}</button>}
       </div>
     </div>
   )

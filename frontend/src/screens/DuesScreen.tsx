@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DataTable } from '../components/DataTable'
-import { Sheet } from '../components/ui'
+import { Sheet, btn } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { buildReminder, useShopSettings, type Due, type DuesReport } from '../lib/reports'
@@ -59,7 +59,7 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <button onClick={() => navigate('/reminders')} className="flex h-12 items-center justify-center rounded-2xl border-2 border-brand font-bold text-brand-strong">{t('reminders.title')}</button>
+      <button onClick={() => navigate('/reminders')} className={`flex h-12 items-center justify-center rounded-xl ${btn.outline}`}>{t('reminders.title')}</button>
       <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px] lg:flex-row lg:items-center lg:gap-6">
         <button onClick={() => setBucket('all')} className="flex min-h-11 items-center justify-between gap-3 text-left lg:shrink-0" aria-pressed={bucket === 'all'}>
           <span className="text-[15px] font-semibold text-muted">{t('dues.total')}</span>

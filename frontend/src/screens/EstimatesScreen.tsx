@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -77,7 +78,7 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
               { key: 'act', header: '', width: 'w-48', render: (e) => (state(e) === 'open' || state(e) === 'expired') ? (
                 <span className="flex justify-end gap-3" onClick={(ev) => ev.stopPropagation()}>
                   <button onClick={() => bill(e)} className="text-xs font-semibold text-brand underline">{t('estimate.makeBill')}</button>
-                  <button onClick={() => void cancel(e)} className="text-xs text-due underline">{t('estimate.cancel')}</button>
+                  <button onClick={() => void cancel(e)} className={`min-h-9 text-xs ${btn.dangerOutline}`}>{t('estimate.cancel')}</button>
                 </span>) : null },
             ]} />
         </div>
@@ -92,7 +93,7 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
           <div className="flex flex-wrap gap-3">
             <button onClick={() => navigate(`/print/estimate/${e.id}`)} className="min-h-11 font-semibold text-brand">{t('estimate.print')}</button>
             {(state(e) === 'open' || state(e) === 'expired') && <button onClick={() => bill(e)} className="min-h-11 font-semibold text-brand">{t('estimate.makeBill')}</button>}
-            {(state(e) === 'open' || state(e) === 'expired') && <button onClick={() => void cancel(e)} className="min-h-11 text-due">{t('estimate.cancel')}</button>}
+            {(state(e) === 'open' || state(e) === 'expired') && <button onClick={() => void cancel(e)} className={`min-h-11 ${btn.dangerOutline}`}>{t('estimate.cancel')}</button>}
           </div>
         </section>
       ))}

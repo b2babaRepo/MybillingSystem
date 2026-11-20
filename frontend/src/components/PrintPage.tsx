@@ -1,3 +1,4 @@
+import { btn } from './ui'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -79,7 +80,7 @@ export function Page({ title, subtitle, shareText, phone, children, receipt, pdf
       {!bare && <>
       <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 flex flex-wrap gap-2 border-b border-line bg-white/95 px-6 py-3 backdrop-blur print:hidden">
         <button onClick={() => history.back()} className="h-11 rounded-xl border border-line px-4 font-semibold transition hover:bg-[#f6faf9]" aria-label={t('a11y.back')}>←</button>
-        <button onClick={() => window.print()} className="flex h-11 items-center gap-1.5 rounded-xl bg-brand px-4 font-semibold text-white shadow-sm hover:bg-brand-strong"><span aria-hidden>🖨️</span>{t('print.printPdf')}</button>
+        <button onClick={() => window.print()} className={`flex h-11 items-center gap-1.5 px-4 rounded-xl ${btn.solid}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V3h12v6M3 9h18v8H3zM6 14h12v7H6z" /></svg>{t('print.printPdf')}</button>
         <a href={whatsAppLink(phone, shareText)} target="_blank" rel="noreferrer" className="flex h-11 items-center gap-1.5 rounded-xl bg-[#15803d] px-4 font-semibold text-white shadow-sm hover:bg-green-800"><span aria-hidden>💬</span>{t('print.share')}</a>
         {receipt && <button disabled={pdfState === 'busy'} onClick={() => void pdfShare()} className="flex h-11 items-center gap-1.5 rounded-xl border-2 border-[#15803d] bg-white px-4 font-semibold text-[#15803d] shadow-sm hover:bg-green-50 disabled:opacity-50"><span aria-hidden>📄</span>{t('print.pdfShare')}</button>}
         {bt && <button onClick={() => void btPrint(false)} className="flex h-11 items-center gap-1.5 rounded-xl bg-slate-800 px-4 font-semibold text-white shadow-sm hover:bg-slate-900"><span aria-hidden>🧾</span>{t('btPrint.button')}</button>}

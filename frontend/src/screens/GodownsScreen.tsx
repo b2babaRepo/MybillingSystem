@@ -159,7 +159,7 @@ export function GodownsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
               </p>
               <p className="text-xs">{m.lines.map((l) => `${l.name} × ${l.quantity}`).join(', ')}{m.note ? ` · ${m.note}` : ''}</p>
               {isOwner && !m.cancelled && (
-                <button onClick={() => void run(() => api(`/v1/godowns/transfers/${m.id}/cancel`, 'POST', {}))} className="self-start text-xs font-semibold text-due">{t('godown.undo')}</button>
+                <button onClick={() => void run(() => api(`/v1/godowns/transfers/${m.id}/cancel`, 'POST', {}))} className={`min-h-9 self-start text-xs ${btn.dangerOutline}`}>{t('godown.undo')}</button>
               )}
             </div>
           ))}

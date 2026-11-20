@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { GST_STATES } from '../lib/states'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -133,7 +134,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
           <label className="sr-only" htmlFor="credit-limit">{t('trade.creditLimit')}</label>
           <input id="credit-limit" value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" placeholder="₹"
             className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 text-lg font-bold" />
-          <button disabled={busy} onClick={() => void saveLimit()} className="h-12 rounded-xl bg-brand px-4 font-bold text-white">{t('trade.save')}</button>
+          <button disabled={busy} onClick={() => void saveLimit()} className={`h-12 px-4 rounded-xl ${btn.solid}`}>{t('trade.save')}</button>
         </div>
       )}
 
@@ -194,7 +195,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
                   <button key={m} onClick={() => setMode(m)} className={`h-11 rounded-xl px-4 font-semibold ${mode === m ? 'bg-brand text-white shadow-sm' : 'border border-line bg-white'}`}>{t(m)}</button>
                 ))}
               </div>
-              <button disabled={busy} onClick={() => void invoice()} className="h-12 rounded-2xl bg-brand font-bold text-white">
+              <button disabled={busy} onClick={() => void invoice()} className={`h-12 rounded-xl ${btn.solid}`}>
                 {t('trade.makeInvoice', { count: picked.length, total: formatRupees(pickedTotal) })}
               </button>
             </div>

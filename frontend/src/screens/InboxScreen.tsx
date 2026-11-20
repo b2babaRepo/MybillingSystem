@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,7 +69,7 @@ export function InboxScreen({ shopId, selectedId }: { shopId: string; selectedId
             <span>{order.slot ?? formatDateTime(order.createdAt)}</span>
             {order.note && <span className="truncate pl-2">“{order.note}”</span>}
           </div>
-          <button onClick={() => navigate(`/o/${order.id}`)} className="h-12 rounded-2xl bg-brand font-bold text-white lg:h-10">
+          <button onClick={() => navigate(`/o/${order.id}`)} className={`h-12 lg:h-10 rounded-xl ${btn.solid}`}>
             {order.status === 'placed' ? t('inbox.startPacking') : t('inbox.open')}
           </button>
         </section>

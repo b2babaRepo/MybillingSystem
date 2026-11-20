@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Keypad } from '../components/Keypad'
 import { KhataHistory } from '../components/KhataHistory'
 import { KhataTable } from '../components/KhataTable'
-import { Balance, Button } from '../components/ui'
+import { Balance, Button, btn } from '../components/ui'
 import { addKhataEntry, reverseEntry, undoEntry, useCustomers, useStatement } from '../lib/data'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, request } from '../lib/api'
@@ -538,7 +538,7 @@ function MoveInto({ from, customers, onMoved }: { from: string; customers: { id:
         <option value="">{t('moveInto.pick')}</option>
         {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone.replace(/^\+91/, '')}` : ''}</option>)}
       </select>
-      <button disabled={!to || busy} onClick={() => void move()} className="h-11 rounded-xl bg-brand px-4 font-semibold text-white disabled:opacity-40">{t('moveInto.save')}</button>
+      <button disabled={!to || busy} onClick={() => void move()} className={`h-11 px-4 rounded-xl ${btn.solid}`}>{t('moveInto.save')}</button>
       <button onClick={() => setOpen(false)} className="h-11 rounded-xl border border-line px-4 font-semibold">{t('cancel')}</button>
     </div>
   )

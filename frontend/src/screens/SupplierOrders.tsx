@@ -156,7 +156,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
             <div className="mt-1 flex flex-wrap gap-2">
               <Button className="flex-1" onClick={() => void run(() => api(`/v1/suppliers/orders/${o.id}/place`, 'POST', {}))}>{t('supplier2.placeOrder')}</Button>
               <button onClick={() => edit(o)} className="min-h-12 rounded-2xl border border-line px-3 font-semibold">{t('supplier2.editOrder')}</button>
-              <button onClick={() => void finish(o, 'cancel')} className="min-h-12 px-2 text-xs font-semibold text-due">{t('supplier2.cancelOrder')}</button>
+              <button onClick={() => void finish(o, 'cancel')} className={`min-h-12 text-xs ${btn.dangerOutline}`}>{t('supplier2.cancelOrder')}</button>
             </div>
             ) : (
             <div className="mt-1 flex flex-wrap gap-2">
@@ -164,7 +164,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
               {phone && <a href={whatsAppLink(phone, orderText(t, shopName, o.number, left.map((l) => ({ name: l.name, quantity: l.quantity - l.received, unit: l.unit, bags: l.received > 0 ? null : l.bags, packUnit: l.packUnit }))))} target="_blank" rel="noreferrer"
                 onClick={() => { if (!o.stage || o.stage === 'placed') void api(`/v1/suppliers/orders/${o.id}/stage`, 'POST', { stage: 'sent', via: 'whatsapp' }).then(refresh).catch(() => undefined) }}
                 className="flex min-h-12 items-center rounded-2xl border border-line px-3 font-semibold">{t('supplier2.sendOrder')}</a>}
-              <button onClick={() => void finish(o, o.lines.some((l) => l.received > 0) ? 'close' : 'cancel')} className="min-h-12 px-2 text-xs font-semibold text-due">
+              <button onClick={() => void finish(o, o.lines.some((l) => l.received > 0) ? 'close' : 'cancel')} className={`min-h-12 text-xs ${btn.dangerOutline}`}>
                 {t(o.lines.some((l) => l.received > 0) ? 'supplier2.closeShort' : 'supplier2.cancelOrder')}
               </button>
             </div>
@@ -343,7 +343,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
           })()}
           <div className="flex flex-wrap gap-3">
             <button onClick={() => onBill(r, orders.find((o) => o.id === r.purchaseOrderId) ?? null)} className="min-h-11 font-semibold text-brand">{t('receipt.makeBill')}</button>
-            <button onClick={() => void cancel(r)} className="min-h-11 text-due">{t('receipt.cancel')}</button>
+            <button onClick={() => void cancel(r)} className={`min-h-11 ${btn.dangerOutline}`}>{t('receipt.cancel')}</button>
           </div>
         </div>
       ))}

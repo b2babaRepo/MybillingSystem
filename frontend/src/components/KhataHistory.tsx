@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { DisputeItemView, ItemOutcome, StatementLine } from '../lib/types'
-import { PendingDot } from './ui'
+import { PendingDot, btn } from './ui'
 
 type Line = StatementLine & { pending?: boolean }
 
@@ -108,7 +108,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
           </div>
         </button>
         {onDispute && (
-          <button className="min-h-11 px-1 text-sm font-semibold text-due underline" onClick={onDispute}>
+          <button className={`min-h-11 px-1 text-sm ${btn.dangerOutline}`} onClick={onDispute}>
             {t('dispute.raise')}
           </button>
         )}
@@ -199,8 +199,8 @@ export function DisputeItems({ items, onResolve }: { items: DisputeItemView[]; o
           )}
           {!item.outcome && onResolve && (
             <div className="mt-2 grid grid-cols-3 gap-1.5 text-xs font-semibold">
-              <button className="min-h-11 rounded-lg bg-brand px-1 text-white" onClick={() => onResolve(item, 'handed_over')}>{t('dispute.fix.handed_over')}</button>
-              <button className="min-h-11 rounded-lg border-2 border-brand px-1 text-brand-strong" onClick={() => onResolve(item, 'refunded')}>{t('dispute.fix.refunded')}</button>
+              <button className={`min-h-11 px-1 rounded-xl ${btn.solid}`} onClick={() => onResolve(item, 'handed_over')}>{t('dispute.fix.handed_over')}</button>
+              <button className={`min-h-11 px-1 rounded-xl ${btn.outline}`} onClick={() => onResolve(item, 'refunded')}>{t('dispute.fix.refunded')}</button>
               <button className="min-h-11 rounded-lg border border-line bg-white px-1 text-due" onClick={() => onResolve(item, 'disagreed')}>{t('dispute.fix.disagreed')}</button>
             </div>
           )}

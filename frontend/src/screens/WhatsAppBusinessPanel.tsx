@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -119,7 +120,7 @@ export function WhatsAppBusinessPanel() {
           <div className="flex flex-wrap gap-2">
             <button disabled={busy} onClick={() => void test()} className="min-h-11 rounded-xl bg-[#15803d] px-4 font-semibold text-white disabled:opacity-50">{t('waBiz.test')}</button>
             <button disabled={busy} onClick={() => void connect()} className="min-h-11 rounded-xl border border-line px-4 font-semibold disabled:opacity-50">{t('waBiz.change')}</button>
-            <button onClick={() => void disconnect()} className="min-h-11 px-2 text-sm font-semibold text-due underline">{t('waBiz.disconnect')}</button>
+            <button onClick={() => void disconnect()} className={`min-h-11 text-sm ${btn.dangerOutline}`}>{t('waBiz.disconnect')}</button>
           </div>
           <Templates />
         </div>
@@ -176,7 +177,7 @@ function Templates() {
         </p>
       ))}
       {data && missing && (data.canCreate
-        ? <button disabled={busy} onClick={() => void ask()} className="min-h-11 self-start rounded-xl bg-brand px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? t('waBiz.asking') : t('waBiz.ask')}</button>
+        ? <button disabled={busy} onClick={() => void ask()} className={`min-h-11 self-start px-4 text-sm rounded-xl ${btn.solid}`}>{busy ? t('waBiz.asking') : t('waBiz.ask')}</button>
         : <p className="text-xs text-muted">{t('waBiz.noPublicUrl')}</p>)}
       {data && !missing && data.templates.some((x) => x.status === 'PENDING') && <p className="text-xs text-muted">{t('waBiz.pendingHint')}</p>}
       {error && <p className="text-xs text-due">{error}</p>}

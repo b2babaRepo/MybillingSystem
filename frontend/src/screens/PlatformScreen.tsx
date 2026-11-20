@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BackIcon } from '../components/Icons'
-import { Button } from '../components/ui'
+import { Button, btn } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatDateTime, formatPhone } from '../lib/format'
 import { useSession } from '../lib/data'
@@ -781,7 +781,7 @@ function PeopleRows({ people, onChange }: { people: PersonDraft[]; onChange: (p:
         </div>
       ))}
       <button type="button" onClick={() => onChange([...people, { name: '', phone: '', role: 'owner', pin: '' }])}
-        className="min-h-11 rounded-xl border-2 border-dashed border-line font-semibold">+ {t('people.addMore')}</button>
+        className={`min-h-11 self-start ${btn.add}`}>+ {t('people.addMore')}</button>
     </div>
   )
 }

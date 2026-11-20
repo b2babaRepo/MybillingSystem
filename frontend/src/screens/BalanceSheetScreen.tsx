@@ -170,7 +170,7 @@ export function BalanceSheetScreen({ shopId }: { shopId: string }) {
               </Card>
             ) : (
               <button onClick={() => setForm({ id: crypto.randomUUID(), kind: 'fixed_asset', name: '', amount: '', since: on })}
-                className={`min-h-12 self-start rounded-xl px-4 ${btn.outline}`}>+ {t('bs.addItem')}</button>
+                className={`min-h-12 self-start ${btn.add}`}>+ {t('bs.addItem')}</button>
             )}
 
             <Card tone="brand">

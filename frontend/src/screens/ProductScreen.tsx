@@ -7,7 +7,7 @@ import { isOutToday } from '../lib/local'
 import { billNameFor } from '../lib/billNames'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, Select, Sheet } from '../components/ui'
+import { Button, Field, Select, Sheet, btn } from '../components/ui'
 import { api, request } from '../lib/api'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { ask, tell } from '../components/Ask'
@@ -328,7 +328,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
       )}
       {!product.isService && <BarcodeRow product={product} />}
       {!product.isService && (
-        <button type="button" onClick={() => void setOutToday(!isOutToday(product.outOn))} className="min-h-11 self-start rounded-xl border-2 border-brand px-3 font-semibold text-brand-strong">
+        <button type="button" onClick={() => void setOutToday(!isOutToday(product.outOn))} className={`min-h-11 self-start px-3 rounded-xl ${btn.outline}`}>
           {isOutToday(product.outOn) ? t('stock.backOnSale') : t('stock.markOutToday')}
         </button>
       )}
@@ -336,7 +336,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
         <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={form.uncounted} onChange={(e) => setForm({ ...form, uncounted: e.target.checked })} className="h-5 w-5" />{t('stock.dontCount')}</label>
       )}
       {!product.isService && (
-        <button type="button" onClick={() => void addVariant()} className="min-h-11 self-start rounded-xl border-2 border-dashed border-brand px-3 font-semibold text-brand-strong">{t('styles.addVariant')}</button>
+        <button type="button" onClick={() => void addVariant()} className={`min-h-11 self-start px-3 rounded-xl ${btn.outline}`}>{t('styles.addVariant')}</button>
       )}
       <div className="grid grid-cols-2 gap-2">
         <Field label={t('stock.buyingCostShort')} value={form.cost} onChange={set('cost')} inputMode="decimal" />
@@ -388,7 +388,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
       </div>
       <Button onClick={save} disabled={!form.name.trim() || product.pending}>{t('stock.saveDetails')}</Button>
       {message && <p className="text-sm text-muted">{message}</p>}
-      <button type="button" onClick={() => void remove()} disabled={product.pending} className="min-h-11 text-sm font-semibold text-due disabled:opacity-50">{t('stock.remove')}</button>
+      <button type="button" onClick={() => void remove()} disabled={product.pending} className={`min-h-11 text-sm ${btn.dangerOutline}`}>{t('stock.remove')}</button>
     </section>
   )
 }
@@ -488,11 +488,11 @@ function BarcodeRow({ product }: { product: Product }) {
       <span className="text-sm font-semibold text-muted">{t('barcodeBill.label')}</span>
       <div className={`grid gap-2 ${cameraPossible() ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-[1fr_auto]'}`}>
         <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={30} aria-label={t('barcodeBill.label')} className="h-11 min-w-0 rounded-xl border border-line px-3" />
-        {cameraPossible() && <button type="button" onClick={() => setScanning(true)} className="h-11 rounded-xl border-2 border-brand px-3 font-semibold text-brand-strong">{t('scan.scanIt')}</button>}
+        {cameraPossible() && <button type="button" onClick={() => setScanning(true)} className={`h-11 px-3 rounded-xl ${btn.outline}`}>{t('scan.scanIt')}</button>}
         <button type="button" onClick={() => void save(`/v1/products/${product.id}/barcode`, 'PUT', { barcode: code })} className="h-11 rounded-xl border border-line px-3 font-semibold">{t('save')}</button>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        {!product.barcode && <button type="button" onClick={() => void save(`/v1/products/${product.id}/barcode/new`, 'POST', {})} className="min-h-11 rounded-xl border-2 border-brand px-2 text-sm font-semibold text-brand-strong">{t('barcodeBill.make')}</button>}
+        {!product.barcode && <button type="button" onClick={() => void save(`/v1/products/${product.id}/barcode/new`, 'POST', {})} className={`min-h-11 px-2 text-sm rounded-xl ${btn.outline}`}>{t('barcodeBill.make')}</button>}
         <button type="button" onClick={() => navigate(`/tags/${product.id}`)} className="min-h-11 rounded-xl border border-line px-2 text-sm font-semibold">{t('tags.open')}</button>
       </div>
       {message && <p className="text-xs text-muted">{message}</p>}

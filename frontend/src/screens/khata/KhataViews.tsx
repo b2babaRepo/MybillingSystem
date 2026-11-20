@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { KhataHistory } from '../../components/KhataHistory'
-import { Balance, Button, Sheet } from '../../components/ui'
+import { Balance, Button, Sheet, btn } from '../../components/ui'
 import { nextLanguage, setLanguage } from '../../i18n'
 import { api } from '../../lib/api'
 import { formatPhone, formatRupees } from '../../lib/format'
@@ -155,7 +155,7 @@ function PaidCard({ path, balance, queryKey }: { path: string; balance: number; 
     }
   }
   if (sent) return <p className="rounded-[14px] bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{t('receipts.paidSent')}</p>
-  if (!open) return <button onClick={() => setOpen(true)} className="flex h-12 items-center justify-center rounded-2xl border-2 border-brand font-bold text-brand-strong">{t('receipts.iPaid')}</button>
+  if (!open) return <button onClick={() => setOpen(true)} className={`flex h-12 items-center justify-center rounded-xl ${btn.outline}`}>{t('receipts.iPaid')}</button>
   return (
     <div className="flex flex-col gap-2 rounded-card bg-white p-4">
       <input aria-label={t('receipts.amount')} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="h-12 rounded-xl border border-line px-3 text-lg font-bold" />

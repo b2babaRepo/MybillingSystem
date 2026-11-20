@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
@@ -22,7 +23,7 @@ export function DataCheckScreen({ shopId }: { shopId: string }) {
     <div className="flex flex-col gap-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div><h1 className="text-lg font-extrabold">{t('dataCheck.title')}</h1><p className="text-sm text-muted">{t('dataCheck.hint')}</p></div>
-        <button onClick={() => void q.refetch()} disabled={q.isFetching} className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-white disabled:opacity-50">
+        <button onClick={() => void q.refetch()} disabled={q.isFetching} className={`min-h-11 px-4 rounded-xl ${btn.solid}`}>
           {q.isFetching ? t('dataCheck.checking') : `↻ ${t('dataCheck.again')}`}</button>
       </div>
       {q.isError && <p className="text-sm text-due">{q.error.message}</p>}

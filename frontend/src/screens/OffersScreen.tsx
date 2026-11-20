@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { confirmAsk } from '../components/Ask'
-import { Button, Field, control } from '../components/ui'
+import { Button, Field, control, btn } from '../components/ui'
 import { ItemPicker } from '../components/ItemPicker'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
@@ -102,7 +102,7 @@ export function OffersScreen({ shopId }: { shopId: string }) {
           </p>
           <p className="text-muted">{what(o)} · {day(o.startsAt)} – {day(new Date(Date.parse(o.endsAt) - 1).toISOString())}{o.stoppedAt ? ` · ${t('offers.stoppedOn', { date: day(o.stoppedAt) })}` : ''}</p>
           {o.stats && <p>{t('offers.stats', { bills: o.stats.bills, sales: formatRupees(o.stats.sales), saved: formatRupees(o.stats.saved) })}</p>}
-          {state(o) !== 'ended' && <button onClick={() => void stop(o)} className="min-h-11 self-start text-sm font-semibold text-due">{t('offers.stop')}</button>}
+          {state(o) !== 'ended' && <button onClick={() => void stop(o)} className={`min-h-11 self-start text-sm ${btn.dangerOutline}`}>{t('offers.stop')}</button>}
         </section>
       ))}
       {message && <p className="text-sm text-due">{message}</p>}

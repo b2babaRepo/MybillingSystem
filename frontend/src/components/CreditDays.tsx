@@ -1,3 +1,4 @@
+import { btn } from './ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,8 +50,8 @@ export function CreditDays({ shopId, customerId, days, isOwner }: { shopId: stri
           <label className="sr-only" htmlFor="credit-days">{t('creditDays.label')}</label>
           <input id="credit-days" value={editing} onChange={(e) => setEditing(e.target.value.replace(/\D/g, '').slice(0, 3))} inputMode="numeric"
             className="h-11 w-20 rounded-xl border border-line px-2 text-center font-bold" />
-          <button onClick={() => void save(editing)} className="min-h-11 rounded-xl bg-brand px-4 font-bold text-white">{t('trade.save')}</button>
-          {days ? <button onClick={() => void save('')} className="min-h-11 rounded-xl border border-line px-3 font-semibold text-due">{t('creditDays.clear')}</button> : null}
+          <button onClick={() => void save(editing)} className={`min-h-11 px-4 rounded-xl ${btn.solid}`}>{t('trade.save')}</button>
+          {days ? <button onClick={() => void save('')} className={`min-h-11 px-3 ${btn.dangerOutline}`}>{t('creditDays.clear')}</button> : null}
         </div>
       )}
       {editing !== null && <p className="text-xs text-muted">{t('creditDays.hint')}</p>}

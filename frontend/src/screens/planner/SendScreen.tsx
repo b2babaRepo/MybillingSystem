@@ -1,3 +1,4 @@
+import { btn } from '../../components/ui'
 import { SHOP_TYPES } from '../../lib/reports'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
@@ -170,7 +171,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
             )}
             {chosenAddress && (
               <button onClick={async () => { if ((await confirmAsk(t('plan.removeAddress')))) void api(`/v1/addresses/${chosenAddress.id}`, 'DELETE').then(() => { setAddressId(''); void addresses.refetch() }) }}
-                className="min-h-11 self-start text-sm font-semibold text-due">{t('plan.removeAddress')}</button>
+                className={`min-h-11 self-start text-sm ${btn.dangerOutline}`}>{t('plan.removeAddress')}</button>
             )}
             <details className="rounded-[14px] border border-line p-2">
               <summary className="min-h-11 cursor-pointer font-semibold text-brand">{t('plan.addAddress')}</summary>
@@ -205,7 +206,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
       </section>
 
       <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:max-w-4xl max-w-xl border-t border-line bg-white px-4 py-3">
-        <button onClick={send} disabled={!shop || busy || items.length === 0} className="h-14 w-full rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
+        <button onClick={send} disabled={!shop || busy || items.length === 0} className={`h-14 w-full text-lg rounded-xl ${btn.solid}`}>
           {shop ? `${t('plan.send')} · ${shop.name}` : t('plan.pickShopFirst')}
         </button>
       </div>

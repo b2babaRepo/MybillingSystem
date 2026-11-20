@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -115,10 +116,10 @@ export function SaleOrdersScreen() {
           <p className="text-sm">{t('saleOrder.value', { total: formatRupees(o.total), pending: formatRupees(o.pendingValue) })}</p>
           {(o.state === 'open' || o.state === 'part') && (
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => deliver(o)} className="h-11 flex-1 rounded-xl bg-brand px-4 font-bold text-white shadow-sm hover:bg-brand-strong">🚚 {t('saleOrder.deliver')}</button>
+              <button onClick={() => deliver(o)} className={`h-11 flex-1 px-4 rounded-xl ${btn.solid}`}>🚚 {t('saleOrder.deliver')}</button>
               {o.state === 'part'
                 ? <button onClick={() => void finish(o, 'close')} className="h-11 rounded-xl border border-line px-3 font-semibold hover:bg-[#f6faf9]">{t('saleOrder.close')}</button>
-                : <button onClick={() => void finish(o, 'cancel')} className="h-11 rounded-xl border border-line px-3 font-semibold text-due hover:bg-due-soft">{t('saleOrder.cancel')}</button>}
+                : <button onClick={() => void finish(o, 'cancel')} className={`h-11 px-3 hover:bg-due-soft ${btn.dangerOutline}`}>{t('saleOrder.cancel')}</button>}
             </div>
           )}
         </section>

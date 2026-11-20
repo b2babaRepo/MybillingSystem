@@ -1,4 +1,4 @@
-import { controlSm } from './ui'
+import { controlSm, btn } from './ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -81,7 +81,7 @@ export function UnknownBarcode({ shopId, code, products, onItem, onClose }: {
       {mode === 'attach' && (
         <div className="flex flex-col gap-2">
           <ItemPicker products={without} text={text} onText={setText} onPick={(p) => setText(p.name)} placeholder={t('scan.whichItem')} />
-          <button type="button" disabled={!picked} onClick={() => void attach()} className="min-h-11 rounded-xl bg-brand font-semibold text-white disabled:opacity-40">{t('scan.attachSave')}</button>
+          <button type="button" disabled={!picked} onClick={() => void attach()} className={`min-h-11 rounded-xl ${btn.solid}`}>{t('scan.attachSave')}</button>
         </div>
       )}
       {mode === 'new' && (

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api, request } from '../lib/api'
 import { shrinkPhoto } from '../lib/images'
 import { VoiceButton } from '../components/VoiceButton'
@@ -41,8 +41,8 @@ function PhotoButton({ label, busy, onFile }: { label: string; busy: boolean; on
   if (!ai.canRead) return null
   if (!ai.consented) return (
     <>
-      <button onClick={() => setAsk(true)} className="min-h-11 rounded-xl border-2 border-brand font-semibold text-brand-strong">📷 {label}</button>
-      {ask && <div className="flex flex-col gap-2 rounded-xl bg-warn-soft p-2 text-sm"><p>{t('dairy.photoConsent')}</p><button onClick={() => void ai.agree()} className="h-10 rounded-lg bg-brand font-semibold text-white">{t('expense.consentYes')}</button></div>}
+      <button onClick={() => setAsk(true)} className={`min-h-11 rounded-xl ${btn.outline}`}>📷 {label}</button>
+      {ask && <div className="flex flex-col gap-2 rounded-xl bg-warn-soft p-2 text-sm"><p>{t('dairy.photoConsent')}</p><button onClick={() => void ai.agree()} className={`h-10 rounded-xl ${btn.solid}`}>{t('expense.consentYes')}</button></div>}
     </>
   )
   return (

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomerFinder } from '../components/CustomerFinder'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
@@ -173,7 +173,7 @@ function ReceiptCard({ shopId, receipt: r, isOwner, run }: { shopId: string; rec
         </div>
       )}
       {isOwner && r.source === 'claim' && (
-        <button onClick={() => void dismiss('notReceived')} className="min-h-11 self-start text-sm font-semibold text-due underline">{t('receipts.notReceived')}</button>
+        <button onClick={() => void dismiss('notReceived')} className={`min-h-11 self-start text-sm ${btn.dangerOutline}`}>{t('receipts.notReceived')}</button>
       )}
       {isOwner && r.source !== 'claim' && (
         <div className="flex flex-wrap gap-3">

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Sheet } from './ui'
+import { Sheet, btn } from './ui'
 
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
 
@@ -125,7 +125,7 @@ export function ScanSheet({ onCode, onClose, continuous = false }: { onCode: (co
           {last && <p className={`text-sm font-semibold ${last.ok ? 'text-brand-strong' : 'text-due'}`}>{last.ok ? t('scan.added', { code: last.code }) : t('scan.unknown', { code: last.code })}</p>}
           <div className="flex gap-2">
             {torch && <button type="button" onClick={() => void toggleTorch()} className="min-h-11 flex-1 rounded-xl border border-line font-semibold">{torch.on ? t('scan.torchOff') : t('scan.torchOn')}</button>}
-            {continuous && <button type="button" onClick={onClose} className="min-h-11 flex-1 rounded-xl bg-brand font-semibold text-white">{t('scan.done')}</button>}
+            {continuous && <button type="button" onClick={onClose} className={`min-h-11 flex-1 rounded-xl ${btn.solid}`}>{t('scan.done')}</button>}
           </div>
         </div>
       )}

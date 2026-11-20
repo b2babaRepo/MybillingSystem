@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BackIcon } from '../components/Icons'
-import { Button } from '../components/ui'
+import { Button, btn } from '../components/ui'
 import { addText, shownLocale } from '../i18n'
 import { teamText } from '../i18n/team'
 import { api, ApiError, request } from '../lib/api'
@@ -306,9 +306,9 @@ function TeamDay({ team }: { team: Team }) {
                 <span className="flex items-center gap-2"><b>{formatRupees(l.amount)}</b>
                   {l.hasPhoto && <button onClick={() => void openPhoto(team.id, l.id)} aria-label={t('team.seePhoto')} className="h-9 w-9 rounded-lg border border-line">📷</button>}
                   {l.canApprove && <button disabled={busy} onClick={() => void run(async () => { await api(`/v1/teams/${team.id}/expenses/${l.id}/approve`, 'POST', {}); await queryClient.invalidateQueries({ queryKey: ['team', team.id] }) })}
-                    className="h-9 rounded-lg bg-brand px-2 text-xs font-bold text-white">{t('team.ok')}</button>}
+                    className={`h-9 px-2 text-xs rounded-xl ${btn.solid}`}>{t('team.ok')}</button>}
                   {l.canStrike && <button onClick={async () => { const reason = (await ask(t('team.strikeAsk'))); if (reason !== null) void run(async () => { await api(`/v1/teams/${team.id}/expenses/${l.id}/strike`, 'POST', { reason }); await queryClient.invalidateQueries({ queryKey: ['team', team.id] }) }) }}
-                    aria-label={t('team.strike')} className="h-9 w-9 rounded-lg border border-line text-due">✕</button>}</span>
+                    aria-label={t('team.strike')} className={`h-9 w-9 ${btn.dangerOutline}`}>✕</button>}</span>
               </li>
             ))}
           </ul>
@@ -457,7 +457,7 @@ function TeamPeople({ team }: { team: Team }) {
           <p className="text-xs text-muted">{t('team.leaveHint')}</p>
           <div className="grid grid-cols-2 gap-2">
             {[false, true].map((del) => (
-              <button key={String(del)} disabled={busy} className="min-h-11 rounded-xl border border-line text-sm font-semibold text-due transition hover:bg-[#f6faf9]"
+              <button key={String(del)} disabled={busy} className={`min-h-11 text-sm transition hover:bg-[#f6faf9] ${btn.dangerOutline}`}
                 onClick={async () => (await confirmAsk(t(del ? 'team.leaveDeleteAsk' : 'team.leaveKeepAsk'))) && void run(async () => {
                   await api(`/v1/teams/${team.id}/leave`, 'POST', { deleteMyLines: del })
                   await queryClient.invalidateQueries({ queryKey: ['teams'] })
@@ -541,7 +541,7 @@ function TeamAdvances({ team }: { team: Team }) {
               <span>{e.kind === 'given' ? '➡️' : '⬅️'} <b>{name(e.memberName)}</b> · {t(`team.advanceKind.${e.kind}`)}{e.note ? ` · ${e.note}` : ''}
                 <span className="block text-xs text-muted">{new Date(e.at).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })}{e.by ? ` · ${e.by}` : ''}</span></span>
               <span className="flex items-center gap-2"><b>{formatRupees(e.amount)}</b>
-                {manages && !e.struck && <button disabled={busy} aria-label={t('team.strike')} className="h-9 w-9 rounded-lg border border-line text-due"
+                {manages && !e.struck && <button disabled={busy} aria-label={t('team.strike')} className={`h-9 w-9 ${btn.dangerOutline}`}
                   onClick={async () => (await confirmAsk(t('team.advanceStrikeAsk'))) && void run(async () => save(await api<Advances>(`/v1/teams/${team.id}/advances/${e.id}/strike`, 'POST', {})))}>✕</button>}</span>
             </li>
           ))}

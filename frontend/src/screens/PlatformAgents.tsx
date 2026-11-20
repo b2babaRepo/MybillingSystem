@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -81,7 +82,7 @@ export function AgentsPanel() {
 
               <div className="mt-1 grid grid-cols-2 gap-2">
                 {a.status === 'applied' && <>
-                  <button disabled={busy} className="min-h-11 rounded-xl bg-brand font-bold text-white"
+                  <button disabled={busy} className={`min-h-11 rounded-xl ${btn.solid}`}
                     onClick={async () => (await confirmAsk(t('agentsAdmin.kycAsk', { name: a.fullName, last4: a.aadhaarLast4 })))
                       && void run(() => api(`/v1/platform/agents/${a.id}/approve`, 'POST', { kycChecked: true }), t('agentsAdmin.approved', { name: a.fullName }))}>
                     {t('agentsAdmin.approve')}</button>
@@ -98,7 +99,7 @@ export function AgentsPanel() {
                     {t('agentsAdmin.block')}</button>
                 </>}
                 {a.status === 'blocked' && (
-                  <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-brand font-bold text-white"
+                  <button disabled={busy} className={`col-span-2 min-h-11 rounded-xl ${btn.solid}`}
                     onClick={() => void run(() => api(`/v1/platform/agents/${a.id}/unblock`, 'POST', {}))}>{t('agentsAdmin.unblock')}</button>
                 )}
               </div>
@@ -119,7 +120,7 @@ export function AgentsPanel() {
             <input aria-label={t('fieldAgent.upi')} placeholder={t('fieldAgent.upi')} value={form.upiId} onChange={(e) => setForm({ ...form, upiId: e.target.value.trim() })} className={box} />
             <div className="grid grid-cols-2 gap-2">
               <button disabled={busy || !isValidAadhaar(form.aadhaar) || form.fullName.trim().length < 2 || form.phone.trim().length < 10}
-                className="min-h-11 rounded-xl bg-brand font-bold text-white disabled:opacity-40"
+                className={`min-h-11 rounded-xl ${btn.solid}`}
                 onClick={() => void run(async () => {
                   const result = await api<{ agent: FieldAgent; tempPassword: string | null }>('/v1/platform/agents', 'POST', { ...form, upiId: form.upiId || null })
                   setForm(empty)
@@ -131,7 +132,7 @@ export function AgentsPanel() {
             </div>
           </div>
         ) : (
-          <button onClick={() => setAdding(true)} className="min-h-11 rounded-xl border-2 border-dashed border-line font-semibold">+ {t('agentsAdmin.addTitle')}</button>
+          <button onClick={() => setAdding(true)} className={`min-h-11 self-start ${btn.add}`}>+ {t('agentsAdmin.addTitle')}</button>
         )}
         {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       </>}
@@ -213,13 +214,13 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
               {r.rejectReason && <span className="font-semibold text-red-800">{r.rejectReason}</span>}
               <div className="grid grid-cols-2 gap-2">
                 {review && r.status === 'submitted' && <>
-                  <button disabled={busy} className="min-h-11 rounded-xl bg-brand font-bold text-white"
+                  <button disabled={busy} className={`min-h-11 rounded-xl ${btn.solid}`}
                     onClick={() => void run(() => api(`/v1/platform/registrations/${r.id}/approve`, 'POST', {}), t('registrations.approved', { name: r.shopName }))}>{t('registrations.approve')}</button>
                   <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold text-red-700"
                     onClick={async () => { const reason = (await ask(t('registrations.rejectAsk'))); if (reason) void run(() => api(`/v1/platform/registrations/${r.id}/reject`, 'POST', { reason })) }}>{t('agentsAdmin.reject')}</button>
                 </>}
                 {money && r.status === 'approved' && r.paymentStatus === 'received' && (
-                  <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-brand font-bold text-white"
+                  <button disabled={busy} className={`col-span-2 min-h-11 rounded-xl ${btn.solid}`}
                     onClick={async () => (await confirmAsk(t('registrations.confirmAsk', { amount: formatRupees(r.amount), how: t(`agentShops.pay.${r.paymentMode}`) })))
                       && void run(() => api(`/v1/platform/registrations/${r.id}/confirm-payment`, 'POST', {}), t('registrations.paid'))}>{t('registrations.confirmPay', { amount: formatRupees(r.amount) })}</button>
                 )}
@@ -281,7 +282,7 @@ export function PerformancePanel({ role }: { role: AdminRole }) {
               {r.cashToDeposit > 0 && <span className="font-semibold text-warn">{t('performance.cash', { amount: formatRupees(r.cashToDeposit) })}</span>}
               <span>{t('performance.money', { due: formatRupees(r.commissionDue), waiting: formatRupees(r.commissionWaiting), paid: formatRupees(r.commissionPaid) })}</span>
               {pays && r.commissionDue > 0 && (
-                <button onClick={() => void pay(r)} className="mt-1 min-h-11 rounded-xl bg-brand font-bold text-white">{t('performance.pay', { amount: formatRupees(r.commissionDue) })}</button>
+                <button onClick={() => void pay(r)} className={`mt-1 min-h-11 rounded-xl ${btn.solid}`}>{t('performance.pay', { amount: formatRupees(r.commissionDue) })}</button>
               )}
             </li>
           ))}

@@ -1,3 +1,4 @@
+import { btn } from './ui'
 import { itemName } from '../lib/itemName'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -101,7 +102,7 @@ export function OrderToday() {
           {on
             ? <><button onClick={() => void test()} className="h-9 rounded-lg border border-line bg-white px-3 font-semibold">{t('orderToday.test')}</button>
               <button onClick={() => void turnOff()} className="h-9 rounded-lg px-3 font-semibold text-muted underline">{t('orderToday.off')}</button></>
-            : <button onClick={() => void turnOn()} className="h-9 rounded-lg bg-brand px-3 font-semibold text-white">{t('orderToday.turnOn')}</button>}
+            : <button onClick={() => void turnOn()} className={`h-9 px-3 rounded-xl ${btn.solid}`}>{t('orderToday.turnOn')}</button>}
         </div>
       )}
       {note && <p className="text-xs text-muted">{note}</p>}

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
@@ -301,7 +301,7 @@ export function JobPage({ shopId, id, onBack, embedded = false }: { shopId: stri
           </li>
         ))}
       </ul>
-      {open && !embedded && <button onClick={async () => { if ((await confirmAsk(t('jobs.cancelConfirm')))) void run('/status', { status: 'cancelled' }) }} className="min-h-11 text-sm font-semibold text-due">{t('jobs.cancelJob')}</button>}
+      {open && !embedded && <button onClick={async () => { if ((await confirmAsk(t('jobs.cancelConfirm')))) void run('/status', { status: 'cancelled' }) }} className={`min-h-11 text-sm ${btn.dangerOutline}`}>{t('jobs.cancelJob')}</button>}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -150,10 +151,10 @@ export function TagsScreen({ shopId, shopName, ids }: { shopId: string; shopName
           <button key={p.id} onClick={() => { setPicked([...picked, p.id]); setSearch('') }} className="min-h-11 rounded-lg px-2 text-left hover:bg-[#f6faf9]">+ {p.name}{variantLabel(p) ? ` · ${variantLabel(p)}` : ''}</button>
         ))}
         {noCode.length > 0 && (
-          <button disabled={busy} onClick={() => void makeCodes()} className="min-h-11 rounded-xl border-2 border-brand px-3 font-semibold text-brand-strong disabled:opacity-40">{t('labels.makeCodes', { count: noCode.length })}</button>
+          <button disabled={busy} onClick={() => void makeCodes()} className={`min-h-11 px-3 rounded-xl ${btn.outline}`}>{t('labels.makeCodes', { count: noCode.length })}</button>
         )}
         {message && <p role="status" className="text-sm font-semibold">{message}</p>}
-        <button onClick={() => window.print()} disabled={labels.length === 0} className="h-12 rounded-xl bg-brand font-bold text-white disabled:opacity-40">
+        <button onClick={() => window.print()} disabled={labels.length === 0} className={`h-12 rounded-xl ${btn.solid}`}>
           {t('labels.print', { count: labels.length, pages: list.length })}</button>
         <p className="text-xs text-muted">{t(sheet.roll ? 'labels.rollTip' : 'labels.sheetTip')}</p>
       </section>

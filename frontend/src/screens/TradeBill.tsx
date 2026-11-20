@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, Sheet } from '../components/ui'
+import { Button, Field, Sheet, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { uuidv7 } from '../lib/ids'
 import type { CartLine } from '../lib/data'
@@ -82,7 +82,7 @@ export function TradeDelivery({ shopId, customer, total, cart, extras, onExtras,
       )}
       {customer && canChallan && (
         <button disabled={busy || cart.length === 0} onClick={() => void saveChallan()}
-          className="min-h-12 rounded-2xl border-2 border-brand font-bold text-brand-strong disabled:opacity-40">
+          className={`min-h-12 rounded-xl ${btn.outline}`}>
           {t('trade.saveChallan')}
         </button>
       )}

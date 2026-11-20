@@ -1,3 +1,4 @@
+import { btn } from '../../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -94,7 +95,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
             <li>{t('ai.consentPoint3')}</li>
           </ul>
           <button
-            className="h-12 rounded-2xl bg-brand font-bold text-white"
+            className={`h-12 rounded-xl ${btn.solid}`}
             onClick={() => void consent(true)}
           >
             {t('ai.consentAgree')}
@@ -207,7 +208,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
               </button>
             ))}
           </div>
-          <button disabled={lines.length === 0} onClick={() => void addToList()} className="h-13 min-h-12 rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
+          <button disabled={lines.length === 0} onClick={() => void addToList()} className={`h-13 min-h-12 text-lg rounded-xl ${btn.solid}`}>
             {t('ai.addToList', { count: lines.length })}
           </button>
         </div>
@@ -256,7 +257,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
         )}
         <p className="text-xs text-muted">{ai.canReadPhotos ? t('ai.photoHint') : t('ai.photoOff')}</p>
         {error && <p className="rounded-lg bg-due-soft p-3 text-sm text-due">{error}</p>}
-        <button disabled={busy || (!text.trim() && !photo)} onClick={() => void read()} className="h-14 rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
+        <button disabled={busy || (!text.trim() && !photo)} onClick={() => void read()} className={`h-14 text-lg rounded-xl ${btn.solid}`}>
           {busy ? t('ai.reading') : t('ai.read')}
         </button>
       </section>

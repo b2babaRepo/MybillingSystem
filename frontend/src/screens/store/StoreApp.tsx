@@ -1,3 +1,4 @@
+import { btn } from '../../components/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -201,7 +202,7 @@ function Catalogue({ slug }: { slug: string }) {
               {out ? (
                 <span className="text-sm font-semibold text-due">{t('store.out')}</span>
               ) : inCart === 0 ? (
-                <button onClick={() => change(item, 1)} aria-label={`${t('store.add')} ${item.name}`} className="h-10 w-full rounded-xl border-2 border-brand font-bold text-brand-strong">{t('store.add')}</button>
+                <button onClick={() => change(item, 1)} aria-label={`${t('store.add')} ${item.name}`} className={`h-10 w-full rounded-xl ${btn.outline}`}>{t('store.add')}</button>
               ) : (
                 <span className="flex items-center gap-1">
                   <button aria-label={t('a11y.less')} onClick={() => change(item, -1)} className="h-11 w-11 rounded-xl bg-[#edf2f1] text-xl">−</button>
@@ -218,7 +219,7 @@ function Catalogue({ slug }: { slug: string }) {
 
       {lines.length > 0 && !checkingOut && (
         <div className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-[440px] lg:rounded-2xl lg:border lg:shadow-xl">
-          <button onClick={() => setCheckingOut(true)} className="flex h-14 w-full items-center justify-between rounded-2xl bg-brand px-5 text-lg font-bold text-white">
+          <button onClick={() => setCheckingOut(true)} className={`flex h-14 w-full items-center justify-between px-5 text-lg rounded-xl ${btn.solid}`}>
             <span>{t('store.cart', { count: lines.length, total: formatRupees(total) })}</span>
             <span>{t('store.checkout')} →</span>
           </button>
@@ -310,7 +311,7 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
           <input value={form.note} onChange={set('note')} maxLength={300} className={input} /></label>
         <p className="text-sm text-muted">{t('store.priceNote')}</p>
         {error && <p className="rounded-lg bg-due-soft p-3 text-due">{error}</p>}
-        <button type="submit" disabled={busy} className="h-14 rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
+        <button type="submit" disabled={busy} className={`h-14 text-lg rounded-xl ${btn.solid}`}>
           {t('store.place', { total: formatRupees(total) })}
         </button>
       </form>

@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
@@ -83,7 +83,7 @@ function AddVenue({ shopId, first = false }: { shopId: string; first?: boolean }
   const queryClient = useQueryClient()
   const [d, setD] = useState({ name: '', capacity: '' })
   const [open, setOpen] = useState(first)
-  if (!open) return <button onClick={() => setOpen(true)} className="min-h-11 text-sm font-semibold text-brand">+ {t('bookings.addHall')}</button>
+  if (!open) return <button onClick={() => setOpen(true)} className={`min-h-11 text-sm self-start ${btn.add}`}>+ {t('bookings.addHall')}</button>
   return (
     <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <h3 className="font-bold">{t(first ? 'bookings.firstHall' : 'bookings.addHall')}</h3>
@@ -231,7 +231,7 @@ function BookingPage({ shopId, id, isOwner, onBack }: { shopId: string; id: stri
               <Field label={t('jobs.amount')} value={x.amount} onChange={(e) => setF({ ...f, extras: f.extras.map((y, j) => (j === i ? { ...y, amount: e.target.value } : y)) })} inputMode="decimal" />
             </div>
           ))}
-          <button onClick={() => setF({ ...f, extras: [...f.extras, { name: '', amount: '' }] })} className="min-h-11 self-start text-sm font-semibold text-brand">+ {t('bookings.addExtra')}</button>
+          <button onClick={() => setF({ ...f, extras: [...f.extras, { name: '', amount: '' }] })} className={`min-h-11 self-start text-sm ${btn.add}`}>+ {t('bookings.addExtra')}</button>
           <div className="grid grid-cols-2 gap-2">
             <Field label={t('bookings.damage')} value={f.damage} onChange={(e) => setF({ ...f, damage: e.target.value })} inputMode="decimal" />
             <Field label={t('jobs.paidNow')} value={f.paid} onChange={(e) => setF({ ...f, paid: e.target.value })} inputMode="decimal" />
@@ -263,7 +263,7 @@ function BookingPage({ shopId, id, isOwner, onBack }: { shopId: string; id: stri
           {message && <p className="text-sm text-due">{message}</p>}
           <Button tone="credit" onClick={() => void run('/cancel', { reason: f.reason.trim() || null, keep: Number(f.keep) || 0 })}>{t('bookings.cancel')}</Button>
         </div>
-      ) : <button onClick={() => setForm('cancel')} className="min-h-11 text-sm font-semibold text-due">{t('bookings.cancel')}</button>)}
+      ) : <button onClick={() => setForm('cancel')} className={`min-h-11 text-sm ${btn.dangerOutline}`}>{t('bookings.cancel')}</button>)}
       {!form && message && <p className="text-sm text-due">{message}</p>}
     </div>
   )

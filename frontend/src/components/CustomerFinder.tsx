@@ -1,3 +1,4 @@
+import { btn } from './ui'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { changeDue, findCustomers } from '../lib/customerFind'
@@ -67,7 +68,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
         <p className="text-xs text-muted">{t('newBuyer.hint')}</p>
         {problem && <p className="text-sm text-due">{problem}</p>}
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" disabled={!adding.name.trim() && !adding.phone.trim()} onClick={() => void saveNew()} className="min-h-11 rounded-xl bg-brand font-semibold text-white disabled:opacity-40">{t('newBuyer.save')}</button>
+          <button type="button" disabled={!adding.name.trim() && !adding.phone.trim()} onClick={() => void saveNew()} className={`min-h-11 rounded-xl ${btn.solid}`}>{t('newBuyer.save')}</button>
           <button type="button" onClick={() => setAdding(null)} className="min-h-11 rounded-xl border border-line font-semibold">{t('cancel')}</button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -226,13 +227,13 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
       )}
 
       {editable && (
-        <button onClick={cancel} disabled={busy} className="min-h-11 text-sm font-semibold text-due underline">{t('inbox.cancel')}</button>
+        <button onClick={cancel} disabled={busy} className={`min-h-11 text-sm ${btn.dangerOutline}`}>{t('inbox.cancel')}</button>
       )}
 
       {editable && (
         <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:sticky lg:bottom-0 lg:mx-0 lg:max-w-none lg:rounded-card lg:border lg:shadow-lg flex max-w-xl flex-col gap-2 border-t border-line bg-white px-4 py-3">
           {canHandOver && (
-            <button onClick={handOver} disabled={busy} className="h-14 rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
+            <button onClick={handOver} disabled={busy} className={`h-14 text-lg rounded-xl ${btn.solid}`}>
               {order.payment === 'khata' ? t('inbox.handOverKhata', { amount: formatRupees(total) }) : t('inbox.handOver', { amount: formatRupees(total) })}
             </button>
           )}
@@ -241,7 +242,7 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
           </button>
           {waiting && <p className="text-center text-sm font-semibold text-warn">⏳ {t('options.waitingDeliver')}</p>}
           {order.status === 'packed' && order.finalAmount !== null && (
-            <button onClick={deliver} disabled={busy || waiting} className="h-14 rounded-2xl bg-brand text-lg font-bold text-white disabled:opacity-40">
+            <button onClick={deliver} disabled={busy || waiting} className={`h-14 text-lg rounded-xl ${btn.solid}`}>
               {t('inbox.deliver', { amount: formatRupees(order.finalAmount) })}
             </button>
           )}

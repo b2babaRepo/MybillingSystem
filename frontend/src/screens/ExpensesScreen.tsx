@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
@@ -266,7 +267,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
         <label htmlFor="expense-text" className="text-[15px] font-bold">{t('expense.writeTitle')}</label>
         <textarea id="expense-text" value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder={t('expense.placeholder')}
           className="rounded-2xl border border-line p-3 text-lg" />
-        <button disabled={busy || !text.trim()} onClick={() => void read()} className="h-12 rounded-2xl bg-brand font-bold text-white disabled:opacity-40">
+        <button disabled={busy || !text.trim()} onClick={() => void read()} className={`h-12 rounded-xl ${btn.solid}`}>
           {t('expense.read')}
         </button>
         {/* Say it, or snap the bill: shown only when the server has those switched on. */}
@@ -282,7 +283,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
                   onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void readPhoto(file) }} />
               </label>
             ) : (
-              <button onClick={() => setAskConsent('photo')} className="min-h-14 rounded-2xl border-2 border-brand font-bold text-brand-strong">📷 {t('expense.photo')}</button>
+              <button onClick={() => setAskConsent('photo')} className={`min-h-14 rounded-xl ${btn.outline}`}>📷 {t('expense.photo')}</button>
             ))}
           </div>
         )}
@@ -292,7 +293,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
             <p>{askConsent === 'voice' ? t('expense.consentVoice') : t('expense.consentPhoto')}</p>
             <p className="text-sm text-muted">{t('expense.consentKeep')}</p>
             <div className="grid grid-cols-2 gap-2">
-              <button disabled={busy} onClick={() => void agree()} className="h-12 rounded-xl bg-brand font-bold text-white">{t('expense.consentYes')}</button>
+              <button disabled={busy} onClick={() => void agree()} className={`h-12 rounded-xl ${btn.solid}`}>{t('expense.consentYes')}</button>
               <button onClick={() => setAskConsent(null)} className="h-12 rounded-xl border border-line font-semibold transition hover:bg-[#f6faf9]">{t('expense.consentNo')}</button>
             </div>
           </div>
@@ -338,7 +339,7 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
               )}
             </div>
           ))}
-          <button disabled={busy || !ready} onClick={() => void save()} className="h-12 rounded-2xl bg-brand font-bold text-white disabled:opacity-40">
+          <button disabled={busy || !ready} onClick={() => void save()} className={`h-12 rounded-xl ${btn.solid}`}>
             {t('expense.save', { count: guesses.length })}
           </button>
         </section>

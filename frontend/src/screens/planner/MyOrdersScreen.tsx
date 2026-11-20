@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PendingDot } from '../../components/ui'
+import { PendingDot, btn } from '../../components/ui'
 import { formatDateTime, formatRupees } from '../../lib/format'
 import { answerChangedLine, homeKey, useMyOrders, type Order, type OrderStatus } from '../../lib/planner'
 
@@ -79,8 +79,8 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
               )}
               {l.shopNote && <span className="text-muted">{l.shopNote}</span>}
               <div className="grid grid-cols-2 gap-2">
-                <button disabled={busy === l.id} onClick={() => void answer(l.id, true)} className="min-h-11 rounded-xl bg-brand font-bold text-white disabled:opacity-40">{t('options.ok')}</button>
-                <button disabled={busy === l.id} onClick={() => void answer(l.id, false)} className="min-h-11 rounded-xl border border-line font-semibold text-due disabled:opacity-40">{t('options.leaveOut')}</button>
+                <button disabled={busy === l.id} onClick={() => void answer(l.id, true)} className={`min-h-11 rounded-xl ${btn.solid}`}>{t('options.ok')}</button>
+                <button disabled={busy === l.id} onClick={() => void answer(l.id, false)} className={`min-h-11 ${btn.dangerOutline}`}>{t('options.leaveOut')}</button>
               </div>
             </div>
           ))}

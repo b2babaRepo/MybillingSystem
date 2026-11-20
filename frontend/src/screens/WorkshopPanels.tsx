@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api, request } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
@@ -48,7 +48,7 @@ export function MachinesPanel({ shopId }: { shopId: string }) {
               <span className="block text-xs text-muted">{t('workshop.machineLine', { cost: formatRupees(m.cost), date: m.boughtOn, value: formatRupees(m.bookValue), rate: m.ratePercent })}{m.disposedOn ? ` · ${t('workshop.disposed')}` : ''}</span>
             </span>
             <span className="text-sm font-semibold">{formatRupees(m.thisYear)}</span>
-            {!m.disposedOn && <button onClick={async () => { if ((await confirmAsk(t('workshop.disposeConfirm')))) void run(`/v1/workshop/machines/${m.id}/dispose`, {}) }} className="min-h-11 px-2 text-sm font-semibold text-due">{t('workshop.dispose')}</button>}
+            {!m.disposedOn && <button onClick={async () => { if ((await confirmAsk(t('workshop.disposeConfirm')))) void run(`/v1/workshop/machines/${m.id}/dispose`, {}) }} className={`min-h-11 text-sm ${btn.dangerOutline}`}>{t('workshop.dispose')}</button>}
           </li>
         ))}
         {list.data?.machines.length === 0 && <li className="p-3 text-center text-muted">{t('workshop.noMachines')}</li>}

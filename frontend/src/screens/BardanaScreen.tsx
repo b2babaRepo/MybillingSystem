@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, control } from '../components/ui'
+import { Button, control, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 
@@ -91,7 +91,7 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             )}
             <p className="text-xs text-muted">{x.saleRate != null ? t('bardana.rateEach', { rate: formatRupees(x.saleRate) }) : t('bardana.noRate')}{x.value != null ? ` · ${t('bardana.worth', { value: formatRupees(x.value) })}` : ''}</p>
             <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold">
-              <button onClick={() => open(x, 'came_with_goods')} className="min-h-9 rounded-xl border border-line px-2">+ {t('bardana.kind.came_with_goods')}</button>
+              <button onClick={() => open(x, 'came_with_goods')} className={`min-h-9 px-2 self-start ${btn.add}`}>+ {t('bardana.kind.came_with_goods')}</button>
               <button onClick={() => open(x, 'sold')} className="min-h-9 rounded-xl border border-line px-2">₹ {t('bardana.kind.sold')}</button>
               <button onClick={() => open(x, 'counted')} className="min-h-9 rounded-xl border border-line px-2">🔢 {t('bardana.kind.counted')}</button>
             </div>
@@ -168,7 +168,7 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
               </div>
               <div className="flex flex-col items-end">
                 <span className={`font-semibold tabular-nums ${m.quantity < 0 ? 'text-due' : 'text-brand'}`}>{m.quantity > 0 ? '+' : ''}{m.quantity}</span>
-                {isOwner && !m.struck && <button onClick={() => void run(() => api(`/v1/bardana/moves/${m.id}/strike`, 'POST', {}))} className="text-xs font-semibold text-due">{t('bardana.strike')}</button>}
+                {isOwner && !m.struck && <button onClick={() => void run(() => api(`/v1/bardana/moves/${m.id}/strike`, 'POST', {}))} className={`min-h-9 text-xs ${btn.dangerOutline}`}>{t('bardana.strike')}</button>}
               </div>
             </div>
           ))}

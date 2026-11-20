@@ -6,7 +6,7 @@ import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { GST_RATES } from '../lib/gst'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, PendingDot, Select, Sheet } from '../components/ui'
+import { Button, Field, PendingDot, Select, Sheet, btn } from '../components/ui'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Product, Unit } from '../lib/types'
@@ -206,7 +206,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
                 <span className="truncate text-[16px] font-semibold">{entry.name}</span>
                 <span className="shrink-0 text-[13px] text-muted">{t('styles.total', { count: entry.items.reduce((n, x) => n + Math.max(0, x.stock), 0) })}</span>
                 {isOwner && <button onClick={() => navigate(`/tags/${entry.items.map((x) => x.id).join(',')}`)} className="min-h-9 shrink-0 rounded-lg border border-line px-2 text-[13px] font-semibold">{t('tags.short')}</button>}
-                {isOwner && <button onClick={() => setReceiving(entry.name)} className="min-h-9 shrink-0 rounded-lg bg-brand px-2.5 text-[13px] font-bold text-white">{products.some((p) => p.styleName?.trim() === entry.name && p.sellingPrice <= 0) ? t('styles.setPrice') : t('styles.receive')}</button>}
+                {isOwner && <button onClick={() => setReceiving(entry.name)} className={`min-h-9 shrink-0 px-2.5 text-[13px] rounded-xl ${btn.solid}`}>{products.some((p) => p.styleName?.trim() === entry.name && p.sellingPrice <= 0) ? t('styles.setPrice') : t('styles.receive')}</button>}
               </span>
               <span className="flex flex-wrap gap-1.5">
                 {entry.items.map((x) => (

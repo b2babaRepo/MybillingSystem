@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Sheet } from '../components/ui'
+import { Button, Sheet, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { itemArt } from '../lib/itemArt'
@@ -230,7 +230,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
         <section key={group} className="[content-visibility:auto] [contain-intrinsic-size:auto_600px]">
           <div className="sticky top-0 z-[5] -mx-4 flex items-center justify-between bg-ground/95 px-4 py-2 backdrop-blur-sm lg:top-16 lg:mx-0 lg:px-1">
             <h2 className="text-base font-bold">{group}{category === POPULAR ? '' : <span className="text-sm font-semibold text-muted"> · {rows.length}</span>}</h2>
-            <button onClick={() => addGroup(rows)} className="min-h-9 rounded-xl border-2 border-brand bg-white px-3 text-sm font-semibold text-brand-strong">{category === POPULAR ? t('pick.addAllCount', { count: rows.length }) : t('pick.addGroup')}</button>
+            <button onClick={() => addGroup(rows)} className={`min-h-9 px-3 text-sm rounded-xl ${btn.outline}`}>{category === POPULAR ? t('pick.addAllCount', { count: rows.length }) : t('pick.addGroup')}</button>
           </div>
           <ul className="overflow-hidden rounded-card bg-white shadow-[0_1px_3px_rgba(16,32,29,0.08)] lg:grid lg:grid-cols-2 lg:gap-px lg:bg-line xl:grid-cols-3">
             {rows.map((i) => {

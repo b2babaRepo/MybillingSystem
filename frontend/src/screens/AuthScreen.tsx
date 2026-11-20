@@ -2,7 +2,7 @@ import { SHOP_TYPES } from '../lib/reports'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { navigate, usePath } from '../router'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { ApiError, authenticate, readProblem, request } from '../lib/api'
 import type { AuthResponse } from '../lib/types'
 
@@ -141,7 +141,7 @@ export function AuthScreen() {
         </button>
       )}
       </div>
-      <button type="button" className="min-h-12 rounded-2xl border-2 border-brand bg-white font-bold text-brand-strong shadow-sm hover:bg-brand-soft" onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
+      <button type="button" className={`min-h-12 rounded-xl ${btn.outline}`} onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
         {mode === 'sign-in' ? t('newShop') : t('haveAccount')}
       </button>
       {/* Field agents sign in (or register as a person) first; the app then opens their application. */}

@@ -1,3 +1,4 @@
+import { btn } from '../../components/ui'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AisleTiles, type Aisle } from '../../components/AisleTiles'
@@ -135,7 +136,7 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
             <input value={quantity} onChange={(e) => setQuantity(e.target.value)} inputMode="decimal" className="h-12 w-full rounded-[14px] border border-line px-3 text-lg" />
           </label>
           <UnitSelect value={unit} onChange={setUnit} />
-          <button type="submit" disabled={!name.trim()} className="h-12 rounded-2xl bg-brand px-5 text-lg font-semibold text-white disabled:opacity-40">
+          <button type="submit" disabled={!name.trim()} className={`h-12 px-5 text-lg rounded-xl ${btn.solid}`}>
             {t('plan.add')}
           </button>
         </div>
@@ -225,7 +226,7 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
             <span className="text-[13px] text-muted">{atShop ? t('shopFirst.totalAt', { here: hereItems.length, name: shop!.name }) : <>{t('plan.itemsCount', { count: list.items.length })}{estimate > 0 ? ` · ${t('home2.about')}` : ''}</>}</span>
             {estimate > 0 && <span className="text-[22px] leading-tight font-extrabold">{formatRupees(estimate)}</span>}
           </span>
-          <button onClick={() => navigate(`/send/${kind}`)} className="h-14 shrink-0 rounded-2xl bg-brand px-6 text-lg font-bold text-white">
+          <button onClick={() => navigate(`/send/${kind}`)} className={`h-14 shrink-0 px-6 text-lg rounded-xl ${btn.solid}`}>
             {shop ? t('plan.send') : t('home2.chooseShop')} ›
           </button>
         </div>

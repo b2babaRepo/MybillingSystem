@@ -93,7 +93,7 @@ export function LotView({ shopId, purchaseId, isOwner = true }: { shopId: string
         {lot.revenue > 0 && <span className={lot.profit < 0 ? 'text-due' : 'text-brand-strong'}>{t('landed.soldProfit', { revenue: formatRupees(lot.revenue), profit: formatRupees(lot.profit) })}</span>}
         {lot.expectedMargin != null && <span className="text-muted">{t('landed.expected', { amount: formatRupees(lot.expectedMargin) })}</span>}
       </p>
-      {isOwner && !later && <button onClick={() => setLater({ ...noCharges, rows: [{ label: t('landed.preset.freight'), amount: '', paidBy: '' }] })} className="self-start text-xs font-semibold text-brand">+ {t('landed.addLater')}</button>}
+      {isOwner && !later && <button onClick={() => setLater({ ...noCharges, rows: [{ label: t('landed.preset.freight'), amount: '', paidBy: '' }] })} className={`min-h-11 self-start ${btn.add}`}>+ {t('landed.addLater')}</button>}
       {later && (
         <div className="flex flex-col gap-2">
           <ChargesEditor value={later} onChange={setLater} hasExtra={false} open />

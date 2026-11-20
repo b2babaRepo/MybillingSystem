@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
@@ -93,7 +93,7 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
                       <Button className="h-10 px-3 text-sm" tone={a.status === 'arrived' ? 'primary' : 'plain'} onClick={() => void openBill(a)}>{t('appointments.bill')}</Button>
                       {a.status === 'booked' && <button onClick={() => void run(`${a.id}/status`, { status: 'no_show' })} className="h-10 px-2 text-sm font-semibold">{t('appointments.noShow')}</button>}
                       {a.phone && a.status === 'booked' && <a href={whatsAppLink(a.phone, reminder(a))} target="_blank" rel="noreferrer" className="flex h-10 items-center rounded-xl bg-[#15803d] px-3 text-sm font-semibold text-white">{t('tables.remind')}</a>}
-                      <button onClick={async () => { if ((await confirmAsk(t('appointments.cancelConfirm')))) void run(`${a.id}/status`, { status: 'cancelled' }) }} className="h-10 px-2 text-sm font-semibold text-due">{t('cancel')}</button>
+                      <button onClick={async () => { if ((await confirmAsk(t('appointments.cancelConfirm')))) void run(`${a.id}/status`, { status: 'cancelled' }) }} className={`h-10 text-sm ${btn.dangerOutline}`}>{t('cancel')}</button>
                     </div>
                   )}
                   {paying === a.id && (

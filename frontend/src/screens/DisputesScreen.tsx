@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -84,7 +85,7 @@ export function DisputesScreen({ isOwner }: { isOwner: boolean }) {
             {t('dispute.openBill')} ›
           </button>
           {d.items.length === 0 && isOwner && (
-            <button className="h-12 rounded-2xl bg-brand font-bold text-white" onClick={() => answer(d)}>
+            <button className={`h-12 rounded-xl ${btn.solid}`} onClick={() => answer(d)}>
               {t('dispute.answer')}
             </button>
           )}

@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,7 +51,7 @@ export function WhatsAppInboxScreen({ shopId }: { shopId: string }) {
       <div className="mx-auto flex max-w-2xl flex-col gap-3 p-4">
         <h1 className="text-lg font-extrabold">{t('waInbox.title')}</h1>
         <p className="rounded-card bg-white p-4 text-sm text-muted">{t('waInbox.notConnected')}</p>
-        <button onClick={() => navigate('/settings')} className="min-h-11 self-start rounded-xl bg-brand px-4 font-semibold text-white">{t('waInbox.toSettings')}</button>
+        <button onClick={() => navigate('/settings')} className={`min-h-11 self-start px-4 rounded-xl ${btn.solid}`}>{t('waInbox.toSettings')}</button>
       </div>
     )
   }

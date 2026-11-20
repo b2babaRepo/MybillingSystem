@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
@@ -161,7 +162,7 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
           <h2 className="font-bold">📱 {t('upload.phone')}</h2>
           {!phoneOpen || !link ? <>
             <p className="text-sm text-brand-deep">{t('upload.phoneHint')}</p>
-            <button onClick={() => void openPhone()} className="mt-auto min-h-12 rounded-2xl bg-brand px-4 font-semibold text-white">{t('upload.showQr')}</button>
+            <button onClick={() => void openPhone()} className={`mt-auto min-h-12 px-4 rounded-xl ${btn.solid}`}>{t('upload.showQr')}</button>
           </> : (
             <div className="flex flex-wrap items-center gap-3">
               <img src={link.qr} alt={t('upload.qrAlt')} className="h-44 w-44 rounded-xl bg-white p-1" />
@@ -182,7 +183,7 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
       {ai && ai.canReadPhotos && !ai.consentedAt && (
         <div className="rounded-card bg-warn-soft p-3 text-sm">
           <p className="font-bold">{t('expense.consentTitle')}</p><p>{t('invoicePhoto.consent')}</p>
-          <button onClick={() => void agree()} className="mt-2 min-h-11 rounded-xl bg-brand px-4 font-semibold text-white">{t('upload.agree')}</button>
+          <button onClick={() => void agree()} className={`mt-2 min-h-11 px-4 rounded-xl ${btn.solid}`}>{t('upload.agree')}</button>
         </div>
       )}
       {ai && !ai.canReadPhotos && <p className="rounded-card bg-warn-soft p-3 text-sm">{t('upload.noAi')}</p>}
@@ -201,7 +202,7 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
               {read.draft?.supplierName && <option value="new">{t('upload.addSupplier', { name: read.draft.supplierName })}</option>}
             </select></label>
           <div className="flex flex-wrap gap-2">
-            <button disabled={!read.supplierId} onClick={() => void goToBill()} className="min-h-12 flex-1 rounded-2xl bg-brand px-4 font-semibold text-white disabled:opacity-40">{read.draft ? t('upload.checkAndSave') : t('upload.typeIn')}</button>
+            <button disabled={!read.supplierId} onClick={() => void goToBill()} className={`min-h-12 flex-1 px-4 rounded-xl ${btn.solid}`}>{read.draft ? t('upload.checkAndSave') : t('upload.typeIn')}</button>
             <button onClick={() => setRead(null)} className="min-h-12 rounded-2xl border border-line px-4 font-semibold">{t('cancel')}</button>
           </div>
           <p className="text-xs text-muted">{read.draft ? t('upload.whatHappens') : t('upload.typeHappens')}</p>
@@ -218,9 +219,9 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
               <b>{u.source === 'phone' ? `📱 ${t('upload.fromPhone')}` : `💻 ${t('upload.fromComputer')}`}</b>
               <span className="text-muted">{when(u.createdAt)}</span>
             </span>
-            <button disabled={!!busy} onClick={() => void makePurchase(u)} className="min-h-11 rounded-xl bg-brand px-3 text-sm font-semibold text-white disabled:opacity-40">
+            <button disabled={!!busy} onClick={() => void makePurchase(u)} className={`min-h-11 px-3 text-sm rounded-xl ${btn.solid}`}>
               {busy === u.id ? t('invoicePhoto.reading') : t('upload.make')}</button>
-            <button onClick={() => void remove(u)} aria-label={t('upload.delete')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-line text-due">🗑</button>
+            <button onClick={() => void remove(u)} aria-label={t('upload.delete')} className={`flex h-11 w-11 items-center justify-center ${btn.dangerOutline}`}>🗑</button>
           </div>
         ))}
       </div>

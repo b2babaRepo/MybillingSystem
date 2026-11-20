@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatPhone, formatRupees } from '../lib/format'
@@ -89,7 +89,7 @@ function AddRoom({ shopId, first = false }: { shopId: string; first?: boolean })
   const [d, setD] = useState({ name: '', kind: '', rate: '' })
   const [open, setOpen] = useState(first)
   const [message, setMessage] = useState('')
-  if (!open) return <button onClick={() => setOpen(true)} className="min-h-11 text-sm font-semibold text-brand">+ {t('rooms.addRoom')}</button>
+  if (!open) return <button onClick={() => setOpen(true)} className={`min-h-11 text-sm self-start ${btn.add}`}>+ {t('rooms.addRoom')}</button>
   const save = () => api('/v1/rooms', 'POST', { id: crypto.randomUUID(), name: d.name.trim(), kind: d.kind.trim() || null, rate: Number(d.rate) || 0 })
     .then(() => { setD({ name: '', kind: '', rate: '' }); setMessage(t('saved')); void queryClient.invalidateQueries({ queryKey: [shopId, 'rooms'] }) })
     .catch((e: unknown) => setMessage(e instanceof Error ? e.message : t('error')))
@@ -271,7 +271,7 @@ function StayPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: 
         </div>
       )}
       {!form && message && <p className="text-sm text-due">{message}</p>}
-      {s.status === 'booked' && <button onClick={async () => { if ((await confirmAsk(t('rooms.cancelConfirm')))) void run('cancel', {}) }} className="min-h-11 text-sm font-semibold text-due">{t('rooms.cancel')}</button>}
+      {s.status === 'booked' && <button onClick={async () => { if ((await confirmAsk(t('rooms.cancelConfirm')))) void run('cancel', {}) }} className={`min-h-11 text-sm ${btn.dangerOutline}`}>{t('rooms.cancel')}</button>}
     </div>
   )
 }
@@ -296,7 +296,7 @@ function SeasonPrices({ shopId, rooms }: { shopId: string; rooms: Room[] }) {
           <li key={p.id} className="flex min-h-11 items-center gap-2 text-sm">
             <span className="min-w-0 flex-1"><span className="font-semibold">{p.name}</span> · {day(p.from)} – {day(p.to)} · {roomName(p.roomId)}</span>
             <span className="font-bold">{formatRupees(p.rate)}</span>
-            <button onClick={() => void run(`/v1/room-rates/${p.id}/remove`, {})} className="min-h-11 px-2 font-semibold text-due">{t('rooms.remove')}</button>
+            <button onClick={() => void run(`/v1/room-rates/${p.id}/remove`, {})} className={`min-h-11 ${btn.dangerOutline}`}>{t('rooms.remove')}</button>
           </li>
         ))}
       </ul>

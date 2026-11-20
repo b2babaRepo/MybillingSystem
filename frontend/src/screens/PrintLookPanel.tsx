@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/ui'
+import { Button, btn } from '../components/ui'
 import { api } from '../lib/api'
 import type { BillPrint, PrintTheme } from '../lib/types'
 
@@ -63,7 +63,7 @@ function PrintLookForm({ initial, onSaved, t }: { initial: BillPrint; onSaved: (
         <label className="flex min-h-11 cursor-pointer items-center rounded-xl border border-line bg-white px-3 text-sm font-semibold">
           {label}<input type="file" accept="image/*" className="sr-only" onChange={(e) => void pick((v) => set(v))(e)} />
         </label>
-        {value && <button onClick={() => set(null)} className="min-h-11 rounded-xl border border-line px-3 text-sm font-semibold text-due">{t('printLook.remove')}</button>}
+        {value && <button onClick={() => set(null)} className={`min-h-11 px-3 text-sm ${btn.dangerOutline}`}>{t('printLook.remove')}</button>}
       </div>
     </div>
   )

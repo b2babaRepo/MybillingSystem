@@ -1,3 +1,4 @@
+import { btn } from './ui'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -59,7 +60,7 @@ export function AskHost() {
         )}
         <div className={`mt-4 grid gap-2 ${question.kind === 'tell' ? 'grid-cols-1' : 'grid-cols-2'}`}>
           {question.kind !== 'tell' && <button type="button" onClick={() => finish(null)} className="h-12 rounded-xl border border-line font-semibold">{t('cancel')}</button>}
-          <button type="submit" className="h-12 rounded-xl bg-brand font-bold text-white">{question.kind === 'confirm' ? t('ask.yes') : t('ask.ok')}</button>
+          <button type="submit" className={`h-12 rounded-xl ${btn.solid}`}>{question.kind === 'confirm' ? t('ask.yes') : t('ask.ok')}</button>
         </div>
       </form>
     </div>

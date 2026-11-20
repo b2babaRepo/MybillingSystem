@@ -1,4 +1,4 @@
-import { controlSm } from '../components/ui'
+import { controlSm, btn } from '../components/ui'
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -73,7 +73,7 @@ export function CategoriesScreen({ shopId }: { shopId: string }) {
         <p className="text-sm text-muted">{t('cat.hint')}</p>
         <form onSubmit={(e) => { e.preventDefault(); if (newName.trim()) void run(() => api('/v1/categories', 'POST', { name: newName.trim() })).then((ok) => ok && setNewName('')) }} className="flex gap-2">
           <input value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={60} placeholder={t('cat.newPlaceholder')} aria-label={t('cat.new')} className={`${input} flex-1`} />
-          <button className="h-11 rounded-xl bg-brand px-4 font-semibold text-white">{t('cat.add')}</button>
+          <button className={`h-11 px-4 rounded-xl ${btn.solid}`}>{t('cat.add')}</button>
         </form>
       </section>
       {message && <p className="text-sm text-due">{message}</p>}
@@ -123,14 +123,14 @@ export function CategoriesScreen({ shopId }: { shopId: string }) {
                   <label className="col-span-2 flex flex-col gap-1 text-xs text-muted">{t('cat.slowAfter')}<input value={draft.slow} inputMode="numeric" onChange={(e) => setDraft({ ...draft, slow: e.target.value })} placeholder="30" className={input} /></label>
                 </div>
                 <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: !e.target.checked })} className="h-5 w-5" />{t('cat.hide')}</label>
-                <button onClick={() => void run(() => api(`/v1/categories/${c.id}`, 'PUT', body(draft))).then((ok) => ok && setOpen(null))} className="h-11 rounded-xl bg-brand font-semibold text-white">{t('cat.save')}</button>
+                <button onClick={() => void run(() => api(`/v1/categories/${c.id}`, 'PUT', body(draft))).then((ok) => ok && setOpen(null))} className={`h-11 rounded-xl ${btn.solid}`}>{t('cat.save')}</button>
                 <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-3">
                   <span className="text-xs text-muted">{t('cat.mergeLabel')}</span>
                   <select aria-label={t('cat.mergeLabel')} value={mergeInto} onChange={(e) => setMergeInto(e.target.value)} className={`${input} flex-1`}>
                     <option value="">{t('cat.pick')}</option>
                     {rows.filter((r) => r.id !== c.id).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
-                  <button disabled={!mergeInto} onClick={() => void merge(c)} className="h-11 rounded-xl border border-line px-3 font-semibold text-due hover:bg-due-soft disabled:opacity-40">{t('cat.merge')}</button>
+                  <button disabled={!mergeInto} onClick={() => void merge(c)} className={`h-11 px-3 hover:bg-due-soft ${btn.dangerOutline}`}>{t('cat.merge')}</button>
                 </div>
               </div>
             )}

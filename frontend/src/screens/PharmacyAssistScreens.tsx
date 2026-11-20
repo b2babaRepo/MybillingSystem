@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useState } from 'react'
@@ -207,7 +208,7 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
               )
             })}
             </div>
-            {g.supplierId && toOrder.length > 0 && <button onClick={() => void saveOrder(g.supplierId!, toOrder)} className="h-11 rounded-xl border-2 border-brand font-semibold text-brand-strong">{t('supplier2.saveAsOrder')}</button>}
+            {g.supplierId && toOrder.length > 0 && <button onClick={() => void saveOrder(g.supplierId!, toOrder)} className={`h-11 rounded-xl ${btn.outline}`}>{t('supplier2.saveAsOrder')}</button>}
             {(who?.phone || !g.supplierId) && toOrder.length > 0
               ? <a href={whatsAppLink(who?.phone ?? null, message)} target="_blank" rel="noreferrer" className="flex h-11 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('reorder.send')}</a>
               : <p className="text-xs text-muted">{t(general ? 'reorder.noPhoneAll' : 'reorder.noPhone')}</p>}

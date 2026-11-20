@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { SendFromShop } from '../components/ShopWhatsApp'
 import { shownLocale } from '../i18n'
 import { lazy, Suspense, useEffect, useState } from 'react'
@@ -197,7 +198,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
         <div className="flex flex-col gap-2 rounded-xl bg-brand-soft p-3">
           <p className="text-sm"><b>{t('slip.taken', { note: taken.noteNo, amount: formatRupees(taken.total) })}</b></p>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => { startExchange(taken); navigate('/bill') }} className="min-h-11 rounded-xl bg-brand px-2 py-2 font-semibold leading-tight text-white">{t('slip.billHere')}</button>
+            <button onClick={() => { startExchange(taken); navigate('/bill') }} className={`min-h-11 px-2 py-2 leading-tight rounded-xl ${btn.solid}`}>{t('slip.billHere')}</button>
             <button onClick={() => navigate(`/print/slip/${taken.noteId}`)} className="min-h-11 rounded-xl border border-line bg-white px-2 py-2 font-semibold leading-tight">🎟 {t('slip.print')}</button>
           </div>
           <p className="text-xs text-muted">{t('slip.otherCounter')}</p>
@@ -207,7 +208,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
         <p className="text-sm text-muted">{t('creditNote.allBack')}</p>
       ) : !open ? (
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => { setExchange(true); setReason(t('exchange.reason')); setOpen(true) }} className="min-h-11 rounded-xl bg-brand px-2 py-2 font-semibold leading-tight text-white">{t('exchange.start')}</button>
+          <button onClick={() => { setExchange(true); setReason(t('exchange.reason')); setOpen(true) }} className={`min-h-11 px-2 py-2 leading-tight rounded-xl ${btn.solid}`}>{t('exchange.start')}</button>
           <button onClick={() => { setExchange(false); setOpen(true) }} className="min-h-11 rounded-xl border border-line px-2 py-2 font-semibold leading-tight transition hover:bg-[#f6faf9]">{t('creditNote.start')}</button>
         </div>
       ) : (
@@ -530,7 +531,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel, bar
       )}
       <p className="mt-6 text-center">{t('print.thanks')}</p>
       {onCancel && !bill.cancelledAt && <CreditNotesPanel billId={bill.id} customerId={bill.customerId} lines={bill.lines} />}
-      {onCancel && !bill.cancelledAt && <button onClick={onCancel} className="mt-6 h-11 w-full rounded-xl border border-line font-semibold text-due print:hidden">{t('print.cancelBill')}</button>}
+      {onCancel && !bill.cancelledAt && <button onClick={onCancel} className={`mt-6 h-11 w-full print:hidden ${btn.dangerOutline}`}>{t('print.cancelBill')}</button>}
     </Page>
   )
 }
@@ -618,7 +619,7 @@ function SlipPrint({ shopName, noteId }: { shopName: string; noteId: string }) {
           <p className="text-sm text-muted">{t('slip.lostHint')}</p>
           <div className="grid grid-cols-2 gap-2">
             <button disabled={busy} onClick={() => void newCode()} className="min-h-11 rounded-xl border border-line px-2 py-2 font-semibold leading-tight">{t('slip.newCode')}</button>
-            <button disabled={busy} onClick={() => void cancelSlip()} className="min-h-11 rounded-xl border border-line px-2 py-2 font-semibold leading-tight text-due">{t('slip.cancel')}</button>
+            <button disabled={busy} onClick={() => void cancelSlip()} className={`min-h-11 py-2 leading-tight ${btn.dangerOutline}`}>{t('slip.cancel')}</button>
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/ui'
+import { Button, btn } from '../components/ui'
 import { counterName, setCounterName, useOutbox } from '../lib/data'
 import { useState } from 'react'
 import { formatDateTime } from '../lib/format'
@@ -38,7 +38,7 @@ export function SyncScreen({ shopId, persistent }: { shopId: string; persistent:
               )}
             </div>
             {op.status === 'failed' && (
-              <button className="text-sm text-due underline" onClick={() => void discardFailed(op.seq!)}>
+              <button className={`min-h-9 text-sm ${btn.dangerOutline}`} onClick={() => void discardFailed(op.seq!)}>
                 {t('discard')}
               </button>
             )}
@@ -60,7 +60,7 @@ function CounterName() {
       <span className="text-muted">{t('counter.hint')}</span>
       <span className="flex gap-2">
         <input value={name} maxLength={30} onChange={(e) => { setName(e.target.value); setSaved(false) }} className="h-11 flex-1 rounded-xl border border-line px-3" />
-        <button onClick={() => { setCounterName(name); setSaved(true) }} className="h-11 rounded-xl bg-brand px-4 font-semibold text-white">{saved ? '✓' : t('counter.save')}</button>
+        <button onClick={() => { setCounterName(name); setSaved(true) }} className={`h-11 px-4 rounded-xl ${btn.solid}`}>{saved ? '✓' : t('counter.save')}</button>
       </span>
     </label>
   )

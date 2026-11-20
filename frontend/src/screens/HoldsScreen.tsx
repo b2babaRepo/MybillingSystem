@@ -1,3 +1,4 @@
+import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -51,7 +52,7 @@ export function HoldsScreen({ shopId }: { shopId: string }) {
       <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl font-bold">🔖 {t('holds.title')}</h1>
-          {!adding && <button onClick={() => setAdding(true)} className="h-10 rounded-xl bg-brand px-3 text-sm font-semibold text-white">+ {t('holds.add')}</button>}
+          {!adding && <button onClick={() => setAdding(true)} className={`h-10 px-3 text-sm rounded-xl ${btn.solid}`}>+ {t('holds.add')}</button>}
         </div>
         <p className="text-sm text-muted">{t('holds.hint')}</p>
         {data.length > 0 && <p className="text-sm font-semibold">{t('holds.summary', { count: data.length })}{shortCount > 0 && <span className="text-due"> · {t('holds.shortCount', { count: shortCount })}</span>}</p>}
@@ -66,7 +67,7 @@ export function HoldsScreen({ shopId }: { shopId: string }) {
               <label className="flex flex-col gap-1 text-xs text-muted">{t('holds.note')}<input value={draft.note} maxLength={200} onChange={(e) => setDraft({ ...draft, note: e.target.value })} className="h-11 rounded-xl border border-line bg-white px-3" /></label>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button disabled={!draft.productId || !(Number(draft.qty) > 0) || !draft.party.trim()} onClick={() => void add()} className="h-11 rounded-xl bg-brand font-semibold text-white disabled:opacity-50">{t('holds.save')}</button>
+              <button disabled={!draft.productId || !(Number(draft.qty) > 0) || !draft.party.trim()} onClick={() => void add()} className={`h-11 rounded-xl ${btn.solid}`}>{t('holds.save')}</button>
               <button onClick={() => setAdding(false)} className="h-11 rounded-xl border border-line font-semibold">{t('cancel')}</button>
             </div>
           </div>
@@ -88,7 +89,7 @@ export function HoldsScreen({ shopId }: { shopId: string }) {
           {h.source === 'counter' && (
             <div className="flex gap-2">
               <button onClick={() => void run(() => api(`/v1/holds/${h.sourceId}/done`, 'POST', {}))} className="h-10 flex-1 rounded-xl border border-line text-sm font-semibold hover:bg-[#f6faf9]">✓ {t('holds.done')}</button>
-              <button onClick={() => void run(() => api(`/v1/holds/${h.sourceId}/release`, 'POST', {}))} className="h-10 flex-1 rounded-xl border border-line text-sm font-semibold text-due hover:bg-due-soft">{t('holds.release')}</button>
+              <button onClick={() => void run(() => api(`/v1/holds/${h.sourceId}/release`, 'POST', {}))} className={`h-10 flex-1 text-sm hover:bg-due-soft ${btn.dangerOutline}`}>{t('holds.release')}</button>
             </div>
           )}
         </div>

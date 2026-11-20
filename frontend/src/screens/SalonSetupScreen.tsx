@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
@@ -147,7 +147,7 @@ export function SalonHomeCard({ shopId, isOwner }: { shopId: string; isOwner: bo
   return (
     <section className="mx-4 mt-3 flex flex-col gap-2">
       {isOwner && (services.length === 0 || unpriced > 0) && (
-        <button onClick={() => navigate('/salon/setup')} className="flex min-h-12 items-center justify-between rounded-card bg-brand px-4 text-left font-semibold text-white">
+        <button onClick={() => navigate('/salon/setup')} className={`flex min-h-12 items-center justify-between rounded-card px-4 text-left rounded-xl ${btn.solid}`}>
           <span>{services.length === 0 ? t('salon.startSetup') : t('salon.pricesMissing', { count: unpriced })}</span><span aria-hidden="true">→</span>
         </button>
       )}
