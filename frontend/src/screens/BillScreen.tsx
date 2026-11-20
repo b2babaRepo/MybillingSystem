@@ -544,9 +544,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         </div>
       )}
       {!exchange && (
-        <div className="-my-1 flex flex-wrap items-center gap-x-4">
-          <button type="button" onClick={() => navigate('/find-bill')} className={`min-h-10 text-sm ${btn.link}`}>↩ {t('findBill.link')}</button>
-          <button type="button" onClick={() => { setSlipOpen(!slipOpen); setSlipError('') }} className={`min-h-10 text-sm ${btn.link}`}>🎟 {t('slip.use')}</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => navigate('/find-bill')} className="flex min-h-10 items-center gap-2 rounded-full bg-[#fde8ec] px-3.5 text-sm font-bold text-[#be123c] transition hover:bg-[#fbd5dd] active:scale-[0.98]"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3" /></svg>{t('findBill.link')}</button>
+          <button type="button" onClick={() => { setSlipOpen(!slipOpen); setSlipError('') }} aria-pressed={slipOpen} className={`flex min-h-10 items-center gap-2 rounded-full px-3.5 text-sm font-bold transition active:scale-[0.98] ${slipOpen ? 'bg-[#6d28d9] text-white shadow-md shadow-[#6d28d9]/30' : 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]'}`}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 7h18v4a2 2 0 000 4v4H3v-4a2 2 0 000-4zM13 7v12" /></svg>{t('slip.use')}</button>
         </div>
       )}
       {!exchange && slipOpen && (
@@ -564,7 +564,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       )}
       <div className="flex gap-2">
         <span className="relative min-w-0 flex-1">
-        <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-muted">🔍</span>
+        <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-muted"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-3.5-3.5" /></svg></span>
         <input
           ref={searchRef}
           autoFocus={keyboardDesk}
@@ -589,10 +589,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         />
         </span>
         <button onClick={togglePreview} aria-pressed={preview} title={t('billPreview.toggle')}
-          className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold xl:flex ${preview ? 'border-brand bg-brand-soft text-brand-strong' : 'border-line bg-white text-muted'}`}>👁 {t('billPreview.toggle')}</button>
+          className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold xl:flex ${preview ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white shadow-md shadow-[#1d4ed8]/30' : 'border-transparent bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]'}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6" /></svg>{t('billPreview.toggle')}</button>
         <button onClick={() => setKeysHelp((v) => !v)} aria-pressed={keysHelp} title={`${t('keys.title')} (?)`}
-          className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold lg:flex ${keysHelp ? 'border-brand bg-brand-soft text-brand-strong' : 'border-line bg-white text-muted'}`}>⌨ {t('keys.button')}</button>
-        {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className={`flex h-12 shrink-0 items-center gap-1.5 rounded-2xl px-4 ${btn.solid}`}><span aria-hidden>📷</span>{t('barcodeBill.scan')}</button>}
+          className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold lg:flex ${keysHelp ? 'border-ink bg-ink text-white shadow-md' : 'border-transparent bg-[#edf2f1] text-ink hover:bg-[#e1e8e5]'}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10" /></svg>{t('keys.button')}</button>
+        {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className={`flex h-12 shrink-0 items-center gap-1.5 rounded-2xl px-4 ${btn.solid}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M4 7h3l2-3h6l2 3h3v13H4zM12 10a3.5 3.5 0 100 7 3.5 3.5 0 000-7" /></svg>{t('barcodeBill.scan')}</button>}
       </div>
       {keysHelp && (
         <div className="hidden rounded-[14px] bg-white p-3 text-sm lg:block">
@@ -976,8 +976,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             const seg = (on: boolean, tone: string) => `flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl text-base font-bold transition ${on ? tone : 'text-muted hover:bg-white'}`
             return (
               <div role="radiogroup" aria-label={t('creditSwitch.label')} className="flex gap-1 rounded-2xl bg-[#edf2f1] p-1">
-                <button role="radio" aria-checked={!credit} onClick={() => chooseCredit(false)} className={seg(!credit, 'bg-white text-green-800 shadow-sm ring-1 ring-green-600/30')}>💵 {t('creditSwitch.cash')}</button>
-                <button role="radio" aria-checked={credit} onClick={() => chooseCredit(true)} className={seg(credit, 'bg-white text-due shadow-sm ring-1 ring-red-600/30')}>📒 {t('creditSwitch.credit')}</button>
+                <button role="radio" aria-checked={!credit} onClick={() => chooseCredit(false)} className={seg(!credit, 'bg-[#0b5e4f] text-white shadow-md shadow-[#0b5e4f]/30')}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 6h18v12H3zM12 9.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5" /></svg>{t('creditSwitch.cash')}</button>
+                <button role="radio" aria-checked={credit} onClick={() => chooseCredit(true)} className={seg(credit, 'bg-[#b42318] text-white shadow-md shadow-[#b42318]/30')}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M4 4h11a3 3 0 013 3v13H7a3 3 0 01-3-3zM4 17a3 3 0 013-3h11" /></svg>{t('creditSwitch.credit')}</button>
               </div>
             )
           })()}
@@ -1077,14 +1077,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               return (
                 <button key={m} onClick={() => { setMode(m); setUpiPart(null) }} aria-pressed={on}
                   className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${on ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}>
-                  <span aria-hidden className="text-lg leading-none">{m === 'cash' ? '💵' : m === 'upi' ? '📱' : '💳'}</span>{t(m)}
+                  {m === 'cash' ? <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 6h18v12H3zM12 9.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5" /></svg> : m === 'upi' ? <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M7 2h10v20H7zM11 18h2" /></svg> : <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 6h18v12H3zM3 10h18M7 15h3" /></svg>}{t(m)}
                 </button>
               )
             })}
             {paidAmount > 0 && (
               <button onClick={() => { setMode('cash'); setUpiPart(upiPart === null ? '' : null) }} aria-pressed={upiPart !== null}
                 className={`flex h-14 flex-col items-center justify-center rounded-xl font-semibold transition ${upiPart !== null ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}>
-                <span aria-hidden className="text-lg leading-none">➗</span>{t('split.button')}
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M5 12h14M12 5h.01M12 19h.01" /></svg>{t('split.button')}
               </button>
             )}
           </div>
@@ -1107,12 +1107,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           {unpriced && <p className="text-sm font-semibold text-due">{t('bars.noPrice')}</p>}
           {needsBuyerAddress && <p className="text-sm font-semibold text-due">{t('print.bigBillAddress')}</p>}
           {fromEstimate && <p className="rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">{t('estimate.fromEstimate', { number: fromEstimate.number })}</p>}
-          {fromOrder && <p className="rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">🚚 {t('saleOrder.fromOrder', { number: fromOrder.number })}</p>}
+          {fromOrder && <p className="rounded-xl bg-brand-soft p-2 text-sm text-brand-deep">{t('saleOrder.fromOrder', { number: fromOrder.number })}</p>}
           {orderSaved !== null && <p className={`rounded-xl p-2 text-sm text-emerald-800 ${btn.link}`}>{t('saleOrder.saved', { number: orderSaved })} <button onClick={() => navigate('/sale-orders')} className="underline">{t('saleOrder.open')}</button></p>}
-          <button type="button" onClick={() => void saveEstimate()} disabled={cart.length === 0 || !!fromEstimate} className="flex min-h-10 items-center gap-1.5 self-start rounded-full border border-dashed border-brand/40 px-3.5 text-sm font-semibold text-brand-strong hover:bg-brand-soft disabled:opacity-40"><span aria-hidden>📝</span>{t('estimate.save')}</button>
-          <button type="button" onClick={() => void saveOrder()} disabled={cart.length === 0 || !customerId || !!fromOrder || !!fromEstimate} title={!customerId ? t('saleOrder.needCustomer') : undefined} className="flex min-h-10 items-center gap-1.5 self-start rounded-full border border-dashed border-brand/40 px-3.5 text-sm font-semibold text-brand-strong hover:bg-brand-soft disabled:opacity-40"><span aria-hidden>📦</span>{t('saleOrder.save')}</button>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => void saveEstimate()} disabled={cart.length === 0 || !!fromEstimate} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#e8effd] px-3 text-sm font-bold text-[#1d4ed8] transition hover:bg-[#dbe5fc] active:scale-[0.98] disabled:opacity-45"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M14 3H6v18h12V7zM14 3v4h4M9 13h6M9 17h4" /></svg>{t('estimate.save')}</button>
+            <button type="button" onClick={() => void saveOrder()} disabled={cart.length === 0 || !customerId || !!fromOrder || !!fromEstimate} title={!customerId ? t('saleOrder.needCustomer') : undefined} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#fdf1e3] px-3 text-sm font-bold text-[#a1460a] transition hover:bg-[#fbe6cc] active:scale-[0.98] disabled:opacity-45"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10" /></svg>{t('saleOrder.save')}</button>
+          </div>
           <div className="flex gap-2 border-t border-line pt-4">
-            <button type="button" onClick={holdBill} className={`flex min-h-14 shrink-0 items-center gap-1.5 rounded-2xl px-4 ${btn.outline}`}><span aria-hidden>⏸</span>{t('hold.button')}</button>
+            <button type="button" onClick={holdBill} className={`flex min-h-14 shrink-0 items-center gap-1.5 rounded-2xl px-4 ${btn.outline}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M8 5v14M16 5v14" /></svg>{t('hold.button')}</button>
             <Button className="h-14 flex-1 text-lg shadow-md shadow-teal-900/15" id="bill-save" onClick={save} disabled={!canSave}>
               {mode === 'upi' && paidAmount > 0 ? t('upiPay.save', { amount: formatRupees(due) }) : `${t('saveBill')} · ${formatRupees(due)}`}
             </Button>

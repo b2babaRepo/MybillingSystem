@@ -80,7 +80,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
       <label className="block">
         <span className="mb-1.5 block text-sm font-semibold text-muted">{t('customer')}</span>
         <span className="relative block">
-        <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">👤</span>
+        <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M12 4a4 4 0 100 8 4 4 0 000-8zM4 21a8 8 0 0116 0" /></svg></span>
         <input
           id={inputId}
           value={text}
@@ -105,7 +105,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
         <span className="flex flex-wrap gap-x-2">
           <button type="button" onClick={startAdding} className="mt-2 flex min-h-10 items-center gap-1.5 rounded-full border border-brand/30 bg-brand-soft/60 px-3.5 text-sm font-semibold text-brand-strong hover:bg-brand-soft">{t('newBuyer.addBlank')}</button>
           {/* Udhaar to someone who won't give a name yet: a numbered "Name later" khata the owner names afterwards. */}
-          {onNameLater && <button type="button" onClick={() => void onNameLater().then(onPick)} className="mt-2 flex min-h-10 items-center gap-1.5 rounded-full border border-amber-600/30 bg-warn-soft px-3.5 text-sm font-semibold text-warn-ink hover:bg-amber-100"><span aria-hidden>⏳</span>{t('nameLater.button')}</button>}
+          {onNameLater && <button type="button" onClick={() => void onNameLater().then(onPick)} className="mt-2 flex min-h-10 items-center gap-1.5 rounded-full border border-amber-600/30 bg-warn-soft px-3.5 text-sm font-semibold text-warn-ink hover:bg-amber-100"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2" /></svg>{t('nameLater.button')}</button>}
         </span>
       )}
       {open && (
@@ -142,7 +142,7 @@ export function CashChange({ paying, received, onChange }: { paying: number; rec
   const back = received.trim() ? changeDue(Number(received) || 0, paying) : null
   return (
     <label className="flex flex-wrap items-center gap-3 rounded-2xl bg-[#f6faf9] p-3 text-sm">
-      <span className="font-semibold text-muted">💵 {t('billFind.received')}</span>
+      <span className="font-semibold text-muted">{t('billFind.received')}</span>
       <span className="relative">
         <span aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg text-muted">₹</span>
         <input id="bill-received" value={received} onChange={(e) => onChange(e.target.value)} inputMode="decimal" autoComplete="off" placeholder={String(paying)} className="h-12 w-36 rounded-xl border border-line bg-white pl-8 pr-2 text-lg font-semibold outline-none focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
