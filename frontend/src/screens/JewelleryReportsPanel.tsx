@@ -25,7 +25,7 @@ function Card({ tone, label, value, sub }: { tone: string; label: string; value:
   return <div className={`flex min-h-[76px] flex-col justify-between rounded-[18px] p-3 ${tone}`}><span className="text-[13px] font-bold">{label}</span><b className="text-xl">{value}</b>{sub && <span className="text-xs opacity-80">{sub}</span>}</div>
 }
 
-export function JewelleryReportsPanel({ shopId }: { shopId: string }) {
+export function JewelleryReportsPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const { t } = useTranslation()
   const now = new Date()
   const thisFy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1
@@ -33,7 +33,7 @@ export function JewelleryReportsPanel({ shopId }: { shopId: string }) {
   const [view, setView] = useState<'stock' | 'sales' | 'cash'>('stock')
   const stock = useQuery({ queryKey: [shopId, 'jewellery', 'report-stock'], queryFn: () => api<StockReport>('/v1/jewellery/reports/stock'), enabled: view === 'stock' }).data
   const sales = useQuery({ queryKey: [shopId, 'jewellery', 'report-sales', fy], queryFn: () => api<SalesReport>(`/v1/jewellery/reports/sales?fy=${fy}`), enabled: view === 'sales' }).data
-  const cash = useQuery({ queryKey: [shopId, 'jewellery', 'report-cash', fy], queryFn: () => api<CashReport>(`/v1/jewellery/reports/cash?fy=${fy}`), enabled: view === 'cash' }).data
+  const cash = useQuery({ queryKey: [shopId, 'jewellery', 'report-cash', fy], queryFn: () => api<CashReport>(`/v1/jewellery/reports/cash?fy=${fy}`), enabled: view === 'cash' && isOwner }).data
   const fyLabel = (y: number) => `FY ${y}-${String(y + 1).slice(2)}`
   const gold = stock?.totals.find((x) => x.metal === 'gold')
   const silver = stock?.totals.find((x) => x.metal === 'silver')
@@ -51,7 +51,7 @@ export function JewelleryReportsPanel({ shopId }: { shopId: string }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex gap-1 rounded-xl bg-[#edf2f1] p-1">
-          {(['stock', 'sales', 'cash'] as const).map((v) => <button key={v} onClick={() => setView(v)} aria-pressed={view === v} className={`min-h-9 rounded-lg px-3 text-sm font-semibold ${view === v ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`jwl4.view.${v}`)}</button>)}
+          {(isOwner ? (['stock', 'sales', 'cash'] as const) : (['stock', 'sales'] as const)).map((v) => <button key={v} onClick={() => setView(v)} aria-pressed={view === v} className={`min-h-9 rounded-lg px-3 text-sm font-semibold ${view === v ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`jwl4.view.${v}`)}</button>)}
         </div>
         {view !== 'stock' && (
           <select value={fy} onChange={(e) => setFy(Number(e.target.value))} aria-label={t('jwl4.year')} className="ml-auto h-11 rounded-xl border border-line bg-white px-3">

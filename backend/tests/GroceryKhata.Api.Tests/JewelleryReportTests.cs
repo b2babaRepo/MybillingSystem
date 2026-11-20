@@ -51,4 +51,19 @@ public sealed class JewelleryReportTests(ApiFactory api)
         var sales = await shop.GetJsonAsync<SalesReportDto>("/api/v1/jewellery/reports/sales");
         Assert.Equal((1, 20m), (sales.Lines.Single().Pieces, sales.Lines.Single().Net));
     }
+
+    [Fact]
+    public async Task Only_the_owner_sees_cash_per_customer()
+    {
+        var (owner, _) = await api.SignUpAsync("Kanak Jewellers");
+        var phone = ApiFactory.NewPhone();
+        (await owner.PostJsonAsync("/api/v1/shop/staff", new { name = "Raju", phone, pin = "4826" })).EnsureSuccessStatusCode();
+        var auth = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-in", new { phone, password = "4826" })).ReadAsync<GroceryKhata.Api.Identity.AuthResponse>();
+        var helper = api.CreateClient();
+        helper.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", auth.AccessToken);
+
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, (await helper.GetAsync("/api/v1/jewellery/reports/cash")).StatusCode);
+        (await helper.GetAsync("/api/v1/jewellery/reports/stock")).EnsureSuccessStatusCode();
+        (await owner.GetAsync("/api/v1/jewellery/reports/cash")).EnsureSuccessStatusCode();
+    }
 }

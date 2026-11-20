@@ -68,7 +68,7 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
       {shown === 'approvals' && <ApprovalsPanel shopId={shopId} />}
       {shown === 'workshop' && <WorkshopPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'trays' && <TraysPanel shopId={shopId} isOwner={isOwner} />}
-      {shown === 'reports' && <JewelleryReportsPanel shopId={shopId} />}
+      {shown === 'reports' && <JewelleryReportsPanel shopId={shopId} isOwner={isOwner} />}
     </div>
   )
 }

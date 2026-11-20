@@ -633,7 +633,8 @@ public static class JewelleryEndpoints
                                   where j.CustomerId == cashCustomer && j.Mode == PaymentMode.Cash && j.CreatedAt >= fyStart && b.CancelledAt == null
                                   select (decimal?)j.MoneyPaid).SumAsync(ct) ?? 0;
             if (yearCash > 0 && yearCash + Math.Min(total, cashLimit) >= JewelleryReportEndpoints.PmlaLimit)
-                problems.Add($"Cash from this customer this year is ₹{yearCash:N0}. Cash of ₹10 lakh or more in a year must be kept on record and reported (PMLA): see Jewellery reports.");
+                // No figure here: staff make bills too, and a customer's yearly cash is for the owner (the cash report).
+                problems.Add("With this bill, this customer's cash this year reaches ₹10 lakh. Cash of ₹10 lakh or more in a year must be kept on record and reported (PMLA): the owner sees it in Jewellery reports.");
         }
 
         var quote = new JewelleryQuoteDto(worked, taxable, gst, roundOff, total, olds, oldValue, total - oldValue, total >= JewelleryMath.PanFrom, cashLimit, problems, schemeDiscount, advance);

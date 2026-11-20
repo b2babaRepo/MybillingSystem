@@ -47,7 +47,8 @@ public static class JewelleryReportEndpoints
         var g = app.MapGroup("/api/v1/jewellery/reports").WithTags("Jewellery").RequireAuthorization(AppPolicies.ShopMember);
         g.MapGet("/stock", StockAsync);
         g.MapGet("/sales", SalesAsync);
-        g.MapGet("/cash", CashAsync);
+        // Each customer's yearly cash and PAN: the owner's to see, not the counter staff's.
+        g.MapGet("/cash", CashAsync).RequireAuthorization(AppPolicies.ShopOwner);
         return app;
     }
 
