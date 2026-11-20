@@ -676,6 +676,7 @@ export const hiMore: TextsMore = {
     cost: 'जोड़ना मुफ़्त है। दुकान के भेजे हर संदेश पर Meta पैसा लेता है (बिल या याद दिलाने पर लगभग ₹0.12, ऑफ़र पर लगभग ₹0.86); 24 घंटे में ग्राहक को जवाब मुफ़्त है।',
     notSetUp: 'WhatsApp Business नंबर जोड़ना जल्द आएगा। तब तक WhatsApp बटन संदेश तैयार करके WhatsApp खोलते हैं।',
   },
+  plat5: { items: 'सामान', noPhoto: 'बिना फ़ोटो', noGst: 'बिना GST या HSN', off: 'बंद किए', photo: 'फ़ोटो', item: 'सामान', gstHsn: 'GST · HSN', sizes: 'साइज़', gstNotSet: 'GST नहीं भरा', week: 'इस हफ़्ते', newShops: 'नई दुकानें', paying: 'पैसे देने वाली', onTrial: 'ट्रायल पर', thisMonth: 'इस महीने' },
   plat4: { month: 'इस महीने मिला', year: 'इस साल', ending: 'इस हफ़्ते ख़त्म होने वाले ट्रायल', shopsWord: 'दुकानें', agent: 'एजेंट', market: 'बाज़ार', signed: 'जोड़ी', approved: 'मंज़ूर', paid: 'पैसे दिए', allTime: 'अब तक', commission: 'कमीशन', rejected: '{{count}} नामंज़ूर', due: '{{amount}} बाक़ी', waitingPaid: '{{waiting}} रुका · {{paid}} दिया', recordPay: 'भुगतान लिखें' },
   plat3: { hideTest: 'टेस्ट दुकानें छिपाएँ', ticked: '{{count}} दुकानें चुनीं', approveAll: 'सब मंज़ूर करें', clear: 'हटाएँ', tickAll: 'सभी नई दुकानें चुनें', tick: '{{name}} चुनें', shop: 'दुकान', owner: 'मालिक', plan: 'प्लान', status: 'हालत', action: 'काम', test: 'टेस्ट', open: 'खोलें', close: 'बंद करें' },
   cash3: { today: 'आज' },

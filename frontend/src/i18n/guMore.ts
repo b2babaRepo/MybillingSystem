@@ -335,6 +335,7 @@ const guMoreB = {
     cost: 'જોડવું મફત છે. દુકાને મોકલેલા દરેક સંદેશા પર Meta પૈસા લે છે (બિલ કે યાદ પર લગભગ ₹0.12, ઑફર પર લગભગ ₹0.86); 24 કલાકમાં ગ્રાહકને જવાબ મફત છે.',
     notSetUp: 'WhatsApp Business નંબર જોડવાનું જલદી આવશે. ત્યાં સુધી WhatsApp બટન સંદેશો તૈયાર કરી WhatsApp ખોલે છે.',
   },
+  plat5: { items: 'વસ્તુઓ', noPhoto: 'ફોટો વગર', noGst: 'GST કે HSN વગર', off: 'બંધ કરેલી', photo: 'ફોટો', item: 'વસ્તુ', gstHsn: 'GST · HSN', sizes: 'સાઇઝ', gstNotSet: 'GST નથી ભર્યું', week: 'આ અઠવાડિયે', newShops: 'નવી દુકાનો', paying: 'ચૂકવતી', onTrial: 'ટ્રાયલ પર', thisMonth: 'આ મહિને' },
   plat4: { month: 'આ મહિને મળ્યા', year: 'આ વર્ષે', ending: 'આ અઠવાડિયે પૂરા થતા ટ્રાયલ', shopsWord: 'દુકાનો', agent: 'એજન્ટ', market: 'બજાર', signed: 'જોડી', approved: 'મંજૂર', paid: 'પૈસા આપ્યા', allTime: 'અત્યાર સુધી', commission: 'કમિશન', rejected: '{{count}} નામંજૂર', due: '{{amount}} બાકી', waitingPaid: '{{waiting}} રોકાયેલા · {{paid}} આપ્યા', recordPay: 'ચુકવણી લખો' },
   plat3: { hideTest: 'ટેસ્ટ દુકાનો છુપાવો', ticked: '{{count}} દુકાનો પસંદ કરી', approveAll: 'બધી મંજૂર કરો', clear: 'હટાવો', tickAll: 'બધી નવી દુકાનો પસંદ કરો', tick: '{{name}} પસંદ કરો', shop: 'દુકાન', owner: 'માલિક', plan: 'પ્લાન', status: 'સ્થિતિ', action: 'કામ', test: 'ટેસ્ટ', open: 'ખોલો', close: 'બંધ કરો' },
   cash3: { today: 'આજે' },

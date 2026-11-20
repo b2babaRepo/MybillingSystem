@@ -53,11 +53,11 @@ export function AgentsPanel() {
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
-        <p className="text-sm text-muted">{t('agentsAdmin.hint')}</p>
+        <p className="flex items-start gap-2 rounded-xl bg-warn-soft p-3 text-sm font-semibold text-warn-ink"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0"><path d="M3 6h18v12H3zM7 10h4M7 14h6M15 10h2v4h-2z" /></svg>{t('agentsAdmin.hint')}</p>
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-ground p-1 text-xs font-semibold">
           {TABS.map((s) => (
             <button key={s} role="tab" aria-selected={tab === s} onClick={() => setTab(s)}
-              className={`min-h-11 rounded-xl ${tab === s ? 'bg-brand text-white' : ''}`}>{t(`fieldAgent.status.${s}`)}</button>
+              className={`min-h-11 rounded-xl ${tab === s ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`fieldAgent.status.${s}`)}</button>
           ))}
         </div>
 
@@ -193,7 +193,7 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
       {open && <>
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-ground p-1 text-xs font-semibold">
           {REG_TABS.filter((x) => review || x === 'payment').map((x) => (
-            <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-brand text-white' : ''}`}>{t(`registrations.tab.${x}`)}</button>
+            <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`registrations.tab.${x}`)}</button>
           ))}
         </div>
         {list.data?.length === 0 && <p className="text-sm text-muted">{t('agentsAdmin.none')}</p>}

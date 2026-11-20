@@ -65,19 +65,27 @@ export function AgentPanel({ role }: { role: AdminRole }) {
   return (
     <Collapsible title={t('agent.title', { count: suggestions.length })}>
       {briefing && (
-        <div className="flex flex-col gap-1 rounded-xl bg-ground p-3 text-sm">
-          <span className="font-semibold">{t('agent.week', { newShops: briefing.newShopsThisWeek, paying: briefing.paying, trials: briefing.trials, revenue: formatRupees(briefing.revenueThisMonth) })}</span>
-          {briefing.notes.map((n) => <span key={n}>• {n}</span>)}
+        <div className="flex flex-col gap-3 rounded-[20px] bg-[#13241f] p-4 text-white">
+          <span className="flex items-center gap-2 font-bold"><span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" /></svg></span>{t('plat5.week')}</span>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {([[t('plat5.newShops'), briefing.newShopsThisWeek], [t('plat5.paying'), briefing.paying], [t('plat5.onTrial'), briefing.trials], [t('plat5.thisMonth'), formatRupees(briefing.revenueThisMonth)]] as [string, string | number][]).map(([label, value]) => (
+              <div key={label} className="rounded-2xl bg-white/10 p-3"><span className="text-xs text-[#9fbab2]">{label}</span><b className="block text-2xl">{value}</b></div>
+            ))}
+          </div>
+          {briefing.notes.map((n) => <p key={n} className="flex items-center gap-2 rounded-xl bg-amber-400 px-3 py-2 text-sm font-bold text-amber-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2" /></svg>{n}</p>)}
         </div>
       )}
       {suggestions.length === 0 && <p className="text-sm text-muted">{t('agent.none')}</p>}
       <ul className="flex flex-col gap-2">
         {suggestions.map((s) => (
-          <li key={s.id} className="flex flex-col gap-2 rounded-xl border border-line p-3 text-sm">
-            <span><b>{s.shopName}</b> · {t(`agent.kind.${s.kind}`)}</span>
-            <span>{s.reason}</span>
-            <span className="text-xs text-muted">{formatDateTime(s.createdAt)}</span>
-            <div className="grid grid-cols-2 gap-2">
+          <li key={s.id} className="flex flex-wrap items-start gap-3 rounded-2xl border border-line bg-white p-4 text-sm shadow-sm">
+            <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#fdf1e3] text-[#a1460a]"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2" /></svg></span>
+            <span className="flex min-w-0 flex-1 basis-64 flex-col gap-1">
+              <span className="flex flex-wrap items-center gap-2"><b className="text-base">{s.shopName}</b><span className="rounded-full bg-[#fdf1e3] px-2.5 py-0.5 text-xs font-bold text-[#a1460a]">{t(`agent.kind.${s.kind}`)}</span></span>
+              <span>{s.reason}</span>
+              <span className="text-xs text-muted">{formatDateTime(s.createdAt)}</span>
+            </span>
+            <div className="grid grid-cols-2 gap-2 sm:w-auto sm:min-w-72">
               <button disabled={busy || (s.kind === 'extend_trial' && role !== 'super' && role !== 'approver')}
                 onClick={() => void run(() => api(`/v1/platform/agent/suggestions/${s.id}/approve`, 'POST', {}), t('agent.done'))}
                 className={`min-h-11 rounded-xl ${btn.solid}`}>{s.kind === 'extend_trial' ? t('agent.extend', { days: s.days }) : t('agent.markDone')}</button>

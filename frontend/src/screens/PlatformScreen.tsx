@@ -527,6 +527,7 @@ function MasterItemsPanel() {
   const [q, setQ] = useState('')
   const empty = { name: '', nameHi: '', category: '', unit: 'piece', gst: '', hsn: '', packs: '' }
   const [draft, setDraft] = useState(empty)
+  const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<number | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   // Credit line for photos uploaded next (empty for the platform's own photos); browsers like some in-app ones block pop-up prompts.
@@ -561,14 +562,28 @@ function MasterItemsPanel() {
   const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
-      <h2 className="text-lg font-bold">{t('masterItems.title')} · {t('masterItems.count', { count: rows.length })}</h2>
-      <div className="grid grid-cols-2 gap-2">
-        <select aria-label={t('masterItems.trade')} value={trade} onChange={(e) => { setTrade(e.target.value as ShopType); setEditing(null) }} className={input}>
-          {SHOP_TYPES.filter((x) => x !== 'other').map((x) => <option key={x} value={x}>{t(`shopType.${x}`)}</option>)}
-        </select>
-        <input aria-label={t('masterItems.search')} placeholder={t('masterItems.search')} value={q} onChange={(e) => setQ(e.target.value)} className={input} />
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="mr-auto text-lg font-bold">{t('masterItems.title')} · {t('masterItems.count', { count: rows.length })}</h2>
+        <button onClick={() => { setAdding(!adding || editing !== null); setEditing(null); setDraft(empty) }} className={`min-h-11 rounded-xl px-4 ${adding && editing === null ? btn.outline : btn.solid}`}>{adding && editing === null ? t('cancel') : `+ ${t('masterItems.add')}`}</button>
       </div>
-      <div className="grid grid-cols-2 gap-2 rounded-xl bg-ground p-2">
+      {/* What needs work in this trade's list, at a glance. */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="flex min-h-[76px] flex-col justify-between rounded-[18px] bg-[#e3f2ee] p-3 text-[#0b5e4f]"><span className="text-[13px] font-bold">{t('plat5.items')}</span><b className="text-2xl">{rows.length}</b></div>
+        <div className="flex min-h-[76px] flex-col justify-between rounded-[18px] bg-[#fdf1e3] p-3 text-[#a1460a]"><span className="text-[13px] font-bold">{t('plat5.noPhoto')}</span><b className="text-2xl">{rows.filter((r) => !r.imageAt).length}</b></div>
+        <div className="flex min-h-[76px] flex-col justify-between rounded-[18px] bg-[#e8effd] p-3 text-[#1d4ed8]"><span className="text-[13px] font-bold">{t('plat5.noGst')}</span><b className="text-2xl">{rows.filter((r) => r.gstRate == null || !r.hsnCode).length}</b></div>
+        <div className="flex min-h-[76px] flex-col justify-between rounded-[18px] bg-[#edf2f1] p-3 text-[#33423d]"><span className="text-[13px] font-bold">{t('plat5.off')}</span><b className="text-2xl">{rows.filter((r) => !r.isActive).length}</b></div>
+      </div>
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+        {SHOP_TYPES.filter((x) => x !== 'other').map((x) => (
+          <button key={x} onClick={() => { setTrade(x); setEditing(null) }} aria-pressed={trade === x}
+            className={`min-h-10 shrink-0 rounded-full px-4 text-sm font-semibold whitespace-nowrap transition ${trade === x ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'border border-line bg-white'}`}>{t(`shopType.${x}`)}</button>
+        ))}
+      </div>
+      <span className="relative block">
+        <span aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-3.5-3.5" /></svg></span>
+        <input aria-label={t('masterItems.search')} placeholder={t('masterItems.search')} value={q} onChange={(e) => setQ(e.target.value)} className={`${input} w-full bg-[#f6faf9] pl-10`} />
+      </span>
+      {(adding || editing !== null) && <div className="grid grid-cols-2 gap-2 rounded-xl bg-ground p-2 ring-2 ring-brand/30">
         <input aria-label={t('masterItems.name')} placeholder={t('masterItems.name')} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={input} />
         <input aria-label={t('masterItems.nameHi')} placeholder={t('masterItems.nameHi')} value={draft.nameHi} onChange={(e) => setDraft({ ...draft, nameHi: e.target.value })} className={input} />
         <input aria-label={t('masterItems.category')} placeholder={t('masterItems.category')} value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className={input} />
@@ -581,7 +596,7 @@ function MasterItemsPanel() {
         <input aria-label={t('masterItems.hsn')} placeholder={t('masterItems.hsn')} value={draft.hsn} onChange={(e) => setDraft({ ...draft, hsn: e.target.value })} inputMode="numeric" maxLength={8} className={input} />
         <input aria-label={t('masterItems.packs')} placeholder={t('masterItems.packs')} value={draft.packs} onChange={(e) => setDraft({ ...draft, packs: e.target.value })} className={`${input} col-span-2`} />
         <Button className="col-span-2" disabled={draft.name.trim().length < 2 || draft.category.trim().length < 2} onClick={() => void save()}>{editing ? t('save') : t('masterItems.add')}</Button>
-      </div>
+      </div>}
       <SuggestionsQueue onDone={() => void queryClient.invalidateQueries({ queryKey: ['platform', 'master'] })} />
       <details className="rounded-xl bg-ground p-2">
         <summary className="min-h-11 cursor-pointer font-semibold">{t('masterItems.import')}</summary>
@@ -593,7 +608,33 @@ function MasterItemsPanel() {
       <label className="flex flex-col gap-1 text-xs text-muted">{t('masterItems.creditLabel')}
         <input value={photoCredit} onChange={(e) => setPhotoCredit(e.target.value)} maxLength={120} placeholder="Unsplash: name" className="h-10 rounded-xl border border-line bg-white px-3 text-sm text-ink" />
       </label>
-      <ul className="flex max-h-[32rem] flex-col overflow-y-auto">
+      <div className="hidden max-h-[40rem] overflow-auto rounded-xl border border-line lg:block">
+        <table className="w-full min-w-[860px] border-collapse text-sm">
+          <thead className="sticky top-0 bg-[#f6faf9] text-left text-[11px] tracking-wide text-muted uppercase">
+            <tr><th className="w-16 px-3 py-2.5">{t('plat5.photo')}</th><th className="px-2 py-2.5">{t('plat5.item')}</th><th className="px-2 py-2.5">{t('masterItems.category')}</th><th className="px-2 py-2.5">{t('masterItems.unit')}</th><th className="px-2 py-2.5">{t('plat5.gstHsn')}</th><th className="px-2 py-2.5">{t('plat5.sizes')}</th><th className="px-3 py-2.5 text-right" /></tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className={`border-t border-line ${r.isActive ? '' : 'opacity-50'} ${editing === r.id ? 'bg-[#eef7f4]' : 'hover:bg-[#f6faf9]'}`}>
+                <td className="px-3 py-1.5"><MasterPhoto row={r} run={run} credit={photoCredit} /></td>
+                <td className="px-2 py-1.5"><span className="flex flex-col"><b>{r.name}</b>{r.nameHi && <span className="text-xs text-muted">{r.nameHi}</span>}</span></td>
+                <td className="px-2 py-1.5"><span className="rounded-full bg-[#edf2f1] px-2.5 py-0.5 text-xs font-semibold">{r.category}</span></td>
+                <td className="px-2 py-1.5">{t(`units.${r.unit}`)}</td>
+                <td className="px-2 py-1.5">{r.gstRate == null
+                  ? <span className="rounded-full bg-warn-soft px-2.5 py-0.5 text-xs font-bold text-warn-ink">{t('plat5.gstNotSet')}{r.hsnCode ? ` · ${r.hsnCode}` : ''}</span>
+                  : <span>{r.gstRate}%{r.hsnCode ? ` · ${r.hsnCode}` : ''}</span>}</td>
+                <td className="px-2 py-1.5 text-muted">{r.packSizes.join(' / ') || '—'}</td>
+                <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                  <button onClick={() => edit(r)} className="mr-1.5 min-h-9 rounded-xl border border-line px-3 text-sm font-semibold">{t('masterItems.edit')}</button>
+                  <button onClick={() => void run(() => api(`/v1/platform/master-items/${r.id}`, 'PUT', { ...body({ name: r.name, nameHi: r.nameHi ?? '', category: r.category, unit: r.unit, gst: r.gstRate == null ? '' : String(r.gstRate), hsn: r.hsnCode ?? '', packs: r.packSizes.join(', ') }), isActive: !r.isActive }))}
+                    className={`min-h-9 text-sm ${r.isActive ? btn.dangerOutline : `rounded-xl px-3 ${btn.solid}`}`}>{r.isActive ? t('masterItems.off') : t('masterItems.on')}</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul className="flex max-h-[32rem] flex-col overflow-y-auto lg:hidden">
         {rows.map((r) => (
           <li key={r.id} className={`flex items-center gap-2 border-t border-line py-1 text-sm ${r.isActive ? '' : 'opacity-50'}`}>
             <MasterPhoto row={r} run={run} credit={photoCredit} />
@@ -801,23 +842,33 @@ function ManageAdmins() {
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
+      {/* What each role may do, as coloured cards, so choosing one below needs no guessing. */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+        {ROLES.map((r, i) => (
+          <div key={r} className={`flex min-h-[76px] flex-col gap-1 rounded-2xl p-3 ${['bg-[#13241f] text-white', 'bg-[#e3f2ee] text-[#0b5e4f]', 'bg-[#e8effd] text-[#1d4ed8]', 'bg-[#fdf1e3] text-[#a1460a]', 'bg-[#f1eafd] text-[#6d28d9]'][i % 5]}`}>
+            <b className="text-sm">{t(`admins.roles.${r}`)}</b><span className="text-xs leading-snug opacity-90">{t(`admins.can.${r}`)}</span>
+          </div>
+        ))}
+      </div>
       <p className="text-sm text-muted">{t('admins.hint')}</p>
       <ul className="flex flex-col divide-y divide-[#edf2f1]">
         {admins.data?.map((a) => (
-          <li key={a.userId} className="flex flex-wrap items-center gap-2 py-2">
-            <span className="flex min-w-0 flex-1 flex-col">
+          <li key={a.userId} className="flex flex-wrap items-center gap-3 py-3">
+            <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft font-extrabold text-brand">{a.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}</span>
+            <span className="flex min-w-0 flex-1 basis-48 flex-col">
               <span className="font-semibold">{a.name}{a.userId === me ? ` (${t('admins.you')})` : ''}</span>
               <span className="text-xs text-muted">{formatPhone(a.phone)}{a.addedBy ? ` · ${t('admins.addedBy', { name: a.addedBy })}` : ''}</span>
             </span>
-            <label className="sr-only" htmlFor={`role-${a.userId}`}>{t('admins.role')}</label>
-            <select id={`role-${a.userId}`} value={a.role} disabled={busy}
-              onChange={(e) => void run(`/v1/platform/admins/${a.userId}`, 'PUT', { role: e.target.value }, t('admins.changed', { name: a.name }))}
-              className="h-11 rounded-xl border border-line bg-white px-2">
-              {ROLES.map((r) => <option key={r} value={r}>{t(`admins.roles.${r}`)}</option>)}
-            </select>
-            <button disabled={busy} aria-label={t('admins.remove', { name: a.name })}
+            <div role="radiogroup" aria-label={t('admins.role')} className="flex flex-wrap gap-1 rounded-xl bg-ground p-1">
+              {ROLES.map((r) => (
+                <button key={r} role="radio" aria-checked={a.role === r} disabled={busy || a.role === r}
+                  onClick={() => void run(`/v1/platform/admins/${a.userId}`, 'PUT', { role: r }, t('admins.changed', { name: a.name }))}
+                  className={`min-h-9 rounded-lg px-2.5 text-xs font-semibold transition ${a.role === r ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}>{t(`admins.roles.${r}`)}</button>
+              ))}
+            </div>
+            {a.userId !== me && <button disabled={busy} aria-label={t('admins.remove', { name: a.name })}
               onClick={async () => (await confirmAsk(t('admins.removeAsk', { name: a.name }))) && void run(`/v1/platform/admins/${a.userId}`, 'DELETE', undefined, t('admins.removed', { name: a.name }))}
-              className="h-11 rounded-xl border border-line px-3 text-sm font-semibold text-red-700">{t('admins.removeShort')}</button>
+              className={`h-9 text-sm ${btn.dangerOutline}`}>{t('admins.removeShort')}</button>}
           </li>
         ))}
       </ul>
