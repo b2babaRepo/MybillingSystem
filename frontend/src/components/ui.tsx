@@ -119,9 +119,9 @@ export function Drawer({ title, onClose, children }: { title: string; onClose: (
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-30 flex items-end justify-end bg-black/30 lg:items-stretch print:hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 lg:items-stretch lg:justify-end print:hidden" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-ground shadow-2xl lg:h-full lg:max-h-none lg:max-w-xl lg:rounded-none">
+        className="flex max-h-[92dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl bg-ground shadow-2xl lg:h-full lg:max-h-none lg:max-w-xl lg:rounded-none">
         <div className="flex items-center justify-between gap-2 border-b border-line bg-white px-4 py-2">
           <h2 className="text-lg font-bold">{title}</h2>
           <button type="button" onClick={onClose} aria-label={t('a11y.close')} className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-2xl text-muted hover:bg-[#f1f5f4]">×</button>
