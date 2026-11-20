@@ -212,7 +212,8 @@ export default function App() {
       </Suspense>
     )
   }
-  if (path === '/platform' && session.user.isPlatformAdmin) {
+  // A platform admin with no shop of their own opens straight into platform control (not the household shopping app).
+  if (session.user.isPlatformAdmin && (path === '/platform' || session.memberships.length === 0)) {
     return (
       <Suspense fallback={<Loading />}>
         <PlatformScreen />
