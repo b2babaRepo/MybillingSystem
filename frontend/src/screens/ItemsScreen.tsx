@@ -66,34 +66,66 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
   }
   const outCount = products.filter(isOut).length
 
-  // The ways to fill the list, as equal picture tiles instead of a banner and three plain buttons.
+  const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
+  // The ways to fill the list, each in its own colour like the customer and supplier pages, with a line icon on a white dot.
   const actions = [
-    ...(isKirana ? [{ icon: '🛒', label: t('items2.common'), to: '/items/common', tint: 'bg-warn-soft' }] : []),
-    { icon: '📋', label: t('items2.master'), to: '/items/pick', tint: 'bg-brand-soft' },
-    { icon: '📦', label: t('items2.stocktake'), to: '/stocktake', tint: 'bg-sky-50' },
-    { icon: '📥', label: t('items2.import'), to: '/import', tint: 'bg-violet-50' },
+    ...(isKirana ? [{ d: 'M3 4h2l2.5 11h11L21 7H6M9 20h.01M18 20h.01', label: t('items2.common'), to: '/items/common', tone: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' }] : []),
+    { d: 'M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01', label: t('items2.master'), to: '/items/pick', tone: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
+    { d: 'M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 12h8', label: t('items2.stocktake'), to: '/stocktake', tone: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]' },
+    { d: 'M12 15V3M7 8l5-5 5 5M4 15v5h16v-5', label: t('items2.import'), to: '/import', tone: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
   ]
+  // Pages about the stock, as small links instead of four big cards.
+  const reports = [
+    { d: 'M5 3h10l4 4v14H5zM8 11h8M8 15h8', label: t('sl.statement'), to: '/stock-statement' },
+    { d: 'M12 3v9h9A9 9 0 1112 3z', label: t('sl.salesByShort'), to: '/sales-by' },
+    ...(isOwner ? [{ d: 'M3 6h6l2 2h10v12H3z', label: t('cat.title'), to: '/categories' }] : []),
+    { d: 'M3 12h4l3-8 4 16 3-8h4', label: t('sh.title'), to: '/stock-health' },
+  ]
+  // Shelf value at cost: what the stock cost the shop.
+  const value = products.reduce((n, p) => n + (!p.isService && !p.uncounted && p.stock > 0 && p.costPrice ? p.stock * p.costPrice : 0), 0)
+  const card = (on: boolean) => `flex min-h-[84px] flex-col justify-between rounded-card p-3 text-left shadow-sm transition ${on ? 'ring-2 ring-brand' : 'ring-1 ring-black/5 hover:ring-brand-line'}`
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <div className={`grid gap-2 ${actions.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="mr-auto text-xl font-extrabold">{t('items')}</h1>
+        <Button className="hidden h-12 px-5 text-base lg:block" onClick={() => setAdding(true)}>+ {t('addItem')}</Button>
+      </div>
+
+      <div className={`grid grid-cols-2 gap-2 ${actions.length === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
         {actions.map((a) => (
-          <button key={a.to} onClick={() => navigate(a.to)} className={`flex min-h-[88px] flex-col items-center justify-center gap-1.5 rounded-2xl ${a.tint} px-1 py-2 text-center shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95`}>
-            <span aria-hidden className="text-[28px] leading-none">{a.icon}</span>
-            <span className="text-[13px] leading-tight font-semibold">{a.label}</span>
+          <button key={a.to} onClick={() => navigate(a.to)} className={`flex min-h-[52px] items-center gap-2.5 rounded-2xl px-3 text-left text-sm font-bold transition active:scale-[0.98] ${a.tone}`}>
+            <span aria-hidden className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-white">{icon(a.d)}</span>
+            <span className="leading-tight">{a.label}</span>
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button onClick={() => navigate('/stock-statement')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">📊</span>{t('sl.statement')}</button>
-        <button onClick={() => navigate('/sales-by')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">🏷️</span>{t('sl.salesByShort')}</button>
-        {isOwner && <button onClick={() => navigate('/categories')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">🗂️</span>{t('cat.title')}</button>}
-        <button onClick={() => navigate('/stock-health')} className="col-span-2 flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-[#f6faf9]"><span aria-hidden className="text-lg">🩺</span>{t('sh.title')}</button>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <button onClick={() => { setFilter('all'); setCategory(null) }} className={`${card(filter === 'all' && category === null)} bg-white`}>
+          <span className="text-xs font-semibold text-muted">{t('items3.total')}</span><b className="text-2xl">{products.length}</b>
+        </button>
+        <button onClick={() => setFilter(filter === 'low' ? 'all' : 'low')} className={`${card(filter === 'low')} bg-warn-soft`}>
+          <span className="text-xs font-semibold text-warn-ink">{t('stock.low')}</span><b className="text-2xl text-udhaar">{lowCount}</b>
+        </button>
+        <button onClick={() => setFilter(filter === 'out' ? 'all' : 'out')} className={`${card(filter === 'out')} bg-due-soft`}>
+          <span className="text-xs font-semibold text-due">{t('stock.out')}</span><b className="text-2xl text-due">{outCount}</b>
+        </button>
+        <div className={`${card(false)} bg-white`}>
+          <span className="text-xs font-semibold text-muted">{t('items3.value')}</span><b className="text-xl">{formatRupees(Math.round(value))}</b>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {reports.map((r) => (
+          <button key={r.to} onClick={() => navigate(r.to)} className="flex min-h-10 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-sm font-semibold text-ink hover:bg-[#f6faf9]">
+            <span className="text-brand">{icon(r.d, 16)}</span>{r.label}
+          </button>
+        ))}
       </div>
 
       <div className="relative">
-        <span aria-hidden className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-lg text-muted">🔍</span>
+        <span aria-hidden className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-muted">{icon('M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-3.5-3.5')}</span>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -106,17 +138,16 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
 
       <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Chip selected={filter === 'all' && category === null} onClick={() => { setFilter('all'); setCategory(null) }}>{t('stock.all')} · {products.length}</Chip>
-        {lowCount > 0 && <Chip selected={filter === 'low'} onClick={() => setFilter(filter === 'low' ? 'all' : 'low')} tone="warn">⚠ {t('stock.low')} · {lowCount}</Chip>}
-        {isOwner && suggested.length > 0 && <Chip selected={filter === 'suggested'} onClick={() => setFilter(filter === 'suggested' ? 'all' : 'suggested')} tone="warn">✨ {t('items2.suggested')} · {suggested.length}</Chip>}
-        {outCount > 0 && <Chip selected={filter === 'out'} onClick={() => setFilter(filter === 'out' ? 'all' : 'out')} tone="due">✕ {t('stock.out')} · {outCount}</Chip>}
+        {isOwner && suggested.length > 0 && <Chip selected={filter === 'suggested'} onClick={() => setFilter(filter === 'suggested' ? 'all' : 'suggested')} tone="warn">{t('items2.suggested')} · {suggested.length}</Chip>}
         {categories.map((c) => (
           <Chip key={c} selected={category === c} onClick={() => setCategory(category === c ? null : c)}>{c}</Chip>
         ))}
       </div>
 
       {isOwner && lowCount + outCount > 0 && (
-        <button onClick={() => navigate('/reorder')} className="flex min-h-14 items-center justify-between rounded-2xl bg-warn-soft px-4 text-left font-bold text-warn-ink shadow-sm ring-1 ring-amber-200">
-          <span>📦 {t('reorder.linkAll', { count: lowCount + outCount })}</span><span aria-hidden>›</span>
+        <button onClick={() => navigate('/reorder')} className="flex min-h-14 items-center gap-3 rounded-2xl bg-[#fdf1e3] px-4 text-left font-bold text-[#a1460a] shadow-sm ring-1 ring-amber-200 hover:bg-[#fbe6cc]">
+          <span aria-hidden className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-white">{icon('M3 4h2l2.5 11h11L21 7H6M9 20h.01M18 20h.01')}</span>
+          <span className="flex-1">{t('reorder.linkAll', { count: lowCount + outCount })}</span><span aria-hidden>›</span>
         </button>
       )}
       {!isLoading && products.length === 0 && <p className="py-8 text-center text-muted">{t('noItems')}</p>}
@@ -148,10 +179,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
       )}
       {filter !== 'suggested' && !isLoading && products.length > 0 && shown.length === 0 && <p className="py-8 text-center text-muted">{t('items2.none')}</p>}
       {filter !== 'suggested' && (
-        <div className="hidden items-center justify-between lg:flex">
-          <span className="text-sm text-muted">{t('items2.count', { count: shown.length })}</span>
-          <Button className="px-5" onClick={() => setAdding(true)}>+ {t('addItem')}</Button>
-        </div>
+        <span className="hidden text-sm text-muted lg:block">{t('items2.count', { count: shown.length })}</span>
       )}
       {isOwner && filter === 'out' && <button onClick={() => void stopCounting()} className="min-h-11 rounded-xl border border-line bg-white px-3 text-left text-sm font-semibold text-brand-strong">{t('stock.stopCountingEmpty')}</button>}
       {/* A computer: every item as a row to sort, filter and download. */}
