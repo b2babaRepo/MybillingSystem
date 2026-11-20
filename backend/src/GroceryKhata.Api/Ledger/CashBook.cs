@@ -47,6 +47,10 @@ public enum CashBookSource
 
     /// <summary>Money handed back to a walk-in customer on a credit note (negative). Not kharcha.</summary>
     Refund,
+
+    /// <summary>A girvi (gold) loan given against pledged jewellery (negative), and money paid back on one.</summary>
+    GirviGiven,
+    GirviReceived,
 }
 
 /// <summary>
@@ -138,10 +142,20 @@ public static class CashBookEndpoints
                               join t in db.BagTypes.AsNoTracking() on m.BagTypeId equals t.Id
                               select new CashBookLine(m.OccurredAt, m.Kind == BagMoveKind.Sold ? CashBookSource.BagsSold : CashBookSource.BagsBought,
                                   m.Party ?? t.Name, m.Mode!.Value, m.Kind == BagMoveKind.Sold ? m.Amount!.Value : -m.Amount!.Value, null)).ToListAsync(ct));
+        // Girvi: the loan leaves the drawer the day it is written; repayments come in.
+        lines.AddRange(await (from l in db.GirviLoans.AsNoTracking()
+                              where l.CreatedAt >= start && l.CreatedAt < end
+                              join c in db.Customers.AsNoTracking() on l.CustomerId equals c.Id
+                              select new CashBookLine(l.CreatedAt, CashBookSource.GirviGiven, c.Name + " · girvi #" + l.Number, l.Mode, -l.Principal, null)).ToListAsync(ct));
+        lines.AddRange(await (from p in db.GirviPayments.AsNoTracking()
+                              where p.At >= start && p.At < end
+                              join l in db.GirviLoans.AsNoTracking() on p.LoanId equals l.Id
+                              join c in db.Customers.AsNoTracking() on l.CustomerId equals c.Id
+                              select new CashBookLine(p.At, CashBookSource.GirviReceived, c.Name + " · girvi #" + l.Number, p.Mode, p.Amount, null)).ToListAsync(ct));
         lines.Sort((a, b) => a.OccurredAt.CompareTo(b.OccurredAt));
 
         // Money out of the drawer that isn't a refund of money in: kharcha, cash taken out, cash put in the bank.
-        static bool Out(CashBookSource s) => s is CashBookSource.Expense or CashBookSource.CashRemoved or CashBookSource.ToBank or CashBookSource.BagsBought or CashBookSource.Refund;
+        static bool Out(CashBookSource s) => s is CashBookSource.Expense or CashBookSource.CashRemoved or CashBookSource.ToBank or CashBookSource.BagsBought or CashBookSource.Refund or CashBookSource.GirviGiven;
         var money = lines.Where(l => !Out(l.Source)).ToList();
         var cash = money.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount);
         var upi = money.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount);

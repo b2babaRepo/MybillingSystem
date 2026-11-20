@@ -192,7 +192,7 @@ public sealed record JewelleryPieceRequest(
 public sealed record JewelleryPieceDto(
     Guid Id, int TagNo, string Name, string? Category, string Metal, int Purity, decimal Gross, decimal Stone, decimal Net, decimal WastagePercent,
     string MakingType, decimal MakingValue, decimal StoneValue, decimal HallmarkCharge, string? Huid, decimal? FixedPrice, bool Sold, Guid? SoldBillId,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt, bool OnApproval = false);
 
 public sealed record JewelleryLineRequest(
     Guid? PieceId, string? Name, string? Metal, int? Purity, decimal? Gross, decimal? Stone, decimal? WastagePercent, string? MakingType,
@@ -200,11 +200,11 @@ public sealed record JewelleryLineRequest(
 
 public sealed record OldMetalRequest(string? Description, string Metal, decimal Gross, decimal Reading, decimal? DeductionPercent, decimal? RatePerGram);
 
-public sealed record JewelleryQuoteRequest(Guid? CustomerId, IReadOnlyList<JewelleryLineRequest>? Lines, IReadOnlyList<OldMetalRequest>? OldMetal);
+public sealed record JewelleryQuoteRequest(Guid? CustomerId, IReadOnlyList<JewelleryLineRequest>? Lines, IReadOnlyList<OldMetalRequest>? OldMetal, Guid? SchemeMemberId = null);
 
 public sealed record JewelleryBillRequest(
     Guid BillId, Guid? CustomerId, IReadOnlyList<JewelleryLineRequest>? Lines, IReadOnlyList<OldMetalRequest>? OldMetal,
-    decimal MoneyPaid, PaymentMode? Mode, string? Pan);
+    decimal MoneyPaid, PaymentMode? Mode, string? Pan, Guid? SchemeMemberId = null);
 
 public sealed record JewelleryLineDto(
     int LineNo, Guid? PieceId, int? TagNo, string Name, string Metal, int Purity, decimal Gross, decimal Stone, decimal Net, decimal RatePerGram,
@@ -220,7 +220,7 @@ public sealed record OldMetalDto(string? Description, string Metal, decimal Gros
 /// </summary>
 public sealed record JewelleryQuoteDto(
     IReadOnlyList<JewelleryLineDto> Lines, decimal Taxable, decimal Gst, decimal RoundOff, decimal Total, IReadOnlyList<OldMetalDto> OldMetal,
-    decimal OldMetalValue, decimal ToPay, bool PanNeeded, decimal CashLimit, IReadOnlyList<string> Problems);
+    decimal OldMetalValue, decimal ToPay, bool PanNeeded, decimal CashLimit, IReadOnlyList<string> Problems, decimal SchemeDiscount = 0, decimal KhataAdvance = 0);
 
 public sealed record JewelleryBillDto(Guid BillId, string? Pan, decimal MoneyPaid, PaymentMode Mode, decimal OldMetalValue, IReadOnlyList<JewelleryLineDto> Lines, IReadOnlyList<OldMetalDto> OldMetal);
 
@@ -425,7 +425,9 @@ public static class JewelleryEndpoints
         }
 
         var list = await query.OrderByDescending(p => p.TagNo).Take(500).ToListAsync(ct);
-        return TypedResults.Ok(list.Select(ToDto));
+        var ids = list.Select(p => p.Id).ToList();
+        var out_ = (await db.ApprovalItems.AsNoTracking().Where(i => ids.Contains(i.PieceId) && i.ReturnedAt == null && i.SoldBillId == null).Select(i => i.PieceId).ToListAsync(ct)).ToHashSet();
+        return TypedResults.Ok(list.Select(p => ToDto(p) with { OnApproval = out_.Contains(p.Id) }));
     }
 
     private static string? CheckPiece(JewelleryPieceRequest r)
@@ -503,7 +505,7 @@ public static class JewelleryEndpoints
 
     /// <summary>Works out a bill from tags (or typed lines) and today's rates. Problems are listed, not thrown.</summary>
     private static async Task<(Worked? Worked, string? Problem)> WorkAsync(
-        Guid? customerId, IReadOnlyList<JewelleryLineRequest>? lines, IReadOnlyList<OldMetalRequest>? oldMetal, AppDbContext db, TimeProvider clock, CancellationToken ct)
+        Guid? customerId, IReadOnlyList<JewelleryLineRequest>? lines, IReadOnlyList<OldMetalRequest>? oldMetal, AppDbContext db, TimeProvider clock, CancellationToken ct, Guid? schemeMemberId = null)
     {
         if (lines is not { Count: > 0 and <= 50 }) return (null, "Add between 1 and 50 pieces.");
         if (oldMetal is { Count: > 20 }) return (null, "Up to 20 old pieces on one bill.");
@@ -566,6 +568,27 @@ public static class JewelleryEndpoints
             olds.Add(JewelleryMath.Old(string.IsNullOrWhiteSpace(o.Description) ? null : o.Description.Trim(), o.Metal, o.Gross, o.Reading, decimal.Round(rate, 2), o.DeductionPercent ?? 0));
         }
 
+        // A finished savings scheme: its bonus comes off the making charges, line by line.
+        var schemeDiscount = 0m;
+        if (schemeMemberId is { } sid)
+        {
+            var member = (await JewelleryBookEndpoints.MemberViewsAsync(db, q => q.Where(m => m.Id == sid), ct)).SingleOrDefault();
+            if (member is null || member.CustomerId != customerId) return (null, "That scheme belongs to another customer: choose them on the bill.");
+            if (member.RedeemedBillId is not null || member.ClosedOn is not null) return (null, "This scheme was already used.");
+            if (!member.Complete) return (null, $"The scheme has {member.Paid} of {member.Months} instalments paid: its bonus comes once all are paid.");
+            var left = member.Bonus;
+            for (var i = 0; i < worked.Count && left > 0; i++)
+            {
+                var l = worked[i];
+                var off = Math.Min(left, l.MakingAmount);
+                if (off <= 0) continue;
+                var taxableNow = l.Taxable - off;
+                worked[i] = l with { MakingAmount = l.MakingAmount - off, Taxable = taxableNow, Gst = decimal.Round(taxableNow * JewelleryMath.GstPercent / 100m, 2) };
+                left -= off;
+                schemeDiscount += off;
+            }
+        }
+
         var (taxable, gst, roundOff, total) = JewelleryMath.Sum(worked);
         var oldValue = olds.Sum(o => o.Value);
         // Cash already taken from this customer today on jewellery bills counts towards the ₹2 lakh a day.
@@ -577,13 +600,15 @@ public static class JewelleryEndpoints
         }
 
         var cashLimit = Math.Max(0, JewelleryMath.CashLimit - 1 - cashToday);
-        var quote = new JewelleryQuoteDto(worked, taxable, gst, roundOff, total, olds, oldValue, total - oldValue, total >= JewelleryMath.PanFrom, cashLimit, problems);
+        // Money already on the customer's khata as an advance (scheme instalments, order advances) pays towards this bill.
+        var advance = customerId is { } who ? Math.Max(0, -(await db.Customers.AsNoTracking().Where(c => c.Id == who).Select(c => (decimal?)c.Balance).SingleOrDefaultAsync(ct) ?? 0)) : 0;
+        var quote = new JewelleryQuoteDto(worked, taxable, gst, roundOff, total, olds, oldValue, total - oldValue, total >= JewelleryMath.PanFrom, cashLimit, problems, schemeDiscount, advance);
         return (new Worked(quote, pieces), null);
     }
 
     private static async Task<IResult> QuoteAsync(JewelleryQuoteRequest request, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var (worked, problem) = await WorkAsync(request.CustomerId, request.Lines, request.OldMetal, db, clock, ct);
+        var (worked, problem) = await WorkAsync(request.CustomerId, request.Lines, request.OldMetal, db, clock, ct, request.SchemeMemberId);
         return worked is null ? Invalid("Lines", problem!) : TypedResults.Ok(worked.Quote);
     }
 
@@ -599,7 +624,7 @@ public static class JewelleryEndpoints
         if (mode is not (PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Card)) return Invalid("Mode", "Take cash, UPI or card.");
         if (request.MoneyPaid < 0 || request.MoneyPaid > Money.MaxAmount || decimal.Round(request.MoneyPaid, 2) != request.MoneyPaid) return Invalid("MoneyPaid", "Enter the money received.");
 
-        var (worked, problem) = await WorkAsync(request.CustomerId, request.Lines, request.OldMetal, db, clock, ct);
+        var (worked, problem) = await WorkAsync(request.CustomerId, request.Lines, request.OldMetal, db, clock, ct, request.SchemeMemberId);
         if (worked is null) return Invalid("Lines", problem!);
         var q = worked.Quote;
 
@@ -652,6 +677,21 @@ public static class JewelleryEndpoints
         foreach (var p in worked.Pieces)
         {
             (p.SoldBillId, p.SoldAt) = (bill.Id, clock.GetUtcNow());
+        }
+
+        if (request.SchemeMemberId is { } sid && await db.SchemeMembers.SingleOrDefaultAsync(m => m.Id == sid, ct) is { } member)
+        {
+            (member.RedeemedBillId, member.ClosedOn) = (bill.Id, IndiaTime.Today(clock));
+        }
+
+        // Pieces that were out on approval and are now bought: their memo line is sold.
+        var pieceIds = worked.Pieces.Select(p => p.Id).ToList();
+        var outItems = await db.ApprovalItems.Where(i => pieceIds.Contains(i.PieceId) && i.ReturnedAt == null && i.SoldBillId == null).ToListAsync(ct);
+        foreach (var i in outItems) i.SoldBillId = bill.Id;
+        await db.SaveChangesAsync(ct);
+        foreach (var memoId in outItems.Select(i => i.MemoId).Distinct())
+        {
+            await JewelleryBookEndpoints.CloseIfDoneAsync(db, await db.ApprovalMemos.SingleAsync(m => m.Id == memoId, ct), clock, ct);
         }
 
         await db.SaveChangesAsync(ct);

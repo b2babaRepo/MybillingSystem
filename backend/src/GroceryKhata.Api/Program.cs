@@ -220,6 +220,7 @@ app.MapWhatsAppOrders();
 app.MapWhatsAppSignup();
 app.MapWhatsAppShopMessages();
 app.MapJewellery();
+app.MapJewelleryBook();
 
 app.Run();
 

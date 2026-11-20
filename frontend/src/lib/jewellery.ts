@@ -12,7 +12,7 @@ export interface MetalRates { current: MetalRate[]; today: MetalRate[] }
 export interface JewelleryPiece {
   id: string; tagNo: number; name: string; category: string | null; metal: Metal; purity: number; gross: number; stone: number; net: number
   wastagePercent: number; makingType: MakingType; makingValue: number; stoneValue: number; hallmarkCharge: number; huid: string | null
-  fixedPrice: number | null; sold: boolean; soldBillId: string | null; createdAt: string
+  fixedPrice: number | null; sold: boolean; soldBillId: string | null; createdAt: string; onApproval: boolean
 }
 
 export interface JewelleryLine {
@@ -25,7 +25,7 @@ export interface OldMetal { description: string | null; metal: Metal; gross: num
 
 export interface JewelleryQuote {
   lines: JewelleryLine[]; taxable: number; gst: number; roundOff: number; total: number; oldMetal: OldMetal[]; oldMetalValue: number; toPay: number
-  panNeeded: boolean; cashLimit: number; problems: string[]
+  panNeeded: boolean; cashLimit: number; problems: string[]; schemeDiscount: number; khataAdvance: number
 }
 
 export interface JewelleryBill { billId: string; pan: string | null; moneyPaid: number; mode: string; oldMetalValue: number; lines: JewelleryLine[]; oldMetal: OldMetal[] }

@@ -8,8 +8,9 @@ import { addCustomer, useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { GOLD_PURITIES, SILVER_PURITIES, grams, karat, type JewelleryBill, type JewelleryPiece, type JewelleryQuote, type MakingType, type Metal, type MetalRates } from '../lib/jewellery'
 import { navigate } from '../router'
+import { ApprovalsPanel, GirviPanel, OrdersPanel, SchemesPanel, type Member } from './JewelleryBookPanels'
 
-type Tab = 'bill' | 'stock' | 'rates'
+type Tab = 'bill' | 'stock' | 'rates' | 'girvi' | 'schemes' | 'orders' | 'approvals'
 const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
 const box = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3 outline-none focus:border-brand-line'
 const num = (v: string) => v.replace(/[^\d.]/g, '')
@@ -28,6 +29,10 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
     { key: 'bill', label: t('jwl.newBill'), d: 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4', on: 'bg-[#0b5e4f] text-white shadow-lg shadow-[#0b5e4f]/30', off: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
     { key: 'stock', label: t('jwl.stock'), d: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10', on: 'bg-[#6d28d9] text-white shadow-lg shadow-[#6d28d9]/30', off: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
     { key: 'rates', label: t('jwl.rates'), d: 'M3 17l6-6 4 4 8-8M15 7h6v6', on: 'bg-[#a1460a] text-white shadow-lg shadow-[#a1460a]/30', off: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' },
+    { key: 'orders', label: t('jwl2.tabOrders'), d: 'M9 3h6l1 3H8zM5 6h14v15H5zM9 11h6M9 15h4', on: 'bg-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/30', off: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe6fc]' },
+    { key: 'schemes', label: t('jwl2.tabSchemes'), d: 'M4 7h16v12H4zM4 11h16M8 3v4M16 3v4', on: 'bg-[#0b5e4f] text-white shadow-lg shadow-[#0b5e4f]/30', off: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
+    { key: 'girvi', label: t('jwl2.tabGirvi'), d: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4', on: 'bg-[#be123c] text-white shadow-lg shadow-[#be123c]/30', off: 'bg-[#fde8ec] text-[#be123c] hover:bg-[#fbd5dd]' },
+    { key: 'approvals', label: t('jwl2.tabApprovals'), d: 'M14 3H6v18h12V7zM14 3v4h4M9 13l2 2 4-4', on: 'bg-[#6d28d9] text-white shadow-lg shadow-[#6d28d9]/30', off: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
   ]
   const gold22 = rates.data?.current.find((r) => r.metal === 'gold' && r.purity === 916)
   const silver = rates.data?.current.find((r) => r.metal === 'silver' && r.purity === 999)
@@ -39,7 +44,7 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
         {gold22 && <span className="rounded-full bg-[#fdf1e3] px-3 py-1 text-sm font-bold text-[#a1460a]">22K {formatRupees(gold22.sellPerGram * 10)}/10 g</span>}
         {silver && <span className="rounded-full bg-[#edf2f1] px-3 py-1 text-sm font-bold">{t('jwl.silver')} {formatRupees(silver.sellPerGram * 1000)}/kg</span>}
       </div>
-      <div role="tablist" className="grid grid-cols-3 gap-2">
+      <div role="tablist" className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
         {tabs.map((x) => (
           <button key={x.key} role="tab" aria-selected={shown === x.key} onClick={() => setTab(x.key)}
             className={`flex min-h-[52px] items-center justify-center gap-2.5 rounded-2xl px-3 text-sm font-bold transition active:scale-[0.98] ${shown === x.key ? x.on : x.off}`}>
@@ -50,6 +55,10 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
       {shown === 'rates' && <RatesPanel shopId={shopId} isOwner={isOwner} rates={rates.data} />}
       {shown === 'stock' && <StockPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'bill' && <BillPanel shopId={shopId} />}
+      {shown === 'girvi' && <GirviPanel shopId={shopId} isOwner={isOwner} />}
+      {shown === 'schemes' && <SchemesPanel shopId={shopId} isOwner={isOwner} />}
+      {shown === 'orders' && <OrdersPanel shopId={shopId} />}
+      {shown === 'approvals' && <ApprovalsPanel shopId={shopId} />}
     </div>
   )
 }
@@ -206,7 +215,7 @@ function StockPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
                 <tr key={p.id} className={`border-t border-line ${picked.includes(p.id) ? 'bg-[#eef7f4]' : 'hover:bg-[#f6faf9]'}`}>
                   <td className="px-3 py-2"><input type="checkbox" aria-label={`${t('jwl.tag')} J-${p.tagNo}`} className="h-5 w-5" checked={picked.includes(p.id)} onChange={(e) => setPicked(e.target.checked ? [...picked, p.id] : picked.filter((x) => x !== p.id))} /></td>
                   <td className="px-2 py-2 font-mono font-bold">J-{p.tagNo}</td>
-                  <td className="px-2 py-2"><span className="flex flex-col"><b>{p.name}</b>{p.category && <span className="text-xs text-muted">{p.category}</span>}</span></td>
+                  <td className="px-2 py-2"><span className="flex flex-col"><b>{p.name}</b>{p.category && <span className="text-xs text-muted">{p.category}</span>}{p.onApproval && <span className="mt-0.5 self-start rounded-full bg-[#f1eafd] px-2 text-xs font-bold text-[#6d28d9]">{t('jwl2.onApproval')}</span>}</span></td>
                   <td className="px-2 py-2"><span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${p.metal === 'gold' ? 'bg-[#fdf1e3] text-[#a1460a]' : 'bg-[#edf2f1] text-[#33423d]'}`}>{p.metal === 'gold' ? karat(p.metal, p.purity) : `${t('jwl.silver')} ${p.purity}`}</span></td>
                   <td className="px-2 py-2 text-right tabular-nums">{p.gross.toFixed(3)}</td>
                   <td className="px-2 py-2 text-right tabular-nums text-muted">{p.stone ? p.stone.toFixed(3) : '—'}</td>
@@ -286,10 +295,16 @@ function BillPanel({ shopId }: { shopId: string }) {
   const [pan, setPan] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [schemeMemberId, setSchemeMemberId] = useState<string | null>(null)
   const customer = customers.find((c) => c.id === customerId) ?? null
+  // A finished savings scheme for this customer: its bonus comes off the making charges.
+  const members = useQuery({ queryKey: [shopId, 'jewellery', 'members'], queryFn: () => api<Member[]>('/v1/jewellery/schemes/members'), enabled: customerId != null }).data ?? []
+  const ready = members.filter((m) => m.customerId === customerId && m.complete && !m.redeemedBillId)
+  useEffect(() => { setSchemeMemberId(null) }, [customerId])
 
   const body = {
     customerId,
+    schemeMemberId,
     lines: lines.map((l) => ({ pieceId: l.pieceId, ratePerGram: Number(l.rate) || null, makingValue: l.making === '' ? null : Number(l.making), wastagePercent: l.wastage === '' ? null : Number(l.wastage) })),
     oldMetal: olds.filter((o) => Number(o.gross) > 0 && Number(o.reading) > 0).map((o) => ({ description: o.description || null, metal: o.metal, gross: Number(o.gross), reading: Number(o.reading), deductionPercent: Number(o.deduction) || 0 })),
   }
@@ -300,7 +315,7 @@ function BillPanel({ shopId }: { shopId: string }) {
   const qd = quote.data
   const toPay = qd ? Math.max(0, qd.toPay) : 0
   // Money received defaults to what is left to pay; in cash, never more than the day's limit allows.
-  useEffect(() => { setPaid(qd ? String(Math.max(0, qd.toPay)) : '') }, [qd?.toPay]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPaid(qd ? String(Math.max(0, qd.toPay - (qd.khataAdvance ?? 0))) : '') }, [qd?.toPay, qd?.khataAdvance]) // eslint-disable-line react-hooks/exhaustive-deps
   const cashOver = mode === 'cash' && qd != null && Number(paid) > qd.cashLimit
 
   async function addTag() {
@@ -399,16 +414,25 @@ function BillPanel({ shopId }: { shopId: string }) {
 
       <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm lg:sticky lg:top-20">
         <CustomerFinder customers={customers} selected={customer} onKhata={0} onPick={setCustomerId} onCreate={(name, phone) => addCustomer(shopId, name, phone)} />
+        {ready.length > 0 && (
+          <label className="flex flex-col gap-1 rounded-xl bg-[#f1eafd] p-3 text-sm font-semibold text-[#6d28d9]">{t('jwl2.useScheme')}
+            <select value={schemeMemberId ?? ''} onChange={(e) => setSchemeMemberId(e.target.value || null)} className={`${box} text-ink`}>
+              <option value="">{t('jwl2.noScheme')}</option>
+              {ready.map((m) => <option key={m.id} value={m.id}>{t('jwl2.schemeOption', { plan: m.plan, number: m.number, paid: formatRupees(m.paidTotal), bonus: formatRupees(m.bonus) })}</option>)}
+            </select></label>
+        )}
         {!qd && <p className="py-6 text-center text-muted">{t('jwl.emptyBill')}</p>}
         {qd && (
           <>
             <div className="flex flex-col gap-1 text-sm">
+              {qd.schemeDiscount > 0 && <p className="flex justify-between font-semibold text-[#6d28d9]"><span>{t('jwl2.schemeBonus')}</span><span>−{formatRupees(qd.schemeDiscount)}</span></p>}
               <p className="flex justify-between"><span className="text-muted">{t('jwl.taxable')}</span><span>{formatRupees(qd.taxable)}</span></p>
               <p className="flex justify-between"><span className="text-muted">{t('jwl.gst3')}</span><span>{formatRupees(qd.gst)}</span></p>
               {qd.roundOff !== 0 && <p className="flex justify-between"><span className="text-muted">{t('jwl.roundOff')}</span><span>{qd.roundOff > 0 ? '+' : ''}{qd.roundOff.toFixed(2)}</span></p>}
               <p className="flex justify-between border-t border-line pt-1 text-lg font-extrabold"><span>{t('jwl.total')}</span><span>{formatRupees(qd.total)}</span></p>
               {qd.oldMetalValue > 0 && <p className="flex justify-between font-semibold text-[#a1460a]"><span>{t('jwl.lessOld')}</span><span>−{formatRupees(qd.oldMetalValue)}</span></p>}
               <p className={`flex justify-between rounded-xl px-3 py-2 text-lg font-extrabold ${qd.toPay < 0 ? 'bg-due-soft text-due' : 'bg-brand-soft text-brand-deep'}`}><span>{qd.toPay < 0 ? t('jwl.shopPays') : t('jwl.toPay')}</span><span>{formatRupees(Math.abs(qd.toPay))}</span></p>
+              {qd.khataAdvance > 0 && qd.toPay > 0 && <p className="text-xs text-muted">{t('jwl2.advanceUsed', { amount: formatRupees(Math.min(qd.khataAdvance, qd.toPay)) })}</p>}
             </div>
             {qd.problems.map((p) => <p key={p} className="rounded-xl bg-warn-soft p-2 text-xs font-semibold text-warn-ink">{p}</p>)}
             {qd.toPay > 0 && <>
@@ -419,7 +443,7 @@ function BillPanel({ shopId }: { shopId: string }) {
                 <input value={paid} onChange={(e) => setPaid(num(e.target.value))} inputMode="decimal" className={`${box} w-40 text-right text-lg font-bold`} /></label>
               {cashOver && <p className="rounded-xl bg-due-soft p-2 text-sm font-semibold text-due">{t('jwl.cashOver', { amount: formatRupees(qd.cashLimit) })}</p>}
               {customer == null && Number(paid) < toPay && <p className="text-xs font-semibold text-due">{t('jwl.needCustomer')}</p>}
-              {customer != null && Number(paid) < toPay && <p className="text-xs text-muted">{t('jwl.onKhata', { amount: formatRupees(toPay - (Number(paid) || 0)) })}</p>}
+              {customer != null && Number(paid) < toPay - qd.khataAdvance && <p className="text-xs text-muted">{t('jwl.onKhata', { amount: formatRupees(toPay - qd.khataAdvance - (Number(paid) || 0)) })}</p>}
             </>}
             {qd.panNeeded && (
               <label className="flex flex-col gap-1 text-sm font-semibold">{t('jwl.pan')}

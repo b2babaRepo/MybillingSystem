@@ -182,6 +182,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<JewelleryBill> JewelleryBills => Set<JewelleryBill>();
     public DbSet<JewelleryBillLine> JewelleryBillLines => Set<JewelleryBillLine>();
     public DbSet<OldMetalPurchase> OldMetalPurchases => Set<OldMetalPurchase>();
+    public DbSet<GirviLoan> GirviLoans => Set<GirviLoan>();
+    public DbSet<GirviPayment> GirviPayments => Set<GirviPayment>();
+    public DbSet<SchemePlan> SchemePlans => Set<SchemePlan>();
+    public DbSet<SchemeMember> SchemeMembers => Set<SchemeMember>();
+    public DbSet<SchemeInstalment> SchemeInstalments => Set<SchemeInstalment>();
+    public DbSet<JewelleryOrder> JewelleryOrders => Set<JewelleryOrder>();
+    public DbSet<ApprovalMemo> ApprovalMemos => Set<ApprovalMemo>();
+    public DbSet<ApprovalItem> ApprovalItems => Set<ApprovalItem>();
 
     public DbSet<Job> Jobs => Set<Job>();
 
@@ -1357,6 +1365,99 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
                 nameof(JewelleryBillLine.MakingValue), nameof(JewelleryBillLine.MakingAmount), nameof(JewelleryBillLine.StoneValue), nameof(JewelleryBillLine.HallmarkCharge),
                 nameof(JewelleryBillLine.Taxable), nameof(JewelleryBillLine.Gst) }) b.Property(m).HasPrecision(14, 2);
             b.HasIndex(l => new { l.ShopId, l.BillId });
+        });
+
+        modelBuilder.Entity<GirviLoan>(b =>
+        {
+            b.ToTable("girvi_loans");
+            b.HasTenantKey();
+            b.Property(l => l.Items).HasMaxLength(200);
+            b.Property(l => l.Metal).HasMaxLength(10);
+            b.Property(l => l.Kyc).HasMaxLength(60);
+            b.Property(l => l.Note).HasMaxLength(200);
+            b.Property(l => l.Gross).HasPrecision(10, 3);
+            b.Property(l => l.Fine).HasPrecision(10, 3);
+            b.Property(l => l.Reading).HasPrecision(5, 2);
+            b.Property(l => l.RatePerMonth).HasPrecision(5, 2);
+            b.Property(l => l.PledgeValue).HasPrecision(14, 2);
+            b.Property(l => l.Principal).HasPrecision(14, 2);
+            b.Property(l => l.Mode).HasConversion<string>().HasMaxLength(10);
+            b.HasIndex(l => new { l.ShopId, l.Number }).IsUnique();
+            b.HasIndex(l => new { l.ShopId, l.CreatedAt });
+        });
+
+        modelBuilder.Entity<GirviPayment>(b =>
+        {
+            b.ToTable("girvi_payments");
+            b.HasTenantKey();
+            b.Property(p => p.Amount).HasPrecision(14, 2);
+            b.Property(p => p.InterestPart).HasPrecision(14, 2);
+            b.Property(p => p.PrincipalPart).HasPrecision(14, 2);
+            b.Property(p => p.Mode).HasConversion<string>().HasMaxLength(10);
+            b.HasIndex(p => new { p.ShopId, p.LoanId });
+            b.HasIndex(p => new { p.ShopId, p.At });
+        });
+
+        modelBuilder.Entity<SchemePlan>(b =>
+        {
+            b.ToTable("scheme_plans");
+            b.HasTenantKey();
+            b.Property(p => p.Name).HasMaxLength(60);
+            b.Property(p => p.Instalment).HasPrecision(14, 2);
+            b.Property(p => p.Bonus).HasPrecision(14, 2);
+        });
+
+        modelBuilder.Entity<SchemeMember>(b =>
+        {
+            b.ToTable("scheme_members");
+            b.HasTenantKey();
+            b.HasIndex(m => new { m.ShopId, m.Number }).IsUnique();
+            b.HasIndex(m => new { m.ShopId, m.CustomerId });
+        });
+
+        modelBuilder.Entity<SchemeInstalment>(b =>
+        {
+            b.ToTable("scheme_instalments");
+            b.HasTenantKey();
+            b.Property(i => i.Amount).HasPrecision(14, 2);
+            b.HasIndex(i => new { i.ShopId, i.MemberId });
+            b.HasIndex(i => new { i.ShopId, i.EntryId }).IsUnique();
+        });
+
+        modelBuilder.Entity<JewelleryOrder>(b =>
+        {
+            b.ToTable("jewellery_orders");
+            b.HasTenantKey();
+            b.Property(o => o.Kind).HasMaxLength(10);
+            b.Property(o => o.Status).HasMaxLength(12);
+            b.Property(o => o.Description).HasMaxLength(200);
+            b.Property(o => o.Note).HasMaxLength(200);
+            b.Property(o => o.Metal).HasMaxLength(10);
+            b.Property(o => o.Weight).HasPrecision(10, 3);
+            b.Property(o => o.WeightOut).HasPrecision(10, 3);
+            b.Property(o => o.FixedRate).HasPrecision(12, 2);
+            b.Property(o => o.Charge).HasPrecision(14, 2);
+            b.Property(o => o.Advance).HasPrecision(14, 2);
+            b.HasIndex(o => new { o.ShopId, o.Number }).IsUnique();
+            b.HasIndex(o => new { o.ShopId, o.Status, o.DueOn });
+        });
+
+        modelBuilder.Entity<ApprovalMemo>(b =>
+        {
+            b.ToTable("approval_memos");
+            b.HasTenantKey();
+            b.Property(m => m.Party).HasMaxLength(80);
+            b.HasIndex(m => new { m.ShopId, m.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<ApprovalItem>(b =>
+        {
+            b.ToTable("approval_items");
+            b.HasTenantKey();
+            b.Property(i => i.GrossOut).HasPrecision(10, 3);
+            b.Property(i => i.GrossBack).HasPrecision(10, 3);
+            b.HasIndex(i => new { i.ShopId, i.MemoId });
+            b.HasIndex(i => new { i.ShopId, i.PieceId });
         });
 
         modelBuilder.Entity<OldMetalPurchase>(b =>
