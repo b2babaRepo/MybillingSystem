@@ -161,25 +161,26 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
             <h2 className="px-1 font-bold">{t('cashTable.title', { month: label })}</h2>
             <button onClick={download} className={`flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm ${btn.outline}`}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M12 3v12M7 10l5 5 5-5M4 15v5h16v-5" /></svg>{t('billList.excel')}</button>
           </div>
-          <table className="w-full table-fixed border-collapse overflow-hidden rounded-card bg-white text-sm shadow-sm">
+          <div className="overflow-x-auto rounded-card shadow-sm">
+          <table className="w-full min-w-[920px] table-fixed border-collapse bg-white text-sm">
             <thead className="bg-brand-soft text-left text-xs tracking-wide">
               <tr className="align-top">
                 <th className="w-10 px-3 py-2 uppercase">#</th>
-                <th className="w-40 px-2 py-2"><SortHead label={t('cashTable.date')} active={sort.key === 'at'} up={sort.up} onClick={() => setSort(nextSort(sort, 'at', true))} sortLabel={t('billList.sortBy', { col: t('cashTable.date') })} /></th>
-                <th className="w-44 px-2 py-2"><SortHead label={t('cashTable.type')} active={sort.key === 'type'} up={sort.up} onClick={() => setSort(nextSort(sort, 'type', true))} sortLabel={t('billList.sortBy', { col: t('cashTable.type') })}>
+                <th className="w-36 px-2 py-2"><SortHead label={t('cashTable.date')} active={sort.key === 'at'} up={sort.up} onClick={() => setSort(nextSort(sort, 'at', true))} sortLabel={t('billList.sortBy', { col: t('cashTable.date') })} /></th>
+                <th className="w-36 px-2 py-2"><SortHead label={t('cashTable.type')} active={sort.key === 'type'} up={sort.up} onClick={() => setSort(nextSort(sort, 'type', true))} sortLabel={t('billList.sortBy', { col: t('cashTable.type') })}>
                   <select value={filter.type} onChange={(e) => setFilter({ ...filter, type: e.target.value })} aria-label={t('billList.filterBy', { col: t('cashTable.type') })} className={filterBox}>
                     <option value="">{t('billList.status.all')}</option>
                     {sources.map((src) => <option key={src} value={src}>{typeOf({ source: src })}</option>)}
                   </select></SortHead></th>
                 <th className="px-2 py-2"><SortHead label={t('cashTable.party')} active={sort.key === 'who'} up={sort.up} onClick={() => setSort(nextSort(sort, 'who', true))} sortLabel={t('billList.sortBy', { col: t('cashTable.party') })}>
                   <input value={filter.who} onChange={(e) => setFilter({ ...filter, who: e.target.value })} aria-label={t('billList.filterBy', { col: t('cashTable.party') })} className={filterBox} /></SortHead></th>
-                <th className="w-32 px-2 py-2 text-right"><SortHead right label={t('cashTable.in')} active={sort.key === 'in'} up={sort.up} onClick={() => setSort(nextSort(sort, 'in', false))} sortLabel={t('billList.sortBy', { col: t('cashTable.in') })}>
+                <th className="w-28 px-2 py-2 text-right"><SortHead right label={t('cashTable.in')} active={sort.key === 'in'} up={sort.up} onClick={() => setSort(nextSort(sort, 'in', false))} sortLabel={t('billList.sortBy', { col: t('cashTable.in') })}>
                   <select value={filter.way} onChange={(e) => setFilter({ ...filter, way: e.target.value })} aria-label={t('billList.filterBy', { col: t('cashTable.way') })} className={filterBox}>
                     <option value="">{t('cashTable.both')}</option><option value="in">{t('cashTable.onlyIn')}</option><option value="out">{t('cashTable.onlyOut')}</option>
                   </select></SortHead></th>
-                <th className="w-32 px-2 py-2 text-right"><SortHead right label={t('cashTable.out')} active={sort.key === 'out'} up={sort.up} onClick={() => setSort(nextSort(sort, 'out', false))} sortLabel={t('billList.sortBy', { col: t('cashTable.out') })} /></th>
-                <th className="w-32 px-2 py-2 text-right uppercase">{t('cashTable.balance')}</th>
-                <th className="w-24 px-3 py-2" />
+                <th className="w-28 px-2 py-2 text-right"><SortHead right label={t('cashTable.out')} active={sort.key === 'out'} up={sort.up} onClick={() => setSort(nextSort(sort, 'out', false))} sortLabel={t('billList.sortBy', { col: t('cashTable.out') })} /></th>
+                <th className="w-28 px-2 py-2 text-right uppercase">{t('cashTable.balance')}</th>
+                <th className="w-16 px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -216,6 +217,7 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
               </tr>
             </tfoot>
           </table>
+          </div>
         </div>
       )}
       {data && (data.lines.length === 0 ? <p className="text-muted">{t('cashLedger.empty')}</p> : (
