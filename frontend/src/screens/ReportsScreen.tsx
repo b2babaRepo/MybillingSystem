@@ -5,7 +5,7 @@ import { navigate } from '../router'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/ui'
+import { Button, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { downloadCsv, type MonthReport } from '../lib/reports'
@@ -204,15 +204,32 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
             </section>
           )}
 
-          <Button tone="plain" onClick={() => navigate('/reports/day')}>{t('day.link')}</Button>
-          <Button tone="plain" onClick={() => navigate('/cheques')}>{t('cheques.link')}</Button>
-          <Button tone="plain" onClick={() => navigate('/reports/week')}>{t('insights.weekLink')}</Button>
-          {isOwner && <Button tone="plain" onClick={() => navigate('/reports/customers')}>{t('insights.customersLink')}</Button>}
-          {isOwner && <Button tone="plain" onClick={() => navigate('/reports/items')}>{t('margin.title')}</Button>}
-          {isOwner && <Button tone="plain" onClick={() => navigate('/reports/sizes')}>{t('sizeReport.title')}</Button>}
-          {isOwner && <Button tone="plain" onClick={() => navigate('/reports/staff')}>{t('sales.title')}</Button>}
-          {isOwner && <Button tone="plain" onClick={() => navigate('/pnl')}>{t('pnl.title')}</Button>}
-          {isOwner && <Button tone="plain" onClick={() => navigate('/gst')}>{t('gstExport.title')}</Button>}
+          {/* The other reports as tiles, each with its own colour and line icon, instead of a stack of white buttons. */}
+          <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-sm lg:col-span-2 print:hidden">
+            <h2 className="text-base font-bold">{t('rep3.more')}</h2>
+            <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+              {[
+                { to: '/reports/day', label: t('day.link'), d: 'M4 5h16v15H4zM4 9h16M8 3v4M16 3v4M8 13h8M8 16h5', tone: 'bg-emerald-50 text-emerald-700' },
+                { to: '/cheques', label: t('cheques.link'), d: 'M3 7h18v10H3zM6 12h6M15 13l2-2 2 2', tone: 'bg-violet-50 text-violet-700' },
+                { to: '/reports/week', label: t('insights.weekLink'), d: 'M3 17l6-6 4 4 8-8M15 7h6v6', tone: 'bg-blue-50 text-blue-700' },
+                ...(isOwner ? [
+                  { to: '/reports/customers', label: t('insights.customersLink'), d: 'M9 11a4 4 0 100-8 4 4 0 000 8zM2 21v-1a7 7 0 0114 0v1M17 3a4 4 0 010 8M22 21v-1a7 7 0 00-4-6', tone: 'bg-sky-50 text-sky-700' },
+                  { to: '/reports/items', label: t('margin.title'), d: 'M3 3h8l10 10-8 8L3 11zM8 8h.01', tone: 'bg-orange-50 text-orange-700' },
+                  { to: '/reports/sizes', label: t('sizeReport.title'), d: 'M3 6h18M3 12h12M3 18h6', tone: 'bg-pink-50 text-pink-700' },
+                  { to: '/reports/staff', label: t('sales.title'), d: 'M12 4a4 4 0 100 8 4 4 0 000-8zM4 21a8 8 0 0116 0', tone: 'bg-cyan-50 text-cyan-700' },
+                  { to: '/pnl', label: t('pnl.title'), d: 'M4 20V10M10 20V4M16 20v-7M22 20H2', tone: 'bg-brand-soft text-brand' },
+                  { to: '/gst', label: t('gstExport.title'), d: 'M9 15l6-6M9 9h.01M15 15h.01M5 3h14v18H5z', tone: 'bg-due-soft text-due' },
+                ] : []),
+              ].map((x) => (
+                <button key={x.to} onClick={() => navigate(x.to)} className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-white p-3 text-left text-[15px] leading-snug font-semibold transition hover:bg-[#f6faf9] active:scale-[0.98]">
+                  <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${x.tone}`}>
+                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={x.d} /></svg>
+                  </span>
+                  <span className="min-w-0 flex-1">{x.label}</span><span aria-hidden className="text-muted">›</span>
+                </button>
+              ))}
+            </div>
+          </section>
           {year && (
             <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm print:shadow-none">
               <h2 className="text-base font-bold">{t('reports.yearTitle', { fy: year.financialYear })}</h2>
@@ -222,7 +239,9 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
               <p className="flex justify-between text-sm"><span>{t('reports.digitalReceived')}</span><span>{formatRupees(year.total.digital)}</span></p>
               {year.total.noRate > 0 && <p className="text-sm font-semibold text-due">{t('reports.noRate', { amount: formatRupees(year.total.noRate) })}</p>}
               <p className="text-xs text-muted">{t('reports.yearHint')}</p>
-              <Button tone="plain" onClick={() => download(`/v1/reports/year.csv?fy=${fy}`, `year-${year.financialYear}.csv`)}>{t('reports.yearCsv')}</Button>
+              <button onClick={() => download(`/v1/reports/year.csv?fy=${fy}`, `year-${year.financialYear}.csv`)} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl ${btn.outline}`}>
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 15v5h16v-5" /></svg>{t('reports.yearCsv')}
+              </button>
             </section>
           )}
 
