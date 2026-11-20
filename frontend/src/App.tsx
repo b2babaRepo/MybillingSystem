@@ -60,6 +60,8 @@ const SalesByScreen = lazy(() => import('./screens/SalesByScreen').then((module)
 const StocktakeScreen = lazy(() => import('./screens/StocktakeScreen').then((module) => ({ default: module.StocktakeScreen })))
 const DuesScreen = lazy(() => import('./screens/DuesScreen').then((module) => ({ default: module.DuesScreen })))
 const StaffSalesScreen = lazy(() => import('./screens/StaffSalesScreen').then((module) => ({ default: module.StaffSalesScreen })))
+const JewelleryScreen = lazy(() => import('./screens/JewelleryScreen').then((module) => ({ default: module.JewelleryScreen })))
+const JewelleryTagsScreen = lazy(() => import('./screens/JewelleryTagsScreen').then((module) => ({ default: module.JewelleryTagsScreen })))
 const TagsScreen = lazy(() => import('./screens/TagsScreen').then((module) => ({ default: module.TagsScreen })))
 const SizeReportScreen = lazy(() => import('./screens/SizeReportScreen').then((module) => ({ default: module.SizeReportScreen })))
 const SideGroups = lazy(() => import('./components/SideGroups').then((module) => ({ default: module.SideGroups })))
@@ -282,6 +284,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
   const orderMatch = path.match(/^\/o\/([0-9a-f-]+)$/)
   const productMatch = path.match(/^\/p\/([0-9a-f-]+)$/)
   const tagsMatch = path.match(/^\/tags\/([0-9a-f,-]+)$/)
+  const jwlTagsMatch = path.match(/^\/jewellery\/tags\/([0-9a-f,-]+)$/)
   const printMatch = path.match(/^\/print\/(statement|bill|supplier|slip)\/([0-9a-f-]+)(?:\/(\d{4}-\d{2}))?$/)
   const isItemsPage = !!productMatch || path === '/items/pick' || path === '/stocktake' || path === '/stock-statement' || path === '/stock-health' || path === '/categories' || path === '/import' || path === '/items/common'
   const tabs: { path: string; label: string; icon: ReactNode; badge?: number }[] = [
@@ -299,6 +302,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
   const medical = trades.includes('medical')
   const sideGroups: { key: string; title: string; add?: { path: string; label: string }; links: { path: string; label: string }[] }[] = [
     { key: 'sell', title: t('menu.sell'), add: { path: '/bill', label: t('menu.addBill') }, links: [
+      ...(trades.includes('jewellery') ? [{ path: '/jewellery', label: t('jwl.title') }] : []),
       { path: '/find-bill', label: t('billList.title') },
       { path: '/exchange-slips', label: t('slip.register') },
       { path: '/estimates', label: t('estimate.link') },
@@ -559,6 +563,10 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
           <RatesScreen shopId={shopId} />
         ) : path === '/painters' ? (
           <PaintersScreen shopId={shopId} shopName={shopName} />
+        ) : path === '/jewellery' ? (
+          <JewelleryScreen shopId={shopId} isOwner={isOwner} />
+        ) : jwlTagsMatch ? (
+          <JewelleryTagsScreen shopId={shopId} shopName={shopName} ids={jwlTagsMatch[1].split(',')} />
         ) : tagsMatch && isOwner ? (
           <TagsScreen shopId={shopId} shopName={shopName} ids={tagsMatch[1].split(',')} />
         ) : productMatch ? (

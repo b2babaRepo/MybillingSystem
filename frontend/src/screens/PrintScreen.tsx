@@ -1,3 +1,4 @@
+import { JewelleryBreakdown } from '../components/JewelleryBreakdown'
 import { btn } from '../components/ui'
 import { SendFromShop } from '../components/ShopWhatsApp'
 import { shownLocale } from '../i18n'
@@ -461,6 +462,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel, bar
           </table>
         )
       })()}
+      <JewelleryBreakdown billId={bill.id} enabled={!!onCancel} />
       {/* Amount in words on the left; what was paid and what is still due on the right. */}
       <div className="bill-sums mt-4 grid grid-cols-2 items-start gap-4">
         <div className="rounded-md bg-gray-100 p-2 text-sm">

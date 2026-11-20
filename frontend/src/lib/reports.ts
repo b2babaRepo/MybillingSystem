@@ -110,8 +110,8 @@ export interface ShopSettings {
   extraTypes?: ShopType[] | null
 }
 
-export type ShopType = 'kirana' | 'water_supply' | 'beauty' | 'sweets' | 'toys' | 'clothes' | 'building_materials' | 'paint' | 'hardware' | 'electrical' | 'woodwork' | 'banquet' | 'restaurant' | 'lodge' | 'medical' | 'dairy' | 'sales_service' | 'other'
-export const SHOP_TYPES: ShopType[] = ['kirana', 'water_supply', 'beauty', 'sweets', 'toys', 'clothes', 'building_materials', 'paint', 'hardware', 'electrical', 'woodwork', 'banquet', 'restaurant', 'lodge', 'medical', 'dairy', 'sales_service', 'other']
+export type ShopType = 'kirana' | 'water_supply' | 'beauty' | 'sweets' | 'toys' | 'clothes' | 'building_materials' | 'paint' | 'hardware' | 'electrical' | 'woodwork' | 'banquet' | 'restaurant' | 'lodge' | 'medical' | 'dairy' | 'sales_service' | 'jewellery' | 'other'
+export const SHOP_TYPES: ShopType[] = ['kirana', 'water_supply', 'beauty', 'sweets', 'toys', 'clothes', 'building_materials', 'paint', 'hardware', 'electrical', 'woodwork', 'banquet', 'restaurant', 'lodge', 'medical', 'dairy', 'sales_service', 'jewellery', 'other']
 /** Trades with a starter list of common items. */
 export const STARTER_TYPES: ShopType[] = ['kirana', 'water_supply', 'beauty', 'sweets', 'toys', 'clothes', 'building_materials', 'paint', 'hardware', 'electrical', 'woodwork', 'banquet', 'restaurant', 'lodge', 'medical', 'sales_service']
 const TRADE_TYPES: ShopType[] = ['building_materials', 'paint', 'hardware', 'electrical', 'woodwork']

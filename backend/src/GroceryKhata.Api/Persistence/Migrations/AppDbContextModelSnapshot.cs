@@ -5767,6 +5767,322 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("incoming_receipts", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.JewelleryBill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("mode");
+
+                    b.Property<decimal>("MoneyPaid")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("money_paid");
+
+                    b.Property<Guid?>("OldMetalExpenseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("old_metal_expense_id");
+
+                    b.Property<decimal>("OldMetalValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("old_metal_value");
+
+                    b.Property<string>("Pan")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("pan");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "BillId")
+                        .IsUnique();
+
+                    b.HasIndex("ShopId", "CustomerId", "CreatedAt");
+
+                    b.ToTable("jewellery_bills", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.JewelleryBillLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("FixedPrice")
+                        .HasColumnType("boolean")
+                        .HasColumnName("fixed_price");
+
+                    b.Property<decimal>("Gross")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)")
+                        .HasColumnName("gross");
+
+                    b.Property<decimal>("Gst")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("gst");
+
+                    b.Property<decimal>("HallmarkCharge")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("hallmark_charge");
+
+                    b.Property<string>("Huid")
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("huid");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_no");
+
+                    b.Property<decimal>("MakingAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("making_amount");
+
+                    b.Property<string>("MakingType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("making_type");
+
+                    b.Property<decimal>("MakingValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("making_value");
+
+                    b.Property<string>("Metal")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("metal");
+
+                    b.Property<decimal>("MetalValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("metal_value");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal>("Net")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)")
+                        .HasColumnName("net");
+
+                    b.Property<Guid?>("PieceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("piece_id");
+
+                    b.Property<int>("Purity")
+                        .HasColumnType("integer")
+                        .HasColumnName("purity");
+
+                    b.Property<decimal>("RatePerGram")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("rate_per_gram");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<decimal>("Stone")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)")
+                        .HasColumnName("stone");
+
+                    b.Property<decimal>("StoneValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("stone_value");
+
+                    b.Property<int?>("TagNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("tag_no");
+
+                    b.Property<decimal>("Taxable")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("taxable");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<decimal>("WastagePercent")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("wastage_percent");
+
+                    b.Property<decimal>("WastageValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("wastage_value");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "BillId");
+
+                    b.ToTable("jewellery_bill_lines", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.JewelleryPiece", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal?>("FixedPrice")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("fixed_price");
+
+                    b.Property<decimal>("Gross")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)")
+                        .HasColumnName("gross");
+
+                    b.Property<decimal>("HallmarkCharge")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("hallmark_charge");
+
+                    b.Property<string>("Huid")
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("huid");
+
+                    b.Property<string>("MakingType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("making_type");
+
+                    b.Property<decimal>("MakingValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("making_value");
+
+                    b.Property<string>("Metal")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("metal");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Purity")
+                        .HasColumnType("integer")
+                        .HasColumnName("purity");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset?>("SoldAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sold_at");
+
+                    b.Property<Guid?>("SoldBillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sold_bill_id");
+
+                    b.Property<decimal>("Stone")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)")
+                        .HasColumnName("stone");
+
+                    b.Property<decimal>("StoneValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("stone_value");
+
+                    b.Property<int>("TagNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("tag_no");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<decimal>("WastagePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("wastage_percent");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "Huid");
+
+                    b.HasIndex("ShopId", "SoldBillId");
+
+                    b.HasIndex("ShopId", "TagNo")
+                        .IsUnique();
+
+                    b.ToTable("jewellery_pieces", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Job", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6318,6 +6634,58 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("machines", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.MetalRate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal?>("BuyPerGram")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("buy_per_gram");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Metal")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("metal");
+
+                    b.Property<int>("Purity")
+                        .HasColumnType("integer")
+                        .HasColumnName("purity");
+
+                    b.Property<decimal>("SellPerGram")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("sell_per_gram");
+
+                    b.Property<Guid>("SetByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("set_by_user_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "Metal", "Purity", "CreatedAt");
+
+                    b.ToTable("metal_rates", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.MeterReading", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6562,6 +6930,83 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ShopId", "Date");
 
                     b.ToTable("milk_dispatches", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.OldMetalPurchase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<decimal>("DeductionPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("deduction_percent");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("description");
+
+                    b.Property<decimal>("Fine")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)")
+                        .HasColumnName("fine");
+
+                    b.Property<decimal>("Gross")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)")
+                        .HasColumnName("gross");
+
+                    b.Property<string>("Metal")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("metal");
+
+                    b.Property<decimal>("RatePerGram")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("rate_per_gram");
+
+                    b.Property<decimal>("Reading")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("reading");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "BillId");
+
+                    b.ToTable("old_metal_purchases", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.OrderFollowUp", b =>

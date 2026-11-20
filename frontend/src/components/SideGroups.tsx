@@ -30,6 +30,7 @@ const ICONS: Record<string, string> = {
     '/estimates': 'M14 3H6v18h12V7zM14 3v4h4M9 13h6M9 17h4',
     '/purchase-uploads': 'M12 16V4M7 9l5-5 5 5M4 16v4h16v-4',
     '/suppliers': 'M3 9l1.5-5h15L21 9M4 9v11h16V9M9 20v-6h6v6',
+    '/jewellery': 'M6 3h12l3 6-9 12L3 9zM3 9h18M9 3l3 6 3-6M12 9v12',
     '/find-bill': 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4',
     '/exchange-slips': 'M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7',
     '/sale-orders': 'M9 3h6v3H9zM6 5h3M15 5h3v16H6V5M9 12h6M9 16h4',

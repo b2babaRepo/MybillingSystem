@@ -162,4 +162,6 @@ public enum ShopType
     Dairy,
     /// <summary>Sales and service: sells pumps, motors, inverters, batteries, fans, ACs or solar by serial number, and installs and repairs them.</summary>
     SalesService,
+    /// <summary>Jewellery shop (sarafa): gold and silver sold by weight at the day's rate, tagged pieces, old gold taken in.</summary>
+    Jewellery,
 }

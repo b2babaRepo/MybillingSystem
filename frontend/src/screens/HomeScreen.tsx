@@ -116,6 +116,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
         {/* Owner screens: helpers (staff) don't see them; the server refuses them too. */}
         {isOwner && <Tile to="/reports" icon="M4 20V10M10 20V4M16 20v-7M22 20H2" tone="bg-blue-50 text-blue-700">{t('reports.link')}</Tile>}
         <Tile to="/store" icon="M4 9l1-5h14l1 5M4 9h16v11H4zM9 20v-6h6v6" tone="bg-violet-50 text-violet-700">{t('myStore.link')}</Tile>
+        {types.includes('jewellery') && <Tile to="/jewellery" icon="M6 3h12l3 6-9 12L3 9zM3 9h18M9 3l3 6 3-6M12 9v12" tone="bg-warn-soft text-warn">{t('jwl.title')}</Tile>}
         {types.includes('lodge') && <Tile to="/rooms" icon="M3 18V7M3 13h18v5M21 18v-5a3 3 0 00-3-3h-7v3" tone="bg-sky-50 text-sky-700">{t('rooms.link')}</Tile>}
         {types.includes('restaurant') && <Tile to="/tables" icon="M7 3v8M5 3v5a2 2 0 004 0V3M7 11v10M17 3c-2 2-2 6 0 8v10" tone="bg-warn-soft text-warn">{t('tables.link')}</Tile>}
         {types.includes('banquet') && <Tile to="/bookings" icon="M3 21l5-14 9 9zM14 4l1 2M19 5l-2 2M20 10l-2-1" tone="bg-pink-50 text-pink-700">{t('bookings.link')}</Tile>}

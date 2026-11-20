@@ -177,6 +177,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<BalanceCheck> BalanceChecks => Set<BalanceCheck>();
 
     public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<MetalRate> MetalRates => Set<MetalRate>();
+    public DbSet<JewelleryPiece> JewelleryPieces => Set<JewelleryPiece>();
+    public DbSet<JewelleryBill> JewelleryBills => Set<JewelleryBill>();
+    public DbSet<JewelleryBillLine> JewelleryBillLines => Set<JewelleryBillLine>();
+    public DbSet<OldMetalPurchase> OldMetalPurchases => Set<OldMetalPurchase>();
 
     public DbSet<Job> Jobs => Set<Job>();
 
@@ -1294,6 +1299,79 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(w => w.DisplayNumber).HasMaxLength(30);
             b.Property(w => w.VerifiedName).HasMaxLength(120);
             b.HasIndex(w => w.ShopId).IsUnique();
+        });
+
+        modelBuilder.Entity<MetalRate>(b =>
+        {
+            b.ToTable("metal_rates");
+            b.HasTenantKey();
+            b.Property(r => r.Metal).HasMaxLength(10);
+            b.Property(r => r.SellPerGram).HasPrecision(12, 2);
+            b.Property(r => r.BuyPerGram).HasPrecision(12, 2);
+            b.HasIndex(r => new { r.ShopId, r.Metal, r.Purity, r.CreatedAt });
+        });
+
+        modelBuilder.Entity<JewelleryPiece>(b =>
+        {
+            b.ToTable("jewellery_pieces");
+            b.HasTenantKey();
+            b.Property(p => p.Name).HasMaxLength(80);
+            b.Property(p => p.Category).HasMaxLength(60);
+            b.Property(p => p.Metal).HasMaxLength(10);
+            b.Property(p => p.MakingType).HasMaxLength(10);
+            b.Property(p => p.Huid).HasMaxLength(6);
+            b.Property(p => p.Gross).HasPrecision(10, 3);
+            b.Property(p => p.Stone).HasPrecision(10, 3);
+            b.Property(p => p.WastagePercent).HasPrecision(5, 2);
+            b.Property(p => p.MakingValue).HasPrecision(14, 2);
+            b.Property(p => p.StoneValue).HasPrecision(14, 2);
+            b.Property(p => p.HallmarkCharge).HasPrecision(10, 2);
+            b.Property(p => p.FixedPrice).HasPrecision(14, 2);
+            b.HasIndex(p => new { p.ShopId, p.TagNo }).IsUnique();
+            b.HasIndex(p => new { p.ShopId, p.Huid });
+            b.HasIndex(p => new { p.ShopId, p.SoldBillId });
+        });
+
+        modelBuilder.Entity<JewelleryBill>(b =>
+        {
+            b.ToTable("jewellery_bills");
+            b.HasTenantKey();
+            b.Property(x => x.Pan).HasMaxLength(10);
+            b.Property(x => x.MoneyPaid).HasPrecision(14, 2);
+            b.Property(x => x.OldMetalValue).HasPrecision(14, 2);
+            b.Property(x => x.Mode).HasConversion<string>().HasMaxLength(10);
+            b.HasIndex(x => new { x.ShopId, x.BillId }).IsUnique();
+            b.HasIndex(x => new { x.ShopId, x.CustomerId, x.CreatedAt });
+        });
+
+        modelBuilder.Entity<JewelleryBillLine>(b =>
+        {
+            b.ToTable("jewellery_bill_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Name).HasMaxLength(80);
+            b.Property(l => l.Metal).HasMaxLength(10);
+            b.Property(l => l.MakingType).HasMaxLength(10);
+            b.Property(l => l.Huid).HasMaxLength(6);
+            foreach (var w in new[] { nameof(JewelleryBillLine.Gross), nameof(JewelleryBillLine.Stone), nameof(JewelleryBillLine.Net) }) b.Property(w).HasPrecision(10, 3);
+            foreach (var m in new[] { nameof(JewelleryBillLine.RatePerGram), nameof(JewelleryBillLine.MetalValue), nameof(JewelleryBillLine.WastagePercent), nameof(JewelleryBillLine.WastageValue),
+                nameof(JewelleryBillLine.MakingValue), nameof(JewelleryBillLine.MakingAmount), nameof(JewelleryBillLine.StoneValue), nameof(JewelleryBillLine.HallmarkCharge),
+                nameof(JewelleryBillLine.Taxable), nameof(JewelleryBillLine.Gst) }) b.Property(m).HasPrecision(14, 2);
+            b.HasIndex(l => new { l.ShopId, l.BillId });
+        });
+
+        modelBuilder.Entity<OldMetalPurchase>(b =>
+        {
+            b.ToTable("old_metal_purchases");
+            b.HasTenantKey();
+            b.Property(o => o.Metal).HasMaxLength(10);
+            b.Property(o => o.Description).HasMaxLength(120);
+            b.Property(o => o.Gross).HasPrecision(10, 3);
+            b.Property(o => o.Fine).HasPrecision(10, 3);
+            b.Property(o => o.Reading).HasPrecision(5, 2);
+            b.Property(o => o.DeductionPercent).HasPrecision(5, 2);
+            b.Property(o => o.RatePerGram).HasPrecision(12, 2);
+            b.Property(o => o.Value).HasPrecision(14, 2);
+            b.HasIndex(o => new { o.ShopId, o.BillId });
         });
 
         modelBuilder.Entity<GroceryKhata.Api.Planner.ShopWhatsAppMessage>(b =>

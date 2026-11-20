@@ -219,6 +219,7 @@ app.MapAiPrivacy();
 app.MapWhatsAppOrders();
 app.MapWhatsAppSignup();
 app.MapWhatsAppShopMessages();
+app.MapJewellery();
 
 app.Run();
 

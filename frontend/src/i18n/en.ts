@@ -275,6 +275,7 @@ export const en = {
     medical: 'Medical shop / chemist',
     dairy: 'Milk collection centre (dairy)',
     sales_service: 'Sales & service (pumps, inverters, ACs, solar)',
+    jewellery: 'Jewellery shop (gold and silver)',
     water_supply: 'Water supply (jars)',
     beauty: 'Beauty parlour / salon',
     sweets: 'Sweets & namkeen',
