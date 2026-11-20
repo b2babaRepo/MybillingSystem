@@ -12,7 +12,8 @@ export interface MetalRates { current: MetalRate[]; today: MetalRate[] }
 export interface JewelleryPiece {
   id: string; tagNo: number; name: string; category: string | null; metal: Metal; purity: number; gross: number; stone: number; net: number
   wastagePercent: number; makingType: MakingType; makingValue: number; stoneValue: number; hallmarkCharge: number; huid: string | null
-  fixedPrice: number | null; sold: boolean; soldBillId: string | null; createdAt: string; onApproval: boolean
+  fixedPrice: number | null; sold: boolean; soldBillId: string | null; createdAt: string; onApproval: boolean; tray: string | null
+  stones?: { kind: string; labGrown: boolean; count: number; carat: number; shape: string | null; colour: string | null; clarity: string | null; certLab: string | null; certNo: string | null; ratePerCarat: number; value: number }[]
 }
 
 export interface JewelleryLine {

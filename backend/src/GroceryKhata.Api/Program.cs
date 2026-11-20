@@ -221,6 +221,7 @@ app.MapWhatsAppSignup();
 app.MapWhatsAppShopMessages();
 app.MapJewellery();
 app.MapJewelleryBook();
+app.MapJewelleryWorkshop();
 
 app.Run();
 

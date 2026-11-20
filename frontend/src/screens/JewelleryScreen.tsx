@@ -9,8 +9,9 @@ import { formatRupees } from '../lib/format'
 import { GOLD_PURITIES, SILVER_PURITIES, grams, karat, type JewelleryBill, type JewelleryPiece, type JewelleryQuote, type MakingType, type Metal, type MetalRates } from '../lib/jewellery'
 import { navigate } from '../router'
 import { ApprovalsPanel, GirviPanel, OrdersPanel, SchemesPanel, type Member } from './JewelleryBookPanels'
+import { StonesEditor, TraysPanel, WeighButton, WorkshopPanel, stoneBody, stoneToDraft, useScales, type StoneDraft } from './JewelleryWorkshopPanels'
 
-type Tab = 'bill' | 'stock' | 'rates' | 'girvi' | 'schemes' | 'orders' | 'approvals'
+type Tab = 'bill' | 'stock' | 'rates' | 'girvi' | 'schemes' | 'orders' | 'approvals' | 'workshop' | 'trays'
 const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
 const box = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3 outline-none focus:border-brand-line'
 const num = (v: string) => v.replace(/[^\d.]/g, '')
@@ -33,8 +34,11 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
     { key: 'schemes', label: t('jwl2.tabSchemes'), d: 'M4 7h16v12H4zM4 11h16M8 3v4M16 3v4', on: 'bg-[#0b5e4f] text-white shadow-lg shadow-[#0b5e4f]/30', off: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
     { key: 'girvi', label: t('jwl2.tabGirvi'), d: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4', on: 'bg-[#be123c] text-white shadow-lg shadow-[#be123c]/30', off: 'bg-[#fde8ec] text-[#be123c] hover:bg-[#fbd5dd]' },
     { key: 'approvals', label: t('jwl2.tabApprovals'), d: 'M14 3H6v18h12V7zM14 3v4h4M9 13l2 2 4-4', on: 'bg-[#6d28d9] text-white shadow-lg shadow-[#6d28d9]/30', off: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
+    { key: 'workshop', label: t('jwl3.tabWorkshop'), d: 'M14 7l3-3 3 3-3 3zM4 20l9-9M12 4l8 8M3 13l4 4', on: 'bg-[#a1460a] text-white shadow-lg shadow-[#a1460a]/30', off: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' },
+    { key: 'trays', label: t('jwl3.tabTrays'), d: 'M3 7h18v4H3zM5 11v8h14v-8M9 15h6', on: 'bg-[#33423d] text-white shadow-lg shadow-[#33423d]/30', off: 'bg-[#edf2f1] text-[#33423d] hover:bg-[#e2eae8]' },
   ]
   const gold22 = rates.data?.current.find((r) => r.metal === 'gold' && r.purity === 916)
+  const stampDue = useScales(shopId).filter((s) => s.isActive && s.stampedUntil && s.daysLeft <= 30)
   const silver = rates.data?.current.find((r) => r.metal === 'silver' && r.purity === 999)
 
   return (
@@ -43,8 +47,9 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
         <h1 className="mr-auto text-xl font-extrabold">{t('jwl.title')}</h1>
         {gold22 && <span className="rounded-full bg-[#fdf1e3] px-3 py-1 text-sm font-bold text-[#a1460a]">22K {formatRupees(gold22.sellPerGram * 10)}/10 g</span>}
         {silver && <span className="rounded-full bg-[#edf2f1] px-3 py-1 text-sm font-bold">{t('jwl.silver')} {formatRupees(silver.sellPerGram * 1000)}/kg</span>}
+        {stampDue.map((s) => <button key={s.id} onClick={() => setTab('trays')} className="rounded-full bg-due-soft px-3 py-1 text-sm font-bold text-due">{s.daysLeft < 0 ? t('jwl3.stampChipExpired', { name: s.name }) : t('jwl3.stampChip', { name: s.name, days: s.daysLeft })}</button>)}
       </div>
-      <div role="tablist" className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+      <div role="tablist" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-9">
         {tabs.map((x) => (
           <button key={x.key} role="tab" aria-selected={shown === x.key} onClick={() => setTab(x.key)}
             className={`flex min-h-[52px] items-center justify-center gap-2.5 rounded-2xl px-3 text-sm font-bold transition active:scale-[0.98] ${shown === x.key ? x.on : x.off}`}>
@@ -59,6 +64,8 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
       {shown === 'schemes' && <SchemesPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'orders' && <OrdersPanel shopId={shopId} />}
       {shown === 'approvals' && <ApprovalsPanel shopId={shopId} />}
+      {shown === 'workshop' && <WorkshopPanel shopId={shopId} isOwner={isOwner} />}
+      {shown === 'trays' && <TraysPanel shopId={shopId} isOwner={isOwner} />}
     </div>
   )
 }
@@ -142,8 +149,8 @@ function RatesPanel({ shopId, isOwner, rates }: { shopId: string; isOwner: boole
 
 /* ---------------- stock ---------------- */
 
-interface PieceDraft { name: string; category: string; metal: Metal; purity: number; gross: string; stone: string; wastage: string; makingType: MakingType; making: string; stoneValue: string; hallmark: string; huid: string; fixed: string }
-const blankPiece: PieceDraft = { name: '', category: '', metal: 'gold', purity: 916, gross: '', stone: '', wastage: '', makingType: 'per_gram', making: '', stoneValue: '', hallmark: '', huid: '', fixed: '' }
+interface PieceDraft { name: string; category: string; metal: Metal; purity: number; gross: string; stone: string; wastage: string; makingType: MakingType; making: string; stoneValue: string; hallmark: string; huid: string; fixed: string; tray: string; stones: StoneDraft[] }
+const blankPiece: PieceDraft = { name: '', category: '', metal: 'gold', purity: 916, gross: '', stone: '', wastage: '', makingType: 'per_gram', making: '', stoneValue: '', hallmark: '', huid: '', fixed: '', tray: '', stones: [] }
 
 function StockPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const { t } = useTranslation()
@@ -165,12 +172,12 @@ function StockPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
     setError('')
     try {
       const body = { name: d.name, category: d.category || null, metal: d.metal, purity: d.purity, gross: Number(d.gross), stone: Number(d.stone) || 0, wastagePercent: Number(d.wastage) || 0,
-        makingType: d.makingType, makingValue: Number(d.making) || 0, stoneValue: Number(d.stoneValue) || 0, hallmarkCharge: Number(d.hallmark) || 0, huid: d.huid || null, fixedPrice: Number(d.fixed) || null }
+        makingType: d.makingType, makingValue: Number(d.making) || 0, stoneValue: Number(d.stoneValue) || 0, hallmarkCharge: Number(d.hallmark) || 0, huid: d.huid || null, fixedPrice: Number(d.fixed) || null, tray: d.tray || null, stones: d.stones.map(stoneBody) }
       if (editing.id) await api(`/v1/jewellery/pieces/${editing.id}`, 'PUT', body)
       else await api('/v1/jewellery/pieces', 'POST', body)
       await queryClient.invalidateQueries({ queryKey: [shopId, 'jewellery', 'pieces'] })
       // A new piece: keep the form for the next one, same metal, purity and making.
-      setEditing(editing.id ? null : { id: null, draft: { ...d, name: '', gross: '', stone: '', huid: '', stoneValue: '' } })
+      setEditing(editing.id ? null : { id: null, draft: { ...d, name: '', gross: '', stone: '', huid: '', stoneValue: '', stones: [] } })
     } catch (e) {
       setError(e instanceof Error ? e.message : t('error'))
     } finally {
@@ -178,8 +185,8 @@ function StockPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
     }
   }
   const toDraft = (p: JewelleryPiece): PieceDraft => ({ name: p.name, category: p.category ?? '', metal: p.metal, purity: p.purity, gross: String(p.gross), stone: p.stone ? String(p.stone) : '', wastage: p.wastagePercent ? String(p.wastagePercent) : '',
-    makingType: p.makingType, making: p.makingValue ? String(p.makingValue) : '', stoneValue: p.stoneValue ? String(p.stoneValue) : '', hallmark: p.hallmarkCharge ? String(p.hallmarkCharge) : '', huid: p.huid ?? '', fixed: p.fixedPrice ? String(p.fixedPrice) : '' })
-  const set = (k: keyof PieceDraft, v: string | number) => editing && setEditing({ ...editing, draft: { ...editing.draft, [k]: v } })
+    makingType: p.makingType, making: p.makingValue ? String(p.makingValue) : '', stoneValue: p.stoneValue ? String(p.stoneValue) : '', hallmark: p.hallmarkCharge ? String(p.hallmarkCharge) : '', huid: p.huid ?? '', fixed: p.fixedPrice ? String(p.fixedPrice) : '', tray: p.tray ?? '', stones: (p.stones ?? []).map(stoneToDraft) })
+  const set = (k: keyof PieceDraft, v: string | number | StoneDraft[]) => editing && setEditing({ ...editing, draft: { ...editing.draft, [k]: v } })
   const d = editing?.draft
   const net = d ? Math.max(0, (Number(d.gross) || 0) - (Number(d.stone) || 0)) : 0
 
@@ -215,7 +222,7 @@ function StockPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
                 <tr key={p.id} className={`border-t border-line ${picked.includes(p.id) ? 'bg-[#eef7f4]' : 'hover:bg-[#f6faf9]'}`}>
                   <td className="px-3 py-2"><input type="checkbox" aria-label={`${t('jwl.tag')} J-${p.tagNo}`} className="h-5 w-5" checked={picked.includes(p.id)} onChange={(e) => setPicked(e.target.checked ? [...picked, p.id] : picked.filter((x) => x !== p.id))} /></td>
                   <td className="px-2 py-2 font-mono font-bold">J-{p.tagNo}</td>
-                  <td className="px-2 py-2"><span className="flex flex-col"><b>{p.name}</b>{p.category && <span className="text-xs text-muted">{p.category}</span>}{p.onApproval && <span className="mt-0.5 self-start rounded-full bg-[#f1eafd] px-2 text-xs font-bold text-[#6d28d9]">{t('jwl2.onApproval')}</span>}</span></td>
+                  <td className="px-2 py-2"><span className="flex flex-col"><b>{p.name}</b>{p.category && <span className="text-xs text-muted">{p.category}</span>}{p.onApproval && <span className="mt-0.5 self-start rounded-full bg-[#f1eafd] px-2 text-xs font-bold text-[#6d28d9]">{t('jwl2.onApproval')}</span>}{(p.tray || (p.stones?.length ?? 0) > 0) && <span className="text-xs text-muted">{[p.tray ? t('jwl3.trayShort', { tray: p.tray }) : null, p.stones?.length ? t('jwl3.stonesShort', { count: p.stones.reduce((n, s) => n + s.count, 0), carats: p.stones.reduce((n, s) => n + s.carat, 0).toFixed(2) }) : null, p.stones?.some((s) => s.labGrown) ? t('jwl3.labGrown') : null].filter(Boolean).join(' · ')}</span>}</span></td>
                   <td className="px-2 py-2"><span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${p.metal === 'gold' ? 'bg-[#fdf1e3] text-[#a1460a]' : 'bg-[#edf2f1] text-[#33423d]'}`}>{p.metal === 'gold' ? karat(p.metal, p.purity) : `${t('jwl.silver')} ${p.purity}`}</span></td>
                   <td className="px-2 py-2 text-right tabular-nums">{p.gross.toFixed(3)}</td>
                   <td className="px-2 py-2 text-right tabular-nums text-muted">{p.stone ? p.stone.toFixed(3) : '—'}</td>
@@ -246,6 +253,7 @@ function StockPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
             <label className="flex flex-col gap-1 text-sm font-semibold">{t('jwl.grossG')}<input value={d.gross} onChange={(e) => set('gross', num(e.target.value))} inputMode="decimal" placeholder="0.000" className={box} /></label>
             <label className="flex flex-col gap-1 text-sm font-semibold">{t('jwl.stoneG')}<input value={d.stone} onChange={(e) => set('stone', num(e.target.value))} inputMode="decimal" placeholder="0.000" className={box} /></label>
           </div>
+          <WeighButton shopId={shopId} onWeight={(g) => set('gross', g)} />
           <p className="rounded-xl bg-[#f6faf9] px-3 py-2 text-sm">{t('jwl.netIs')} <b>{grams(net)}</b></p>
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col gap-1 text-sm font-semibold">{t('jwl.wastagePct')}<input value={d.wastage} onChange={(e) => set('wastage', num(e.target.value))} inputMode="decimal" placeholder="0" className={box} /></label>
@@ -258,6 +266,8 @@ function StockPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
             <label className="flex flex-col gap-1 text-sm font-semibold">{t('jwl.hallmark')}<input value={d.hallmark} onChange={(e) => set('hallmark', num(e.target.value))} inputMode="decimal" placeholder="0" className={box} /></label>
             <label className="flex flex-col gap-1 text-sm font-semibold">HUID<input value={d.huid} onChange={(e) => set('huid', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="AB12CD" className={`${box} font-mono`} /></label>
           </div>
+          <StonesEditor stones={d.stones} onChange={(s) => set('stones', s)} />
+          <label className="flex flex-col gap-1 text-sm font-semibold">{t('jwl3.tray')}<input value={d.tray} onChange={(e) => set('tray', e.target.value)} maxLength={30} placeholder={t('jwl3.trayPlaceholder')} className={box} /></label>
           <label className="flex flex-col gap-1 text-sm font-semibold">{t('jwl.fixedPrice')}<input value={d.fixed} onChange={(e) => set('fixed', num(e.target.value))} inputMode="decimal" placeholder={t('jwl.fixedPlaceholder')} className={box} />
             <span className="text-xs font-normal text-muted">{t('jwl.fixedHint')}</span></label>
           {error && <p className="text-sm font-semibold text-due">{error}</p>}

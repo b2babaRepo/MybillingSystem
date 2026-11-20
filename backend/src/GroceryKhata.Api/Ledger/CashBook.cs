@@ -51,6 +51,10 @@ public enum CashBookSource
     /// <summary>A girvi (gold) loan given against pledged jewellery (negative), and money paid back on one.</summary>
     GirviGiven,
     GirviReceived,
+
+    /// <summary>Money paid to a karigar or bullion trader (labour, or metal bought by rate cut), and money received on a rate cut.</summary>
+    MetalPaid,
+    MetalReceived,
 }
 
 /// <summary>
@@ -152,10 +156,16 @@ public static class CashBookEndpoints
                               join l in db.GirviLoans.AsNoTracking() on p.LoanId equals l.Id
                               join c in db.Customers.AsNoTracking() on l.CustomerId equals c.Id
                               select new CashBookLine(p.At, CashBookSource.GirviReceived, c.Name + " · girvi #" + l.Number, p.Mode, p.Amount, null)).ToListAsync(ct));
+        // Karigars and traders: labour paid and metal settled in money.
+        lines.AddRange(await (from m in db.MetalMoves.AsNoTracking()
+                              where m.At >= start && m.At < end && m.CashEffect != 0 && m.Mode != null
+                              join p in db.MetalParties.AsNoTracking() on m.PartyId equals p.Id
+                              select new CashBookLine(m.At, m.CashEffect > 0 ? CashBookSource.MetalReceived : CashBookSource.MetalPaid,
+                                  p.Name + (m.Kind == "labour_paid" ? " · labour" : " · rate cut"), m.Mode!.Value, m.CashEffect, null)).ToListAsync(ct));
         lines.Sort((a, b) => a.OccurredAt.CompareTo(b.OccurredAt));
 
         // Money out of the drawer that isn't a refund of money in: kharcha, cash taken out, cash put in the bank.
-        static bool Out(CashBookSource s) => s is CashBookSource.Expense or CashBookSource.CashRemoved or CashBookSource.ToBank or CashBookSource.BagsBought or CashBookSource.Refund or CashBookSource.GirviGiven;
+        static bool Out(CashBookSource s) => s is CashBookSource.Expense or CashBookSource.CashRemoved or CashBookSource.ToBank or CashBookSource.BagsBought or CashBookSource.Refund or CashBookSource.GirviGiven or CashBookSource.MetalPaid;
         var money = lines.Where(l => !Out(l.Source)).ToList();
         var cash = money.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount);
         var upi = money.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount);

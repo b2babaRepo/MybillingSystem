@@ -183,6 +183,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<JewelleryBillLine> JewelleryBillLines => Set<JewelleryBillLine>();
     public DbSet<OldMetalPurchase> OldMetalPurchases => Set<OldMetalPurchase>();
     public DbSet<GirviLoan> GirviLoans => Set<GirviLoan>();
+    public DbSet<MetalParty> MetalParties => Set<MetalParty>();
+    public DbSet<MetalMove> MetalMoves => Set<MetalMove>();
+    public DbSet<PieceStone> PieceStones => Set<PieceStone>();
+    public DbSet<TrayCount> TrayCounts => Set<TrayCount>();
+    public DbSet<WeighingScale> WeighingScales => Set<WeighingScale>();
     public DbSet<GirviPayment> GirviPayments => Set<GirviPayment>();
     public DbSet<SchemePlan> SchemePlans => Set<SchemePlan>();
     public DbSet<SchemeMember> SchemeMembers => Set<SchemeMember>();
@@ -1325,6 +1330,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(p => p.Name).HasMaxLength(80);
             b.Property(p => p.Category).HasMaxLength(60);
+            b.Property(p => p.Tray).HasMaxLength(30);
             b.Property(p => p.Metal).HasMaxLength(10);
             b.Property(p => p.MakingType).HasMaxLength(10);
             b.Property(p => p.Huid).HasMaxLength(6);
@@ -1365,6 +1371,74 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
                 nameof(JewelleryBillLine.MakingValue), nameof(JewelleryBillLine.MakingAmount), nameof(JewelleryBillLine.StoneValue), nameof(JewelleryBillLine.HallmarkCharge),
                 nameof(JewelleryBillLine.Taxable), nameof(JewelleryBillLine.Gst) }) b.Property(m).HasPrecision(14, 2);
             b.HasIndex(l => new { l.ShopId, l.BillId });
+        });
+
+        modelBuilder.Entity<MetalParty>(b =>
+        {
+            b.ToTable("metal_parties");
+            b.HasTenantKey();
+            b.Property(p => p.Name).HasMaxLength(80);
+            b.Property(p => p.Phone).HasMaxLength(20);
+            b.Property(p => p.Kind).HasMaxLength(10);
+            b.Property(p => p.AllowancePercent).HasPrecision(5, 2);
+            b.Property(p => p.LabourPerGram).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<MetalMove>(b =>
+        {
+            b.ToTable("metal_moves");
+            b.HasTenantKey();
+            b.Property(m => m.Kind).HasMaxLength(12);
+            b.Property(m => m.Metal).HasMaxLength(10);
+            b.Property(m => m.Note).HasMaxLength(200);
+            b.Property(m => m.Gross).HasPrecision(12, 3);
+            b.Property(m => m.Reading).HasPrecision(5, 2);
+            b.Property(m => m.Fine).HasPrecision(12, 3);
+            b.Property(m => m.Allowance).HasPrecision(12, 3);
+            b.Property(m => m.BalanceEffect).HasPrecision(12, 3);
+            b.Property(m => m.LooseEffect).HasPrecision(12, 3);
+            b.Property(m => m.Labour).HasPrecision(14, 2);
+            b.Property(m => m.RatePerGram).HasPrecision(12, 2);
+            b.Property(m => m.CashEffect).HasPrecision(14, 2);
+            b.Property(m => m.Mode).HasConversion<string>().HasMaxLength(10);
+            b.HasIndex(m => new { m.ShopId, m.Number }).IsUnique();
+            b.HasIndex(m => new { m.ShopId, m.PartyId });
+            b.HasIndex(m => new { m.ShopId, m.At });
+        });
+
+        modelBuilder.Entity<PieceStone>(b =>
+        {
+            b.ToTable("piece_stones");
+            b.HasTenantKey();
+            b.Property(s => s.Kind).HasMaxLength(40);
+            b.Property(s => s.Shape).HasMaxLength(30);
+            b.Property(s => s.Colour).HasMaxLength(20);
+            b.Property(s => s.Clarity).HasMaxLength(20);
+            b.Property(s => s.CertLab).HasMaxLength(20);
+            b.Property(s => s.CertNo).HasMaxLength(40);
+            b.Property(s => s.Carat).HasPrecision(10, 3);
+            b.Property(s => s.RatePerCarat).HasPrecision(14, 2);
+            b.Property(s => s.Value).HasPrecision(14, 2);
+            b.HasIndex(s => new { s.ShopId, s.PieceId });
+        });
+
+        modelBuilder.Entity<TrayCount>(b =>
+        {
+            b.ToTable("tray_counts");
+            b.HasTenantKey();
+            b.Property(c => c.Tray).HasMaxLength(30);
+            b.Property(c => c.Kind).HasMaxLength(10);
+            b.Property(c => c.ExpectedGross).HasPrecision(12, 3);
+            b.Property(c => c.CountedGross).HasPrecision(12, 3);
+            b.HasIndex(c => new { c.ShopId, c.Tray, c.CreatedAt });
+        });
+
+        modelBuilder.Entity<WeighingScale>(b =>
+        {
+            b.ToTable("weighing_scales");
+            b.HasTenantKey();
+            b.Property(s => s.Name).HasMaxLength(60);
+            b.Property(s => s.ReadsTo).HasPrecision(6, 3);
         });
 
         modelBuilder.Entity<GirviLoan>(b =>

@@ -74,6 +74,9 @@ public sealed class JewelleryPiece : Entity, ITenantOwned
     public Guid? SoldBillId { get; set; }
 
     public DateTimeOffset? SoldAt { get; set; }
+
+    /// <summary>The tray or counter the piece is kept in, for opening and closing counts.</summary>
+    public string? Tray { get; set; }
 }
 
 /// <summary>A jewellery bill's own facts beside the ordinary bill: PAN, what was paid in money, and old metal taken.</summary>
@@ -187,12 +190,12 @@ public sealed record MetalRatesRequest(IReadOnlyList<MetalRateRequest> Rates);
 
 public sealed record JewelleryPieceRequest(
     string Name, string? Category, string Metal, int Purity, decimal Gross, decimal? Stone, decimal? WastagePercent, string? MakingType,
-    decimal? MakingValue, decimal? StoneValue, decimal? HallmarkCharge, string? Huid, decimal? FixedPrice);
+    decimal? MakingValue, decimal? StoneValue, decimal? HallmarkCharge, string? Huid, decimal? FixedPrice, string? Tray = null, IReadOnlyList<StoneRequest>? Stones = null);
 
 public sealed record JewelleryPieceDto(
     Guid Id, int TagNo, string Name, string? Category, string Metal, int Purity, decimal Gross, decimal Stone, decimal Net, decimal WastagePercent,
     string MakingType, decimal MakingValue, decimal StoneValue, decimal HallmarkCharge, string? Huid, decimal? FixedPrice, bool Sold, Guid? SoldBillId,
-    DateTimeOffset CreatedAt, bool OnApproval = false);
+    DateTimeOffset CreatedAt, bool OnApproval = false, string? Tray = null, IReadOnlyList<StoneDto>? Stones = null);
 
 public sealed record JewelleryLineRequest(
     Guid? PieceId, string? Name, string? Metal, int? Purity, decimal? Gross, decimal? Stone, decimal? WastagePercent, string? MakingType,
@@ -397,7 +400,7 @@ public static class JewelleryEndpoints
 
     private static JewelleryPieceDto ToDto(JewelleryPiece p) => new(
         p.Id, p.TagNo, p.Name, p.Category, p.Metal, p.Purity, p.Gross, p.Stone, JewelleryMath.Grams(p.Gross - p.Stone), p.WastagePercent, p.MakingType,
-        p.MakingValue, p.StoneValue, p.HallmarkCharge, p.Huid, p.FixedPrice, p.SoldBillId is not null, p.SoldBillId, p.CreatedAt);
+        p.MakingValue, p.StoneValue, p.HallmarkCharge, p.Huid, p.FixedPrice, p.SoldBillId is not null, p.SoldBillId, p.CreatedAt, Tray: p.Tray);
 
     private static async Task<IResult> PiecesAsync(string? status, string? q, AppDbContext db, CancellationToken ct)
     {
@@ -427,7 +430,8 @@ public static class JewelleryEndpoints
         var list = await query.OrderByDescending(p => p.TagNo).Take(500).ToListAsync(ct);
         var ids = list.Select(p => p.Id).ToList();
         var out_ = (await db.ApprovalItems.AsNoTracking().Where(i => ids.Contains(i.PieceId) && i.ReturnedAt == null && i.SoldBillId == null).Select(i => i.PieceId).ToListAsync(ct)).ToHashSet();
-        return TypedResults.Ok(list.Select(p => ToDto(p) with { OnApproval = out_.Contains(p.Id) }));
+        var stones = (await db.PieceStones.AsNoTracking().Where(s => ids.Contains(s.PieceId)).OrderBy(s => s.CreatedAt).ToListAsync(ct)).ToLookup(s => s.PieceId);
+        return TypedResults.Ok(list.Select(p => ToDto(p) with { OnApproval = out_.Contains(p.Id), Stones = stones[p.Id].Select(JewelleryWorkshopEndpoints.ToDto).ToList() }));
     }
 
     private static string? CheckPiece(JewelleryPieceRequest r)
@@ -440,7 +444,8 @@ public static class JewelleryEndpoints
         if (r.MakingType is not null && !JewelleryMath.MakingTypes.Contains(r.MakingType)) return "Making is per gram, a percent, or per piece.";
         if (r.MakingValue is < 0 or > 10_000_000 || r.StoneValue is < 0 or > 100_000_000 || r.HallmarkCharge is < 0 or > 10_000 || r.FixedPrice is <= 0 or > 100_000_000) return "Enter amounts of zero or more.";
         if (!string.IsNullOrWhiteSpace(r.Huid) && !HuidPattern.IsMatch(r.Huid.Trim().ToUpperInvariant())) return "HUID is 6 letters and numbers.";
-        return null;
+        if (r.Tray is { Length: > 30 }) return "Tray name is up to 30 letters.";
+        return JewelleryWorkshopEndpoints.CheckStones(r.Stones);
     }
 
     private static void Apply(JewelleryPiece p, JewelleryPieceRequest r)
@@ -458,6 +463,7 @@ public static class JewelleryEndpoints
         p.HallmarkCharge = decimal.Round(r.HallmarkCharge ?? 0, 2);
         p.Huid = string.IsNullOrWhiteSpace(r.Huid) ? null : r.Huid.Trim().ToUpperInvariant();
         p.FixedPrice = r.FixedPrice is { } f ? decimal.Round(f, 2) : null;
+        p.Tray = string.IsNullOrWhiteSpace(r.Tray) ? null : r.Tray.Trim();
     }
 
     private static async Task<IResult> AddPieceAsync(JewelleryPieceRequest request, AppDbContext db, CancellationToken ct)
@@ -473,8 +479,9 @@ public static class JewelleryEndpoints
         var piece = new JewelleryPiece { Name = "", Metal = request.Metal, MakingType = "per_gram", TagNo = next };
         Apply(piece, request);
         db.JewelleryPieces.Add(piece);
+        await JewelleryWorkshopEndpoints.SetStonesAsync(db, piece, request.Stones, ct);
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(ToDto(piece));
+        return TypedResults.Ok(await WithStonesAsync(db, piece, ct));
     }
 
     private static async Task<IResult> EditPieceAsync(Guid id, JewelleryPieceRequest request, AppDbContext db, CancellationToken ct)
@@ -485,9 +492,13 @@ public static class JewelleryEndpoints
         var huid = request.Huid?.Trim().ToUpperInvariant();
         if (!string.IsNullOrEmpty(huid) && await db.JewelleryPieces.AnyAsync(p => p.Huid == huid && p.Id != id, ct)) return Invalid("Huid", $"HUID {huid} is already on another piece.");
         Apply(piece, request);
+        await JewelleryWorkshopEndpoints.SetStonesAsync(db, piece, request.Stones, ct);
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(ToDto(piece));
+        return TypedResults.Ok(await WithStonesAsync(db, piece, ct));
     }
+
+    private static async Task<JewelleryPieceDto> WithStonesAsync(AppDbContext db, JewelleryPiece piece, CancellationToken ct) =>
+        ToDto(piece) with { Stones = (await db.PieceStones.AsNoTracking().Where(s => s.PieceId == piece.Id).OrderBy(s => s.CreatedAt).ToListAsync(ct)).Select(JewelleryWorkshopEndpoints.ToDto).ToList() };
 
     private static async Task<IResult> RemovePieceAsync(Guid id, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
     {
@@ -512,6 +523,7 @@ public static class JewelleryEndpoints
         var rates = (await CurrentRatesAsync(db, clock, ct)).Current.ToDictionary(r => (r.Metal, r.Purity));
         var pieceIds = lines.Where(l => l.PieceId is not null).Select(l => l.PieceId!.Value).Distinct().ToList();
         var pieces = await db.JewelleryPieces.Where(p => pieceIds.Contains(p.Id)).ToListAsync(ct);
+        var labGrown = (await db.PieceStones.AsNoTracking().Where(s => pieceIds.Contains(s.PieceId) && s.LabGrown).Select(s => s.PieceId).Distinct().ToListAsync(ct)).ToHashSet();
         var problems = new List<string>();
         var worked = new List<JewelleryLineDto>();
         var n = 0;
@@ -529,6 +541,7 @@ public static class JewelleryEndpoints
                 if (pieces.FirstOrDefault(p => p.Id == pid) is not { } p) return (null, "A piece on this bill is no longer in stock.");
                 if (p.SoldBillId is not null) return (null, $"Tag J-{p.TagNo} is already sold.");
                 (name, metal, purity, gross, stone, tag, huid) = (p.Name, p.Metal, p.Purity, p.Gross, p.Stone, p.TagNo, p.Huid);
+                if (labGrown.Contains(p.Id)) name += " (lab-grown stones)";
                 wastage = l.WastagePercent ?? p.WastagePercent;
                 makingType = l.MakingType ?? p.MakingType;
                 making = l.MakingValue ?? p.MakingValue;
