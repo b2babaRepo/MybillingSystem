@@ -456,14 +456,23 @@ function MarketsPanel() {
         <Button disabled={draft.name.trim().length < 2} onClick={() => void add()}>{editingId ? t('save') : t('markets.add')}</Button>
         {editingId && <button onClick={() => { setEditingId(null); setDraft(emptyMarket) }} className="min-h-11 font-semibold text-brand">{t('cancel')}</button>}
         {message && <p className="text-sm text-due">{message}</p>}
-        <ul className="flex flex-col gap-2">
-          {markets.map((m) => (
-            <li key={m.id} className={`flex items-center gap-2 border-t border-line pt-2 ${m.isActive ? '' : 'opacity-60'}`}>
-              <span className="min-w-0 flex-1 truncate">{m.name}{marketPlace(m) ? `, ${marketPlace(m)}` : ''} · {t('markets.shops', { count: m.shops })}</span>
-              <button onClick={() => rename(m)} className="min-h-11 px-2 text-sm font-semibold text-brand">{t('markets.edit')}</button>
-              <button onClick={() => void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { ...m, isActive: !m.isActive }))} className="min-h-11 px-2 text-sm font-semibold">{m.isActive ? t('markets.stop') : t('markets.restart')}</button>
-            </li>
-          ))}
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {markets.map((m, i) => {
+            const tone = [['bg-[#e3f2ee]', 'text-[#0b5e4f]'], ['bg-[#e8effd]', 'text-[#1d4ed8]'], ['bg-[#fdf1e3]', 'text-[#a1460a]'], ['bg-[#f1eafd]', 'text-[#6d28d9]']][i % 4]
+            return (
+              <li key={m.id} className={`flex flex-col gap-3 rounded-[18px] border border-line bg-white p-4 shadow-sm ${m.isActive ? '' : 'opacity-60'}`}>
+                <span className="flex items-center gap-3">
+                  <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tone[0]} ${tone[1]}`}><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s7-6 7-11a7 7 0 10-14 0c0 5 7 11 7 11zM12 8a2 2 0 100 4 2 2 0 000-4" /></svg></span>
+                  <span className="flex min-w-0 flex-1 flex-col"><b className="truncate text-[17px]">{m.name}</b>{marketPlace(m) && <span className="truncate text-xs text-muted">{marketPlace(m)}</span>}</span>
+                </span>
+                <span className="flex items-baseline gap-1.5"><b className="text-2xl">{m.shops}</b><span className="text-sm text-muted">{t('plat4.shopsWord', { count: m.shops })}</span></span>
+                <span className="mt-auto grid grid-cols-2 gap-2">
+                  <button onClick={() => rename(m)} className="min-h-10 rounded-xl border border-line font-semibold">{t('markets.edit')}</button>
+                  <button onClick={() => void run(() => api(`/v1/platform/markets/${m.id}`, 'PUT', { ...m, isActive: !m.isActive }))} className={`min-h-10 ${m.isActive ? btn.dangerOutline : `rounded-xl ${btn.solid}`}`}>{m.isActive ? t('markets.stop') : t('markets.restart')}</button>
+                </span>
+              </li>
+            )
+          })}
         </ul>
       </>}
     </section>

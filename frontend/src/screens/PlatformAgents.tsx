@@ -269,7 +269,30 @@ export function PerformancePanel({ role }: { role: AdminRole }) {
       {open && <>
         <p className="text-sm text-muted">{t('performance.hint')}</p>
         {rows.data?.length === 0 && <p className="text-sm text-muted">{t('agentsAdmin.none')}</p>}
-        <ul className="flex flex-col gap-2">
+        {(rows.data?.length ?? 0) > 0 && (
+          <div className="hidden overflow-x-auto rounded-xl border border-line lg:block">
+            <table className="w-full min-w-[860px] border-collapse text-sm">
+              <thead className="bg-[#f6faf9] text-left text-[11px] tracking-wide text-muted uppercase">
+                <tr><th className="px-3 py-2.5">{t('plat4.agent')}</th><th className="px-2 py-2.5">{t('plat4.market')}</th><th className="px-2 py-2.5 text-right">{t('plat4.signed')}</th><th className="px-2 py-2.5 text-right">{t('plat4.approved')}</th><th className="px-2 py-2.5 text-right">{t('plat4.paid')}</th><th className="px-2 py-2.5 text-right">{t('plat4.allTime')}</th><th className="px-2 py-2.5 text-right">{t('plat4.commission')}</th><th className="px-3 py-2.5 text-right" /></tr>
+              </thead>
+              <tbody>
+                {rows.data!.map((r) => (
+                  <tr key={r.agentId} className="border-t border-line">
+                    <td className="px-3 py-2.5"><span className="flex items-center gap-2.5"><span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8effd] text-xs font-extrabold text-[#1d4ed8]">{r.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}</span><span className="flex flex-col"><b>{r.rankOverall > 0 ? `#${r.rankOverall} ` : ''}{r.name} {BADGE_ICON[r.thisMonth.badge]}</b><span className="text-xs text-muted">{r.code} · {formatPhone(r.phone)}</span></span></span></td>
+                    <td className="px-2 py-2.5"><span className="rounded-full bg-[#e8effd] px-2.5 py-0.5 text-xs font-bold text-[#1d4ed8]">{r.market}</span></td>
+                    <td className="px-2 py-2.5 text-right">{r.thisMonth.submitted}</td>
+                    <td className="px-2 py-2.5 text-right">{r.thisMonth.approved}{r.thisMonth.rejected > 0 && <span className="block text-xs text-due">{t('plat4.rejected', { count: r.thisMonth.rejected })}</span>}</td>
+                    <td className="px-2 py-2.5 text-right">{r.thisMonth.paid}</td>
+                    <td className="px-2 py-2.5 text-right text-muted">{t('agentHome.allTime', { shops: r.shopsAllTime, paid: r.paidShopsAllTime })}</td>
+                    <td className="px-2 py-2.5 text-right"><span className="flex flex-col items-end"><b>{t('plat4.due', { amount: formatRupees(r.commissionDue) })}</b><span className="text-xs text-muted">{t('plat4.waitingPaid', { waiting: formatRupees(r.commissionWaiting), paid: formatRupees(r.commissionPaid) })}</span>{r.cashToDeposit > 0 && <span className="text-xs font-semibold text-warn">{t('performance.cash', { amount: formatRupees(r.cashToDeposit) })}</span>}</span></td>
+                    <td className="px-3 py-2.5 text-right">{pays && r.commissionDue > 0 && <button onClick={() => void pay(r)} className={`min-h-9 rounded-xl px-3 whitespace-nowrap ${btn.solid}`}>{t('plat4.recordPay')}</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <ul className="flex flex-col gap-2 lg:hidden">
           {rows.data?.map((r) => (
             <li key={r.agentId} className="flex flex-col gap-1 rounded-xl border border-line p-3 text-sm">
               <span className="flex items-baseline justify-between gap-2">

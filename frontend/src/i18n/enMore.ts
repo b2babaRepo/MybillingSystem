@@ -674,6 +674,7 @@ export const enMore = {
     cost: 'Free to connect. Meta charges per message the shop starts (about ₹0.12 for a bill or reminder, about ₹0.86 for an offer); replies to customers within 24 hours are free.',
     notSetUp: 'Connecting a WhatsApp Business number will be available soon. Until then, the WhatsApp buttons open WhatsApp with the message ready.',
   },
+  plat4: { month: 'Received this month', year: 'This year', ending: 'Trials ending this week', shopsWord: 'shops', agent: 'Agent', market: 'Market', signed: 'Signed up', approved: 'Approved', paid: 'Paid', allTime: 'All time', commission: 'Commission', rejected: '{{count}} rejected', due: '{{amount}} due', waitingPaid: '{{waiting}} waiting · {{paid}} paid', recordPay: 'Record payment' },
   plat3: { hideTest: 'Hide test shops', ticked: '{{count}} shops ticked', approveAll: 'Approve all', clear: 'Clear', tickAll: 'Tick all new shops', tick: 'Tick {{name}}', shop: 'Shop', owner: 'Owner', plan: 'Plan', status: 'Status', action: 'Action', test: 'Test', open: 'Open', close: 'Close' },
   cash3: { today: 'Today' },
   sup4: { owing: 'Suppliers you owe', all: 'Active suppliers' },

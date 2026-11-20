@@ -110,12 +110,16 @@ export function BillingPanel() {
     <Collapsible title={t('billing.title', { count: overview?.pendingClaims.length ?? 0 })}>
       {overview && (
         <>
-          <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="flex min-h-[84px] flex-col justify-between rounded-[18px] bg-[#e3f2ee] p-3 text-[#0b5e4f]"><span className="text-[13px] font-bold">{t('plat4.month')}</span><b className="text-2xl">{formatRupees(overview.revenueThisMonth)}</b></div>
+            <div className="flex min-h-[84px] flex-col justify-between rounded-[18px] bg-white p-3 ring-1 ring-line"><span className="text-[13px] font-bold text-muted">{t('plat4.year')}</span><b className="text-2xl">{formatRupees(overview.revenueThisYear)}</b></div>
+            <div className={`flex min-h-[84px] flex-col justify-between rounded-[18px] p-3 ${overview.trialsEndingThisWeek > 0 ? 'bg-[#b45309] text-white shadow-lg shadow-[#b45309]/30' : 'bg-[#fdf1e3] text-[#a1460a]'}`}><span className="text-[13px] font-bold">{t('plat4.ending')}</span><b className="text-2xl">{overview.trialsEndingThisWeek}</b></div>
+          </div>
+          <div className="flex flex-wrap gap-2">
             {STATUSES.map((s) => (
-              <div key={s} className="rounded-xl bg-ground p-2"><div className="text-xl font-extrabold">{overview.byStatus[s] ?? 0}</div><div className="text-xs text-muted">{t(`plan2.status.${s}`)}</div></div>
+              <span key={s} className="rounded-full border border-line bg-white px-3 py-1 text-[13px] font-semibold">{t(`plan2.status.${s}`)} · <b>{overview.byStatus[s] ?? 0}</b></span>
             ))}
           </div>
-          <p className="text-sm">{t('billing.money', { month: formatRupees(overview.revenueThisMonth), year: formatRupees(overview.revenueThisYear), ending: overview.trialsEndingThisWeek })}</p>
 
           <h3 className="font-bold">{t('billing.claims')}</h3>
           {overview.pendingClaims.length === 0 && <p className="text-sm text-muted">{t('billing.noClaims')}</p>}
@@ -486,14 +490,19 @@ export function PlansPanel() {
   return (
     <Collapsible title={t('plans.title')}>
       <p className="text-sm text-muted">{t('plans.hint')}</p>
-      {plans.map((p) => {
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {plans.map((p, i) => {
         const draft = drafts[p.code]
+        // Each plan in its own colour: free grey, then green, blue, amber, purple.
+        const tone = p.code === 'free' ? ['bg-[#edf2f1]', 'text-[#33423d]'] : [['bg-[#e3f2ee]', 'text-[#0b5e4f]'], ['bg-[#e8effd]', 'text-[#1d4ed8]'], ['bg-[#fdf1e3]', 'text-[#a1460a]'], ['bg-[#f1eafd]', 'text-[#6d28d9]']][(i - 1 + 4) % 4]
         return (
-          <div key={p.code} className={`flex flex-col gap-2 rounded-xl border p-3 ${p.isActive === false ? 'border-dashed border-line opacity-70' : 'border-line'}`}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-lg font-extrabold">{p.name}{p.code !== 'free' && p.priceYear1 ? ` · ${formatRupees(p.priceYear1)}/${t('plan2.year')}` : ''}</span>
-              <span className="text-xs text-muted">{t('plans.shops', { count: p.shops ?? 0 })}{p.isActive === false ? ` · ${t('plans.offSale')}` : ''}</span>
+          <div key={p.code} className={`flex flex-col gap-2.5 rounded-[18px] p-4 ${draft ? 'col-span-full bg-white ring-2 ring-brand' : tone[0]} ${p.isActive === false ? 'opacity-70 outline-2 outline-dashed outline-line' : ''}`}>
+            <div className="flex items-center gap-2.5">
+              <span aria-hidden className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ${tone[1]}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" /></svg></span>
+              <b className="text-lg">{p.name}</b>
+              <span className="ml-auto rounded-full bg-white px-2.5 py-0.5 text-xs font-bold">{t('plans.shops', { count: p.shops ?? 0 })}{p.isActive === false ? ` · ${t('plans.offSale')}` : ''}</span>
             </div>
+            <p className="text-2xl font-extrabold">{p.code === 'free' ? formatRupees(0) : p.priceYear1 ? formatRupees(p.priceYear1) : '—'}{p.code !== 'free' && p.priceYear1 ? <span className="text-sm font-semibold text-muted"> / {t('plan2.year')}</span> : null}</p>
             {draft ? (
               <>
                 <PlanFields draft={draft} onChange={(d) => setDrafts({ ...drafts, [p.code]: d })} disabled={busy} free={p.code === 'free'} />
@@ -509,17 +518,17 @@ export function PlansPanel() {
               </>
             ) : (
               <>
-                <span className="text-sm">
+                <span className="text-sm leading-snug">
                   {p.code === 'free' ? t('plan2.freeIncludes') : p.features.map((f) => t(`plan2.feature.${f}`)).join(' · ')}
                 </span>
                 <span className="text-xs text-muted">
                   {p.maxCustomers ? t('plan2.customersUpTo', { count: p.maxCustomers }) : t('plan2.customersUnlimited')}
                   {` · ${t('plans.ownersCount', { count: p.maxOwners ?? 1 })} · ${t('plan2.staff', { count: p.maxStaff })} · ${t('plan2.whatsapp', { count: p.whatsAppPerMonth })}`}
                 </span>
-                <div className="grid grid-cols-2 gap-2">
-                  <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold" onClick={() => setDrafts({ ...drafts, [p.code]: toDraft(p) })}>{t('plans.edit')}</button>
+                <div className="mt-auto grid grid-cols-2 gap-2">
+                  <button disabled={busy} className="min-h-10 rounded-xl border border-line bg-white font-semibold" onClick={() => setDrafts({ ...drafts, [p.code]: toDraft(p) })}>{t('plans.edit')}</button>
                   {p.code !== 'free' && (
-                    <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold"
+                    <button disabled={busy} className={`min-h-10 ${p.isActive === false ? `rounded-xl ${btn.solid}` : btn.dangerOutline}`}
                       onClick={() => void run(() => api(`/v1/platform/plans/${p.code}/active?active=${p.isActive === false}`, 'POST', {}))}>
                       {p.isActive === false ? t('plans.putOnSale') : t('plans.takeOff')}
                     </button>
@@ -530,6 +539,7 @@ export function PlansPanel() {
           </div>
         )
       })}
+      </div>
 
       {adding ? (
         <div className="flex flex-col gap-2 rounded-xl bg-ground p-3">
