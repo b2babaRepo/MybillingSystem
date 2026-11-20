@@ -8,6 +8,10 @@ import { formatRupees } from '../lib/format'
 import type { CashBook } from '../lib/types'
 import { navigate } from '../router'
 
+const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
+const CASH = 'M3 6h18v12H3zM12 9.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5'
+const UPI = 'M7 2h10v20H7zM11 18h2'
+
 /** Today in India as yyyy-mm-dd (the shop day the server counts by). */
 function indiaToday() {
   return new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
@@ -33,26 +37,43 @@ export function CashBookScreen({ shopId, isOwner = false }: { shopId: string; is
     <div className="flex flex-col gap-3 p-4">
       {isOwner && (
         <div className="flex w-fit gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
-          <span className="flex h-10 items-center rounded-xl bg-white px-4 font-semibold text-brand-strong shadow-sm ring-1 ring-brand/20">{t('bankBook.cashBook')}</span>
+          <span className="flex h-10 items-center rounded-xl bg-brand px-4 font-semibold text-white shadow-md shadow-teal-900/20">{t('bankBook.cashBook')}</span>
           <button onClick={() => navigate('/cashledger')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('cashLedger.title')}</button>
           <button onClick={() => navigate('/bankbook')} className="h-10 rounded-xl px-4 font-semibold text-muted transition hover:text-ink">{t('bankBook.title')}</button>
         </div>
       )}
-      <div className="flex items-center justify-between rounded-card bg-white p-2 shadow-sm">
-        <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="h-11 w-11 rounded-xl text-xl">‹</button>
-        <span className="text-lg font-bold">{label}</span>
-        <button onClick={() => setDay(shiftDay(day, 1))} disabled={day >= today} aria-label={t('book.next')} className="h-11 w-11 rounded-xl text-xl disabled:opacity-30">›</button>
+      <div className="flex items-center justify-between gap-2 rounded-card bg-white p-2 shadow-sm">
+        <button onClick={() => setDay(shiftDay(day, -1))} aria-label={t('book.previous')} className="flex h-11 w-11 items-center justify-center rounded-xl hover:bg-[#f1f5f4]">{icon('M15 18l-6-6 6-6')}</button>
+        <span className="flex items-center gap-2 text-lg font-bold"><span className="text-brand">{icon('M4 5h16v15H4zM4 9h16M8 3v4M16 3v4')}</span>{label}
+          {day !== today && <button onClick={() => setDay(today)} className={`min-h-8 rounded-full px-3 text-xs ${btn.outline}`}>{t('cash3.today')}</button>}
+        </span>
+        <button onClick={() => setDay(shiftDay(day, 1))} disabled={day >= today} aria-label={t('book.next')} className="flex h-11 w-11 items-center justify-center rounded-xl hover:bg-[#f1f5f4] disabled:opacity-30">{icon('M9 6l6 6-6 6')}</button>
+      </div>
+
+      {/* The day's other money jobs, each in its own colour with a line icon on a white dot. */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          { to: '/expenses', label: t('expense.link'), d: 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4', tone: 'bg-[#fde8ec] text-[#be123c] hover:bg-[#fbd5dd]' },
+          { to: '/receipts', label: t('receipts.link'), d: CASH, tone: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
+          { to: '/reports/day', label: t('menu.dayBook'), d: 'M4 5h16v15H4zM4 9h16M8 13h8M8 16h5', tone: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]' },
+          { to: '/cheques', label: t('cheques.link'), d: 'M3 7h18v10H3zM6 12h6M15 13l2-2 2 2', tone: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
+        ].map((x) => (
+          <button key={x.to} onClick={() => navigate(x.to)} className={`flex min-h-[52px] items-center gap-2.5 rounded-2xl px-3 text-left text-sm font-bold transition active:scale-[0.98] ${x.tone}`}>
+            <span aria-hidden className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-white">{icon(x.d)}</span>
+            <span className="leading-tight">{x.label}</span>
+          </button>
+        ))}
       </div>
 
       {book.isError && <p className="text-due">{book.error.message}</p>}
       {data && (
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:[&>ul]:col-start-2 lg:[&>ul]:row-span-3 lg:[&>ul]:row-start-1">
-          <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px]">
+          <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px] shadow-sm">
             <span className="text-[15px] font-semibold text-muted">{t('book.received')}</span>
             <span className="text-[40px] leading-none font-extrabold">{formatRupees(data.total)}</span>
             <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col rounded-xl bg-emerald-50 p-2.5 text-emerald-800"><span className="text-xs">{t('cash')}</span><span className="text-[17px] font-bold">{formatRupees(data.cash)}</span></div>
-              <div className="flex flex-col rounded-xl bg-blue-50 p-2.5 text-blue-800"><span className="text-xs">{t('upi')}</span><span className="text-[17px] font-bold">{formatRupees(data.upi)}</span></div>
+              <div className="flex items-center gap-2.5 rounded-xl bg-emerald-50 p-2.5 text-emerald-800"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-white">{icon(CASH, 16)}</span><span className="flex flex-col"><span className="text-xs">{t('cash')}</span><span className="text-[17px] font-bold">{formatRupees(data.cash)}</span></span></div>
+              <div className="flex items-center gap-2.5 rounded-xl bg-blue-50 p-2.5 text-blue-800"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-white">{icon(UPI, 16)}</span><span className="flex flex-col"><span className="text-xs">{t('upi')}</span><span className="text-[17px] font-bold">{formatRupees(data.upi)}</span></span></div>
             </div>
             {(data.spentCash ?? 0) + (data.spentUpi ?? 0) > 0 && (
               <button onClick={() => navigate('/expenses')} className="flex items-center justify-between rounded-xl bg-due-soft p-2.5 text-left text-red-800">
@@ -64,20 +85,21 @@ export function CashBookScreen({ shopId, isOwner = false }: { shopId: string; is
           </section>
           <GallaCount shopId={shopId} day={day} />
           <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col rounded-card bg-white p-3 shadow-sm"><span className="text-xs text-muted">{t('book.sales')}</span><span className="text-lg font-bold">{formatRupees(data.salesTotal)}</span></div>
-            <div className="flex flex-col rounded-card bg-white p-3 shadow-sm"><span className="text-xs text-muted">{t('book.udhaarGiven')}</span><span className="text-lg font-bold text-udhaar">{formatRupees(data.udhaarGiven)}</span></div>
+            <div className="flex min-h-[72px] flex-col justify-between rounded-card bg-white p-3 shadow-sm ring-1 ring-black/5"><span className="text-xs font-semibold text-muted">{t('book.sales')}</span><b className="text-xl">{formatRupees(data.salesTotal)}</b></div>
+            <div className="flex min-h-[72px] flex-col justify-between rounded-card bg-warn-soft p-3 shadow-sm ring-1 ring-black/5"><span className="text-xs font-semibold text-warn-ink">{t('book.udhaarGiven')}</span><b className="text-xl text-udhaar">{formatRupees(data.udhaarGiven)}</b></div>
           </div>
           {data.lines.length > 0 && <p className="px-4 text-right text-xs font-semibold text-muted">{t('heads.cashRow')}</p>}
           <ul className="divide-y divide-[#edf2f1] rounded-card bg-white px-4 shadow-sm">
-            {data.lines.length === 0 && <li className="py-4 text-muted">{t('book.empty')}</li>}
+            {data.lines.length === 0 && <li className="flex items-center gap-3 py-5 text-muted"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#edf2f1]">{icon(CASH)}</span>{t('book.empty')}</li>}
             {data.lines.map((line, i) => (
               <li key={i}>
                 <button
                   onClick={() => line.billId && navigate(`/print/bill/${line.billId}`)}
                   disabled={!line.billId}
-                  className="flex min-h-14 w-full items-center justify-between gap-2 py-2.5 text-left"
+                  className="flex min-h-14 w-full items-center gap-3 py-2.5 text-left"
                 >
-                  <span className="flex flex-col">
+                  <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${line.amount < 0 ? 'bg-due-soft text-due' : line.mode === 'upi' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}`}>{icon(line.mode === 'upi' ? UPI : CASH)}</span>
+                  <span className="flex min-w-0 flex-1 flex-col">
                     <span className="font-semibold">{line.who || t('book.walkIn')}</span>
                     <span className="text-xs text-muted">
                       {new Date(line.occurredAt).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })} · {t(`book.sources.${line.source}`)} · {t(line.mode)}
@@ -156,8 +178,8 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
   const money = (value: string) => value.replace(/[^\d.]/g, '')
 
   return (
-    <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4 text-[15px]">
-      <h2 className="text-lg font-bold">{t('galla.title')}</h2>
+    <section className="flex flex-col gap-2 rounded-[20px] bg-white p-4 text-[15px] shadow-sm">
+      <h2 className="flex items-center gap-2 text-lg font-bold"><span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-full bg-warn-soft text-warn">{icon('M3 7h18v13H3zM3 7l3-4h12l3 4M9 12h6')}</span>{t('galla.title')}</h2>
       {askOpening && !done ? (
         <label className="flex items-center justify-between gap-2">
           <span className="text-muted">{t('galla.opening')}</span>
