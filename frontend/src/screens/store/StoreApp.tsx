@@ -2,9 +2,10 @@ import { btn } from '../../components/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AisleTiles } from '../../components/AisleTiles'
+import { useAisles } from '../../components/AisleTiles'
 import { ItemCard } from '../../components/ItemCard'
-import { imageUrl } from '../../lib/images'
+import { allPhotos, imageUrl } from '../../lib/images'
+import { PhotoGallery } from '../../components/PhotoGallery'
 import { aisleOf } from '../../lib/itemArt'
 import { nextLanguage, setLanguage } from '../../i18n'
 import { formatRupees, whatsAppLink } from '../../lib/format'
@@ -13,6 +14,7 @@ import { round2 } from '../../lib/local'
 import type { Order } from '../../lib/planner'
 import type { ProblemDetails, Unit } from '../../lib/types'
 import { navigate } from '../../router'
+import { getSession } from '../../lib/session'
 
 // The shop's public online store at #/s/{slug}: no account, no app install. Guests browse, fill a cart, check
 // out with name, phone and (for delivery) an address, then follow the order by its private link.
@@ -33,6 +35,7 @@ interface StoreItem {
   packSize?: number | null
   packUnit?: Unit | null
   imageCredit?: string | null
+  extraPhotos?: string[] | null
 }
 
 interface Store {
@@ -76,7 +79,8 @@ function remember(key: string, value: unknown) {
 async function storeApi<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(`/api/v1/store/${path}`, {
     method,
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    // A signed-in customer's order goes on their account too, so it shows under their own orders.
+    headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(getSession()?.accessToken ? { Authorization: `Bearer ${getSession()!.accessToken}` } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) {
@@ -116,10 +120,13 @@ function Header({ title, subtitle }: { title: string; subtitle?: string | null }
 }
 
 function Catalogue({ slug }: { slug: string }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const store = useQuery({ queryKey: ['store', slug], queryFn: () => storeApi<Store>(slug), retry: false })
   const [cart, setCartState] = useState<Cart>(() => remembered(`store.${slug}.cart`, {}))
-  const [category, setCategory] = useState<string | null>(null)
+  const [category, setCategory] = useState('all')
+  const [search, setSearch] = useState('')
+  const [gallery, setGallery] = useState<StoreItem | null>(null)
+  const aisles = useAisles().data ?? []
   const [checkingOut, setCheckingOut] = useState(false)
   const myOrders = remembered<MyOrder[]>(`store.${slug}.orders`, [])
 
@@ -139,10 +146,22 @@ function Catalogue({ slug }: { slug: string }) {
     setCart(updated)
   }
 
-  // Browse by aisle (the common tree); items the shop added by hand sit under "Other".
-  const aisleOfItem = (i: StoreItem) => aisleOf(i.catalogueItemId) ?? 'other'
+  // Browse by aisle (the common grocery tree). Items not on it (a clothes or jewellery shop's goods, or items added by
+  // hand) sit under the shop's own categories, and those with none under "Other".
+  const aisleOfItem = (i: StoreItem) => aisleOf(i.catalogueItemId) ?? (i.category ? `cat:${i.category}` : 'other')
   const stocked = new Set(data.items.map(aisleOfItem))
-  const shown = category ? data.items.filter((i) => aisleOfItem(i) === category) : []
+  const ownCategories = [...stocked].filter((a) => a.startsWith('cat:')).sort().map((a) => ({ code: a, name: a.slice(4), count: data.items.filter((i) => aisleOfItem(i) === a).length }))
+  // Like the big shopping apps: every item shows at once as a photo card; chips narrow it, search finds by name.
+  const chips = [
+    { code: 'all', name: t('store.all'), count: data.items.length },
+    ...aisles.filter((a) => stocked.has(a.code)).map((a) => ({ code: a.code, name: i18n.language === 'hi' ? a.name : a.nameEn, count: data.items.filter((i) => aisleOfItem(i) === a.code).length })),
+    ...ownCategories,
+    ...(stocked.has('other') ? [{ code: 'other', name: t('store.otherItems'), count: data.items.filter((i) => aisleOfItem(i) === 'other').length }] : []),
+  ]
+  const q = search.trim().toLowerCase()
+  const shown = data.items
+    .filter((i) => (category === 'all' || aisleOfItem(i) === category) && (!q || i.name.toLowerCase().includes(q) || (i.category ?? '').toLowerCase().includes(q)))
+    .sort((a, b) => Number(b.available > 0) - Number(a.available > 0))
   const lines = data.items.filter((i) => cart[i.id] > 0).map((i) => ({ item: i, quantity: cart[i.id] }))
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.item.price), 0))
 
@@ -161,19 +180,20 @@ function Catalogue({ slug }: { slug: string }) {
         </div>
       )}
 
-      {category ? (
-        <button onClick={() => setCategory(null)} className="mx-4 mt-3 flex min-h-11 items-center gap-1 text-lg font-bold text-brand-strong">
-          ‹ {t('store.allAisles')}
-        </button>
-      ) : (
-        <div className="mx-4 mt-3 rounded-card bg-white p-3 shadow-sm">
-          <AisleTiles available={stocked} onPick={(a) => setCategory(a.code)} />
-          {stocked.has('other') && (
-            <button onClick={() => setCategory('other')} className="mt-3 min-h-11 w-full rounded-xl bg-[#edf2f1] font-semibold">{t('store.otherItems')}</button>
-          )}
+      <div className="sticky top-[60px] z-[5] flex flex-col gap-2 bg-ground px-4 pt-3 pb-2 lg:top-[64px]">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('store.search', { name: data.name })} aria-label={t('store.search', { name: data.name })}
+          className="h-12 w-full rounded-xl border border-line bg-white px-4 shadow-sm outline-none focus:border-brand-line" />
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist">
+          {chips.map((c) => (
+            <button key={c.code} role="tab" aria-selected={category === c.code} onClick={() => setCategory(c.code)}
+              className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-semibold ${category === c.code ? 'bg-brand text-white' : 'border border-line bg-white text-ink'}`}>
+              {c.name}<span className={category === c.code ? 'opacity-80' : 'text-muted'}>{c.count}</span>
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
+      {data.items.length > 0 && shown.length === 0 && <p className="p-8 text-center text-muted">{t('store.noMatch')}</p>}
       {data.items.length === 0 && <p className="p-8 text-center text-muted">{t('store.empty')}</p>}
       <ul className="mx-3 mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {shown.map((item) => {
@@ -181,7 +201,8 @@ function Catalogue({ slug }: { slug: string }) {
           const out = item.available <= 0
           return (
             <li key={item.id} className="item-card">
-              <ItemCard item={item} square imageUrl={imageUrl(data.shopId, item.id, item.imageAt, 'thumb')} title={item.name} badge={inCart > 0 ? inCart : undefined} selected={inCart > 0}>
+              <ItemCard item={item} square imageUrl={imageUrl(data.shopId, item.id, item.imageAt, 'thumb')} title={item.name} badge={inCart > 0 ? inCart : (item.extraPhotos?.length ? `📷 ${(item.imageAt ? 1 : 0) + item.extraPhotos.length}` : undefined)} selected={inCart > 0}
+                onClick={allPhotos(data.shopId, item).length > 0 ? () => setGallery(item) : undefined}>
               <div className="mt-0.5 text-[11px] text-muted">{item.packSize && item.packUnit ? `${item.packSize} ${t(`units.${item.packUnit}`, { count: item.packSize })}` : `/${t(`units.${item.unit}`)}`}</div>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
                 <span className="text-[15px] font-bold">{formatRupees(item.price)}</span>
@@ -217,6 +238,8 @@ function Catalogue({ slug }: { slug: string }) {
         })}
       </ul>
 
+      {gallery && <PhotoGallery title={gallery.name} photos={allPhotos(data.shopId, gallery)} onClose={() => setGallery(null)} />}
+
       {lines.length > 0 && !checkingOut && (
         <div className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-[440px] lg:rounded-2xl lg:border lg:shadow-xl">
           <button onClick={() => setCheckingOut(true)} className={`flex h-14 w-full items-center justify-between px-5 text-lg rounded-xl ${btn.solid}`}>
@@ -246,7 +269,9 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
   onPlaced: (placed: Placed) => void
 }) {
   const { t } = useTranslation()
-  const saved = remembered(`store.customer`, { name: '', phone: '', address: '' })
+  // Signed in: their own name and mobile to start with; a guest gets what they typed last time.
+  const me = getSession()?.user
+  const saved = remembered(`store.customer`, { name: me?.fullName ?? '', phone: me?.phone?.replace(/^\+91/, '') ?? '', address: '' })
   const [form, setForm] = useState({ ...saved, fulfilment: 'delivery' as 'delivery' | 'pickup', slot: '', note: '' })
   const [orderId] = useState(uuidv7)
   const [error, setError] = useState('')

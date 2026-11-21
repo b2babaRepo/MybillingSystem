@@ -234,6 +234,7 @@ export const en = {
   book: {
     todayLink: 'Today’s cash book',
   },
+  connect: { title: 'Connect to a shop', hint: 'Type the shop ID (GKS-…) or the shop\'s mobile number, or scan the QR code at the shop.', placeholder: 'Shop ID or mobile', find: 'Find', scan: 'Scan shop QR code', none: 'No shop found with that ID or mobile.', notShopQr: 'That QR code is not a Grocery Khata shop. Scan the shop\'s store QR.', connect: 'Connect', browse: 'See all items at {{name}}' },
   a11y: { less: 'Less', more: 'More', back: 'Back', close: 'Close', menu: 'Menu' },
   dues: {
     link: 'Collect dues',

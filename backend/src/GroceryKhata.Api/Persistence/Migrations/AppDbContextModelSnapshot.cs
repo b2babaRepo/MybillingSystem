@@ -2451,6 +2451,54 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("product_batches", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Catalogue.ProductExtraPhoto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("data");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<byte[]>("ThumbData")
+                        .HasColumnType("bytea")
+                        .HasColumnName("thumb_data");
+
+                    b.Property<string>("ThumbType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("thumb_type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ShopId", "ProductId");
+
+                    b.ToTable("product_extra_photos", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Catalogue.ProductImage", b =>
                 {
                     b.Property<Guid>("ProductId")
@@ -11620,6 +11668,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Navigation("CatalogueItem");
 
                     b.Navigation("MasterItem");
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Catalogue.ProductExtraPhoto", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Catalogue.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Catalogue.ProductImage", b =>

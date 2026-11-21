@@ -13,7 +13,7 @@ public sealed record StoreDto(string Name, string Slug, string? Area, string? Ad
 public sealed record StoreItemDto(
     Guid Id, string Name, string? Category, Unit Unit, decimal Price, decimal Available, int? CatalogueItemId = null, DateTimeOffset? ImageAt = null,
     decimal? Mrp = null, decimal? PackSize = null, Unit? PackUnit = null, string? ImageCredit = null,
-    decimal? RegularPrice = null, string? OfferName = null);
+    decimal? RegularPrice = null, string? OfferName = null, IReadOnlyList<Guid>? ExtraPhotos = null);
 
 public static class StoreStock
 {
@@ -86,6 +86,9 @@ public static class StoreEndpoints
                 p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? Catalogue.MasterPhotos.Representative : null))
             .ToListAsync(ct);
         items = items.Select(i => i.CatalogueItemId is null ? i with { CatalogueItemId = Catalogue.CommonCatalogue.Match(i.Name) } : i).ToList();
+        // The gallery: every photo of an item beyond its main one.
+        var photos = await Catalogue.ProductPhotoEndpoints.IdsAsync(db, null, ct);
+        items = items.Select(i => photos.TryGetValue(i.Id, out var more) ? i with { ExtraPhotos = more } : i).ToList();
 
         // The shop's running sale offers: the customer sees the offer price, the regular price struck out, and its name.
         var now = clock.GetUtcNow();
@@ -104,7 +107,7 @@ public static class StoreEndpoints
     /// Guest checkout. Prices come from the catalogue, never from the request. Each line reserves its quantity on
     /// the product, in the same transaction as the order. Idempotent on the app's order ID.
     /// </summary>
-    private static async Task<IResult> PlaceAsync(string slug, StoreOrderRequest request, AppDbContext db, TenantContext tenant, Billing.Entitlements entitlements, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> PlaceAsync(string slug, StoreOrderRequest request, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, TenantContext tenant, Billing.Entitlements entitlements, TimeProvider clock, CancellationToken ct)
     {
         if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop || !(await entitlements.ForShopAsync(shop.Id, ct)).Has(Billing.Features.Store))
         {
@@ -188,6 +191,8 @@ public static class StoreEndpoints
         {
             Id = request.Id,
             Source = OrderSource.Store,
+            // A signed-in customer: the order is theirs too, so it shows in their app's orders. A guest stays null.
+            PlacedByUserId = user.UserId(),
             CustomerName = request.Name!.Trim(),
             CustomerPhone = phone!,
             ListKind = ListKind.Weekly,
@@ -203,6 +208,8 @@ public static class StoreEndpoints
                 var best = Ledger.SaleOffers.Best(running, product, clock.GetUtcNow());
                 return new OrderLine
                 {
+                    // Lines carry the customer too: row security lets them read only lines placed by them.
+                    PlacedByUserId = user.UserId(),
                     LineNo = ++lineNo,
                     ProductId = product.Id,
                     Name = product.Name,

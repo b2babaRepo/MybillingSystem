@@ -65,6 +65,10 @@ export interface ShopEntry {
   address: string | null
   type?: string
   distanceKm?: number | null
+  /** Opens the shop's own item list (its online store page). */
+  slug?: string | null
+  /** The shop ID shown as GKS-000042. */
+  number?: number | null
 }
 
 export interface OrderLine {

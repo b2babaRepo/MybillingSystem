@@ -1,3 +1,4 @@
+import { ConnectShop } from '../../components/ConnectShop'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { itemArt } from '../../lib/itemArt'
@@ -125,6 +126,7 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
           <h2 className="text-[17px] font-extrabold">{near ? t('home2.shopsNear') : t('home2.shops')}</h2>
           {!near && <button onClick={findNear} className="min-h-11 font-bold text-brand">{t('plan.nearMe')}</button>}
         </div>
+        <ConnectShop onPick={(s) => { setChosenShop(userId, s); navigate('/list/monthly') }} current={getChosenShop(userId)?.id} />
         {shops.data?.length === 0 && <p className="text-sm text-muted">{t('plan.noShops')}</p>}
         {shops.data?.slice(0, 5).map((s) => (
           <button key={s.id} onClick={() => { setChosenShop(userId, s); navigate('/list/monthly') }} className="flex items-center gap-3 rounded-2xl bg-white p-3 text-left">

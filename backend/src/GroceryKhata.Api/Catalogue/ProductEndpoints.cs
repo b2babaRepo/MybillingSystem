@@ -98,7 +98,9 @@ public sealed record ProductDto(
     string? NameHi = null,
     // From this quantity on a bill, the price per unit is WholesalePrice.
     decimal? WholesalePrice = null,
-    decimal? WholesaleMinQty = null);
+    decimal? WholesaleMinQty = null,
+    // More photos beyond the main one, oldest first (see ProductExtraPhoto).
+    IReadOnlyList<Guid>? ExtraPhotos = null);
 
 public sealed record OutTodayRequest(bool Out);
 

@@ -1,3 +1,4 @@
+import { ConnectShop } from '../../components/ConnectShop'
 import { btn } from '../../components/ui'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,6 +44,9 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
   const suggestions = searchCatalogue(shelf, name)
   const hereItems = atShop ? list.items.filter((i) => status(i) === 'here') : list.items
   const estimate = atShop ? Math.round(estimateAtShop(hereItems, atShop).total) : listEstimate(list.items, catalogue)
+  // A shop chosen before shops carried their link: find its link by name once.
+  const lookup = useShopSearch(shop && !shop.slug ? shop.name : '')
+  const shopSlug = shop?.slug ?? (shop ? lookup.data?.find((s) => s.id === shop.id)?.slug : null)
   const chooseShop = (s: ShopEntry | null) => { setChosenShop(userId, s); setShop(s); setChangingShop(false) }
   const optionOf = (i: ListItem): ShopOption | undefined => atShop?.find((o) => o.catalogueItemId === i.catalogueItemId && o.isDefault) ?? atShop?.find((o) => o.catalogueItemId === i.catalogueItemId)
 
@@ -82,6 +86,13 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
           </span>
           <button onClick={() => setChangingShop(!changingShop)} className="min-h-11 shrink-0 rounded-xl border border-line px-3 font-bold text-brand">{shop ? t('shopFirst.change') : t('shopFirst.pick')}</button>
         </div>
+        {/* Every item the shop sells, with its own photos and prices: needed for shops whose goods aren't on the common grocery list (clothes, jewellery). */}
+        {shop && shopSlug && (
+          <button onClick={() => navigate(`/s/${shopSlug}`)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-soft font-bold text-brand-strong">
+            🛍️ {t('connect.browse', { name: shop.name })} ›
+          </button>
+        )}
+        {changingShop && <ConnectShop onPick={chooseShop} current={shop?.id} />}
         {changingShop && (
           <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
             {shopSearch.data?.map((s) => (

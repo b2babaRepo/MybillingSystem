@@ -217,7 +217,7 @@ public sealed class PlannerTests(ApiFactory api)
 
         await shop.PostJsonAsync("/api/v1/products/from-catalogue", new { items = new[] { new { catalogueItemId = catalogue.Single(i => i.NameEn == "Sugar").Id, sellingPrice = 46m } } });
         var sugar = Assert.Single(await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products"));
-        var photo = "data:image/webp;base64," + Convert.ToBase64String([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4]);
+        var photo = "data:image/webp;base64," + Convert.ToBase64String([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50]);
 
         var tooBig = await shop.PutAsJsonAsync($"/api/v1/products/{sugar.Id}/image", new { dataUrl = "data:image/webp;base64," + Convert.ToBase64String(new byte[200_000]) }, ApiFactory.Json);
         var saved = await shop.PutAsJsonAsync($"/api/v1/products/{sugar.Id}/image", new { dataUrl = photo }, ApiFactory.Json);
@@ -228,7 +228,7 @@ public sealed class PlannerTests(ApiFactory api)
         var image = await api.CreateClient().GetAsync($"/api/v1/images/{shopAuth.ShopId}/{sugar.Id}?v=1");
         Assert.Equal("image/webp", image.Content.Headers.ContentType?.MediaType);
         Assert.Contains("immutable", image.Headers.CacheControl!.ToString());
-        Assert.Equal(8, (await image.Content.ReadAsByteArrayAsync()).Length);
+        Assert.Equal(12, (await image.Content.ReadAsByteArrayAsync()).Length);
     }
 
     [Fact]
@@ -291,6 +291,25 @@ public sealed class PlannerTests(ApiFactory api)
         await reader.NextResultAsync();
         await reader.ReadAsync();
         return reader.GetInt64(0);
+    }
+
+    [Fact]
+    public async Task A_customer_connects_to_a_shop_by_its_id_its_qr_link_or_the_owners_mobile()
+    {
+        var ownerPhone = ApiFactory.NewPhone();
+        var auth = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Gupta Saree Centre", fullName = "Owner", phone = ownerPhone, password = "secret123", type = "clothes" })).ReadAsync<AuthResponse>();
+        var (home, _) = await RegisterHouseholdAsync("Priya");
+        async Task<List<ShopDirectoryDto>> Find(string text) => await home.GetJsonAsync<List<ShopDirectoryDto>>($"/api/v1/shops?search={Uri.EscapeDataString(text)}");
+
+        var byPhone = Assert.Single(await Find(ownerPhone));
+        Assert.Equal(auth.ShopId, byPhone.Id);
+        Assert.NotNull(byPhone.Slug);
+        var code = $"GKS-{byPhone.Number:D6}";
+        Assert.Equal(auth.ShopId, Assert.Single(await Find(code)).Id);
+        Assert.Equal(auth.ShopId, Assert.Single(await Find($"https://app.example/#/s/{byPhone.Slug}")).Id);
+        // Part of a number lists nobody: it is a name search, and no shop is called that.
+        Assert.Empty(await Find(ownerPhone[^6..]));
     }
 
     private async Task<(HttpClient, AuthResponse)> SignUpShopAsync(string name, string area)

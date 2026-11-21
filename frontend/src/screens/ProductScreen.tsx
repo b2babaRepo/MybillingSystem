@@ -1,3 +1,4 @@
+import { PhotoGallery } from '../components/PhotoGallery'
 import { itemName } from '../lib/itemName'
 import { coverText } from '../lib/cover'
 import { ItemSuppliersCard } from '../components/SupplierPanels'
@@ -7,7 +8,7 @@ import { isOutToday } from '../lib/local'
 import { billNameFor } from '../lib/billNames'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Drawer, Field, Select, Sheet, btn } from '../components/ui'
+import { Button, Drawer, Field, Select, btn } from '../components/ui'
 import { api, request } from '../lib/api'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { ask, tell } from '../components/Ask'
@@ -18,7 +19,10 @@ import type { Product, StockReason, Unit } from '../lib/types'
 import { UnitSelect } from './BillScreen'
 import { StockBadge } from './ItemsScreen'
 import { ItemCard } from '../components/ItemCard'
-import { imageUrl, itemPhotos } from '../lib/images'
+import { imageUrl, itemPhotos, allPhotos, extraPhotoUrl } from '../lib/images'
+
+/** Photos an item may have besides its main one (the server checks the same). */
+const MAX_EXTRA_PHOTOS = 5
 import { navigate } from '../router'
 import { confirmAsk } from '../components/Ask'
 import { lazy, Suspense } from 'react'
@@ -437,8 +441,11 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [barcode, setBarcode] = useState(product.barcode ?? '')
-  const [viewing, setViewing] = useState(false)
+  const [viewing, setViewing] = useState<number | null>(null)
   const url = imageUrl(shopId, product.id, product.imageAt)
+  const photos = allPhotos(shopId, product)
+  const extras = product.extraPhotos ?? []
+  const room = MAX_EXTRA_PHOTOS - extras.length
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true)
@@ -454,19 +461,18 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
   }
 
   const upload = (file: File) => run(async () => api(`/v1/products/${product.id}/image`, 'PUT', await itemPhotos(file)))
+  // Several at once, as many as there is room for; each is shrunk on the phone first.
+  const addMore = (files: File[]) => run(async () => {
+    for (const file of files.slice(0, room)) await api(`/v1/products/${product.id}/photos`, 'POST', { id: crypto.randomUUID(), ...(await itemPhotos(file)) })
+  })
 
   return (
     <section className="flex items-center gap-3 rounded-card bg-white p-3">
       <div className="w-24 shrink-0">
-        <ItemCard item={product} title="" compact imageUrl={url} onClick={url ? () => setViewing(true) : undefined} />
-        {url && <p className="mt-1 text-center text-[11px] text-muted">{t('photo.tapToView')}</p>}
+        <ItemCard item={product} title="" compact imageUrl={url} onClick={photos.length > 0 ? () => setViewing(0) : undefined} />
+        {photos.length > 0 && <p className="mt-1 text-center text-[11px] text-muted">{photos.length > 1 ? t('gallery.count', { count: photos.length }) : t('photo.tapToView')}</p>}
       </div>
-      {viewing && url && (
-        <Sheet title={product.name} onClose={() => setViewing(false)}>
-          <img src={url} alt={product.name} className="mx-auto aspect-square w-full max-w-md rounded-2xl bg-white object-contain" />
-          {product.imageCredit && <p className="mt-2 text-center text-xs text-muted">{t('photo.credit', { source: product.imageCredit })}</p>}
-        </Sheet>
-      )}
+      {viewing !== null && photos.length > 0 && <PhotoGallery title={product.name} photos={photos} start={viewing} onClose={() => setViewing(null)} />}
       <div className="flex flex-1 flex-col gap-2">
         <span className="text-sm text-muted">{url ? t('photo.has') : t('photo.none')}</span>
         <label className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-brand px-3 font-semibold text-white ${busy ? 'opacity-50' : ''}`}>
@@ -480,6 +486,29 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
           </button>
         )}
         {product.imageCredit && <p className="text-xs text-muted">{t('photo.credit', { source: product.imageCredit })}</p>}
+        {url && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-muted">{t('photo.more', { count: extras.length, max: MAX_EXTRA_PHOTOS })}</span>
+            <div className="flex flex-wrap gap-2">
+              {extras.map((id, i) => (
+                <span key={id} className="relative">
+                  <button onClick={() => setViewing(i + 1)} aria-label={t('gallery.photo', { n: i + 2 })} className="h-14 w-14 overflow-hidden rounded-lg border border-line bg-white">
+                    <img src={extraPhotoUrl(shopId, product.id, id, 'thumb')} alt="" className="h-full w-full object-contain" />
+                  </button>
+                  <button disabled={busy} onClick={() => void run(() => request(`/v1/products/${product.id}/photos/${id}`, 'DELETE'))} aria-label={t('photo.removeOne', { n: i + 2 })}
+                    className="absolute -right-1.5 -top-1.5 h-6 w-6 rounded-full bg-due text-xs font-bold text-white shadow">✕</button>
+                </span>
+              ))}
+              {room > 0 && (
+                <label className={`flex h-14 w-14 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-brand-line text-2xl font-bold text-brand ${busy ? 'opacity-50' : ''}`} aria-label={t('photo.addMore')}>
+                  +
+                  <input type="file" accept="image/*" multiple disabled={busy} className="sr-only"
+                    onChange={(e) => { const files = [...(e.target.files ?? [])]; if (files.length) void addMore(files); e.target.value = '' }} />
+                </label>
+              )}
+            </div>
+          </div>
+        )}
         {(product.photoReports ?? 0) > 0 && (
           <div className="rounded-xl bg-warn-soft p-2 text-sm text-warn-ink">
             ⚑ {t('photo.reported', { count: product.photoReports })}{product.photoReportNote ? `: "${product.photoReportNote}"` : ''}

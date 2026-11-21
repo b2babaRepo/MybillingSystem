@@ -214,6 +214,7 @@ app.MapOtpSignIn();
 app.MapKhataView();
 app.MapDisputes();
 app.MapProductImages();
+app.MapProductPhotos();
 app.MapOrderDrafts();
 app.MapAiPrivacy();
 app.MapWhatsAppOrders();

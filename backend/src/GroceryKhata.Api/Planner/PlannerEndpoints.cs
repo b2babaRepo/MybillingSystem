@@ -108,6 +108,17 @@ public static class PlannerEndpoints
     {
         var hold = platform.Value.HoldNewShops;
         var query = db.Shops.AsNoTracking().Where(s => s.IsActive && (!hold || s.ApprovedAt != null));
+        // Connecting to one shop: its ID (GKS-000042), its store link or QR (…/s/its-name), or the owner's mobile.
+        // These match exactly, so a part of a number or code never lists other shops.
+        if (Exact(search) is { } exact)
+        {
+            var (number, slug, phone) = exact;
+            var found = db.Shops.AsNoTracking().Where(s => s.IsActive && (!hold || s.ApprovedAt != null) && (
+                (number != null && s.Number == number) || (slug != null && s.Slug == slug)
+                || (phone != null && db.Memberships.Any(m => m.ShopId == s.Id && m.IsActive && m.Role == Identity.ShopRole.Owner && db.Users.Any(u => u.Id == m.UserId && u.Phone == phone)))));
+            return await found.OrderBy(s => s.Name).Take(5).Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, null, s.Slug, s.Number)).ToListAsync(ct);
+        }
+
         if (!string.IsNullOrWhiteSpace(search))
         {
             var pattern = $"%{search.Trim()}%";
@@ -130,14 +141,41 @@ public static class PlannerEndpoints
             var (dLat, dLng) = (radiusKm / 111.0, radiusKm / (111.0 * Math.Cos(lat.Value * Math.PI / 180)));
             var near = await query.Where(s => s.Latitude != null && s.Longitude != null
                     && s.Latitude > lat - dLat && s.Latitude < lat + dLat && s.Longitude > lng - dLng && s.Longitude < lng + dLng)
-                .Select(s => new { s.Id, s.Name, s.Area, s.Address, s.Type, Lat = s.Latitude!.Value, Lng = s.Longitude!.Value }).Take(500).ToListAsync(ct);
-            return near.Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, Math.Round(DistanceKm(lat.Value, lng!.Value, s.Lat, s.Lng), 1)))
+                .Select(s => new { s.Id, s.Name, s.Area, s.Address, s.Type, s.Slug, s.Number, Lat = s.Latitude!.Value, Lng = s.Longitude!.Value }).Take(500).ToListAsync(ct);
+            return near.Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, Math.Round(DistanceKm(lat.Value, lng!.Value, s.Lat, s.Lng), 1), s.Slug, s.Number))
                 .Where(s => s.DistanceKm <= radiusKm).OrderBy(s => s.DistanceKm).Take(50).ToList();
         }
 
         return await query.OrderBy(s => s.Area).ThenBy(s => s.Name).Take(50)
-            .Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, null))
+            .Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, null, s.Slug, s.Number))
             .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// A search that names one shop: "GKS-000042" (or "gks42"), a store link or QR text with "/s/its-slug", or a mobile
+    /// number. Null for an ordinary name or area search.
+    /// </summary>
+    internal static (long? Number, string? Slug, string? Phone)? Exact(string? search)
+    {
+        var text = search?.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        var link = System.Text.RegularExpressions.Regex.Match(text, @"/s/([a-z0-9-]{3,80})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (link.Success)
+        {
+            return (null, link.Groups[1].Value.ToLowerInvariant(), null);
+        }
+
+        var code = System.Text.RegularExpressions.Regex.Match(text, @"^gks[\s-]*0*(\d{1,9})$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (code.Success)
+        {
+            return (long.Parse(code.Groups[1].Value), null, null);
+        }
+
+        return text.Count(char.IsAsciiDigit) >= 10 && PhoneNumber.Normalize(text) is { } phone ? (null, null, phone) : null;
     }
 
     /// <summary>Straight-line distance on the earth (haversine).</summary>

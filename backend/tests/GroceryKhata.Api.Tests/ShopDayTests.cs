@@ -341,7 +341,7 @@ public sealed class ShopDayTests(ApiFactory api)
         (await shop.PostJsonAsync("/api/v1/trips", new { id, technician = "Suresh", place = "Rampur" })).EnsureSuccessStatusCode();
         async Task<TripDto> Add(object body) => await (await shop.PostJsonAsync($"/api/v1/trips/{id}/entries", body)).ReadAsync<TripDto>();
         await Add(new { id = Guid.CreateVersion7(), kind = "advance", amount = 2000m });
-        var photo = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 1, 2, 3 });
+        var photo = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3 });
         var trip = await Add(new { id = Guid.CreateVersion7(), kind = "travel", amount = 800m, photoDataUrl = photo });
         Assert.True(trip.Entries.Single(e => e.Kind == TripEntryKind.Travel).HasPhoto);
         var bill = await shop.GetAsync($"/api/v1/trips/photos/{trip.Entries.Single(e => e.Kind == TripEntryKind.Travel).Id}");
@@ -1253,7 +1253,7 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal("9829935486", group.Phone);
 
         // A prescription photo stays with the bill, for the shop only.
-        var png = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 1, 2, 3 });
+        var png = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3 });
         Assert.Equal(HttpStatusCode.NotFound, (await shop.GetAsync($"/api/v1/bills/{bill.Id}/prescription-photo")).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await shop.PutAsJsonAsync($"/api/v1/bills/{bill.Id}/prescription-photo", new { dataUrl = png }, ApiFactory.Json)).StatusCode);
         Assert.Equal("image/png", (await shop.GetAsync($"/api/v1/bills/{bill.Id}/prescription-photo")).Content.Headers.ContentType!.MediaType);

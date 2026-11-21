@@ -172,6 +172,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
 
+    public DbSet<ProductExtraPhoto> ProductExtraPhotos => Set<ProductExtraPhoto>();
+
     public DbSet<AiProposal> AiProposals => Set<AiProposal>();
 
     public DbSet<BalanceCheck> BalanceChecks => Set<BalanceCheck>();
@@ -1773,6 +1775,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Source).HasDefaultValue(ProposalSource.App);
             b.HasIndex(p => new { p.UserId, p.CreatedAt });
             b.HasOne<User>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProductExtraPhoto>(b =>
+        {
+            b.ToTable("product_extra_photos");
+            b.HasKey(p => p.Id);
+            b.HasIndex(p => new { p.ShopId, p.ProductId });
+            b.Property(p => p.ContentType).HasMaxLength(20);
+            b.Property(p => p.ThumbType).HasMaxLength(20);
+            b.HasOne<Product>().WithMany().HasForeignKey(p => p.ProductId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ProductImage>(b =>

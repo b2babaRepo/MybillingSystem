@@ -9,6 +9,17 @@ export function imageUrl(shopId: string, productId: string, imageAt: string | nu
   return imageAt ? `/api/v1/images/${shopId}/${productId}?v=${Date.parse(imageAt)}${size === 'thumb' ? '&size=thumb' : ''}` : undefined
 }
 
+/** Where one of an item's extra photos is served; its id never changes, so it can be cached for good. */
+export function extraPhotoUrl(shopId: string, productId: string, photoId: string, size: 'full' | 'thumb' = 'full') {
+  return `/api/v1/images/${shopId}/${productId}/${photoId}${size === 'thumb' ? '?size=thumb' : ''}`
+}
+
+/** Every photo of an item, main first, in both sizes, for the gallery. */
+export function allPhotos(shopId: string, item: { id: string; imageAt?: string | null; extraPhotos?: string[] | null }) {
+  const main = item.imageAt ? [{ full: imageUrl(shopId, item.id, item.imageAt)!, thumb: imageUrl(shopId, item.id, item.imageAt, 'thumb')! }] : []
+  return [...main, ...(item.extraPhotos ?? []).map((p) => ({ full: extraPhotoUrl(shopId, item.id, p), thumb: extraPhotoUrl(shopId, item.id, p, 'thumb') }))]
+}
+
 /** An item photo in two sizes: 512 px for the item page, 320 px for card grids. Pack shots on white stay well under these budgets. */
 export async function itemPhotos(file: File): Promise<{ dataUrl: string; thumbDataUrl: string }> {
   return { dataUrl: await shrinkPhoto(file, 512, 60_000), thumbDataUrl: await shrinkPhoto(file, 320, 20_000) }

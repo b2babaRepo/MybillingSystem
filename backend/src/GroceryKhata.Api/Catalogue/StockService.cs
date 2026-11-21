@@ -54,7 +54,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var bags = bagged.Count == 0 ? [] : await db.StockMovements.AsNoTracking().Where(m => m.Bags != null && bagged.Contains(m.ProductId))
             .GroupBy(m => m.ProductId).Select(g => new { g.Key, Bags = g.Sum(m => m.Bags!.Value) }).ToDictionaryAsync(x => x.Key, x => x.Bags, ct);
         var promised = await Ledger.SaleOrders.PromisedAsync(db, ct);
-        return list.Select(p => (sold.TryGetValue(p.Id, out var q) && q > 0 ? p with { DailySales = decimal.Round(q / Cover.Days, 3) } : p) with { Bags = bags.GetValueOrDefault(p.Id), Promised = promised.GetValueOrDefault(p.Id) }).ToList();
+        var photos = await ProductPhotoEndpoints.IdsAsync(db, list.Count == 1 ? [list[0].Id] : null, ct);
+        return list.Select(p => (sold.TryGetValue(p.Id, out var q) && q > 0 ? p with { DailySales = decimal.Round(q / Cover.Days, 3) } : p) with
+        {
+            Bags = bags.GetValueOrDefault(p.Id), Promised = promised.GetValueOrDefault(p.Id), ExtraPhotos = photos.GetValueOrDefault(p.Id),
+        }).ToList();
     }
 
     /// <summary>Items made before products remembered their common-list item still get one, from their name.</summary>

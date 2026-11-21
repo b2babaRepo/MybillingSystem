@@ -37,7 +37,8 @@ public sealed record UpsertItemRequest(string? Name, decimal Quantity, Unit? Uni
     }
 }
 
-public sealed record ShopDirectoryDto(Guid Id, string Name, string? Area, string? Address, Shops.ShopType Type = Shops.ShopType.Kirana, double? DistanceKm = null);
+/// <summary><see cref="Slug"/> opens the shop's item list (its online store page); <see cref="Number"/> is its ID, GKS-000042.</summary>
+public sealed record ShopDirectoryDto(Guid Id, string Name, string? Area, string? Address, Shops.ShopType Type = Shops.ShopType.Kirana, double? DistanceKm = null, string? Slug = null, long? Number = null);
 
 /// <summary>For one list item: the exact option picked at this shop (or none: the shop chooses), and what the shop may do.</summary>
 public sealed record LineChoice(Guid ListItemId, Guid? ProductId, ReplacePreference? Preference);

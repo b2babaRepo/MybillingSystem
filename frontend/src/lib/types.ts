@@ -113,6 +113,8 @@ export interface Product {
   isDefaultOption?: boolean
   /** When the shop added its photo; none: the app draws a picture. */
   imageAt?: string | null
+  /** More photos beyond the main one, oldest first. */
+  extraPhotos?: string[] | null
   /** Has stock changes on this phone not yet on the server. */
   pending?: boolean
 }
