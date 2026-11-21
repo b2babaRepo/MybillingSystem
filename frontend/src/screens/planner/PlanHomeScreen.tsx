@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import { CustIcon, shopTint } from '../../components/CustIcons'
-import { useSavedShops } from '../../lib/customer'
+import { addToCart, useSavedShops } from '../../lib/customer'
 import { ConnectShop } from '../../components/ConnectShop'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,6 +41,9 @@ export function setChosenShop(userId: string, shop: ShopEntry | null) {
   } catch { /* storage blocked: the choice lasts until the page closes */ }
 }
 
+/** Shop kinds whose customers buy the same things every week or month. */
+const LIST_TRADES = new Set(['kirana', 'dairy'])
+
 /** The customer's home: both lists with a picture and rough cost, a quick way to add, and the shops nearby. */
 export function PlanHomeScreen({ userId, userName = '' }: { userId: string; userName?: string }) {
   const { t } = useTranslation()
@@ -56,6 +59,15 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
   const [sending, setSending] = useState(false)
   async function orderAgain() {
     if (!last || againLines.length === 0) return
+    // A shop-page order goes back into that shop's cart to check out again: nothing is sent yet, so no question.
+    if (last.source === 'store' && last.shopSlug) {
+      const lines: Record<string, number> = {}
+      for (const l of againLines) { const id = l.requestedProductId ?? l.productId; if (id) lines[id] = (lines[id] ?? 0) + l.quantity }
+      setSending(true)
+      try { await addToCart(last.shopId, lines) } finally { setSending(false) }
+      navigate(`/s/${last.shopSlug}/cart`)
+      return
+    }
     const ok = await confirmAsk(t('again.confirm', {
       list: last.source === 'store' ? t('orders2.online') : t(last.listKind === 'monthly' ? 'plan.monthlyList' : 'plan.weeklyList'), count: againLines.length, shop: last.shopName,
       how: last.fulfilment === 'delivery' ? t('plan.delivery') : t('plan.pickup'),
@@ -72,6 +84,8 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
     navigate('/orders')
   }
   const saved = useSavedShops().data ?? []
+  // Monthly and weekly lists suit grocery buying: shown when the customer uses them or shops at a kirana or dairy.
+  const showLists = monthly.items.length + weekly.items.length > 0 || orders.some((o) => o.source !== 'store') || saved.some((s) => LIST_TRADES.has(s.type))
   // The default address in the header, and the biggest khata due as a card: what a customer checks first.
   const home = useQuery({ queryKey: ['addresses'], queryFn: () => api<{ id: string; label: string; text: string; isDefault: boolean }[]>('/v1/addresses'), retry: false }).data?.[0]
   const owed = (useQuery({ queryKey: ['my-khata'], queryFn: () => api<{ shopId: string; shopName: string; customerId: string; balance: number; confirmed: boolean }[]>('/v1/me/khata'), retry: false }).data ?? [])
@@ -129,7 +143,7 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
               <span className="font-extrabold">{t('again.title')}</span>
               <span className="truncate text-[13px] text-muted">{t('again.line', { list: last.source === 'store' ? t('orders2.online') : t(last.listKind === 'monthly' ? 'plan.monthlyList' : 'plan.weeklyList'), count: againLines.length, shop: last.shopName })}</span>
             </span>
-            <span className="shrink-0 rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white">{t('again.send')}</span>
+            <span className="shrink-0 rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white">{last.source === 'store' && last.shopSlug ? t('cust.fillCart') : t('again.send')}</span>
           </button>
         )}
         <div className="flex items-baseline justify-between">
@@ -149,16 +163,27 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
             <span className="text-center text-sm font-bold">{t('cust.addShop')}</span>
           </button>
         </div>
-        <h2 className="text-[17px] font-extrabold">{t('home2.myLists')}</h2>
-        <div className="grid grid-cols-2 gap-2.5">
-          <ListCard list={monthly} title={t('plan.monthlyList')} catalogue={catalogue} />
-          <ListCard list={weekly} title={t('plan.weeklyList')} catalogue={catalogue} />
-        </div>
-        <button onClick={() => navigate('/ai')} className="flex min-h-14 items-center gap-3 rounded-2xl border border-dashed border-brand-line/50 bg-white px-4 text-left">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f6b5c" strokeWidth="2" aria-hidden><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-          <span className="flex-1 font-bold">{t('ai.title')}</span>
-          <span className="text-xl font-extrabold text-brand">+</span>
-        </button>
+        {showLists ? <>
+          <h2 className="text-[17px] font-extrabold">{t('home2.myLists')}</h2>
+          <div className="grid grid-cols-2 gap-2.5">
+            <ListCard list={monthly} title={t('plan.monthlyList')} catalogue={catalogue} />
+            <ListCard list={weekly} title={t('plan.weeklyList')} catalogue={catalogue} />
+          </div>
+          <button onClick={() => navigate('/ai')} className="flex min-h-14 items-center gap-3 rounded-2xl border border-dashed border-brand-line/50 bg-white px-4 text-left">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f6b5c" strokeWidth="2" aria-hidden><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+            <span className="flex-1 font-bold">{t('ai.title')}</span>
+            <span className="text-xl font-extrabold text-brand">+</span>
+          </button>
+        </> : (
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => navigate('/list/monthly')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-bold shadow-[0_1px_4px_rgba(16,32,29,0.06)]">
+              <CustIcon name="list" size={18} className="text-brand" /><span className="truncate">{t('home2.myLists')}</span>
+            </button>
+            <button onClick={() => navigate('/ai')} className="flex min-h-12 items-center gap-2 rounded-2xl bg-white px-3 text-left text-sm font-bold shadow-[0_1px_4px_rgba(16,32,29,0.06)]">
+              <CustIcon name="mic" size={18} className="text-brand" /><span className="truncate">{t('ai.title')}</span>
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="flex flex-col gap-2 px-4">
@@ -166,7 +191,7 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
           <h2 className="text-[17px] font-extrabold">{near ? t('home2.shopsNear') : t('home2.shops')}</h2>
           {!near && <button onClick={findNear} className="min-h-11 font-bold text-brand">{locating ? t('home2.locating') : t('plan.nearMe')}</button>}
         </div>
-        <ConnectShop onPick={(s) => { setChosenShop(userId, s); navigate('/list/monthly') }} current={getChosenShop(userId)?.id} />
+        <ConnectShop onPick={(s) => { setChosenShop(userId, s); navigate(s.slug ? `/s/${s.slug}` : '/list/monthly') }} current={getChosenShop(userId)?.id} />
         {shops.data?.length === 0 && <p className="text-sm text-muted">{t('plan.noShops')}</p>}
         {shops.data?.slice(0, 5).map((s) => (
           <button key={s.id} onClick={() => { setChosenShop(userId, s); navigate(s.slug ? `/s/${s.slug}` : '/list/monthly') }} className="flex items-center gap-3 rounded-2xl bg-white p-3 text-left">

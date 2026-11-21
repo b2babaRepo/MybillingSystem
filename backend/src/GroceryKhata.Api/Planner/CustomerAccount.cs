@@ -61,7 +61,7 @@ public static class CustomerAccount
     private static List<CartLine> LinesOf(CustomerCart c) => JsonSerializer.Deserialize<List<CartLine>>(c.Lines, Json) ?? [];
 
     /// <summary>Every shop's cart, newest first, each priced from the shop's items as they are now.</summary>
-    private static async Task<IReadOnlyList<CartDto>> CartsAsync(ClaimsPrincipal user, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    private static async Task<IReadOnlyList<CartDto>> CartsAsync(ClaimsPrincipal user, AppDbContext db, IServiceScopeFactory scopes, CancellationToken ct)
     {
         var userId = user.UserId()!.Value;
         var carts = await db.CustomerCarts.AsNoTracking().Where(c => c.UserId == userId).OrderByDescending(c => c.UpdatedAt).ToListAsync(ct);
@@ -72,10 +72,9 @@ public static class CustomerAccount
         {
             var lines = LinesOf(cart);
             var ids = lines.Select(l => l.ProductId).ToList();
-            // Read as that shop: its items are behind row security.
-            tenant.SetShop(cart.ShopId);
-            var products = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id) && p.IsActive && p.SellingPrice > 0)
-                .Select(p => new { p.Id, p.Name, p.Unit, p.SellingPrice, Available = p.Uncounted ? 9999 : p.Stock - p.Reserved, p.ImageAt }).ToDictionaryAsync(p => p.Id, ct);
+            // Read as that shop (its items are behind row security), each shop in its own scope.
+            var products = await CustomerExtras.ReadAsShopAsync(scopes, cart.ShopId, shopDb => shopDb.Products.AsNoTracking().Where(p => ids.Contains(p.Id) && p.IsActive && p.SellingPrice > 0)
+                .Select(p => new { p.Id, p.Name, p.Unit, p.SellingPrice, Available = p.Uncounted ? 9999 : p.Stock - p.Reserved, p.ImageAt }).ToDictionaryAsync(p => p.Id, ct));
             var items = lines.Where(l => products.ContainsKey(l.ProductId)).Select(l =>
             {
                 var p = products[l.ProductId];

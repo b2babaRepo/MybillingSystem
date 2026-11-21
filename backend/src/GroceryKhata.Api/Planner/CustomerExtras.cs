@@ -52,16 +52,26 @@ public static class CustomerExtras
     private sealed record Live(Guid Id, string Name, decimal Price, decimal Available, DateTimeOffset? ImageAt);
 
     /// <summary>Items at one shop as the store sells them now (read as that shop: its items are behind row security).</summary>
-    private static async Task<Dictionary<Guid, Live>> LiveAsync(AppDbContext db, TenantContext tenant, Guid shopId, IReadOnlyCollection<Guid> ids, TimeProvider clock, CancellationToken ct)
+    private static Task<Dictionary<Guid, Live>> LiveAsync(IServiceScopeFactory scopes, Guid shopId, IReadOnlyCollection<Guid> ids, TimeProvider clock, CancellationToken ct)
     {
-        tenant.SetShop(shopId);
         var today = IndiaTime.Today(clock);
-        return await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id) && p.IsActive && p.SellingPrice > 0)
+        return ReadAsShopAsync(scopes, shopId, db => db.Products.AsNoTracking().Where(p => ids.Contains(p.Id) && p.IsActive && p.SellingPrice > 0)
             .Select(p => new Live(p.Id, p.Name, p.SellingPrice, p.OutOn == today ? 0 : p.Uncounted ? StoreStock.Uncounted : p.Stock - p.Reserved, p.ImageAt))
-            .ToDictionaryAsync(p => p.Id, ct);
+            .ToDictionaryAsync(p => p.Id, ct));
     }
 
-    private static async Task<IReadOnlyList<SavedItemDto>> SavedAsync(ClaimsPrincipal user, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct)
+    /// <summary>
+    /// Reads one shop's rows (behind row security) in a scope of its own. A request may set its shop only once,
+    /// so a customer screen that covers several shops (carts, saved items) reads each this way.
+    /// </summary>
+    internal static async Task<T> ReadAsShopAsync<T>(IServiceScopeFactory scopes, Guid shopId, Func<AppDbContext, Task<T>> read)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<TenantContext>().SetShop(shopId);
+        return await read(scope.ServiceProvider.GetRequiredService<AppDbContext>());
+    }
+
+    private static async Task<IReadOnlyList<SavedItemDto>> SavedAsync(ClaimsPrincipal user, AppDbContext db, IServiceScopeFactory scopes, TimeProvider clock, CancellationToken ct)
     {
         var userId = user.UserId()!.Value;
         var saved = await db.SavedItems.Where(x => x.UserId == userId).OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
@@ -70,7 +80,7 @@ public static class CustomerExtras
         var result = new List<SavedItemDto>();
         foreach (var group in saved.Where(x => shops.ContainsKey(x.ShopId)).GroupBy(x => x.ShopId))
         {
-            var live = await LiveAsync(db, tenant, group.Key, group.Select(x => x.ProductId).ToList(), clock, ct);
+            var live = await LiveAsync(scopes, group.Key, group.Select(x => x.ProductId).ToList(), clock, ct);
             foreach (var x in group.Where(x => live.ContainsKey(x.ProductId)))
             {
                 var p = live[x.ProductId];
@@ -88,7 +98,7 @@ public static class CustomerExtras
         return result.OrderByDescending(r => r.SavedAt).ToList();
     }
 
-    private static async Task<IResult> SaveAsync(Guid shopId, Guid productId, ClaimsPrincipal user, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> SaveAsync(Guid shopId, Guid productId, ClaimsPrincipal user, AppDbContext db, IServiceScopeFactory scopes, TimeProvider clock, CancellationToken ct)
     {
         var userId = user.UserId()!.Value;
         if (!await db.Shops.AnyAsync(s => s.Id == shopId && s.IsActive, ct))
@@ -96,7 +106,7 @@ public static class CustomerExtras
             return TypedResults.NotFound();
         }
 
-        var live = await LiveAsync(db, tenant, shopId, [productId], clock, ct);
+        var live = await LiveAsync(scopes, shopId, [productId], clock, ct);
         if (!live.TryGetValue(productId, out var item))
         {
             return TypedResults.NotFound();
@@ -134,7 +144,6 @@ public static class CustomerExtras
         await using var scope = scopes.CreateAsyncScope();
         var sp = scope.ServiceProvider;
         var db = sp.GetRequiredService<AppDbContext>();
-        var tenant = sp.GetRequiredService<TenantContext>();
         var clock = sp.GetRequiredService<TimeProvider>();
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("BackInStock");
         var waiting = await db.SavedItems.Where(x => x.WasOut).ToListAsync(ct);
@@ -147,7 +156,7 @@ public static class CustomerExtras
                 continue;
             }
 
-            var live = await LiveAsync(db, tenant, group.Key, group.Select(x => x.ProductId).Distinct().ToList(), clock, ct);
+            var live = await LiveAsync(scopes, group.Key, group.Select(x => x.ProductId).Distinct().ToList(), clock, ct);
             foreach (var x in group.Where(x => live.TryGetValue(x.ProductId, out var p) && p.Available > 0))
             {
                 x.WasOut = false;

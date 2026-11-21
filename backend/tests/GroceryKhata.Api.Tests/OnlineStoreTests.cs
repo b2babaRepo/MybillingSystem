@@ -12,6 +12,28 @@ namespace GroceryKhata.Api.Tests;
 public sealed class OnlineStoreTests(ApiFactory api)
 {
     [Fact]
+    public async Task Carts_and_saved_items_at_two_shops_both_come_back()
+    {
+        var (shopA, authA) = await api.SignUpAsync("Kirana One");
+        var (shopB, authB) = await api.SignUpAsync("Clothes Two");
+        var atta = await CreateProductAsync(shopA, "Atta", "kg", 44m, 10m);
+        var kurta = await CreateProductAsync(shopB, "Kurta", "piece", 699m, 5m);
+        var customer = api.CreateClient();
+        var me = await (await customer.PostJsonAsync("/api/v1/auth/register", new { fullName = "Meera", phone = ApiFactory.NewPhone(), password = "secret123" })).ReadAsync<GroceryKhata.Api.Identity.AuthResponse>();
+        customer.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", me.AccessToken);
+
+        // Each shop's items are read as that shop: two shops in one request must both work.
+        (await customer.PutAsJsonAsync($"/api/v1/me/carts/{authA.ShopId}", new { lines = new[] { new { productId = atta.Id, quantity = 2m } } })).EnsureSuccessStatusCode();
+        (await customer.PutAsJsonAsync($"/api/v1/me/carts/{authB.ShopId}", new { lines = new[] { new { productId = kurta.Id, quantity = 1m } } })).EnsureSuccessStatusCode();
+        var carts = await customer.GetJsonAsync<List<GroceryKhata.Api.Planner.CartDto>>("/api/v1/me/carts");
+        Assert.Equal(["Clothes Two", "Kirana One"], carts.Select(c => c.ShopName).Order().ToArray());
+
+        (await customer.PutAsJsonAsync($"/api/v1/me/saved-items/{authA.ShopId}/{atta.Id}", new { })).EnsureSuccessStatusCode();
+        (await customer.PutAsJsonAsync($"/api/v1/me/saved-items/{authB.ShopId}/{kurta.Id}", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(2, (await customer.GetJsonAsync<List<SavedItemDto>>("/api/v1/me/saved-items")).Count);
+    }
+
+    [Fact]
     public async Task A_customer_keeps_carts_and_shops_on_the_account_and_cancels_before_packing()
     {
         var (shop, auth) = await api.SignUpAsync("Account Store");
