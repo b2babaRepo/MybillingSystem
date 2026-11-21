@@ -95,7 +95,11 @@ public sealed record OrderDto(
     OrderSource Source,
     string? Address,
     string? ShopSlug = null,
-    string? ShopPhone = null)
+    string? ShopPhone = null,
+    decimal DeliveryFee = 0,
+    DateTimeOffset? AcceptedAt = null,
+    DateTimeOffset? ReadyAt = null,
+    Guid? BillId = null)
 {
     public static OrderDto From(Order o, string shopName, string? shopSlug = null, string? shopPhone = null) => new(
         o.Id, o.ShopId, shopName, o.CustomerName, o.CustomerPhone, o.ListKind, o.Fulfilment, o.Slot, o.Payment, o.Note,
@@ -107,7 +111,11 @@ public sealed record OrderDto(
         o.Source,
         o.Address,
         shopSlug,
-        shopPhone);
+        shopPhone,
+        o.DeliveryFee,
+        o.AcceptedAt,
+        o.ReadyAt,
+        o.BillId);
 }
 
 /// <summary>One packed line. <see cref="ProductId"/>: the shop's option actually packed, when it differs from the line's.</summary>

@@ -171,7 +171,7 @@ export const hi: Texts = {
     send: 'लिस्ट भेजें',
     sentTitle: '{{shop}} को भेजी',
     noOrders: 'अभी कोई ऑर्डर नहीं। अपनी दुकान को लिस्ट भेजें।',
-    status: { placed: 'भेजी', packed: 'पैक हो गया', delivered: 'मिल गया', cancelled: 'रद्द' },
+    status: { placed: 'भेजी', accepted: 'दुकान ने लिया', ready_for_pickup: 'लेने के लिए तैयार', out_for_delivery: 'रास्ते में', packed: 'पैक हो गया', delivered: 'मिल गया', cancelled: 'रद्द' },
     sending: 'भेजी जा रही है…',
     finalAmount: 'अंतिम रकम',
     shopChanged: 'दुकानदार ने बदला',

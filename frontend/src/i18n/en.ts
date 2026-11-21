@@ -169,7 +169,7 @@ export const en = {
     send: 'Send list',
     sentTitle: 'Sent to {{shop}}',
     noOrders: 'No orders yet. Send a list to your shop.',
-    status: { placed: 'Sent', packed: 'Packed', delivered: 'Delivered', cancelled: 'Cancelled' },
+    status: { placed: 'Sent', accepted: 'Accepted', ready_for_pickup: 'Ready for pickup', out_for_delivery: 'Out for delivery', packed: 'Packed', delivered: 'Delivered', cancelled: 'Cancelled' },
     sending: 'Sending…',
     finalAmount: 'Final amount',
     shopChanged: 'Shop changed',

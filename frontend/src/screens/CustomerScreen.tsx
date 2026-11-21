@@ -18,6 +18,7 @@ import { ask, confirmAsk, tell } from '../components/Ask'
 import { CashLimitNote } from '../components/CashLimitNote'
 import { CreditDays } from '../components/CreditDays'
 
+import { OnlineKhataToggle } from '../components/StoreOrderSettings'
 const CustomerTradePanel = lazy(() => import('./CustomerTrade').then((module) => ({ default: module.CustomerTradePanel })))
 
 const UNDO_SECONDS = 30
@@ -325,6 +326,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
             </Suspense>
           )}
           {!customer.isNew && <CreditDays shopId={shopId} customerId={customer.id} days={customer.creditDays} isOwner={isOwner} />}
+          {!customer.isNew && customer.phone && <OnlineKhataToggle customerId={customer.id} isOwner={isOwner} />}
         </div>
       )}
 

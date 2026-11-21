@@ -159,6 +159,7 @@ app.MapMarkets();
 app.MapProfile();
 app.MapAddresses();
 app.MapCustomerAccount();
+app.MapOrderUpdates();
 app.MapGstExport();
 app.MapCreditNotes();
 app.MapMasterItems();

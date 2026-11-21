@@ -13,7 +13,7 @@ import type { Unit } from './types'
 export type ListKind = 'monthly' | 'weekly'
 export type Fulfilment = 'delivery' | 'pickup'
 export type OrderPayment = 'cash' | 'upi' | 'khata'
-export type OrderStatus = 'placed' | 'packed' | 'delivered' | 'cancelled'
+export type OrderStatus = 'placed' | 'accepted' | 'packed' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'cancelled'
 
 export interface ListItem {
   id: string
@@ -146,6 +146,12 @@ export interface Order {
   /** The shop's store link and owner's mobile: to open the shop, call or WhatsApp it from the order. */
   shopSlug?: string | null
   shopPhone?: string | null
+  /** The delivery charge fixed when it was placed (in finalAmount once packed). */
+  deliveryFee?: number
+  acceptedAt?: string | null
+  readyAt?: string | null
+  /** The bill made at delivery (its ID is the order's own); on khata, it is the khata entry. */
+  billId?: string | null
   /** Sent from this phone, not on the server yet. */
   pending?: boolean
 }
@@ -204,7 +210,7 @@ export function useMyOrders(userId: string) {
     queryKey: [key, 'orders'],
     queryFn: () => cachedGet<Order[]>(key, 'orders', '/v1/me/orders'),
     // While an order is still with the shop, check every 15 s so "Packed" and "Delivered" show without a reload.
-    refetchInterval: (q) => ((q.state.data ?? []).some((o) => o.status === 'placed' || o.status === 'packed') ? 15_000 : false),
+    refetchInterval: (q) => ((q.state.data ?? []).some((o) => o.status !== 'delivered' && o.status !== 'cancelled') ? 15_000 : false),
     refetchIntervalInBackground: false,
   })
   const { ops } = useOutbox(key)

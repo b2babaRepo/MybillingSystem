@@ -10,7 +10,7 @@ namespace GroceryKhata.Api.Ledger;
 public sealed record KhataLinkDto(string ShopSlug, Guid CustomerId, string Token);
 
 /// <summary>A customer's own copy of their khata at one shop: read-only, the same ledger the shop sees.</summary>
-public sealed record KhataViewDto(string ShopName, string? ShopArea, string? ShopPhone, StatementDto Statement, IReadOnlyList<ClaimStatusDto>? Claims = null);
+public sealed record KhataViewDto(string ShopName, string? ShopArea, string? ShopPhone, StatementDto Statement, IReadOnlyList<ClaimStatusDto>? Claims = null, string? ShopUpi = null);
 
 /// <summary><see cref="Confirmed"/> false: a khata under this phone that isn't proved theirs yet, so its name and balance stay hidden.</summary>
 public sealed record MyKhataDto(Guid ShopId, string ShopName, string? ShopArea, Guid CustomerId, string CustomerName, decimal Balance, bool Confirmed = true);
@@ -248,13 +248,14 @@ public static class KhataViewEndpoints
         tenant.SetShop(shopId);
         tenant.SetUser(user.UserId()!.Value);
         var shopDb = sp.GetRequiredService<AppDbContext>();
-        var shop = await shopDb.Shops.AsNoTracking().Where(s => s.Id == shopId && s.IsActive).Select(s => new { s.Name, s.Area }).SingleOrDefaultAsync(ct);
+        var shop = await shopDb.Shops.AsNoTracking().Where(s => s.Id == shopId && s.IsActive).Select(s => new { s.Name, s.Area, s.UpiId }).SingleOrDefaultAsync(ct);
         if (shop is null || !await shopDb.Customers.AnyAsync(c => c.Id == customerId && c.Phone == phone && c.PhoneConfirmedAt != null, ct))
         {
             return TypedResults.NotFound();
         }
 
         var statement = await sp.GetRequiredService<LedgerService>().GetStatementAsync(customerId, null, ct);
-        return statement is null ? TypedResults.NotFound() : TypedResults.Ok(new KhataViewDto(shop.Name, shop.Area, null, statement, await Receipts.ClaimsForAsync(shopDb, customerId, clock, ct)));
+        return statement is null ? TypedResults.NotFound() : TypedResults.Ok(new KhataViewDto(shop.Name, shop.Area, null, statement, await Receipts.ClaimsForAsync(shopDb, customerId, clock, ct),
+            string.IsNullOrWhiteSpace(shop.UpiId) ? null : shop.UpiId));
     }
 }

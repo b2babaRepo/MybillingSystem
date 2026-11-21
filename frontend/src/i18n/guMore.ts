@@ -190,7 +190,7 @@ const guMoreB = {
     keepLink: 'તમારો ઓર્ડર જોતા રહેવા આ પાનું રાખો.',
     whatsappShop: 'WhatsApp પર દુકાનને કહો',
     whatsappText: 'નમસ્તે! મેં {{shop}} ના ઓનલાઇન સ્ટોર પર ઓર્ડર {{code}} આપ્યો ({{total}}).',
-    status: { placed: 'અપાયો', packed: 'પેક થયો', delivered: 'પહોંચાડ્યો', cancelled: 'રદ' },
+    status: { placed: 'અપાયો', accepted: 'દુકાને લીધો', ready_for_pickup: 'લેવા માટે તૈયાર', out_for_delivery: 'રસ્તામાં', packed: 'પેક થયો', delivered: 'પહોંચાડ્યો', cancelled: 'રદ' },
     estimate: 'અંદાજિત કુલ',
     myOrders: 'અહીં મારા ઓર્ડર',
     empty: 'ઓનલાઇન ઓર્ડર માટે હજી કંઈ મૂક્યું નથી.',

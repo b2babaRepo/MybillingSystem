@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import { UpiPay } from '../../components/OrderPay'
 import { useTranslation } from 'react-i18next'
 import { KhataHistory } from '../../components/KhataHistory'
 import { Balance, Button, Sheet, btn } from '../../components/ui'
@@ -19,6 +20,8 @@ interface KhataView {
   shopPhone: string | null
   statement: Statement
   claims?: { amount: number; reportedAt: string; status: 'waiting' | 'notReceived' }[] | null
+  /** The shop's UPI ID, for "Pay ₹X by UPI" (signed-in customers only). */
+  shopUpi?: string | null
 }
 
 interface MyKhata {
@@ -166,7 +169,7 @@ function PaidCard({ path, balance, queryKey }: { path: string; balance: number; 
   )
 }
 
-function KhataBody({ view, disputePath, paidPath, queryKey }: { view: KhataView; disputePath: string; paidPath: string; queryKey: unknown[] }) {
+function KhataBody({ view, disputePath, paidPath, queryKey, extra }: { view: KhataView; disputePath: string; paidPath: string; queryKey: unknown[]; extra?: ReactNode }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [disputing, setDisputing] = useState<StatementLine | null>(null)
@@ -192,7 +195,10 @@ function KhataBody({ view, disputePath, paidPath, queryKey }: { view: KhataView;
           {t(`receipts.claim_${c.status}`, { amount: formatRupees(c.amount) })}
         </p>
       ))}
+      {/* Pay by UPI, then "I have paid" tells the shop: the khata changes once the shop confirms the money came. */}
+      {customer.balance > 0 && view.shopUpi && <UpiPay upiId={view.shopUpi} shopName={view.shopName} amount={customer.balance} note={t('payPage.note', { shop: view.shopName })} />}
       {customer.balance > 0 && <PaidCard path={paidPath} balance={customer.balance} queryKey={queryKey} />}
+      {extra}
       {open > 0 && <p className="rounded-[14px] bg-warn-soft p-3 text-sm font-semibold text-amber-950">⚠ {t('dispute.openCount', { count: open })}</p>}
       <p className="text-sm text-muted">{t('dispute.hint')}</p>
       <KhataHistory
@@ -302,12 +308,12 @@ export function MyKhataScreen() {
 }
 
 /** Household app: my khata at one shop. */
-export function MyKhataDetail({ shopId, customerId }: { shopId: string; customerId: string }) {
+export function MyKhataDetail({ shopId, customerId, extra }: { shopId: string; customerId: string; extra?: ReactNode }) {
   const { t } = useTranslation()
   const view = useQuery({ queryKey: ['my-khata', shopId, customerId], queryFn: () => api<KhataView>(`/v1/me/khata/${shopId}/${customerId}`) })
   if (view.isError) return <p className="p-6 text-center text-muted">{t('myKhata.linkInvalid')}</p>
   return view.data ? (
-    <KhataBody view={view.data} queryKey={['my-khata', shopId, customerId]} disputePath={`/v1/me/khata/${shopId}/${customerId}/disputes`} paidPath={`/v1/me/khata/${shopId}/${customerId}/paid`} />
+    <KhataBody view={view.data} queryKey={['my-khata', shopId, customerId]} disputePath={`/v1/me/khata/${shopId}/${customerId}/disputes`} paidPath={`/v1/me/khata/${shopId}/${customerId}/paid`} extra={extra} />
   ) : (
     <p className="p-6 text-center text-muted">…</p>
   )

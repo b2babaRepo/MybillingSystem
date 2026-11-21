@@ -11,10 +11,17 @@ import { PrintLookPanel } from './PrintLookPanel'
 import { PasscodesPanel } from './PasscodesPanel'
 import { WhatsAppBusinessPanel } from './WhatsAppBusinessPanel'
 
+import { StoreOrderSettings } from '../components/StoreOrderSettings'
+
 export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const settings = useShopSettings(shopId)
   if (!settings.data) return <p className="p-4 text-muted">…</p>
-  return <SettingsForm shopId={shopId} isOwner={isOwner} initial={settings.data} />
+  return (
+    <>
+      <SettingsForm shopId={shopId} isOwner={isOwner} initial={settings.data} />
+      <div className="mx-auto max-w-xl px-4 pb-6 lg:max-w-4xl"><StoreOrderSettings shopId={shopId} isOwner={isOwner} /></div>
+    </>
+  )
 }
 
 function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: boolean; initial: ShopSettings }) {

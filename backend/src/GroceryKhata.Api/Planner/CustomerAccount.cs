@@ -197,7 +197,7 @@ public static class CustomerAccount
             return TypedResults.Ok((await PlannerEndpoints.WithShopNamesAsync(db, [order], ct))[0]);
         }
 
-        if (order.Status != OrderStatus.Placed)
+        if (order.Status is not (OrderStatus.Placed or OrderStatus.Accepted))
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "The shop has already packed this order. Call the shop to change or cancel it.");
         }

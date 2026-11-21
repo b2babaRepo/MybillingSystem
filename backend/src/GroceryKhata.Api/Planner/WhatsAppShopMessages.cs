@@ -92,6 +92,9 @@ public static class WhatsAppShopMessages
         new("statement", "gk_khata_statement_v1",
             "Namaste {{1}}, here is your khata with {{2}}. Balance today: ₹{{3}}. Tap below to see every entry.",
             ["Ramesh", "Sharma Kirana", "2,400.00"], "View khata"),
+        new("order", "gk_order_update_v1",
+            "Namaste {{1}}, your order {{2}} at {{3}} is now {{4}}.",
+            ["Ramesh", "#4F2A", "Sharma Kirana", "out for delivery"], "View order"),
     ];
 
     private static readonly CultureInfo India = CultureInfo.GetCultureInfo("en-IN");
@@ -235,6 +238,24 @@ public static class WhatsAppShopMessages
 
         var body = parameters.Select((p, i) => (p, i)).Aggregate(def.Body, (text, x) => text.Replace($"{{{{{x.i + 1}}}}}", x.p));
         return await DeliverAsync(c, db, to, customer!.Id, def.Key, body, billId, clock, () => c.Meta.SendTemplateAsync(c.Row.PhoneNumberId, c.Token, to, def.Name, "en", parameters, link, ct), ct);
+    }
+
+    /// <summary>
+    /// An order step to a customer who asked for WhatsApp updates, from the shop's own number. Quietly does nothing
+    /// when the shop hasn't connected WhatsApp; a failure is logged with the message like any other.
+    /// </summary>
+    internal static async Task SendOrderUpdateAsync(AppDbContext db, IServiceProvider services, string phone, string[] parameters, string link, CancellationToken ct)
+    {
+        if (await ConnectionAsync(db, services, services.GetRequiredService<IDataProtectionProvider>(), ct) is not { } c || WaPhone(phone) is not { } to)
+        {
+            return;
+        }
+
+        var def = Templates.Single(t => t.Key == "order");
+        var body = parameters.Select((p, i) => (p, i)).Aggregate(def.Body, (text, x) => text.Replace($"{{{{{x.i + 1}}}}}", x.p));
+        var customerId = await db.Customers.AsNoTracking().Where(x => x.Phone == phone).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
+        await DeliverAsync(c, db, to, customerId, def.Key, body, null, services.GetRequiredService<TimeProvider>(),
+            () => c.Meta.SendTemplateAsync(c.Row.PhoneNumberId, c.Token, to, def.Name, "en", parameters, link, ct), ct);
     }
 
     /// <summary>Sends, logs the message (sent or failed, with Meta's reason) and answers with the logged message.</summary>

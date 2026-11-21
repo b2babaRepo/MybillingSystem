@@ -128,6 +128,18 @@ public sealed class Shop : Entity
 
     /// <summary>The bank accounts and which kind of money uses which, as JSON (see <see cref="Ledger.BankSetup"/>). Null: one account.</summary>
     public string? BankAccounts { get; set; }
+
+    /// <summary>Online orders: the delivery charge (null or 0: free), shown on every cart before checkout.</summary>
+    public decimal? StoreDeliveryFee { get; set; }
+
+    /// <summary>Online orders at or above this item total deliver free.</summary>
+    public decimal? StoreFreeDeliveryAbove { get; set; }
+
+    /// <summary>The smallest item total the shop takes online.</summary>
+    public decimal? StoreMinOrder { get; set; }
+
+    /// <summary>The times customers pick from ("Now", "Evening", "Tomorrow morning"), set by the shop.</summary>
+    public string[] StoreSlots { get; set; } = [];
 }
 
 /// <summary>The trade. One app for all: the type only changes defaults (units, starter items, bill buttons).</summary>

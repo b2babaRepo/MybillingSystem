@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace GroceryKhata.Api.Planner;
 
 /// <summary>A shop as its online store shows it. <see cref="Phone"/>: the owner's, for "send on WhatsApp".</summary>
-public sealed record StoreDto(string Name, string Slug, string? Area, string? Address, string? Phone, IReadOnlyList<StoreItemDto> Items, Guid ShopId = default);
+public sealed record StoreDto(string Name, string Slug, string? Area, string? Address, string? Phone, IReadOnlyList<StoreItemDto> Items, Guid ShopId = default,
+    StoreSettingsDto? Settings = null, string? UpiId = null);
 
 /// <summary><see cref="Available"/>: on the shelf minus what other online orders hold.</summary>
 public sealed record StoreItemDto(
@@ -31,7 +32,8 @@ public sealed record StoreOrderRequest(
     Fulfilment? Fulfilment,
     string? Slot,
     string? Note,
-    IReadOnlyList<StoreLineRequest>? Lines);
+    IReadOnlyList<StoreLineRequest>? Lines,
+    OrderPayment? Payment = null);
 
 /// <summary>Returned once at checkout: <see cref="StatusToken"/> goes in the customer's order-status link.</summary>
 public sealed record StoreOrderPlaced(OrderDto Order, string StatusToken);
@@ -100,7 +102,9 @@ public static class StoreEndpoints
                 ? i with { Price = best.Price, RegularPrice = i.Price, OfferName = best.Offer.Name } : i).ToList();
         }
 
-        return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items, shop.Id));
+        var row = await db.Shops.AsNoTracking().SingleAsync(s => s.Id == shop.Id, ct);
+        return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items, shop.Id,
+            OrderUpdates.SettingsOf(row), string.IsNullOrWhiteSpace(row.UpiId) ? null : row.UpiId));
     }
 
     /// <summary>
@@ -185,6 +189,29 @@ public static class StoreEndpoints
 
         // The price the customer saw: a running offer's, when there is one.
         var running = await Ledger.SaleOffers.RunningAsync(db, clock.GetUtcNow(), ct);
+        var itemTotal = wanted.Sum(w => Money.LineAmount(w.Quantity, Ledger.SaleOffers.Best(running, products[w.ProductId], clock.GetUtcNow())?.Price ?? products[w.ProductId].SellingPrice));
+
+        // The cart showed the minimum and the charge before checkout; here they are made sure of, nothing added on top.
+        var shopRow = await db.Shops.AsNoTracking().SingleAsync(s => s.Id == shop.Id, ct);
+        var settings = OrderUpdates.SettingsOf(shopRow);
+        if (settings.MinOrder is > 0 and var min && itemTotal < min)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = [$"{shop.Name} takes online orders of ₹{min:0.##} or more."] });
+        }
+
+        var fee = OrderUpdates.DeliveryFee(settings, fulfilment, itemTotal);
+        var payment = request.Payment ?? OrderPayment.Cash;
+        if (payment == OrderPayment.Upi && string.IsNullOrWhiteSpace(shopRow.UpiId))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Payment"] = ["This shop has no UPI ID yet. Pay at delivery or pickup."] });
+        }
+
+        // On khata: the order is that khata customer's, under the phone the khata is kept against, so delivery posts it there.
+        var khata = payment == OrderPayment.Khata ? await OrderUpdates.MyKhataAsync(db, user.UserId(), ct) : null;
+        if (payment == OrderPayment.Khata && OrderUpdates.KhataProblem(khata, itemTotal + fee) is { } khataProblem)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Payment"] = [khataProblem] });
+        }
         var token = Secrets.NewRefreshToken();
         var lineNo = 0;
         var order = new Order
@@ -194,12 +221,13 @@ public static class StoreEndpoints
             // A signed-in customer: the order is theirs too, so it shows in their app's orders. A guest stays null.
             PlacedByUserId = user.UserId(),
             CustomerName = request.Name!.Trim(),
-            CustomerPhone = phone!,
+            CustomerPhone = khata?.Phone ?? phone!,
             ListKind = ListKind.Weekly,
             Fulfilment = fulfilment,
             Address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim(),
             Slot = string.IsNullOrWhiteSpace(request.Slot) ? null : request.Slot.Trim(),
-            Payment = OrderPayment.Cash,
+            Payment = payment,
+            DeliveryFee = fee,
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
             StatusTokenHash = Secrets.Sha256Hex(token),
             Lines = wanted.Select(w =>

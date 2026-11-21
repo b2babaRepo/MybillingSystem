@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { BillSummary } from '../../components/OrderPay'
+import { alertsOn, alertsPossible, billOf, noSettings, turnOffAlerts, turnOnAlerts, type StoreSettings } from '../../lib/orderFlow'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ConnectShop } from '../../components/ConnectShop'
 import { api } from '../../lib/api'
-import { asShopEntry, useCarts, useSavedShops, useSaveShop, type SavedShop } from '../../lib/customer'
+import { asShopEntry, useCarts, useSavedShops, useSaveShop, type Cart, type SavedShop } from '../../lib/customer'
 import { formatRupees } from '../../lib/format'
 import { imageUrl } from '../../lib/images'
 import { useShopSearch, type ShopEntry } from '../../lib/planner'
@@ -44,8 +46,8 @@ export function CartScreen() {
               </span>
             ))}
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <b className="text-xl">{formatRupees(c.total)}</b>
+          <CartBill cart={c} />
+          <div className="flex items-center justify-end gap-2">
             <span className="flex gap-2">
               <button onClick={() => navigate(`/s/${c.shopSlug}`)} className="h-11 rounded-xl border border-line px-3 font-semibold">{t('cust.openShop')}</button>
               <button onClick={() => navigate(`/s/${c.shopSlug}/cart`)} className="h-11 rounded-xl bg-brand px-4 font-bold text-white">{t('store.checkout')} →</button>
@@ -54,6 +56,54 @@ export function CartScreen() {
         </section>
       ))}
     </div>
+  )
+}
+
+interface StoreBits { settings?: StoreSettings | null; items: { id: string; price: number; mrp?: number | null; regularPrice?: number | null }[] }
+
+/** The cart's honest bill, before checkout: item total, saving, the shop's delivery charge and minimum, the total. */
+function CartBill({ cart }: { cart: Cart }) {
+  const store = useQuery({ queryKey: ['store', cart.shopSlug], queryFn: () => fetch(`/api/v1/store/${cart.shopSlug}`).then((r) => (r.ok ? (r.json() as Promise<StoreBits>) : null)), staleTime: 60_000 })
+  const settings = store.data?.settings ?? noSettings
+  const was = (id: string) => {
+    const i = store.data?.items.find((x) => x.id === id)
+    return i ? (i.regularPrice && i.regularPrice > i.price ? i.regularPrice : i.mrp ?? null) : null
+  }
+  const bill = billOf(cart.items.map((i) => ({ price: i.price, quantity: i.quantity, was: was(i.productId) })), settings, 'delivery')
+  return <BillSummary bill={bill} minOrder={settings.minOrder} />
+}
+
+/** Order notifications on this phone, and WhatsApp updates on the account. */
+function AlertSettings() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [push, setPush] = useState<boolean | null>(null)
+  const [message, setMessage] = useState('')
+  const whatsapp = useQuery({ queryKey: ['me', 'order-alerts'], queryFn: () => api<{ whatsApp: boolean }>('/v1/me/order-alerts'), retry: false }).data?.whatsApp ?? false
+  useEffect(() => { void alertsOn().then(setPush).catch(() => setPush(false)) }, [])
+  const blocked = alertsPossible() && Notification.permission === 'denied'
+  async function togglePush() {
+    setMessage('')
+    try {
+      if (push) { await turnOffAlerts(); setPush(false) } else { const on = await turnOnAlerts(); setPush(on); if (!on) setMessage(t('cust2.alertsBlocked')) }
+    } catch (e) { setMessage(e instanceof Error ? e.message : t('error')) }
+  }
+  async function toggleWhatsApp() {
+    await api('/v1/me/order-alerts', 'PUT', { whatsApp: !whatsapp })
+    await queryClient.invalidateQueries({ queryKey: ['me', 'order-alerts'] })
+  }
+  const toggle = (label: string, hint: string, on: boolean, onClick: () => void, disabled = false) => (
+    <button onClick={onClick} disabled={disabled} role="switch" aria-checked={on} className="flex min-h-14 w-full items-center gap-3 border-t border-[#edf2f1] px-1 text-left first:border-t-0 disabled:opacity-50">
+      <span className="flex flex-1 flex-col"><span className="font-semibold">{label}</span><span className="text-[13px] text-muted">{hint}</span></span>
+      <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-brand' : 'bg-[#cfd8d6]'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`} /></span>
+    </button>
+  )
+  return (
+    <section className={card}>
+      {alertsPossible() && toggle(`🔔 ${t('cust2.alertsOn')}`, blocked ? t('cust2.alertsBlocked') : t('cust2.alertsAsk'), !!push, () => void togglePush(), blocked || push === null)}
+      {toggle(`💬 ${t('cust2.whatsapp')}`, t('cust2.whatsappHint'), whatsapp, () => void toggleWhatsApp())}
+      {message && <p className="text-sm text-due">{message}</p>}
+    </section>
   )
 }
 
@@ -105,6 +155,7 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
         {row('🗓️', t('plan.weeklyList'), () => navigate('/list/weekly'))}
         {row('🎙️', t('ai.title'), () => navigate('/ai'))}
       </section>
+      <AlertSettings />
       <section className={card}>
         {row('📍', t('cust.addresses'), () => navigate('/addresses'))}
         {row('🌐', t('cust.language'), () => navigate('/language'), LANGUAGES.find((l) => l.code === i18n.language)?.name)}

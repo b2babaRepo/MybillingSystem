@@ -44,6 +44,9 @@ public sealed class User : Entity
     /// that trusts the number itself (being made a platform admin) needs this.
     /// </summary>
     public DateTimeOffset? PhoneVerifiedAt { get; set; }
+
+    /// <summary>Asked for order updates (accepted, changed, ready, delivered) on WhatsApp from the shops they order from.</summary>
+    public bool OrderWhatsApp { get; set; }
 }
 
 /// <summary>A user's role in one shop. A user can own or work in many shops. Unique (user_id, shop_id).</summary>

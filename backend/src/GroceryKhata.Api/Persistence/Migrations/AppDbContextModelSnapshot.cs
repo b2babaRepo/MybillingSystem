@@ -3170,6 +3170,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("lockout_ends_at");
 
+                    b.Property<bool>("OrderWhatsApp")
+                        .HasColumnType("boolean")
+                        .HasColumnName("order_whats_app");
+
                     b.Property<string>("PasswordHash")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -4971,6 +4975,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<bool>("NameLater")
                         .HasColumnType("boolean")
                         .HasColumnName("name_later");
+
+                    b.Property<bool>("OnlineKhata")
+                        .HasColumnType("boolean")
+                        .HasColumnName("online_khata");
 
                     b.Property<string>("Phone")
                         .HasMaxLength(16)
@@ -10362,12 +10370,68 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("customer_carts", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Planner.CustomerPushDevice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Auth")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("auth");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("endpoint");
+
+                    b.Property<string>("Language")
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)")
+                        .HasColumnName("language");
+
+                    b.Property<string>("P256dh")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("p256dh");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Endpoint")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("customer_push_devices", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Planner.Order", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepted_at");
 
                     b.Property<string>("Address")
                         .HasMaxLength(300)
@@ -10401,6 +10465,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateTimeOffset?>("DeliveredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("delivered_at");
+
+                    b.Property<decimal>("DeliveryFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("delivery_fee");
 
                     b.Property<decimal?>("FinalAmount")
                         .HasPrecision(18, 2)
@@ -10437,6 +10506,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<Guid?>("PlacedByUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("placed_by_user_id");
+
+                    b.Property<DateTimeOffset?>("ReadyAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ready_at");
 
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
@@ -11306,6 +11379,26 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(80)")
                         .HasColumnName("state");
 
+                    b.Property<decimal?>("StoreDeliveryFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("store_delivery_fee");
+
+                    b.Property<decimal?>("StoreFreeDeliveryAbove")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("store_free_delivery_above");
+
+                    b.Property<decimal?>("StoreMinOrder")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("store_min_order");
+
+                    b.PrimitiveCollection<string[]>("StoreSlots")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("store_slots");
+
                     b.Property<string>("TallyLedgers")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
@@ -12075,6 +12168,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Planner.CustomerCart", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Planner.CustomerPushDevice", b =>
                 {
                     b.HasOne("GroceryKhata.Api.Identity.User", null)
                         .WithMany()

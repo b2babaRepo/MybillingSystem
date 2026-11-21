@@ -60,8 +60,13 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const editable = order.status === 'placed' || order.status === 'packed'
-  const total = round2(order.lines.reduce((sum, l) => {
+  const toPack = order.status === 'placed' || order.status === 'accepted'
+  const editable = toPack || order.status === 'packed'
+  // Packed and (once nothing waits) ready at the counter or on the way: what remains is handing it over.
+  const handing = order.status === 'packed' || order.status === 'ready_for_pickup' || order.status === 'out_for_delivery'
+  // The delivery charge the customer saw at checkout is part of what they pay.
+  const fee = order.deliveryFee ?? 0
+  const total = round2(fee + order.lines.reduce((sum, l) => {
     const d = drafts[l.id]
     return d && !d.removed ? sum + round2((Number(d.packedQuantity) || 0) * (Number(d.unitPrice) || 0)) : sum
   }, 0))
@@ -117,12 +122,14 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
   const deliver = () => run(() => act(`/v1/orders/${orderId}/deliver`, { paidAmount: paid === null ? defaultPaid : Number(paid) || 0 }, { status: 'delivered' }, `${t('inbox.deliveredShort')} ${label}`))
   // Pickup with nothing for the customer to approve (no item taken out or swapped): pack and hand over in one tap.
   const noApprovals = order.lines.every((l) => !drafts[l.id]?.removed && (drafts[l.id]?.productId ?? l.productId) === l.productId)
-  const canHandOver = order.status === 'placed' && order.fulfilment === 'pickup' && allPriced && noApprovals
+  const canHandOver = toPack && order.fulfilment === 'pickup' && allPriced && noApprovals
   const handOver = () => run(async () => {
     const packed = await act(`/v1/orders/${orderId}/pack`, packBody(), { status: 'packed', finalAmount: total }, `${t('inbox.packedShort')} ${label}`)
     // A pack waiting in the outbox must reach the server first, so the hand-over waits behind it.
     return act(`/v1/orders/${orderId}/deliver`, { paidAmount: order.payment === 'khata' ? 0 : total }, { status: 'delivered' }, `${t('inbox.deliveredShort')} ${label}`, packed.queued)
   })
+  const accept = () => run(() => act(`/v1/orders/${orderId}/accept`, {}, { status: 'accepted' }, `${t('cust2.accept')} ${label}`))
+  const ready = () => run(() => act(`/v1/orders/${orderId}/ready`, {}, { status: order.fulfilment === 'pickup' ? 'ready_for_pickup' : 'out_for_delivery' }, `${t(order.fulfilment === 'pickup' ? 'cust2.ready' : 'cust2.out')} ${label}`))
   const cancel = async () => (await confirmAsk(t('inbox.cancelConfirm'))) && void run(() => act(`/v1/orders/${orderId}/cancel`, {}, { status: 'cancelled' }, `${t('inbox.cancelledShort')} ${label}`))
 
   return (
@@ -214,7 +221,9 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
 
       {error && <p className="rounded-lg bg-due-soft p-3 text-due">{error}</p>}
 
-      {order.status === 'packed' && (
+      {fee > 0 && <p className="rounded-card bg-white p-3 text-sm shadow-sm">{t('cust2.delivery')}: <b>{formatRupees(fee)}</b> · {t('cust2.feeOnBill')}</p>}
+
+      {handing && (
         <label className="block rounded-card bg-white p-3 shadow-sm">
           <span className="mb-1 block text-sm font-semibold text-muted">{t('inbox.paidNow')}</span>
           <input value={paid ?? String(defaultPaid)} onChange={(e) => setPaid(e.target.value)} inputMode="decimal" className="h-12 w-full rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
@@ -230,18 +239,26 @@ function OrderEditor({ shopId, order }: { shopId: string; order: Order }) {
         <button onClick={cancel} disabled={busy} className={`min-h-11 text-sm ${btn.dangerOutline}`}>{t('inbox.cancel')}</button>
       )}
 
-      {editable && (
+      {(editable || handing) && (
         <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:sticky lg:bottom-0 lg:mx-0 lg:max-w-none lg:rounded-card lg:border lg:shadow-lg flex max-w-xl flex-col gap-2 border-t border-line bg-white px-4 py-3">
+          {order.status === 'placed' && (
+            <button onClick={accept} disabled={busy} className={`h-12 rounded-xl ${btn.outline}`}>✓ {t('cust2.accept')}</button>
+          )}
           {canHandOver && (
             <button onClick={handOver} disabled={busy} className={`h-14 text-lg rounded-xl ${btn.solid}`}>
               {order.payment === 'khata' ? t('inbox.handOverKhata', { amount: formatRupees(total) }) : t('inbox.handOver', { amount: formatRupees(total) })}
             </button>
           )}
-          <button onClick={pack} disabled={busy || !allPriced} className={`h-12 rounded-2xl font-bold ${order.status === 'packed' || canHandOver ? 'border border-line bg-white' : 'bg-brand text-white'} disabled:opacity-40`}>
-            {t('inbox.markPacked', { amount: formatRupees(total) })}
-          </button>
+          {editable && (
+            <button onClick={pack} disabled={busy || !allPriced} className={`h-12 rounded-2xl font-bold ${order.status === 'packed' || canHandOver ? 'border border-line bg-white' : 'bg-brand text-white'} disabled:opacity-40`}>
+              {t('inbox.markPacked', { amount: formatRupees(total) })}
+            </button>
+          )}
           {waiting && <p className="text-center text-sm font-semibold text-warn">⏳ {t('options.waitingDeliver')}</p>}
-          {order.status === 'packed' && order.finalAmount !== null && (
+          {order.status === 'packed' && !waiting && (
+            <button onClick={ready} disabled={busy} className={`h-12 rounded-xl ${btn.outline}`}>{order.fulfilment === 'pickup' ? `🛍️ ${t('cust2.ready')}` : `🛵 ${t('cust2.out')}`}</button>
+          )}
+          {handing && order.finalAmount !== null && (
             <button onClick={deliver} disabled={busy || waiting} className={`h-14 text-lg rounded-xl ${btn.solid}`}>
               {t('inbox.deliver', { amount: formatRupees(order.finalAmount) })}
             </button>

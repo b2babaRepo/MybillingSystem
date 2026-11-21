@@ -99,6 +99,14 @@ public sealed class Order : Entity, IPlacedByUser
 
     public DateTimeOffset? PackedAt { get; set; }
 
+    public DateTimeOffset? AcceptedAt { get; set; }
+
+    /// <summary>When it was put out for pickup, or sent out for delivery.</summary>
+    public DateTimeOffset? ReadyAt { get; set; }
+
+    /// <summary>The shop's delivery charge, fixed when the order is placed and shown on the cart before it: never added later.</summary>
+    public decimal DeliveryFee { get; set; }
+
     public DateTimeOffset? DeliveredAt { get; set; }
 
     public DateTimeOffset? CancelledAt { get; set; }
@@ -217,4 +225,13 @@ public enum OrderStatus
     Packed,
     Delivered,
     Cancelled,
+
+    /// <summary>The shop has seen it and will pack it: the customer can still add items.</summary>
+    Accepted,
+
+    /// <summary>Packed and waiting at the counter (a pickup order).</summary>
+    ReadyForPickup,
+
+    /// <summary>Packed and on its way (a delivery order).</summary>
+    OutForDelivery,
 }

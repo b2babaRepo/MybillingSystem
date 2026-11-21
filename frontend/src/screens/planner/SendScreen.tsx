@@ -9,6 +9,8 @@ import { estimateAtShop, optionFor, quantityIn, sendList, useLists, useShopOptio
 import { navigate } from '../../router'
 import { confirmAsk } from '../../components/Ask'
 import { getChosenShop } from './PlanHomeScreen'
+import { PaymentPicker, SlotChips } from '../../components/OrderPay'
+import { noSettings, useCheckoutInfo } from '../../lib/orderFlow'
 
 /** Mockups 4 and 5 on one screen: pick the shop, then how and when, then send. */
 export function SendScreen({ userId, userName, kind }: { userId: string; userName: string; kind: ListKind }) {
@@ -41,6 +43,8 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
   const options = useShopOptions(shop?.id)
   const [choices, setChoices] = useState<Record<string, LineChoice>>({})
   const estimate = options.data ? estimateAtShop(items, options.data, choices) : null
+  // The shop's time chips and UPI ID, and this person's khata there (its balance, whether the shop allows app orders on it).
+  const info = useCheckoutInfo(shop?.id).data
   // How many list items this shop has in stock (matched by the common catalogue), so the customer can compare shops.
   const available = options.data ? items.filter((i) => options.data.some((o) => o.catalogueItemId === i.catalogueItemId && o.inStock)).length : 0
   const choose = (itemId: string, change: Partial<LineChoice>) =>
@@ -187,18 +191,8 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
             </details>
           </div>
         )}
-        <label className="mt-1 block">
-          <span className="mb-1 block text-base font-bold">{t('plan.when')}</span>
-          <input value={slot} onChange={(e) => setSlot(e.target.value)} maxLength={80} placeholder={t('plan.whenPlaceholder')} className="h-12 w-full rounded-[14px] border border-line px-3 text-[17px]" />
-        </label>
-        <h2 className="mt-1 text-base font-bold">{t('plan.payment')}</h2>
-        <div className="grid grid-cols-3 gap-2">
-          {(['cash', 'upi', 'khata'] as const).map((p) => (
-            <button key={p} onClick={() => setPayment(p)} aria-pressed={payment === p} className={chip(payment === p)}>
-              {p === 'khata' ? t('plan.onKhata') : t(p)}
-            </button>
-          ))}
-        </div>
+        <SlotChips key={shop?.id ?? ''} slots={(info?.settings ?? noSettings).slots} value={slot} onChange={setSlot} placeholder={t('plan.whenPlaceholder')} />
+        <PaymentPicker value={payment} onChange={setPayment} total={estimate?.total ?? 0} upi={!!info?.upiId} khata={info ? info.khata : undefined} signedIn />
         <label className="mt-1 block">
           <span className="mb-1 block text-sm font-semibold text-muted">{t('plan.noteForShop')}</span>
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} className="h-12 w-full rounded-[14px] border border-line px-3 text-[16px]" />

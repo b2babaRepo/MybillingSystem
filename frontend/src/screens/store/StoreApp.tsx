@@ -18,6 +18,9 @@ import type { Order } from '../../lib/planner'
 import type { ProblemDetails, Unit } from '../../lib/types'
 import { navigate } from '../../router'
 import { getSession } from '../../lib/session'
+import { AlertsPrompt, BillSummary, OrderSteps, PaymentPicker, SlotChips, UpiPay } from '../../components/OrderPay'
+import { billOf, isOpen, noSettings, useCheckoutInfo, type StoreSettings } from '../../lib/orderFlow'
+import type { Fulfilment, OrderPayment } from '../../lib/planner'
 
 // The shop's public online store at #/s/{slug}: no account, no app install. Guests browse, fill a cart, check
 // out with name, phone and (for delivery) an address, then follow the order by its private link.
@@ -49,7 +52,13 @@ interface Store {
   phone: string | null
   shopId: string
   items: StoreItem[]
+  /** How the shop takes online orders: charge, free above, minimum, time chips. */
+  settings?: StoreSettings | null
+  upiId?: string | null
 }
+
+/** What a line saves against MRP or the price before the shop's offer. */
+const wasOf = (i: StoreItem) => (i.regularPrice && i.regularPrice > i.price ? i.regularPrice : i.mrp && i.mrp > i.price ? i.mrp : null)
 
 interface Placed {
   order: Order
@@ -148,6 +157,8 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const accountCarts = useCarts(signedIn)
   const [merged, setMerged] = useState(false)
   const shopId = store.data?.shopId
+  // Saved this shop: a good moment to offer order notifications (asked once per phone).
+  const savedHere = useSavedShops(signedIn).data?.some((s) => s.id === shopId) ?? false
   // Signed in: the cart lives on the account. What was added on this phone before signing in joins it once.
   useEffect(() => {
     if (!signedIn || merged || !shopId || !accountCarts.data) return
@@ -198,11 +209,13 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
     .sort((a, b) => Number(b.available > 0) - Number(a.available > 0))
   const lines = data.items.filter((i) => cart[i.id] > 0).map((i) => ({ item: i, quantity: cart[i.id] }))
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.item.price), 0))
+  const settings = data.settings ?? noSettings
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-28 lg:max-w-6xl lg:px-4">
       <Header title={data.name} subtitle={[data.area, data.address].filter(Boolean).join(' · ') || t('store.title')} shopId={data.shopId} />
 
+      {signedIn && savedHere && <div className="mx-4 mt-3"><AlertsPrompt show /></div>}
       {myOrders.length > 0 && (
         <div className="mx-4 mt-3 flex flex-wrap gap-2">
           <span className="text-sm text-muted">{t('store.myOrders')}:</span>
@@ -280,11 +293,13 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
             <span>{t('store.cart', { count: lines.length, total: formatRupees(total) })}</span>
             <span>{t('store.checkout')} →</span>
           </button>
+          {settings.minOrder && total < settings.minOrder ? <p className="mt-1 text-center text-xs font-semibold text-warn-ink">{t('cust2.belowMin', { amount: formatRupees(round2(settings.minOrder - total)), min: formatRupees(settings.minOrder) })}</p>
+            : settings.deliveryFee ? <p className="mt-1 text-center text-xs text-muted">{t('cust2.delivery')} {formatRupees(settings.deliveryFee)}{settings.freeDeliveryAbove ? ` · ${t('cust2.addMoreFree', { amount: formatRupees(Math.max(0, round2(settings.freeDeliveryAbove - total))) })}` : ''}</p> : null}
         </div>
       )}
 
-      {checkingOut && (
-        <Checkout store={data} lines={lines} total={total} onClose={() => setCheckingOut(false)}
+      {checkingOut && (!signedIn || merged) && (
+        <Checkout store={data} lines={lines} onClose={() => setCheckingOut(false)}
           onPlaced={(placed) => {
             setCart({})
             remember(`store.${slug}.orders`, [{ id: placed.order.id, token: placed.statusToken, at: placed.order.createdAt }, ...myOrders].slice(0, 10))
@@ -295,10 +310,9 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   )
 }
 
-function Checkout({ store, lines, total, onClose, onPlaced }: {
+function Checkout({ store, lines, onClose, onPlaced }: {
   store: Store
   lines: { item: StoreItem; quantity: number }[]
-  total: number
   onClose: () => void
   onPlaced: (placed: Placed) => void
 }) {
@@ -308,7 +322,11 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
   const customerKey = `store.customer.${me?.id ?? 'guest'}`
   const saved = remembered(customerKey, { name: me?.fullName ?? '', phone: me?.phone?.replace(/^\+91/, '') ?? '', address: '' })
   const addresses = useQuery({ queryKey: ['addresses'], queryFn: () => api<{ id: string; label: string; text: string; landmark: string | null }[]>('/v1/addresses'), enabled: !!me, retry: false }).data ?? []
-  const [form, setForm] = useState({ ...saved, fulfilment: 'delivery' as 'delivery' | 'pickup', slot: '', note: '' })
+  const [form, setForm] = useState({ ...saved, fulfilment: 'delivery' as Fulfilment, slot: '', note: '' })
+  const [payment, setPayment] = useState<OrderPayment>('cash')
+  const settings = store.settings ?? noSettings
+  const info = useCheckoutInfo(store.shopId, !!me)
+  const bill = billOf(lines.map((l) => ({ price: l.item.price, quantity: l.quantity, was: wasOf(l.item) })), settings, form.fulfilment)
   const [orderId] = useState(uuidv7)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -328,6 +346,7 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
         address: form.fulfilment === 'delivery' ? form.address : null,
         slot: form.slot || null,
         note: form.note || null,
+        payment,
         lines: lines.map((l) => ({ productId: l.item.id, quantity: l.quantity })),
       })
       onPlaced(placed)
@@ -339,7 +358,7 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
 
   const input = 'h-12 w-full rounded-[14px] border-[1.5px] border-line bg-white px-3 text-lg outline-none focus:border-brand-line'
   return (
-    <div className="fixed inset-0 z-20 flex items-end bg-black/40 lg:items-center lg:justify-center lg:p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-30 flex items-end bg-black/40 lg:items-center lg:justify-center lg:p-6" onClick={onClose}>
       <form onSubmit={place} onClick={(e) => e.stopPropagation()} className="flex max-h-[92dvh] w-full flex-col gap-3 overflow-y-auto rounded-t-3xl bg-ground p-4 pb-8 lg:max-w-lg lg:rounded-3xl lg:p-6">
         <h2 className="text-xl font-bold">{t('store.checkout')}</h2>
         <ul className="rounded-[14px] bg-white px-3 text-sm">
@@ -373,21 +392,19 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
           <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.address')}</span>
             <textarea value={form.address} onChange={set('address')} required rows={2} maxLength={300} autoComplete="street-address" className="w-full rounded-[14px] border-[1.5px] border-line bg-white p-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
         </>)}
-        <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.when')}</span>
-          <input value={form.slot} onChange={set('slot')} maxLength={80} placeholder={t('plan.whenPlaceholder')} className={input} /></label>
+        <SlotChips slots={settings.slots} value={form.slot} onChange={(slot) => setForm({ ...form, slot })} placeholder={t('plan.whenPlaceholder')} />
         <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.note')}</span>
           <input value={form.note} onChange={set('note')} maxLength={300} className={input} /></label>
-        <p className="text-sm text-muted">{t('store.priceNote')}</p>
+        <PaymentPicker value={payment} onChange={setPayment} total={bill.total} upi={!!store.upiId} khata={me ? (info.data ? info.data.khata : undefined) : undefined} signedIn={!!me} />
+        <BillSummary bill={bill} minOrder={settings.minOrder} />
         {error && <p className="rounded-lg bg-due-soft p-3 text-due">{error}</p>}
-        <button type="submit" disabled={busy} className={`h-14 text-lg rounded-xl ${btn.solid}`}>
-          {t('store.place', { total: formatRupees(total) })}
+        <button type="submit" disabled={busy || bill.short > 0} className={`h-14 text-lg rounded-xl ${btn.solid} disabled:opacity-50`}>
+          {t('store.place', { total: formatRupees(bill.total) })}
         </button>
       </form>
     </div>
   )
 }
-
-const STEPS = ['placed', 'packed', 'delivered'] as const
 
 function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; token: string }) {
   const { t } = useTranslation()
@@ -403,10 +420,10 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
   if (!order) return <p className="p-8 text-center text-muted">…</p>
 
   const code = `#${order.id.slice(-4).toUpperCase()}`
-  const estimate = round2(order.lines.reduce((sum, l) => sum + (l.unitPrice ?? 0) * l.quantity, 0))
+  const estimate = round2((order.deliveryFee ?? 0) + order.lines.reduce((sum, l) => sum + (l.unitPrice ?? 0) * l.quantity, 0))
   const amount = order.finalAmount ?? estimate
-  const reached = order.status === 'cancelled' ? -1 : STEPS.indexOf(order.status as (typeof STEPS)[number])
   const shopPhone = store.data?.phone ?? null
+  const upiId = store.data?.upiId ?? null
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-8 lg:max-w-2xl">
@@ -414,16 +431,7 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
       <div className="flex flex-col gap-3 p-4">
         <section className="flex flex-col gap-3 rounded-[20px] bg-white p-[18px]">
           <span className={`text-2xl font-extrabold ${order.status === 'cancelled' ? 'text-due' : ''}`}>{t(`store.status.${order.status}`)}</span>
-          {order.status !== 'cancelled' && (
-            <ol className="grid grid-cols-3 gap-1">
-              {STEPS.map((step, i) => (
-                <li key={step} className="flex flex-col gap-1">
-                  <span className={`h-1.5 rounded-full ${i <= reached ? 'bg-brand' : 'bg-[#edf2f1]'}`} />
-                  <span className={`text-xs ${i <= reached ? 'font-bold text-brand-strong' : 'text-muted'}`}>{t(`store.status.${step}`)}</span>
-                </li>
-              ))}
-            </ol>
-          )}
+          <OrderSteps order={order} />
           <p className="text-sm text-muted">{t('store.keepLink')}</p>
         </section>
 
@@ -439,10 +447,17 @@ function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; 
           ))}
         </ul>
 
-        <p className="flex justify-between rounded-card bg-white p-4 text-xl font-extrabold shadow-sm">
-          <span>{order.finalAmount === null ? t('store.estimate') : t('plan.finalAmount')}</span>
-          <span>{formatRupees(amount)}</span>
-        </p>
+        <div className="flex flex-col gap-1 rounded-card bg-white p-4 shadow-sm">
+          {(order.deliveryFee ?? 0) > 0 && <p className="flex justify-between text-sm"><span>{t('cust2.delivery')}</span><span>{formatRupees(order.deliveryFee!)}</span></p>}
+          <p className="flex justify-between text-xl font-extrabold">
+            <span>{order.finalAmount === null ? t('store.estimate') : t('plan.finalAmount')}</span>
+            <span>{formatRupees(amount)}</span>
+          </p>
+          <p className="text-sm text-muted">{t('cust.payment')}: {t(`cust.pay.${order.payment}`)}</p>
+        </div>
+
+        {order.payment === 'upi' && upiId && isOpen(order.status) && <UpiPay upiId={upiId} shopName={order.shopName} amount={amount} note={`${order.shopName} ${code}`} />}
+        {getSession() && <AlertsPrompt show />}
 
         {shopPhone && (
           <a href={whatsAppLink(shopPhone, t('store.whatsappText', { code, shop: order.shopName, total: formatRupees(amount) }))} target="_blank" rel="noreferrer"

@@ -171,7 +171,7 @@ export const gu: Texts = {
     send: 'યાદી મોકલો',
     sentTitle: '{{shop}} ને મોકલ્યું',
     noOrders: 'હજી કોઈ ઓર્ડર નથી. તમારી દુકાને યાદી મોકલો.',
-    status: { placed: 'મોકલ્યું', packed: 'પેક થયું', delivered: 'પહોંચાડ્યું', cancelled: 'રદ થયું' },
+    status: { placed: 'મોકલ્યું', accepted: 'દુકાને લીધો', ready_for_pickup: 'લેવા માટે તૈયાર', out_for_delivery: 'રસ્તામાં', packed: 'પેક થયું', delivered: 'પહોંચાડ્યું', cancelled: 'રદ થયું' },
     sending: 'મોકલી રહ્યા છીએ…',
     finalAmount: 'અંતિમ રકમ',
     shopChanged: 'દુકાને બદલ્યું',

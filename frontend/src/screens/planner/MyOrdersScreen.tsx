@@ -1,14 +1,21 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PendingDot, btn } from '../../components/ui'
+import { Drawer, PendingDot, btn } from '../../components/ui'
+import { AlertsPrompt, OrderSteps, UpiPay } from '../../components/OrderPay'
 import { formatDateTime, formatRupees, whatsAppLink } from '../../lib/format'
 import { api } from '../../lib/api'
+import { imageUrl } from '../../lib/images'
+import { round2 } from '../../lib/local'
+import { canChange, isOpen } from '../../lib/orderFlow'
 import { confirmAsk } from '../../components/Ask'
 import { navigate } from '../../router'
-import { answerChangedLine, homeKey, useMyOrders, type Order, type OrderStatus } from '../../lib/planner'
+import { answerChangedLine, homeKey, useMyOrders, type Order, type OrderLine } from '../../lib/planner'
+import type { Unit } from '../../lib/types'
 
-const STEPS: OrderStatus[] = ['placed', 'packed', 'delivered']
+const code = (o: Order) => `#${o.id.slice(-4).toUpperCase()}`
+/** Lines the shop changed that wait for the customer's answer. */
+const waitingLines = (o: Order) => (o.status === 'packed' ? o.lines.filter((l) => l.approval === 'pending') : [])
 
 /** Mockup 6: each order's progress, what the shop changed, and the final amount once packed. */
 export function MyOrdersScreen({ userId }: { userId: string }) {
@@ -19,28 +26,15 @@ export function MyOrdersScreen({ userId }: { userId: string }) {
     <div className="flex flex-col gap-3 p-4">
       {!isLoading && orders.length === 0 && <p className="py-8 text-center text-muted">{t('plan.noOrders')}</p>}
       {orders.map((order) => (
-        <OrderCard key={order.id} order={order} userId={userId} />
+        <OrderCard key={order.id} order={order} />
       ))}
     </div>
   )
 }
 
-function OrderCard({ order, userId }: { order: Order; userId: string }) {
+function OrderCard({ order }: { order: Order }) {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const [busy, setBusy] = useState<string | null>(null)
-  const waiting = order.status === 'packed' ? order.lines.filter((l) => l.approval === 'pending') : []
-
-  async function answer(lineId: string, approve: boolean) {
-    setBusy(lineId)
-    try {
-      await answerChangedLine(order.id, lineId, approve)
-      await queryClient.invalidateQueries({ queryKey: [homeKey(userId), 'orders'] })
-    } finally {
-      setBusy(null)
-    }
-  }
-  const reached = order.status === 'cancelled' ? -1 : STEPS.indexOf(order.status)
+  const waiting = waitingLines(order)
   const changed = order.lines.filter((l) => l.removed || l.shopNote || (l.packedQuantity !== null && l.packedQuantity !== l.quantity))
 
   return (
@@ -59,39 +53,16 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
         </span>
       </div>
 
-      {order.status !== 'cancelled' && (
-        <ol className="grid grid-cols-3 gap-1" aria-label={t(`plan.status.${order.status}`)}>
-          {STEPS.map((step, index) => (
-            <li key={step} className="flex flex-col gap-1">
-              <span className={`h-1.5 rounded-full ${index <= reached && !order.pending ? 'bg-brand' : 'bg-[#edf2f1]'}`} />
-              <span className={`text-xs ${index <= reached && !order.pending ? 'font-bold text-brand-strong' : 'text-muted'}`}>{t(`plan.status.${step}`)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
+      <OrderSteps order={order} />
 
       {waiting.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-xl bg-warn-soft p-3 text-sm text-amber-950 ring-1 ring-amber-300">
-          <span className="font-bold">⚠ {t('options.waitingTitle')}</span>
-          {waiting.map((l) => (
-            <div key={l.id} className="flex flex-col gap-2 rounded-lg bg-white p-2.5">
-              <span>
-                {t('options.askedFor', { asked: l.requestedName ?? '' })} → <b>{l.name}</b> · {l.packedQuantity ?? l.quantity} {t(`units.${l.unit}`, { count: l.packedQuantity ?? l.quantity })}
-              </span>
-              {l.expectedAmount !== null && l.expectedAmount !== undefined && l.amount !== null && (
-                <span className="font-semibold">{formatRupees(l.expectedAmount)} → {formatRupees(l.amount)}</span>
-              )}
-              {l.shopNote && <span className="text-muted">{l.shopNote}</span>}
-              <div className="grid grid-cols-2 gap-2">
-                <button disabled={busy === l.id} onClick={() => void answer(l.id, true)} className={`min-h-11 rounded-xl ${btn.solid}`}>{t('options.ok')}</button>
-                <button disabled={busy === l.id} onClick={() => void answer(l.id, false)} className={`min-h-11 ${btn.dangerOutline}`}>{t('options.leaveOut')}</button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <button onClick={() => navigate(`/orders/${order.id}`)} className="flex items-center justify-between gap-2 rounded-xl bg-warn-soft p-3 text-left text-sm text-amber-950 ring-1 ring-amber-300">
+          <span><b>⚠ {t('cust2.updatedTitle')}</b> · {t('plan.itemsCount', { count: waiting.length })}</span>
+          <span className="shrink-0 font-bold">{t('cust2.review')} ›</span>
+        </button>
       )}
 
-      {changed.length > 0 && (
+      {changed.length > 0 && waiting.length === 0 && (
         <div className="flex flex-col gap-1 rounded-xl bg-[#f1f5f4] p-3 text-sm">
           <span className="font-bold">{t('plan.shopChanged')}</span>
           {changed.map((l) => (
@@ -113,13 +84,143 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
   )
 }
 
+/**
+ * "Shop updated your order": each change side by side (what was asked, what the shop has, the ₹ difference), with
+ * OK, Leave out and Call shop. The shop delivers once every change has an answer.
+ */
+function ChangesReview({ order, userId }: { order: Order; userId: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [busy, setBusy] = useState<string | null>(null)
+  const [message, setMessage] = useState('')
+  const waiting = waitingLines(order)
+  if (waiting.length === 0) return null
+  async function answer(lineId: string, approve: boolean) {
+    setBusy(lineId)
+    setMessage('')
+    try {
+      await answerChangedLine(order.id, lineId, approve)
+      await queryClient.invalidateQueries({ queryKey: [homeKey(userId), 'orders'] })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setBusy(null)
+    }
+  }
+  const qty = (l: OrderLine, q: number) => `${q} ${t(`units.${l.unit}`, { count: q })}`
+  return (
+    <section className="flex flex-col gap-3 rounded-card bg-warn-soft p-4 text-amber-950 ring-1 ring-amber-300" aria-labelledby="changes-title">
+      <div>
+        <h2 id="changes-title" className="text-lg font-extrabold">⚠ {t('cust2.updatedTitle')}</h2>
+        <p className="text-sm">{t('cust2.updatedHint')}</p>
+      </div>
+      {waiting.map((l) => {
+        const diff = l.expectedAmount != null && l.amount != null ? round2(l.amount - l.expectedAmount) : null
+        return (
+          <div key={l.id} className="flex flex-col gap-2 rounded-xl bg-white p-3 text-ink">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="flex flex-col rounded-lg bg-[#f1f5f4] p-2">
+                <span className="text-xs text-muted">{t('cust2.asked')}</span>
+                <b className="line-through decoration-due/60">{l.requestedName ?? l.name}</b>
+                <span>{qty(l, l.quantity)}</span>
+                {l.expectedAmount != null && <span className="text-muted">{formatRupees(l.expectedAmount)}</span>}
+              </div>
+              <div className="flex flex-col rounded-lg bg-brand-soft p-2">
+                <span className="text-xs text-muted">{t('cust2.shopGives')}</span>
+                <b>{l.name}</b>
+                <span>{qty(l, l.packedQuantity ?? l.quantity)}</span>
+                {l.amount != null && <span className="font-semibold">{formatRupees(l.amount)}</span>}
+              </div>
+            </div>
+            {diff !== null && diff !== 0 && <span className={`text-sm font-bold ${diff > 0 ? 'text-due' : 'text-green-700'}`}>{t('cust2.diff')}: {diff > 0 ? '+' : '−'} {formatRupees(Math.abs(diff))}</span>}
+            {l.shopNote && <span className="text-sm text-muted">“{l.shopNote}”</span>}
+            <div className="grid grid-cols-2 gap-2">
+              <button disabled={busy === l.id} onClick={() => void answer(l.id, true)} className={`min-h-11 rounded-xl ${btn.solid}`}>{t('options.ok')}</button>
+              <button disabled={busy === l.id} onClick={() => void answer(l.id, false)} className={`min-h-11 ${btn.dangerOutline}`}>{t('options.leaveOut')}</button>
+            </div>
+          </div>
+        )
+      })}
+      {order.shopPhone && <a href={`tel:${order.shopPhone}`} className="flex h-11 items-center justify-center rounded-xl border border-amber-400 bg-white font-bold">📞 {t('cust.callShop')}</a>}
+      {message && <p className="text-sm text-due">{message}</p>}
+    </section>
+  )
+}
+
+interface StoreItemLite { id: string; name: string; unit: Unit; price: number; available: number; imageAt?: string | null }
+interface StoreLite { shopId: string; upiId?: string | null; items: StoreItemLite[] }
+
+/** Adding to an order the shop hasn't packed yet: the shop's items with steppers, no extra charge. */
+function AddItems({ order, userId, onClose }: { order: Order; userId: string; onClose: () => void }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const store = useQuery({ queryKey: ['store', order.shopSlug], queryFn: () => fetch(`/api/v1/store/${order.shopSlug}`).then((r) => (r.ok ? (r.json() as Promise<StoreLite>) : null)), enabled: !!order.shopSlug })
+  const [q, setQ] = useState('')
+  const [picked, setPicked] = useState<Record<string, number>>({})
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const term = q.trim().toLowerCase()
+  const items = (store.data?.items ?? []).filter((i) => i.available > 0 && (!term || i.name.toLowerCase().includes(term))).slice(0, 60)
+  const count = Object.values(picked).filter((n) => n > 0).length
+  const step = (i: StoreItemLite, d: number) => setPicked((p) => ({ ...p, [i.id]: Math.max(0, Math.min(i.available, round2((p[i.id] ?? 0) + d))) }))
+  async function add() {
+    setBusy(true)
+    setMessage('')
+    try {
+      await api(`/v1/me/orders/${order.id}/add`, 'POST', { lines: Object.entries(picked).filter(([, n]) => n > 0).map(([productId, quantity]) => ({ productId, quantity })) })
+      await queryClient.invalidateQueries({ queryKey: [homeKey(userId), 'orders'] })
+      onClose()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+      setBusy(false)
+    }
+  }
+  return (
+    <Drawer title={t('cust2.addItems')} onClose={onClose}>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-muted">{t('cust2.addItemsHint')}</p>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('cust2.searchItems')} aria-label={t('cust2.searchItems')} className="h-12 rounded-xl border border-line bg-white px-4" />
+        <ul className="flex flex-col divide-y divide-[#edf2f1] rounded-card bg-white">
+          {items.map((i) => (
+            <li key={i.id} className="flex items-center gap-3 px-3 py-2">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#f1f5f4]">
+                {i.imageAt && store.data ? <img src={imageUrl(store.data.shopId, i.id, i.imageAt, 'thumb')} alt="" className="h-full w-full object-contain" /> : <span aria-hidden>🛍️</span>}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate font-semibold">{i.name}</span>
+                <span className="text-sm text-muted">{formatRupees(i.price)} / {t(`units.${i.unit}`)}</span>
+              </span>
+              {(picked[i.id] ?? 0) === 0 ? (
+                <button onClick={() => step(i, 1)} aria-label={`${t('store.add')} ${i.name}`} className={`h-10 rounded-xl px-4 ${btn.outline}`}>{t('store.add')}</button>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <button onClick={() => step(i, -1)} aria-label={t('a11y.less')} className="h-10 w-10 rounded-xl bg-[#edf2f1] text-xl">−</button>
+                  <b className="min-w-8 text-center">{picked[i.id]}</b>
+                  <button onClick={() => step(i, 1)} aria-label={t('a11y.more')} className="h-10 w-10 rounded-xl bg-[#edf2f1] text-xl">+</button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+        {message && <p className="text-sm text-due">{message}</p>}
+        <button disabled={busy || count === 0} onClick={() => void add()} className={`sticky bottom-0 h-14 rounded-xl text-lg ${btn.solid} disabled:opacity-50`}>{t('cust2.addTo', { count })}</button>
+      </div>
+    </Drawer>
+  )
+}
+
+interface MyKhataRow { shopId: string; customerId: string; confirmed: boolean }
+
 /** One order in full: every line, the progress, what the shop changed, how and where, the bill, and Call / WhatsApp / Cancel. */
 export function OrderDetail({ userId, orderId }: { userId: string; orderId: string }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { orders, isLoading } = useMyOrders(userId)
   const [message, setMessage] = useState('')
+  const [adding, setAdding] = useState(false)
   const order = orders.find((o) => o.id === orderId)
+  const store = useQuery({ queryKey: ['store', order?.shopSlug], queryFn: () => fetch(`/api/v1/store/${order!.shopSlug}`).then((r) => (r.ok ? (r.json() as Promise<StoreLite>) : null)), enabled: !!order?.shopSlug && order.payment === 'upi', staleTime: 60_000 })
+  const khatas = useQuery({ queryKey: ['my-khata'], queryFn: () => api<MyKhataRow[]>('/v1/me/khata'), enabled: order?.payment === 'khata', retry: false }).data ?? []
   if (!order) return <p className="p-6 text-center text-muted">{isLoading ? '…' : t('cust.orderGone')}</p>
 
   async function cancel() {
@@ -133,10 +234,16 @@ export function OrderDetail({ userId, orderId }: { userId: string; orderId: stri
     }
   }
 
-  const total = order.finalAmount ?? order.lines.reduce((s, l) => s + (l.amount ?? 0), 0)
+  const fee = order.deliveryFee ?? 0
+  const total = order.finalAmount ?? round2(fee + order.lines.reduce((s, l) => s + (l.amount ?? 0), 0))
+  const khata = khatas.find((k) => k.shopId === order.shopId && k.confirmed)
+  const upiId = store.data?.upiId
   return (
     <div className="flex flex-col gap-3 p-4">
-      <OrderCard order={order} userId={userId} />
+      <OrderCard order={order} />
+      <ChangesReview order={order} userId={userId} />
+      {order.payment === 'upi' && upiId && isOpen(order.status) && !order.pending && total > 0 && <UpiPay upiId={upiId} shopName={order.shopName} amount={total} note={`${order.shopName} ${code(order)}`} />}
+      <AlertsPrompt show={!order.pending && isOpen(order.status)} />
       <section className="flex flex-col gap-1 rounded-card bg-white p-4">
         <h2 className="mb-1 font-bold">{t('cust.items')}</h2>
         {order.lines.map((l) => (
@@ -148,21 +255,51 @@ export function OrderDetail({ userId, orderId }: { userId: string; orderId: stri
             <span className="shrink-0 font-semibold">{l.amount != null ? formatRupees(l.amount) : '—'}</span>
           </div>
         ))}
-        {total > 0 && <div className="mt-1 flex justify-between border-t border-line pt-2 text-lg font-extrabold"><span>{t('plan.finalAmount')}</span><span>{formatRupees(total)}</span></div>}
+        {fee > 0 && <div className="flex justify-between border-t border-[#edf2f1] py-2 text-sm"><span>{t('cust2.delivery')}</span><span className="font-semibold">{formatRupees(fee)}</span></div>}
+        {total > 0 && <div className="mt-1 flex justify-between border-t border-line pt-2 text-lg font-extrabold"><span>{order.finalAmount === null ? t('store.estimate') : t('plan.finalAmount')}</span><span>{formatRupees(total)}</span></div>}
+        {canChange(order.status) && !order.pending && order.shopSlug && (
+          <button onClick={() => setAdding(true)} className={`mt-2 h-11 rounded-xl ${btn.outline}`}>+ {t('cust2.addItems')}</button>
+        )}
       </section>
       <section className="flex flex-col gap-1 rounded-card bg-white p-4 text-sm">
         <span><b>{t(`plan.${order.fulfilment}`)}</b>{order.slot ? ` · ${order.slot}` : ''}</span>
         {order.address && <span className="text-muted">📍 {order.address}</span>}
         <span className="text-muted">{t('cust.payment')}: {t(`cust.pay.${order.payment}`)}</span>
         {order.note && <span className="text-muted">“{order.note}”</span>}
+        {/* Paid on khata: the bill is that khata's entry, one tap away. */}
+        {order.payment === 'khata' && order.status === 'delivered' && khata && (
+          <button onClick={() => navigate(`/khata/${khata.shopId}/${khata.customerId}`)} className="mt-1 flex min-h-11 items-center justify-between rounded-xl bg-brand-soft px-3 font-semibold text-brand-deep">
+            <span>📒 {t('cust2.onKhata', { shop: order.shopName })}</span><span>{t('cust2.openKhata')} ›</span>
+          </button>
+        )}
       </section>
       <div className="grid grid-cols-2 gap-2">
         {order.shopPhone && <a href={`tel:${order.shopPhone}`} className="flex h-12 items-center justify-center rounded-xl border border-line font-bold">📞 {t('cust.callShop')}</a>}
         {order.shopPhone && <a href={whatsAppLink(order.shopPhone, t('cust.aboutOrder', { shop: order.shopName, id: order.id.slice(-4).toUpperCase() }))} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center rounded-xl bg-[#25D366] font-bold text-white">WhatsApp</a>}
         {order.shopSlug && <button onClick={() => navigate(`/s/${order.shopSlug}`)} className="col-span-2 h-12 rounded-xl border border-line font-semibold">{t('cust.openShop')}</button>}
-        {order.status === 'placed' && !order.pending && <button onClick={() => void cancel()} className="col-span-2 h-12 rounded-xl border border-due font-bold text-due">{t('cust.cancelOrder')}</button>}
+        {canChange(order.status) && !order.pending && <button onClick={() => void cancel()} className="col-span-2 h-12 rounded-xl border border-due font-bold text-due">{t('cust.cancelOrder')}</button>}
       </div>
       {message && <p className="text-sm text-due">{message}</p>}
+      {adding && <AddItems order={order} userId={userId} onClose={() => setAdding(false)} />}
     </div>
+  )
+}
+
+/** On a khata page: the app orders delivered on this khata, each opening its order. */
+export function KhataOrders({ userId, shopId }: { userId: string; shopId: string }) {
+  const { t } = useTranslation()
+  const { orders } = useMyOrders(userId)
+  const onKhata = orders.filter((o) => o.shopId === shopId && o.payment === 'khata' && o.status === 'delivered')
+  if (onKhata.length === 0) return null
+  return (
+    <section className="flex flex-col gap-1 rounded-card bg-white p-4">
+      <h2 className="font-bold">{t('cust2.ordersOnKhata')}</h2>
+      {onKhata.map((o) => (
+        <button key={o.id} onClick={() => navigate(`/orders/${o.id}`)} className="flex min-h-11 items-center justify-between border-t border-[#edf2f1] text-left text-sm first-of-type:border-t-0">
+          <span>📦 {t('cust2.fromOrder', { code: code(o) })} · {formatDateTime(o.deliveredAt ?? o.createdAt)}</span>
+          <b>{o.finalAmount != null ? formatRupees(o.finalAmount) : ''} ›</b>
+        </button>
+      ))}
+    </section>
   )
 }

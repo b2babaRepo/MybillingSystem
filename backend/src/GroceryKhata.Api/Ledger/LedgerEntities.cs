@@ -25,6 +25,9 @@ public sealed class Customer : Entity, ITenantOwned
     /// <summary>The most this customer may owe; a bill that would cross it warns the shop (it doesn't block). Null: none.</summary>
     public decimal? CreditLimit { get; set; }
 
+    /// <summary>The shop lets this customer put app orders on their khata (up to <see cref="CreditLimit"/>).</summary>
+    public bool OnlineKhata { get; set; }
+
     /// <summary>Days the customer has to pay for what they take on credit: each udhaar falls due that many days later. Null: no terms.</summary>
     public int? CreditDays { get; set; }
 

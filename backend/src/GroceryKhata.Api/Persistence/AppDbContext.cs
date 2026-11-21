@@ -61,6 +61,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Planner.SavedShop> SavedShops => Set<Planner.SavedShop>();
 
+    public DbSet<Planner.CustomerPushDevice> CustomerPushDevices => Set<Planner.CustomerPushDevice>();
+
     public DbSet<Common.JobRun> JobRuns => Set<Common.JobRun>();
 
     public DbSet<Common.SeenMessage> SeenMessages => Set<Common.SeenMessage>();
@@ -376,6 +378,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(c => c.Lines).HasColumnType("jsonb");
             b.HasIndex(c => new { c.UserId, c.ShopId }).IsUnique();
             b.HasOne<User>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Planner.CustomerPushDevice>(b =>
+        {
+            b.ToTable("customer_push_devices");
+            b.Property(d => d.Endpoint).HasMaxLength(1000);
+            b.Property(d => d.P256dh).HasMaxLength(200);
+            b.Property(d => d.Auth).HasMaxLength(100);
+            b.Property(d => d.Language).HasMaxLength(5);
+            b.HasIndex(d => d.Endpoint).IsUnique();
+            b.HasIndex(d => d.UserId);
+            b.HasOne<User>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Planner.SavedShop>(b =>

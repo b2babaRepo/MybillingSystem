@@ -12,7 +12,7 @@ import { getSession, setSession } from '../../lib/session'
 import { navigate, usePath } from '../../router'
 import { BlockedShopsNotice } from '../AuthScreen'
 import { ListScreen } from './ListScreen'
-import { MyOrdersScreen, OrderDetail } from './MyOrdersScreen'
+import { KhataOrders, MyOrdersScreen, OrderDetail } from './MyOrdersScreen'
 import { PlanHomeScreen } from './PlanHomeScreen'
 import { SendScreen } from './SendScreen'
 import { AiOrderScreen } from './AiOrderScreen'
@@ -120,7 +120,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
         ) : path === '/orders' ? (
           <MyOrdersScreen userId={userId} />
         ) : khataMatch ? (
-          <MyKhataDetail shopId={khataMatch[1]} customerId={khataMatch[2]} />
+          <MyKhataDetail shopId={khataMatch[1]} customerId={khataMatch[2]} extra={<KhataOrders userId={userId} shopId={khataMatch[1]} />} />
         ) : path === '/ai' ? (
           <AiOrderScreen userId={userId} />
         ) : path === '/khata' ? (

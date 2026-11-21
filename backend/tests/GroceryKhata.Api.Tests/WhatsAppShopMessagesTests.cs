@@ -75,12 +75,12 @@ public sealed class WhatsAppShopMessagesTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync("/api/v1/whatsapp/business/send", new { kind = "reminder", customerId = Guid.NewGuid() })).StatusCode);
         (await shop.PostJsonAsync("/api/v1/whatsapp/business/connect", new { code = "c", wabaId = "777", phoneNumberId = numberId })).EnsureSuccessStatusCode();
 
-        // Templates: the three are asked for once, and show as waiting for Meta.
+        // Templates: the four are asked for once, and show as waiting for Meta.
         var templates = await (await shop.PostJsonAsync("/api/v1/whatsapp/business/templates", new { })).ReadAsync<WaTemplatesDto>();
-        Assert.Equal(["gk_bill_v1", "gk_payment_reminder_v1", "gk_khata_statement_v1"], meta.Created);
+        Assert.Equal(["gk_bill_v1", "gk_payment_reminder_v1", "gk_khata_statement_v1", "gk_order_update_v1"], meta.Created);
         Assert.All(templates.Templates, x => Assert.Equal("PENDING", x.Status));
         await shop.PostJsonAsync("/api/v1/whatsapp/business/templates", new { });
-        Assert.Equal(3, meta.Created.Count);
+        Assert.Equal(4, meta.Created.Count);
 
         // A customer with a bill on khata.
         var phone = ApiFactory.NewPhone();
