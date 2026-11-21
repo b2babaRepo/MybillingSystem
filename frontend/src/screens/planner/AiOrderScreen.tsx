@@ -1,4 +1,5 @@
 import { btn } from '../../components/ui'
+import { CustIcon } from '../../components/CustIcons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -237,7 +238,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
         {ai.canHearVoice ? (
           <VoiceButton onText={(heard) => setText((current) => (current.trim() ? `${current.trim()}, ${heard}` : heard))} onError={setError} />
         ) : (
-          <p className="text-xs text-muted">🎤 {t('ai.voiceOff')}</p>
+          <p className="flex items-center gap-1.5 text-xs text-muted"><CustIcon name="mic" size={14} className="shrink-0" />{t('ai.voiceOff')}</p>
         )}
         {photo ? (
           <div className="flex items-center gap-3">
