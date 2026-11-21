@@ -134,6 +134,39 @@ public sealed class KhataViewTests(ApiFactory api)
         Assert.DoesNotContain("confirm_code_hash", audit);
     }
 
+    [Fact]
+    public async Task A_regular_medicine_shows_as_due_only_after_the_khata_is_confirmed()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Refill Chemist", fullName = "Dr Shah", phone = ApiFactory.NewPhone(), password = "secret123", language = "en", type = "medical" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var phone = ApiFactory.NewPhone();
+        var customer = await CreateCustomerAsync(shop, "Kamla", phone);
+        var tablet = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = tablet, name = "Metformin 500", unit = "strip", sellingPrice = 40m, openingStock = 50m })).EnsureSuccessStatusCode();
+        // Bought every 30 days; the last 29 days ago, so due tomorrow.
+        foreach (var daysAgo in new[] { 89, 59, 29 })
+        {
+            var bill = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/bills", new { id = bill, customerId = customer, lines = new[] { new { productId = tablet, name = "Metformin 500", quantity = 2m, unitPrice = 40m } }, paidAmount = 80m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+            await using var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata");
+            await db.OpenAsync();
+            await using var back = new Npgsql.NpgsqlCommand("UPDATE bills SET occurred_at = now() - make_interval(days => @d) WHERE id = @id", db);
+            back.Parameters.AddWithValue("d", daysAgo);
+            back.Parameters.AddWithValue("id", bill);
+            await back.ExecuteNonQueryAsync();
+        }
+
+        var person = await RegisterAsync("Kamla", phone);
+        await VerifyPhoneAsync(phone);
+        // Health data: nothing until the person proves the khata is theirs with the shop's code.
+        Assert.Empty(await person.GetJsonAsync<List<GroceryKhata.Api.Planner.MyRefillDto>>("/api/v1/me/refills"));
+        await ConfirmAsync(shop, person, auth.Memberships.Single().ShopId, customer);
+        var due = Assert.Single(await person.GetJsonAsync<List<GroceryKhata.Api.Planner.MyRefillDto>>("/api/v1/me/refills"));
+        Assert.Equal(("Metformin 500", 2m, 30, -1, true), (due.Medicine, due.LastQuantity, due.EveryDays, due.DaysLate, due.InStock));
+    }
+
     private async Task VerifyPhoneAsync(string phone)
     {
         await using var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata");

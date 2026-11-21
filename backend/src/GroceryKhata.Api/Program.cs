@@ -163,6 +163,7 @@ app.MapCustomerAccount();
 app.MapOrderUpdates();
 app.MapCustomerExtras();
 app.MapUsageEvents();
+app.MapMyRefills();
 app.MapGstExport();
 app.MapCreditNotes();
 app.MapMasterItems();
