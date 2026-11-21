@@ -336,6 +336,7 @@ const flat: Record<string, string> = {
   'cust5.minOrder': 'Kam se kam {{amount}}',
   'cust5.noMin': 'Koi minimum nahi',
   'cust5.ofItems': 'har order par',
+  'cust5.added': 'Jud gaya',
   'cust5.freeAboveOrPickup': '{{amount}} se upar free, ya khud le jayein',
   'cust5.anySize': 'kitna bhi order karein',
   'cust5.khataOk': 'Khata chalega',

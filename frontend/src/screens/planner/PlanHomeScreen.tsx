@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import { CustIcon, shopTint } from '../../components/CustIcons'
 import { addToCart, useSavedShops } from '../../lib/customer'
+import { HomeShelves } from '../../components/HomeShelves'
 import { ConnectShop } from '../../components/ConnectShop'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -163,6 +164,7 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
             <span className="text-center text-sm font-bold">{t('cust.addShop')}</span>
           </button>
         </div>
+        <HomeShelves saved={saved} orders={orders} />
         {showLists ? <>
           <h2 className="text-[17px] font-extrabold">{t('home2.myLists')}</h2>
           <div className="grid grid-cols-2 gap-2.5">
