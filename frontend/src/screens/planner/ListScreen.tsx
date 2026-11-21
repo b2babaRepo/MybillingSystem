@@ -1,3 +1,4 @@
+import { aisleName } from '../../lib/aisleNames'
 import { ConnectShop } from '../../components/ConnectShop'
 import { btn } from '../../components/ui'
 import { useState, type FormEvent } from 'react'
@@ -160,7 +161,7 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
         <section className="flex flex-col gap-2 rounded-card bg-white p-3">
           {aisle ? (
             <button onClick={() => setAisle(null)} className="flex min-h-11 items-center gap-1 self-start font-bold text-brand-strong">
-              ‹ {i18n.language === 'hi' ? aisle.name : aisle.nameEn}
+              ‹ {aisleName(aisle, i18n.language)}
             </button>
           ) : (
             <h2 className="text-base font-bold">{t('plan.pickItems')}</h2>

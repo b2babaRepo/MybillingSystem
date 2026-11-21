@@ -1,3 +1,4 @@
+import { aisleName, sectionName } from '../lib/aisleNames'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
@@ -23,7 +24,6 @@ export const useAisles = () =>
 export function AisleTiles({ available, counts, onPick }: { available?: Set<string>; counts?: Map<string, number>; onPick: (aisle: Aisle) => void }) {
   const { i18n } = useTranslation()
   const aisles = (useAisles().data ?? []).filter((a) => !available || available.has(a.code))
-  const hindi = i18n.language === 'hi'
   const sections = [...new Set(aisles.map((a) => a.section))]
   return (
     <div className="flex flex-col gap-4">
@@ -31,7 +31,7 @@ export function AisleTiles({ available, counts, onPick }: { available?: Set<stri
         const inSection = aisles.filter((a) => a.section === section)
         return (
           <section key={section}>
-            <h3 className="mb-2 text-[17px] font-extrabold">{hindi ? section : inSection[0].sectionEn}</h3>
+            <h3 className="mb-2 text-[17px] font-extrabold">{sectionName(inSection[0], i18n.language)}</h3>
             <div className="grid grid-cols-4 gap-x-2 gap-y-3 sm:grid-cols-6 lg:grid-cols-8">
               {inSection.map((aisle) => {
                 const art = AISLE_ART[aisle.code]
@@ -46,7 +46,7 @@ export function AisleTiles({ available, counts, onPick }: { available?: Set<stri
                       <span aria-hidden className="item-card-shine" />
                       {count ? <span className="absolute right-1 top-1 rounded-full bg-white/90 px-1.5 text-[10px] font-bold">{count}</span> : null}
                     </span>
-                    <span className="line-clamp-2 text-[12px] leading-tight font-semibold">{hindi ? aisle.name : aisle.nameEn}</span>
+                    <span className="line-clamp-2 text-[12px] leading-tight font-semibold">{aisleName(aisle, i18n.language)}</span>
                   </button>
                 )
               })}

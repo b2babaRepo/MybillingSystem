@@ -221,15 +221,6 @@ export function useCatalogue(userId: string) {
   return useQuery({ queryKey: ['catalogue'], queryFn: () => cachedGet<CatalogueItem[]>(key, 'catalogue', '/v1/catalogue'), staleTime: 3_600_000 })
 }
 
-/** One shop's prices for catalogue items, to estimate the list's total before sending. */
-export function useShopPrices(shopId: string | undefined) {
-  return useQuery({
-    queryKey: ['shop-prices', shopId],
-    queryFn: () => api<ShopPrice[]>(`/v1/shops/${shopId}/prices`),
-    enabled: !!shopId,
-    staleTime: 60_000,
-  })
-}
 
 /** A shop's options for every common-list item, default first. */
 export function useShopOptions(shopId: string | undefined) {

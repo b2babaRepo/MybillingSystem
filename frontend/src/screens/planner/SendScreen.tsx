@@ -8,7 +8,7 @@ import { formatRupees } from '../../lib/format'
 import { estimateAtShop, optionFor, quantityIn, sendList, useLists, useShopOptions, useShopSearch, type Fulfilment, type LineChoice, type ListKind, type OrderPayment, type ReplacePreference, type ShopEntry } from '../../lib/planner'
 import { navigate } from '../../router'
 import { confirmAsk } from '../../components/Ask'
-import { getChosenShop, takeRememberedShop } from './PlanHomeScreen'
+import { getChosenShop } from './PlanHomeScreen'
 
 /** Mockups 4 and 5 on one screen: pick the shop, then how and when, then send. */
 export function SendScreen({ userId, userName, kind }: { userId: string; userName: string; kind: ListKind }) {
@@ -20,7 +20,7 @@ export function SendScreen({ userId, userName, kind }: { userId: string; userNam
   const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
   const shops = useShopSearch(search, type, near)
   const findNear = () => navigator.geolocation.getCurrentPosition((p) => setNear({ lat: p.coords.latitude, lng: p.coords.longitude }), () => setNear(null), { timeout: 15_000 })
-  const [shop, setShop] = useState<ShopEntry | null>(() => takeRememberedShop() ?? getChosenShop(userId))
+  const [shop, setShop] = useState<ShopEntry | null>(() => getChosenShop(userId))
   const [fulfilment, setFulfilment] = useState<Fulfilment>('delivery')
   const addresses = useQuery({ queryKey: ['addresses'], queryFn: () => api<{ id: string; label: string; text: string; landmark: string | null; pincode: string | null }[]>('/v1/addresses'), retry: false })
   const [addressId, setAddressId] = useState('')

@@ -37,19 +37,6 @@ export function setChosenShop(userId: string, shop: ShopEntry | null) {
   } catch { /* storage blocked: the choice lasts until the page closes */ }
 }
 
-/** The shop tapped on the home screen, picked already when the send screen opens. */
-export function rememberShop(shop: ShopEntry) {
-  try { sessionStorage.setItem('chosenShop', JSON.stringify(shop)) } catch { /* private mode: the customer picks it again */ }
-}
-
-export function takeRememberedShop(): ShopEntry | null {
-  try {
-    const raw = sessionStorage.getItem('chosenShop')
-    sessionStorage.removeItem('chosenShop')
-    return raw ? (JSON.parse(raw) as ShopEntry) : null
-  } catch { return null }
-}
-
 /** The customer's home: both lists with a picture and rough cost, a quick way to add, and the shops nearby. */
 export function PlanHomeScreen({ userId, userName = '' }: { userId: string; userName?: string }) {
   const { t } = useTranslation()
@@ -59,22 +46,25 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
   const weekly = lists.find((l) => l.kind === 'weekly')!
   // The last list sent to a shop (not cancelled): repeated in one tap with the same shop and options.
   const orders = useMyOrders(userId).data ?? []
-  const last = [...orders].filter((o) => o.source !== 'store' && o.status !== 'cancelled' && !o.pending)
+  const last = [...orders].filter((o) => o.status !== 'cancelled' && !o.pending && o.lines.some((l) => !l.removed))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
-  const lastList = last ? lists.find((l) => l.kind === last.listKind) : undefined
+  const againLines = last ? last.lines.filter((l) => !l.removed) : []
   const [sending, setSending] = useState(false)
   async function orderAgain() {
-    if (!last || !lastList || lastList.items.length === 0) return
+    if (!last || againLines.length === 0) return
     const ok = await confirmAsk(t('again.confirm', {
-      list: t(last.listKind === 'monthly' ? 'plan.monthlyList' : 'plan.weeklyList'), count: lastList.items.length, shop: last.shopName,
+      list: last.source === 'store' ? t('orders2.online') : t(last.listKind === 'monthly' ? 'plan.monthlyList' : 'plan.weeklyList'), count: againLines.length, shop: last.shopName,
       how: last.fulfilment === 'delivery' ? t('plan.delivery') : t('plan.pickup'),
     }))
     if (!ok) return
     setSending(true)
-    await sendList(userId, userName, lastList.items, {
+    // The same items as that order (as asked, not as changed by the shop), and the exact item where it was one.
+    const items = againLines.map((l) => ({ id: crypto.randomUUID(), name: l.requestedName ?? l.name, quantity: l.quantity, unit: l.unit, checked: false, note: l.note }))
+    const choices = Object.fromEntries(items.map((item, i) => [item.id, { productId: againLines[i].requestedProductId ?? againLines[i].productId ?? null, preference: againLines[i].preference ?? 'shop_chooses' }]))
+    await sendList(userId, userName, items, {
       shop: { id: last.shopId, name: last.shopName, area: null, address: null }, kind: last.listKind, fulfilment: last.fulfilment,
       slot: '', payment: last.payment, note: '', address: last.address ?? null,
-    })
+    }, choices)
     navigate('/orders')
   }
   const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
@@ -99,12 +89,12 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
       </div>
 
       <section className="-mt-4 flex flex-col gap-3 px-4">
-        {last && lastList && lastList.items.length > 0 && (
+        {last && againLines.length > 0 && (
           <button onClick={() => void orderAgain()} disabled={sending} className="flex items-center gap-3 rounded-card bg-white p-3 text-left shadow-[0_1px_4px_rgba(16,32,29,0.06)] disabled:opacity-50">
             <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-amber-100 text-2xl">🔁</span>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="font-extrabold">{t('again.title')}</span>
-              <span className="truncate text-[13px] text-muted">{t('again.line', { list: t(last.listKind === 'monthly' ? 'plan.monthlyList' : 'plan.weeklyList'), count: lastList.items.length, shop: last.shopName })}</span>
+              <span className="truncate text-[13px] text-muted">{t('again.line', { list: last.source === 'store' ? t('orders2.online') : t(last.listKind === 'monthly' ? 'plan.monthlyList' : 'plan.weeklyList'), count: againLines.length, shop: last.shopName })}</span>
             </span>
             <span className="shrink-0 rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white">{t('again.send')}</span>
           </button>

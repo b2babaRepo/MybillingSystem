@@ -312,6 +312,15 @@ public sealed class PlannerTests(ApiFactory api)
         Assert.Empty(await Find(ownerPhone[^6..]));
     }
 
+    [Fact]
+    public async Task The_language_a_customer_picks_is_saved_on_their_account()
+    {
+        var (home, _) = await RegisterHouseholdAsync("Priya");
+        Assert.Equal(HttpStatusCode.BadRequest, (await home.PutAsJsonAsync("/api/v1/profile/language", new { language = "fr" })).StatusCode);
+        (await home.PutAsJsonAsync("/api/v1/profile/language", new { language = "gu" })).EnsureSuccessStatusCode();
+        Assert.Equal("gu", (await home.GetJsonAsync<GroceryKhata.Api.Identity.ProfileDto>("/api/v1/profile")).PreferredLanguage);
+    }
+
     private async Task<(HttpClient, AuthResponse)> SignUpShopAsync(string name, string area)
     {
         var client = api.CreateClient();

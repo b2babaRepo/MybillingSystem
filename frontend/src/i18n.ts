@@ -1,3 +1,5 @@
+import { getSession, setSession } from './lib/session'
+import { useEffect } from 'react'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
@@ -81,7 +83,7 @@ export const i18nReady = (async () => {
   document.documentElement.lang = language
 })()
 
-export async function setLanguage(language: Language) {
+export async function setLanguage(language: Language, { toAccount = true } = {}) {
   await loadLanguage(language)
   await i18n.changeLanguage(language)
   document.documentElement.lang = language
@@ -90,6 +92,25 @@ export async function setLanguage(language: Language) {
   } catch {
     // Not saved; the choice lasts this session.
   }
+  if (toAccount) saveToAccount(language)
+}
+
+/** Signed in: the account keeps the language too, so it follows the person to another phone. Best effort, never blocks. */
+function saveToAccount(language: Language) {
+  const session = getSession()
+  if (!session || session.user.preferredLanguage === language) return
+  setSession({ ...session, user: { ...session.user, preferredLanguage: language } })
+  void fetch('/api/v1/profile/language', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.accessToken}` }, body: JSON.stringify({ language }),
+  }).catch(() => {})
+}
+
+/** At sign-in (or a new person on this phone): show the language their account was set to. */
+export function useAccountLanguage(preferred: string | undefined, userId: string | undefined) {
+  useEffect(() => {
+    if ((preferred === 'en' || preferred === 'hi' || preferred === 'gu') && preferred !== i18n.language) void setLanguage(preferred, { toAccount: false })
+    // Only when the person changes: a later change on this phone is theirs and already saved to the account.
+  }, [userId])
 }
 
 export default i18n

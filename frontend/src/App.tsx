@@ -16,6 +16,7 @@ import { flush } from './lib/outbox'
 import { getSession, setSession } from './lib/session'
 import { navigate, usePath } from './router'
 import { confirmAsk } from './components/Ask'
+import { useAccountLanguage } from './i18n'
 // Signed-in people (most opens) never need the sign-in screen, so it loads on demand.
 const AuthScreen = lazy(() => import('./screens/AuthScreen').then((module) => ({ default: module.AuthScreen })))
 const ShopPicker = lazy(() => import('./screens/AuthScreen').then((module) => ({ default: module.ShopPicker })))
@@ -135,6 +136,8 @@ const PlannerApp = lazy(() => import('./screens/planner/PlannerApp').then((modul
 
 export default function App() {
   const session = useSession()
+  // Signed in: the app opens in the language saved on the account.
+  useAccountLanguage(session?.user.preferredLanguage, session?.user.id)
   const path = usePath()
   // A shopkeeper can also plan their own home's lists; everyone without a shop only sees the planner.
   const [household, setHousehold] = useState(false)

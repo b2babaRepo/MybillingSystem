@@ -8,6 +8,9 @@ public sealed record ProfileDto(string FullName, string Phone, string PreferredL
 
 public sealed record PasswordChange(string? CurrentPassword, string? NewPassword);
 
+/// <summary>Only the app language: saved with the account so it follows the person to any phone.</summary>
+public sealed record LanguageChange(string? Language);
+
 /// <summary>The phone is the login, so it isn't changed here.</summary>
 public sealed record ProfileUpdate(string? FullName, string? PreferredLanguage, string? Email, string? Address, string? City, string? Pincode);
 
@@ -20,6 +23,7 @@ public static class Profile
         group.MapGet("", GetAsync);
         group.MapPut("", UpdateAsync);
         group.MapPut("/password", SetPasswordAsync);
+        group.MapPut("/language", LanguageAsync);
         return app;
     }
 
@@ -57,6 +61,18 @@ public static class Profile
     }
 
     private static ProfileDto ToDto(User u) => new(u.FullName, u.Phone, u.PreferredLanguage, u.Email, u.Address, u.City, u.Pincode, u.PasswordHash is not null);
+
+    /// <summary>Saves the language picked anywhere in the app, without touching the rest of the profile.</summary>
+    private static async Task<IResult> LanguageAsync(LanguageChange request, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
+    {
+        if (request.Language is not ("en" or "hi" or "gu"))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Language"] = ["Language must be en, hi or gu."] });
+        }
+
+        var changed = await db.Users.Where(u => u.Id == principal.UserId()).ExecuteUpdateAsync(s => s.SetProperty(u => u.PreferredLanguage, request.Language), ct);
+        return changed == 0 ? TypedResults.Unauthorized() : TypedResults.NoContent();
+    }
 
     private static async Task<IResult> GetAsync(ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
         await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == principal.UserId(), ct) is { } user

@@ -1,3 +1,5 @@
+import { api } from '../../lib/api'
+import { aisleName } from '../../lib/aisleNames'
 import { btn } from '../../components/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
@@ -106,15 +108,13 @@ function NotFound() {
 
 function Header({ title, subtitle }: { title: string; subtitle?: string | null }) {
   const { t, i18n } = useTranslation()
-  const signedIn = !!getSession()
   return (
     <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand px-4 py-3 text-white lg:rounded-b-2xl lg:px-6">
-      {signedIn && (
-        <button onClick={() => navigate('/')} aria-label={t('store.home')} className="-ml-1 flex h-11 shrink-0 items-center gap-1 rounded-full bg-white/15 px-3 text-sm font-semibold hover:bg-white/25">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10" /></svg>
-          {t('store.home')}
-        </button>
-      )}
+      {/* Home on every shop page: a signed-in customer goes back to their shops, anyone else to the app's start. */}
+      <button onClick={() => navigate('/')} aria-label={t('store.home')} className="-ml-1 flex h-11 shrink-0 items-center gap-1 rounded-full bg-white/15 px-3 text-sm font-semibold hover:bg-white/25">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10" /></svg>
+        {t('store.home')}
+      </button>
       <div className="flex min-w-0 flex-1 flex-col">
         <h1 className="truncate text-xl font-bold">{title}</h1>
         {subtitle && <span className="truncate text-sm opacity-85">{subtitle}</span>}
@@ -161,7 +161,7 @@ function Catalogue({ slug }: { slug: string }) {
   // Like the big shopping apps: every item shows at once as a photo card; chips narrow it, search finds by name.
   const chips = [
     { code: 'all', name: t('store.all'), count: data.items.length },
-    ...aisles.filter((a) => stocked.has(a.code)).map((a) => ({ code: a.code, name: i18n.language === 'hi' ? a.name : a.nameEn, count: data.items.filter((i) => aisleOfItem(i) === a.code).length })),
+    ...aisles.filter((a) => stocked.has(a.code)).map((a) => ({ code: a.code, name: aisleName(a, i18n.language), count: data.items.filter((i) => aisleOfItem(i) === a.code).length })),
     ...ownCategories,
     ...(stocked.has('other') ? [{ code: 'other', name: t('store.otherItems'), count: data.items.filter((i) => aisleOfItem(i) === 'other').length }] : []),
   ]
@@ -278,7 +278,9 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
   const { t } = useTranslation()
   // Signed in: their own name and mobile to start with; a guest gets what they typed last time.
   const me = getSession()?.user
-  const saved = remembered(`store.customer`, { name: me?.fullName ?? '', phone: me?.phone?.replace(/^\+91/, '') ?? '', address: '' })
+  const customerKey = `store.customer.${me?.id ?? 'guest'}`
+  const saved = remembered(customerKey, { name: me?.fullName ?? '', phone: me?.phone?.replace(/^\+91/, '') ?? '', address: '' })
+  const addresses = useQuery({ queryKey: ['addresses'], queryFn: () => api<{ id: string; label: string; text: string; landmark: string | null }[]>('/v1/addresses'), enabled: !!me, retry: false }).data ?? []
   const [form, setForm] = useState({ ...saved, fulfilment: 'delivery' as 'delivery' | 'pickup', slot: '', note: '' })
   const [orderId] = useState(uuidv7)
   const [error, setError] = useState('')
@@ -290,7 +292,7 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
     setBusy(true)
     setError('')
     try {
-      remember('store.customer', { name: form.name, phone: form.phone, address: form.address })
+      remember(customerKey, { name: form.name, phone: form.phone, address: form.address })
       const placed = await storeApi<Placed>(`${store.slug}/orders`, 'POST', {
         id: orderId,
         name: form.name,
@@ -333,10 +335,17 @@ function Checkout({ store, lines, total, onClose, onPlaced }: {
             </button>
           ))}
         </div>
-        {form.fulfilment === 'delivery' && (
+        {form.fulfilment === 'delivery' && (<>
+          {addresses.length > 0 && (
+            <select aria-label={t('orders2.savedAddress')} value="" onChange={(e) => { const a = addresses.find((x) => x.id === e.target.value); if (a) setForm({ ...form, address: [a.text, a.landmark].filter(Boolean).join(', ') }) }}
+              className="h-12 w-full rounded-[14px] border-[1.5px] border-line bg-white px-3">
+              <option value="">{t('orders2.savedAddress')}</option>
+              {addresses.map((a) => <option key={a.id} value={a.id}>{a.label}: {a.text}</option>)}
+            </select>
+          )}
           <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.address')}</span>
             <textarea value={form.address} onChange={set('address')} required rows={2} maxLength={300} autoComplete="street-address" className="w-full rounded-[14px] border-[1.5px] border-line bg-white p-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
-        )}
+        </>)}
         <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.when')}</span>
           <input value={form.slot} onChange={set('slot')} maxLength={80} placeholder={t('plan.whenPlaceholder')} className={input} /></label>
         <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('store.note')}</span>

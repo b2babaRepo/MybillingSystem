@@ -46,7 +46,7 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
         <span className="flex flex-col">
           <span className="text-[17px] font-bold">{order.shopName}</span>
           <span className="text-[13px] text-muted">
-            {t(`plan.${order.listKind}List`)} · {t('plan.itemsCount', { count: order.lines.length })} · {formatDateTime(order.createdAt)}
+            {order.source === 'store' ? t('orders2.online') : t(`plan.${order.listKind}List`)} · {t('plan.itemsCount', { count: order.lines.length })} · {formatDateTime(order.createdAt)}
           </span>
         </span>
         <span className={`flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-xs font-bold ${order.status === 'cancelled' ? 'bg-due-soft text-due' : 'bg-[#e0efec] text-brand-strong'}`}>
