@@ -418,6 +418,42 @@ public sealed class KhataViewTests(ApiFactory api)
         Assert.Equal(300m, (await person.GetJsonAsync<KhataViewDto>($"/api/v1/me/khata/{shopId}/{customer}")).Statement.Confirmed!.Balance);
     }
 
+    [Fact]
+    public async Task The_download_has_the_khata_the_notice_is_recorded_and_deleting_stops_deliveries()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Export Dairy", fullName = "Hari", phone = ApiFactory.NewPhone(), password = "secret123", language = "en", type = "dairy" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var shopId = auth.Memberships.Single().ShopId;
+        var phone = ApiFactory.NewPhone();
+        var customer = await CreateCustomerAsync(shop, "Usha", phone);
+        (await shop.PostJsonAsync("/api/v1/khata-entries", new { id = Guid.CreateVersion7(), customerId = customer, type = "credit", amount = 120m })).EnsureSuccessStatusCode();
+        var milk = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = milk, name = "Milk 1 L", unit = "packet", sellingPrice = 60m, openingStock = 20m })).EnsureSuccessStatusCode();
+        var person = await RegisterAsync("Usha", phone);
+        await VerifyPhoneAsync(phone);
+        await ConfirmAsync(shop, person, shopId, customer);
+        var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5)).AddDays(1);
+        (await person.PostJsonAsync($"/api/v1/me/deliveries/{shopId}", new { id = Guid.CreateVersion7(), productId = milk, quantity = 1m, days = 127, startOn = tomorrow, address = "Sector 5" })).EnsureSuccessStatusCode();
+
+        // The notice: only for someone 18 or older, recorded once.
+        Assert.Null((await person.GetJsonAsync<ProfileDto>("/api/v1/profile")).PrivacyAcceptedAt);
+        Assert.Equal(HttpStatusCode.BadRequest, (await person.PostJsonAsync("/api/v1/profile/privacy", new { adult = false })).StatusCode);
+        (await person.PostJsonAsync("/api/v1/profile/privacy", new { adult = true })).EnsureSuccessStatusCode();
+        Assert.NotNull((await person.GetJsonAsync<ProfileDto>("/api/v1/profile")).PrivacyAcceptedAt);
+
+        // The download carries the khata statement and the delivery plan.
+        var data = await person.GetStringAsync("/api/v1/me/export");
+        Assert.Contains("Export Dairy", data);
+        Assert.Contains("\"closingBalance\": 120", data);
+        Assert.Contains("Milk 1 L", data);
+
+        // Closing the account stops the daily delivery at the shop.
+        (await person.PostJsonAsync("/api/v1/me/delete-account", new { })).EnsureSuccessStatusCode();
+        Assert.Empty((await shop.GetJsonAsync<GroceryKhata.Api.Planner.DeliveryDayDto>($"/api/v1/deliveries?date={tomorrow:yyyy-MM-dd}")).Deliveries);
+    }
+
     private async Task VerifyPhoneAsync(string phone)
     {
         await using var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata");

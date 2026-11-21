@@ -4,9 +4,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Identity;
 
-public sealed record ProfileDto(string FullName, string Phone, string PreferredLanguage, string? Email, string? Address, string? City, string? Pincode, bool HasPassword = false, string? Gstin = null);
+public sealed record ProfileDto(string FullName, string Phone, string PreferredLanguage, string? Email, string? Address, string? City, string? Pincode, bool HasPassword = false, string? Gstin = null, DateTimeOffset? PrivacyAcceptedAt = null);
 
 public sealed record PasswordChange(string? CurrentPassword, string? NewPassword);
+
+/// <summary>The person read the privacy notice and says they are 18 or older.</summary>
+public sealed record PrivacyAccept(bool Adult);
 
 /// <summary>Only the app language: saved with the account so it follows the person to any phone.</summary>
 public sealed record LanguageChange(string? Language);
@@ -24,6 +27,7 @@ public static class Profile
         group.MapPut("", UpdateAsync);
         group.MapPut("/password", SetPasswordAsync);
         group.MapPut("/language", LanguageAsync);
+        group.MapPost("/privacy", AcceptPrivacyAsync);
         return app;
     }
 
@@ -60,7 +64,7 @@ public static class Profile
         return TypedResults.NoContent();
     }
 
-    private static ProfileDto ToDto(User u) => new(u.FullName, u.Phone, u.PreferredLanguage, u.Email, u.Address, u.City, u.Pincode, u.PasswordHash is not null, u.Gstin);
+    private static ProfileDto ToDto(User u) => new(u.FullName, u.Phone, u.PreferredLanguage, u.Email, u.Address, u.City, u.Pincode, u.PasswordHash is not null, u.Gstin, u.PrivacyAcceptedAt);
 
     /// <summary>Saves the language picked anywhere in the app, without touching the rest of the profile.</summary>
     private static async Task<IResult> LanguageAsync(LanguageChange request, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
@@ -114,6 +118,20 @@ public static class Profile
         (user.FullName, user.PreferredLanguage, user.Email, user.Address, user.City, user.Pincode) = (name!, request.PreferredLanguage!, email, address, city, pincode);
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(ToDto(user));
+    }
+
+    /// <summary>Recorded once; the shopping app asks before its first use. Only someone 18 or older may use it.</summary>
+    private static async Task<IResult> AcceptPrivacyAsync(PrivacyAccept request, ClaimsPrincipal principal, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (!request.Adult)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Adult"] = ["This app is for people 18 or older."] });
+        }
+
+        var now = clock.GetUtcNow();
+        var changed = await db.Users.Where(u => u.Id == principal.UserId())
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.PrivacyAcceptedAt, u => u.PrivacyAcceptedAt ?? now), ct);
+        return changed == 0 ? TypedResults.Unauthorized() : TypedResults.NoContent();
     }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

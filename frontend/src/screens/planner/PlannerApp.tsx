@@ -1,3 +1,4 @@
+import { PrivacyGate } from '../../components/PrivacyGate'
 import { lazy, Suspense, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppBanners } from '../../components/AppBanners'
@@ -89,6 +90,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
   const unsynced = pending + failed
 
   return (
+    <PrivacyGate>
     <div className="min-h-dvh pb-20 lg:pb-6 lg:pl-60">
       {/* A shop's page brings its own header (name, search); every other screen has this one. */}
       {!inShop && (
@@ -172,5 +174,6 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
         ))}
       </nav>
     </div>
+    </PrivacyGate>
   )
 }

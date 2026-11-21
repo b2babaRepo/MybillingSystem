@@ -28,6 +28,9 @@ public sealed class User : Entity
     [System.ComponentModel.DataAnnotations.MaxLength(15)]
     public string? Gstin { get; set; }
 
+    /// <summary>When the person read the shopping app's privacy notice and declared they are 18 or older. Null: not yet (asked on first use).</summary>
+    public DateTimeOffset? PrivacyAcceptedAt { get; set; }
+
     /// <summary>"en", "hi", "gu" or "hn" (Hinglish, customer app only).</summary>
     public string PreferredLanguage { get; set; } = "hi";
 

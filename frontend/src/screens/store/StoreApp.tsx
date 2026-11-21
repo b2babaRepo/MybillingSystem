@@ -466,6 +466,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
 
       {checkingOut && (!signedIn || merged) && (
         <Checkout store={data} lines={lines} onClose={() => setCheckingOut(false)}
+          onStep={change} onRemove={(item) => { const rest = { ...cart }; delete rest[item.id]; setCart(rest); if (lines.length <= 1) setCheckingOut(false) }}
           onPlaced={(placed) => {
             setCart({})
             remember(`store.${slug}.orders`, [{ id: placed.order.id, token: placed.statusToken, at: placed.order.createdAt }, ...myOrders].slice(0, 10))
@@ -476,10 +477,13 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   )
 }
 
-function Checkout({ store, lines, onClose, onPlaced }: {
+function Checkout({ store, lines, onClose, onPlaced, onStep, onRemove }: {
   store: Store
   lines: { item: StoreItem; quantity: number }[]
   onClose: () => void
+  /** Change a line by one step (−1 or +1), or remove it, from the checkout itself. */
+  onStep: (item: StoreItem, direction: 1 | -1) => void
+  onRemove: (item: StoreItem) => void
   onPlaced: (placed: Placed) => void
 }) {
   const { t } = useTranslation()
@@ -529,9 +533,16 @@ function Checkout({ store, lines, onClose, onPlaced }: {
         <h2 className="text-xl font-bold">{t('store.checkout')}</h2>
         <ul className="rounded-[14px] bg-white px-3 text-sm">
           {lines.map((l) => (
-            <li key={l.item.id} className="flex justify-between border-b border-[#edf2f1] py-2 last:border-0">
-              <span>{l.item.name} · {l.quantity} {t(`units.${l.item.unit}`, { count: l.quantity })}</span>
-              <span className="font-semibold">{formatRupees(round2(l.quantity * l.item.price))}</span>
+            <li key={l.item.id} className="flex items-center gap-2 border-b border-[#edf2f1] py-2 last:border-0">
+              <span className="min-w-0 flex-1">{l.item.name}<span className="block text-xs text-muted">{formatRupees(round2(l.quantity * l.item.price))}</span></span>
+              <span className="flex h-9 shrink-0 items-center rounded-lg border border-line">
+                <button type="button" onClick={() => onStep(l.item, -1)} aria-label={t('a11y.less')} className="h-full w-8 text-lg font-bold">−</button>
+                <b className="min-w-10 text-center text-xs">{l.quantity} {t(`units.${l.item.unit}`, { count: l.quantity })}</b>
+                <button type="button" onClick={() => onStep(l.item, 1)} disabled={l.quantity >= l.item.available} aria-label={t('a11y.more')} className="h-full w-8 text-lg font-bold disabled:opacity-40">+</button>
+              </span>
+              <button type="button" onClick={() => onRemove(l.item)} aria-label={`${t('remove')} ${l.item.name}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-due hover:bg-due-soft">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" /></svg>
+              </button>
             </li>
           ))}
         </ul>

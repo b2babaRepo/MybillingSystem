@@ -10,7 +10,7 @@ import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ConnectShop } from '../../components/ConnectShop'
 import { api } from '../../lib/api'
-import { asShopEntry, useCarts, useSavedShops, useSaveShop, type Cart, type SavedShop } from '../../lib/customer'
+import { asShopEntry, useCarts, useSavedShops, useSaveShop, type Cart, type SavedShop, putCart } from '../../lib/customer'
 import { formatRupees, whatsAppLink } from '../../lib/format'
 import { imageUrl } from '../../lib/images'
 import { useShopSearch, type ShopEntry } from '../../lib/planner'
@@ -25,7 +25,25 @@ const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
 /** Every shop's cart: what is in it, the total, open the shop or go to checkout. */
 export function CartScreen() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const carts = useCarts().data
+  const [busy, setBusy] = useState('')
+  // Change one line (0 removes it) or the whole cart ({}), then show the account's carts again.
+  async function save(cart: Cart, lines: Record<string, number>) {
+    setBusy(cart.shopId)
+    try {
+      await putCart(cart.shopId, lines)
+      await queryClient.invalidateQueries({ queryKey: ['me', 'carts'] })
+    } finally {
+      setBusy('')
+    }
+  }
+  const linesOf = (cart: Cart) => Object.fromEntries(cart.items.map((i) => [i.productId, i.quantity])) as Record<string, number>
+  const step = (unit: string) => (['kg', 'litre'].includes(unit) ? 0.5 : ['g', 'ml'].includes(unit) ? 100 : 1)
+  const change = (cart: Cart, productId: string, quantity: number) => void save(cart, { ...linesOf(cart), [productId]: Math.max(0, Math.round(quantity * 100) / 100) })
+  async function empty(cart: Cart) {
+    if (await confirmAsk(t('cust10.emptyAsk', { shop: cart.shopName }))) await save(cart, {})
+  }
   return (
     <div className="flex flex-col gap-3 p-4">
       {carts?.length === 0 && (
@@ -41,18 +59,30 @@ export function CartScreen() {
             <b className="truncate text-lg">{c.shopName}</b>
             <span className="shrink-0 text-sm text-muted">{t('plan.itemsCount', { count: c.items.length })}</span>
           </div>
-          <div className="flex gap-2 overflow-x-auto">
-            {c.items.slice(0, 6).map((i) => (
-              <span key={i.productId} className="flex w-16 shrink-0 flex-col items-center gap-1 text-center">
-                <span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-[#f1f5f4]">
+          <ul className={`flex flex-col divide-y divide-[#edf2f1] ${busy === c.shopId ? 'opacity-60' : ''}`}>
+            {c.items.map((i) => (
+              <li key={i.productId} className="flex items-center gap-3 py-2">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#f1f5f4]">
                   {i.imageAt ? <img src={imageUrl(c.shopId, i.productId, i.imageAt, 'thumb')} alt="" className="h-full w-full object-contain" /> : <span aria-hidden>🛍️</span>}
                 </span>
-                <span className="line-clamp-2 text-[11px] leading-tight">{i.quantity} × {i.name}</span>
-              </span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="line-clamp-2 text-sm font-semibold leading-tight">{i.name}</span>
+                  <span className="text-xs text-muted">{formatRupees(i.price)} · {formatRupees(Math.round(i.price * i.quantity * 100) / 100)}</span>
+                </span>
+                <span className="flex h-10 shrink-0 items-center rounded-xl border border-line">
+                  <button onClick={() => change(c, i.productId, i.quantity - step(i.unit))} disabled={!!busy} aria-label={t('a11y.less')} className="h-full w-9 text-lg font-bold">−</button>
+                  <b className="min-w-8 text-center text-sm">{i.quantity}</b>
+                  <button onClick={() => change(c, i.productId, i.quantity + step(i.unit))} disabled={!!busy || i.quantity + step(i.unit) > i.available} aria-label={t('a11y.more')} className="h-full w-9 text-lg font-bold disabled:opacity-40">+</button>
+                </span>
+                <button onClick={() => change(c, i.productId, 0)} disabled={!!busy} aria-label={`${t('remove')} ${i.name}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-due hover:bg-due-soft">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" /></svg>
+                </button>
+              </li>
             ))}
-          </div>
+          </ul>
           <CartBill cart={c} />
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <button onClick={() => void empty(c)} disabled={!!busy} className="min-h-11 text-sm font-bold text-due">{t('cust10.empty')}</button>
             <span className="flex gap-2">
               <button onClick={() => navigate(`/s/${c.shopSlug}`)} className="h-11 rounded-xl border border-line px-3 font-semibold">{t('cust.openShop')}</button>
               <button onClick={() => navigate(`/s/${c.shopSlug}/cart`)} className="h-11 rounded-xl bg-brand px-4 font-bold text-white">{t('store.checkout')} →</button>
@@ -429,6 +459,9 @@ function DataSaverRow() {
 export function PrivacyScreen() {
   const { t } = useTranslation()
   const [message, setMessage] = useState('')
+  const [understood, setUnderstood] = useState(false)
+  const owed = (useQuery({ queryKey: ['my-khata'], queryFn: () => api<{ balance: number; confirmed: boolean }[]>('/v1/me/khata'), retry: false }).data ?? [])
+    .filter((k) => k.confirmed).reduce((s, k) => s + Math.max(0, k.balance), 0)
   async function download() {
     setMessage('')
     try {
@@ -465,8 +498,23 @@ export function PrivacyScreen() {
       </section>
       <section className={card}>
         <h2 className="font-bold text-due">{t('cust4.deleteTitle')}</h2>
-        <p className="text-sm text-muted">{t('cust4.deleteHint')}</p>
-        <button onClick={() => void close()} className="h-12 rounded-xl border border-due font-bold text-due">{t('cust4.delete')}</button>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="rounded-xl bg-due-soft/60 p-3 text-sm">
+            <b className="text-due">{t('cust11.erased')}</b>
+            <p className="mt-1 text-muted">{t('cust11.erasedList')}</p>
+          </div>
+          <div className="rounded-xl bg-[#f1f5f4] p-3 text-sm">
+            <b>{t('cust11.kept')}</b>
+            <p className="mt-1 text-muted">{t('cust11.keptList')}</p>
+          </div>
+        </div>
+        {owed > 0 && <p className="rounded-xl bg-warn-soft p-3 text-sm font-semibold text-amber-950">{t('cust11.stillOwe', { amount: formatRupees(owed) })}</p>}
+        <p className="text-xs text-muted">{t('cust11.downloadFirst')}</p>
+        <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} className="h-5 w-5 accent-[#be123c]" />
+          {t('cust11.understand')}
+        </label>
+        <button onClick={() => void close()} disabled={!understood} className="h-12 rounded-xl border border-due font-bold text-due disabled:opacity-40">{t('cust4.delete')}</button>
       </section>
       {message && <p className="text-sm text-due">{message}</p>}
     </div>

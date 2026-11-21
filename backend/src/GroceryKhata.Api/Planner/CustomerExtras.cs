@@ -202,11 +202,11 @@ public static class CustomerExtras
     };
 
     /// <summary>Everything the customer has given us, as one file: account, addresses, lists, carts, shops, saved items, orders.</summary>
-    private static async Task<IResult> ExportAsync(ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> ExportAsync(ClaimsPrincipal user, AppDbContext db, IServiceScopeFactory scopes, TimeProvider clock, CancellationToken ct)
     {
         var userId = user.UserId()!.Value;
         var me = await db.Users.AsNoTracking().Where(u => u.Id == userId)
-            .Select(u => new { u.FullName, u.Phone, u.Email, u.PreferredLanguage, u.Address, u.City, u.Pincode, u.CreatedAt, u.OrderWhatsApp }).SingleAsync(ct);
+            .Select(u => new { u.FullName, u.Phone, u.Email, u.PreferredLanguage, u.Address, u.City, u.Pincode, u.CreatedAt, u.OrderWhatsApp, u.Gstin, Verified = u.PhoneVerifiedAt != null }).SingleAsync(ct);
         var addresses = await db.SavedAddresses.AsNoTracking().Where(a => a.UserId == userId).Select(a => new { a.Label, a.Text, a.Landmark, a.Pincode, a.IsDefault }).ToListAsync(ct);
         var lists = await db.ShoppingLists.AsNoTracking().Include(l => l.Items).Where(l => l.UserId == userId)
             .Select(l => new { l.Kind, Items = l.Items.Select(i => new { i.Name, i.Quantity, i.Unit, i.Note }) }).ToListAsync(ct);
@@ -214,6 +214,40 @@ public static class CustomerExtras
         var shops = await db.SavedShops.AsNoTracking().Where(s => s.UserId == userId).Select(s => new { s.ShopId, s.CreatedAt }).ToListAsync(ct);
         var items = await db.SavedItems.AsNoTracking().Where(s => s.UserId == userId).Select(s => new { s.ShopId, s.ProductId, s.CreatedAt }).ToListAsync(ct);
         var orders = await db.Orders.AsNoTracking().Include(o => o.Lines).Where(o => o.PlacedByUserId == userId).OrderByDescending(o => o.CreatedAt).ToListAsync(ct);
+        // Each khata confirmed as theirs: the whole statement (bills, payments, removals, disputes, the last balance they
+        // confirmed) and their "I paid" claims, read as that shop. Their daily deliveries and salon visits too.
+        var khatas = new List<object>();
+        var deliveries = new List<object>();
+        var visits = new List<object>();
+        if (me.Verified)
+        {
+            var mine = await (from c in db.Customers.IgnoreQueryFilters().AsNoTracking()
+                              join s in db.Shops.AsNoTracking() on c.ShopId equals s.Id
+                              where c.Phone == me.Phone && c.PhoneConfirmedAt != null
+                              select new { c.ShopId, s.Name, CustomerId = c.Id }).ToListAsync(ct);
+            foreach (var k in mine)
+            {
+                await using var scope = scopes.CreateAsyncScope();
+                scope.ServiceProvider.GetRequiredService<TenantContext>().SetShop(k.ShopId);
+                var shopDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var statement = await scope.ServiceProvider.GetRequiredService<Ledger.LedgerService>().GetStatementAsync(k.CustomerId, null, ct);
+                khatas.Add(new { shop = k.Name, statement, claims = await Ledger.Receipts.ClaimsForAsync(shopDb, k.CustomerId, clock, ct) });
+            }
+
+            var shopIds = shops.Select(s => s.ShopId).Concat(mine.Select(k => k.ShopId)).Distinct().ToList();
+            var names = await db.Shops.AsNoTracking().Where(s => shopIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+            foreach (var shopId in shopIds)
+            {
+                var (plans, booked) = await ReadAsShopAsync(scopes, shopId, async shopDb => (
+                    await shopDb.DeliveryPlans.AsNoTracking().Where(p => p.UserId == userId)
+                        .Select(p => new { p.ProductName, p.Quantity, p.Unit, p.Days, p.StartOn, p.PauseFrom, p.PauseTo, p.Address, p.StoppedAt }).ToListAsync(ct),
+                    await shopDb.Appointments.AsNoTracking().Include(a => a.Services).Where(a => a.Phone == me.Phone)
+                        .Select(a => new { a.Date, a.Start, a.Status, a.Note, Services = a.Services.Select(x => new { x.Name, x.Price }) }).ToListAsync(ct)));
+                deliveries.AddRange(plans.Select(p => new { shop = names.GetValueOrDefault(shopId), plan = p }));
+                visits.AddRange(booked.Select(a => new { shop = names.GetValueOrDefault(shopId), visit = a }));
+            }
+        }
+
         var data = new
         {
             exportedAt = DateTimeOffset.UtcNow,
@@ -224,6 +258,9 @@ public static class CustomerExtras
             savedShops = shops,
             savedItems = items,
             orders = (await PlannerEndpoints.WithShopNamesAsync(db, orders, ct)).Select(o => o with { ShopPhone = null }),
+            khatas,
+            deliveryPlans = deliveries,
+            salonVisits = visits,
         };
         return TypedResults.File(JsonSerializer.SerializeToUtf8Bytes(data, new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true }),
             "application/json", "grocery-khata-my-data.json");
@@ -234,12 +271,20 @@ public static class CustomerExtras
     /// every sign-in ends. Orders stay with the shops that filled them (their sales records), under the name on them.
     /// Someone who runs a shop closes the shop first.
     /// </summary>
-    private static async Task<IResult> DeleteAsync(ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> DeleteAsync(ClaimsPrincipal user, AppDbContext db, IServiceScopeFactory scopes, TimeProvider clock, CancellationToken ct)
     {
         var userId = user.UserId()!.Value;
         if (await db.Memberships.IgnoreQueryFilters().AnyAsync(m => m.UserId == userId && m.IsActive, ct))
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "You work at a shop on this account. Leave or close the shop first.");
+        }
+
+        // Standing daily deliveries stop at each shop (the shop keeps the record of what was delivered).
+        var stopAt = clock.GetUtcNow();
+        foreach (var shopId in await db.SavedShops.AsNoTracking().Where(s => s.UserId == userId).Select(s => s.ShopId).ToListAsync(ct))
+        {
+            await ReadAsShopAsync(scopes, shopId, shopDb => shopDb.DeliveryPlans.Where(p => p.UserId == userId && p.StoppedAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.StoppedAt, stopAt), ct));
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -257,7 +302,7 @@ public static class CustomerExtras
         var freed = "x" + userId.ToString("N")[..15];
         await db.Users.Where(u => u.Id == userId).ExecuteUpdateAsync(s => s
             .SetProperty(u => u.FullName, "Deleted account").SetProperty(u => u.Phone, freed).SetProperty(u => u.Email, (string?)null)
-            .SetProperty(u => u.Address, (string?)null).SetProperty(u => u.City, (string?)null).SetProperty(u => u.Pincode, (string?)null)
+            .SetProperty(u => u.Address, (string?)null).SetProperty(u => u.City, (string?)null).SetProperty(u => u.Pincode, (string?)null).SetProperty(u => u.Gstin, (string?)null)
             .SetProperty(u => u.PasswordHash, (string?)null).SetProperty(u => u.PhoneVerifiedAt, (DateTimeOffset?)null)
             .SetProperty(u => u.OrderWhatsApp, false).SetProperty(u => u.IsActive, false), ct);
         await transaction.CommitAsync(ct);

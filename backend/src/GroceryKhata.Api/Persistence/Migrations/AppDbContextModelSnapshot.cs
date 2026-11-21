@@ -3205,6 +3205,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(5)")
                         .HasColumnName("preferred_language");
 
+                    b.Property<DateTimeOffset?>("PrivacyAcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("privacy_accepted_at");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
