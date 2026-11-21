@@ -1,3 +1,4 @@
+import { dueText, useKhataDues } from '../../lib/khataDues'
 import { CustIcon, shopTint, type CustIconName } from '../../components/CustIcons'
 import { useEffect, useState } from 'react'
 import { BillSummary } from '../../components/OrderPay'
@@ -121,6 +122,7 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
   const carts = useCarts().data ?? []
   const shops = useSavedShops().data ?? []
   const khata = useQuery({ queryKey: ['my-khata'], queryFn: () => api<Khata[]>('/v1/me/khata'), retry: false }).data ?? []
+  const dues = useKhataDues().data ?? []
   const due = khata.reduce((s, k) => s + Math.max(0, k.balance), 0)
   const user = session?.user
   const savedItems = useSavedItems().data?.length ?? 0
@@ -173,7 +175,10 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
             <button key={k.customerId} onClick={() => navigate(`/khata/${k.shopId}/${k.customerId}`)} className="flex min-h-[60px] w-full items-center gap-3 border-t border-[#edf2f1] px-1 text-left first:border-t-0">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-extrabold" style={shopTint(k.shopId)}>{k.shopName.charAt(0)}</span>
               <span className="min-w-0 flex-1 truncate font-bold">{k.shopName}</span>
-              <b className={k.balance > 0 ? 'text-udhaar' : 'text-muted'}>{k.balance > 0 ? formatRupees(k.balance) : t('settled')}</b>
+              <span className="flex shrink-0 flex-col items-end">
+                <b className={k.balance > 0 ? 'text-udhaar' : 'text-muted'}>{k.balance > 0 ? formatRupees(k.balance) : t('settled')}</b>
+                {(() => { const d = dues.find((x) => x.customerId === k.customerId); const due = d && dueText(d); return due && <span className={`text-[11px] font-semibold ${due.urgent ? 'text-due' : 'text-muted'}`}>{due.text}</span> })()}
+              </span>
             </button>
           ))}
         </div>

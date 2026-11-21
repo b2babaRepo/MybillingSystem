@@ -1,3 +1,4 @@
+import { dueText, useKhataDues } from '../../lib/khataDues'
 import { useReorder } from '../../lib/reorder'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
@@ -63,12 +64,15 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
   const { reorder, busy: sending } = useReorder(userId, userName)
   const orderAgain = () => last && void reorder(last)
   const saved = useSavedShops().data ?? []
+  const dues = useKhataDues().data ?? []
   // Monthly and weekly lists suit grocery buying: shown when the customer uses them or shops at a kirana or dairy.
   const showLists = monthly.items.length + weekly.items.length > 0 || orders.some((o) => o.source !== 'store') || saved.some((s) => LIST_TRADES.has(s.type))
   // The default address in the header, and the biggest khata due as a card: what a customer checks first.
   const home = useQuery({ queryKey: ['addresses'], queryFn: () => api<{ id: string; label: string; text: string; isDefault: boolean }[]>('/v1/addresses'), retry: false }).data?.[0]
   const owed = (useQuery({ queryKey: ['my-khata'], queryFn: () => api<{ shopId: string; shopName: string; customerId: string; balance: number; confirmed: boolean }[]>('/v1/me/khata'), retry: false }).data ?? [])
     .filter((k) => k.confirmed && k.balance > 0).sort((a, b) => b.balance - a.balance)[0]
+  const owedDueRow = owed && dues.find((d) => d.customerId === owed.customerId)
+  const owedDue = owedDueRow ? dueText(owedDueRow) : null
   const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
   const [locating, setLocating] = useState(false)
   const shops = useShopSearch('', '', near)
@@ -110,6 +114,7 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-amber-800"><CustIcon name="khata" size={22} /></span>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-[13px] font-semibold text-amber-900">{t('cust5.khataAt', { shop: owed.shopName })}</span>
+              {owedDue && <span className={`text-xs font-bold ${owedDue.urgent ? 'text-due' : 'text-amber-900'}`}>{owedDue.text}</span>}
               <span className="text-lg font-extrabold">{t('cust5.owe', { amount: formatRupees(owed.balance) })}</span>
             </span>
             <span className="shrink-0 rounded-xl bg-brand px-3 py-2.5 text-sm font-bold text-white">{t('cust5.payUpi')}</span>

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using System.Net;
 using System.Net.Http.Headers;
@@ -311,6 +312,58 @@ public sealed class KhataViewTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.BadRequest, (await person.PutAsJsonAsync("/api/v1/profile", profile)).StatusCode);
         var saved = await (await person.PutAsJsonAsync("/api/v1/profile", profile with { gstin = "27aapfu0939f1zv" })).ReadAsync<ProfileDto>();
         Assert.Equal("27AAPFU0939F1ZV", saved.Gstin);
+    }
+
+    [Fact]
+    public async Task Udhaar_falls_due_after_the_shops_credit_days_and_is_reminded_once()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Due Kirana", fullName = "Suresh", phone = ApiFactory.NewPhone(), password = "secret123", language = "en" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var phone = ApiFactory.NewPhone();
+        var customer = await CreateCustomerAsync(shop, "Kavita", phone);
+        (await shop.PutAsJsonAsync($"/api/v1/customers/{customer}/credit-days", new { creditDays = 10 })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/khata-entries", new { id = Guid.CreateVersion7(), customerId = customer, type = "credit", amount = 300m })).EnsureSuccessStatusCode();
+        // As if taken 9 days ago: due tomorrow.
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var back = new Npgsql.NpgsqlCommand("UPDATE ledger_entries SET occurred_at = now() - interval '9 days' WHERE customer_id = @c", db);
+            back.Parameters.AddWithValue("c", customer);
+            await back.ExecuteNonQueryAsync();
+        }
+
+        var person = await RegisterAsync("Kavita", phone);
+        await VerifyPhoneAsync(phone);
+        Assert.Empty(await person.GetJsonAsync<List<GroceryKhata.Api.Planner.KhataDueDto>>("/api/v1/me/khata-dues"));
+        await ConfirmAsync(shop, person, auth.Memberships.Single().ShopId, customer);
+        var due = Assert.Single(await person.GetJsonAsync<List<GroceryKhata.Api.Planner.KhataDueDto>>("/api/v1/me/khata-dues"));
+        var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5)).AddDays(1);
+        Assert.Equal(((DateOnly?)tomorrow, 300m, 0m), (due.DueOn, due.DueAmount, due.Overdue));
+
+        // The daily reminder marks it reminded (no phone has alerts on here, so nothing is sent), once a day.
+        var scopes = api.Services.GetRequiredService<IServiceScopeFactory>();
+        await GroceryKhata.Api.Planner.KhataDues.RemindAsync(scopes, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, default);
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var read = new Npgsql.NpgsqlCommand("SELECT last_due_reminder_on FROM customers WHERE id = @c", db);
+            read.Parameters.AddWithValue("c", customer);
+            Assert.Equal(tomorrow.AddDays(-1), (DateOnly)(await read.ExecuteScalarAsync())!);
+        }
+    }
+
+    [Fact]
+    public void Due_day_is_the_oldest_unpaid_udhaar_plus_credit_days()
+    {
+        var at = (int daysAgo) => new DateTimeOffset(DateTime.UtcNow.Date.AddDays(-daysAgo).AddHours(6), TimeSpan.Zero);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5));
+        // 200 taken 20 days ago (paid 150 of it), 100 taken 5 days ago, 15 days' credit: 50 overdue, due day missed.
+        var (dueOn, amount, overdue) = GroceryKhata.Api.Planner.KhataDues.Due([new(at(20), 200m), new(at(10), -150m), new(at(5), 100m)], 15, today);
+        Assert.Equal(50m, overdue);
+        Assert.True(dueOn < today);
+        Assert.Equal(50m, amount);
     }
 
     private async Task VerifyPhoneAsync(string phone)

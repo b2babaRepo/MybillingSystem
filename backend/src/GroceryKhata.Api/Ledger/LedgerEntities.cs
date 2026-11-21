@@ -31,6 +31,9 @@ public sealed class Customer : Entity, ITenantOwned
     /// <summary>Days the customer has to pay for what they take on credit: each udhaar falls due that many days later. Null: no terms.</summary>
     public int? CreditDays { get; set; }
 
+    /// <summary>The day the customer was last reminded in the app that their udhaar falls due (one a day at most).</summary>
+    public DateOnly? LastDueReminderOn { get; set; }
+
     /// <summary>The state an unregistered customer lives in (GST code, "24"): a bill to them is offered there.</summary>
     public string? State { get; set; }
 

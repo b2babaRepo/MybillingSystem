@@ -4967,6 +4967,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("khata_token_at");
 
+                    b.Property<DateOnly?>("LastDueReminderOn")
+                        .HasColumnType("date")
+                        .HasColumnName("last_due_reminder_on");
+
                     b.Property<DateTimeOffset?>("LastRemindedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_reminded_at");

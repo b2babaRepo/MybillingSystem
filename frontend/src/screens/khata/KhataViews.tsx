@@ -1,3 +1,4 @@
+import { dueText, useKhataDues } from '../../lib/khataDues'
 import { MonthSelect, PrintShare, monthLabel } from '../../components/StatementTools'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
@@ -283,6 +284,7 @@ function ConfirmKhata({ khata }: { khata: MyKhata }) {
 export function MyKhataScreen() {
   const { t } = useTranslation()
   const mine = useQuery({ queryKey: ['my-khata'], queryFn: () => api<MyKhata[]>('/v1/me/khata') })
+  const dues = useKhataDues().data ?? []
   return (
     <div className="flex flex-col gap-3 p-4">
       {mine.data?.length === 0 && <p className="py-8 text-center text-muted">{t('myKhata.none')}</p>}
@@ -298,12 +300,27 @@ export function MyKhataScreen() {
               <div className={`text-right font-bold ${k.balance > 0 ? 'text-udhaar' : 'text-muted'}`}>
                 {formatRupees(Math.abs(k.balance))}
                 <div className="text-xs font-normal">{k.balance > 0 ? t('myKhata.youOwe') : t('settled')}</div>
+                {(() => { const d = dues.find((x) => x.customerId === k.customerId); const due = d && dueText(d); return due && <div className={`text-xs font-semibold ${due.urgent ? 'text-due' : 'text-muted'}`}>{due.text}</div> })()}
               </div>
               <span aria-hidden className="text-xl text-muted">›</span>
             </button>}
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/** When this khata's udhaar falls due (the shop's credit days), above its statement. */
+function DueBanner({ customerId }: { customerId: string }) {
+  const { t } = useTranslation()
+  const d = useKhataDues().data?.find((x) => x.customerId === customerId)
+  const due = d && dueText(d)
+  if (!d || !due) return null
+  return (
+    <div className={`mx-4 mt-3 rounded-2xl p-3 text-sm ${due.urgent ? 'bg-due-soft text-due' : 'bg-[#f1f5f4] text-ink'}`}>
+      <b>{due.text}</b>
+      <span className="block text-xs opacity-80">{t('cust8.terms', { count: d.creditDays })}</span>
     </div>
   )
 }
@@ -327,6 +344,7 @@ export function MyKhataDetail({ shopId, customerId, extra }: { shopId: string; c
         <PrintShare text={shareText} />
       </div>
       {month && s && <p className="px-4 pt-2 text-sm text-muted">{t('cust7.opening')}: <b>{formatRupees(s.openingBalance)}</b> · {t('cust7.closing')}: <b>{formatRupees(s.closingBalance)}</b></p>}
+      <DueBanner customerId={customerId} />
       <KhataBody view={view.data} queryKey={['my-khata', shopId, customerId]} disputePath={`/v1/me/khata/${shopId}/${customerId}/disputes`} paidPath={`/v1/me/khata/${shopId}/${customerId}/paid`} extra={extra} />
     </>
   ) : (
