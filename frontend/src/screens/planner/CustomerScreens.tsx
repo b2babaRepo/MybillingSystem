@@ -378,7 +378,7 @@ export function SearchScreen() {
     <div className="flex flex-col gap-3 p-4">
       <div className="flex gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => { rememberSearch(q); setRecent(recentSearches()) }} autoFocus placeholder={t('cust.searchPlaceholder')} aria-label={t('cust.searchPlaceholder')} className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-white px-4 shadow-sm" />
-        {canListen() && <button onClick={voice} aria-label={t('cust4.voice')} aria-pressed={hearing} className={`h-12 w-12 shrink-0 rounded-xl text-xl ${hearing ? 'animate-pulse bg-due text-white' : 'border border-line bg-white'}`}>🎙️</button>}
+        {canListen() && <button onClick={voice} aria-label={t('cust4.voice')} aria-pressed={hearing} className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${hearing ? 'animate-pulse bg-due text-white' : 'border border-line bg-white text-brand'}`}><CustIcon name="mic" size={20} /></button>}
       </div>
       {term.length < 2 && recent.length > 0 && (
         <div className="flex flex-col gap-2">

@@ -154,7 +154,7 @@ const flat: Record<string, string> = {
   'cust4.usual': 'Aapka roz ka saamaan',
   'cust4.voice': 'Bolkar khojein',
   'cust4.whatWeKeep': 'Aapka data',
-  'cust4.whatWeKeepHint': 'Aapka naam, mobile, pate, list, cart, save ki dukaanein aur saamaan, aur order. Kabhi bhi copy download karein.',
+  'cust4.whatWeKeepHint': 'Aapka naam, mobile, pate, list, cart, save ki dukaanein aur saamaan, order, pakki ki gayi dukaanon ke khate aur bill, payment ke daave, roz ki delivery aur salon visit. Kabhi bhi copy download karein.',
   'dispute.ask': 'Is entry mein kya galat hai? Dukaan dekhegi aur jawab degi. (jaise "Maine 25 Oct ko yeh chuka diya", "Maine yeh nahi liya")',
   'dispute.gotHowMuch': 'Mujhe mila',
   'dispute.hint': 'Kuch galat hai? Us entry par "Galat?" dabayein. Dukaan dekhegi aur use jawab dena hoga.',

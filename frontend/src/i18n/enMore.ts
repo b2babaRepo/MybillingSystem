@@ -1013,7 +1013,7 @@ export const enMore = {
     voice: 'Search by voice', recent: 'Recent searches', clear: 'Clear', trending: 'Popular in your shops',
     savedItems: 'Saved items', noSavedItems: 'Tap ♡ on an item to save it here.', outAlert: 'Out of stock: we tell you when it is back',
     dataSaver: 'Data saver', dataSaverHint: 'Small photos only, on this phone', privacy: 'Notifications and privacy',
-    whatWeKeep: 'Your data', whatWeKeepHint: 'Your name, mobile, addresses, lists, carts, saved shops and items, and orders. Download a copy any time.', download: 'Download my data',
+    whatWeKeep: 'Your data', whatWeKeepHint: 'Your name, mobile, addresses, lists, carts, saved shops and items, orders, khata statements and bills from shops you confirmed, payment claims, daily deliveries and salon visits. Download a copy any time.', download: 'Download my data',
     deleteTitle: 'Delete account', deleteHint: 'Your details, addresses, lists, carts and saved items are deleted. Orders stay with the shops as their sales records. Your khata at each shop stays with that shop.', delete: 'Delete my account', deleteConfirm: 'Delete your account? This cannot be undone.',
     festiveLook: 'Festive look', usualLook: 'Usual',
     festiveName: { diwali: 'Diwali', holi: 'Holi', navratri: 'Navratri', eid: 'Eid', christmas: 'Christmas', independence: 'Independence Day', wedding: 'Wedding season', pongal: 'Pongal' },
