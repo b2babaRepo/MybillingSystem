@@ -454,6 +454,28 @@ public sealed class KhataViewTests(ApiFactory api)
         Assert.Empty((await shop.GetJsonAsync<GroceryKhata.Api.Planner.DeliveryDayDto>($"/api/v1/deliveries?date={tomorrow:yyyy-MM-dd}")).Deliveries);
     }
 
+    [Fact]
+    public async Task An_address_keeps_its_location_and_finds_a_shop_that_set_its_own()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Near Kirana", fullName = "Om", phone = ApiFactory.NewPhone(), password = "secret123", language = "en" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        // The owner stands in the shop: its place on the map. Half a location is refused.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/shop/location", new { latitude = 26.9124 })).StatusCode);
+        (await shop.PutAsJsonAsync("/api/v1/shop/location", new { latitude = 26.9124, longitude = 75.7873 })).EnsureSuccessStatusCode();
+
+        var person = await RegisterAsync("Neha", ApiFactory.NewPhone());
+        (await person.PostJsonAsync("/api/v1/addresses", new { id = Guid.CreateVersion7(), label = "Home", text = "C-21, Vaishali Nagar", latitude = 26.9100, longitude = 75.7900 })).EnsureSuccessStatusCode();
+        var home = Assert.Single(await person.GetJsonAsync<List<SavedAddressDto>>("/api/v1/addresses"));
+        Assert.Equal((26.91, 75.79), (home.Latitude!.Value, home.Longitude!.Value));
+
+        // From that address, the shop is near (about 0.4 km); from far away it is not.
+        var near = await person.GetJsonAsync<List<GroceryKhata.Api.Planner.ShopDirectoryDto>>($"/api/v1/shops?search=&lat={home.Latitude:0.000}&lng={home.Longitude:0.000}");
+        Assert.Contains(near, s => s.Name == "Near Kirana" && s.DistanceKm < 1);
+        Assert.DoesNotContain(await person.GetJsonAsync<List<GroceryKhata.Api.Planner.ShopDirectoryDto>>("/api/v1/shops?search=&lat=19.076&lng=72.877"), s => s.Name == "Near Kirana");
+    }
+
     private async Task VerifyPhoneAsync(string phone)
     {
         await using var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata");

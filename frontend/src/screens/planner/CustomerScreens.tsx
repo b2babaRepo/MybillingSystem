@@ -1,3 +1,4 @@
+import { currentPoint } from '../../lib/location'
 import { dueText, useKhataDues } from '../../lib/khataDues'
 import { CustIcon, shopTint, type CustIconName } from '../../components/CustIcons'
 import { useEffect, useState } from 'react'
@@ -238,16 +239,30 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
   )
 }
 
-interface Address { id: string; label: string; text: string; landmark: string | null; pincode: string | null; isDefault: boolean }
+interface Address { id: string; label: string; text: string; landmark: string | null; pincode: string | null; isDefault: boolean; latitude?: number | null; longitude?: number | null }
 
 /** Saved addresses: add, edit, delete, and choose the default checkouts pick first. */
 export function AddressesScreen() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const addresses = useQuery({ queryKey: ['addresses'], queryFn: () => api<Address[]>('/v1/addresses') }).data ?? []
-  const blank = { label: '', text: '', landmark: '', pincode: '' }
+  const blank = { label: '', text: '', landmark: '', pincode: '', lat: null as number | null, lng: null as number | null }
   const [editing, setEditing] = useState<{ id: string | null } & typeof blank | null>(null)
   const [message, setMessage] = useState('')
+  const [locating, setLocating] = useState(false)
+  async function useMyLocation() {
+    if (!editing) return
+    setLocating(true)
+    setMessage('')
+    try {
+      const p = await currentPoint()
+      setEditing({ ...editing, lat: p.lat, lng: p.lng })
+    } catch (e) {
+      setMessage(t(`cust12.loc_${e instanceof Error ? e.message : 'unavailable'}`))
+    } finally {
+      setLocating(false)
+    }
+  }
 
   async function run(action: () => Promise<unknown>) {
     setMessage('')
@@ -255,7 +270,7 @@ export function AddressesScreen() {
   }
   async function save() {
     if (!editing) return
-    const body = { label: editing.label, text: editing.text, landmark: editing.landmark || null, pincode: editing.pincode || null }
+    const body = { label: editing.label, text: editing.text, landmark: editing.landmark || null, pincode: editing.pincode || null, latitude: editing.lat, longitude: editing.lng }
     const ok = await run(() => editing.id ? api(`/v1/addresses/${editing.id}`, 'PUT', body) : api('/v1/addresses', 'POST', { id: crypto.randomUUID(), ...body }))
     if (ok) setEditing(null)
   }
@@ -267,11 +282,12 @@ export function AddressesScreen() {
           <div className="flex items-center gap-2">
             <b>{a.label}</b>
             {a.isDefault && <span className="rounded-full bg-brand-soft px-2 text-xs font-bold text-brand-strong">{t('cust.default')}</span>}
+            {a.latitude != null && <span className="flex items-center gap-1 rounded-full bg-[#e8effd] px-2 text-xs font-bold text-[#1d4ed8]"><CustIcon name="pin" size={12} />{t('cust12.onMap')}</span>}
           </div>
           <span className="text-sm">{[a.text, a.landmark, a.pincode].filter(Boolean).join(', ')}</span>
           <div className="flex flex-wrap gap-3 text-sm font-semibold">
             {!a.isDefault && <button onClick={() => void run(() => api(`/v1/addresses/${a.id}/default`, 'POST', {}))} className="text-brand">{t('cust.makeDefault')}</button>}
-            <button onClick={() => setEditing({ id: a.id, label: a.label, text: a.text, landmark: a.landmark ?? '', pincode: a.pincode ?? '' })} className="text-brand">{t('cust.edit')}</button>
+            <button onClick={() => setEditing({ id: a.id, label: a.label, text: a.text, landmark: a.landmark ?? '', pincode: a.pincode ?? '', lat: a.latitude ?? null, lng: a.longitude ?? null })} className="text-brand">{t('cust.edit')}</button>
             <button onClick={() => void (async () => { if (await confirmAsk(t('cust.deleteAddress'))) void run(() => api(`/v1/addresses/${a.id}`, 'DELETE')) })()} className="text-due">{t('remove')}</button>
           </div>
         </section>
@@ -284,6 +300,17 @@ export function AddressesScreen() {
             <input aria-label={t('cust.landmark')} placeholder={t('cust.landmark')} value={editing.landmark} maxLength={120} onChange={(e) => setEditing({ ...editing, landmark: e.target.value })} className={input} />
             <input aria-label={t('cust.pincode')} placeholder={t('cust.pincode')} value={editing.pincode} inputMode="numeric" maxLength={6} onChange={(e) => setEditing({ ...editing, pincode: e.target.value })} className={input} />
           </div>
+          {editing.lat != null ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-[#e8effd] px-3 py-2 text-sm">
+              <span className="flex items-center gap-1.5 font-semibold text-[#1d4ed8]"><CustIcon name="pin" size={16} />{t('cust12.locationAdded')}</span>
+              <button onClick={() => setEditing({ ...editing, lat: null, lng: null })} className="min-h-9 font-bold text-due">{t('remove')}</button>
+            </div>
+          ) : (
+            <button onClick={() => void useMyLocation()} disabled={locating} className="flex h-11 items-center justify-center gap-2 rounded-xl border-2 border-brand font-bold text-brand disabled:opacity-50">
+              <CustIcon name="pin" size={18} />{locating ? t('home2.locating') : t('cust12.useLocation')}
+            </button>
+          )}
+          <p className="-mt-1 text-xs text-muted">{t('cust12.locationHint')}</p>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => void save()} className="h-11 rounded-xl bg-brand font-bold text-white">{t('save')}</button>
             <button onClick={() => setEditing(null)} className="h-11 rounded-xl border border-line font-semibold">{t('cancel')}</button>

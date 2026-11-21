@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Shops;
 
+public sealed record ShopLocationDto(double? Latitude, double? Longitude);
+
 public sealed record ShopSettingsDto(string Name, string Slug, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType Type = ShopType.Kirana, string? Gstin = null, bool GstComposition = false, IReadOnlyList<ShopType>? ExtraTypes = null, decimal StaffMaxDiscountPercent = 10m, bool? DeliversGoods = null, decimal StaffMaxWriteOff = 1000m, int ExchangeSlipDays = 90, decimal ExchangeSlipHelperMax = 5000m, string? BillPrefix = null, IReadOnlyList<string>? BillFields = null);
 
 /// <summary><see cref="Type"/>: null keeps the shop's trade.</summary>
@@ -21,7 +23,22 @@ public static partial class ShopSettingsEndpoints
         var group = app.MapGroup("/api/v1/shop").WithTags("Shop");
         group.MapGet("", GetAsync).RequireAuthorization(AppPolicies.ShopMember);
         group.MapPut("", UpdateAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapGet("/location", async (AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
+            TypedResults.Ok(await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new ShopLocationDto(s.Latitude, s.Longitude)).SingleAsync(ct))).RequireAuthorization(AppPolicies.ShopMember);
+        group.MapPut("/location", SetLocationAsync).RequireAuthorization(AppPolicies.ShopOwner);
         return app;
+    }
+
+    /// <summary>The shop's place on the map (the owner stands in the shop and taps "use my location"): customers nearby find it. Both null clears it.</summary>
+    private static async Task<IResult> SetLocationAsync(ShopLocationDto request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        if (request.Latitude is null != request.Longitude is null || request.Latitude is < -90 or > 90 || request.Longitude is < -180 or > 180)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Latitude"] = ["The location isn't valid."] });
+        }
+
+        await db.Shops.Where(s => s.Id == tenant.ShopId).ExecuteUpdateAsync(x => x.SetProperty(s => s.Latitude, request.Latitude).SetProperty(s => s.Longitude, request.Longitude), ct);
+        return TypedResults.NoContent();
     }
 
     private static async Task<IResult> GetAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct) =>

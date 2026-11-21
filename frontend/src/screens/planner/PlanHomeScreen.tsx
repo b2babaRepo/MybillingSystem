@@ -1,3 +1,4 @@
+import { currentPoint } from '../../lib/location'
 import { dueText, useKhataDues } from '../../lib/khataDues'
 import { useReorder } from '../../lib/reorder'
 import { useQuery } from '@tanstack/react-query'
@@ -68,22 +69,24 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
   // Monthly and weekly lists suit grocery buying: shown when the customer uses them or shops at a kirana or dairy.
   const showLists = monthly.items.length + weekly.items.length > 0 || orders.some((o) => o.source !== 'store') || saved.some((s) => LIST_TRADES.has(s.type))
   // The default address in the header, and the biggest khata due as a card: what a customer checks first.
-  const home = useQuery({ queryKey: ['addresses'], queryFn: () => api<{ id: string; label: string; text: string; isDefault: boolean }[]>('/v1/addresses'), retry: false }).data?.[0]
+  const home = useQuery({ queryKey: ['addresses'], queryFn: () => api<{ id: string; label: string; text: string; isDefault: boolean; latitude?: number | null; longitude?: number | null }[]>('/v1/addresses'), retry: false }).data?.[0]
   const owed = (useQuery({ queryKey: ['my-khata'], queryFn: () => api<{ shopId: string; shopName: string; customerId: string; balance: number; confirmed: boolean }[]>('/v1/me/khata'), retry: false }).data ?? [])
     .filter((k) => k.confirmed && k.balance > 0).sort((a, b) => b.balance - a.balance)[0]
   const owedDueRow = owed && dues.find((d) => d.customerId === owed.customerId)
   const owedDue = owedDueRow ? dueText(owedDueRow) : null
-  const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
+  // Shops near: where the phone is (after a tap), else the default address when it has a location.
+  const [here, setHere] = useState<{ lat: number; lng: number } | null>(null)
+  const homePoint = home?.latitude != null && home?.longitude != null ? { lat: home.latitude, lng: home.longitude } : null
+  const near = here ?? homePoint
   const [locating, setLocating] = useState(false)
+  const [nearError, setNearError] = useState('')
   const shops = useShopSearch('', '', near)
-  const findNear = () => {
+  const findNear = async () => {
     setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (p) => { setNear({ lat: p.coords.latitude, lng: p.coords.longitude }); setLocating(false) },
-      () => setLocating(false),
-      { timeout: 15_000 },
-    )
+    setNearError('')
+    try { setHere(await currentPoint()) } catch (e) { setNearError(t(`cust12.loc_${e instanceof Error ? e.message : 'unavailable'}`)) } finally { setLocating(false) }
   }
+  const nearShops = near ? (shops.data ?? []) : []
 
   return (
     <div className="flex flex-col gap-4 pb-6">
@@ -150,6 +153,39 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
             <span className="text-center text-sm font-bold">{t('cust.addShop')}</span>
           </button>
         </div>
+        <section className="flex flex-col gap-2" aria-label={t('home2.shopsNear')}>
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="truncate text-[17px] font-extrabold">{here || !homePoint ? t('home2.shopsNear') : t('cust12.nearLabel', { label: home!.label })}</h2>
+            {near && <button onClick={() => void findNear()} disabled={locating} className="min-h-11 shrink-0 text-sm font-bold text-brand">{locating ? t('home2.locating') : t('cust12.useHere')}</button>}
+          </div>
+          {!near ? (
+            <div className="flex flex-col gap-2 rounded-card bg-white p-3.5 shadow-[0_1px_4px_rgba(16,32,29,0.06)]">
+              <p className="text-sm text-muted">{t('cust12.nearIntro')}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => void findNear()} disabled={locating} className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-brand text-sm font-bold text-white disabled:opacity-50"><CustIcon name="pin" size={16} />{locating ? t('home2.locating') : t('cust12.findNear')}</button>
+                <button onClick={() => navigate('/addresses')} className="h-11 rounded-xl border-2 border-brand text-sm font-bold text-brand">{t('cust12.addHome')}</button>
+              </div>
+            </div>
+          ) : shops.isLoading ? <p className="text-sm text-muted">…</p> : nearShops.length === 0 ? (
+            <div className="rounded-card bg-white p-3.5 text-sm text-muted shadow-[0_1px_4px_rgba(16,32,29,0.06)]">
+              {t('cust12.noneNear')} <button onClick={() => navigate('/search')} className="font-bold text-brand">{t('cust12.connectInstead')}</button>
+            </div>
+          ) : (
+            <div className="flex flex-col divide-y divide-[#edf2f1] rounded-card bg-white shadow-[0_1px_4px_rgba(16,32,29,0.06)]">
+              {nearShops.slice(0, 5).map((s) => (
+                <button key={s.id} onClick={() => { setChosenShop(userId, s); navigate(s.slug ? `/s/${s.slug}` : '/list/monthly') }} className="flex min-h-16 items-center gap-3 px-3 py-2.5 text-left">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] text-lg font-extrabold" style={shopTint(s.id)}>{s.name.charAt(0)}</span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-bold">{s.name}</span>
+                    <span className="truncate text-[13px] text-muted">{[s.distanceKm != null ? t('plan.km', { km: s.distanceKm }) : null, s.area].filter(Boolean).join(' · ')}</span>
+                  </span>
+                  <span className="shrink-0 text-sm font-bold text-brand">{t('cust.openShop')} ›</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {nearError && <p className="text-sm text-due">{nearError}</p>}
+        </section>
         <HomeShelves saved={saved} orders={orders} />
         {showLists ? <>
           <h2 className="text-[17px] font-extrabold">{t('home2.myLists')}</h2>
@@ -175,22 +211,8 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
       </section>
 
       <section className="flex flex-col gap-2 px-4">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-[17px] font-extrabold">{near ? t('home2.shopsNear') : t('home2.shops')}</h2>
-          {!near && <button onClick={findNear} className="min-h-11 font-bold text-brand">{locating ? t('home2.locating') : t('plan.nearMe')}</button>}
-        </div>
+        <h2 className="text-[17px] font-extrabold">{t('cust12.connectTitle')}</h2>
         <ConnectShop onPick={(s) => { setChosenShop(userId, s); navigate(s.slug ? `/s/${s.slug}` : '/list/monthly') }} current={getChosenShop(userId)?.id} />
-        {shops.data?.length === 0 && <p className="text-sm text-muted">{t('plan.noShops')}</p>}
-        {shops.data?.slice(0, 5).map((s) => (
-          <button key={s.id} onClick={() => { setChosenShop(userId, s); navigate(s.slug ? `/s/${s.slug}` : '/list/monthly') }} className="flex items-center gap-3 rounded-2xl bg-white p-3 text-left">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-brand text-lg font-extrabold text-white">{s.name.charAt(0)}</span>
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate font-bold">{s.name}</span>
-              <span className="truncate text-[13px] text-muted">{[s.distanceKm != null ? t('plan.km', { km: s.distanceKm }) : null, s.area].filter(Boolean).join(' · ')}</span>
-            </span>
-            <span className="shrink-0 text-sm font-bold text-brand">{t('home2.order')} ›</span>
-          </button>
-        ))}
       </section>
     </div>
   )

@@ -12,6 +12,7 @@ import { PasscodesPanel } from './PasscodesPanel'
 import { WhatsAppBusinessPanel } from './WhatsAppBusinessPanel'
 
 import { StoreOrderSettings } from '../components/StoreOrderSettings'
+import { ShopLocation } from '../components/ShopLocation'
 
 export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const settings = useShopSettings(shopId)
@@ -19,7 +20,7 @@ export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
   return (
     <>
       <SettingsForm shopId={shopId} isOwner={isOwner} initial={settings.data} />
-      <div className="mx-auto max-w-xl px-4 pb-6 lg:max-w-4xl"><StoreOrderSettings shopId={shopId} isOwner={isOwner} /></div>
+      <div className="mx-auto max-w-xl px-4 pb-6 lg:max-w-4xl"><ShopLocation isOwner={isOwner} /><StoreOrderSettings shopId={shopId} isOwner={isOwner} /></div>
     </>
   )
 }

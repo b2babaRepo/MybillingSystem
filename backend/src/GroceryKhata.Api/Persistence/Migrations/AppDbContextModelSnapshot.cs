@@ -3096,6 +3096,14 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("landmark");
 
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision")
+                        .HasColumnName("latitude");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision")
+                        .HasColumnName("longitude");
+
                     b.Property<string>("Pincode")
                         .HasMaxLength(6)
                         .HasColumnType("character varying(6)")
