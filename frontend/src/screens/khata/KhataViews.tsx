@@ -1,3 +1,4 @@
+import { confirmAsk } from '../../components/Ask'
 import { dueText, useKhataDues } from '../../lib/khataDues'
 import { MonthSelect, PrintShare, monthLabel } from '../../components/StatementTools'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -6,7 +7,7 @@ import { UpiPay } from '../../components/OrderPay'
 import { useTranslation } from 'react-i18next'
 import { KhataHistory } from '../../components/KhataHistory'
 import { Balance, Button, Sheet, btn } from '../../components/ui'
-import { nextLanguage, setLanguage } from '../../i18n'
+import { nextLanguage, setLanguage, shownLocale } from '../../i18n'
 import { api } from '../../lib/api'
 import { formatPhone, formatRupees } from '../../lib/format'
 import type { ItemProblem, StatementLine, Statement } from '../../lib/types'
@@ -311,6 +312,40 @@ export function MyKhataScreen() {
   )
 }
 
+/** "This balance is right": the customer's own written acknowledgement, which the shop sees. Shown while it isn't confirmed at today's balance. */
+function ConfirmBalance({ shopId, customerId, balance, confirmed }: { shopId: string; customerId: string; balance: number; confirmed: { balance: number; at: string } | null }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const day = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
+  if (balance <= 0) return null
+  if (confirmed && confirmed.balance === balance) return <p className="mx-4 mt-3 text-sm font-semibold text-brand-deep">✓ {t('cust9.youConfirmed', { amount: formatRupees(balance), day: day(confirmed.at) })}</p>
+  async function confirm() {
+    if (!(await confirmAsk(t('cust9.confirmAsk', { amount: formatRupees(balance) })))) return
+    setBusy(true)
+    setError('')
+    try {
+      await api(`/v1/me/khata/${shopId}/${customerId}/confirm-balance`, 'POST', { balance })
+      await queryClient.invalidateQueries({ queryKey: ['my-khata', shopId, customerId] })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="mx-4 mt-3 flex flex-col gap-1.5 rounded-2xl bg-white p-3 shadow-[0_1px_4px_rgba(16,32,29,0.06)] print:hidden">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm">{t('cust9.isItRight', { amount: formatRupees(balance) })}</span>
+        <button onClick={() => void confirm()} disabled={busy} className="h-10 shrink-0 rounded-xl bg-brand px-3 text-sm font-bold text-white disabled:opacity-50">{t('cust9.confirmBtn')}</button>
+      </div>
+      <span className="text-xs text-muted">{t('cust9.confirmHint')}</span>
+      {error && <span className="text-sm text-due">{error}</span>}
+    </div>
+  )
+}
+
 /** When this khata's udhaar falls due (the shop's credit days), above its statement. */
 function DueBanner({ customerId }: { customerId: string }) {
   const { t } = useTranslation()
@@ -345,6 +380,7 @@ export function MyKhataDetail({ shopId, customerId, extra }: { shopId: string; c
       </div>
       {month && s && <p className="px-4 pt-2 text-sm text-muted">{t('cust7.opening')}: <b>{formatRupees(s.openingBalance)}</b> · {t('cust7.closing')}: <b>{formatRupees(s.closingBalance)}</b></p>}
       <DueBanner customerId={customerId} />
+      {!month && s && <ConfirmBalance shopId={shopId} customerId={customerId} balance={s.closingBalance} confirmed={s.confirmed ?? null} />}
       <KhataBody view={view.data} queryKey={['my-khata', shopId, customerId]} disputePath={`/v1/me/khata/${shopId}/${customerId}/disputes`} paidPath={`/v1/me/khata/${shopId}/${customerId}/paid`} extra={extra} />
     </>
   ) : (

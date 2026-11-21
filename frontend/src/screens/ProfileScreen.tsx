@@ -25,6 +25,7 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
     address: initial.address ?? '', city: initial.city ?? '', pincode: initial.pincode ?? '', gstin: initial.gstin ?? '',
   })
   const [message, setMessage] = useState('')
+  const [changing, setChanging] = useState(false)
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
 
   const [current, setCurrent] = useState('')
@@ -60,7 +61,11 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
   return (
     <section className="m-4 flex flex-col gap-3 rounded-card bg-white p-4">
       <Field label={t('profile.name')} value={form.fullName} onChange={set('fullName')} maxLength={120} />
-      <p className="text-sm text-muted">{t('profile.phone')}: {formatPhone(initial.phone)}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-muted">{t('profile.phone')}: <b className="text-ink">{formatPhone(initial.phone)}</b></p>
+        <button onClick={() => setChanging(true)} className="min-h-11 rounded-xl border border-line px-3 text-sm font-bold text-brand">{t('cust9.changeNumber')}</button>
+      </div>
+      {changing && <PhoneChangeSheet hasPassword={!!initial.hasPassword} onClose={() => setChanging(false)} />}
       <Field label={t('profile.email')} value={form.email} onChange={set('email')} inputMode="email" maxLength={160} />
       <Field label={t('profile.address')} value={form.address} onChange={set('address')} maxLength={300} />
       <div className="grid grid-cols-2 gap-2">
@@ -86,5 +91,61 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
         <Button disabled={fresh.length < 6} onClick={() => void savePassword()}>{t('profile.passwordSave')}</Button>
       </div>
     </section>
+  )
+}
+
+/**
+ * Moving the account to a new number: a code to the new number, and the password (or, with no password, a code to the
+ * old number). Every other sign-in ends; this phone carries on under the new number.
+ */
+function PhoneChangeSheet({ hasPassword, onClose }: { hasPassword: boolean; onClose: () => void }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [phone, setPhone] = useState('')
+  const [sent, setSent] = useState(false)
+  const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
+  const [oldSent, setOldSent] = useState(false)
+  const [oldCode, setOldCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+  async function run(action: () => Promise<void>) {
+    setBusy(true)
+    setError('')
+    try { await action() } catch (e) { setError(e instanceof Error ? e.message : t('error')) } finally { setBusy(false) }
+  }
+  const send = () => run(async () => { await api('/v1/profile/phone/send', 'POST', { newPhone: phone }); setSent(true) })
+  const sendOld = () => run(async () => { await api('/v1/profile/phone/send', 'POST', { toOld: true }); setOldSent(true) })
+  const change = () => run(async () => {
+    const session = await api<NonNullable<ReturnType<typeof getSession>>>('/v1/profile/phone', 'POST', { newPhone: phone, code, password: hasPassword ? password : null, oldCode: hasPassword ? null : oldCode })
+    setSession(session)
+    await queryClient.invalidateQueries({ queryKey: ['profile'] })
+    setDone(true)
+  })
+  return (
+    <div className="fixed inset-0 z-30 flex items-end bg-black/40 lg:items-center lg:justify-center lg:p-6" onClick={onClose}>
+      <div role="dialog" aria-label={t('cust9.changeNumber')} onClick={(e) => e.stopPropagation()} className="flex max-h-[90dvh] w-full flex-col gap-3 overflow-y-auto rounded-t-3xl bg-white p-4 lg:max-w-md lg:rounded-3xl">
+        <h2 className="text-lg font-extrabold">{t('cust9.changeNumber')}</h2>
+        {done ? <>
+          <p className="rounded-xl bg-brand-soft p-3 font-semibold text-brand-deep">{t('cust9.changed')}</p>
+          <p className="text-sm text-muted">{t('cust9.khataNote')}</p>
+          <Button onClick={onClose}>{t('a11y.close')}</Button>
+        </> : <>
+          <Field label={t('cust9.newNumber')} value={phone} onChange={(e) => { setPhone(e.target.value); setSent(false) }} inputMode="tel" maxLength={14} />
+          {!sent ? <Button disabled={busy || phone.replace(/\D/g, '').length < 10} onClick={() => void send()}>{t('cust9.sendCode')}</Button> : <>
+            <Field label={t('cust9.codeNew')} value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={6} autoComplete="one-time-code" />
+            {hasPassword
+              ? <Field label={t('profile.passwordCurrent')} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+              : !oldSent
+                ? <button onClick={() => void sendOld()} disabled={busy} className="min-h-11 rounded-xl border border-line font-bold text-brand">{t('cust9.sendOld')}</button>
+                : <Field label={t('cust9.codeOld')} value={oldCode} onChange={(e) => setOldCode(e.target.value)} inputMode="numeric" maxLength={6} />}
+            <Button disabled={busy || code.length !== 6 || (hasPassword ? password.length < 6 : oldCode.length !== 6)} onClick={() => void change()}>{t('cust9.change')}</Button>
+          </>}
+          {error && <p className="text-sm text-due">{error}</p>}
+          <p className="text-xs text-muted">{hasPassword ? t('cust9.hintPassword') : t('cust9.hintNoPassword')}</p>
+        </>}
+      </div>
+    </div>
   )
 }

@@ -205,6 +205,8 @@ export interface Statement {
   closingBalance: number
   /** "2026-10", or null for everything. */
   month: string | null
+  /** The customer's latest confirmation of their balance, from their own app. */
+  confirmed?: { balance: number; at: string } | null
 }
 
 export interface CashBookLine {

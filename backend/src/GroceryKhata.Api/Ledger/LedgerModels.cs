@@ -175,7 +175,7 @@ public sealed record BillItem(Guid Id, string Name, decimal Quantity, Catalogue.
 /// <see cref="OpeningBalance"/>: owed before the period (previous dues carried forward); 0 for the whole khata.
 /// <see cref="ClosingBalance"/>: owed at its end. <see cref="Month"/>: "2026-10", or null for everything.
 /// </summary>
-public sealed record StatementDto(CustomerDto Customer, IReadOnlyList<StatementLine> Entries, decimal OpeningBalance, decimal ClosingBalance, string? Month);
+public sealed record StatementDto(CustomerDto Customer, IReadOnlyList<StatementLine> Entries, decimal OpeningBalance, decimal ClosingBalance, string? Month, BalanceConfirmedDto? Confirmed = null);
 
 /// <summary>A bill as printed or shared: its lines, and the customer it was for.</summary>
 public sealed record BillView(BillDto Bill, CustomerDto? Customer);

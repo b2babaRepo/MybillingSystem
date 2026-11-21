@@ -857,7 +857,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         }).ToList();
 
         return new StatementDto(customer, lines, opening, running,
-            month is { } chosen ? $"{chosen.Year:D4}-{chosen.Month:D2}" : null);
+            month is { } chosen ? $"{chosen.Year:D4}-{chosen.Month:D2}" : null, await BalanceConfirmations.LatestAsync(db, customerId, cancellationToken));
     }
 
     public async Task<BillView?> GetBillAsync(Guid id, CancellationToken cancellationToken)

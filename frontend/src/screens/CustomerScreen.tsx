@@ -49,7 +49,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
   const { customers } = useCustomers(shopId)
   const queryClient = useQueryClient()
   const customer = customers.find((c) => c.id === customerId)
-  const { entries } = useStatement(shopId, customer)
+  const { entries, confirmed } = useStatement(shopId, customer)
   const settings = useShopSettings(shopId)
   const [amount, setAmount] = useState('')
   const [mode, setMode] = useState<PaymentMode>('cash')
@@ -282,6 +282,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
 
       {tab === 'history' && !customer.isNew && (
         <>
+          {confirmed && <p className="rounded-xl bg-brand-soft px-3 py-2 text-sm font-semibold text-brand-deep">✓ {t('cust9.shopSees', { amount: formatRupees(confirmed.balance), day: new Date(confirmed.at).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) })}</p>}
           {/* A computer gets the register table (opened from a disputed entry: the list, which rings it); a phone the card list. */}
           {!focusEntryId && (
             <div className="hidden lg:block">

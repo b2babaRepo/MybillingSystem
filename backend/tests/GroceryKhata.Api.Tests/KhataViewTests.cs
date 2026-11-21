@@ -366,6 +366,58 @@ public sealed class KhataViewTests(ApiFactory api)
         Assert.Equal(50m, amount);
     }
 
+    [Fact]
+    public async Task A_customer_moves_to_a_new_number_with_codes_and_their_password()
+    {
+        var phone = ApiFactory.NewPhone();
+        var person = await RegisterAsync("Rekha", phone);
+        await VerifyPhoneAsync(phone);
+        var sms = api.Services.GetRequiredService<DevSmsSender>();
+
+        // A number another account uses can't be taken.
+        var other = ApiFactory.NewPhone();
+        await RegisterAsync("Other", other);
+        Assert.Equal(HttpStatusCode.BadRequest, (await person.PostJsonAsync("/api/v1/profile/phone/send", new { newPhone = other })).StatusCode);
+
+        var fresh = ApiFactory.NewPhone();
+        (await person.PostJsonAsync("/api/v1/profile/phone/send", new { newPhone = fresh })).EnsureSuccessStatusCode();
+        var code = sms.LastCodeFor(GroceryKhata.Api.Common.PhoneNumber.Normalize(fresh)!);
+        Assert.Equal(HttpStatusCode.BadRequest, (await person.PostJsonAsync("/api/v1/profile/phone", new { newPhone = fresh, code, password = "wrong-one" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await person.PostJsonAsync("/api/v1/profile/phone", new { newPhone = fresh, code = "000000", password = "secret123" })).StatusCode);
+        var moved = await (await person.PostJsonAsync("/api/v1/profile/phone", new { newPhone = fresh, code, password = "secret123" })).ReadAsync<AuthResponse>();
+        Assert.Equal(GroceryKhata.Api.Common.PhoneNumber.Normalize(fresh), moved.User.Phone);
+
+        // The new number signs in; the old one no longer does.
+        var client = api.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await client.PostJsonAsync("/api/v1/auth/sign-in", new { phone = fresh, password = "secret123" })).StatusCode);
+        Assert.NotEqual(HttpStatusCode.OK, (await client.PostJsonAsync("/api/v1/auth/sign-in", new { phone, password = "secret123" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_customer_confirms_their_khata_balance_and_the_shop_sees_it()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Confirm Kirana", fullName = "Ajay", phone = ApiFactory.NewPhone(), password = "secret123", language = "en" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var shopId = auth.Memberships.Single().ShopId;
+        var phone = ApiFactory.NewPhone();
+        var customer = await CreateCustomerAsync(shop, "Geeta", phone);
+        (await shop.PostJsonAsync("/api/v1/khata-entries", new { id = Guid.CreateVersion7(), customerId = customer, type = "credit", amount = 300m })).EnsureSuccessStatusCode();
+        var person = await RegisterAsync("Geeta", phone);
+        await VerifyPhoneAsync(phone);
+        var path = $"/api/v1/me/khata/{shopId}/{customer}/confirm-balance";
+        // Not theirs until confirmed with the shop's code.
+        Assert.Equal(HttpStatusCode.NotFound, (await person.PostJsonAsync(path, new { balance = 300m })).StatusCode);
+        await ConfirmAsync(shop, person, shopId, customer);
+        // A balance that isn't the current one is refused.
+        Assert.Equal(HttpStatusCode.Conflict, (await person.PostJsonAsync(path, new { balance = 250m })).StatusCode);
+        (await person.PostJsonAsync(path, new { balance = 300m })).EnsureSuccessStatusCode();
+
+        Assert.Equal(300m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{customer}/statement")).Confirmed!.Balance);
+        Assert.Equal(300m, (await person.GetJsonAsync<KhataViewDto>($"/api/v1/me/khata/{shopId}/{customer}")).Statement.Confirmed!.Balance);
+    }
+
     private async Task VerifyPhoneAsync(string phone)
     {
         await using var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata");

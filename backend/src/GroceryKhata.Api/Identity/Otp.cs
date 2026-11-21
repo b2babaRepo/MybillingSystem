@@ -144,7 +144,7 @@ public static class OtpSignIn
     }
 
     /// <summary>Sends a code. Answers the same whether or not the number has an account, so nothing is revealed.</summary>
-    private static async Task<IResult> SendAsync(
+    internal static async Task<IResult> SendAsync(
         OtpSendRequest request, AppDbContext db, IServiceProvider services, IOptions<OtpOptions> options, TimeProvider clock, ILogger<OtpCode> logger, CancellationToken ct)
     {
         if (PhoneNumber.Normalize(request.Phone) is not { } phone)
@@ -197,20 +197,10 @@ public static class OtpSignIn
         OtpVerifyRequest request, AppDbContext db, AuthService auth, IOptions<OtpOptions> options, TimeProvider clock, CancellationToken ct)
     {
         var phone = PhoneNumber.Normalize(request.Phone);
-        var codeText = request.Code?.Trim();
         var now = clock.GetUtcNow();
-        var otp = phone is null || codeText is not { Length: 6 }
-            ? null
-            : await db.OtpCodes.Where(c => c.Phone == phone && c.UsedAt == null && c.ExpiresAt > now).OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync(ct);
-        if (otp is null || otp.Attempts >= options.Value.MaxAttempts)
+        var otp = await MatchAsync(db, phone, request.Code, options.Value, now, ct);
+        if (otp is null)
         {
-            return WrongCode();
-        }
-
-        if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(otp.CodeHash), Convert.FromHexString(Hash(phone!, codeText!))))
-        {
-            otp.Attempts++;
-            await db.SaveChangesAsync(ct);
             return WrongCode();
         }
 
@@ -230,6 +220,31 @@ public static class OtpSignIn
             { Error: AuthError.LockedOut } => TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Account locked for a while."),
             _ => WrongCode(),
         };
+    }
+
+    /// <summary>
+    /// The newest live code sent to this number, if <paramref name="code"/> is it (not yet marked used: the caller does
+    /// that once the whole step succeeds). A wrong code counts against the number's tries. Null: wrong, used up or expired.
+    /// </summary>
+    internal static async Task<OtpCode?> MatchAsync(AppDbContext db, string? phone, string? code, OtpOptions options, DateTimeOffset now, CancellationToken ct)
+    {
+        var codeText = code?.Trim();
+        var otp = phone is null || codeText is not { Length: 6 }
+            ? null
+            : await db.OtpCodes.Where(c => c.Phone == phone && c.UsedAt == null && c.ExpiresAt > now).OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync(ct);
+        if (otp is null || otp.Attempts >= options.MaxAttempts)
+        {
+            return null;
+        }
+
+        if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(otp.CodeHash), Convert.FromHexString(Hash(phone!, codeText!))))
+        {
+            otp.Attempts++;
+            await db.SaveChangesAsync(ct);
+            return null;
+        }
+
+        return otp;
     }
 
     private static IResult WrongCode() =>

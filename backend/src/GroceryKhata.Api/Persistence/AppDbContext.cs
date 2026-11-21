@@ -63,6 +63,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Planner.DeliveryPlan> DeliveryPlans => Set<Planner.DeliveryPlan>();
 
+    public DbSet<Ledger.BalanceConfirmation> BalanceConfirmations => Set<Ledger.BalanceConfirmation>();
+
     public DbSet<Planner.SavedShop> SavedShops => Set<Planner.SavedShop>();
 
     public DbSet<Planner.CustomerPushDevice> CustomerPushDevices => Set<Planner.CustomerPushDevice>();
@@ -2064,6 +2066,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(e => new { e.ShopId, e.ChequeStatus }).HasFilter("cheque_status IS NOT NULL");
             // Not unique: a corrected or split payment shows the same reference. One UTR, one receipt is kept on the receipt.
             b.HasIndex(e => new { e.ShopId, e.UpiRef }).HasFilter("upi_ref IS NOT NULL");
+        });
+
+        modelBuilder.Entity<Ledger.BalanceConfirmation>(b =>
+        {
+            b.ToTable("balance_confirmations");
+            b.HasTenantKey();
+            b.HasIndex(c => new { c.ShopId, c.CustomerId, c.CreatedAt });
+            b.HasTenantForeignKey<Ledger.BalanceConfirmation, Customer>(nameof(Ledger.BalanceConfirmation.CustomerId));
         });
 
         modelBuilder.Entity<Ledger.CustomerConsent>(b =>

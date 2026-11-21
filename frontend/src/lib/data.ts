@@ -94,7 +94,8 @@ export function useStatement(shopId: string, customer: LocalCustomer | undefined
     retry: false,
   })
   const { ops } = useOutbox(shopId)
-  return useMemo(() => mergeStatement(query.data, customer, ops), [query.data, customer, ops])
+  const merged = useMemo(() => mergeStatement(query.data, customer, ops), [query.data, customer, ops])
+  return useMemo(() => ({ ...merged, confirmed: query.data?.confirmed ?? null }), [merged, query.data])
 }
 
 /**
