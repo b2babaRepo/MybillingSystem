@@ -1,3 +1,4 @@
+import { MonthSelect, PrintShare, monthLabel } from '../../components/StatementTools'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { UpiPay } from '../../components/OrderPay'
@@ -310,10 +311,24 @@ export function MyKhataScreen() {
 /** Household app: my khata at one shop. */
 export function MyKhataDetail({ shopId, customerId, extra }: { shopId: string; customerId: string; extra?: ReactNode }) {
   const { t } = useTranslation()
-  const view = useQuery({ queryKey: ['my-khata', shopId, customerId], queryFn: () => api<KhataView>(`/v1/me/khata/${shopId}/${customerId}`) })
+  const [month, setMonth] = useState('')
+  const view = useQuery({ queryKey: ['my-khata', shopId, customerId, month], queryFn: () => api<KhataView>(`/v1/me/khata/${shopId}/${customerId}${month ? `?month=${month}` : ''}`) })
   if (view.isError) return <p className="p-6 text-center text-muted">{t('myKhata.linkInvalid')}</p>
+  const s = view.data?.statement
+  const shareText = view.data && s ? [
+    `${t('cust7.statement')} · ${view.data.shopName} · ${month ? monthLabel(month) : t('cust7.allTime')}`,
+    month ? `${t('cust7.opening')}: ${formatRupees(s.openingBalance)}` : '',
+    `${t('cust7.closing')}: ${formatRupees(s.closingBalance)}`,
+  ].filter(Boolean).join('\n') : ''
   return view.data ? (
-    <KhataBody view={view.data} queryKey={['my-khata', shopId, customerId]} disputePath={`/v1/me/khata/${shopId}/${customerId}/disputes`} paidPath={`/v1/me/khata/${shopId}/${customerId}/paid`} extra={extra} />
+    <>
+      <div className="flex items-center gap-2 px-4 pt-4 print:hidden">
+        <MonthSelect value={month} onChange={setMonth} allLabel={t('cust7.allTime')} />
+        <PrintShare text={shareText} />
+      </div>
+      {month && s && <p className="px-4 pt-2 text-sm text-muted">{t('cust7.opening')}: <b>{formatRupees(s.openingBalance)}</b> · {t('cust7.closing')}: <b>{formatRupees(s.closingBalance)}</b></p>}
+      <KhataBody view={view.data} queryKey={['my-khata', shopId, customerId]} disputePath={`/v1/me/khata/${shopId}/${customerId}/disputes`} paidPath={`/v1/me/khata/${shopId}/${customerId}/paid`} extra={extra} />
+    </>
   ) : (
     <p className="p-6 text-center text-muted">…</p>
   )

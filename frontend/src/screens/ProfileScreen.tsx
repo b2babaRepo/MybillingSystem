@@ -7,7 +7,7 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { formatPhone } from '../lib/format'
 
-interface Profile { fullName: string; phone: string; preferredLanguage: string; email: string | null; address: string | null; city: string | null; pincode: string | null; hasPassword?: boolean }
+interface Profile { fullName: string; phone: string; preferredLanguage: string; email: string | null; address: string | null; city: string | null; pincode: string | null; hasPassword?: boolean; gstin?: string | null }
 
 /** The signed-in person's own details. The mobile number is the login, so it only shows here. */
 /** customer: the shopping app's profile (offers Hinglish too); the shop app's leaves it out. */
@@ -22,7 +22,7 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
   const queryClient = useQueryClient()
   const [form, setForm] = useState({
     fullName: initial.fullName, preferredLanguage: initial.preferredLanguage, email: initial.email ?? '',
-    address: initial.address ?? '', city: initial.city ?? '', pincode: initial.pincode ?? '',
+    address: initial.address ?? '', city: initial.city ?? '', pincode: initial.pincode ?? '', gstin: initial.gstin ?? '',
   })
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
@@ -44,7 +44,7 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
   async function save() {
     setMessage('')
     try {
-      await api('/v1/profile', 'PUT', form)
+      await api('/v1/profile', 'PUT', customer ? form : { ...form, gstin: undefined })
       await queryClient.invalidateQueries({ queryKey: ['profile'] })
       // The name and language the app shows follow at once (the account keeps them too).
       const session = getSession()
@@ -67,6 +67,10 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
         <Field label={t('profile.city')} value={form.city} onChange={set('city')} maxLength={80} />
         <Field label={t('profile.pincode')} value={form.pincode} onChange={set('pincode')} inputMode="numeric" maxLength={6} />
       </div>
+      {customer && <>
+        <Field label={t('cust7.gstin')} value={form.gstin} onChange={set('gstin')} maxLength={15} />
+        <p className="-mt-2 text-xs text-muted">{t('cust7.gstinHint')}</p>
+      </>}
       <label className="flex flex-col gap-1">
         <span className="text-sm font-medium text-muted">{t('profile.language')}</span>
         <select value={form.preferredLanguage} onChange={set('preferredLanguage')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">

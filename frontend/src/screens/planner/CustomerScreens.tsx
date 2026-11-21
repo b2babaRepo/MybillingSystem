@@ -164,6 +164,11 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
         </div>
         <div className={card}>
           {khata.filter((k) => k.confirmed).length === 0 && <button onClick={() => navigate('/khata')} className="min-h-12 w-full text-left text-sm text-muted">{t('myKhata.none')}</button>}
+          <button onClick={() => navigate('/passbook')} className="flex min-h-14 w-full items-center gap-3 px-1 text-left">
+            <CustIcon name="khata" className="shrink-0 text-brand" />
+            <span className="flex min-w-0 flex-1 flex-col"><span className="font-bold">{t('cust7.passbook')}</span><span className="truncate text-xs text-muted">{t('cust7.passbookHint')}</span></span>
+            <CustIcon name="chevron" size={16} className="shrink-0 text-[#9aa8a4]" />
+          </button>
           {khata.filter((k) => k.confirmed).map((k) => (
             <button key={k.customerId} onClick={() => navigate(`/khata/${k.shopId}/${k.customerId}`)} className="flex min-h-[60px] w-full items-center gap-3 border-t border-[#edf2f1] px-1 text-left first:border-t-0">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-extrabold" style={shopTint(k.shopId)}>{k.shopName.charAt(0)}</span>

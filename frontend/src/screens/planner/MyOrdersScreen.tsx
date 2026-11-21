@@ -16,6 +16,17 @@ import { answerChangedLine, homeKey, useMyOrders, type Order, type OrderLine } f
 import type { Unit } from '../../lib/types'
 
 const code = (o: Order) => `#${o.id.slice(-4).toUpperCase()}`
+
+/** After delivery: paid in full, the rest on the khata, or still to pay. Null before delivery or for older orders. */
+function PaidChip({ order }: { order: Order }) {
+  const { t } = useTranslation()
+  if (order.status !== 'delivered' || order.paidAmount == null || order.finalAmount == null) return null
+  const rest = round2(order.finalAmount - order.paidAmount)
+  const [text, tone] = rest <= 0 ? [t('cust7.paidFull'), 'bg-[#e3f2ee] text-brand-deep']
+    : order.payment === 'khata' ? [t('cust7.onKhata', { amount: formatRupees(rest) }), 'bg-amber-100 text-amber-900']
+    : [t('cust7.due', { amount: formatRupees(rest) }), 'bg-due-soft text-due']
+  return <span className={`self-start rounded-lg px-2 py-0.5 text-xs font-bold ${tone}`}>{text}</span>
+}
 /** Lines the shop changed that wait for the customer's answer. */
 const waitingLines = (o: Order) => (o.status === 'packed' ? o.lines.filter((l) => l.approval === 'pending') : [])
 
@@ -101,6 +112,7 @@ function OrderCard({ order }: { order: Order }) {
       </div>
 
       <OrderSteps order={order} />
+      <PaidChip order={order} />
 
       {waiting.length > 0 && (
         <button onClick={() => navigate(`/orders/${order.id}`)} className="flex items-center justify-between gap-2 rounded-xl bg-warn-soft p-3 text-left text-sm text-amber-950 ring-1 ring-amber-300">

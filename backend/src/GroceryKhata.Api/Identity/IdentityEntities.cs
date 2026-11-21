@@ -24,6 +24,10 @@ public sealed class User : Entity
     [System.ComponentModel.DataAnnotations.MaxLength(6)]
     public string? Pincode { get; set; }
 
+    /// <summary>A business buyer's GSTIN: copied to the shop's customer record when an app order is delivered, so the bill is a tax invoice in their name.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(15)]
+    public string? Gstin { get; set; }
+
     /// <summary>"en", "hi", "gu" or "hn" (Hinglish, customer app only).</summary>
     public string PreferredLanguage { get; set; } = "hi";
 

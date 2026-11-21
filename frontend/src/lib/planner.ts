@@ -148,6 +148,8 @@ export interface Order {
   shopPhone?: string | null
   /** Where the shop is (address, area): who sold it, on the order page. */
   shopAddress?: string | null
+  /** Paid at delivery (the rest went on the khata); null before delivery or for older orders. */
+  paidAmount?: number | null
   /** The delivery charge fixed when it was placed (in finalAmount once packed). */
   deliveryFee?: number
   acceptedAt?: string | null

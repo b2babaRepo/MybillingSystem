@@ -66,6 +66,7 @@ public sealed class PlannerTests(ApiFactory api)
         // Delivered on khata: a bill under the order's ID, and the whole amount owed by a new khata customer.
         var delivered = await (await shop.PostJsonAsync($"/api/v1/orders/{order.Id}/deliver", new { })).ReadAsync<OrderDto>();
         Assert.Equal(OrderStatus.Delivered, delivered.Status);
+        Assert.Equal(0m, delivered.PaidAmount); // all of it on the khata
         Assert.Equal(HttpStatusCode.OK, (await shop.PostJsonAsync($"/api/v1/orders/{order.Id}/deliver", new { })).StatusCode);
         var customer = Assert.Single(await shop.GetJsonAsync<List<CustomerDto>>("/api/v1/customers"));
         Assert.Equal(("Priya Agarwal", 724m), (customer.Name, customer.Balance));

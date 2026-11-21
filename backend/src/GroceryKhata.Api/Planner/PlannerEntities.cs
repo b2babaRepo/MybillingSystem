@@ -114,6 +114,9 @@ public sealed class Order : Entity, IPlacedByUser
     /// <summary>The bill made at delivery; it posts any unpaid amount to the customer's khata.</summary>
     public Guid? BillId { get; set; }
 
+    /// <summary>What was paid at delivery (the rest went on the khata); null before delivery or for older orders.</summary>
+    public decimal? PaidAmount { get; set; }
+
     public List<OrderLine> Lines { get; set; } = [];
 }
 

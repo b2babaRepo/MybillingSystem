@@ -277,6 +277,42 @@ public sealed class KhataViewTests(ApiFactory api)
         Assert.Equal([("Sunita", true, true), ("Vikas", false, false)], round.Deliveries.OrderBy(d => d.Name).Select(d => (d.Name, d.OnKhata, d.Posted)).ToArray());
     }
 
+    [Fact]
+    public async Task The_passbook_lists_bills_and_payments_from_confirmed_khatas_only()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Passbook Kirana", fullName = "Mohan", phone = ApiFactory.NewPhone(), password = "secret123", language = "en" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var phone = ApiFactory.NewPhone();
+        var customer = await CreateCustomerAsync(shop, "Lata", phone);
+        (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), customerId = customer, lines = new[] { new { name = "Ghee 1 L", quantity = 1m, unitPrice = 500m } }, paidAmount = 100m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/khata-entries", new { id = Guid.CreateVersion7(), customerId = customer, type = "payment", amount = 50m, paymentMode = "upi" })).EnsureSuccessStatusCode();
+
+        var person = await RegisterAsync("Lata", phone);
+        await VerifyPhoneAsync(phone);
+        Assert.Empty((await person.GetJsonAsync<GroceryKhata.Api.Planner.PassbookDto>("/api/v1/me/passbook")).Items);
+        await ConfirmAsync(shop, person, auth.Memberships.Single().ShopId, customer);
+
+        var book = await person.GetJsonAsync<GroceryKhata.Api.Planner.PassbookDto>("/api/v1/me/passbook");
+        var bill = Assert.Single(book.Items, i => i.Kind == "bill");
+        Assert.Equal((500m, 100m, 400m), (bill.Amount, bill.Paid, bill.OnKhata));
+        Assert.Equal(50m, Assert.Single(book.Items, i => i.Kind == "payment").Amount);
+        Assert.Equal(350m, book.Shops.Single().Balance);
+        // The bill opens on its signed page.
+        Assert.Equal(500m, (await api.CreateClient().GetJsonAsync<PublicBillDto>($"/api/v1/bill/{bill.ShopSlug}/{bill.BillId}?t={bill.BillToken}")).Bill.Total);
+        // A month with nothing in it, in the passbook and the khata statement.
+        Assert.Empty((await person.GetJsonAsync<GroceryKhata.Api.Planner.PassbookDto>("/api/v1/me/passbook?month=2001-01")).Items);
+        var shopId = auth.Memberships.Single().ShopId;
+        Assert.Empty((await person.GetJsonAsync<KhataViewDto>($"/api/v1/me/khata/{shopId}/{customer}?month=2001-01")).Statement.Entries);
+
+        // A GSTIN on the profile must be a real one.
+        var profile = new { fullName = "Lata", preferredLanguage = "en", gstin = "27AAPFU0939F1ZX" };
+        Assert.Equal(HttpStatusCode.BadRequest, (await person.PutAsJsonAsync("/api/v1/profile", profile)).StatusCode);
+        var saved = await (await person.PutAsJsonAsync("/api/v1/profile", profile with { gstin = "27aapfu0939f1zv" })).ReadAsync<ProfileDto>();
+        Assert.Equal("27AAPFU0939F1ZV", saved.Gstin);
+    }
+
     private async Task VerifyPhoneAsync(string phone)
     {
         await using var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata");

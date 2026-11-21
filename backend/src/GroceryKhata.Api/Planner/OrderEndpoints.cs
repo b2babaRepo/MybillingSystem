@@ -225,10 +225,17 @@ public static class OrderEndpoints
 
         var customerId = await db.Customers.Where(c => c.Phone == order.CustomerPhone).OrderBy(c => c.CreatedAt)
             .Select(c => (Guid?)c.Id).FirstOrDefaultAsync(ct);
+        // A business buyer's GSTIN from their profile reaches the shop's record (if it has none), so this bill is a tax invoice in their name.
+        var buyerGstin = order.PlacedByUserId is { } placer ? await db.Users.AsNoTracking().Where(u => u.Id == placer).Select(u => u.Gstin).SingleOrDefaultAsync(ct) : null;
         if (customerId is null)
         {
             var created = await ledger.CreateCustomerAsync(new CustomerRequest(Guid.CreateVersion7(), order.CustomerName, order.CustomerPhone), ct);
             customerId = created.Value?.Id;
+        }
+
+        if (buyerGstin is not null && customerId is { } who)
+        {
+            await db.Customers.Where(c => c.Id == who && c.Gstin == null).ExecuteUpdateAsync(x => x.SetProperty(c => c.Gstin, buyerGstin), ct);
         }
 
         var bill = await ledger.CreateBillAsync(
@@ -254,6 +261,7 @@ public static class OrderEndpoints
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         order = (await FindAsync(db, tenant, id, ct, tracked: true))!;
         order.BillId = bill.Value.Id;
+        order.PaidAmount = paid;
         order.Status = OrderStatus.Delivered;
         order.DeliveredAt = clock.GetUtcNow();
         // The bill has taken the real stock off the shelf; the hold placed at ordering goes, in the same step.

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Identity;
 
-public sealed record ProfileDto(string FullName, string Phone, string PreferredLanguage, string? Email, string? Address, string? City, string? Pincode, bool HasPassword = false);
+public sealed record ProfileDto(string FullName, string Phone, string PreferredLanguage, string? Email, string? Address, string? City, string? Pincode, bool HasPassword = false, string? Gstin = null);
 
 public sealed record PasswordChange(string? CurrentPassword, string? NewPassword);
 
@@ -12,7 +12,7 @@ public sealed record PasswordChange(string? CurrentPassword, string? NewPassword
 public sealed record LanguageChange(string? Language);
 
 /// <summary>The phone is the login, so it isn't changed here.</summary>
-public sealed record ProfileUpdate(string? FullName, string? PreferredLanguage, string? Email, string? Address, string? City, string? Pincode);
+public sealed record ProfileUpdate(string? FullName, string? PreferredLanguage, string? Email, string? Address, string? City, string? Pincode, string? Gstin = null);
 
 /// <summary>The signed-in person's own details: only ever their own row.</summary>
 public static class Profile
@@ -60,7 +60,7 @@ public static class Profile
         return TypedResults.NoContent();
     }
 
-    private static ProfileDto ToDto(User u) => new(u.FullName, u.Phone, u.PreferredLanguage, u.Email, u.Address, u.City, u.Pincode, u.PasswordHash is not null);
+    private static ProfileDto ToDto(User u) => new(u.FullName, u.Phone, u.PreferredLanguage, u.Email, u.Address, u.City, u.Pincode, u.PasswordHash is not null, u.Gstin);
 
     /// <summary>Saves the language picked anywhere in the app, without touching the rest of the profile.</summary>
     private static async Task<IResult> LanguageAsync(LanguageChange request, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
@@ -93,14 +93,22 @@ public static class Profile
         var pincode = Clean(request.Pincode);
         var address = Clean(request.Address);
         var city = Clean(request.City);
+        var gstin = Clean(request.Gstin)?.ToUpperInvariant();
         if (name is not { Length: >= 2 and <= 120 }) errors["FullName"] = ["Enter your name."];
         if (request.PreferredLanguage is not ("en" or "hi" or "gu" or "hn")) errors["PreferredLanguage"] = ["Language must be en, hi, gu or hn."];
         if (email is not null && (email.Length > 160 || !email.Contains('@') || email.Contains(' '))) errors["Email"] = ["Enter a valid email."];
         if (pincode is not null && (pincode.Length != 6 || !pincode.All(char.IsAsciiDigit))) errors["Pincode"] = ["A pincode has 6 digits."];
         if (address?.Length > 300 || city?.Length > 80) errors["Address"] = ["Keep the address shorter."];
+        if (gstin is not null && !Ledger.GstExport.IsValidGstin(gstin)) errors["Gstin"] = ["This GSTIN isn't valid: check each letter and digit."];
         if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(errors);
+        }
+
+        // Not sent (the shop app's form): left as it is; sent empty: cleared.
+        if (request.Gstin is not null)
+        {
+            user.Gstin = gstin;
         }
 
         (user.FullName, user.PreferredLanguage, user.Email, user.Address, user.City, user.Pincode) = (name!, request.PreferredLanguage!, email, address, city, pincode);

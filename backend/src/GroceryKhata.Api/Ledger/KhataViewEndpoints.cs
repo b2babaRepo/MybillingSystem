@@ -237,7 +237,7 @@ public static class KhataViewEndpoints
 
     /// <summary>One shop's khata for the signed-in person: read as that shop, after checking the phone is theirs.</summary>
     private static async Task<IResult> GetMineAtShopAsync(
-        Guid shopId, Guid customerId, ClaimsPrincipal user, IServiceScopeFactory scopes, AppDbContext db, TimeProvider clock, CancellationToken ct)
+        Guid shopId, Guid customerId, string? month, ClaimsPrincipal user, IServiceScopeFactory scopes, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var phone = await VerifiedPhoneAsync(user, db, ct);
 
@@ -254,7 +254,7 @@ public static class KhataViewEndpoints
             return TypedResults.NotFound();
         }
 
-        var statement = await sp.GetRequiredService<LedgerService>().GetStatementAsync(customerId, null, ct);
+        var statement = await sp.GetRequiredService<LedgerService>().GetStatementAsync(customerId, IndiaTime.ParseMonth(month), ct);
         return statement is null ? TypedResults.NotFound() : TypedResults.Ok(new KhataViewDto(shop.Name, shop.Area, null, statement, await Receipts.ClaimsForAsync(shopDb, customerId, clock, ct),
             string.IsNullOrWhiteSpace(shop.UpiId) ? null : shop.UpiId));
     }
