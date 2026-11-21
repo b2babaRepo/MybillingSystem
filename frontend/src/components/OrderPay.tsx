@@ -42,9 +42,9 @@ export function PaymentPicker({ value, onChange, total, upi, khata, signedIn }: 
   const khataReady = !!khata?.allowed && !over
   const option = (p: OrderPayment, title: string, hint: string, enabled: boolean) => (
     <button type="button" key={p} disabled={!enabled} onClick={() => onChange(p)} aria-pressed={value === p}
-      className={`flex min-h-14 w-full flex-col items-start rounded-[14px] px-3 py-2 text-left disabled:opacity-50 ${value === p ? 'border-2 border-brand bg-brand-soft' : 'border border-line bg-white'}`}>
-      <span className="font-bold">{title}</span>
-      <span className="text-[13px] text-muted">{hint}</span>
+      className={`flex min-h-14 w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left disabled:opacity-50 ${value === p ? 'border-2 border-brand bg-brand-soft' : 'border-2 border-line bg-white'}`}>
+      <span aria-hidden className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${value === p ? 'border-brand' : 'border-[#9aa8a4]'}`}>{value === p && <span className="h-2.5 w-2.5 rounded-full bg-brand" />}</span>
+      <span className="flex min-w-0 flex-col"><span className="font-bold">{title}</span><span className="text-[13px] text-muted">{hint}</span></span>
     </button>
   )
   return (

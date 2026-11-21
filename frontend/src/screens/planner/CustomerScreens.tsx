@@ -1,3 +1,4 @@
+import { CustIcon, shopTint, type CustIconName } from '../../components/CustIcons'
 import { useEffect, useState } from 'react'
 import { BillSummary } from '../../components/OrderPay'
 import { canListen, clearSearches, dataSaver, listen, rank, recentSearches, rememberSearch, setDataSaver } from '../../lib/search'
@@ -110,7 +111,7 @@ function AlertSettings() {
   )
 }
 
-interface Khata { shopId: string; balance: number }
+interface Khata { shopId: string; shopName: string; customerId: string; balance: number; confirmed: boolean }
 
 /** The customer's account: who they are, their orders, carts, khata, shops, lists, addresses, language, sign out. */
 export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => void; onSwitchToShop?: () => void }) {
@@ -121,54 +122,76 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
   const khata = useQuery({ queryKey: ['my-khata'], queryFn: () => api<Khata[]>('/v1/me/khata'), retry: false }).data ?? []
   const due = khata.reduce((s, k) => s + Math.max(0, k.balance), 0)
   const user = session?.user
-  const tiles = [
-    { label: t('orders'), value: '›', to: '/orders', icon: '📦' },
-    { label: t('cust.myCarts'), value: String(carts.length), to: '/cart', icon: '🛒' },
-    { label: t('myKhata.title'), value: formatRupees(due), to: '/khata', icon: '📒' },
-    { label: t('cust.savedShops'), value: String(shops.length), to: '/shops', icon: '🏪' },
-    { label: t('cust4.savedItems'), value: String(useSavedItems().data?.length ?? 0), to: '/saved', icon: '♥' },
+  const savedItems = useSavedItems().data?.length ?? 0
+  const tiles: { label: string; count?: number; to: string; icon: CustIconName }[] = [
+    { label: t('orders'), to: '/orders', icon: 'orders' },
+    { label: t('cust.tab.cart'), count: carts.length, to: '/cart', icon: 'cart' },
+    { label: t('cust5.saved'), count: savedItems, to: '/saved', icon: 'heart' },
+    { label: t('cust.shops'), count: shops.length, to: '/shops', icon: 'shop' },
   ]
-  const row = (icon: string, label: string, to: () => void, hint?: string) => (
+  const row = (icon: CustIconName, label: string, to: () => void, hint?: string) => (
     <button onClick={to} className="flex min-h-14 w-full items-center gap-3 border-t border-[#edf2f1] px-1 text-left first:border-t-0">
-      <span aria-hidden className="text-xl">{icon}</span>
+      <CustIcon name={icon} className="shrink-0 text-[#3d4c48]" />
       <span className="flex-1 font-semibold">{label}</span>
       {hint && <span className="text-sm text-muted">{hint}</span>}
-      <span className="text-muted" aria-hidden>›</span>
+      <CustIcon name="chevron" size={16} className="shrink-0 text-[#9aa8a4]" />
     </button>
   )
   return (
-    <div className="flex flex-col gap-3 p-4">
-      <section className="flex items-center gap-3 rounded-card bg-brand p-4 text-white">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-400 text-2xl font-extrabold text-amber-950">{user?.fullName.charAt(0)}</span>
-        <span className="flex min-w-0 flex-col">
-          <b className="truncate text-lg">{user?.fullName}</b>
-          <span className="text-sm opacity-85">{user?.phone?.replace(/^\+91/, '')}</span>
+    <div className="flex flex-col gap-4 pb-4">
+      <section className="flex items-center gap-3.5 bg-brand px-4 pt-3 pb-14 text-white">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white text-2xl font-extrabold text-brand">{user?.fullName.charAt(0)}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <b className="truncate text-xl">{user?.fullName}</b>
+          <span className="text-sm opacity-90">{user?.phone?.replace(/^\+91/, '')}</span>
         </span>
       </section>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="-mt-14 grid grid-cols-4 gap-2 px-4">
         {tiles.map((x) => (
-          <button key={x.to} onClick={() => navigate(x.to)} className="flex flex-col items-start gap-1 rounded-2xl bg-white p-3 text-left shadow-sm">
-            <span aria-hidden className="text-2xl">{x.icon}</span>
-            <span className="text-sm text-muted">{x.label}</span>
-            <b className="text-lg">{x.value}</b>
+          <button key={x.to} onClick={() => navigate(x.to)} className="relative flex h-[78px] flex-col items-center justify-center gap-1.5 rounded-2xl bg-white text-xs font-bold shadow-[0_6px_18px_rgba(16,32,29,0.08)]">
+            <CustIcon name={x.icon} size={22} className="text-brand" />
+            <span className="truncate px-1">{x.label}</span>
+            {!!x.count && <span className="absolute right-2 top-2 min-w-[18px] rounded-full bg-brand px-1 text-center text-[10px] leading-[18px] text-white">{x.count}</span>}
           </button>
         ))}
       </div>
-      <section className={card}>
-        {row('📝', t('plan.monthlyList'), () => navigate('/list/monthly'))}
-        {row('🗓️', t('plan.weeklyList'), () => navigate('/list/weekly'))}
-        {row('🎙️', t('ai.title'), () => navigate('/ai'))}
+      <section className="flex flex-col gap-2 px-4">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-[15px] font-extrabold">{t('myKhata.title')}</h2>
+          {due > 0 && <span className="text-sm font-bold text-udhaar">{t('cust5.owe', { amount: formatRupees(due) })}</span>}
+        </div>
+        <div className={card}>
+          {khata.filter((k) => k.confirmed).length === 0 && <button onClick={() => navigate('/khata')} className="min-h-12 w-full text-left text-sm text-muted">{t('myKhata.none')}</button>}
+          {khata.filter((k) => k.confirmed).map((k) => (
+            <button key={k.customerId} onClick={() => navigate(`/khata/${k.shopId}/${k.customerId}`)} className="flex min-h-[60px] w-full items-center gap-3 border-t border-[#edf2f1] px-1 text-left first:border-t-0">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-extrabold" style={shopTint(k.shopId)}>{k.shopName.charAt(0)}</span>
+              <span className="min-w-0 flex-1 truncate font-bold">{k.shopName}</span>
+              <b className={k.balance > 0 ? 'text-udhaar' : 'text-muted'}>{k.balance > 0 ? formatRupees(k.balance) : t('settled')}</b>
+            </button>
+          ))}
+        </div>
       </section>
-      <AlertSettings />
-      <section className={card}>
-        {row('📍', t('cust.addresses'), () => navigate('/addresses'))}
-        {row('🌐', t('cust.language'), () => navigate('/language'), CUSTOMER_LANGUAGES.find((l) => l.code === i18n.language)?.name)}
-        <DataSaverRow />
-        {row('🔒', t('cust4.privacy'), () => navigate('/privacy'))}
-        {row('👥', t('teamLink'), () => navigate('/team'))}
-        {onSwitchToShop && row('🏬', t('plan.iAmShop'), onSwitchToShop)}
+      <section className="flex flex-col gap-2 px-4">
+        <h2 className="text-[15px] font-extrabold">{t('home2.myLists')}</h2>
+        <div className={card}>
+          {row('list', t('plan.monthlyList'), () => navigate('/list/monthly'))}
+          {row('calendar', t('plan.weeklyList'), () => navigate('/list/weekly'))}
+          {row('sparkle', t('ai.title'), () => navigate('/ai'))}
+        </div>
       </section>
-      <button onClick={onSignOut} className="h-12 rounded-xl border border-due font-bold text-due">{t('signOut')}</button>
+      <div className="px-4"><AlertSettings /></div>
+      <section className="flex flex-col gap-2 px-4">
+        <h2 className="text-[15px] font-extrabold">{t('cust5.settings')}</h2>
+        <div className={card}>
+          {row('pin', t('cust.addresses'), () => navigate('/addresses'))}
+          {row('globe', t('cust.language'), () => navigate('/language'), CUSTOMER_LANGUAGES.find((l) => l.code === i18n.language)?.name)}
+          <DataSaverRow />
+          {row('lock', t('cust4.privacy'), () => navigate('/privacy'))}
+          {row('team', t('teamLink'), () => navigate('/team'))}
+          {onSwitchToShop && row('store', t('plan.iAmShop'), onSwitchToShop)}
+        </div>
+      </section>
+      <div className="px-4"><button onClick={onSignOut} className="h-12 w-full rounded-xl border-2 border-line font-bold text-due">{t('signOut')}</button></div>
     </div>
   )
 }
@@ -302,6 +325,11 @@ export function SearchScreen() {
     setHearing(true)
     if (!listen(i18n.language, (text) => pick(text), () => setHearing(false))) setHearing(false)
   }
+  // Opened from the mic on Home: start listening straight away.
+  useEffect(() => {
+    try { if (sessionStorage.getItem('search.voice') === '1') { sessionStorage.removeItem('search.voice'); if (canListen()) voice() } } catch { /* storage off */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const chip = (text: string) => <button key={text} onClick={() => pick(text)} className="min-h-10 rounded-full border border-line bg-white px-3 text-sm font-semibold">{text}</button>
   const ask = saved.length > 0 && stores.find((r) => r.data?.phone)?.data
   return (

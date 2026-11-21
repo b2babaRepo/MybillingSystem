@@ -1,3 +1,4 @@
+import { CustIcon } from '../../components/CustIcons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -212,6 +213,21 @@ function AddItems({ order, userId, onClose }: { order: Order; userId: string; on
 interface MyKhataRow { shopId: string; customerId: string; confirmed: boolean }
 
 /** One order in full: every line, the progress, what the shop changed, how and where, the bill, and Call / WhatsApp / Cancel. */
+/** The order's state in words, big: what is happening and what (if anything) waits on the customer. */
+function StatusHero({ order }: { order: Order }) {
+  const { t } = useTranslation()
+  const waiting = waitingLines(order).length
+  const key = order.pending ? 'sending' : waiting > 0 ? 'waiting' : order.status
+  const tone = order.status === 'cancelled' ? 'bg-due text-white' : waiting > 0 ? 'bg-amber-500 text-amber-950' : 'bg-brand text-white'
+  return (
+    <section className={`flex flex-col gap-1 rounded-card p-4 ${tone}`}>
+      <span className="text-sm font-semibold opacity-90">#{order.id.slice(-4).toUpperCase()} · {order.shopName}</span>
+      <h2 className="text-2xl font-extrabold leading-tight">{order.pending ? t('plan.sending') : waiting > 0 ? t('cust2.updatedTitle') : t(`plan.status.${order.status}`)}</h2>
+      <p className="text-sm opacity-90">{t(`cust5.hint.${key}`, { count: waiting })}</p>
+    </section>
+  )
+}
+
 export function OrderDetail({ userId, orderId }: { userId: string; orderId: string }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -240,6 +256,7 @@ export function OrderDetail({ userId, orderId }: { userId: string; orderId: stri
   const upiId = store.data?.upiId
   return (
     <div className="flex flex-col gap-3 p-4">
+      <StatusHero order={order} />
       <OrderCard order={order} />
       <ChangesReview order={order} userId={userId} />
       {order.payment === 'upi' && upiId && isOpen(order.status) && !order.pending && total > 0 && <UpiPay upiId={upiId} shopName={order.shopName} amount={total} note={`${order.shopName} ${code(order)}`} />}
@@ -274,8 +291,8 @@ export function OrderDetail({ userId, orderId }: { userId: string; orderId: stri
         )}
       </section>
       <div className="grid grid-cols-2 gap-2">
-        {order.shopPhone && <a href={`tel:${order.shopPhone}`} className="flex h-12 items-center justify-center rounded-xl border border-line font-bold">📞 {t('cust.callShop')}</a>}
-        {order.shopPhone && <a href={whatsAppLink(order.shopPhone, t('cust.aboutOrder', { shop: order.shopName, id: order.id.slice(-4).toUpperCase() }))} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center rounded-xl bg-[#25D366] font-bold text-white">WhatsApp</a>}
+        {order.shopPhone && <a href={`tel:${order.shopPhone}`} className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-brand font-bold text-brand"><CustIcon name="phone" size={18} />{t('cust.callShop')}</a>}
+        {order.shopPhone && <a href={whatsAppLink(order.shopPhone, t('cust.aboutOrder', { shop: order.shopName, id: order.id.slice(-4).toUpperCase() }))} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#e3f2ee] font-bold text-brand-deep"><CustIcon name="chat" size={18} />WhatsApp</a>}
         {order.shopSlug && <button onClick={() => navigate(`/s/${order.shopSlug}`)} className="col-span-2 h-12 rounded-xl border border-line font-semibold">{t('cust.openShop')}</button>}
         {canChange(order.status) && !order.pending && <button onClick={() => void cancel()} className="col-span-2 h-12 rounded-xl border border-due font-bold text-due">{t('cust.cancelOrder')}</button>}
       </div>

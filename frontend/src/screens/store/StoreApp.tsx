@@ -1,3 +1,4 @@
+import { CustIcon } from '../../components/CustIcons'
 import { putCart, useCarts, useSavedShops, useSaveShop } from '../../lib/customer'
 import { api } from '../../lib/api'
 import { aisleName } from '../../lib/aisleNames'
@@ -19,7 +20,7 @@ import type { ProblemDetails, Unit } from '../../lib/types'
 import { navigate } from '../../router'
 import { getSession } from '../../lib/session'
 import { AlertsPrompt, BillSummary, OrderSteps, PaymentPicker, SlotChips, UpiPay } from '../../components/OrderPay'
-import { billOf, isOpen, noSettings, useCheckoutInfo, type StoreSettings } from '../../lib/orderFlow'
+import { billOf, isOpen, noSettings, useCheckoutInfo, type KhataAtCheckout, type StoreSettings } from '../../lib/orderFlow'
 import { ProductSheet, fullPageTrades } from '../../components/ProductSheet'
 import { Drawer } from '../../components/ui'
 import { rank, rememberSearch } from '../../lib/search'
@@ -203,6 +204,8 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
     if (Object.keys(local).length > 0) { void putCart(shopId, joined).catch(() => {}); remember(`store.${slug}.cart`, {}) }
   }, [signedIn, merged, shopId, accountCarts.data, slug])
   const pushTimer = useRef<number | undefined>(undefined)
+  // Signed in: whether this customer can put an order on khata here (shown with the shop's terms).
+  const khataHere = useCheckoutInfo(shopId, signedIn).data?.khata
 
   if (store.isError) return <NotFound />
   const data = store.data
@@ -291,12 +294,14 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const lines = data.items.filter((i) => cart[i.id] > 0).map((i) => ({ item: i, quantity: cart[i.id] }))
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.item.price), 0))
   const settings = data.settings ?? noSettings
+  const toFree = settings.deliveryFee && settings.freeDeliveryAbove ? Math.max(0, round2(settings.freeDeliveryAbove - total)) : 0
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-28 lg:max-w-6xl lg:px-4">
       <Header title={data.name} subtitle={[data.area, data.address].filter(Boolean).join(' · ') || t('store.title')} shopId={data.shopId} theme={settings.theme} />
       {festive(settings.theme) && <p className={`mx-4 mt-3 rounded-2xl p-3 text-center font-bold text-white ${festive(settings.theme)!.header}`}>{festive(settings.theme)!.emoji} {t(`cust4.festive.${settings.theme}`)}</p>}
 
+      <ShopTerms settings={settings} khata={khataHere} />
       {signedIn && savedHere && <div className="mx-4 mt-3"><AlertsPrompt show /></div>}
       {myOrders.length > 0 && (
         <div className="mx-4 mt-3 flex flex-wrap gap-2">
@@ -419,13 +424,19 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
         footer={gallery.imageAt ? <PhotoNote shopId={data.shopId} item={gallery} /> : undefined} />}
 
       {lines.length > 0 && !checkingOut && (
-        <div className={`fixed inset-x-0 ${signedIn ? "bottom-[68px]" : "bottom-0"} z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-[440px] lg:rounded-2xl lg:border lg:shadow-xl`}>
-          <button onClick={() => setCheckingOut(true)} className={`flex h-14 w-full items-center justify-between px-5 text-lg rounded-xl ${btn.solid}`}>
-            <span>{t('store.cart', { count: lines.length, total: formatRupees(total) })}</span>
-            <span>{t('store.checkout')} →</span>
+        <div className={`fixed inset-x-4 ${signedIn ? "bottom-[80px]" : "bottom-4"} z-10 mx-auto max-w-[544px] lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-[440px]`}>
+          {/* One dark bar: what's in the cart, and what still stands between the customer and a cheaper or allowed order. */}
+          <button onClick={() => setCheckingOut(true)} className="flex min-h-[58px] w-full items-center justify-between gap-3 rounded-2xl bg-ink px-4 py-2 text-left text-white shadow-[0_8px_24px_rgba(16,32,29,0.25)]">
+            <span className="flex min-w-0 flex-col">
+              <b className="text-[15px]">{t('store.cart', { count: lines.length, total: formatRupees(total) })}</b>
+              <span className={`truncate text-xs ${settings.minOrder && total < settings.minOrder ? 'font-bold text-amber-300' : 'opacity-80'}`}>
+                {settings.minOrder && total < settings.minOrder ? t('cust2.belowMin', { amount: formatRupees(round2(settings.minOrder - total)), min: formatRupees(settings.minOrder) })
+                  : toFree > 0 ? t('cust2.addMoreFree', { amount: formatRupees(toFree) })
+                  : settings.deliveryFee && settings.freeDeliveryAbove ? t('cust5.freeDelivery') : t('store.checkout')}
+              </span>
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-[15px] font-extrabold">{t('cust5.viewCart')}<CustIcon name="chevron" size={18} /></span>
           </button>
-          {settings.minOrder && total < settings.minOrder ? <p className="mt-1 text-center text-xs font-semibold text-warn-ink">{t('cust2.belowMin', { amount: formatRupees(round2(settings.minOrder - total)), min: formatRupees(settings.minOrder) })}</p>
-            : settings.deliveryFee ? <p className="mt-1 text-center text-xs text-muted">{t('cust2.delivery')} {formatRupees(settings.deliveryFee)}{settings.freeDeliveryAbove ? ` · ${t('cust2.addMoreFree', { amount: formatRupees(Math.max(0, round2(settings.freeDeliveryAbove - total))) })}` : ''}</p> : null}
         </div>
       )}
 
@@ -615,6 +626,26 @@ function PhotoNote({ shopId, item }: { shopId: string; item: StoreItem }) {
     <div className="mt-0.5 flex items-center justify-between gap-1 text-[10px] text-muted">
       <span className="truncate">{item.imageCredit ? t('store.photoFrom', { source: item.imageCredit }) : ''}</span>
       {sent ? <span>✓ {t('store.reported')}</span> : <button onClick={(e) => { e.stopPropagation(); void report() }} className="shrink-0 underline">{t('store.reportPhoto')}</button>}
+    </div>
+  )
+}
+
+/** The shop's terms before shopping: delivery charge, minimum order, and whether this customer can put it on khata. */
+function ShopTerms({ settings, khata }: { settings: StoreSettings; khata: KhataAtCheckout | null | undefined }) {
+  const { t } = useTranslation()
+  const boxes: [string, string][] = [
+    [settings.deliveryFee ? t('cust5.delivery', { amount: formatRupees(settings.deliveryFee) }) : t('cust5.freeDelivery'),
+      settings.deliveryFee && settings.freeDeliveryAbove ? t('cust4.freeAbove', { amount: formatRupees(settings.freeDeliveryAbove) }) : t('cust4.orPickup')],
+    [settings.minOrder ? t('cust5.minOrder', { amount: formatRupees(settings.minOrder) }) : t('cust5.noMin'), t('cust5.pickupFree')],
+  ]
+  if (khata?.allowed) boxes.push([t('cust5.khataOk'), khata.limit ? t('cust5.khataLimit', { amount: formatRupees(khata.limit) }) : t('cust5.khataOpen')])
+  return (
+    <div className="mx-4 mt-3 grid gap-2" style={{ gridTemplateColumns: `repeat(${boxes.length}, minmax(0, 1fr))` }}>
+      {boxes.map(([title, hint]) => (
+        <span key={title} className="flex flex-col rounded-xl bg-white px-2.5 py-2 text-xs leading-snug text-muted shadow-[0_1px_4px_rgba(16,32,29,0.06)]">
+          <b className="text-[13px] text-ink">{title}</b>{hint}
+        </span>
+      ))}
     </div>
   )
 }
