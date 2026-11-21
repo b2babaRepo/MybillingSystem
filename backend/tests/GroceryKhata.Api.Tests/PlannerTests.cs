@@ -69,6 +69,15 @@ public sealed class PlannerTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.OK, (await shop.PostJsonAsync($"/api/v1/orders/{order.Id}/deliver", new { })).StatusCode);
         var customer = Assert.Single(await shop.GetJsonAsync<List<CustomerDto>>("/api/v1/customers"));
         Assert.Equal(("Priya Agarwal", 724m), (customer.Name, customer.Balance));
+
+        // The household opens the bill of its delivered order: the same signed link the shop sends, which shows the bill.
+        var link = await home.GetJsonAsync<BillLinkDto>($"/api/v1/me/orders/{order.Id}/bill-link");
+        var bill = await api.CreateClient().GetJsonAsync<PublicBillDto>($"/api/v1/bill/{link.ShopSlug}/{link.BillId}?t={link.Token}");
+        Assert.Equal(("Sharma General Store", 724m), (bill.ShopName, bill.Bill.Total));
+        Assert.Equal("Sharma General Store", (await home.GetJsonAsync<List<OrderDto>>("/api/v1/me/orders")).Single().ShopName);
+        // Older history pages by date; someone else gets no bill link.
+        Assert.Empty(await home.GetJsonAsync<List<OrderDto>>($"/api/v1/me/orders?before={Uri.EscapeDataString(delivered.CreatedAt.AddSeconds(-1).ToString("O"))}"));
+        Assert.Equal(HttpStatusCode.NotFound, (await shop.GetAsync($"/api/v1/me/orders/{order.Id}/bill-link")).StatusCode);
     }
 
     [Fact]

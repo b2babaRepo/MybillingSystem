@@ -1,3 +1,4 @@
+import { useReorder } from '../../lib/reorder'
 import { CustIcon } from '../../components/CustIcons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -19,16 +20,61 @@ const code = (o: Order) => `#${o.id.slice(-4).toUpperCase()}`
 const waitingLines = (o: Order) => (o.status === 'packed' ? o.lines.filter((l) => l.approval === 'pending') : [])
 
 /** Mockup 6: each order's progress, what the shop changed, and the final amount once packed. */
+type OrderFilter = 'all' | 'open' | 'delivered' | 'cancelled'
+
 export function MyOrdersScreen({ userId }: { userId: string }) {
   const { t } = useTranslation()
-  const { orders, isLoading } = useMyOrders(userId)
+  const { orders: recent, isLoading } = useMyOrders(userId)
+  // Older history, a page at a time, before the oldest order already shown.
+  const [older, setOlder] = useState<Order[]>([])
+  const [more, setMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [q, setQ] = useState('')
+  const [filter, setFilter] = useState<OrderFilter>('all')
+  const [shopId, setShopId] = useState('')
+  const all = [...recent, ...older.filter((o) => !recent.some((r) => r.id === o.id))]
+  const canMore = more && recent.filter((o) => !o.pending).length >= 30
+  async function loadOlder() {
+    const oldest = all.filter((o) => !o.pending).at(-1)
+    if (!oldest) return
+    setLoadingMore(true)
+    try {
+      const page = await api<Order[]>(`/v1/me/orders?before=${encodeURIComponent(oldest.createdAt)}`)
+      setOlder((o) => [...o, ...page])
+      if (page.length < 30) setMore(false)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+  const shops = [...new Map(all.map((o) => [o.shopId, o.shopName])).entries()]
+  const term = q.trim().toLowerCase()
+  const shown = all.filter((o) => (filter === 'all' || (filter === 'open' ? isOpen(o.status) : o.status === filter))
+    && (!shopId || o.shopId === shopId)
+    && (!term || o.shopName.toLowerCase().includes(term) || o.lines.some((l) => l.name.toLowerCase().includes(term)) || o.id.slice(-4).toLowerCase() === term.replace('#', '')))
+  const chip = (value: OrderFilter, label: string) => (
+    <button key={value} onClick={() => setFilter(value)} aria-pressed={filter === value} className={`h-10 shrink-0 rounded-full px-4 text-sm font-bold ${filter === value ? 'bg-brand text-white' : 'border border-line bg-white'}`}>{label}</button>
+  )
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      {!isLoading && orders.length === 0 && <p className="py-8 text-center text-muted">{t('plan.noOrders')}</p>}
-      {orders.map((order) => (
+      {all.length > 0 && <>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('cust6.searchOrders')} aria-label={t('cust6.searchOrders')} className="h-12 rounded-xl border border-line bg-white px-4" />
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+          {chip('all', t('store.all'))}{chip('open', t('cust6.open'))}{chip('delivered', t('plan.status.delivered'))}{chip('cancelled', t('plan.status.cancelled'))}
+          {shops.length > 1 && (
+            <select value={shopId} onChange={(e) => setShopId(e.target.value)} aria-label={t('cust.shops')} className="h-10 shrink-0 rounded-full border border-line bg-white px-3 text-sm font-bold">
+              <option value="">{t('cust6.allShops')}</option>
+              {shops.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          )}
+        </div>
+      </>}
+      {!isLoading && all.length === 0 && <p className="py-8 text-center text-muted">{t('plan.noOrders')}</p>}
+      {all.length > 0 && shown.length === 0 && <p className="py-6 text-center text-muted">{t('cust6.noMatch')}</p>}
+      {shown.map((order) => (
         <OrderCard key={order.id} order={order} />
       ))}
+      {canMore && <button onClick={() => void loadOlder()} disabled={loadingMore} className={`h-12 rounded-xl disabled:opacity-50 ${btn.outline}`}>{loadingMore ? '…' : t('cust6.olderOrders')}</button>}
     </div>
   )
 }
@@ -228,8 +274,10 @@ function StatusHero({ order }: { order: Order }) {
   )
 }
 
-export function OrderDetail({ userId, orderId }: { userId: string; orderId: string }) {
+export function OrderDetail({ userId, userName = '', orderId }: { userId: string; userName?: string; orderId: string }) {
   const { t } = useTranslation()
+  const { reorder, busy: reordering, label: reorderLabel } = useReorder(userId, userName)
+  const [openingBill, setOpeningBill] = useState(false)
   const queryClient = useQueryClient()
   const { orders, isLoading } = useMyOrders(userId)
   const [message, setMessage] = useState('')
@@ -247,6 +295,21 @@ export function OrderDetail({ userId, orderId }: { userId: string; orderId: stri
       await queryClient.invalidateQueries({ queryKey: [homeKey(userId), 'orders'] })
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+
+  // The shop's bill for a delivered order: the same signed page the shop sends, to print or save as a PDF.
+  async function openBill() {
+    if (!order) return
+    setOpeningBill(true)
+    setMessage('')
+    try {
+      const link = await api<{ shopSlug: string; billId: string; token: string }>(`/v1/me/orders/${order.id}/bill-link`)
+      navigate(`/b/${link.shopSlug}/${link.billId}?t=${link.token}`)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setOpeningBill(false)
     }
   }
 
@@ -289,6 +352,20 @@ export function OrderDetail({ userId, orderId }: { userId: string; orderId: stri
             <span>📒 {t('cust2.onKhata', { shop: order.shopName })}</span><span>{t('cust2.openKhata')} ›</span>
           </button>
         )}
+      </section>
+      {(order.billId || (!isOpen(order.status) && !order.pending)) && (
+        <div className="grid grid-cols-2 gap-2">
+          {order.billId && <button onClick={() => void openBill()} disabled={openingBill} className={`flex h-12 items-center justify-center gap-2 rounded-xl font-bold disabled:opacity-50 ${btn.solid}`}><CustIcon name="orders" size={18} />{t('cust6.viewBill')}</button>}
+          {!isOpen(order.status) && !order.pending && order.lines.some((l) => !l.removed) && (
+            <button onClick={() => void reorder(order)} disabled={reordering} className={`h-12 rounded-xl font-bold disabled:opacity-50 ${order.billId ? 'border-2 border-brand text-brand' : `col-span-2 ${btn.solid}`}`}>↻ {reorderLabel(order)}</button>
+          )}
+        </div>
+      )}
+      <section className="flex flex-col gap-0.5 rounded-card bg-white p-4 text-sm">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted">{t('cust6.soldBy')}</span>
+        <b className="text-base">{order.shopName}</b>
+        {order.shopAddress && <span className="text-muted">{order.shopAddress}</span>}
+        <span className="mt-1 text-xs text-muted">{t('cust6.problemHint')}</span>
       </section>
       <div className="grid grid-cols-2 gap-2">
         {order.shopPhone && <a href={`tel:${order.shopPhone}`} className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-brand font-bold text-brand"><CustIcon name="phone" size={18} />{t('cust.callShop')}</a>}

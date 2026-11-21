@@ -146,6 +146,8 @@ export interface Order {
   /** The shop's store link and owner's mobile: to open the shop, call or WhatsApp it from the order. */
   shopSlug?: string | null
   shopPhone?: string | null
+  /** Where the shop is (address, area): who sold it, on the order page. */
+  shopAddress?: string | null
   /** The delivery charge fixed when it was placed (in finalAmount once packed). */
   deliveryFee?: number
   acceptedAt?: string | null

@@ -17,6 +17,7 @@ import { PlanHomeScreen } from './PlanHomeScreen'
 import { SendScreen } from './SendScreen'
 import { AiOrderScreen } from './AiOrderScreen'
 import { MyKhataDetail, MyKhataScreen } from '../khata/KhataViews'
+import { ProfileScreen } from '../ProfileScreen'
 import { confirmAsk } from '../../components/Ask'
 import { AccountScreen, AddressesScreen, CartScreen, LanguageScreen, PrivacyScreen, SavedItemsScreen, SavedShopsScreen, SearchScreen } from './CustomerScreens'
 
@@ -71,18 +72,18 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
     { to: '/search', key: 'search', label: t('cust.tab.search'), active: path === '/search' },
     { to: '/orders', key: 'orders', label: t('cust.tab.orders'), active: path === '/orders' || !!orderMatch, badge: waiting },
     { to: '/cart', key: 'cart', label: t('cust.tab.cart'), active: path === '/cart', badge: carts.length },
-    { to: '/account', key: 'account', label: t('cust.tab.account'), active: ['/account', '/addresses', '/language', '/shops', '/khata', '/saved', '/privacy'].includes(path) || !!khataMatch },
+    { to: '/account', key: 'account', label: t('cust.tab.account'), active: ['/account', '/addresses', '/language', '/shops', '/khata', '/saved', '/privacy', '/profile'].includes(path) || !!khataMatch },
   ]
   const isTab = ['/', '/search', '/orders', '/cart', '/account'].includes(path)
   // Each screen says what it is.
   const title = listMatch ? t(`plan.${listMatch[1]}List`) : sendMatch ? t('orders2.sendTitle') : orderMatch ? t('cust.orderTitle')
     : path === '/orders' ? t('orders') : path === '/khata' || khataMatch ? t('myKhata.title') : path === '/ai' ? t('ai.title')
     : path === '/search' ? t('cust.tab.search') : path === '/cart' ? t('cust.myCarts') : path === '/account' ? t('cust.tab.account')
-    : path === '/addresses' ? t('cust.addresses') : path === '/language' ? t('cust.language') : path === '/shops' ? t('cust.savedShops') : path === '/saved' ? t('cust4.savedItems') : path === '/privacy' ? t('cust4.privacy') : t('plan.title')
+    : path === '/addresses' ? t('cust.addresses') : path === '/language' ? t('cust.language') : path === '/shops' ? t('cust.savedShops') : path === '/saved' ? t('cust4.savedItems') : path === '/privacy' ? t('cust4.privacy') : path === '/profile' ? t('cust6.profile') : t('plan.title')
   // Back goes to the screen the person came from; opened straight from a link, to the screen above this one.
   const back = () => {
     if (window.history.length > 1) window.history.back()
-    else navigate(sendMatch ? `/list/${sendMatch[1]}` : khataMatch ? '/khata' : orderMatch ? '/orders' : ['/addresses', '/language', '/shops', '/khata', '/saved', '/privacy'].includes(path) ? '/account' : '/')
+    else navigate(sendMatch ? `/list/${sendMatch[1]}` : khataMatch ? '/khata' : orderMatch ? '/orders' : ['/addresses', '/language', '/shops', '/khata', '/saved', '/privacy', '/profile'].includes(path) ? '/account' : '/')
   }
   const unsynced = pending + failed
 
@@ -116,7 +117,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
         ) : sendMatch ? (
           <SendScreen userId={userId} userName={userName} kind={sendMatch[1] as ListKind} />
         ) : orderMatch ? (
-          <OrderDetail userId={userId} orderId={orderMatch[1]} />
+          <OrderDetail userId={userId} userName={userName} orderId={orderMatch[1]} />
         ) : path === '/orders' ? (
           <MyOrdersScreen userId={userId} />
         ) : khataMatch ? (
@@ -137,6 +138,8 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
           <LanguageScreen />
         ) : path === '/shops' ? (
           <SavedShopsScreen />
+        ) : path === '/profile' ? (
+          <ProfileScreen customer />
         ) : path === '/saved' ? (
           <SavedItemsScreen />
         ) : path === '/privacy' ? (

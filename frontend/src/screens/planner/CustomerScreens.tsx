@@ -146,6 +146,7 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
           <b className="truncate text-xl">{user?.fullName}</b>
           <span className="text-sm opacity-90">{user?.phone?.replace(/^\+91/, '')}</span>
         </span>
+        <button onClick={() => navigate('/profile')} className="h-11 shrink-0 rounded-xl bg-white/20 px-3 text-sm font-bold">{t('cust.edit')}</button>
       </section>
       <div className="-mt-14 grid grid-cols-4 gap-2 px-4">
         {tiles.map((x) => (

@@ -1,7 +1,8 @@
+import { useReorder } from '../../lib/reorder'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import { CustIcon, shopTint } from '../../components/CustIcons'
-import { addToCart, useSavedShops } from '../../lib/customer'
+import { useSavedShops } from '../../lib/customer'
 import { HomeShelves } from '../../components/HomeShelves'
 import { RefillsCard } from '../../components/RefillsCard'
 import { SalonVisits } from '../../components/SalonVisits'
@@ -11,8 +12,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { itemArt } from '../../lib/itemArt'
 import { formatRupees } from '../../lib/format'
-import { confirmAsk } from '../../components/Ask'
-import { sendList, useCatalogue, useLists, useMyOrders, useShopSearch, type CatalogueItem, type ListItem, type ShopEntry, type ShoppingList } from '../../lib/planner'
+import { useCatalogue, useLists, useMyOrders, useShopSearch, type CatalogueItem, type ListItem, type ShopEntry, type ShoppingList } from '../../lib/planner'
 import { navigate } from '../../router'
 
 /** Rough cost of a list from the catalogue's typical prices; items typed by hand or in another unit don't count. */
@@ -60,33 +60,8 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
   const last = [...orders].filter((o) => o.status !== 'cancelled' && !o.pending && o.lines.some((l) => !l.removed))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
   const againLines = last ? last.lines.filter((l) => !l.removed) : []
-  const [sending, setSending] = useState(false)
-  async function orderAgain() {
-    if (!last || againLines.length === 0) return
-    // A shop-page order goes back into that shop's cart to check out again: nothing is sent yet, so no question.
-    if (last.source === 'store' && last.shopSlug) {
-      const lines: Record<string, number> = {}
-      for (const l of againLines) { const id = l.requestedProductId ?? l.productId; if (id) lines[id] = (lines[id] ?? 0) + l.quantity }
-      setSending(true)
-      try { await addToCart(last.shopId, lines) } finally { setSending(false) }
-      navigate(`/s/${last.shopSlug}/cart`)
-      return
-    }
-    const ok = await confirmAsk(t('again.confirm', {
-      list: last.source === 'store' ? t('orders2.online') : t(last.listKind === 'monthly' ? 'plan.monthlyList' : 'plan.weeklyList'), count: againLines.length, shop: last.shopName,
-      how: last.fulfilment === 'delivery' ? t('plan.delivery') : t('plan.pickup'),
-    }))
-    if (!ok) return
-    setSending(true)
-    // The same items as that order (as asked, not as changed by the shop), and the exact item where it was one.
-    const items = againLines.map((l) => ({ id: crypto.randomUUID(), name: l.requestedName ?? l.name, quantity: l.quantity, unit: l.unit, checked: false, note: l.note }))
-    const choices = Object.fromEntries(items.map((item, i) => [item.id, { productId: againLines[i].requestedProductId ?? againLines[i].productId ?? null, preference: againLines[i].preference ?? 'shop_chooses' }]))
-    await sendList(userId, userName, items, {
-      shop: { id: last.shopId, name: last.shopName, area: null, address: null }, kind: last.listKind, fulfilment: last.fulfilment,
-      slot: '', payment: last.payment, note: '', address: last.address ?? null,
-    }, choices)
-    navigate('/orders')
-  }
+  const { reorder, busy: sending } = useReorder(userId, userName)
+  const orderAgain = () => last && void reorder(last)
   const saved = useSavedShops().data ?? []
   // Monthly and weekly lists suit grocery buying: shown when the customer uses them or shops at a kirana or dairy.
   const showLists = monthly.items.length + weekly.items.length > 0 || orders.some((o) => o.source !== 'store') || saved.some((s) => LIST_TRADES.has(s.type))

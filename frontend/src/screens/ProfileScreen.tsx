@@ -1,3 +1,5 @@
+import { CUSTOMER_LANGUAGES, LANGUAGES, setLanguage, type Language } from '../i18n'
+import { getSession, setSession } from '../lib/session'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,13 +10,14 @@ import { formatPhone } from '../lib/format'
 interface Profile { fullName: string; phone: string; preferredLanguage: string; email: string | null; address: string | null; city: string | null; pincode: string | null; hasPassword?: boolean }
 
 /** The signed-in person's own details. The mobile number is the login, so it only shows here. */
-export function ProfileScreen() {
+/** customer: the shopping app's profile (offers Hinglish too); the shop app's leaves it out. */
+export function ProfileScreen({ customer = false }: { customer?: boolean }) {
   const profile = useQuery({ queryKey: ['profile'], queryFn: () => api<Profile>('/v1/profile') })
   if (!profile.data) return <p className="p-4 text-muted">…</p>
-  return <ProfileForm initial={profile.data} />
+  return <ProfileForm initial={profile.data} customer={customer} />
 }
 
-function ProfileForm({ initial }: { initial: Profile }) {
+function ProfileForm({ initial, customer }: { initial: Profile; customer: boolean }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [form, setForm] = useState({
@@ -43,7 +46,11 @@ function ProfileForm({ initial }: { initial: Profile }) {
     try {
       await api('/v1/profile', 'PUT', form)
       await queryClient.invalidateQueries({ queryKey: ['profile'] })
-      void i18n.changeLanguage(form.preferredLanguage)
+      // The name and language the app shows follow at once (the account keeps them too).
+      const session = getSession()
+      if (session) setSession({ ...session, user: { ...session.user, fullName: form.fullName.trim(), preferredLanguage: form.preferredLanguage } })
+      void setLanguage(form.preferredLanguage as Language, { toAccount: false })
+      void i18n
       setMessage(t('saved'))
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
@@ -63,7 +70,7 @@ function ProfileForm({ initial }: { initial: Profile }) {
       <label className="flex flex-col gap-1">
         <span className="text-sm font-medium text-muted">{t('profile.language')}</span>
         <select value={form.preferredLanguage} onChange={set('preferredLanguage')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
-          <option value="hi">हिंदी</option><option value="en">English</option><option value="gu">ગુજરાતી</option>
+          {(customer ? CUSTOMER_LANGUAGES : LANGUAGES).map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
         </select>
       </label>
       <Button disabled={form.fullName.trim().length < 2} onClick={() => void save()}>{t('save')}</Button>

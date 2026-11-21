@@ -99,9 +99,10 @@ public sealed record OrderDto(
     decimal DeliveryFee = 0,
     DateTimeOffset? AcceptedAt = null,
     DateTimeOffset? ReadyAt = null,
-    Guid? BillId = null)
+    Guid? BillId = null,
+    string? ShopAddress = null)
 {
-    public static OrderDto From(Order o, string shopName, string? shopSlug = null, string? shopPhone = null) => new(
+    public static OrderDto From(Order o, string shopName, string? shopSlug = null, string? shopPhone = null, string? shopAddress = null) => new(
         o.Id, o.ShopId, shopName, o.CustomerName, o.CustomerPhone, o.ListKind, o.Fulfilment, o.Slot, o.Payment, o.Note,
         o.Status, o.FinalAmount, o.CreatedAt, o.PackedAt, o.DeliveredAt, o.CancelledAt,
         o.Lines.OrderBy(l => l.LineNo).Select(l => new OrderLineDto(
@@ -115,7 +116,8 @@ public sealed record OrderDto(
         o.DeliveryFee,
         o.AcceptedAt,
         o.ReadyAt,
-        o.BillId);
+        o.BillId,
+        shopAddress);
 }
 
 /// <summary>One packed line. <see cref="ProductId"/>: the shop's option actually packed, when it differs from the line's.</summary>

@@ -20,6 +20,7 @@ public static class PlannerEndpoints
         me.MapPut("/lists/{kind}/items/{id:guid}", UpsertItemAsync);
         me.MapDelete("/lists/{kind}/items/{id:guid}", DeleteItemAsync);
         me.MapGet("/orders", GetMyOrdersAsync);
+        me.MapGet("/orders/{id:guid}/bill-link", BillLinkAsync);
         me.MapPost("/orders", PlaceOrderAsync);
         me.MapPost("/orders/{id:guid}/lines/{lineId:guid}/approve", ApproveLineAsync);
 
@@ -186,12 +187,29 @@ public static class PlannerEndpoints
         return 6371 * 2 * Math.Asin(Math.Sqrt(a));
     }
 
-    private static async Task<IReadOnlyList<OrderDto>> GetMyOrdersAsync(ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    /// <summary>
+    /// The shop's bill for the person's own delivered order, as the same signed link the shop would send on WhatsApp
+    /// (open, print, save as PDF). 404 until the order is delivered and billed.
+    /// </summary>
+    private static async Task<IResult> BillLinkAsync(Guid id, ClaimsPrincipal user, AppDbContext db, Microsoft.Extensions.Options.IOptions<Billing.BillingOptions> options, CancellationToken ct)
+    {
+        var order = await db.Orders.AsNoTracking().Where(o => o.Id == id && o.PlacedByUserId == user.UserId() && o.BillId != null)
+            .Select(o => new { o.ShopId, BillId = o.BillId!.Value }).SingleOrDefaultAsync(ct);
+        var slug = order is null ? null : await db.Shops.AsNoTracking().Where(s => s.Id == order.ShopId && s.IsActive).Select(s => s.Slug).SingleOrDefaultAsync(ct);
+        return order is null || slug is null ? TypedResults.NotFound()
+            : TypedResults.Ok(new Ledger.BillLinkDto(slug, order.BillId, Ledger.BillLinks.Token(options.Value.BillLinkKey, order.BillId)));
+    }
+
+    /// <summary>How many orders a page of history holds.</summary>
+    public const int OrdersPage = 30;
+
+    /// <summary>A page of the person's orders, newest first. <paramref name="before"/>: only orders placed before it (the next page of history).</summary>
+    private static async Task<IReadOnlyList<OrderDto>> GetMyOrdersAsync(ClaimsPrincipal user, AppDbContext db, DateTimeOffset? before, CancellationToken ct)
     {
         var userId = user.UserId()!.Value;
         var orders = await db.Orders.AsNoTracking().Include(o => o.Lines)
-            .Where(o => o.PlacedByUserId == userId)
-            .OrderByDescending(o => o.CreatedAt).Take(30)
+            .Where(o => o.PlacedByUserId == userId && (before == null || o.CreatedAt < before.Value.ToUniversalTime()))
+            .OrderByDescending(o => o.CreatedAt).Take(OrdersPage)
             .ToListAsync(ct);
         return await WithShopNamesAsync(db, orders, ct);
     }
@@ -352,14 +370,14 @@ public static class PlannerEndpoints
                            where shopIds.Contains(s.Id)
                            select new
                            {
-                               s.Id, s.Name, s.Slug,
+                               s.Id, s.Name, s.Slug, s.Address, s.Area,
                                Phone = (from m in db.Memberships
                                         join u in db.Users on m.UserId equals u.Id
                                         where m.ShopId == s.Id && m.Role == Identity.ShopRole.Owner && m.IsActive
                                         orderby m.CreatedAt
                                         select u.Phone).FirstOrDefault(),
                            }).ToDictionaryAsync(s => s.Id, ct);
-        return orders.Select(o => shops.TryGetValue(o.ShopId, out var s) ? OrderDto.From(o, s.Name, s.Slug, s.Phone) : OrderDto.From(o, "")).ToList();
+        return orders.Select(o => shops.TryGetValue(o.ShopId, out var s) ? OrderDto.From(o, s.Name, s.Slug, s.Phone, string.Join(", ", new[] { s.Address, s.Area }.Where(x => !string.IsNullOrWhiteSpace(x)))) : OrderDto.From(o, "")).ToList();
     }
 
     private static async Task<ShoppingList> EnsureListAsync(AppDbContext db, Guid userId, ListKind kind, CancellationToken ct)
