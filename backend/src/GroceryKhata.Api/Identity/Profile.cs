@@ -65,9 +65,9 @@ public static class Profile
     /// <summary>Saves the language picked anywhere in the app, without touching the rest of the profile.</summary>
     private static async Task<IResult> LanguageAsync(LanguageChange request, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
     {
-        if (request.Language is not ("en" or "hi" or "gu"))
+        if (request.Language is not ("en" or "hi" or "gu" or "hn"))
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Language"] = ["Language must be en, hi or gu."] });
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Language"] = ["Language must be en, hi, gu or hn."] });
         }
 
         var changed = await db.Users.Where(u => u.Id == principal.UserId()).ExecuteUpdateAsync(s => s.SetProperty(u => u.PreferredLanguage, request.Language), ct);
@@ -94,7 +94,7 @@ public static class Profile
         var address = Clean(request.Address);
         var city = Clean(request.City);
         if (name is not { Length: >= 2 and <= 120 }) errors["FullName"] = ["Enter your name."];
-        if (request.PreferredLanguage is not ("en" or "hi" or "gu")) errors["PreferredLanguage"] = ["Language must be en, hi or gu."];
+        if (request.PreferredLanguage is not ("en" or "hi" or "gu" or "hn")) errors["PreferredLanguage"] = ["Language must be en, hi, gu or hn."];
         if (email is not null && (email.Length > 160 || !email.Contains('@') || email.Contains(' '))) errors["Email"] = ["Enter a valid email."];
         if (pincode is not null && (pincode.Length != 6 || !pincode.All(char.IsAsciiDigit))) errors["Pincode"] = ["A pincode has 6 digits."];
         if (address?.Length > 300 || city?.Length > 80) errors["Address"] = ["Keep the address shorter."];

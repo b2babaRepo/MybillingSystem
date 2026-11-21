@@ -223,7 +223,7 @@ public static class OtpSignIn
         }
 
         otp.UsedAt = now;
-        var result = await auth.SignInWithVerifiedPhoneAsync(user, phone!, name, request.Language is "en" or "gu" ? request.Language : "hi", ct);
+        var result = await auth.SignInWithVerifiedPhoneAsync(user, phone!, name, request.Language is "en" or "gu" or "hn" ? request.Language : "hi", ct);
         return result switch
         {
             { Value: { } value } => TypedResults.Ok(value),

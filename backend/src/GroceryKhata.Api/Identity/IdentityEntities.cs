@@ -24,7 +24,7 @@ public sealed class User : Entity
     [System.ComponentModel.DataAnnotations.MaxLength(6)]
     public string? Pincode { get; set; }
 
-    /// <summary>"en", "hi" or "gu".</summary>
+    /// <summary>"en", "hi", "gu" or "hn" (Hinglish, customer app only).</summary>
     public string PreferredLanguage { get; set; } = "hi";
 
     public bool IsActive { get; set; } = true;

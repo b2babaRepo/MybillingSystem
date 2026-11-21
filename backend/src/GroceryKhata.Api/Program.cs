@@ -162,6 +162,7 @@ app.MapAddresses();
 app.MapCustomerAccount();
 app.MapOrderUpdates();
 app.MapCustomerExtras();
+app.MapUsageEvents();
 app.MapGstExport();
 app.MapCreditNotes();
 app.MapMasterItems();

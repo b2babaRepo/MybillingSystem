@@ -278,6 +278,7 @@ public static class PlannerEndpoints
                 .Select(i => OrderLines.FromListItem(i, choices.GetValueOrDefault(i.Id), products, shopItems, userId, ++lineNo)).ToList(),
         };
         db.Orders.Add(order);
+        UsageEvents.Record(db, UsageKind.OrderPlaced, order.ShopId, userId, detail: "list");
         foreach (var item in list.Items)
         {
             item.Checked = false;
@@ -322,6 +323,8 @@ public static class PlannerEndpoints
         if (line.Approval == LineApproval.Pending && order.Status == OrderStatus.Packed)
         {
             line.Approval = request.Approve ? LineApproval.Approved : LineApproval.Declined;
+            var waited = order.PackedAt is { } packed ? (int?)Math.Max(0, (int)(DateTimeOffset.UtcNow - packed).TotalSeconds) : null;
+            UsageEvents.Record(db, UsageKind.ChangeAnswered, order.ShopId, userId, waited);
             if (!request.Approve)
             {
                 line.Removed = true;

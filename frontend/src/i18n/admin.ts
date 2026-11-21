@@ -4,6 +4,7 @@
  */
 export const adminText = {
   en: {
+    usage: { title: 'Customer app use', days: 'Last {{count}} days', carts: 'Carts started', checkouts: 'Checkouts opened', storeOrders: 'Store orders', listOrders: '+ {{count}} from lists', conversion: 'Cart to order', fromCheckout: 'Checkout to order: {{pct}}', answers: 'Changes answered', answerTime: 'Typical answer time', minutes: '{{count}} min', languages: 'Customers by language', note: 'Counts only: no items, prices or names. A cart or checkout counts once a day per shop per phone.' },
     people: { addMore: 'Add owner or helper', save: 'Save people', added: 'Added. Owners sign in with an SMS code; helpers with their PIN.' },
     performance: {
       title: 'Agent performance and commission',
@@ -201,6 +202,7 @@ export const adminText = {
     },
   },
   hi: {
+    usage: { title: 'ग्राहक ऐप का इस्तेमाल', days: 'पिछले {{count}} दिन', carts: 'कार्ट शुरू हुईं', checkouts: 'चेकआउट खुले', storeOrders: 'स्टोर ऑर्डर', listOrders: '+ {{count}} लिस्ट से', conversion: 'कार्ट से ऑर्डर', fromCheckout: 'चेकआउट से ऑर्डर: {{pct}}', answers: 'बदलाव पर जवाब', answerTime: 'आम तौर पर जवाब में', minutes: '{{count}} मिनट', languages: 'भाषा के हिसाब से ग्राहक', note: 'सिर्फ़ गिनती: सामान, दाम या नाम नहीं। कार्ट या चेकआउट हर फ़ोन पर हर दुकान के लिए दिन में एक बार गिना जाता है।' },
     people: { addMore: 'मालिक या साथी जोड़ें', save: 'लोग सेव करें', added: 'जुड़ गए। मालिक SMS कोड से, साथी अपने PIN से लॉगिन करेंगे।' },
     performance: {
       title: 'एजेंट का काम और कमीशन',

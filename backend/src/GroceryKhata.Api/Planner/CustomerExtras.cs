@@ -240,6 +240,7 @@ public static class CustomerExtras
         await db.CustomerCarts.Where(c => c.UserId == userId).ExecuteDeleteAsync(ct);
         await db.SavedShops.Where(s => s.UserId == userId).ExecuteDeleteAsync(ct);
         await db.SavedItems.Where(s => s.UserId == userId).ExecuteDeleteAsync(ct);
+        await db.UsageEvents.Where(e => e.UserId == userId).ExecuteUpdateAsync(s => s.SetProperty(e => e.UserId, (Guid?)null), ct);
         await db.CustomerPushDevices.Where(d => d.UserId == userId).ExecuteDeleteAsync(ct);
         var now = clock.GetUtcNow();
         await db.RefreshTokens.Where(t => t.UserId == userId && t.RevokedAt == null).ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);

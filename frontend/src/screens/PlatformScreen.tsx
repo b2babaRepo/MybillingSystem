@@ -7,7 +7,7 @@ import { Button, btn } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatDateTime, formatPhone } from '../lib/format'
 import { useOutbox, useSession } from '../lib/data'
-import { ActivityPanel, AgentPanel, BillingPanel, PlansPanel, ShopBillingPanel } from './PlatformBilling'
+import { ActivityPanel, AgentPanel, BillingPanel, CustomerUsagePanel, PlansPanel, ShopBillingPanel } from './PlatformBilling'
 import { usePlans } from '../lib/billing'
 import { AgentsPanel, AgentsSummary, PerformancePanel, RegistrationsPanel } from './PlatformAgents'
 import { addText, shownLocale } from '../i18n'
@@ -284,7 +284,7 @@ export function PlatformScreen() {
             </div>
             {(role === 'super' || role === 'agent_manager' || role === 'billing') && <PerformancePanel role={role} />}
           </>}
-          {section === 'ai' && <AgentPanel role={role} />}
+          {section === 'ai' && <><AgentPanel role={role} /><CustomerUsagePanel /></>}
           {section === 'admins' && <><ManageAdmins /><ActivityPanel /></>}
         </main>
       </div>

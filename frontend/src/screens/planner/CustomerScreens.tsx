@@ -13,7 +13,7 @@ import { formatRupees, whatsAppLink } from '../../lib/format'
 import { imageUrl } from '../../lib/images'
 import { useShopSearch, type ShopEntry } from '../../lib/planner'
 import { useSession } from '../../lib/data'
-import { LANGUAGES, setLanguage, type Language } from '../../i18n'
+import { CUSTOMER_LANGUAGES, setLanguage, type Language } from '../../i18n'
 import { navigate } from '../../router'
 import { confirmAsk } from '../../components/Ask'
 
@@ -162,7 +162,7 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
       <AlertSettings />
       <section className={card}>
         {row('📍', t('cust.addresses'), () => navigate('/addresses'))}
-        {row('🌐', t('cust.language'), () => navigate('/language'), LANGUAGES.find((l) => l.code === i18n.language)?.name)}
+        {row('🌐', t('cust.language'), () => navigate('/language'), CUSTOMER_LANGUAGES.find((l) => l.code === i18n.language)?.name)}
         <DataSaverRow />
         {row('🔒', t('cust4.privacy'), () => navigate('/privacy'))}
         {row('👥', t('teamLink'), () => navigate('/team'))}
@@ -237,7 +237,7 @@ export function LanguageScreen() {
   const { i18n } = useTranslation()
   return (
     <div className="flex flex-col gap-2 p-4">
-      {LANGUAGES.map((l) => (
+      {CUSTOMER_LANGUAGES.map((l) => (
         <button key={l.code} onClick={() => void setLanguage(l.code as Language)} aria-pressed={i18n.language === l.code}
           className={`flex min-h-16 items-center justify-between rounded-2xl bg-white px-4 text-xl font-bold shadow-sm ${i18n.language === l.code ? 'ring-2 ring-brand' : ''}`}>
           {l.name}

@@ -113,6 +113,20 @@ async function storeApi<T>(path: string, method = 'GET', body?: unknown): Promis
   return (await response.json()) as T
 }
 
+/** Counts a step for the platform's totals (no items or details), at most once a day per shop on this phone. */
+function seen(slug: string, kind: 'cart' | 'checkout') {
+  const key = `seen.${kind}.${slug}`
+  const today = new Date().toDateString()
+  try {
+    if (localStorage.getItem(key) === today) return
+    localStorage.setItem(key, today)
+  } catch {
+    // Storage off: still counted, maybe twice.
+  }
+  const token = getSession()?.accessToken
+  void fetch(`/api/v1/store/${slug}/seen`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ kind }) }).catch(() => {})
+}
+
 /** path: "/s/{slug}", "/s/{slug}/cart" (straight to checkout) or "/s/{slug}/o/{orderId}?t={token}". */
 export function StoreApp({ path }: { path: string }) {
   const match = path.match(/^\/s\/([a-z0-9-]+)(\/cart)?(?:\/o\/([0-9a-f-]+))?(?:\?t=([A-Za-z0-9_-]+))?$/)
@@ -165,6 +179,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const [popped, setPopped] = useState<string | null>(null)
   const aisles = useAisles().data ?? []
   const [checkingOut, setCheckingOut] = useState(openCheckout)
+  useEffect(() => { if (checkingOut) seen(slug, 'checkout') }, [checkingOut, slug])
   const myOrders = remembered<MyOrder[]>(`store.${slug}.orders`, [])
   const signedIn = !!getSession()
   const accountCarts = useCarts(signedIn)
@@ -202,6 +217,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   )
 
   const setCart = (next: Cart) => {
+    if (Object.keys(cart).length === 0 && Object.keys(next).length > 0) seen(slug, 'cart')
     setCartState(next)
     if (!signedIn) { remember(`store.${slug}.cart`, next); return }
     // A moment after the last tap, the account's cart is updated.

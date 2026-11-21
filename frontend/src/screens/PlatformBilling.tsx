@@ -52,6 +52,55 @@ function Collapsible({ title, children }: { title: string; children: React.React
   )
 }
 
+interface CustomerUsage { days: number; cartsStarted: number; checkoutsOpened: number; storeOrders: number; listOrders: number; cartToOrderPercent: number | null; checkoutToOrderPercent: number | null; changesAnswered: number; medianAnswerMinutes: number | null; languages: { en: number; hi: number; gu: number; hn: number } }
+
+/** How customers use the shopping app: where they stop between cart and order, how fast they answer a shop's change, which language they read. */
+export function CustomerUsagePanel() {
+  const { t } = useTranslation()
+  const [days, setDays] = useState(30)
+  const data = useQuery({ queryKey: ['platform', 'customer-usage', days], queryFn: () => api<CustomerUsage>(`/v1/platform/customer-usage?days=${days}`) }).data
+  const pct = (n: number | null) => (n === null ? '–' : `${n}%`)
+  const tile = (label: string, value: string | number, hint?: string) => (
+    <div className="flex min-h-[84px] flex-col justify-between rounded-[18px] bg-[#f1f5f4] p-3">
+      <span className="text-[13px] font-bold text-muted">{label}</span>
+      <b className="text-2xl tabular-nums">{value}</b>
+      {hint && <span className="text-xs text-muted">{hint}</span>}
+    </div>
+  )
+  const langs = data ? [['English', data.languages.en], ['हिंदी', data.languages.hi], ['ગુજરાતી', data.languages.gu], ['Hinglish', data.languages.hn]] as const : []
+  const totalLang = langs.reduce((s, [, n]) => s + n, 0)
+  return (
+    <Collapsible title={t('usage.title')}>
+      <div className="flex gap-2">
+        {[7, 30, 90].map((d) => (
+          <button key={d} onClick={() => setDays(d)} aria-pressed={days === d} className={`min-h-10 rounded-full px-4 text-sm font-bold ${days === d ? 'bg-brand text-white' : 'bg-[#f1f5f4]'}`}>{t('usage.days', { count: d })}</button>
+        ))}
+      </div>
+      {!data ? <p className="text-muted">…</p> : <>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {tile(t('usage.carts'), data.cartsStarted)}
+          {tile(t('usage.checkouts'), data.checkoutsOpened)}
+          {tile(t('usage.storeOrders'), data.storeOrders, t('usage.listOrders', { count: data.listOrders }))}
+          {tile(t('usage.conversion'), pct(data.cartToOrderPercent), t('usage.fromCheckout', { pct: pct(data.checkoutToOrderPercent) }))}
+          {tile(t('usage.answers'), data.changesAnswered)}
+          {tile(t('usage.answerTime'), data.medianAnswerMinutes === null ? '–' : t('usage.minutes', { count: data.medianAnswerMinutes }))}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <h3 className="text-sm font-bold text-muted">{t('usage.languages')}</h3>
+          {langs.map(([name, n]) => (
+            <div key={name} className="flex items-center gap-2 text-sm">
+              <span className="w-20 shrink-0">{name}</span>
+              <span className="h-3 flex-1 overflow-hidden rounded-full bg-[#f1f5f4]"><span className="block h-full rounded-full bg-brand" style={{ width: `${totalLang ? (100 * n) / totalLang : 0}%` }} /></span>
+              <span className="w-10 text-right tabular-nums">{n}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted">{t('usage.note')}</p>
+      </>}
+    </Collapsible>
+  )
+}
+
 /**
  * The AI admin agent's page: the week in numbers with what needs doing, and its suggestions. It only suggests;
  * approving one carries it out under your own role (extending a trial needs an approver), rejecting keeps the record.

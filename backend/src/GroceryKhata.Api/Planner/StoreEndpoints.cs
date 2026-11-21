@@ -253,6 +253,7 @@ public static class StoreEndpoints
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         db.Orders.Add(order);
+        UsageEvents.Record(db, UsageKind.OrderPlaced, order.ShopId, order.PlacedByUserId, detail: "store");
         await db.SaveChangesAsync(ct);
         foreach (var (productId, quantity) in wanted)
         {

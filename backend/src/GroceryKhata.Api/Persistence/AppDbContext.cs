@@ -59,6 +59,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Planner.CustomerCart> CustomerCarts => Set<Planner.CustomerCart>();
 
+    public DbSet<Planner.UsageEvent> UsageEvents => Set<Planner.UsageEvent>();
+
     public DbSet<Planner.SavedShop> SavedShops => Set<Planner.SavedShop>();
 
     public DbSet<Planner.CustomerPushDevice> CustomerPushDevices => Set<Planner.CustomerPushDevice>();
@@ -400,6 +402,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(x => new { x.UserId, x.ShopId, x.ProductId }).IsUnique();
             b.HasIndex(x => x.WasOut).HasFilter("was_out");
             b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Planner.UsageEvent>(b =>
+        {
+            b.ToTable("usage_events");
+            b.Property(x => x.Detail).HasMaxLength(10);
+            b.HasIndex(x => new { x.CreatedAt, x.Kind });
+            b.HasIndex(x => x.UserId);
         });
 
         modelBuilder.Entity<Planner.SavedShop>(b =>
