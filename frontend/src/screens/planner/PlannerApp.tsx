@@ -148,7 +148,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
 
       <AppBanners />
 
-      <nav aria-label={t('a11y.menu')} className="fixed inset-x-0 bottom-0 z-20 grid h-[68px] grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] print:hidden lg:inset-y-0 lg:right-auto lg:h-auto lg:w-60 lg:auto-rows-[56px] lg:grid-cols-1 lg:content-start lg:gap-1 lg:border-t-0 lg:border-r lg:px-3 lg:pt-4">
+      <nav aria-label={t('a11y.menu')} className="fixed inset-x-0 bottom-0 z-20 mx-auto grid h-[68px] max-w-xl grid-cols-5 border-t sm:rounded-t-2xl sm:border-x sm:shadow-[0_-4px_16px_rgba(16,32,29,0.06)] lg:mx-0 lg:max-w-none lg:rounded-none lg:border-l-0 lg:shadow-none border-line bg-white pb-[env(safe-area-inset-bottom)] print:hidden lg:inset-y-0 lg:right-auto lg:h-auto lg:w-60 lg:auto-rows-[56px] lg:grid-cols-1 lg:content-start lg:gap-1 lg:border-t-0 lg:border-r lg:px-3 lg:pt-4">
         <div className="hidden items-center gap-2 px-2 pb-2 text-lg font-extrabold text-brand lg:flex"><img src="/favicon.svg" alt="" className="h-8 w-8" />Grocery Khata</div>
         {tabs.map((tab) => (
           <button
