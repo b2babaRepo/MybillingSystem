@@ -1,4 +1,5 @@
 import { btn } from '../components/ui'
+import { DeliveryRound } from '../components/DeliveryRound'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,6 +42,7 @@ export function InboxScreen({ shopId, selectedId }: { shopId: string; selectedId
   return (
     <div className="flex flex-col gap-3 p-4">
       <h1 className="text-xl font-extrabold">{t('orders')}</h1>
+      <DeliveryRound />
 
       <div role="tablist" aria-label={t('orders')} className="grid grid-cols-3 gap-2">
         {stages.map((s) => (

@@ -201,6 +201,39 @@ public sealed class KhataViewTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.NotFound, (await (await RegisterAsync("Other", ApiFactory.NewPhone())).PostJsonAsync($"/api/v1/me/salon/{shopId}/appointments/{id}/cancel", new { })).StatusCode);
     }
 
+    [Fact]
+    public async Task A_daily_milk_plan_shows_on_the_shops_round_until_paused_or_stopped()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Gopal Dairy", fullName = "Gopal", phone = ApiFactory.NewPhone(), password = "secret123", language = "en", type = "kirana" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var shopId = auth.Memberships.Single().ShopId;
+        var milk = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = milk, name = "Toned milk 500 ml", unit = "packet", sellingPrice = 28m, openingStock = 100m })).EnsureSuccessStatusCode();
+
+        var phone = ApiFactory.NewPhone();
+        var person = await RegisterAsync("Asha", phone);
+        await VerifyPhoneAsync(phone);
+        var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5)).AddDays(1);
+        var id = Guid.CreateVersion7();
+        (await person.PostJsonAsync($"/api/v1/me/deliveries/{shopId}", new { id, productId = milk, quantity = 2m, days = 127, startOn = tomorrow, address = "B-12, Lake View" })).EnsureSuccessStatusCode();
+
+        var mine = Assert.Single(await person.GetJsonAsync<List<GroceryKhata.Api.Planner.DeliveryPlanDto>>("/api/v1/me/deliveries"));
+        Assert.Equal(("Toned milk 500 ml", 2m, (DateOnly?)tomorrow), (mine.ProductName, mine.Quantity, mine.NextOn));
+        var round = await shop.GetJsonAsync<GroceryKhata.Api.Planner.DeliveryDayDto>($"/api/v1/deliveries?date={tomorrow:yyyy-MM-dd}");
+        Assert.Equal(("Asha", "B-12, Lake View", 2m), (round.Deliveries.Single().Name, round.Deliveries.Single().Address, round.Totals.Single().Quantity));
+
+        // Away tomorrow: off the round that day, back the day after.
+        (await person.PostJsonAsync($"/api/v1/me/deliveries/{shopId}/{id}/pause", new { from = tomorrow, to = tomorrow })).EnsureSuccessStatusCode();
+        Assert.Empty((await shop.GetJsonAsync<GroceryKhata.Api.Planner.DeliveryDayDto>($"/api/v1/deliveries?date={tomorrow:yyyy-MM-dd}")).Deliveries);
+        Assert.Single((await shop.GetJsonAsync<GroceryKhata.Api.Planner.DeliveryDayDto>($"/api/v1/deliveries?date={tomorrow.AddDays(1):yyyy-MM-dd}")).Deliveries);
+
+        (await person.PostJsonAsync($"/api/v1/me/deliveries/{shopId}/{id}/stop", new { })).EnsureSuccessStatusCode();
+        Assert.Empty(await person.GetJsonAsync<List<GroceryKhata.Api.Planner.DeliveryPlanDto>>("/api/v1/me/deliveries"));
+        Assert.Empty((await shop.GetJsonAsync<GroceryKhata.Api.Planner.DeliveryDayDto>($"/api/v1/deliveries?date={tomorrow.AddDays(1):yyyy-MM-dd}")).Deliveries);
+    }
+
     private async Task VerifyPhoneAsync(string phone)
     {
         await using var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata");

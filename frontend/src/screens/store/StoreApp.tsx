@@ -1,5 +1,7 @@
 import { CustIcon } from '../../components/CustIcons'
 import { SalonBooking } from '../../components/SalonBooking'
+import { StartDeliverySheet } from '../../components/DeliveryPlans'
+import { DELIVERY_TRADES } from '../../lib/deliveries'
 import { takeBookAgain } from '../../lib/salon'
 import { MetalRates, type StoreRate } from '../../components/MetalRates'
 import { putCart, useCarts, useSavedShops, useSaveShop } from '../../lib/customer'
@@ -216,6 +218,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   // A salon: book a visit; "book again" from Home opens it with the last visit's services ticked.
   const [bookAgain] = useState(() => takeBookAgain(slug))
   const [booking, setBooking] = useState(!!bookAgain)
+  const [planning, setPlanning] = useState(false)
 
   if (store.isError) return <NotFound />
   const data = store.data
@@ -305,6 +308,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.item.price), 0))
   const settings = data.settings ?? noSettings
   const salonServices = data.type === 'beauty' ? data.items.filter((i) => i.serviceMinutes).map((i) => ({ id: i.id, name: i.name, price: i.price, minutes: i.serviceMinutes! })) : []
+  const planItems = data.items.filter((i) => !i.serviceMinutes && i.available > 0).map((i) => ({ id: i.id, name: i.name, unit: i.unit, price: i.price }))
   const toFree = settings.deliveryFee && settings.freeDeliveryAbove ? Math.max(0, round2(settings.freeDeliveryAbove - total)) : 0
 
   return (
@@ -317,6 +321,10 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
       {salonServices.length > 0 && (signedIn
         ? <button onClick={() => setBooking(true)} className={`mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-center gap-2 rounded-xl text-base ${btn.solid}`}>{t('cust5.bookTitle')}</button>
         : <p className="mx-4 mt-3 rounded-xl bg-white p-3 text-center text-sm text-muted">{t('cust5.signInToBook')}</p>)}
+      {signedIn && DELIVERY_TRADES.has(data.type ?? '') && planItems.length > 0 && (
+        <button onClick={() => setPlanning(true)} className={`mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-center rounded-xl text-base ${btn.outline}`}>{t('cust5.dailyTitle')}</button>
+      )}
+      {planning && <StartDeliverySheet shopId={data.shopId} shopName={data.name} items={planItems} onClose={() => setPlanning(false)} />}
       {booking && signedIn && salonServices.length > 0 && <SalonBooking shopId={data.shopId} shopName={data.name} services={salonServices} preselect={bookAgain} onClose={() => setBooking(false)} />}
       {signedIn && savedHere && <div className="mx-4 mt-3"><AlertsPrompt show /></div>}
       {myOrders.length > 0 && (
