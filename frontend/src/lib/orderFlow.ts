@@ -7,7 +7,7 @@ import type { Fulfilment, Order, OrderStatus } from './planner'
 // Customer app phase 2: how a shop takes online orders (charge, minimum, time chips), what checkout shows before
 // confirming (UPI, khata balance), the order's steps, and the customer's order notifications.
 
-export interface StoreSettings { deliveryFee: number | null; freeDeliveryAbove: number | null; minOrder: number | null; slots: string[] }
+export interface StoreSettings { deliveryFee: number | null; freeDeliveryAbove: number | null; minOrder: number | null; slots: string[]; theme?: string | null }
 export interface KhataAtCheckout { allowed: boolean; balance: number; limit: number | null }
 export interface CheckoutInfo { settings: StoreSettings; upiId: string | null; khata: KhataAtCheckout | null }
 

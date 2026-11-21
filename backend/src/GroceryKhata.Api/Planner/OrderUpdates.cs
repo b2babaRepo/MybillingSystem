@@ -24,7 +24,7 @@ public sealed class CustomerPushDevice : Entity
 }
 
 /// <summary>How a shop takes online orders: the delivery charge, free delivery above, minimum order and the time chips.</summary>
-public sealed record StoreSettingsDto(decimal? DeliveryFee, decimal? FreeDeliveryAbove, decimal? MinOrder, IReadOnlyList<string> Slots);
+public sealed record StoreSettingsDto(decimal? DeliveryFee, decimal? FreeDeliveryAbove, decimal? MinOrder, IReadOnlyList<string> Slots, string? Theme = null);
 
 /// <summary>What the checkout shows before the customer confirms. <see cref="Khata"/>: null when this shop keeps no khata the customer can use.</summary>
 public sealed record CheckoutInfoDto(StoreSettingsDto Settings, string? UpiId, KhataCheckoutDto? Khata);
@@ -139,7 +139,10 @@ public static class OrderUpdates
 
     // ---- What the shop sets ------------------------------------------------------------------------------------
 
-    internal static StoreSettingsDto SettingsOf(Shops.Shop s) => new(s.StoreDeliveryFee, s.StoreFreeDeliveryAbove, s.StoreMinOrder, s.StoreSlots);
+    internal static StoreSettingsDto SettingsOf(Shops.Shop s) => new(s.StoreDeliveryFee, s.StoreFreeDeliveryAbove, s.StoreMinOrder, s.StoreSlots, s.StoreTheme);
+
+    /// <summary>The festive looks a store can wear.</summary>
+    public static readonly string[] Themes = ["diwali", "holi", "navratri", "eid", "christmas", "independence", "wedding", "pongal"];
 
     private static async Task<IResult> GetSettingsAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
         TypedResults.Ok(SettingsOf(await db.Shops.AsNoTracking().SingleAsync(s => s.Id == tenant.ShopId, ct)));
@@ -159,12 +162,18 @@ public static class OrderUpdates
             errors["Slots"] = [$"Up to {MaxSlots} times, each under 40 letters."];
         }
 
+        if (request.Theme is { Length: > 0 } theme && !Themes.Contains(theme))
+        {
+            errors["Theme"] = ["Pick one of the festive looks."];
+        }
+
         if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(errors);
         }
 
         var shop = await db.Shops.SingleAsync(s => s.Id == tenant.ShopId, ct);
+        shop.StoreTheme = string.IsNullOrEmpty(request.Theme) ? null : request.Theme;
         static decimal? Zero(decimal? x) => x is > 0 ? x : null;
         (shop.StoreDeliveryFee, shop.StoreFreeDeliveryAbove, shop.StoreMinOrder, shop.StoreSlots) =
             (Zero(request.DeliveryFee), Zero(request.FreeDeliveryAbove), Zero(request.MinOrder), slots.ToArray());

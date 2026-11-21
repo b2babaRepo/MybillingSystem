@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { BillSummary } from '../../components/OrderPay'
+import { canListen, clearSearches, dataSaver, listen, rank, recentSearches, rememberSearch, setDataSaver } from '../../lib/search'
+import { useHeart, useSavedItems } from '../../lib/savedItems'
+import { getSession, setSession } from '../../lib/session'
 import { alertsOn, alertsPossible, billOf, noSettings, turnOffAlerts, turnOnAlerts, type StoreSettings } from '../../lib/orderFlow'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ConnectShop } from '../../components/ConnectShop'
 import { api } from '../../lib/api'
 import { asShopEntry, useCarts, useSavedShops, useSaveShop, type Cart, type SavedShop } from '../../lib/customer'
-import { formatRupees } from '../../lib/format'
+import { formatRupees, whatsAppLink } from '../../lib/format'
 import { imageUrl } from '../../lib/images'
 import { useShopSearch, type ShopEntry } from '../../lib/planner'
 import { useSession } from '../../lib/data'
@@ -123,6 +126,7 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
     { label: t('cust.myCarts'), value: String(carts.length), to: '/cart', icon: '🛒' },
     { label: t('myKhata.title'), value: formatRupees(due), to: '/khata', icon: '📒' },
     { label: t('cust.savedShops'), value: String(shops.length), to: '/shops', icon: '🏪' },
+    { label: t('cust4.savedItems'), value: String(useSavedItems().data?.length ?? 0), to: '/saved', icon: '♥' },
   ]
   const row = (icon: string, label: string, to: () => void, hint?: string) => (
     <button onClick={to} className="flex min-h-14 w-full items-center gap-3 border-t border-[#edf2f1] px-1 text-left first:border-t-0">
@@ -159,6 +163,8 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
       <section className={card}>
         {row('📍', t('cust.addresses'), () => navigate('/addresses'))}
         {row('🌐', t('cust.language'), () => navigate('/language'), LANGUAGES.find((l) => l.code === i18n.language)?.name)}
+        <DataSaverRow />
+        {row('🔒', t('cust4.privacy'), () => navigate('/privacy'))}
         {row('👥', t('teamLink'), () => navigate('/team'))}
         {onSwitchToShop && row('🏬', t('plan.iAmShop'), onSwitchToShop)}
       </section>
@@ -274,27 +280,51 @@ export function SavedShopsScreen() {
   )
 }
 
-interface StoreLite { name: string; slug: string; shopId: string; items: { id: string; name: string; price: number; imageAt?: string | null; category: string | null }[] }
+interface StoreLite { name: string; slug: string; shopId: string; phone: string | null; items: { id: string; name: string; price: number; imageAt?: string | null; category: string | null; available: number }[] }
 
-/** Search: items in your saved shops, and shops by name or area (or connect by ID, mobile, QR). */
+/** Search: items across your saved shops (forgiving: doodh finds milk), recent searches, voice, and shops by name or area. */
 export function SearchScreen() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [q, setQ] = useState('')
+  const [recent, setRecent] = useState(recentSearches)
+  const [hearing, setHearing] = useState(false)
   const saved = useSavedShops().data ?? []
   const savedIds = new Set(saved.map((s) => s.id))
-  const term = q.trim().toLowerCase()
+  const term = q.trim()
   const stores = useQueries({ queries: saved.map((s) => ({ queryKey: ['store', s.slug], queryFn: () => fetch(`/api/v1/store/${s.slug}`).then((r) => (r.ok ? (r.json() as Promise<StoreLite>) : null)), staleTime: 60_000 })) })
-  const items = term.length < 2 ? [] : stores.flatMap((r) => (r.data ? r.data.items.filter((i) => i.name.toLowerCase().includes(term) || (i.category ?? '').toLowerCase().includes(term)).map((i) => ({ ...i, store: r.data! })) : [])).slice(0, 30)
+  const all = stores.flatMap((r) => (r.data ? r.data.items.map((i) => ({ ...i, store: r.data! })) : []))
+  const items = term.length < 2 ? [] : rank(all, term, (i) => `${i.name} ${i.category ?? ''}`).slice(0, 40)
   const shops = useShopSearch(term.length >= 2 ? q : '').data ?? []
+  // Popular in your shops: what is on offer or most common across them, as tap-to-search chips.
+  const trending = [...new Set(all.filter((i) => i.available > 0).map((i) => (i.category ?? '').trim()).filter(Boolean))].slice(0, 8)
+  const pick = (text: string) => { setQ(text); rememberSearch(text); setRecent(recentSearches()) }
+  const voice = () => {
+    setHearing(true)
+    if (!listen(i18n.language, (text) => pick(text), () => setHearing(false))) setHearing(false)
+  }
+  const chip = (text: string) => <button key={text} onClick={() => pick(text)} className="min-h-10 rounded-full border border-line bg-white px-3 text-sm font-semibold">{text}</button>
+  const ask = saved.length > 0 && stores.find((r) => r.data?.phone)?.data
   return (
     <div className="flex flex-col gap-3 p-4">
-      <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder={t('cust.searchPlaceholder')} aria-label={t('cust.searchPlaceholder')} className="h-12 rounded-xl border border-line bg-white px-4 shadow-sm" />
+      <div className="flex gap-2">
+        <input value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => { rememberSearch(q); setRecent(recentSearches()) }} autoFocus placeholder={t('cust.searchPlaceholder')} aria-label={t('cust.searchPlaceholder')} className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-white px-4 shadow-sm" />
+        {canListen() && <button onClick={voice} aria-label={t('cust4.voice')} aria-pressed={hearing} className={`h-12 w-12 shrink-0 rounded-xl text-xl ${hearing ? 'animate-pulse bg-due text-white' : 'border border-line bg-white'}`}>🎙️</button>}
+      </div>
+      {term.length < 2 && recent.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between"><h2 className="font-bold">{t('cust4.recent')}</h2><button onClick={() => { clearSearches(); setRecent([]) }} className="text-sm font-semibold text-brand">{t('cust4.clear')}</button></div>
+          <div className="flex flex-wrap gap-2">{recent.map(chip)}</div>
+        </div>
+      )}
+      {term.length < 2 && trending.length > 0 && (
+        <div className="flex flex-col gap-2"><h2 className="font-bold">{t('cust4.trending')}</h2><div className="flex flex-wrap gap-2">{trending.map(chip)}</div></div>
+      )}
       {items.length > 0 && <h2 className="font-bold">{t('cust.itemsInShops')}</h2>}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {items.map((i) => (
           <button key={`${i.store.slug}-${i.id}`} onClick={() => navigate(`/s/${i.store.slug}`)} className="flex flex-col gap-1 rounded-2xl bg-white p-2 text-left shadow-sm">
             <span className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-[#f1f5f4]">
-              {i.imageAt ? <img src={imageUrl(i.store.shopId, i.id, i.imageAt, 'thumb')} alt="" className="h-full w-full object-contain" /> : <span aria-hidden className="text-3xl">🛍️</span>}
+              {i.imageAt ? <img src={imageUrl(i.store.shopId, i.id, i.imageAt, 'thumb')} alt="" loading="lazy" className="h-full w-full object-contain" /> : <span aria-hidden className="text-3xl">🛍️</span>}
             </span>
             <span className="line-clamp-2 text-sm font-semibold">{i.name}</span>
             <b>{formatRupees(i.price)}</b>
@@ -302,9 +332,103 @@ export function SearchScreen() {
           </button>
         ))}
       </div>
+      {/* Nothing found: a local shop can get it. Ask on WhatsApp. */}
+      {term.length >= 2 && items.length === 0 && ask && (
+        <div className="flex flex-col items-center gap-2 rounded-card bg-white p-5 text-center">
+          <p className="text-muted">{t('cust4.noItems', { q: term })}</p>
+          <a href={whatsAppLink(ask.phone!, t('cust4.askForItem', { item: term, shop: ask.name }))} target="_blank" rel="noreferrer" className="flex h-11 items-center rounded-xl bg-[#25D366] px-4 font-bold text-white">{t('cust4.askNamed', { shop: ask.name })}</a>
+        </div>
+      )}
       {term.length >= 2 && shops.length > 0 && <h2 className="font-bold">{t('cust.shops')}</h2>}
       {term.length >= 2 && shops.map((s) => <ShopRow key={s.id} shop={s} saved={savedIds.has(s.id)} />)}
       {term.length < 2 && <ConnectShop onPick={(s) => s.slug && navigate(`/s/${s.slug}`)} />}
+    </div>
+  )
+}
+
+/** Hearted items across shops: open the shop, or remove the heart. Out of stock ones say an alert comes when they are back. */
+export function SavedItemsScreen() {
+  const { t } = useTranslation()
+  const items = useSavedItems().data
+  const heart = useHeart()
+  return (
+    <div className="flex flex-col gap-2 p-4">
+      {items?.length === 0 && <p className="py-8 text-center text-muted">{t('cust4.noSavedItems')}</p>}
+      {items?.map((i) => (
+        <div key={`${i.shopId}-${i.productId}`} className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm">
+          <button onClick={() => navigate(`/s/${i.shopSlug}`)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#f1f5f4]">
+              {i.imageAt ? <img src={imageUrl(i.shopId, i.productId, i.imageAt, 'thumb')} alt="" className="h-full w-full object-contain" /> : <span aria-hidden>🛍️</span>}
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <b className="truncate">{i.name}</b>
+              <span className="text-sm text-muted">{i.shopName} · {formatRupees(i.price)}</span>
+              {i.available <= 0 && <span className="text-xs font-semibold text-warn-ink">{t('cust4.outAlert')}</span>}
+            </span>
+          </button>
+          <button onClick={() => void heart(i.shopId, i.productId, false)} aria-label={t('cust4.unheart')} className="h-11 w-11 shrink-0 rounded-full text-2xl text-due">♥</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DataSaverRow() {
+  const { t } = useTranslation()
+  const [on, setOn] = useState(dataSaver)
+  return (
+    <button onClick={() => { setDataSaver(!on); setOn(!on) }} role="switch" aria-checked={on} className="flex min-h-14 w-full items-center gap-3 border-t border-[#edf2f1] px-1 text-left">
+      <span aria-hidden className="text-xl">📶</span>
+      <span className="flex flex-1 flex-col"><span className="font-semibold">{t('cust4.dataSaver')}</span><span className="text-[13px] text-muted">{t('cust4.dataSaverHint')}</span></span>
+      <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-brand' : 'bg-[#cfd8d6]'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`} /></span>
+    </button>
+  )
+}
+
+/** Notifications and privacy: what the app keeps, a copy of all of it, and closing the account. */
+export function PrivacyScreen() {
+  const { t } = useTranslation()
+  const [message, setMessage] = useState('')
+  async function download() {
+    setMessage('')
+    try {
+      const r = await fetch('/api/v1/me/export', { headers: { Authorization: `Bearer ${getSession()?.accessToken}` } })
+      if (!r.ok) throw new Error(String(r.status))
+      const url = URL.createObjectURL(await r.blob())
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'grocery-khata-my-data.json'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+  async function close() {
+    if (!(await confirmAsk(t('cust4.deleteConfirm')))) return
+    setMessage('')
+    try {
+      await api('/v1/me/delete-account', 'POST', {})
+      setSession(null)
+      navigate('/')
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+  return (
+    <div className="flex flex-col gap-3 p-4">
+      <AlertSettings />
+      <section className={card}>
+        <h2 className="font-bold">{t('cust4.whatWeKeep')}</h2>
+        <p className="text-sm text-muted">{t('cust4.whatWeKeepHint')}</p>
+        <button onClick={() => void download()} className="h-12 rounded-xl border border-line font-bold">⬇ {t('cust4.download')}</button>
+      </section>
+      <section className={card}>
+        <h2 className="font-bold text-due">{t('cust4.deleteTitle')}</h2>
+        <p className="text-sm text-muted">{t('cust4.deleteHint')}</p>
+        <button onClick={() => void close()} className="h-12 rounded-xl border border-due font-bold text-due">{t('cust4.delete')}</button>
+      </section>
+      {message && <p className="text-sm text-due">{message}</p>}
     </div>
   )
 }

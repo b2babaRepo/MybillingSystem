@@ -63,6 +63,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Planner.CustomerPushDevice> CustomerPushDevices => Set<Planner.CustomerPushDevice>();
 
+    public DbSet<Planner.SavedItem> SavedItems => Set<Planner.SavedItem>();
+
     public DbSet<Common.JobRun> JobRuns => Set<Common.JobRun>();
 
     public DbSet<Common.SeenMessage> SeenMessages => Set<Common.SeenMessage>();
@@ -390,6 +392,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(d => d.Endpoint).IsUnique();
             b.HasIndex(d => d.UserId);
             b.HasOne<User>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Planner.SavedItem>(b =>
+        {
+            b.ToTable("saved_items");
+            b.HasIndex(x => new { x.UserId, x.ShopId, x.ProductId }).IsUnique();
+            b.HasIndex(x => x.WasOut).HasFilter("was_out");
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Planner.SavedShop>(b =>

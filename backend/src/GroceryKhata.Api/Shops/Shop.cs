@@ -140,6 +140,9 @@ public sealed class Shop : Entity
 
     /// <summary>The times customers pick from ("Now", "Evening", "Tomorrow morning"), set by the shop.</summary>
     public string[] StoreSlots { get; set; } = [];
+
+    /// <summary>A festive look the owner turns on for the online store ("diwali", "holi", "eid", "wedding"...); null: the usual one.</summary>
+    public string? StoreTheme { get; set; }
 }
 
 /// <summary>The trade. One app for all: the type only changes defaults (units, starter items, bill buttons).</summary>

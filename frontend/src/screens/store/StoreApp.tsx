@@ -20,6 +20,12 @@ import { navigate } from '../../router'
 import { getSession } from '../../lib/session'
 import { AlertsPrompt, BillSummary, OrderSteps, PaymentPicker, SlotChips, UpiPay } from '../../components/OrderPay'
 import { billOf, isOpen, noSettings, useCheckoutInfo, type StoreSettings } from '../../lib/orderFlow'
+import { ProductSheet, fullPageTrades } from '../../components/ProductSheet'
+import { Drawer } from '../../components/ui'
+import { rank, rememberSearch } from '../../lib/search'
+import { useHeart, useSavedItems } from '../../lib/savedItems'
+import { api as apiCall } from '../../lib/api'
+import { festive } from '../../lib/festive'
 import type { Fulfilment, OrderPayment } from '../../lib/planner'
 
 // The shop's public online store at #/s/{slug}: no account, no app install. Guests browse, fill a cart, check
@@ -42,6 +48,8 @@ interface StoreItem {
   packUnit?: Unit | null
   imageCredit?: string | null
   extraPhotos?: string[] | null
+  /** When the shop added it: "New arrivals". */
+  addedAt?: string | null
 }
 
 interface Store {
@@ -55,6 +63,8 @@ interface Store {
   /** How the shop takes online orders: charge, free above, minimum, time chips. */
   settings?: StoreSettings | null
   upiId?: string | null
+  /** The shop's trade: kirana browses by a left rail, clothes and jewellery by chips and filters and a full product page. */
+  type?: string | null
 }
 
 /** What a line saves against MRP or the price before the shop's offer. */
@@ -116,20 +126,20 @@ function NotFound() {
   return <p className="p-8 text-center text-muted">{t('store.notFound')}</p>
 }
 
-function Header({ title, subtitle, shopId }: { title: string; subtitle?: string | null; shopId?: string }) {
+function Header({ title, subtitle, shopId, theme }: { title: string; subtitle?: string | null; shopId?: string; theme?: string | null }) {
   const { t, i18n } = useTranslation()
   const signedIn = !!getSession()
   const saved = useSavedShops(signedIn).data?.some((s) => s.id === shopId) ?? false
   const save = useSaveShop()
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand px-4 py-3 text-white lg:rounded-b-2xl lg:px-6">
+    <header className={`sticky top-0 z-10 flex items-center gap-2 px-4 py-3 text-white lg:rounded-b-2xl lg:px-6 ${festive(theme)?.header ?? 'bg-brand'}`}>
       {/* Home on every shop page: a signed-in customer goes back to their shops, anyone else to the app's start. */}
       <button onClick={() => navigate('/')} aria-label={t('store.home')} className="-ml-1 flex h-11 shrink-0 items-center gap-1 rounded-full bg-white/15 px-3 text-sm font-semibold hover:bg-white/25">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10" /></svg>
         {t('store.home')}
       </button>
       <div className="flex min-w-0 flex-1 flex-col">
-        <h1 className="truncate text-xl font-bold">{title}</h1>
+        <h1 className="truncate text-xl font-bold">{festive(theme) ? `${festive(theme)!.emoji} ` : ''}{title}</h1>
         {subtitle && <span className="truncate text-sm opacity-85">{subtitle}</span>}
       </div>
       {signedIn && shopId && (
@@ -150,6 +160,9 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const [category, setCategory] = useState('all')
   const [search, setSearch] = useState('')
   const [gallery, setGallery] = useState<StoreItem | null>(null)
+  const [open, setOpen] = useState<StoreItem | null>(null)
+  const [filters, setFilters] = useState({ open: false, sort: 'relevance' as 'relevance' | 'low' | 'high', inStock: false, max: '' })
+  const [popped, setPopped] = useState<string | null>(null)
   const aisles = useAisles().data ?? []
   const [checkingOut, setCheckingOut] = useState(openCheckout)
   const myOrders = remembered<MyOrder[]>(`store.${slug}.orders`, [])
@@ -159,6 +172,10 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const shopId = store.data?.shopId
   // Saved this shop: a good moment to offer order notifications (asked once per phone).
   const savedHere = useSavedShops(signedIn).data?.some((s) => s.id === shopId) ?? false
+  const hearts = useSavedItems(signedIn).data ?? []
+  const heart = useHeart()
+  // "Your usual items": what this customer ordered here before, most often first.
+  const pastOrders = useQuery({ queryKey: ['me', 'orders-lite'], queryFn: () => apiCall<Order[]>('/v1/me/orders'), enabled: signedIn, retry: false, staleTime: 60_000 }).data ?? []
   // Signed in: the cart lives on the account. What was added on this phone before signing in joins it once.
   useEffect(() => {
     if (!signedIn || merged || !shopId || !accountCarts.data) return
@@ -174,7 +191,15 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
 
   if (store.isError) return <NotFound />
   const data = store.data
-  if (!data) return <p className="p-8 text-center text-muted">…</p>
+  // Grey cards while the shop loads, instead of a blank page.
+  if (!data) return (
+    <div className="mx-auto max-w-xl p-3 lg:max-w-6xl" aria-busy="true">
+      <div className="mb-3 h-14 animate-pulse rounded-xl bg-[#e3ebe9]" />
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 10 }, (_, i) => <div key={i} className="flex flex-col gap-2 rounded-card bg-white p-2"><div className="aspect-square animate-pulse rounded-xl bg-[#edf2f1]" /><div className="h-3 w-3/4 animate-pulse rounded bg-[#edf2f1]" /><div className="h-3 w-1/3 animate-pulse rounded bg-[#edf2f1]" /><div className="h-10 animate-pulse rounded-xl bg-[#edf2f1]" /></div>)}
+      </div>
+    </div>
+  )
 
   const setCart = (next: Cart) => {
     setCartState(next)
@@ -189,7 +214,17 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
     if (next <= 0) delete updated[item.id]
     else updated[item.id] = Math.min(next, Math.max(item.available, 0))
     setCart(updated)
+    // A tick you can feel and see on Add.
+    if (direction === 1) {
+      try { navigator.vibrate?.(12) } catch { /* not on this phone */ }
+      setPopped(item.id)
+      window.setTimeout(() => setPopped((p) => (p === item.id ? null : p)), 350)
+    }
   }
+  const hearted = (id: string) => hearts.some((h) => h.shopId === data.shopId && h.productId === id)
+  const toggleHeart = (id: string) => void heart(data.shopId, id, !hearted(id))
+  const kirana = !data.type || data.type === 'kirana'
+  const full = !!data.type && fullPageTrades.includes(data.type)
 
   // Browse by aisle (the common grocery tree). Items not on it (a clothes or jewellery shop's goods, or items added by
   // hand) sit under the shop's own categories, and those with none under "Other".
@@ -203,17 +238,48 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
     ...ownCategories,
     ...(stocked.has('other') ? [{ code: 'other', name: t('store.otherItems'), count: data.items.filter((i) => aisleOfItem(i) === 'other').length }] : []),
   ]
-  const q = search.trim().toLowerCase()
-  const shown = data.items
-    .filter((i) => (category === 'all' || aisleOfItem(i) === category) && (!q || i.name.toLowerCase().includes(q) || (i.category ?? '').toLowerCase().includes(q)))
-    .sort((a, b) => Number(b.available > 0) - Number(a.available > 0))
+  const q = search.trim()
+  // Search forgives: doodh finds milk, a letter wrong still matches (lib/search.ts).
+  const found = q ? rank(data.items, q, (i) => `${i.name} ${i.category ?? ''}`) : data.items
+  const max = Number(filters.max) || Infinity
+  const shown = found
+    .filter((i) => (category === 'all' || aisleOfItem(i) === category) && (!filters.inStock || i.available > 0) && i.price <= max)
+    .sort((a, b) => Number(b.available > 0) - Number(a.available > 0) || (filters.sort === 'low' ? a.price - b.price : filters.sort === 'high' ? b.price - a.price : 0))
+  // Shelves on the shop's front page: your usual items, today's offers, new arrivals.
+  const counts = new Map<string, number>()
+  for (const o of pastOrders.filter((o) => o.shopId === data.shopId)) for (const l of o.lines) if (l.productId) counts.set(l.productId, (counts.get(l.productId) ?? 0) + 1)
+  const usual = data.items.filter((i) => counts.has(i.id) && i.available > 0).sort((a, b) => counts.get(b.id)! - counts.get(a.id)!).slice(0, 12)
+  const offers = data.items.filter((i) => i.regularPrice && i.regularPrice > i.price && i.available > 0).slice(0, 12)
+  const fresh = data.items.filter((i) => i.addedAt && Date.now() - Date.parse(i.addedAt) < 21 * 86_400_000 && i.available > 0)
+    .sort((a, b) => Date.parse(b.addedAt!) - Date.parse(a.addedAt!)).slice(0, 12)
+  const front = category === 'all' && !q
+  const rail = (title: string, items: StoreItem[]) => items.length > 0 && (
+    <section className="mx-4 mt-3" aria-label={title}>
+      <h2 className="mb-2 font-bold">{title}</h2>
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        {items.map((i) => (
+          <div key={i.id} className="flex w-32 shrink-0 flex-col gap-1 rounded-2xl bg-white p-2 shadow-sm">
+            <button onClick={() => setOpen(i)} className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-[#f6f8f7]" aria-label={i.name}>
+              {i.imageAt ? <img src={imageUrl(data.shopId, i.id, i.imageAt, 'thumb')} alt="" loading="lazy" className="h-full w-full object-contain" /> : <span aria-hidden className="text-3xl">🛍️</span>}
+            </button>
+            <span className="line-clamp-2 min-h-[2.4em] text-xs font-semibold">{i.name}</span>
+            <b className="text-sm">{formatRupees(i.price)}</b>
+            <button onClick={() => change(i, 1)} disabled={(cart[i.id] ?? 0) >= i.available} className={`h-9 rounded-lg text-sm ${btn.outline} ${popped === i.id ? 'scale-110' : ''} transition-transform`}>
+              {(cart[i.id] ?? 0) > 0 ? `${cart[i.id]} ✓` : t('store.add')}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
   const lines = data.items.filter((i) => cart[i.id] > 0).map((i) => ({ item: i, quantity: cart[i.id] }))
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.item.price), 0))
   const settings = data.settings ?? noSettings
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-28 lg:max-w-6xl lg:px-4">
-      <Header title={data.name} subtitle={[data.area, data.address].filter(Boolean).join(' · ') || t('store.title')} shopId={data.shopId} />
+      <Header title={data.name} subtitle={[data.area, data.address].filter(Boolean).join(' · ') || t('store.title')} shopId={data.shopId} theme={settings.theme} />
+      {festive(settings.theme) && <p className={`mx-4 mt-3 rounded-2xl p-3 text-center font-bold text-white ${festive(settings.theme)!.header}`}>{festive(settings.theme)!.emoji} {t(`cust4.festive.${settings.theme}`)}</p>}
 
       {signedIn && savedHere && <div className="mx-4 mt-3"><AlertsPrompt show /></div>}
       {myOrders.length > 0 && (
@@ -228,9 +294,12 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
       )}
 
       <div className="sticky top-[60px] z-[5] flex flex-col gap-2 bg-ground px-4 pt-3 pb-2 lg:top-[64px]">
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('store.search', { name: data.name })} aria-label={t('store.search', { name: data.name })}
-          className="h-12 w-full rounded-xl border border-line bg-white px-4 shadow-sm outline-none focus:border-brand-line" />
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist">
+        <div className="flex gap-2">
+          <input value={search} onChange={(e) => setSearch(e.target.value)} onBlur={() => rememberSearch(search)} placeholder={t('store.search', { name: data.name })} aria-label={t('store.search', { name: data.name })}
+            className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-white px-4 shadow-sm outline-none focus:border-brand-line" />
+          {!kirana && <button onClick={() => setFilters({ ...filters, open: true })} className="h-12 shrink-0 rounded-xl border border-line bg-white px-3 font-semibold">⚙ {t('cust4.filters')}</button>}
+        </div>
+        <div className={`-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 ${kirana ? 'lg:hidden' : ''}`} role="tablist">
           {chips.map((c) => (
             <button key={c.code} role="tab" aria-selected={category === c.code} onClick={() => setCategory(c.code)}
               className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-semibold ${category === c.code ? 'bg-brand text-white' : 'border border-line bg-white text-ink'}`}>
@@ -240,19 +309,41 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
         </div>
       </div>
 
-      {data.items.length > 0 && shown.length === 0 && <p className="p-8 text-center text-muted">{t('store.noMatch')}</p>}
+      {front && rail(t('cust4.usual'), usual)}
+      {front && rail(t('cust4.offers'), offers)}
+      {front && rail(t('cust4.newArrivals'), fresh)}
+
+      {data.items.length > 0 && shown.length === 0 && (
+        <div className="m-4 flex flex-col items-center gap-2 rounded-card bg-white p-6 text-center">
+          <p className="text-muted">{t('store.noMatch')}</p>
+          {data.phone && <a href={whatsAppLink(data.phone, t('cust4.askForItem', { item: q, shop: data.name }))} target="_blank" rel="noreferrer" className="flex h-11 items-center rounded-xl bg-[#25D366] px-4 font-bold text-white">{t('cust4.askShop')}</a>}
+        </div>
+      )}
       {data.items.length === 0 && <p className="p-8 text-center text-muted">{t('store.empty')}</p>}
-      <ul className="mx-3 mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <div className={kirana ? 'lg:grid lg:grid-cols-[180px_1fr] lg:gap-2' : ''}>
+      {/* Kirana: a left rail of aisles on wide screens (many aisles, few items each); chips on phones. */}
+      {kirana && (
+        <nav aria-label={t('cust4.aisles')} className="sticky top-[140px] hidden max-h-[calc(100dvh-160px)] flex-col gap-1 self-start overflow-y-auto pl-3 lg:flex">
+          {chips.map((c) => (
+            <button key={c.code} onClick={() => setCategory(c.code)} aria-current={category === c.code ? 'true' : undefined}
+              className={`flex min-h-11 items-center justify-between rounded-xl px-3 text-left text-sm font-semibold ${category === c.code ? 'bg-brand text-white' : 'hover:bg-white'}`}>
+              <span className="truncate">{c.name}</span><span className="opacity-70">{c.count}</span>
+            </button>
+          ))}
+        </nav>
+      )}
+      <ul className={`mx-3 mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 ${kirana ? 'lg:grid-cols-4' : 'lg:grid-cols-5'}`}>
         {shown.map((item) => {
           const inCart = cart[item.id] ?? 0
           const out = item.available <= 0
           return (
             <li key={item.id} className="item-card">
               <ItemCard item={item} square imageUrl={imageUrl(data.shopId, item.id, item.imageAt, 'thumb')} title={item.name} badge={inCart > 0 ? inCart : undefined} selected={inCart > 0}
-                photos={allPhotos(data.shopId, item).map((p) => p.thumb)} onPhotoClick={allPhotos(data.shopId, item).length > 0 ? () => setGallery(item) : undefined}>
+                photos={allPhotos(data.shopId, item).map((p) => p.thumb)} onPhotoClick={() => setOpen(item)}>
               <div className="mt-0.5 text-[11px] text-muted">{item.packSize && item.packUnit ? `${item.packSize} ${t(`units.${item.packUnit}`, { count: item.packSize })}` : `/${t(`units.${item.unit}`)}`}</div>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
                 <span className="text-[15px] font-bold">{formatRupees(item.price)}</span>
+                {signedIn && <button onClick={() => toggleHeart(item.id)} aria-pressed={hearted(item.id)} aria-label={t(hearted(item.id) ? 'cust4.unheart' : 'cust4.heart')} className={`ml-auto h-8 w-8 rounded-full text-lg ${hearted(item.id) ? 'text-due' : 'text-muted'}`}>{hearted(item.id) ? '♥' : '♡'}</button>}
                 {item.regularPrice != null && item.regularPrice > item.price ? (
                   <>
                     <span className="text-[11px] text-muted line-through">{formatRupees(item.regularPrice)}</span>
@@ -273,7 +364,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
               ) : (
                 <span className="flex items-center gap-1">
                   <button aria-label={t('a11y.less')} onClick={() => change(item, -1)} className="h-11 w-11 rounded-xl bg-[#edf2f1] text-xl">−</button>
-                  <span className="min-w-14 text-center font-bold">{inCart} {t(`units.${item.unit}`, { count: inCart })}</span>
+                  <span className={`min-w-14 text-center font-bold transition-transform ${popped === item.id ? 'scale-125 text-brand' : ''}`}>{inCart} {t(`units.${item.unit}`, { count: inCart })}</span>
                   <button aria-label={t('a11y.more')} onClick={() => change(item, 1)} disabled={inCart >= item.available} className="h-11 w-11 rounded-xl bg-[#edf2f1] text-xl disabled:opacity-30">+</button>
                 </span>
               )}
@@ -283,12 +374,36 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
           )
         })}
       </ul>
+      </div>
+
+      {open && (
+        <ProductSheet shopId={data.shopId} shopName={data.name} shopPhone={data.phone} item={open} all={data.items} inCart={(id) => cart[id] ?? 0} full={full}
+          hearted={signedIn ? hearted(open.id) : undefined} onHeart={signedIn ? () => toggleHeart(open.id) : undefined}
+          onChange={(i, d) => change(i as StoreItem, d)} onPick={(i) => setOpen(i as StoreItem)} onClose={() => setOpen(null)}
+          deliveryText={settings.deliveryFee ? `${t('cust4.homeDelivery')} · ${t('cust2.delivery')} ${formatRupees(settings.deliveryFee)}${settings.freeDeliveryAbove ? ` · ${t('cust4.freeAbove', { amount: formatRupees(settings.freeDeliveryAbove) })}` : ''} · ${t('cust4.orPickup')}` : `${t('cust4.homeDelivery')} · ${t('cust4.orPickup')}`} />
+      )}
+      {filters.open && (
+        <Drawer title={t('cust4.filters')} onClose={() => setFilters({ ...filters, open: false })}>
+          <div className="flex flex-col gap-3">
+            <span className="text-sm font-semibold text-muted">{t('cust4.sort')}</span>
+            <div className="flex flex-wrap gap-2">
+              {(['relevance', 'low', 'high'] as const).map((s) => (
+                <button key={s} onClick={() => setFilters({ ...filters, sort: s })} aria-pressed={filters.sort === s} className={`min-h-11 rounded-full px-4 font-semibold ${filters.sort === s ? 'bg-brand text-white' : 'border border-line bg-white'}`}>{t(`cust4.sort_${s}`)}</button>
+              ))}
+            </div>
+            <label className="flex flex-col gap-1"><span className="text-sm font-semibold text-muted">{t('cust4.maxPrice')}</span>
+              <input value={filters.max} onChange={(e) => setFilters({ ...filters, max: e.target.value.replace(/[^\d]/g, '') })} inputMode="numeric" placeholder="₹" className="h-12 rounded-xl border border-line bg-white px-3 text-lg" /></label>
+            <label className="flex min-h-11 items-center gap-2 font-semibold"><input type="checkbox" checked={filters.inStock} onChange={(e) => setFilters({ ...filters, inStock: e.target.checked })} className="h-5 w-5" />{t('cust4.inStockOnly')}</label>
+            <button onClick={() => setFilters({ ...filters, open: false })} className={`h-12 rounded-xl ${btn.solid}`}>{t('cust4.showItems', { count: shown.length })}</button>
+          </div>
+        </Drawer>
+      )}
 
       {gallery && <PhotoGallery title={gallery.name} photos={allPhotos(data.shopId, gallery)} onClose={() => setGallery(null)}
         footer={gallery.imageAt ? <PhotoNote shopId={data.shopId} item={gallery} /> : undefined} />}
 
       {lines.length > 0 && !checkingOut && (
-        <div className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-[440px] lg:rounded-2xl lg:border lg:shadow-xl">
+        <div className={`fixed inset-x-0 ${signedIn ? "bottom-[68px]" : "bottom-0"} z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-[440px] lg:rounded-2xl lg:border lg:shadow-xl`}>
           <button onClick={() => setCheckingOut(true)} className={`flex h-14 w-full items-center justify-between px-5 text-lg rounded-xl ${btn.solid}`}>
             <span>{t('store.cart', { count: lines.length, total: formatRupees(total) })}</span>
             <span>{t('store.checkout')} →</span>

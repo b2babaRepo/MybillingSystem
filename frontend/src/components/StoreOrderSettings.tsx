@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import type { StoreSettings } from '../lib/orderFlow'
 import { btn } from './ui'
+import { FESTIVE } from '../lib/festive'
 
 const input = 'h-12 w-full rounded-xl border border-line bg-white px-3 text-lg outline-none focus:border-brand-line'
 
@@ -19,13 +20,13 @@ function Form({ shopId, isOwner, initial, title }: { shopId: string; isOwner: bo
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const money = (v: number | null) => (v ? String(v) : '')
-  const [form, setForm] = useState({ fee: money(initial.deliveryFee), free: money(initial.freeDeliveryAbove), min: money(initial.minOrder), slots: initial.slots.join('\n') })
+  const [form, setForm] = useState({ fee: money(initial.deliveryFee), free: money(initial.freeDeliveryAbove), min: money(initial.minOrder), slots: initial.slots.join('\n'), theme: initial.theme ?? '' })
   const [message, setMessage] = useState('')
   const num = (s: string) => (s.trim() ? Number(s) : null)
   async function save() {
     setMessage('')
     try {
-      await api('/v1/store-settings', 'PUT', { deliveryFee: num(form.fee), freeDeliveryAbove: num(form.free), minOrder: num(form.min), slots: form.slots.split('\n').map((s) => s.trim()).filter(Boolean) })
+      await api('/v1/store-settings', 'PUT', { deliveryFee: num(form.fee), freeDeliveryAbove: num(form.free), minOrder: num(form.min), slots: form.slots.split('\n').map((s) => s.trim()).filter(Boolean), theme: form.theme || null })
       await queryClient.invalidateQueries({ queryKey: [shopId, 'store-settings'] })
       setMessage(t('cust2.saved'))
     } catch (e) {
@@ -47,6 +48,16 @@ function Form({ shopId, isOwner, initial, title }: { shopId: string; isOwner: bo
       </div>
       <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('cust2.slots')}</span>
         <textarea value={form.slots} disabled={!isOwner} onChange={(e) => setForm({ ...form, slots: e.target.value })} rows={3} placeholder={t('cust2.slotsHint')} className="w-full rounded-xl border border-line bg-white p-3 outline-none focus:border-brand-line" /></label>
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-semibold text-muted">{t('cust4.festiveLook')}</span>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={!isOwner} onClick={() => setForm({ ...form, theme: '' })} aria-pressed={!form.theme} className={`min-h-11 rounded-full px-4 font-semibold ${!form.theme ? 'bg-brand text-white' : 'border border-line bg-white'}`}>{t('cust4.usualLook')}</button>
+          {Object.entries(FESTIVE).map(([key, f]) => (
+            <button type="button" key={key} disabled={!isOwner} onClick={() => setForm({ ...form, theme: key })} aria-pressed={form.theme === key}
+              className={`min-h-11 rounded-full px-4 font-semibold ${form.theme === key ? `${f.header} text-white` : 'border border-line bg-white'}`}>{f.emoji} {t(`cust4.festiveName.${key}`)}</button>
+          ))}
+        </div>
+      </div>
       {isOwner && <button onClick={() => void save()} className={`h-12 rounded-xl ${btn.solid}`}>{t('save')}</button>}
       {message && <p className="text-sm font-semibold text-brand-strong">{message}</p>}
     </section>

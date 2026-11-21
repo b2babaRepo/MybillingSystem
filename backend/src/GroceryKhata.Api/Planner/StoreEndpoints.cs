@@ -8,13 +8,13 @@ namespace GroceryKhata.Api.Planner;
 
 /// <summary>A shop as its online store shows it. <see cref="Phone"/>: the owner's, for "send on WhatsApp".</summary>
 public sealed record StoreDto(string Name, string Slug, string? Area, string? Address, string? Phone, IReadOnlyList<StoreItemDto> Items, Guid ShopId = default,
-    StoreSettingsDto? Settings = null, string? UpiId = null);
+    StoreSettingsDto? Settings = null, string? UpiId = null, Shops.ShopType? Type = null);
 
 /// <summary><see cref="Available"/>: on the shelf minus what other online orders hold.</summary>
 public sealed record StoreItemDto(
     Guid Id, string Name, string? Category, Unit Unit, decimal Price, decimal Available, int? CatalogueItemId = null, DateTimeOffset? ImageAt = null,
     decimal? Mrp = null, decimal? PackSize = null, Unit? PackUnit = null, string? ImageCredit = null,
-    decimal? RegularPrice = null, string? OfferName = null, IReadOnlyList<Guid>? ExtraPhotos = null);
+    decimal? RegularPrice = null, string? OfferName = null, IReadOnlyList<Guid>? ExtraPhotos = null, DateTimeOffset? AddedAt = null);
 
 public static class StoreStock
 {
@@ -85,7 +85,8 @@ public static class StoreEndpoints
             .OrderBy(p => p.Category).ThenBy(p => p.Name)
             .Select(p => new StoreItemDto(p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.OutOn == today ? 0 : p.Uncounted ? StoreStock.Uncounted : p.Stock - p.Reserved, p.CatalogueItemId,
                 p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null), p.Mrp, p.PackSize, p.PackUnit,
-                p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? Catalogue.MasterPhotos.Representative : null))
+                p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? Catalogue.MasterPhotos.Representative : null,
+                null, null, null, p.CreatedAt))
             .ToListAsync(ct);
         items = items.Select(i => i.CatalogueItemId is null ? i with { CatalogueItemId = Catalogue.CommonCatalogue.Match(i.Name) } : i).ToList();
         // The gallery: every photo of an item beyond its main one.
@@ -104,7 +105,7 @@ public static class StoreEndpoints
 
         var row = await db.Shops.AsNoTracking().SingleAsync(s => s.Id == shop.Id, ct);
         return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items, shop.Id,
-            OrderUpdates.SettingsOf(row), string.IsNullOrWhiteSpace(row.UpiId) ? null : row.UpiId));
+            OrderUpdates.SettingsOf(row), string.IsNullOrWhiteSpace(row.UpiId) ? null : row.UpiId, row.Type));
     }
 
     /// <summary>
