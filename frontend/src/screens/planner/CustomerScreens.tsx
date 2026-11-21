@@ -96,16 +96,17 @@ function AlertSettings() {
     await api('/v1/me/order-alerts', 'PUT', { whatsApp: !whatsapp })
     await queryClient.invalidateQueries({ queryKey: ['me', 'order-alerts'] })
   }
-  const toggle = (label: string, hint: string, on: boolean, onClick: () => void, disabled = false) => (
+  const toggle = (icon: CustIconName, label: string, hint: string, on: boolean, onClick: () => void, disabled = false) => (
     <button onClick={onClick} disabled={disabled} role="switch" aria-checked={on} className="flex min-h-14 w-full items-center gap-3 border-t border-[#edf2f1] px-1 text-left first:border-t-0 disabled:opacity-50">
+      <CustIcon name={icon} className="shrink-0 text-[#3d4c48]" />
       <span className="flex flex-1 flex-col"><span className="font-semibold">{label}</span><span className="text-[13px] text-muted">{hint}</span></span>
       <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-brand' : 'bg-[#cfd8d6]'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`} /></span>
     </button>
   )
   return (
     <section className={card}>
-      {alertsPossible() && toggle(`🔔 ${t('cust2.alertsOn')}`, blocked ? t('cust2.alertsBlocked') : t('cust2.alertsAsk'), !!push, () => void togglePush(), blocked || push === null)}
-      {toggle(`💬 ${t('cust2.whatsapp')}`, t('cust2.whatsappHint'), whatsapp, () => void toggleWhatsApp())}
+      {alertsPossible() && toggle('bell', t('cust2.alertsOn'), blocked ? t('cust2.alertsBlocked') : t('cust2.alertsAsk'), !!push, () => void togglePush(), blocked || push === null)}
+      {toggle('chat', t('cust2.whatsapp'), t('cust2.whatsappHint'), whatsapp, () => void toggleWhatsApp())}
       {message && <p className="text-sm text-due">{message}</p>}
     </section>
   )
@@ -406,7 +407,7 @@ function DataSaverRow() {
   const [on, setOn] = useState(dataSaver)
   return (
     <button onClick={() => { setDataSaver(!on); setOn(!on) }} role="switch" aria-checked={on} className="flex min-h-14 w-full items-center gap-3 border-t border-[#edf2f1] px-1 text-left">
-      <span aria-hidden className="text-xl">📶</span>
+      <CustIcon name="data" className="shrink-0 text-[#3d4c48]" />
       <span className="flex flex-1 flex-col"><span className="font-semibold">{t('cust4.dataSaver')}</span><span className="text-[13px] text-muted">{t('cust4.dataSaverHint')}</span></span>
       <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-brand' : 'bg-[#cfd8d6]'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'left-6' : 'left-1'}`} /></span>
     </button>

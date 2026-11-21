@@ -5,6 +5,7 @@ import { reachedStep, shouldAskAlerts, markAlertsAsked, stepsOf, turnOnAlerts, t
 import type { Order, OrderPayment } from '../lib/planner'
 import { upiUri } from '../lib/reports'
 import { btn } from './ui'
+import { CustIcon } from './CustIcons'
 
 // Customer app phase 2, the pieces every checkout and order screen shares: the order's steps, the payment choice,
 // the honest bill, the shop's time chips, "Pay by UPI" with a QR, and the one-time ask for order notifications.
@@ -133,7 +134,7 @@ export function AlertsPrompt({ show }: { show: boolean }) {
   if (!open) return null
   return (
     <div role="dialog" aria-label={t('cust2.alertsOn')} className="flex flex-col gap-2 rounded-card bg-brand-soft p-4 ring-1 ring-brand-line">
-      <span className="font-semibold text-brand-deep">🔔 {t('cust2.alertsAsk')}</span>
+      <span className="flex items-start gap-2 font-semibold text-brand-deep"><CustIcon name="bell" className="mt-0.5 shrink-0" />{t('cust2.alertsAsk')}</span>
       <div className="grid grid-cols-2 gap-2">
         <button onClick={() => { setOpen(false); void turnOnAlerts().catch(() => {}) }} className={`min-h-11 rounded-xl ${btn.solid}`}>{t('cust2.alertsYes')}</button>
         <button onClick={() => { markAlertsAsked(); setOpen(false) }} className="min-h-11 rounded-xl border border-line bg-white font-semibold">{t('cust2.alertsNo')}</button>
