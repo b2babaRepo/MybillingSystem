@@ -510,7 +510,7 @@ export const enMore = {
     photoFrom: 'Photo: {{source}}', reportPhoto: 'Wrong photo?', reported: 'Thanks', reportWhy: 'What is wrong with this photo? (optional)',
     off: '{{percent}}% off',
     allAisles: 'All aisles',
-    otherItems: 'Other items', search: 'Search in {{name}}', noMatch: 'Nothing matches. Try another word.', itemsCount_one: '{{count}} item', itemsCount: '{{count}} items',
+    otherItems: 'Other items', home: 'Home', search: 'Search in {{name}}', noMatch: 'Nothing matches. Try another word.', itemsCount_one: '{{count}} item', itemsCount: '{{count}} items',
     title: 'Order online',
     all: 'All',
     add: 'Add',

@@ -105,9 +105,16 @@ function NotFound() {
 }
 
 function Header({ title, subtitle }: { title: string; subtitle?: string | null }) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const signedIn = !!getSession()
   return (
     <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand px-4 py-3 text-white lg:rounded-b-2xl lg:px-6">
+      {signedIn && (
+        <button onClick={() => navigate('/')} aria-label={t('store.home')} className="-ml-1 flex h-11 shrink-0 items-center gap-1 rounded-full bg-white/15 px-3 text-sm font-semibold hover:bg-white/25">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10" /></svg>
+          {t('store.home')}
+        </button>
+      )}
       <div className="flex min-w-0 flex-1 flex-col">
         <h1 className="truncate text-xl font-bold">{title}</h1>
         {subtitle && <span className="truncate text-sm opacity-85">{subtitle}</span>}
@@ -201,8 +208,8 @@ function Catalogue({ slug }: { slug: string }) {
           const out = item.available <= 0
           return (
             <li key={item.id} className="item-card">
-              <ItemCard item={item} square imageUrl={imageUrl(data.shopId, item.id, item.imageAt, 'thumb')} title={item.name} badge={inCart > 0 ? inCart : (item.extraPhotos?.length ? `📷 ${(item.imageAt ? 1 : 0) + item.extraPhotos.length}` : undefined)} selected={inCart > 0}
-                onClick={allPhotos(data.shopId, item).length > 0 ? () => setGallery(item) : undefined}>
+              <ItemCard item={item} square imageUrl={imageUrl(data.shopId, item.id, item.imageAt, 'thumb')} title={item.name} badge={inCart > 0 ? inCart : undefined} selected={inCart > 0}
+                photos={allPhotos(data.shopId, item).map((p) => p.thumb)} onPhotoClick={allPhotos(data.shopId, item).length > 0 ? () => setGallery(item) : undefined}>
               <div className="mt-0.5 text-[11px] text-muted">{item.packSize && item.packUnit ? `${item.packSize} ${t(`units.${item.packUnit}`, { count: item.packSize })}` : `/${t(`units.${item.unit}`)}`}</div>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
                 <span className="text-[15px] font-bold">{formatRupees(item.price)}</span>
@@ -218,8 +225,7 @@ function Catalogue({ slug }: { slug: string }) {
                   </>
                 )}
               </div>
-              {item.imageAt && <PhotoNote shopId={data.shopId} item={item} />}
-              <div className="mt-2">
+              <div className="mt-auto pt-2">
               {out ? (
                 <span className="text-sm font-semibold text-due">{t('store.out')}</span>
               ) : inCart === 0 ? (
@@ -238,7 +244,8 @@ function Catalogue({ slug }: { slug: string }) {
         })}
       </ul>
 
-      {gallery && <PhotoGallery title={gallery.name} photos={allPhotos(data.shopId, gallery)} onClose={() => setGallery(null)} />}
+      {gallery && <PhotoGallery title={gallery.name} photos={allPhotos(data.shopId, gallery)} onClose={() => setGallery(null)}
+        footer={gallery.imageAt ? <PhotoNote shopId={data.shopId} item={gallery} /> : undefined} />}
 
       {lines.length > 0 && !checkingOut && (
         <div className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-xl border-t border-line bg-white px-4 py-3 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-[440px] lg:rounded-2xl lg:border lg:shadow-xl">

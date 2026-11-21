@@ -171,7 +171,7 @@ const guMoreB = {
     photoFrom: 'ફોટો: {{source}}', reportPhoto: 'ખોટો ફોટો?', reported: 'આભાર', reportWhy: 'આ ફોટોમાં શું ખોટું છે? (વૈકલ્પિક)',
     off: '{{percent}}% ઓછા',
     allAisles: 'બધા વિભાગ',
-    otherItems: 'બીજી વસ્તુઓ', search: '{{name}} માં શોધો', noMatch: 'કંઈ મળ્યું નહીં. બીજો શબ્દ લખો.', itemsCount_one: '{{count}} વસ્તુ', itemsCount: '{{count}} વસ્તુઓ',
+    otherItems: 'બીજી વસ્તુઓ', home: 'હોમ', search: '{{name}} માં શોધો', noMatch: 'કંઈ મળ્યું નહીં. બીજો શબ્દ લખો.', itemsCount_one: '{{count}} વસ્તુ', itemsCount: '{{count}} વસ્તુઓ',
     title: 'ઓનલાઇન ઓર્ડર',
     all: 'બધું',
     add: 'ઉમેરો',

@@ -512,7 +512,7 @@ export const hiMore: TextsMore = {
     photoFrom: 'फ़ोटो: {{source}}', reportPhoto: 'फ़ोटो ग़लत?', reported: 'धन्यवाद', reportWhy: 'फ़ोटो में क्या ग़लत है? (चाहें तो)',
     off: '{{percent}}% छूट',
     allAisles: 'सब विभाग',
-    otherItems: 'बाकी सामान', search: '{{name}} में खोजें', noMatch: 'कुछ नहीं मिला। दूसरा शब्द लिखें।', itemsCount_one: '{{count}} सामान', itemsCount: '{{count}} सामान',
+    otherItems: 'बाकी सामान', home: 'होम', search: '{{name}} में खोजें', noMatch: 'कुछ नहीं मिला। दूसरा शब्द लिखें।', itemsCount_one: '{{count}} सामान', itemsCount: '{{count}} सामान',
     title: 'ऑनलाइन ऑर्डर करें',
     all: 'सब',
     add: 'जोड़ें',

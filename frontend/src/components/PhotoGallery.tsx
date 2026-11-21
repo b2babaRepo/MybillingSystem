@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
  * An item's photos full screen, like a shopping app's product view: swipe (or the arrows, or the keyboard) through
  * them, dots and small pictures below show which one is open.
  */
-export function PhotoGallery({ title, photos, start = 0, onClose }: { title: string; photos: { full: string; thumb: string }[]; start?: number; onClose: () => void }) {
+export function PhotoGallery({ title, photos, start = 0, onClose, footer }: { title: string; photos: { full: string; thumb: string }[]; start?: number; onClose: () => void; footer?: ReactNode }) {
   const { t } = useTranslation()
   const [at, setAt] = useState(start)
   const strip = useRef<HTMLDivElement>(null)
@@ -53,6 +53,7 @@ export function PhotoGallery({ title, photos, start = 0, onClose }: { title: str
         {at > 0 && <button onClick={() => go(at - 1)} aria-label={t('gallery.previous')} className="absolute left-2 top-1/2 h-12 w-12 -translate-y-1/2 rounded-full bg-white/20 text-2xl hover:bg-white/30">‹</button>}
         {at < photos.length - 1 && <button onClick={() => go(at + 1)} aria-label={t('gallery.next')} className="absolute right-2 top-1/2 h-12 w-12 -translate-y-1/2 rounded-full bg-white/20 text-2xl hover:bg-white/30">›</button>}
       </div>
+      {footer && <div className="mx-auto w-full max-w-md px-4 text-white/80 [&_*]:text-white/80">{footer}</div>}
       {photos.length > 1 && (
         <div className="flex justify-center gap-2 overflow-x-auto px-4 pb-5 pt-2">
           {photos.map((p, i) => (
