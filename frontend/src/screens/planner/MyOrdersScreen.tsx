@@ -2,7 +2,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PendingDot, btn } from '../../components/ui'
-import { formatDateTime, formatRupees } from '../../lib/format'
+import { formatDateTime, formatRupees, whatsAppLink } from '../../lib/format'
+import { api } from '../../lib/api'
+import { confirmAsk } from '../../components/Ask'
+import { navigate } from '../../router'
 import { answerChangedLine, homeKey, useMyOrders, type Order, type OrderStatus } from '../../lib/planner'
 
 const STEPS: OrderStatus[] = ['placed', 'packed', 'delivered']
@@ -43,12 +46,13 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
   return (
     <section className="flex flex-col gap-3 rounded-card bg-white p-4">
       <div className="flex items-start justify-between gap-2">
-        <span className="flex flex-col">
+        <button onClick={() => navigate(`/orders/${order.id}`)} className="flex flex-col text-left">
           <span className="text-[17px] font-bold">{order.shopName}</span>
           <span className="text-[13px] text-muted">
             {order.source === 'store' ? t('orders2.online') : t(`plan.${order.listKind}List`)} · {t('plan.itemsCount', { count: order.lines.length })} · {formatDateTime(order.createdAt)}
           </span>
-        </span>
+          <span className="text-[13px] font-bold text-brand">{t('cust.viewOrder')} ›</span>
+        </button>
         <span className={`flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-xs font-bold ${order.status === 'cancelled' ? 'bg-due-soft text-due' : 'bg-[#e0efec] text-brand-strong'}`}>
           {order.pending && <PendingDot />}
           {order.pending ? t('plan.sending') : t(`plan.status.${order.status}`)}
@@ -106,5 +110,59 @@ function OrderCard({ order, userId }: { order: Order; userId: string }) {
         </div>
       )}
     </section>
+  )
+}
+
+/** One order in full: every line, the progress, what the shop changed, how and where, the bill, and Call / WhatsApp / Cancel. */
+export function OrderDetail({ userId, orderId }: { userId: string; orderId: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const { orders, isLoading } = useMyOrders(userId)
+  const [message, setMessage] = useState('')
+  const order = orders.find((o) => o.id === orderId)
+  if (!order) return <p className="p-6 text-center text-muted">{isLoading ? '…' : t('cust.orderGone')}</p>
+
+  async function cancel() {
+    if (!order || !(await confirmAsk(t('cust.cancelConfirm', { shop: order.shopName })))) return
+    setMessage('')
+    try {
+      await api(`/v1/me/orders/${order.id}/cancel`, 'POST', {})
+      await queryClient.invalidateQueries({ queryKey: [homeKey(userId), 'orders'] })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+
+  const total = order.finalAmount ?? order.lines.reduce((s, l) => s + (l.amount ?? 0), 0)
+  return (
+    <div className="flex flex-col gap-3 p-4">
+      <OrderCard order={order} userId={userId} />
+      <section className="flex flex-col gap-1 rounded-card bg-white p-4">
+        <h2 className="mb-1 font-bold">{t('cust.items')}</h2>
+        {order.lines.map((l) => (
+          <div key={l.id} className={`flex items-start justify-between gap-2 border-t border-[#edf2f1] py-2 text-sm first-of-type:border-t-0 ${l.removed ? 'text-muted line-through' : ''}`}>
+            <span className="flex min-w-0 flex-col">
+              <b className="truncate">{l.name}</b>
+              <span className="text-xs text-muted">{l.packedQuantity ?? l.quantity} {t(`units.${l.unit}`, { count: l.packedQuantity ?? l.quantity })}{l.unitPrice != null ? ` × ${formatRupees(l.unitPrice)}` : ''}</span>
+            </span>
+            <span className="shrink-0 font-semibold">{l.amount != null ? formatRupees(l.amount) : '—'}</span>
+          </div>
+        ))}
+        {total > 0 && <div className="mt-1 flex justify-between border-t border-line pt-2 text-lg font-extrabold"><span>{t('plan.finalAmount')}</span><span>{formatRupees(total)}</span></div>}
+      </section>
+      <section className="flex flex-col gap-1 rounded-card bg-white p-4 text-sm">
+        <span><b>{t(`plan.${order.fulfilment}`)}</b>{order.slot ? ` · ${order.slot}` : ''}</span>
+        {order.address && <span className="text-muted">📍 {order.address}</span>}
+        <span className="text-muted">{t('cust.payment')}: {t(`cust.pay.${order.payment}`)}</span>
+        {order.note && <span className="text-muted">“{order.note}”</span>}
+      </section>
+      <div className="grid grid-cols-2 gap-2">
+        {order.shopPhone && <a href={`tel:${order.shopPhone}`} className="flex h-12 items-center justify-center rounded-xl border border-line font-bold">📞 {t('cust.callShop')}</a>}
+        {order.shopPhone && <a href={whatsAppLink(order.shopPhone, t('cust.aboutOrder', { shop: order.shopName, id: order.id.slice(-4).toUpperCase() }))} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center rounded-xl bg-[#25D366] font-bold text-white">WhatsApp</a>}
+        {order.shopSlug && <button onClick={() => navigate(`/s/${order.shopSlug}`)} className="col-span-2 h-12 rounded-xl border border-line font-semibold">{t('cust.openShop')}</button>}
+        {order.status === 'placed' && !order.pending && <button onClick={() => void cancel()} className="col-span-2 h-12 rounded-xl border border-due font-bold text-due">{t('cust.cancelOrder')}</button>}
+      </div>
+      {message && <p className="text-sm text-due">{message}</p>}
+    </div>
   )
 }

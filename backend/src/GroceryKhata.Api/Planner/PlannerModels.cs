@@ -93,9 +93,11 @@ public sealed record OrderDto(
     DateTimeOffset? CancelledAt,
     IReadOnlyList<OrderLineDto> Lines,
     OrderSource Source,
-    string? Address)
+    string? Address,
+    string? ShopSlug = null,
+    string? ShopPhone = null)
 {
-    public static OrderDto From(Order o, string shopName) => new(
+    public static OrderDto From(Order o, string shopName, string? shopSlug = null, string? shopPhone = null) => new(
         o.Id, o.ShopId, shopName, o.CustomerName, o.CustomerPhone, o.ListKind, o.Fulfilment, o.Slot, o.Payment, o.Note,
         o.Status, o.FinalAmount, o.CreatedAt, o.PackedAt, o.DeliveredAt, o.CancelledAt,
         o.Lines.OrderBy(l => l.LineNo).Select(l => new OrderLineDto(
@@ -103,7 +105,9 @@ public sealed record OrderDto(
             l.Removed || l.UnitPrice is null ? null : Money.LineAmount(l.PackedQuantity ?? l.Quantity, l.UnitPrice.Value),
             l.ProductId, l.RequestedProductId, l.RequestedName, l.Preference, l.ExpectedAmount, l.Approval, l.AiConfidence)).ToList(),
         o.Source,
-        o.Address);
+        o.Address,
+        shopSlug,
+        shopPhone);
 }
 
 /// <summary>One packed line. <see cref="ProductId"/>: the shop's option actually packed, when it differs from the line's.</summary>

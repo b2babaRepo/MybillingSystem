@@ -237,6 +237,7 @@ export const gu: Texts = {
     todayLink: 'આજનો રોકડ ચોપડો',
   },
   connect: { title: 'દુકાન સાથે જોડાઓ', hint: 'દુકાનનો ID (GKS-…) અથવા દુકાનનો મોબાઇલ નંબર લખો, અથવા દુકાનનો QR કોડ સ્કેન કરો.', placeholder: 'દુકાન ID કે મોબાઇલ', find: 'શોધો', scan: 'દુકાનનો QR કોડ સ્કેન કરો', none: 'આ ID કે મોબાઇલથી કોઈ દુકાન ન મળી.', notShopQr: 'આ ગ્રોસરી ખાતા દુકાનનો QR કોડ નથી. દુકાનનો સ્ટોર QR સ્કેન કરો.', connect: 'જોડાઓ', browse: '{{name}} નો બધો માલ જુઓ' },
+  cust: { tab: { home: 'હોમ', search: 'શોધો', orders: 'ઓર્ડર', cart: 'કાર્ટ', account: 'ખાતું' }, myShops: 'મારી દુકાનો', seeAll: 'બધું જુઓ', addShop: 'દુકાન ઉમેરો' },
   a11y: { less: 'ઓછું', more: 'વધારે', back: 'પાછા', close: 'બંધ કરો', menu: 'મેનુ' },
   dues: {
     link: 'બાકી ઉઘરાવો',

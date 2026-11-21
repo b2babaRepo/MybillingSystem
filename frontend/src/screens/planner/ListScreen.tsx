@@ -1,3 +1,4 @@
+import { addToCart } from '../../lib/customer'
 import { aisleName } from '../../lib/aisleNames'
 import { ConnectShop } from '../../components/ConnectShop'
 import { btn } from '../../components/ui'
@@ -48,6 +49,20 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
   // A shop chosen before shops carried their link: find its link by name once.
   const lookup = useShopSearch(shop && !shop.slug ? shop.name : '')
   const shopSlug = shop?.slug ?? (shop ? lookup.data?.find((s) => s.id === shop.id)?.slug : null)
+  const [filling, setFilling] = useState(false)
+  // The list's items the shop sells go into its cart (its own item for each), and checkout opens there.
+  async function fillCart() {
+    if (!shop || !shopSlug) return
+    setFilling(true)
+    try {
+      const lines: Record<string, number> = {}
+      for (const item of hereItems) { const o = optionOf(item); if (o) lines[o.productId] = item.quantity }
+      await addToCart(shop.id, lines)
+      navigate(`/s/${shopSlug}/cart`)
+    } finally {
+      setFilling(false)
+    }
+  }
   const chooseShop = (s: ShopEntry | null) => { setChosenShop(userId, s); setShop(s); setChangingShop(false) }
   const optionOf = (i: ListItem): ShopOption | undefined => atShop?.find((o) => o.catalogueItemId === i.catalogueItemId && o.isDefault) ?? atShop?.find((o) => o.catalogueItemId === i.catalogueItemId)
 
@@ -238,6 +253,9 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
             <span className="text-[13px] text-muted">{atShop ? t('shopFirst.totalAt', { here: hereItems.length, name: shop!.name }) : <>{t('plan.itemsCount', { count: list.items.length })}{estimate > 0 ? ` · ${t('home2.about')}` : ''}</>}</span>
             {estimate > 0 && <span className="text-[22px] leading-tight font-extrabold">{formatRupees(estimate)}</span>}
           </span>
+          {shop && shopSlug && hereItems.length > 0 && (
+            <button disabled={filling} onClick={() => void fillCart()} className="h-14 shrink-0 rounded-xl border-2 border-brand px-4 font-bold text-brand-strong disabled:opacity-50">🛒 {t('cust.fillCart')}</button>
+          )}
           <button onClick={() => navigate(`/send/${kind}`)} className={`h-14 shrink-0 px-6 text-lg rounded-xl ${btn.solid}`}>
             {shop ? t('plan.send') : t('home2.chooseShop')} ›
           </button>

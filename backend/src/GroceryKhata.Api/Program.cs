@@ -158,6 +158,7 @@ GroceryKhata.Api.Ledger.BillLinks.MapBillLinks(app);
 app.MapMarkets();
 app.MapProfile();
 app.MapAddresses();
+app.MapCustomerAccount();
 app.MapGstExport();
 app.MapCreditNotes();
 app.MapMasterItems();

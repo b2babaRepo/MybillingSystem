@@ -345,8 +345,18 @@ public static class PlannerEndpoints
     internal static async Task<IReadOnlyList<OrderDto>> WithShopNamesAsync(AppDbContext db, IReadOnlyList<Order> orders, CancellationToken ct)
     {
         var shopIds = orders.Select(o => o.ShopId).Distinct().ToList();
-        var names = await db.Shops.AsNoTracking().Where(s => shopIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
-        return orders.Select(o => OrderDto.From(o, names.GetValueOrDefault(o.ShopId, ""))).ToList();
+        var shops = await (from s in db.Shops.AsNoTracking()
+                           where shopIds.Contains(s.Id)
+                           select new
+                           {
+                               s.Id, s.Name, s.Slug,
+                               Phone = (from m in db.Memberships
+                                        join u in db.Users on m.UserId equals u.Id
+                                        where m.ShopId == s.Id && m.Role == Identity.ShopRole.Owner && m.IsActive
+                                        orderby m.CreatedAt
+                                        select u.Phone).FirstOrDefault(),
+                           }).ToDictionaryAsync(s => s.Id, ct);
+        return orders.Select(o => shops.TryGetValue(o.ShopId, out var s) ? OrderDto.From(o, s.Name, s.Slug, s.Phone) : OrderDto.From(o, "")).ToList();
     }
 
     private static async Task<ShoppingList> EnsureListAsync(AppDbContext db, Guid userId, ListKind kind, CancellationToken ct)

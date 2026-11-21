@@ -141,8 +141,8 @@ export default function App() {
   const path = usePath()
   // A shopkeeper can also plan their own home's lists; everyone without a shop only sees the planner.
   const [household, setHousehold] = useState(false)
-  // The public online store: open to anyone, signed in or not.
-  if (path.startsWith('/s/')) {
+  // The public online store: open to anyone. A signed-in customer (no shop of their own) sees it inside their app, with its tabs.
+  if (path.startsWith('/s/') && !(session && session.memberships.length === 0)) {
     return (
       <Suspense fallback={<Loading />}>
         <StoreApp path={path} />

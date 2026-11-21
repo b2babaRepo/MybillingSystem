@@ -1,3 +1,4 @@
+import { useSavedShops } from '../../lib/customer'
 import { ConnectShop } from '../../components/ConnectShop'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -67,6 +68,7 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
     }, choices)
     navigate('/orders')
   }
+  const saved = useSavedShops().data ?? []
   const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
   const [locating, setLocating] = useState(false)
   const shops = useShopSearch('', '', near)
@@ -99,6 +101,23 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
             <span className="shrink-0 rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white">{t('again.send')}</span>
           </button>
         )}
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-[17px] font-extrabold">{t('cust.myShops')}</h2>
+          <button onClick={() => navigate('/shops')} className="min-h-11 text-sm font-bold text-brand">{t('cust.seeAll')}</button>
+        </div>
+        <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1">
+          {saved.map((s) => (
+            <button key={s.id} onClick={() => navigate(`/s/${s.slug}`)} className="flex w-32 shrink-0 flex-col items-start gap-1.5 rounded-card bg-white p-3 text-left shadow-[0_1px_4px_rgba(16,32,29,0.06)]">
+              <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-brand text-lg font-extrabold text-white">{s.name.charAt(0)}</span>
+              <span className="line-clamp-2 text-sm font-bold leading-tight">{s.name}</span>
+              <span className="truncate text-xs text-muted">{s.area ?? ''}</span>
+            </button>
+          ))}
+          <button onClick={() => navigate('/search')} className="flex w-32 shrink-0 flex-col items-center justify-center gap-1 rounded-card border-2 border-dashed border-brand-line/50 bg-white p-3 text-brand">
+            <span className="text-2xl font-extrabold">+</span>
+            <span className="text-center text-sm font-bold">{t('cust.addShop')}</span>
+          </button>
+        </div>
         <h2 className="text-[17px] font-extrabold">{t('home2.myLists')}</h2>
         <div className="grid grid-cols-2 gap-2.5">
           <ListCard list={monthly} title={t('plan.monthlyList')} catalogue={catalogue} />
@@ -119,7 +138,7 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
         <ConnectShop onPick={(s) => { setChosenShop(userId, s); navigate('/list/monthly') }} current={getChosenShop(userId)?.id} />
         {shops.data?.length === 0 && <p className="text-sm text-muted">{t('plan.noShops')}</p>}
         {shops.data?.slice(0, 5).map((s) => (
-          <button key={s.id} onClick={() => { setChosenShop(userId, s); navigate('/list/monthly') }} className="flex items-center gap-3 rounded-2xl bg-white p-3 text-left">
+          <button key={s.id} onClick={() => { setChosenShop(userId, s); navigate(s.slug ? `/s/${s.slug}` : '/list/monthly') }} className="flex items-center gap-3 rounded-2xl bg-white p-3 text-left">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-brand text-lg font-extrabold text-white">{s.name.charAt(0)}</span>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate font-bold">{s.name}</span>

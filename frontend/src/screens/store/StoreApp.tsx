@@ -1,8 +1,9 @@
+import { putCart, useCarts, useSavedShops, useSaveShop } from '../../lib/customer'
 import { api } from '../../lib/api'
 import { aisleName } from '../../lib/aisleNames'
 import { btn } from '../../components/ui'
-import { useQuery } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAisles } from '../../components/AisleTiles'
 import { ItemCard } from '../../components/ItemCard'
@@ -93,12 +94,12 @@ async function storeApi<T>(path: string, method = 'GET', body?: unknown): Promis
   return (await response.json()) as T
 }
 
-/** path: "/s/{slug}" or "/s/{slug}/o/{orderId}?t={token}". */
+/** path: "/s/{slug}", "/s/{slug}/cart" (straight to checkout) or "/s/{slug}/o/{orderId}?t={token}". */
 export function StoreApp({ path }: { path: string }) {
-  const match = path.match(/^\/s\/([a-z0-9-]+)(?:\/o\/([0-9a-f-]+))?(?:\?t=([A-Za-z0-9_-]+))?$/)
+  const match = path.match(/^\/s\/([a-z0-9-]+)(\/cart)?(?:\/o\/([0-9a-f-]+))?(?:\?t=([A-Za-z0-9_-]+))?$/)
   if (!match) return <NotFound />
-  const [, slug, orderId, token] = match
-  return orderId && token ? <OrderStatus slug={slug} orderId={orderId} token={token} /> : <Catalogue slug={slug} />
+  const [, slug, toCart, orderId, token] = match
+  return orderId && token ? <OrderStatus slug={slug} orderId={orderId} token={token} /> : <Catalogue key={slug} slug={slug} openCheckout={!!toCart} />
 }
 
 function NotFound() {
@@ -106,8 +107,11 @@ function NotFound() {
   return <p className="p-8 text-center text-muted">{t('store.notFound')}</p>
 }
 
-function Header({ title, subtitle }: { title: string; subtitle?: string | null }) {
+function Header({ title, subtitle, shopId }: { title: string; subtitle?: string | null; shopId?: string }) {
   const { t, i18n } = useTranslation()
+  const signedIn = !!getSession()
+  const saved = useSavedShops(signedIn).data?.some((s) => s.id === shopId) ?? false
+  const save = useSaveShop()
   return (
     <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand px-4 py-3 text-white lg:rounded-b-2xl lg:px-6">
       {/* Home on every shop page: a signed-in customer goes back to their shops, anyone else to the app's start. */}
@@ -119,6 +123,9 @@ function Header({ title, subtitle }: { title: string; subtitle?: string | null }
         <h1 className="truncate text-xl font-bold">{title}</h1>
         {subtitle && <span className="truncate text-sm opacity-85">{subtitle}</span>}
       </div>
+      {signedIn && shopId && (
+        <button onClick={() => void save({ id: shopId }, !saved)} aria-pressed={saved} aria-label={t(saved ? 'cust.unsave' : 'cust.save')} className="h-11 w-11 shrink-0 rounded-full bg-white/20 text-xl">{saved ? '♥' : '♡'}</button>
+      )}
       <button onClick={() => setLanguage(nextLanguage(i18n.language).code)} className="h-11 rounded-full bg-white/20 px-3 text-sm font-semibold">
         {nextLanguage(i18n.language).short}
       </button>
@@ -126,16 +133,33 @@ function Header({ title, subtitle }: { title: string; subtitle?: string | null }
   )
 }
 
-function Catalogue({ slug }: { slug: string }) {
+function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?: boolean }) {
   const { t, i18n } = useTranslation()
+  const queryClient = useQueryClient()
   const store = useQuery({ queryKey: ['store', slug], queryFn: () => storeApi<Store>(slug), retry: false })
   const [cart, setCartState] = useState<Cart>(() => remembered(`store.${slug}.cart`, {}))
   const [category, setCategory] = useState('all')
   const [search, setSearch] = useState('')
   const [gallery, setGallery] = useState<StoreItem | null>(null)
   const aisles = useAisles().data ?? []
-  const [checkingOut, setCheckingOut] = useState(false)
+  const [checkingOut, setCheckingOut] = useState(openCheckout)
   const myOrders = remembered<MyOrder[]>(`store.${slug}.orders`, [])
+  const signedIn = !!getSession()
+  const accountCarts = useCarts(signedIn)
+  const [merged, setMerged] = useState(false)
+  const shopId = store.data?.shopId
+  // Signed in: the cart lives on the account. What was added on this phone before signing in joins it once.
+  useEffect(() => {
+    if (!signedIn || merged || !shopId || !accountCarts.data) return
+    const server: Cart = Object.fromEntries((accountCarts.data.find((c) => c.shopId === shopId)?.items ?? []).map((i) => [i.productId, i.quantity]))
+    const local = remembered<Cart>(`store.${slug}.cart`, {})
+    const joined: Cart = { ...server }
+    for (const [id, q] of Object.entries(local)) joined[id] = Math.max(joined[id] ?? 0, q)
+    setCartState(joined)
+    setMerged(true)
+    if (Object.keys(local).length > 0) { void putCart(shopId, joined).catch(() => {}); remember(`store.${slug}.cart`, {}) }
+  }, [signedIn, merged, shopId, accountCarts.data, slug])
+  const pushTimer = useRef<number | undefined>(undefined)
 
   if (store.isError) return <NotFound />
   const data = store.data
@@ -143,7 +167,10 @@ function Catalogue({ slug }: { slug: string }) {
 
   const setCart = (next: Cart) => {
     setCartState(next)
-    remember(`store.${slug}.cart`, next)
+    if (!signedIn) { remember(`store.${slug}.cart`, next); return }
+    // A moment after the last tap, the account's cart is updated.
+    window.clearTimeout(pushTimer.current)
+    pushTimer.current = window.setTimeout(() => void putCart(data.shopId, next).then(() => queryClient.invalidateQueries({ queryKey: ['me', 'carts'] })).catch(() => {}), 600)
   }
   const change = (item: StoreItem, direction: 1 | -1) => {
     const next = round2((cart[item.id] ?? 0) + direction * STEP[item.unit])
@@ -174,7 +201,7 @@ function Catalogue({ slug }: { slug: string }) {
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-28 lg:max-w-6xl lg:px-4">
-      <Header title={data.name} subtitle={[data.area, data.address].filter(Boolean).join(' · ') || t('store.title')} />
+      <Header title={data.name} subtitle={[data.area, data.address].filter(Boolean).join(' · ') || t('store.title')} shopId={data.shopId} />
 
       {myOrders.length > 0 && (
         <div className="mx-4 mt-3 flex flex-wrap gap-2">

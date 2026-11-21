@@ -57,6 +57,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<SavedAddress> SavedAddresses => Set<SavedAddress>();
 
+    public DbSet<Planner.CustomerCart> CustomerCarts => Set<Planner.CustomerCart>();
+
+    public DbSet<Planner.SavedShop> SavedShops => Set<Planner.SavedShop>();
+
     public DbSet<Common.JobRun> JobRuns => Set<Common.JobRun>();
 
     public DbSet<Common.SeenMessage> SeenMessages => Set<Common.SeenMessage>();
@@ -364,6 +368,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasKey(p => new { p.Phone, p.FarmerId });
             b.Property(p => p.Phone).HasMaxLength(20);
             b.HasIndex(p => p.FarmerId);
+        });
+
+        modelBuilder.Entity<Planner.CustomerCart>(b =>
+        {
+            b.ToTable("customer_carts");
+            b.Property(c => c.Lines).HasColumnType("jsonb");
+            b.HasIndex(c => new { c.UserId, c.ShopId }).IsUnique();
+            b.HasOne<User>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Planner.SavedShop>(b =>
+        {
+            b.ToTable("saved_shops");
+            b.HasIndex(x => new { x.UserId, x.ShopId }).IsUnique();
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SavedAddress>(b =>

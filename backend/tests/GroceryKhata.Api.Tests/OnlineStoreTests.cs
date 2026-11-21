@@ -12,6 +12,49 @@ namespace GroceryKhata.Api.Tests;
 public sealed class OnlineStoreTests(ApiFactory api)
 {
     [Fact]
+    public async Task A_customer_keeps_carts_and_shops_on_the_account_and_cancels_before_packing()
+    {
+        var (shop, auth) = await api.SignUpAsync("Account Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var atta = await CreateProductAsync(shop, "Atta", "kg", 44m, 10m);
+        var dal = await CreateProductAsync(shop, "Dal", "kg", 120m, 10m);
+        var customer = api.CreateClient();
+        var me = await (await customer.PostJsonAsync("/api/v1/auth/register", new { fullName = "Priya", phone = ApiFactory.NewPhone(), password = "secret123" })).ReadAsync<GroceryKhata.Api.Identity.AuthResponse>();
+        customer.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", me.AccessToken);
+
+        // A cart at the shop, priced live; emptying it removes it.
+        (await customer.PutAsJsonAsync($"/api/v1/me/carts/{auth.ShopId}", new { lines = new[] { new { productId = atta.Id, quantity = 2m }, new { productId = dal.Id, quantity = 1m } } })).EnsureSuccessStatusCode();
+        var carts = await customer.GetJsonAsync<List<GroceryKhata.Api.Planner.CartDto>>("/api/v1/me/carts");
+        Assert.Equal(("Account Store", 2, 208m), (carts.Single().ShopName, carts.Single().Items.Count, carts.Single().Total));
+        (await customer.PutAsJsonAsync($"/api/v1/me/carts/{auth.ShopId}", new { lines = Array.Empty<object>() })).EnsureSuccessStatusCode();
+        Assert.Empty(await customer.GetJsonAsync<List<GroceryKhata.Api.Planner.CartDto>>("/api/v1/me/carts"));
+
+        // Saved shops, saved twice is still once.
+        (await customer.PutAsJsonAsync($"/api/v1/me/shops/{auth.ShopId}", new { })).EnsureSuccessStatusCode();
+        (await customer.PutAsJsonAsync($"/api/v1/me/shops/{auth.ShopId}", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(slug, Assert.Single(await customer.GetJsonAsync<List<GroceryKhata.Api.Planner.SavedShopDto>>("/api/v1/me/shops")).Slug);
+
+        // An order the shop hasn't packed: the customer cancels it and the stock it held comes back.
+        var orderId = Guid.CreateVersion7();
+        (await customer.PostJsonAsync($"/api/v1/store/{slug}/orders", new { id = orderId, name = "Priya", phone = ApiFactory.NewPhone(), fulfilment = "pickup", lines = new object[] { new { productId = atta.Id, quantity = 3m } } })).EnsureSuccessStatusCode();
+        Assert.Equal(7m, (await customer.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single(i => i.Id == atta.Id).Available);
+        var mine = Assert.Single(await customer.GetJsonAsync<List<OrderDto>>("/api/v1/me/orders"));
+        Assert.Equal(slug, mine.ShopSlug);
+        (await customer.PostJsonAsync($"/api/v1/me/orders/{orderId}/cancel", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(OrderStatus.Cancelled, Assert.Single(await customer.GetJsonAsync<List<OrderDto>>("/api/v1/me/orders")).Status);
+        Assert.Equal(10m, (await customer.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single(i => i.Id == atta.Id).Available);
+
+        // The first address is the default; another can be made the default.
+        var home = Guid.CreateVersion7();
+        var work = Guid.CreateVersion7();
+        (await customer.PostJsonAsync("/api/v1/addresses", new { id = home, label = "Home", text = "12 MI Road, Jaipur" })).EnsureSuccessStatusCode();
+        (await customer.PostJsonAsync("/api/v1/addresses", new { id = work, label = "Work", text = "5 C-Scheme, Jaipur" })).EnsureSuccessStatusCode();
+        Assert.True((await customer.GetJsonAsync<List<GroceryKhata.Api.Identity.SavedAddressDto>>("/api/v1/addresses")).First().IsDefault);
+        (await customer.PostJsonAsync($"/api/v1/addresses/{work}/default", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(work, (await customer.GetJsonAsync<List<GroceryKhata.Api.Identity.SavedAddressDto>>("/api/v1/addresses")).First().Id);
+    }
+
+    [Fact]
     public async Task An_item_has_more_photos_shown_in_the_store()
     {
         const string png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";

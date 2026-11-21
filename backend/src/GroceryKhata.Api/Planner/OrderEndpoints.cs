@@ -283,7 +283,7 @@ public static class OrderEndpoints
     /// Gives back the stock an order's lines were holding (store orders reserve at checkout). Each line's hold is
     /// zeroed as it is released, so calling this twice for one order releases once.
     /// </summary>
-    private static async Task ReleaseReservationsAsync(AppDbContext db, Order order, CancellationToken ct)
+    internal static async Task ReleaseReservationsAsync(AppDbContext db, Order order, CancellationToken ct)
     {
         foreach (var line in order.Lines.Where(l => l.ProductId is not null && l.ReservedQuantity > 0))
         {

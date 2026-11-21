@@ -143,6 +143,9 @@ export interface Order {
   /** A household planner list, or a guest's cart from the online store. */
   source?: 'list' | 'store'
   address?: string | null
+  /** The shop's store link and owner's mobile: to open the shop, call or WhatsApp it from the order. */
+  shopSlug?: string | null
+  shopPhone?: string | null
   /** Sent from this phone, not on the server yet. */
   pending?: boolean
 }

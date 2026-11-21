@@ -237,6 +237,7 @@ export const hi: Texts = {
     todayLink: 'आज की रोकड़ बही',
   },
   connect: { title: 'दुकान से जुड़ें', hint: 'दुकान का ID (GKS-…) या दुकान का मोबाइल नंबर लिखें, या दुकान का QR कोड स्कैन करें।', placeholder: 'दुकान ID या मोबाइल', find: 'खोजें', scan: 'दुकान का QR कोड स्कैन करें', none: 'इस ID या मोबाइल से कोई दुकान नहीं मिली।', notShopQr: 'यह ग्रोसरी खाता दुकान का QR कोड नहीं है। दुकान का स्टोर QR स्कैन करें।', connect: 'जुड़ें', browse: '{{name}} का सारा सामान देखें' },
+  cust: { tab: { home: 'होम', search: 'खोजें', orders: 'ऑर्डर', cart: 'कार्ट', account: 'खाता' }, myShops: 'मेरी दुकानें', seeAll: 'सब देखें', addShop: 'दुकान जोड़ें' },
   a11y: { less: 'कम करें', more: 'बढ़ाएँ', back: 'वापस', close: 'बंद करें', menu: 'मेन्यू' },
   dues: {
     link: 'बकाया वसूली',
