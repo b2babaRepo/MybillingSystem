@@ -234,6 +234,49 @@ public sealed class KhataViewTests(ApiFactory api)
         Assert.Empty((await shop.GetJsonAsync<GroceryKhata.Api.Planner.DeliveryDayDto>($"/api/v1/deliveries?date={tomorrow.AddDays(1):yyyy-MM-dd}")).Deliveries);
     }
 
+    [Fact]
+    public async Task Posting_a_days_round_bills_each_khata_once()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Post Dairy", fullName = "Ramesh", phone = ApiFactory.NewPhone(), password = "secret123", language = "en", type = "dairy" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var shopId = auth.Memberships.Single().ShopId;
+        var milk = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = milk, name = "Cow milk 1 L", unit = "packet", sellingPrice = 60m, openingStock = 50m })).EnsureSuccessStatusCode();
+
+        // Two customers on the round: one has a khata at the shop, one doesn't.
+        var (withKhata, without) = (ApiFactory.NewPhone(), ApiFactory.NewPhone());
+        var customer = await CreateCustomerAsync(shop, "Sunita", withKhata);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5));
+        foreach (var (name, phone) in new[] { ("Sunita", withKhata), ("Vikas", without) })
+        {
+            var person = await RegisterAsync(name, phone);
+            await VerifyPhoneAsync(phone);
+            (await person.PostJsonAsync($"/api/v1/me/deliveries/{shopId}", new { id = Guid.CreateVersion7(), productId = milk, quantity = 2m, days = 127, startOn = today.AddDays(1), address = "Gali 4" })).EnsureSuccessStatusCode();
+        }
+
+        // As if they started yesterday.
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var back = new Npgsql.NpgsqlCommand("UPDATE delivery_plans SET start_on = @d WHERE shop_id = @s", db);
+            back.Parameters.AddWithValue("d", today.AddDays(-1));
+            back.Parameters.AddWithValue("s", shopId);
+            await back.ExecuteNonQueryAsync();
+        }
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/deliveries/{today.AddDays(1):yyyy-MM-dd}/post", new { })).StatusCode);
+        var first = await (await shop.PostJsonAsync($"/api/v1/deliveries/{today:yyyy-MM-dd}/post", new { })).ReadAsync<GroceryKhata.Api.Planner.DeliveryPostDto>();
+        Assert.Equal((1, 0, "Vikas"), (first.Posted, first.AlreadyPosted, first.NoKhata.Single()));
+        var again = await (await shop.PostJsonAsync($"/api/v1/deliveries/{today:yyyy-MM-dd}/post", new { })).ReadAsync<GroceryKhata.Api.Planner.DeliveryPostDto>();
+        Assert.Equal((0, 1), (again.Posted, again.AlreadyPosted));
+        Assert.Equal(120m, (await shop.GetJsonAsync<List<CustomerDto>>("/api/v1/customers")).Single(c => c.Id == customer).Balance);
+
+        var round = await shop.GetJsonAsync<GroceryKhata.Api.Planner.DeliveryDayDto>($"/api/v1/deliveries?date={today:yyyy-MM-dd}");
+        Assert.Equal([("Sunita", true, true), ("Vikas", false, false)], round.Deliveries.OrderBy(d => d.Name).Select(d => (d.Name, d.OnKhata, d.Posted)).ToArray());
+    }
+
     private async Task VerifyPhoneAsync(string phone)
     {
         await using var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata");

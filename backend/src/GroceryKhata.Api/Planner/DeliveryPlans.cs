@@ -52,8 +52,14 @@ public sealed record DeliveryPauseRequest(DateOnly? From, DateOnly? To);
 public sealed record DeliveryPlanDto(Guid Id, Guid ShopId, string ShopName, string? ShopSlug, Guid ProductId, string ProductName, Unit Unit, decimal Quantity,
     int Days, DateOnly StartOn, DateOnly? PauseFrom, DateOnly? PauseTo, string? Address, DateOnly? NextOn);
 
-/// <summary>One delivery on a day, for the shop's round.</summary>
-public sealed record DeliveryDto(Guid PlanId, string Name, string? Phone, string? Address, string ProductName, Unit Unit, decimal Quantity);
+/// <summary>
+/// One delivery on a day, for the shop's round. <see cref="OnKhata"/>: the shop has a khata under this phone, so it
+/// can be posted there. <see cref="Posted"/>: already on the khata as a bill.
+/// </summary>
+public sealed record DeliveryDto(Guid PlanId, string Name, string? Phone, string? Address, string ProductName, Unit Unit, decimal Quantity, bool OnKhata = false, bool Posted = false);
+
+/// <summary>What posting a day did: bills made now, ones already there, and who has no khata here (collect from them).</summary>
+public sealed record DeliveryPostDto(int Posted, int AlreadyPosted, IReadOnlyList<string> NoKhata, IReadOnlyList<string> Failed);
 
 /// <summary>A day's round: every delivery, and how much of each item to take.</summary>
 public sealed record DeliveryDayDto(DateOnly Date, IReadOnlyList<DeliveryDto> Deliveries, IReadOnlyList<DeliveryTotalDto> Totals);
@@ -73,6 +79,7 @@ public static class DeliveryPlans
         me.MapPost("/{shopId:guid}/{id:guid}/pause", PauseAsync);
         me.MapPost("/{shopId:guid}/{id:guid}/stop", StopAsync);
         app.MapGet("/api/v1/deliveries", DayAsync).WithTags("Orders").RequireAuthorization(AppPolicies.ShopMember);
+        app.MapPost("/api/v1/deliveries/{date}/post", PostAsync).WithTags("Orders").RequireAuthorization(AppPolicies.ShopMember);
         return app;
     }
 
@@ -80,8 +87,11 @@ public static class DeliveryPlans
     public static int DayBit(DateOnly date) => 1 << (((int)date.DayOfWeek + 6) % 7);
 
     /// <summary>Whether this plan delivers on this day.</summary>
-    public static bool DeliversOn(DeliveryPlan p, DateOnly date) =>
-        p.StoppedAt is null && date >= p.StartOn && (p.Days & DayBit(date)) != 0 && !(p.PauseFrom is { } from && date >= from && date <= (p.PauseTo ?? from));
+    public static bool DeliversOn(DeliveryPlan p, DateOnly date) => p.StoppedAt is null && OnDay(p, date);
+
+    /// <summary>The plan's days and pause, leaving out whether it was stopped since (a past day still counts).</summary>
+    private static bool OnDay(DeliveryPlan p, DateOnly date) =>
+        date >= p.StartOn && (p.Days & DayBit(date)) != 0 && !(p.PauseFrom is { } from && date >= from && date <= (p.PauseTo ?? from));
 
     private static DateOnly? NextOn(DeliveryPlan p, DateOnly today)
     {
@@ -201,14 +211,95 @@ public static class DeliveryPlans
         return changed == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
     }
 
+    /// <summary>
+    /// The bill a plan's delivery on a day becomes: its ID is worked out from the two, so posting a day again finds
+    /// the same bills instead of making new ones.
+    /// </summary>
+    public static Guid BillId(Guid planId, DateOnly date)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"delivery:{planId:N}:{date:yyyy-MM-dd}"));
+        hash[6] = (byte)((hash[6] & 0x0F) | 0x80); // version 8: an app-made ID
+        hash[8] = (byte)((hash[8] & 0x3F) | 0x80);
+        return new Guid(hash.AsSpan(0, 16), bigEndian: true);
+    }
+
+    private static async Task<List<DeliveryPlan>> DueAsync(AppDbContext db, DateOnly day, CancellationToken ct)
+    {
+        var dayStart = IndiaTime.Day(day).Start;
+        return
+        (await db.DeliveryPlans.AsNoTracking().Where(p => p.StartOn <= day && (p.StoppedAt == null || p.StoppedAt > dayStart)).ToListAsync(ct))
+            .Where(p => OnDay(p, day)).OrderBy(p => p.Address).ThenBy(p => p.Name).ToList();
+    }
+
     /// <summary>The shop's round for a day (tomorrow by default): who gets what, and the total of each item to take.</summary>
     private static async Task<DeliveryDayDto> DayAsync(DateOnly? date, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var day = date ?? IndiaTime.Today(clock).AddDays(1);
-        var plans = await db.DeliveryPlans.AsNoTracking().Where(p => p.StoppedAt == null && p.StartOn <= day).ToListAsync(ct);
-        var due = plans.Where(p => DeliversOn(p, day)).OrderBy(p => p.Address).ThenBy(p => p.Name).ToList();
+        var due = await DueAsync(db, day, ct);
+        var phones = due.Select(p => p.Phone).Where(p => p != null).Distinct().ToList();
+        var khata = (await db.Customers.AsNoTracking().Where(c => c.Phone != null && phones.Contains(c.Phone)).Select(c => c.Phone!).ToListAsync(ct)).ToHashSet();
+        var billIds = due.Select(p => BillId(p.Id, day)).ToList();
+        var posted = (await db.Bills.AsNoTracking().Where(b => billIds.Contains(b.Id)).Select(b => b.Id).ToListAsync(ct)).ToHashSet();
         return new DeliveryDayDto(day,
-            due.Select(p => new DeliveryDto(p.Id, p.Name, p.Phone, p.Address, p.ProductName, p.Unit, p.Quantity)).ToList(),
+            due.Select(p => new DeliveryDto(p.Id, p.Name, p.Phone, p.Address, p.ProductName, p.Unit, p.Quantity, p.Phone != null && khata.Contains(p.Phone), posted.Contains(BillId(p.Id, day)))).ToList(),
             due.GroupBy(p => (p.ProductName, p.Unit)).Select(g => new DeliveryTotalDto(g.Key.ProductName, g.Key.Unit, g.Sum(p => p.Quantity))).OrderBy(t => t.ProductName).ToList());
+    }
+
+    /// <summary>The oldest day a round can still be posted, in days back from today.</summary>
+    public const int PostDaysBack = 7;
+
+    /// <summary>
+    /// Puts a day's deliveries on the customers' khatas: one credit bill per delivery, at the item's price now, which
+    /// takes the stock out like any sale. Only for customers with a khata here (matched by phone); safe to press twice.
+    /// </summary>
+    private static async Task<IResult> PostAsync(DateOnly date, ClaimsPrincipal user, AppDbContext db, Ledger.LedgerService ledger, TimeProvider clock, CancellationToken ct)
+    {
+        var today = IndiaTime.Today(clock);
+        if (date > today || date < today.AddDays(-PostDaysBack))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Date"] = [$"Post today's round, or one from the last {PostDaysBack} days."] });
+        }
+
+        var due = await DueAsync(db, date, ct);
+        var phones = due.Select(p => p.Phone).Where(p => p != null).Distinct().ToList();
+        var customers = (await db.Customers.AsNoTracking().Where(c => c.Phone != null && phones.Contains(c.Phone)).OrderBy(c => c.CreatedAt)
+            .Select(c => new { c.Id, Phone = c.Phone! }).ToListAsync(ct)).GroupBy(c => c.Phone).ToDictionary(g => g.Key, g => g.First().Id);
+        var productIds = due.Select(p => p.ProductId).Distinct().ToList();
+        var prices = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id) && p.IsActive).ToDictionaryAsync(p => p.Id, p => p.SellingPrice, ct);
+        var isOwner = user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner));
+        // Today: now; a past day: that morning, so the khata shows it on the day it came.
+        DateTimeOffset? at = date == today ? null : new DateTimeOffset(date.ToDateTime(new TimeOnly(8, 0)), IndiaTime.Offset);
+        var (posted, again, noKhata, failed) = (0, 0, new List<string>(), new List<string>());
+        foreach (var plan in due)
+        {
+            if (plan.Phone is null || !customers.TryGetValue(plan.Phone, out var customerId))
+            {
+                noKhata.Add(plan.Name);
+                continue;
+            }
+
+            if (!prices.TryGetValue(plan.ProductId, out var price))
+            {
+                failed.Add($"{plan.Name}: {plan.ProductName}");
+                continue;
+            }
+
+            var result = await ledger.CreateBillAsync(new Ledger.BillRequest(BillId(plan.Id, date), customerId,
+                [new Ledger.BillLineRequest(plan.ProductId, plan.ProductName, plan.Quantity, plan.Unit, price)], 0m, null, at), user.UserId()!.Value, ct, isOwner: isOwner);
+            if (result.Value is null)
+            {
+                failed.Add($"{plan.Name}: {result.Conflict ?? result.Errors?.Values.FirstOrDefault()?.FirstOrDefault() ?? "not posted"}");
+            }
+            else if (result.Replayed)
+            {
+                again++;
+            }
+            else
+            {
+                posted++;
+            }
+        }
+
+        return TypedResults.Ok(new DeliveryPostDto(posted, again, noKhata.Distinct().ToList(), failed));
     }
 }
