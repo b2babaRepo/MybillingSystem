@@ -4,6 +4,7 @@ import { CustIcon, shopTint } from '../../components/CustIcons'
 import { addToCart, useSavedShops } from '../../lib/customer'
 import { HomeShelves } from '../../components/HomeShelves'
 import { RefillsCard } from '../../components/RefillsCard'
+import { SalonVisits } from '../../components/SalonVisits'
 import { ConnectShop } from '../../components/ConnectShop'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -139,6 +140,7 @@ export function PlanHomeScreen({ userId, userName = '' }: { userId: string; user
           </button>
         )}
         <RefillsCard />
+        <SalonVisits />
         {last && againLines.length > 0 && (
           <button onClick={() => void orderAgain()} disabled={sending} className="flex items-center gap-3 rounded-card bg-white p-3 text-left shadow-[0_1px_4px_rgba(16,32,29,0.06)] disabled:opacity-50">
             <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-amber-100 text-amber-800"><CustIcon name="cart" size={22} /></span>

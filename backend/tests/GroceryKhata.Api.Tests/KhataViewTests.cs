@@ -167,6 +167,40 @@ public sealed class KhataViewTests(ApiFactory api)
         Assert.Equal(("Metformin 500", 2m, 30, -1, true), (due.Medicine, due.LastQuantity, due.EveryDays, due.DaysLate, due.InStock));
     }
 
+    [Fact]
+    public async Task A_customer_books_a_salon_visit_sees_it_and_cancels_it()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Glow Salon", fullName = "Neha", phone = ApiFactory.NewPhone(), password = "secret123", language = "en", type = "beauty" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var shopId = auth.Memberships.Single().ShopId;
+        var facial = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = facial, name = "Facial", unit = "piece", sellingPrice = 800m, isService = true, durationMinutes = 45 })).EnsureSuccessStatusCode();
+
+        var phone = ApiFactory.NewPhone();
+        var person = await RegisterAsync("Ritu", phone);
+        var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5)).AddDays(1);
+        var id = Guid.CreateVersion7();
+        var booking = new { id, date = tomorrow, start = "11:00", serviceIds = new[] { facial }, note = "Sensitive skin" };
+        // A proved mobile number first: the salon must be able to reach the person.
+        Assert.Equal(HttpStatusCode.BadRequest, (await person.PostJsonAsync($"/api/v1/me/salon/{shopId}/appointments", booking)).StatusCode);
+        await VerifyPhoneAsync(phone);
+        Assert.Equal(HttpStatusCode.NoContent, (await person.PostJsonAsync($"/api/v1/me/salon/{shopId}/appointments", booking)).StatusCode);
+
+        // The salon's day has it, for any stylist, marked as from the app.
+        var day = await shop.GetJsonAsync<SalonDayDto>($"/api/v1/appointments?date={tomorrow:yyyy-MM-dd}");
+        var seen = Assert.Single(day.Appointments);
+        Assert.Equal(("Ritu", new TimeOnly(11, 45), (Guid?)null, "Booked in the app: Sensitive skin"), (seen.Name, seen.End, seen.StylistId, seen.Note));
+
+        var visit = Assert.Single(await person.GetJsonAsync<List<GroceryKhata.Api.Planner.MyVisitDto>>("/api/v1/me/salon/visits"));
+        Assert.Equal((true, "Facial", 800m), (visit.Upcoming, visit.Services.Single().Name, visit.Total));
+        Assert.Equal(HttpStatusCode.NoContent, (await person.PostJsonAsync($"/api/v1/me/salon/{shopId}/appointments/{id}/cancel", new { })).StatusCode);
+        Assert.Empty(await person.GetJsonAsync<List<GroceryKhata.Api.Planner.MyVisitDto>>("/api/v1/me/salon/visits"));
+        // Someone else can't cancel it, or book at a shop that isn't a salon.
+        Assert.Equal(HttpStatusCode.NotFound, (await (await RegisterAsync("Other", ApiFactory.NewPhone())).PostJsonAsync($"/api/v1/me/salon/{shopId}/appointments/{id}/cancel", new { })).StatusCode);
+    }
+
     private async Task VerifyPhoneAsync(string phone)
     {
         await using var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata");

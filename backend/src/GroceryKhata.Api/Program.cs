@@ -164,6 +164,7 @@ app.MapOrderUpdates();
 app.MapCustomerExtras();
 app.MapUsageEvents();
 app.MapMyRefills();
+app.MapMySalon();
 app.MapGstExport();
 app.MapCreditNotes();
 app.MapMasterItems();

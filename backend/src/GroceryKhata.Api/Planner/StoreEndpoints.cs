@@ -17,7 +17,7 @@ public sealed record StoreRateDto(string Metal, int Purity, decimal PerGram, Dat
 public sealed record StoreItemDto(
     Guid Id, string Name, string? Category, Unit Unit, decimal Price, decimal Available, int? CatalogueItemId = null, DateTimeOffset? ImageAt = null,
     decimal? Mrp = null, decimal? PackSize = null, Unit? PackUnit = null, string? ImageCredit = null,
-    decimal? RegularPrice = null, string? OfferName = null, IReadOnlyList<Guid>? ExtraPhotos = null, DateTimeOffset? AddedAt = null);
+    decimal? RegularPrice = null, string? OfferName = null, IReadOnlyList<Guid>? ExtraPhotos = null, DateTimeOffset? AddedAt = null, int? ServiceMinutes = null);
 
 public static class StoreStock
 {
@@ -89,7 +89,7 @@ public static class StoreEndpoints
             .Select(p => new StoreItemDto(p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.OutOn == today ? 0 : p.Uncounted ? StoreStock.Uncounted : p.Stock - p.Reserved, p.CatalogueItemId,
                 p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null), p.Mrp, p.PackSize, p.PackUnit,
                 p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? Catalogue.MasterPhotos.Representative : null,
-                null, null, null, p.CreatedAt))
+                null, null, null, p.CreatedAt, p.IsService ? p.DurationMinutes ?? Ledger.Appointments.DefaultMinutes : null))
             .ToListAsync(ct);
         items = items.Select(i => i.CatalogueItemId is null ? i with { CatalogueItemId = Catalogue.CommonCatalogue.Match(i.Name) } : i).ToList();
         // The gallery: every photo of an item beyond its main one.

@@ -1,4 +1,6 @@
 import { CustIcon } from '../../components/CustIcons'
+import { SalonBooking } from '../../components/SalonBooking'
+import { takeBookAgain } from '../../lib/salon'
 import { MetalRates, type StoreRate } from '../../components/MetalRates'
 import { putCart, useCarts, useSavedShops, useSaveShop } from '../../lib/customer'
 import { api } from '../../lib/api'
@@ -52,6 +54,8 @@ interface StoreItem {
   extraPhotos?: string[] | null
   /** When the shop added it: "New arrivals". */
   addedAt?: string | null
+  /** A salon service: how long it takes (set only on services). */
+  serviceMinutes?: number | null
 }
 
 interface Store {
@@ -209,6 +213,9 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const pushTimer = useRef<number | undefined>(undefined)
   // Signed in: whether this customer can put an order on khata here (shown with the shop's terms).
   const khataHere = useCheckoutInfo(shopId, signedIn).data?.khata
+  // A salon: book a visit; "book again" from Home opens it with the last visit's services ticked.
+  const [bookAgain] = useState(() => takeBookAgain(slug))
+  const [booking, setBooking] = useState(!!bookAgain)
 
   if (store.isError) return <NotFound />
   const data = store.data
@@ -297,6 +304,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const lines = data.items.filter((i) => cart[i.id] > 0).map((i) => ({ item: i, quantity: cart[i.id] }))
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.item.price), 0))
   const settings = data.settings ?? noSettings
+  const salonServices = data.type === 'beauty' ? data.items.filter((i) => i.serviceMinutes).map((i) => ({ id: i.id, name: i.name, price: i.price, minutes: i.serviceMinutes! })) : []
   const toFree = settings.deliveryFee && settings.freeDeliveryAbove ? Math.max(0, round2(settings.freeDeliveryAbove - total)) : 0
 
   return (
@@ -306,6 +314,10 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
 
       {data.rates && <MetalRates rates={data.rates} />}
       <ShopTerms settings={settings} khata={khataHere} />
+      {salonServices.length > 0 && (signedIn
+        ? <button onClick={() => setBooking(true)} className={`mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-center gap-2 rounded-xl text-base ${btn.solid}`}>{t('cust5.bookTitle')}</button>
+        : <p className="mx-4 mt-3 rounded-xl bg-white p-3 text-center text-sm text-muted">{t('cust5.signInToBook')}</p>)}
+      {booking && signedIn && salonServices.length > 0 && <SalonBooking shopId={data.shopId} shopName={data.name} services={salonServices} preselect={bookAgain} onClose={() => setBooking(false)} />}
       {signedIn && savedHere && <div className="mx-4 mt-3"><AlertsPrompt show /></div>}
       {myOrders.length > 0 && (
         <div className="mx-4 mt-3 flex flex-wrap gap-2">
