@@ -9,9 +9,10 @@ import type { Order } from '../lib/planner'
 import { useSavedItems } from '../lib/savedItems'
 import { navigate } from '../router'
 import { shopTint } from './CustIcons'
+import { MetalRates, type StoreRate } from './MetalRates'
 
 interface ShelfItem { id: string; name: string; price: number; regularPrice?: number | null; available: number; imageAt?: string | null; catalogueItemId?: number | null; addedAt?: string | null }
-interface ShelfStore { shopId: string; name: string; slug: string; items: ShelfItem[] }
+interface ShelfStore { shopId: string; name: string; slug: string; items: ShelfItem[]; rates?: StoreRate[] | null }
 
 /** Shop kinds whose customers mostly rebuy the same things: their shelf is the usual items, not offers or new arrivals. */
 const REBUY_TRADES = new Set(['kirana', 'dairy', 'medical', 'water_supply'])
@@ -88,7 +89,7 @@ export function HomeShelves({ saved, orders }: { saved: SavedShop[]; orders: Ord
     const fresh = store.items.filter((i) => i.addedAt && Date.now() - Date.parse(i.addedAt) < NEW_DAYS * 86_400_000 && i.available > 0)
       .sort((a, b) => Date.parse(b.addedAt!) - Date.parse(a.addedAt!))
     const offers = store.items.filter((i) => i.regularPrice && i.regularPrice > i.price && i.available > 0)
-    const [label, items] = fresh.length > 0 ? [t('cust4.newArrivals'), fresh] : offers.length > 0 ? [t('cust4.offers'), offers] : [null, []]
+    const [label, items] = fresh.length > 0 ? [t('cust4.newArrivals'), fresh] : offers.length > 0 ? [t('cust4.offers'), offers] : [store.rates ? t('cust5.todayRate') : null, []]
     if (!label) return null
     return { s, store, label, items: items.slice(0, 10) }
   }).filter((x) => !!x)
@@ -106,11 +107,11 @@ export function HomeShelves({ saved, orders }: { saved: SavedShop[]; orders: Ord
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-extrabold" style={shopTint(s.id)}>{s.name.charAt(0)}</span>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate font-extrabold">{s.name}</span>
-              <span className="text-xs font-semibold text-brand">{label}</span>
+              {store.rates ? <MetalRates rates={store.rates} compact /> : <span className="text-xs font-semibold text-brand">{label}</span>}
             </span>
             <span className="shrink-0 text-sm font-bold text-brand">{t('cust.openShop')} ›</span>
           </button>
-          <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1">
+          {items.length > 0 && <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1">
             {items.map((i) => (
               <button key={i.id} onClick={() => navigate(`/s/${s.slug}`)} className="flex w-24 shrink-0 flex-col gap-1 text-left">
                 <span className="aspect-square overflow-hidden rounded-xl bg-[#f6f8f7]">{picture(store.shopId, i)}</span>
@@ -118,7 +119,7 @@ export function HomeShelves({ saved, orders }: { saved: SavedShop[]; orders: Ord
                 <b className="text-xs">{formatRupees(i.price)}</b>
               </button>
             ))}
-          </div>
+          </div>}
         </section>
       ))}
 

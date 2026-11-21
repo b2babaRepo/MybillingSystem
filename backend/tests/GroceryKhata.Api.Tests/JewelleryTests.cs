@@ -40,6 +40,20 @@ public sealed class JewelleryTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task The_shop_page_shows_todays_gold_and_silver_rates()
+    {
+        var (shop, auth) = await api.SignUpAsync("Rate Jewellers");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var guest = api.CreateClient();
+        Assert.Null((await guest.GetJsonAsync<GroceryKhata.Api.Planner.StoreDto>($"/api/v1/store/{slug}")).Rates);
+
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new object[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m }, new { metal = "silver", purity = 999, sellPerGram = 240m } } });
+        var rates = (await guest.GetJsonAsync<GroceryKhata.Api.Planner.StoreDto>($"/api/v1/store/{slug}")).Rates!;
+        // 24K, 22K and 18K (worked out from the pure rate) and silver; the buying rate is never shown.
+        Assert.Equal([("gold", 999, 10_000m), ("gold", 916, 9_160m), ("gold", 750, 7_500m), ("silver", 999, 240m)], rates.Select(r => (r.Metal, r.Purity, r.PerGram)).ToArray());
+    }
+
+    [Fact]
     public async Task A_tagged_piece_sells_once_and_old_gold_pays_part_of_the_bill()
     {
         var (shop, _) = await api.SignUpAsync("Soni Jewellers");

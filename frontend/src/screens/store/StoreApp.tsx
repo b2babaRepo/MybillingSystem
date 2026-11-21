@@ -1,4 +1,5 @@
 import { CustIcon } from '../../components/CustIcons'
+import { MetalRates, type StoreRate } from '../../components/MetalRates'
 import { putCart, useCarts, useSavedShops, useSaveShop } from '../../lib/customer'
 import { api } from '../../lib/api'
 import { aisleName } from '../../lib/aisleNames'
@@ -66,6 +67,8 @@ interface Store {
   upiId?: string | null
   /** The shop's trade: kirana browses by a left rail, clothes and jewellery by chips and filters and a full product page. */
   type?: string | null
+  /** A jewellery shop's gold and silver rates of the day. */
+  rates?: StoreRate[] | null
 }
 
 /** What a line saves against MRP or the price before the shop's offer. */
@@ -301,6 +304,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
       <Header title={data.name} subtitle={[data.area, data.address].filter(Boolean).join(' · ') || t('store.title')} shopId={data.shopId} theme={settings.theme} />
       {festive(settings.theme) && <p className={`mx-4 mt-3 rounded-2xl p-3 text-center font-bold text-white ${festive(settings.theme)!.header}`}>{festive(settings.theme)!.emoji} {t(`cust4.festive.${settings.theme}`)}</p>}
 
+      {data.rates && <MetalRates rates={data.rates} />}
       <ShopTerms settings={settings} khata={khataHere} />
       {signedIn && savedHere && <div className="mx-4 mt-3"><AlertsPrompt show /></div>}
       {myOrders.length > 0 && (

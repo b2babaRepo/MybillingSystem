@@ -8,7 +8,10 @@ namespace GroceryKhata.Api.Planner;
 
 /// <summary>A shop as its online store shows it. <see cref="Phone"/>: the owner's, for "send on WhatsApp".</summary>
 public sealed record StoreDto(string Name, string Slug, string? Area, string? Address, string? Phone, IReadOnlyList<StoreItemDto> Items, Guid ShopId = default,
-    StoreSettingsDto? Settings = null, string? UpiId = null, Shops.ShopType? Type = null);
+    StoreSettingsDto? Settings = null, string? UpiId = null, Shops.ShopType? Type = null, IReadOnlyList<StoreRateDto>? Rates = null);
+
+/// <summary>A jewellery shop's selling rate per gram (before GST) for one metal and purity, and when it was set.</summary>
+public sealed record StoreRateDto(string Metal, int Purity, decimal PerGram, DateTimeOffset SetAt);
 
 /// <summary><see cref="Available"/>: on the shelf minus what other online orders hold.</summary>
 public sealed record StoreItemDto(
@@ -104,8 +107,18 @@ public static class StoreEndpoints
         }
 
         var row = await db.Shops.AsNoTracking().SingleAsync(s => s.Id == shop.Id, ct);
+        // A jewellery shop's rates of the day, as customers check them before coming in: 24K, 22K, 18K and silver.
+        IReadOnlyList<StoreRateDto>? rates = null;
+        if (await db.MetalRates.AnyAsync(ct))
+        {
+            var shown = new[] { ("gold", 999), ("gold", 916), ("gold", 750), ("silver", 999) };
+            rates = (await Ledger.JewelleryEndpoints.CurrentRatesAsync(db, clock, ct)).Current
+                .Where(r => shown.Contains((r.Metal, r.Purity)))
+                .Select(r => new StoreRateDto(r.Metal, r.Purity, r.SellPerGram, r.SetAt)).ToList();
+        }
+
         return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items, shop.Id,
-            OrderUpdates.SettingsOf(row), string.IsNullOrWhiteSpace(row.UpiId) ? null : row.UpiId, row.Type));
+            OrderUpdates.SettingsOf(row), string.IsNullOrWhiteSpace(row.UpiId) ? null : row.UpiId, row.Type, rates is { Count: > 0 } ? rates : null));
     }
 
     /// <summary>
