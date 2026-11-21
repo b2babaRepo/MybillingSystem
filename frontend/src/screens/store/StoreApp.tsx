@@ -635,7 +635,7 @@ function ShopTerms({ settings, khata }: { settings: StoreSettings; khata: KhataA
   const { t } = useTranslation()
   const boxes: [string, string][] = [
     [settings.deliveryFee ? t('cust5.delivery', { amount: formatRupees(settings.deliveryFee) }) : t('cust5.freeDelivery'),
-      settings.deliveryFee && settings.freeDeliveryAbove ? t('cust4.freeAbove', { amount: formatRupees(settings.freeDeliveryAbove) }) : t('cust4.orPickup')],
+      settings.deliveryFee && settings.freeDeliveryAbove ? t('cust5.freeAboveOrPickup', { amount: formatRupees(settings.freeDeliveryAbove) }) : t('cust4.orPickup')],
     [settings.minOrder ? t('cust5.minOrder', { amount: formatRupees(settings.minOrder) }) : t('cust5.noMin'), settings.minOrder ? t('cust5.ofItems') : t('cust5.anySize')],
   ]
   if (khata?.allowed) boxes.push([t('cust5.khataOk'), khata.limit ? t('cust5.khataLimit', { amount: formatRupees(khata.limit) }) : t('cust5.khataOpen')])
