@@ -2,6 +2,7 @@ import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { InputHTMLAttributes } from 'react'
+import { decimalText } from '../lib/decimalText'
 import { CashChange, CustomerFinder } from '../components/CustomerFinder'
 import { CashLimitNote } from '../components/CashLimitNote'
 import { LinePriceHints } from '../components/LastPrices'
@@ -1271,13 +1272,6 @@ function PercentInput({ percent, onChange, onEnter, label, disabled }: { percent
       className="hidden h-8 w-full rounded-md border border-line px-1.5 text-right disabled:opacity-40 xl:block"
     />
   )
-}
-
-/** Keeps what is typed in a money or quantity box: digits and one decimal point; a comma (some phone keyboards) is a point. */
-function decimalText(raw: string) {
-  const cleaned = raw.replace(/,/g, '.').replace(/[^d.]/g, '')
-  const dot = cleaned.indexOf('.')
-  return dot < 0 ? cleaned : cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/./g, '')
 }
 
 /** A line's rate: its own text while typing, so "12." and "12.50" can be typed (a number would drop the point). */
