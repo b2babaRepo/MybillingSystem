@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+# Grocery Khata API for production. Build on your PC or in CI (not on the server), from the backend folder:
+#   docker build -f deploy/production/Dockerfile.api --secret id=sixlabors,src=deploy/demo/sixlabors.lic -t grocery-khata-api backend
+# The Six Labors (ImageSharp) key is a build secret: used for the publish step, never stored in the image.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY src ./src
+RUN --mount=type=secret,id=sixlabors,required=true \
+    test -s /run/secrets/sixlabors || (echo "The Six Labors key file is empty: a production image needs it." && exit 1); \
+    dotnet publish src/GroceryKhata.Api -c Release -o /app -p:SixLaborsLicenseFile=/run/secrets/sixlabors
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /app .
+ENV ASPNETCORE_URLS=http://+:8080 \
+    ASPNETCORE_ENVIRONMENT=Production \
+    DOTNET_gcServer=0 \
+    DOTNET_GCHeapHardLimitPercent=0x4B
+# The encryption keys (DataProtection) live on a kept volume, owned by the app user.
+RUN mkdir -p /keys && chown app:app /keys
+USER app
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "GroceryKhata.Api.dll"]

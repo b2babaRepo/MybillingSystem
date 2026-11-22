@@ -65,7 +65,7 @@ public interface IMetaSignup
     /// <summary>The one-time code from the popup, exchanged for the shop's business token.</summary>
     Task<string> ExchangeCodeAsync(string code, CancellationToken ct);
 
-    /// <summary>Lets Grocery Khata's app receive the account's messages (webhook) and act for it.</summary>
+    /// <summary>Lets Apna Kaarobar's app receive the account's messages (webhook) and act for it.</summary>
     Task SubscribeAppAsync(string wabaId, string token, CancellationToken ct);
 
     /// <summary>Puts the number on the Cloud API, with a two-step verification PIN of the server's choosing.</summary>
@@ -331,7 +331,7 @@ public static class WhatsAppSignup
         return TypedResults.NoContent();
     }
 
-    /// <summary>Forgets the number here. The shop can also remove Grocery Khata in its Meta Business settings.</summary>
+    /// <summary>Forgets the number here. The shop can also remove Apna Kaarobar in its Meta Business settings.</summary>
     private static async Task<IResult> DisconnectAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct)
     {
         var row = await db.ShopWhatsApps.SingleOrDefaultAsync(ct);

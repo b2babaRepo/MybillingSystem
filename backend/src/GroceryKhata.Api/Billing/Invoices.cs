@@ -59,7 +59,7 @@ public static class Invoices
             return TypedResults.NotFound();
         }
 
-        // Prices include GST when Grocery Khata is registered: 18% inside the amount.
+        // Prices include GST when Apna Kaarobar is registered: 18% inside the amount.
         var taxable = o.GstRegistered ? decimal.Round(row.P.Amount / 1.18m, 2) : row.P.Amount;
         return TypedResults.Ok(new InvoiceView(
             row.P.InvoiceNo, row.P.PaidAt, o.PayeeName, o.GstRegistered ? o.Gstin : null, o.GstRegistered,

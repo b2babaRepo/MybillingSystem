@@ -748,7 +748,7 @@ public static class Ical
     public static string Write(string name, IEnumerable<(string Uid, DateOnly Start, DateOnly End)> events, DateTimeOffset now)
     {
         var b = new System.Text.StringBuilder();
-        b.Append("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Grocery Khata//Rooms//EN\r\nCALSCALE:GREGORIAN\r\n").Append($"X-WR-CALNAME:{name}\r\n");
+        b.Append("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Apna Kaarobar//Rooms//EN\r\nCALSCALE:GREGORIAN\r\n").Append($"X-WR-CALNAME:{name}\r\n");
         foreach (var (uid, start, end) in events)
         {
             b.Append("BEGIN:VEVENT\r\n").Append($"UID:{uid}\r\n").Append($"DTSTAMP:{now.UtcDateTime:yyyyMMdd'T'HHmmss'Z'}\r\n")

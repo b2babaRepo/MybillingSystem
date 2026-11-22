@@ -2,7 +2,7 @@ import type { Texts } from './en'
 
 // Hindi text. Loaded on demand: a phone downloads only the language it shows.
 export const hi: Texts = {
-  appName: 'ग्रोसरी खाता',
+  appName: 'अपना कारोबार',
   authTagline: 'आपकी दुकान का बिल, खाता और स्टॉक, एक ऐप में',
   signIn: 'साइन इन',
   signUp: 'नई दुकान खोलें',
@@ -25,7 +25,7 @@ export const hi: Texts = {
   blocked: {
     title: '{{shop}} बंद कर दी गई है',
     reason: 'कारण: {{reason}}',
-    help: 'इसके बारे में पूछने के लिए ग्रोसरी खाता सपोर्ट से संपर्क करें।',
+    help: 'इसके बारे में पूछने के लिए अपना कारोबार सपोर्ट से संपर्क करें।',
   },
   account: {
     open: 'खाता और साइन आउट',
@@ -236,7 +236,7 @@ export const hi: Texts = {
   book: {
     todayLink: 'आज की रोकड़ बही',
   },
-  connect: { title: 'दुकान से जुड़ें', hint: 'दुकान का ID (GKS-…) या दुकान का मोबाइल नंबर लिखें, या दुकान का QR कोड स्कैन करें।', placeholder: 'दुकान ID या मोबाइल', find: 'खोजें', scan: 'दुकान का QR कोड स्कैन करें', none: 'इस ID या मोबाइल से कोई दुकान नहीं मिली।', notShopQr: 'यह ग्रोसरी खाता दुकान का QR कोड नहीं है। दुकान का स्टोर QR स्कैन करें।', connect: 'जुड़ें', browse: '{{name}} का सारा सामान देखें' },
+  connect: { title: 'दुकान से जुड़ें', hint: 'दुकान का ID (GKS-…) या दुकान का मोबाइल नंबर लिखें, या दुकान का QR कोड स्कैन करें।', placeholder: 'दुकान ID या मोबाइल', find: 'खोजें', scan: 'दुकान का QR कोड स्कैन करें', none: 'इस ID या मोबाइल से कोई दुकान नहीं मिली।', notShopQr: 'यह अपना कारोबार दुकान का QR कोड नहीं है। दुकान का स्टोर QR स्कैन करें।', connect: 'जुड़ें', browse: '{{name}} का सारा सामान देखें' },
   cust: { tab: { home: 'होम', search: 'खोजें', orders: 'ऑर्डर', cart: 'कार्ट', account: 'खाता' }, myShops: 'मेरी दुकानें', seeAll: 'सब देखें', addShop: 'दुकान जोड़ें' },
   a11y: { less: 'कम करें', more: 'बढ़ाएँ', back: 'वापस', close: 'बंद करें', menu: 'मेन्यू' },
   dues: {
@@ -248,7 +248,7 @@ export const hi: Texts = {
   bookings: { link: 'बुकिंग: शादी, पार्टी और फंक्शन' },
   tables: { link: 'टेबल बुकिंग और पार्टी' },
   rooms: { link: 'कमरे: बुकिंग, चेक-इन और चेक-आउट' },
-  summary: { title: 'आज का हिसाब', sales: 'बिक्री · {{count}} बिल', udhaarGiven: 'उधार दिया', collected: 'खाते में जमा आया', outstanding: 'बाकी उधार · {{count}} ग्राहक', lowStock: 'कम बचे सामान', send: 'WhatsApp पर भेजें', footer: '— Grocery Khata' },
+  summary: { title: 'आज का हिसाब', sales: 'बिक्री · {{count}} बिल', udhaarGiven: 'उधार दिया', collected: 'खाते में जमा आया', outstanding: 'बाकी उधार · {{count}} ग्राहक', lowStock: 'कम बचे सामान', send: 'WhatsApp पर भेजें', footer: '— Apna Kaarobar' },
   side: { receipts: 'मिला पैसा', money: 'पैसा', shop: 'दुकान', dues: 'उधारी वसूली', cashbook: 'रोकड़ बही', expenses: 'खर्चा', reports: 'रिपोर्ट', pnl: 'नफ़ा-नुकसान', stocktake: 'स्टॉक गिनती', suppliers: 'सप्लायर', settings: 'सेटिंग्स' },
   khataPick: 'बाईं ओर से ग्राहक चुनें, उसका खाता यहाँ दिखेगा।',
   inboxPick: 'बाईं ओर से ऑर्डर चुनें, उसे यहाँ देखें और पैक करें।',
@@ -266,7 +266,7 @@ export const hi: Texts = {
   pwa: {
     updateReady: 'ऐप का नया वर्ज़न तैयार है।',
     update: 'अपडेट करें',
-    installHint: 'ग्रोसरी खाता इस फ़ोन पर इंस्टॉल करें: ऐप की तरह खुलेगा, बिना इंटरनेट के चलेगा।',
+    installHint: 'अपना कारोबार इस फ़ोन पर इंस्टॉल करें: ऐप की तरह खुलेगा, बिना इंटरनेट के चलेगा।',
     install: 'इंस्टॉल करें',
     iosHint: 'इंस्टॉल करने के लिए: Share दबाएँ, फिर “Add to Home Screen”।',
     offline: 'ऑफ़लाइन',

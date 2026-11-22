@@ -14,8 +14,8 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Grocery Khata',
-        short_name: 'Khata',
+        name: 'Apna Kaarobar',
+        short_name: 'Kaarobar',
         description: 'Billing and khata for kirana shops',
         lang: 'hi',
         start_url: '/',

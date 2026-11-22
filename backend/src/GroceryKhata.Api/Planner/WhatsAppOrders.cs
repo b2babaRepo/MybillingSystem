@@ -76,7 +76,7 @@ public sealed class GraphWhatsAppClient(HttpClient http, string token, string ve
 }
 
 /// <summary>
-/// AI phase 3: households send their list to the Grocery Khata WhatsApp number as text, a photo or a voice note.
+/// AI phase 3: households send their list to the Apna Kaarobar WhatsApp number as text, a photo or a voice note.
 /// Each message is read like an in-app order and lands as a draft in their app ("From WhatsApp") for them to check;
 /// nothing is added or sent to a shop until they do. A short reply says what was understood. Only people who have
 /// an account with that phone and have agreed to AI reading are served; anyone else gets a pointer to the app.
@@ -186,7 +186,7 @@ public static class WhatsAppOrders
         var person = await db.Users.AsNoTracking().Where(u => u.Phone == phone && u.IsActive).Select(u => new { u.Id, u.AiConsentAt }).FirstOrDefaultAsync(ct);
         if (person is null)
         {
-            return "Namaste! Grocery Khata app mein isi number se khata banayein, phir yahan apni list bhejein. 🙏";
+            return "Namaste! Apna Kaarobar app mein isi number se khata banayein, phir yahan apni list bhejein. 🙏";
         }
 
         if (person.AiConsentAt is null)
@@ -240,7 +240,7 @@ public static class WhatsAppOrders
         var sure = lines.Count(l => l.Confidence == ReadConfidence.High);
         return lines.Count == 0
             ? "Koi saaman samajh nahi aaya. Kripya alag tarah se likhkar bhejein."
-            : $"Mil gaya! {lines.Count} saaman ({sure} pakke). Grocery Khata app mein \"WhatsApp se aaye\" dekhkar jaanch lein aur list mein jodein.";
+            : $"Mil gaya! {lines.Count} saaman ({sure} pakke). Apna Kaarobar app mein \"WhatsApp se aaye\" dekhkar jaanch lein aur list mein jodein.";
     }
 
     private static IEnumerable<(string PhoneNumberId, JsonElement Message)> Messages(JsonElement root)

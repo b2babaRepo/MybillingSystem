@@ -66,7 +66,7 @@ public sealed record WaThreadDto(string Phone, Guid? CustomerId, string? Name, b
 
 public sealed record WaReplyRequest(string? Text);
 
-/// <summary>A template Grocery Khata asks Meta to approve for each shop.</summary>
+/// <summary>A template Apna Kaarobar asks Meta to approve for each shop.</summary>
 public sealed record WaTemplateDef(string Key, string Name, string Body, string[] Examples, string? ButtonText);
 
 /// <summary>

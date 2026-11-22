@@ -5,10 +5,10 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {}
   } catch {
-    data = { title: 'Grocery Khata', body: event.data ? event.data.text() : '' }
+    data = { title: 'Apna Kaarobar', body: event.data ? event.data.text() : '' }
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Grocery Khata', {
+    self.registration.showNotification(data.title || 'Apna Kaarobar', {
       body: data.body || '',
       icon: '/pwa-192x192.png',
       badge: '/pwa-192x192.png',

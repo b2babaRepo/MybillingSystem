@@ -1,0 +1,33 @@
+# The server's one front door, shared by every app on this VPS: Caddy takes ports 80 and 443, gets and renews
+# HTTPS certificates by itself, and sends each domain to its app over the "edge" network.
+# Each app adds one file to ./sites (see grocery-khata.caddy). Start once with: docker compose up -d
+name: proxy
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/etc/caddy/sites:ro
+      - caddy-data:/data # certificates: keep this volume
+      - caddy-config:/config
+    env_file: .env
+    networks: [edge]
+    restart: unless-stopped
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+networks:
+  # Made once by server-setup.sh (docker network create edge); every app's web container joins it.
+  edge:
+    external: true
+
+volumes:
+  caddy-data:
+  caddy-config:

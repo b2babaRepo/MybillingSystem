@@ -2,7 +2,7 @@ import type { Texts } from './en'
 
 // Gujarati text. Loaded on demand: a phone downloads only the language it shows.
 export const gu: Texts = {
-  appName: 'ગ્રોસરી ખાતા',
+  appName: 'અપના કારોબાર',
   authTagline: 'તમારી દુકાનનાં બિલ, ખાતું અને સ્ટોક, એક જ એપમાં',
   signIn: 'સાઇન ઇન',
   signUp: 'નવી દુકાન ખોલો',
@@ -25,7 +25,7 @@ export const gu: Texts = {
   blocked: {
     title: '{{shop}} બ્લોક કરવામાં આવી છે',
     reason: 'કારણ: {{reason}}',
-    help: 'આ વિશે પૂછવા ગ્રોસરી ખાતા સપોર્ટનો સંપર્ક કરો.',
+    help: 'આ વિશે પૂછવા અપના કારોબાર સપોર્ટનો સંપર્ક કરો.',
   },
   account: {
     open: 'ખાતું અને સાઇન આઉટ',
@@ -236,7 +236,7 @@ export const gu: Texts = {
   book: {
     todayLink: 'આજનો રોકડ ચોપડો',
   },
-  connect: { title: 'દુકાન સાથે જોડાઓ', hint: 'દુકાનનો ID (GKS-…) અથવા દુકાનનો મોબાઇલ નંબર લખો, અથવા દુકાનનો QR કોડ સ્કેન કરો.', placeholder: 'દુકાન ID કે મોબાઇલ', find: 'શોધો', scan: 'દુકાનનો QR કોડ સ્કેન કરો', none: 'આ ID કે મોબાઇલથી કોઈ દુકાન ન મળી.', notShopQr: 'આ ગ્રોસરી ખાતા દુકાનનો QR કોડ નથી. દુકાનનો સ્ટોર QR સ્કેન કરો.', connect: 'જોડાઓ', browse: '{{name}} નો બધો માલ જુઓ' },
+  connect: { title: 'દુકાન સાથે જોડાઓ', hint: 'દુકાનનો ID (GKS-…) અથવા દુકાનનો મોબાઇલ નંબર લખો, અથવા દુકાનનો QR કોડ સ્કેન કરો.', placeholder: 'દુકાન ID કે મોબાઇલ', find: 'શોધો', scan: 'દુકાનનો QR કોડ સ્કેન કરો', none: 'આ ID કે મોબાઇલથી કોઈ દુકાન ન મળી.', notShopQr: 'આ અપના કારોબાર દુકાનનો QR કોડ નથી. દુકાનનો સ્ટોર QR સ્કેન કરો.', connect: 'જોડાઓ', browse: '{{name}} નો બધો માલ જુઓ' },
   cust: { tab: { home: 'હોમ', search: 'શોધો', orders: 'ઓર્ડર', cart: 'કાર્ટ', account: 'ખાતું' }, myShops: 'મારી દુકાનો', seeAll: 'બધું જુઓ', addShop: 'દુકાન ઉમેરો' },
   a11y: { less: 'ઓછું', more: 'વધારે', back: 'પાછા', close: 'બંધ કરો', menu: 'મેનુ' },
   dues: {
@@ -248,7 +248,7 @@ export const gu: Texts = {
   bookings: { link: 'બુકિંગ: લગ્ન, પાર્ટી અને પ્રસંગો' },
   tables: { link: 'ટેબલ બુકિંગ અને પાર્ટી' },
   rooms: { link: 'રૂમ: બુકિંગ, ચેક-ઇન અને ચેકઆઉટ' },
-  summary: { title: 'આજનો સાર', sales: 'વેચાણ · {{count}} બિલ', udhaarGiven: 'ઉધાર આપ્યું', collected: 'ખાતામાંથી મળ્યા', outstanding: 'હજી બાકી · {{count}} ગ્રાહકો', lowStock: 'ઓછો થતો માલ', send: 'WhatsApp પર મોકલો', footer: '— ગ્રોસરી ખાતા' },
+  summary: { title: 'આજનો સાર', sales: 'વેચાણ · {{count}} બિલ', udhaarGiven: 'ઉધાર આપ્યું', collected: 'ખાતામાંથી મળ્યા', outstanding: 'હજી બાકી · {{count}} ગ્રાહકો', lowStock: 'ઓછો થતો માલ', send: 'WhatsApp પર મોકલો', footer: '— અપના કારોબાર' },
   side: { receipts: 'મળેલા પૈસા', money: 'પૈસા', shop: 'દુકાન', dues: 'બાકી', cashbook: 'રોકડ ચોપડો', expenses: 'ખર્ચ', reports: 'રિપોર્ટ', pnl: 'નફો-નુકસાન', stocktake: 'સ્ટોક તપાસ', suppliers: 'સપ્લાયર', settings: 'સેટિંગ્સ' },
   khataPick: 'તેમનું ખાતું જોવા ડાબી બાજુથી ગ્રાહક પસંદ કરો.',
   inboxPick: 'ઓર્ડર જોવા અને પેક કરવા ડાબી બાજુથી પસંદ કરો.',
@@ -266,7 +266,7 @@ export const gu: Texts = {
   pwa: {
     updateReady: 'એપનું નવું વર્ઝન તૈયાર છે.',
     update: 'અપડેટ કરો',
-    installHint: 'આ ફોન પર ગ્રોસરી ખાતા ઇન્સ્ટોલ કરો: એપની જેમ ખૂલે છે, ઇન્ટરનેટ વગર ચાલે છે.',
+    installHint: 'આ ફોન પર અપના કારોબાર ઇન્સ્ટોલ કરો: એપની જેમ ખૂલે છે, ઇન્ટરનેટ વગર ચાલે છે.',
     install: 'ઇન્સ્ટોલ',
     iosHint: 'ઇન્સ્ટોલ કરવા: Share પર ટેપ કરો, પછી “Add to Home Screen”.',
     offline: 'ઓફલાઇન',

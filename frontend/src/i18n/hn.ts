@@ -353,7 +353,7 @@ const flat: Record<string, string> = {
   'cust11.downloadFirst': 'Copy chahiye to pehle apna data download karein.',
   'cust11.understand': 'Main samajhta/samajhti hoon: yeh wapas nahi hoga',
   'cust11.title': 'Shuru karne se pehle',
-  'cust11.intro': 'Grocery Khata aapko un dukaanon se jodta hai jahan se aap kharidte hain. Sankshep mein:',
+  'cust11.intro': 'Apna Kaarobar aapko un dukaanon se jodta hai jahan se aap kharidte hain. Sankshep mein:',
   'cust11.p1': 'Aapke order chalane ke liye hum aapka naam, mobile, pate, list, cart, order aur save kiya saamaan rakhte hain.',
   'cust11.p2': 'Dukaan aapka naam, mobile aur pata tabhi dekhti hai jab aap usse order karein ya judein.',
   'cust11.p3': 'Kisi dukaan par aapka khata yahan tabhi dikhta hai jab aap us dukaan ke code se pakka karein.',

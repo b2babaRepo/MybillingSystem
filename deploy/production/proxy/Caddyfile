@@ -1,0 +1,7 @@
+# Global settings for every site on this server. ACME_EMAIL (in .env) is told about certificate problems.
+{
+	email {$ACME_EMAIL}
+}
+
+# Every app's own site file: grocery-khata.caddy and any others you add later.
+import /etc/caddy/sites/*.caddy

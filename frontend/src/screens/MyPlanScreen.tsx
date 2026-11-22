@@ -15,7 +15,7 @@ const STATUS_STYLE: Record<string, string> = {
 
 /**
  * The owner's plan: where it stands (trial, paid, free…), the plans and what each opens, and paying by UPI: pay the
- * shown amount to Grocery Khata's UPI ID, then send the UPI reference so the team can confirm it. The shop's own khata,
+ * shown amount to Apna Kaarobar's UPI ID, then send the UPI reference so the team can confirm it. The shop's own khata,
  * bills and customers work on every plan, Free included.
  */
 export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welcome?: boolean }) {
@@ -43,7 +43,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
   const chosen = s.plans.find((p) => p.code === planCode)
   const amount = quote && quote.planCode === planCode && quote.term === term && !quote.error ? quote.amount : chosen ? priceFor(chosen, term) : null
   const upiLink = s.payToUpi && amount
-    ? `upi://pay?pa=${encodeURIComponent(s.payToUpi)}&pn=${encodeURIComponent(s.payeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`Grocery Khata ${planCode} ${s.referralCode}`)}`
+    ? `upi://pay?pa=${encodeURIComponent(s.payToUpi)}&pn=${encodeURIComponent(s.payeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`Apna Kaarobar ${planCode} ${s.referralCode}`)}`
     : null
 
   async function run(action: () => Promise<void>) {
@@ -74,7 +74,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
     })
     const Razorpay = (window as unknown as { Razorpay: new (options: unknown) => { open(): void } }).Razorpay
     new Razorpay({
-      key: order.keyId, order_id: order.orderId, amount: order.amountPaise, currency: 'INR', name: 'Grocery Khata',
+      key: order.keyId, order_id: order.orderId, amount: order.amountPaise, currency: 'INR', name: 'Apna Kaarobar',
       handler: (r: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void run(async () => {
         await api('/v1/subscription/checkout/verify', 'POST', { orderId: r.razorpay_order_id, paymentId: r.razorpay_payment_id, signature: r.razorpay_signature })
         await queryClient.invalidateQueries({ queryKey: [shopId, 'subscription'] })
