@@ -3,3 +3,5 @@
 *.service text eol=lf
 deploy/*.conf text eol=lf
 deploy/env.example text eol=lf
+# The production Docker setup is copied to the server as it is: Linux line endings for all of it.
+deploy/production/** text eol=lf
