@@ -1,6 +1,7 @@
 import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import type { InputHTMLAttributes } from 'react'
 import { CashChange, CustomerFinder } from '../components/CustomerFinder'
 import { CashLimitNote } from '../components/CashLimitNote'
 import { LinePriceHints } from '../components/LastPrices'
@@ -769,10 +770,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               <div className="font-semibold">{l.name}{(() => { const s = products.find((p) => p.id === l.productId)?.schedule; return s && s !== 'g' ? <span className="ml-1 whitespace-nowrap rounded bg-due-soft px-1 text-xs text-due">{t('rx.badge', { schedule: s.toUpperCase() })}</span> : null })()}</div>
               <label className="flex items-center gap-1 text-xs text-muted xl:hidden">
                 ₹
-                <input
-                  value={l.unitPrice || ''}
-                  onChange={(e) => setPrice(i, Number(e.target.value) || 0)}
-                  inputMode="decimal"
+                <PriceInput
+                  value={l.unitPrice}
+                  onChange={(p) => setPrice(i, p)}
                   aria-label={`${t('price')}: ${l.name}`}
                   placeholder={t('price')}
                   className={`h-11 w-16 rounded-md border px-1 lg:h-8 ${l.unitPrice > 0 ? 'border-line' : 'border-udhaar'}`}
@@ -868,7 +868,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               <button aria-label="+" className={`h-10 w-10 rounded-lg text-xl active:scale-95 lg:h-8 lg:w-8 xl:hidden ${btn.solid}`} onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
             </span>
             {/* Desk columns: rate, discount % off the regular price, GST %. Enter goes back to the item search for the next one. */}
-            <input value={l.unitPrice || ''} onChange={(e) => setPrice(i, Number(e.target.value) || 0)} inputMode="decimal" aria-label={`${t('print.rate')}: ${l.name}`}
+            <PriceInput value={l.unitPrice} onChange={(p) => setPrice(i, p)} aria-label={`${t('print.rate')}: ${l.name}`}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchRef.current?.focus() } }}
               className={`hidden h-8 w-full rounded-md border px-1.5 text-right xl:block ${l.unitPrice > 0 ? 'border-line' : 'border-udhaar'}`} />
             <PercentInput percent={offOf(l)?.percent ?? 0} disabled={!(regularOf(l) > 0)} label={`${t('billTable.disc')}: ${l.name}`}
@@ -1273,13 +1273,27 @@ function PercentInput({ percent, onChange, onEnter, label, disabled }: { percent
   )
 }
 
+/** Keeps what is typed in a money or quantity box: digits and one decimal point; a comma (some phone keyboards) is a point. */
+function decimalText(raw: string) {
+  const cleaned = raw.replace(/,/g, '.').replace(/[^d.]/g, '')
+  const dot = cleaned.indexOf('.')
+  return dot < 0 ? cleaned : cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/./g, '')
+}
+
+/** A line's rate: its own text while typing, so "12." and "12.50" can be typed (a number would drop the point). */
+function PriceInput({ value, onChange, ...rest }: { value: number; onChange: (price: number) => void } & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
+  const [text, setText] = useState(value ? String(value) : '')
+  useEffect(() => { if ((Number(text) || 0) !== value) setText(value ? String(value) : '') }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
+  return <input {...rest} value={text} inputMode="decimal" onChange={(e) => { const next = decimalText(e.target.value); setText(next); onChange(Number(next) || 0) }} />
+}
+
 function QuantityInput({ value, onChange, label }: { value: number; onChange: (q: number) => void; label: string }) {
   const [text, setText] = useState(String(value))
   useEffect(() => { if (Number(text) !== value) setText(String(value)) }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <input
       value={text}
-      onChange={(e) => { const next = e.target.value.replace(/[^\d.]/g, ''); setText(next); if (Number(next) > 0) onChange(Number(next)) }}
+      onChange={(e) => { const next = decimalText(e.target.value); setText(next); if (Number(next) > 0) onChange(Number(next)) }}
       inputMode="decimal"
       aria-label={label}
       className="h-10 w-14 rounded-lg bg-transparent text-center text-lg font-bold outline-none focus:bg-white focus:ring-2 focus:ring-brand-line/30 lg:h-8 xl:w-full xl:border xl:border-line xl:bg-white xl:text-base"
