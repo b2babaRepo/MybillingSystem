@@ -35,13 +35,13 @@ tag="$1"; cd "$2"
 previous=$(grep -E '^TAG=' .env | cut -d= -f2)
 if docker compose ps --status running --services 2>/dev/null | grep -q '^db$'; then
   echo "== Backup before the release (the new one may change the database)"
-  docker compose exec -T backup /bin/sh /backup.sh now
+  docker compose exec -T backup /bin/sh /backup.sh now </dev/null
 fi
 sed -i "s/^TAG=.*/TAG=$tag/" .env
 echo "== Starting release $tag (was ${previous:-none})"
-docker compose up -d --remove-orphans
+docker compose up -d --remove-orphans </dev/null
 for i in $(seq 1 30); do
-  if docker compose exec -T web wget -qO- http://api:8080/api/health/ready >/dev/null 2>&1; then
+  if docker compose exec -T web wget -qO- http://api:8080/api/health/ready </dev/null >/dev/null 2>&1; then
     echo "== Release $tag is up"; docker image prune -f >/dev/null; exit 0
   fi
   sleep 4
