@@ -41,7 +41,6 @@ public sealed class ClientCard : Entity, ITenantOwned
 
     public string? Notes { get; set; }
 
-    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 public sealed record ServiceProductLine(Guid ProductId, decimal Quantity);

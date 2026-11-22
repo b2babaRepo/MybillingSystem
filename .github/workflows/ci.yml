@@ -11,6 +11,9 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      # Release builds need the ImageSharp key; Debug only warns, but -warnaserror makes that fatal.
+      SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4

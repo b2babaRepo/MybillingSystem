@@ -30,7 +30,6 @@ public sealed class PharmacyProfile : Entity, ITenantOwned
 
     public string? FssaiNo { get; set; }
 
-    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 public sealed record PharmacyProfileRequest(

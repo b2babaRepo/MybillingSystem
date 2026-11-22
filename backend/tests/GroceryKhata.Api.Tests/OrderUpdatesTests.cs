@@ -91,7 +91,7 @@ public sealed class OrderUpdatesTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.BadRequest, (await priya.PostJsonAsync($"/api/v1/store/{slug}/orders", Body(atta.Id, 2m, "pickup", "khata"))).StatusCode);
 
         // With a UPI ID, the khata page and the checkout carry it for "Pay by UPI".
-        await SqlAsync("UPDATE shops SET upi_id = 'khata@okaxis' WHERE id = @p", auth.ShopId);
+        await SqlAsync("UPDATE shops SET upi_id = 'khata@okaxis' WHERE id = @p", auth.ShopId!);
         Assert.Equal("khata@okaxis", (await priya.GetJsonAsync<KhataViewDto>($"/api/v1/me/khata/{auth.ShopId}/{customerId}")).ShopUpi);
         var upi = await (await priya.PostJsonAsync($"/api/v1/store/{slug}/orders", Body(atta.Id, 1m, "pickup", "upi"))).ReadAsync<StoreOrderPlaced>();
         Assert.Equal(OrderPayment.Upi, upi.Order.Payment);
