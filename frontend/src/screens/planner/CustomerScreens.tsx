@@ -250,7 +250,7 @@ export function AddressesScreen() {
   const [editing, setEditing] = useState<{ id: string | null } & typeof blank | null>(null)
   const [message, setMessage] = useState('')
   const [locating, setLocating] = useState(false)
-  async function useMyLocation() {
+  async function fillMyLocation() {
     if (!editing) return
     setLocating(true)
     setMessage('')
@@ -306,7 +306,7 @@ export function AddressesScreen() {
               <button onClick={() => setEditing({ ...editing, lat: null, lng: null })} className="min-h-9 font-bold text-due">{t('remove')}</button>
             </div>
           ) : (
-            <button onClick={() => void useMyLocation()} disabled={locating} className="flex h-11 items-center justify-center gap-2 rounded-xl border-2 border-brand font-bold text-brand disabled:opacity-50">
+            <button onClick={() => void fillMyLocation()} disabled={locating} className="flex h-11 items-center justify-center gap-2 rounded-xl border-2 border-brand font-bold text-brand disabled:opacity-50">
               <CustIcon name="pin" size={18} />{locating ? t('home2.locating') : t('cust12.useLocation')}
             </button>
           )}
