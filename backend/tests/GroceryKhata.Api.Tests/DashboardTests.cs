@@ -40,6 +40,6 @@ public sealed class DashboardTests(ApiFactory api)
         // One comparison, so a failure shows every figure at once (it failed once in a full run and never again).
         Assert.Equal(
             (Sales: 178m, Bills: 2, Cash: 148m, Upi: 30m, Udhaar: 440m, Outstanding: 340m, Owing: 2, Top: "Ramesh, Suresh"),
-            (today.Sales, today.Bills, today.Cash, today.Upi, today.Udhaar, today.Outstanding, today.CustomersOwing, string.Join(", ", today.TopDues.Select(c => c.Name))));
+            (today.Sales, today.Bills, today.Cash, today.Upi, today.Udhaar, today.Outstanding, Owing: today.CustomersOwing, Top: string.Join(", ", today.TopDues.Select(c => c.Name))));
     }
 }

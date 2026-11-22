@@ -42,9 +42,9 @@ public sealed class ShopRegistrationTests(ApiFactory api) : AgentTestBase(api)
         Assert.NotNull(approved.ShopId);
 
         // The owner signs in with an SMS code and finds the shop.
-        var owner = api.CreateClient();
+        var owner = Api.CreateClient();
         await owner.PostJsonAsync("/api/v1/auth/otp/send", new { phone = ownerPhone });
-        var code = api.Services.GetRequiredService<DevSmsSender>().LastCodeFor(PhoneNumber.Normalize(ownerPhone)!);
+        var code = Api.Services.GetRequiredService<DevSmsSender>().LastCodeFor(PhoneNumber.Normalize(ownerPhone)!);
         var auth = await (await owner.PostJsonAsync("/api/v1/auth/otp/verify", new { phone = ownerPhone, code })).ReadAsync<AuthResponse>();
         Assert.Equal(approved.ShopId, auth.ShopId);
         owner.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
@@ -66,7 +66,7 @@ public sealed class ShopRegistrationTests(ApiFactory api) : AgentTestBase(api)
         var (lat, lng) = (20 + Random.Shared.NextDouble() * 5, 75 + Random.Shared.NextDouble() * 10);
         var first = await SubmitAsync(agent, Form(phone, "Sharma Stores", lat, lng, "upi", "412345678901"));
         // As if the second visit were later: the first code no longer holds back a new one.
-        await using (var db = new NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        await using (var db = new NpgsqlConnection(Api.AdminConnectionString + ";Database=grocery_khata"))
         {
             await db.OpenAsync();
             await using var age = new NpgsqlCommand("UPDATE consent_codes SET created_at = now() - interval '1 hour' WHERE phone = @p", db);
@@ -92,7 +92,7 @@ public sealed class ShopRegistrationTests(ApiFactory api) : AgentTestBase(api)
     [Fact]
     public async Task Only_approved_agents_can_sign_shops_up()
     {
-        var (person, _) = await api.SignUpAsync();
+        var (person, _) = await Api.SignUpAsync();
         Assert.Equal(HttpStatusCode.Forbidden, (await person.PostJsonAsync("/api/v1/agent/consent-code", new { ownerPhone = ApiFactory.NewPhone() })).StatusCode);
     }
 

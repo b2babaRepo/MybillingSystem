@@ -106,7 +106,7 @@ public static class SalesInsights
             }).ToListAsync(ct);
         var names = await db.Products.AsNoTracking().Where(p => grouped.Select(g => g.ProductId).Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var items = grouped.Where(g => g.Quantity > 0 || g.Sales > 0)
-            .Select(g => new RangeItem(g.ProductId, g.ProductId is { } id && names.TryGetValue(id, out var n) ? n : g.Name, g.Unit, g.Quantity, g.Sales, g.Bills, g.PreviousQuantity, g.PreviousSales))
+            .Select(g => new RangeItem(g.ProductId, g.ProductId is { } id && names.TryGetValue(id, out var n) ? n : g.Name ?? "", g.Unit, g.Quantity, g.Sales, g.Bills, g.PreviousQuantity, g.PreviousSales))
             .OrderByDescending(i => i.Sales).ToList();
 
         // On the shelf, counted, and not sold in the period: biggest stock first.

@@ -88,7 +88,8 @@ export const i18nReady = (async () => {
   const language = initialLanguage()
   await i18n.use(initReactI18next).init({ resources: {}, lng: language, fallbackLng: { gu: ['en'], hn: ['en'], default: [] }, interpolation: { escapeValue: false }, react: { bindI18nStore: 'added' } })
   await loadLanguage(language)
-  document.documentElement.lang = htmlLang(language)
+  // Tests that run without a page (node) load this file too.
+  if (typeof document !== 'undefined') document.documentElement.lang = htmlLang(language)
 })()
 
 export async function setLanguage(language: Language, { toAccount = true } = {}) {

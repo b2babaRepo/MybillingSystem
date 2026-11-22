@@ -82,7 +82,7 @@ public static class StockHolds
                             join o in db.Orders.AsNoTracking() on l.OrderId equals o.Id
                             where l.ProductId != null && l.ReservedQuantity > 0
                             select new { o.Id, o.CustomerName, o.CreatedAt, ProductId = l.ProductId!.Value, l.ReservedQuantity, o.Slot }).ToListAsync(ct);
-        raw.AddRange(online.Select(o => ("online", o.Id, "", o.ProductId, o.ReservedQuantity, o.CustomerName, (DateOnly?)null, o.CreatedAt, o.Slot)));
+        raw.AddRange(online.Select(o => ("online", o.Id, "", o.ProductId, o.ReservedQuantity, o.CustomerName ?? "", (DateOnly?)null, o.CreatedAt, (string?)o.Slot)));
 
         var sale = await db.SaleOrders.AsNoTracking().Where(o => o.ClosedAt == null && o.CancelledAt == null)
             .Select(o => new { o.Id, o.Number, o.PartyName, o.CustomerId, o.DueOn, o.CreatedAt, o.Lines, o.Note }).ToListAsync(ct);
