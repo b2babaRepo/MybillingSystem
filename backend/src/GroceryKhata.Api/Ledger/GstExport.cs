@@ -269,7 +269,7 @@ public static class GstExport
             Add(archive, "2-vouchers.xml", Vouchers(d));
             Add(archive, $"summary-{name}.csv", Summary(d));
             Add(archive, "READ-ME.txt", """
-                Grocery Khata: a month of sales for your CA.
+                Apna Kaarobar: a month of sales for your CA.
                 In TallyPrime: Import > Masters > 1-masters.xml first, then Import > Vouchers > 2-vouchers.xml.
                 Account names follow the ones set on the GST & Tally screen (or Tally's usual names). Cancelled bills are listed in the summary, not imported.
                 Money received on khata comes in as Receipt vouchers, so customer balances match the shop's khata.

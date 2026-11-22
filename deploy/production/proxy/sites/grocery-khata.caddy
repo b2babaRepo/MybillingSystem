@@ -8,6 +8,11 @@
 	reverse_proxy grocery-khata-web:80
 }
 
+# www goes to the main domain.
+www.{$GK_DOMAIN} {
+	redir https://{$GK_DOMAIN}{uri} permanent
+}
+
 # Another app later? Add a file like this one, e.g. sites/my-other-app.caddy:
 #   other.example.in {
 #   	reverse_proxy my-other-app-web:80

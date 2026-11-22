@@ -1,6 +1,6 @@
 // English text. Loaded on demand: a phone downloads only the language it shows.
 export const en = {
-  appName: 'Grocery Khata',
+  appName: 'Apna Kaarobar',
   authTagline: 'Bills, khata and stock for your shop, in one app',
   signIn: 'Sign in',
   signUp: 'Open a new shop',
@@ -23,7 +23,7 @@ export const en = {
   blocked: {
     title: '{{shop}} has been blocked',
     reason: 'Reason: {{reason}}',
-    help: 'To ask about it, contact Grocery Khata support.',
+    help: 'To ask about it, contact Apna Kaarobar support.',
   },
   account: {
     open: 'Account and sign out',
@@ -234,7 +234,7 @@ export const en = {
   book: {
     todayLink: 'Today’s cash book',
   },
-  connect: { title: 'Connect to a shop', hint: 'Type the shop ID (GKS-…) or the shop\'s mobile number, or scan the QR code at the shop.', placeholder: 'Shop ID or mobile', find: 'Find', scan: 'Scan shop QR code', none: 'No shop found with that ID or mobile.', notShopQr: 'That QR code is not a Grocery Khata shop. Scan the shop\'s store QR.', connect: 'Connect', browse: 'See all items at {{name}}' },
+  connect: { title: 'Connect to a shop', hint: 'Type the shop ID (GKS-…) or the shop\'s mobile number, or scan the QR code at the shop.', placeholder: 'Shop ID or mobile', find: 'Find', scan: 'Scan shop QR code', none: 'No shop found with that ID or mobile.', notShopQr: 'That QR code is not a Apna Kaarobar shop. Scan the shop\'s store QR.', connect: 'Connect', browse: 'See all items at {{name}}' },
   cust: { tab: { home: 'Home', search: 'Search', orders: 'Orders', cart: 'Cart', account: 'Account' }, myShops: 'My shops', seeAll: 'See all', addShop: 'Add a shop' },
   a11y: { less: 'Less', more: 'More', back: 'Back', close: 'Close', menu: 'Menu' },
   dues: {
@@ -246,7 +246,7 @@ export const en = {
   bookings: { link: 'Bookings: weddings, parties and functions' },
   tables: { link: 'Table bookings and parties' },
   rooms: { link: 'Rooms: bookings, check-in and checkout' },
-  summary: { title: "Today's summary", sales: 'Sales · {{count}} bills', udhaarGiven: 'Udhaar given', collected: 'Khata collected', outstanding: 'Still owed · {{count}} customers', lowStock: 'Items running low', send: 'Send on WhatsApp', footer: '— Grocery Khata' },
+  summary: { title: "Today's summary", sales: 'Sales · {{count}} bills', udhaarGiven: 'Udhaar given', collected: 'Khata collected', outstanding: 'Still owed · {{count}} customers', lowStock: 'Items running low', send: 'Send on WhatsApp', footer: '— Apna Kaarobar' },
   side: { receipts: 'Money received', money: 'Money', shop: 'Shop', dues: 'Dues', cashbook: 'Cash book', expenses: 'Expenses', reports: 'Reports', pnl: 'Profit & loss', stocktake: 'Stock check', suppliers: 'Suppliers', settings: 'Settings' },
   khataPick: 'Choose a customer on the left to see their khata.',
   inboxPick: 'Choose an order on the left to see and pack it.',
@@ -264,7 +264,7 @@ export const en = {
   pwa: {
     updateReady: 'A new version of the app is ready.',
     update: 'Update',
-    installHint: 'Install Grocery Khata on this phone: opens like an app, works without internet.',
+    installHint: 'Install Apna Kaarobar on this phone: opens like an app, works without internet.',
     install: 'Install',
     iosHint: 'To install: tap Share, then “Add to Home Screen”.',
     offline: 'offline',

@@ -34,7 +34,7 @@ export function planBillLink(paymentId: string, token: string) {
   return `${location.origin}/#/bill/plan/${paymentId}?t=${token}`
 }
 
-/** A Grocery Khata plan bill (/bill/plan/{id}?t=…), printable on A4 or a phone screen. */
+/** A Apna Kaarobar plan bill (/bill/plan/{id}?t=…), printable on A4 or a phone screen. */
 export function PlanBillPage({ path }: { path: string }) {
   const { t } = useTranslation()
   const match = path.match(/^\/bill\/plan\/([0-9a-f-]+)\?t=([0-9a-f]+)$/)

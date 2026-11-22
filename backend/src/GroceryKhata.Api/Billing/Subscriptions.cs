@@ -264,7 +264,7 @@ public sealed class BillingOptions
     /// <summary>The platform's UPI ID that shops pay ("groceryk@okicici"). Empty: the shop's plan screen asks them to call.</summary>
     public string UpiId { get; set; } = string.Empty;
 
-    public string PayeeName { get; set; } = "Grocery Khata";
+    public string PayeeName { get; set; } = "Apna Kaarobar";
 
     /// <summary>Key for plan bill links sent on WhatsApp. Set a long random value in production; changing it breaks old links.</summary>
     public string BillLinkKey { get; set; } = "dev-only-bill-link-key-change-me";

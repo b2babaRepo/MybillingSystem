@@ -13,7 +13,9 @@ fi
 systemctl enable --now docker
 
 echo "== Firewall: SSH, HTTP, HTTPS"
-apt-get update -qq && apt-get install -y -qq ufw unattended-upgrades >/dev/null
+# A new VPS often runs its own first apt update; wait for it instead of failing.
+apt-get -o DPkg::Lock::Timeout=600 update -qq
+apt-get -o DPkg::Lock::Timeout=600 install -y -qq ufw unattended-upgrades >/dev/null
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 ufw allow OpenSSH >/dev/null && ufw allow 80/tcp >/dev/null && ufw allow 443/tcp >/dev/null && ufw allow 443/udp >/dev/null

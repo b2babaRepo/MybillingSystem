@@ -12,7 +12,7 @@ licence="${SIXLABORS_LICENCE:-$root/deploy/demo/sixlabors.lic}"
 tag="$(git -C "$root" rev-parse --short HEAD)"
 remote=/opt/grocery-khata
 
-if [ -n "$(git -C "$root" status --porcelain --untracked-files=no -- backend frontend)" ]; then
+if [ -n "$(git -C "$root" status --porcelain --untracked-files=no -- backend frontend ':!**/appsettings.Development.json')" ]; then
   echo "backend/ or frontend/ has uncommitted changes: commit first, so the release matches a commit." >&2
   exit 1
 fi
