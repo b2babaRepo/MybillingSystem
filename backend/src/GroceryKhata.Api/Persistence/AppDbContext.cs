@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
@@ -22,6 +22,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     private Guid CurrentShopId => tenant.ShopId;
 
+    /// <summary>The shop this request works in (Shops itself is not filtered by shop).</summary>
+    public Guid ShopIdNow => tenant.ShopId;
+
     private Guid CurrentUserId => tenant.UserId;
 
     public DbSet<ShoppingList> ShoppingLists => Set<ShoppingList>();
@@ -34,6 +37,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Shop> Shops => Set<Shop>();
 
+    public DbSet<Common.AiUsageDay> AiUsageDays => Set<Common.AiUsageDay>();
+
+    public DbSet<Ledger.IncomingReceipt> IncomingReceipts => Set<Ledger.IncomingReceipt>();
+
+    public DbSet<Ledger.CustomerConsent> CustomerConsents => Set<Ledger.CustomerConsent>();
+
+    public DbSet<Ledger.ReminderLog> ReminderLogs => Set<Ledger.ReminderLog>();
+
+    public DbSet<Ledger.ReceiptAllocation> ReceiptAllocations => Set<Ledger.ReceiptAllocation>();
+
     public DbSet<Market> Markets => Set<Market>();
 
     public DbSet<MasterItem> MasterItems => Set<MasterItem>();
@@ -43,6 +56,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<MasterSuggestion> MasterSuggestions => Set<MasterSuggestion>();
 
     public DbSet<SavedAddress> SavedAddresses => Set<SavedAddress>();
+
+    public DbSet<Planner.CustomerCart> CustomerCarts => Set<Planner.CustomerCart>();
+
+    public DbSet<Planner.UsageEvent> UsageEvents => Set<Planner.UsageEvent>();
+
+    public DbSet<Planner.DeliveryPlan> DeliveryPlans => Set<Planner.DeliveryPlan>();
+
+    public DbSet<Ledger.BalanceConfirmation> BalanceConfirmations => Set<Ledger.BalanceConfirmation>();
+
+    public DbSet<Planner.SavedShop> SavedShops => Set<Planner.SavedShop>();
+
+    public DbSet<Planner.CustomerPushDevice> CustomerPushDevices => Set<Planner.CustomerPushDevice>();
+
+    public DbSet<Planner.SavedItem> SavedItems => Set<Planner.SavedItem>();
 
     public DbSet<Common.JobRun> JobRuns => Set<Common.JobRun>();
 
@@ -76,7 +103,50 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<SupplierEntry> SupplierEntries => Set<SupplierEntry>();
 
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+
+    public DbSet<SaleOffer> SaleOffers => Set<SaleOffer>();
+
+    public DbSet<MeterReading> MeterReadings => Set<MeterReading>();
+
+    public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+
+    public DbSet<ArrivalLine> ArrivalLines => Set<ArrivalLine>();
+
+    public DbSet<Category> Categories => Set<Category>();
+
+    public DbSet<SupplierItem> SupplierItems => Set<SupplierItem>();
+
+    public DbSet<StockHold> StockHolds => Set<StockHold>();
+
+    public DbSet<Godown> Godowns => Set<Godown>();
+
+    public DbSet<Ledger.BalanceItem> BalanceItems => Set<Ledger.BalanceItem>();
+
+    public DbSet<BagType> BagTypes => Set<BagType>();
+
+    public DbSet<PurchaseCharge> PurchaseCharges => Set<PurchaseCharge>();
+
+    public DbSet<FestivalSetting> FestivalSettings => Set<FestivalSetting>();
+
+    public DbSet<BagMove> BagMoves => Set<BagMove>();
+
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+
+    public DbSet<StockTransferLine> StockTransferLines => Set<StockTransferLine>();
+
+    public DbSet<OrderShipment> OrderShipments => Set<OrderShipment>();
+
+    public DbSet<OrderFollowUp> OrderFollowUps => Set<OrderFollowUp>();
+
+    public DbSet<Estimate> Estimates => Set<Estimate>();
+    public DbSet<SaleOrder> SaleOrders => Set<SaleOrder>();
+
+    public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
+
     public DbSet<Billing.GatewayOrder> GatewayOrders => Set<Billing.GatewayOrder>();
+
+    public DbSet<Billing.InvoiceCounter> InvoiceCounters => Set<Billing.InvoiceCounter>();
 
     public DbSet<ShopPhoto> ShopPhotos => Set<ShopPhoto>();
 
@@ -116,11 +186,31 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
 
+    public DbSet<ProductExtraPhoto> ProductExtraPhotos => Set<ProductExtraPhoto>();
+
     public DbSet<AiProposal> AiProposals => Set<AiProposal>();
 
     public DbSet<BalanceCheck> BalanceChecks => Set<BalanceCheck>();
 
     public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<MetalRate> MetalRates => Set<MetalRate>();
+    public DbSet<JewelleryPiece> JewelleryPieces => Set<JewelleryPiece>();
+    public DbSet<JewelleryBill> JewelleryBills => Set<JewelleryBill>();
+    public DbSet<JewelleryBillLine> JewelleryBillLines => Set<JewelleryBillLine>();
+    public DbSet<OldMetalPurchase> OldMetalPurchases => Set<OldMetalPurchase>();
+    public DbSet<GirviLoan> GirviLoans => Set<GirviLoan>();
+    public DbSet<MetalParty> MetalParties => Set<MetalParty>();
+    public DbSet<MetalMove> MetalMoves => Set<MetalMove>();
+    public DbSet<PieceStone> PieceStones => Set<PieceStone>();
+    public DbSet<TrayCount> TrayCounts => Set<TrayCount>();
+    public DbSet<WeighingScale> WeighingScales => Set<WeighingScale>();
+    public DbSet<GirviPayment> GirviPayments => Set<GirviPayment>();
+    public DbSet<SchemePlan> SchemePlans => Set<SchemePlan>();
+    public DbSet<SchemeMember> SchemeMembers => Set<SchemeMember>();
+    public DbSet<SchemeInstalment> SchemeInstalments => Set<SchemeInstalment>();
+    public DbSet<JewelleryOrder> JewelleryOrders => Set<JewelleryOrder>();
+    public DbSet<ApprovalMemo> ApprovalMemos => Set<ApprovalMemo>();
+    public DbSet<ApprovalItem> ApprovalItems => Set<ApprovalItem>();
 
     public DbSet<Job> Jobs => Set<Job>();
 
@@ -153,6 +243,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<ClientCard> ClientCards => Set<ClientCard>();
 
     public DbSet<PharmacyProfile> PharmacyProfiles => Set<PharmacyProfile>();
+
+    public DbSet<PrintLook> PrintLooks => Set<PrintLook>();
+
+    public DbSet<GroceryKhata.Api.Ledger.PurchaseUpload> PurchaseUploads => Set<GroceryKhata.Api.Ledger.PurchaseUpload>();
+
+    public DbSet<GroceryKhata.Api.Ledger.Loan> Loans => Set<GroceryKhata.Api.Ledger.Loan>();
+
+    public DbSet<GroceryKhata.Api.Planner.ShopWhatsApp> ShopWhatsApps => Set<GroceryKhata.Api.Planner.ShopWhatsApp>();
+
+    public DbSet<GroceryKhata.Api.Planner.WhatsAppNumber> WhatsAppNumbers => Set<GroceryKhata.Api.Planner.WhatsAppNumber>();
+
+    public DbSet<GroceryKhata.Api.Planner.ShopWhatsAppMessage> ShopWhatsAppMessages => Set<GroceryKhata.Api.Planner.ShopWhatsAppMessage>();
+
+    public DbSet<GroceryKhata.Api.Ledger.LoanPayment> LoanPayments => Set<GroceryKhata.Api.Ledger.LoanPayment>();
 
     public DbSet<ProductBatch> ProductBatches => Set<ProductBatch>();
 
@@ -190,6 +294,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
+
+    public DbSet<Ledger.CashMove> CashMoves => Set<Ledger.CashMove>();
+    public DbSet<Catalogue.Stocktake> Stocktakes => Set<Catalogue.Stocktake>();
+    public DbSet<Ledger.PushDevice> PushDevices => Set<Ledger.PushDevice>();
+    public DbSet<Ledger.PushKey> PushKeys => Set<Ledger.PushKey>();
 
     public DbSet<Challan> Challans => Set<Challan>();
 
@@ -231,6 +340,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Billing.InvoiceCounter>(b =>
+        {
+            b.ToTable("invoice_counters");
+            b.HasKey(c => c.Prefix);
+            b.Property(c => c.Prefix).HasMaxLength(20);
+        });
+
         modelBuilder.Entity<Billing.GatewayOrder>(b =>
         {
             b.ToTable("gateway_orders");
@@ -262,6 +378,60 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasKey(p => new { p.Phone, p.FarmerId });
             b.Property(p => p.Phone).HasMaxLength(20);
             b.HasIndex(p => p.FarmerId);
+        });
+
+        modelBuilder.Entity<Planner.CustomerCart>(b =>
+        {
+            b.ToTable("customer_carts");
+            b.Property(c => c.Lines).HasColumnType("jsonb");
+            b.HasIndex(c => new { c.UserId, c.ShopId }).IsUnique();
+            b.HasOne<User>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Planner.CustomerPushDevice>(b =>
+        {
+            b.ToTable("customer_push_devices");
+            b.Property(d => d.Endpoint).HasMaxLength(1000);
+            b.Property(d => d.P256dh).HasMaxLength(200);
+            b.Property(d => d.Auth).HasMaxLength(100);
+            b.Property(d => d.Language).HasMaxLength(5);
+            b.HasIndex(d => d.Endpoint).IsUnique();
+            b.HasIndex(d => d.UserId);
+            b.HasOne<User>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Planner.SavedItem>(b =>
+        {
+            b.ToTable("saved_items");
+            b.HasIndex(x => new { x.UserId, x.ShopId, x.ProductId }).IsUnique();
+            b.HasIndex(x => x.WasOut).HasFilter("was_out");
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Planner.DeliveryPlan>(b =>
+        {
+            b.ToTable("delivery_plans");
+            b.Property(x => x.Name).HasMaxLength(80);
+            b.Property(x => x.Phone).HasMaxLength(20);
+            b.Property(x => x.Address).HasMaxLength(300);
+            b.Property(x => x.ProductName).HasMaxLength(200);
+            b.HasIndex(x => new { x.ShopId, x.UserId });
+            b.HasIndex(x => new { x.ShopId, x.StoppedAt });
+        });
+
+        modelBuilder.Entity<Planner.UsageEvent>(b =>
+        {
+            b.ToTable("usage_events");
+            b.Property(x => x.Detail).HasMaxLength(10);
+            b.HasIndex(x => new { x.CreatedAt, x.Kind });
+            b.HasIndex(x => x.UserId);
+        });
+
+        modelBuilder.Entity<Planner.SavedShop>(b =>
+        {
+            b.ToTable("saved_shops");
+            b.HasIndex(x => new { x.UserId, x.ShopId }).IsUnique();
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SavedAddress>(b =>
@@ -330,10 +500,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<Common.AiUsageDay>(b =>
+        {
+            b.ToTable("ai_usage_days");
+            b.HasKey(d => d.Day);
+        });
+
         modelBuilder.Entity<Shop>(b =>
         {
             b.ToTable("shops");
             b.Property(s => s.State).HasMaxLength(80);
+            b.Property(s => s.BillPrefix).HasMaxLength(3);
+            b.Property(s => s.BillFields).HasColumnType("jsonb");
+            b.Property(s => s.BankAccounts).HasColumnType("jsonb");
             b.Property(s => s.District).HasMaxLength(80);
             b.Property(s => s.City).HasMaxLength(80);
             b.Property(s => s.Village).HasMaxLength(80);
@@ -478,11 +657,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.IsActive).HasDefaultValue(true);
             b.Property(p => p.Stock).HasPrecision(12, 3);
             b.Property(p => p.ReorderLevel).HasPrecision(12, 3);
+            b.Property(p => p.WholesalePrice).HasPrecision(12, 2);
+            b.Property(p => p.WholesaleMinQty).HasPrecision(12, 3);
             b.Property(p => p.Reserved).HasPrecision(12, 3);
             b.HasIndex(p => new { p.ShopId, p.Name });
             b.HasIndex(p => new { p.ShopId, p.Category });
             b.HasIndex(p => new { p.ShopId, p.CatalogueItemId });
-            b.HasOne<CatalogueItem>().WithMany().HasForeignKey(p => p.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
+            // One active item per barcode in a shop: scanning it must find exactly one item.
+            b.HasIndex(p => new { p.ShopId, p.Barcode }).IsUnique().HasFilter("barcode IS NOT NULL AND is_active");
+            b.HasOne(p => p.CatalogueItem).WithMany().HasForeignKey(p => p.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -550,6 +733,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(c => c.Lines).HasColumnType("jsonb");
             b.Property(c => c.Site).HasMaxLength(80);
             b.Property(c => c.VehicleNumber).HasMaxLength(15);
+            b.Property(c => c.PlaceOfSupply).HasMaxLength(2);
             b.HasIndex(c => new { c.ShopId, c.CustomerId, c.InvoiceId });
             b.HasTenantForeignKey<Challan, Customer>(nameof(Challan.CustomerId));
         });
@@ -563,12 +747,53 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.CommissionPercent).HasPrecision(5, 2);
         });
 
+        modelBuilder.Entity<SaleOrder>(b =>
+        {
+            b.ToTable("sale_orders");
+            b.HasTenantKey();
+            b.Property(o => o.Lines).HasColumnType("jsonb");
+            b.Property(o => o.BillIds).HasColumnType("jsonb");
+            b.Property(o => o.PartyName).HasMaxLength(80);
+            b.Property(o => o.Note).HasMaxLength(300);
+            b.Property(o => o.Total).HasPrecision(14, 2);
+            b.HasIndex(o => new { o.ShopId, o.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<Estimate>(b =>
+        {
+            b.ToTable("estimates");
+            b.HasTenantKey();
+            b.Property(e => e.Lines).HasColumnType("jsonb");
+            b.Property(e => e.PartyName).HasMaxLength(80);
+            b.Property(e => e.Note).HasMaxLength(300);
+            b.HasIndex(e => new { e.ShopId, e.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<GoodsReceipt>(b =>
+        {
+            b.ToTable("goods_receipts");
+            b.HasTenantKey();
+            b.Property(r => r.Note).HasMaxLength(200);
+            b.HasIndex(r => new { r.ShopId, r.SupplierId, r.PurchaseId });
+            b.HasIndex(r => new { r.ShopId, r.Number }).IsUnique();
+            b.Property(r => r.DebitNoteNo).HasMaxLength(16);
+            b.HasIndex(r => new { r.ShopId, r.DebitNoteNo }).IsUnique();
+        });
+
+        modelBuilder.Entity<MeterReading>(b =>
+        {
+            b.ToTable("meter_readings");
+            b.HasTenantKey();
+            b.Property(r => r.Note).HasMaxLength(200);
+            b.HasIndex(r => new { r.ShopId, r.Day });
+        });
+
         modelBuilder.Entity<CashCount>(b =>
         {
             b.ToTable("cash_counts");
             b.HasTenantKey();
             b.Property(c => c.Note).HasMaxLength(200);
-            b.HasIndex(c => new { c.ShopId, c.Day }).IsUnique();
+            b.HasIndex(c => new { c.ShopId, c.Day });
         });
 
         modelBuilder.Entity<CreditNote>(b =>
@@ -605,6 +830,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(s => s.Name).HasMaxLength(120);
             b.Property(s => s.Phone).HasMaxLength(20);
+            b.Property(s => s.Gstin).HasMaxLength(15);
+            b.Property(s => s.Address).HasMaxLength(200);
         });
 
         modelBuilder.Entity<Purchase>(b =>
@@ -613,7 +840,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantKey();
             b.Property(p => p.BillNo).HasMaxLength(40);
             b.Property(p => p.Total).HasPrecision(12, 2);
+            b.Property(p => p.ExtraCharges).HasPrecision(12, 2);
             b.HasMany(p => p.Lines).WithOne().HasForeignKey(l => l.PurchaseId).OnDelete(DeleteBehavior.Cascade);
+            b.HasMany(p => p.Charges).WithOne().HasForeignKey(c => c.PurchaseId).OnDelete(DeleteBehavior.Cascade);
+            b.Property(p => p.CostSplit).HasMaxLength(20);
         });
 
         modelBuilder.Entity<PurchaseLine>(b =>
@@ -623,6 +853,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(l => l.Quantity).HasPrecision(12, 3);
             b.Property(l => l.UnitCost).HasPrecision(12, 2);
             b.Property(l => l.FreeQuantity).HasPrecision(12, 3);
+            b.Property(l => l.LandedUnitCost).HasPrecision(12, 2);
             b.Property(l => l.DiscountPercent).HasPrecision(5, 2);
             b.Property(l => l.GstRate).HasPrecision(5, 2);
             b.Property(l => l.Taxable).HasPrecision(12, 2);
@@ -700,12 +931,180 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(l => l.UnitCost).HasPrecision(12, 2);
         });
 
+        modelBuilder.Entity<SaleOffer>(b =>
+        {
+            b.ToTable("sale_offers");
+            b.HasTenantKey();
+            b.Property(o => o.Name).HasMaxLength(60);
+            b.Property(o => o.Category).HasMaxLength(60);
+            b.Property(o => o.Value).HasPrecision(12, 2);
+            b.HasIndex(o => new { o.ShopId, o.EndsAt });
+        });
+
+        modelBuilder.Entity<PurchaseOrder>(b =>
+        {
+            b.ToTable("purchase_orders");
+            b.HasTenantKey();
+            b.Property(o => o.Note).HasMaxLength(200);
+            b.HasIndex(o => new { o.ShopId, o.Number }).IsUnique();
+            b.HasIndex(o => new { o.ShopId, o.SupplierId, o.Status });
+            b.HasMany(o => o.Lines).WithOne().HasForeignKey(l => l.OrderId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PurchaseOrderLine>(b =>
+        {
+            b.ToTable("purchase_order_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Quantity).HasPrecision(12, 3);
+            b.Property(l => l.Received).HasPrecision(12, 3);
+            b.Property(l => l.ShortClosed).HasPrecision(12, 3);
+            b.Property(l => l.Rate).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<OrderShipment>(b =>
+        {
+            b.ToTable("order_shipments");
+            b.HasTenantKey();
+            b.Property(s => s.Transporter).HasMaxLength(80);
+            b.Property(s => s.LrNo).HasMaxLength(40);
+            b.Property(s => s.VehicleNo).HasMaxLength(20);
+            b.Property(s => s.EwayBillNo).HasMaxLength(12);
+            b.Property(s => s.Freight).HasPrecision(12, 2);
+            b.HasIndex(s => new { s.ShopId, s.OrderId });
+        });
+
+        modelBuilder.Entity<OrderFollowUp>(b =>
+        {
+            b.ToTable("order_follow_ups");
+            b.HasTenantKey();
+            b.Property(f => f.Note).HasMaxLength(300);
+            b.HasIndex(f => new { f.ShopId, f.OrderId, f.At });
+        });
+
+        modelBuilder.Entity<FestivalSetting>(b =>
+        {
+            b.ToTable("festival_settings");
+            b.HasTenantKey();
+            b.Property(s => s.Key).HasMaxLength(30);
+            b.HasIndex(s => new { s.ShopId, s.Key, s.Year }).IsUnique();
+        });
+
+        modelBuilder.Entity<PurchaseCharge>(b =>
+        {
+            b.ToTable("purchase_charges");
+            b.HasTenantKey();
+            b.Property(c => c.Label).HasMaxLength(60);
+            b.Property(c => c.Amount).HasPrecision(14, 2);
+            b.HasIndex(c => new { c.ShopId, c.PurchaseId });
+        });
+
+        modelBuilder.Entity<BagType>(b =>
+        {
+            b.ToTable("bag_types");
+            b.HasTenantKey();
+            b.Property(t => t.Name).HasMaxLength(60);
+            b.Property(t => t.SaleRate).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<BagMove>(b =>
+        {
+            b.ToTable("bag_moves");
+            b.HasTenantKey();
+            b.Property(m => m.Quantity).HasPrecision(12, 3);
+            b.Property(m => m.Rate).HasPrecision(12, 2);
+            b.Property(m => m.Amount).HasPrecision(14, 2);
+            b.Property(m => m.Party).HasMaxLength(80);
+            b.Property(m => m.Note).HasMaxLength(200);
+            b.HasIndex(m => new { m.ShopId, m.BagTypeId });
+            b.HasIndex(m => new { m.ShopId, m.OccurredAt });
+        });
+
+        modelBuilder.Entity<Ledger.BalanceItem>(b =>
+        {
+            b.ToTable("balance_items");
+            b.HasTenantKey();
+            b.Property(i => i.Name).HasMaxLength(80);
+            b.Property(i => i.Amount).HasPrecision(14, 2);
+            b.Property(i => i.Kind).HasConversion<string>().HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<Godown>(b =>
+        {
+            b.ToTable("godowns");
+            b.HasTenantKey();
+            b.Property(g => g.Name).HasMaxLength(60);
+            b.Property(g => g.Address).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<StockTransfer>(b =>
+        {
+            b.ToTable("stock_transfers");
+            b.HasTenantKey();
+            b.Property(t => t.Note).HasMaxLength(200);
+            b.HasIndex(t => new { t.ShopId, t.Number }).IsUnique();
+            b.HasMany(t => t.Lines).WithOne().HasForeignKey(l => l.TransferId);
+        });
+
+        modelBuilder.Entity<StockTransferLine>(b =>
+        {
+            b.ToTable("stock_transfer_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Quantity).HasPrecision(12, 3);
+            b.Property(l => l.Bags).HasPrecision(12, 3);
+            b.HasIndex(l => new { l.ShopId, l.ProductId });
+        });
+
+        modelBuilder.Entity<StockHold>(b =>
+        {
+            b.ToTable("stock_holds");
+            b.HasTenantKey();
+            b.Property(h => h.Quantity).HasPrecision(12, 3);
+            b.Property(h => h.PartyName).HasMaxLength(80);
+            b.Property(h => h.Note).HasMaxLength(200);
+            b.HasIndex(h => new { h.ShopId, h.Status, h.ProductId });
+        });
+
+        modelBuilder.Entity<SupplierItem>(b =>
+        {
+            b.ToTable("supplier_items");
+            b.HasTenantKey();
+            b.Property(s => s.SupplierCode).HasMaxLength(40);
+            b.HasIndex(s => new { s.ShopId, s.ProductId, s.SupplierId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Category>(b =>
+        {
+            b.ToTable("categories");
+            b.HasTenantKey();
+            b.Property(c => c.Name).HasMaxLength(60);
+            b.Property(c => c.NormalisedName).HasMaxLength(60);
+            b.Property(c => c.DefaultHsn).HasMaxLength(8);
+            b.Property(c => c.DefaultGstRate).HasPrecision(5, 2);
+            b.HasIndex(c => new { c.ShopId, c.NormalisedName }).IsUnique().HasFilter("merged_into_id IS NULL");
+        });
+
+        modelBuilder.Entity<ArrivalLine>(b =>
+        {
+            b.ToTable("goods_receipt_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Received).HasPrecision(12, 3);
+            b.Property(l => l.Damaged).HasPrecision(12, 3);
+            b.Property(l => l.Bags).HasPrecision(12, 3);
+            b.Property(l => l.Rate).HasPrecision(12, 2);
+            b.HasIndex(l => new { l.ShopId, l.ProductId, l.OccurredAt });
+            b.HasIndex(l => new { l.ShopId, l.SupplierId, l.OccurredAt });
+            b.HasIndex(l => new { l.ShopId, l.OrderId });
+            b.HasIndex(l => new { l.ShopId, l.ReceiptId });
+            b.HasIndex(l => new { l.ShopId, l.PurchaseId });
+        });
+
         modelBuilder.Entity<SupplierEntry>(b =>
         {
             b.ToTable("supplier_entries");
             b.HasTenantKey();
             b.Property(e => e.Amount).HasPrecision(12, 2);
             b.Property(e => e.Note).HasMaxLength(40);
+            b.Property(e => e.Reference).HasMaxLength(40);
             b.HasIndex(e => new { e.ShopId, e.SupplierId });
         });
 
@@ -974,6 +1373,313 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(p => p.ShopId).IsUnique();
         });
 
+        modelBuilder.Entity<GroceryKhata.Api.Planner.ShopWhatsApp>(b =>
+        {
+            b.ToTable("shop_whatsapp");
+            b.HasTenantKey();
+            b.Property(w => w.WabaId).HasMaxLength(40);
+            b.Property(w => w.PhoneNumberId).HasMaxLength(40);
+            b.Property(w => w.DisplayNumber).HasMaxLength(30);
+            b.Property(w => w.VerifiedName).HasMaxLength(120);
+            b.HasIndex(w => w.ShopId).IsUnique();
+        });
+
+        modelBuilder.Entity<MetalRate>(b =>
+        {
+            b.ToTable("metal_rates");
+            b.HasTenantKey();
+            b.Property(r => r.Metal).HasMaxLength(10);
+            b.Property(r => r.SellPerGram).HasPrecision(12, 2);
+            b.Property(r => r.BuyPerGram).HasPrecision(12, 2);
+            b.HasIndex(r => new { r.ShopId, r.Metal, r.Purity, r.CreatedAt });
+        });
+
+        modelBuilder.Entity<JewelleryPiece>(b =>
+        {
+            b.ToTable("jewellery_pieces");
+            b.HasTenantKey();
+            b.Property(p => p.Name).HasMaxLength(80);
+            b.Property(p => p.Category).HasMaxLength(60);
+            b.Property(p => p.Tray).HasMaxLength(30);
+            b.Property(p => p.Metal).HasMaxLength(10);
+            b.Property(p => p.MakingType).HasMaxLength(10);
+            b.Property(p => p.Huid).HasMaxLength(6);
+            b.Property(p => p.Gross).HasPrecision(10, 3);
+            b.Property(p => p.Stone).HasPrecision(10, 3);
+            b.Property(p => p.WastagePercent).HasPrecision(5, 2);
+            b.Property(p => p.MakingValue).HasPrecision(14, 2);
+            b.Property(p => p.StoneValue).HasPrecision(14, 2);
+            b.Property(p => p.HallmarkCharge).HasPrecision(10, 2);
+            b.Property(p => p.FixedPrice).HasPrecision(14, 2);
+            b.HasIndex(p => new { p.ShopId, p.TagNo }).IsUnique();
+            b.HasIndex(p => new { p.ShopId, p.Huid });
+            b.HasIndex(p => new { p.ShopId, p.SoldBillId });
+        });
+
+        modelBuilder.Entity<JewelleryBill>(b =>
+        {
+            b.ToTable("jewellery_bills");
+            b.HasTenantKey();
+            b.Property(x => x.Pan).HasMaxLength(10);
+            b.Property(x => x.MoneyPaid).HasPrecision(14, 2);
+            b.Property(x => x.OldMetalValue).HasPrecision(14, 2);
+            b.Property(x => x.Mode).HasConversion<string>().HasMaxLength(10);
+            b.HasIndex(x => new { x.ShopId, x.BillId }).IsUnique();
+            b.HasIndex(x => new { x.ShopId, x.CustomerId, x.CreatedAt });
+        });
+
+        modelBuilder.Entity<JewelleryBillLine>(b =>
+        {
+            b.ToTable("jewellery_bill_lines");
+            b.HasTenantKey();
+            b.Property(l => l.Name).HasMaxLength(80);
+            b.Property(l => l.Metal).HasMaxLength(10);
+            b.Property(l => l.MakingType).HasMaxLength(10);
+            b.Property(l => l.Huid).HasMaxLength(6);
+            foreach (var w in new[] { nameof(JewelleryBillLine.Gross), nameof(JewelleryBillLine.Stone), nameof(JewelleryBillLine.Net) }) b.Property(w).HasPrecision(10, 3);
+            foreach (var m in new[] { nameof(JewelleryBillLine.RatePerGram), nameof(JewelleryBillLine.MetalValue), nameof(JewelleryBillLine.WastagePercent), nameof(JewelleryBillLine.WastageValue),
+                nameof(JewelleryBillLine.MakingValue), nameof(JewelleryBillLine.MakingAmount), nameof(JewelleryBillLine.StoneValue), nameof(JewelleryBillLine.HallmarkCharge),
+                nameof(JewelleryBillLine.Taxable), nameof(JewelleryBillLine.Gst) }) b.Property(m).HasPrecision(14, 2);
+            b.HasIndex(l => new { l.ShopId, l.BillId });
+        });
+
+        modelBuilder.Entity<MetalParty>(b =>
+        {
+            b.ToTable("metal_parties");
+            b.HasTenantKey();
+            b.Property(p => p.Name).HasMaxLength(80);
+            b.Property(p => p.Phone).HasMaxLength(20);
+            b.Property(p => p.Kind).HasMaxLength(10);
+            b.Property(p => p.AllowancePercent).HasPrecision(5, 2);
+            b.Property(p => p.LabourPerGram).HasPrecision(12, 2);
+        });
+
+        modelBuilder.Entity<MetalMove>(b =>
+        {
+            b.ToTable("metal_moves");
+            b.HasTenantKey();
+            b.Property(m => m.Kind).HasMaxLength(12);
+            b.Property(m => m.Metal).HasMaxLength(10);
+            b.Property(m => m.Note).HasMaxLength(200);
+            b.Property(m => m.Gross).HasPrecision(12, 3);
+            b.Property(m => m.Reading).HasPrecision(5, 2);
+            b.Property(m => m.Fine).HasPrecision(12, 3);
+            b.Property(m => m.Allowance).HasPrecision(12, 3);
+            b.Property(m => m.BalanceEffect).HasPrecision(12, 3);
+            b.Property(m => m.LooseEffect).HasPrecision(12, 3);
+            b.Property(m => m.Labour).HasPrecision(14, 2);
+            b.Property(m => m.RatePerGram).HasPrecision(12, 2);
+            b.Property(m => m.CashEffect).HasPrecision(14, 2);
+            b.Property(m => m.Mode).HasConversion<string>().HasMaxLength(10);
+            b.HasIndex(m => new { m.ShopId, m.Number }).IsUnique();
+            b.HasIndex(m => new { m.ShopId, m.PartyId });
+            b.HasIndex(m => new { m.ShopId, m.At });
+        });
+
+        modelBuilder.Entity<PieceStone>(b =>
+        {
+            b.ToTable("piece_stones");
+            b.HasTenantKey();
+            b.Property(s => s.Kind).HasMaxLength(40);
+            b.Property(s => s.Shape).HasMaxLength(30);
+            b.Property(s => s.Colour).HasMaxLength(20);
+            b.Property(s => s.Clarity).HasMaxLength(20);
+            b.Property(s => s.CertLab).HasMaxLength(20);
+            b.Property(s => s.CertNo).HasMaxLength(40);
+            b.Property(s => s.Carat).HasPrecision(10, 3);
+            b.Property(s => s.RatePerCarat).HasPrecision(14, 2);
+            b.Property(s => s.Value).HasPrecision(14, 2);
+            b.HasIndex(s => new { s.ShopId, s.PieceId });
+        });
+
+        modelBuilder.Entity<TrayCount>(b =>
+        {
+            b.ToTable("tray_counts");
+            b.HasTenantKey();
+            b.Property(c => c.Tray).HasMaxLength(30);
+            b.Property(c => c.Kind).HasMaxLength(10);
+            b.Property(c => c.ExpectedGross).HasPrecision(12, 3);
+            b.Property(c => c.CountedGross).HasPrecision(12, 3);
+            b.HasIndex(c => new { c.ShopId, c.Tray, c.CreatedAt });
+        });
+
+        modelBuilder.Entity<WeighingScale>(b =>
+        {
+            b.ToTable("weighing_scales");
+            b.HasTenantKey();
+            b.Property(s => s.Name).HasMaxLength(60);
+            b.Property(s => s.ReadsTo).HasPrecision(6, 3);
+        });
+
+        modelBuilder.Entity<GirviLoan>(b =>
+        {
+            b.ToTable("girvi_loans");
+            b.HasTenantKey();
+            b.Property(l => l.Items).HasMaxLength(200);
+            b.Property(l => l.Metal).HasMaxLength(10);
+            b.Property(l => l.Kyc).HasMaxLength(60);
+            b.Property(l => l.Note).HasMaxLength(200);
+            b.Property(l => l.Gross).HasPrecision(10, 3);
+            b.Property(l => l.Fine).HasPrecision(10, 3);
+            b.Property(l => l.Reading).HasPrecision(5, 2);
+            b.Property(l => l.RatePerMonth).HasPrecision(5, 2);
+            b.Property(l => l.PledgeValue).HasPrecision(14, 2);
+            b.Property(l => l.Principal).HasPrecision(14, 2);
+            b.Property(l => l.Mode).HasConversion<string>().HasMaxLength(10);
+            b.HasIndex(l => new { l.ShopId, l.Number }).IsUnique();
+            b.HasIndex(l => new { l.ShopId, l.CreatedAt });
+        });
+
+        modelBuilder.Entity<GirviPayment>(b =>
+        {
+            b.ToTable("girvi_payments");
+            b.HasTenantKey();
+            b.Property(p => p.Amount).HasPrecision(14, 2);
+            b.Property(p => p.InterestPart).HasPrecision(14, 2);
+            b.Property(p => p.PrincipalPart).HasPrecision(14, 2);
+            b.Property(p => p.Mode).HasConversion<string>().HasMaxLength(10);
+            b.HasIndex(p => new { p.ShopId, p.LoanId });
+            b.HasIndex(p => new { p.ShopId, p.At });
+        });
+
+        modelBuilder.Entity<SchemePlan>(b =>
+        {
+            b.ToTable("scheme_plans");
+            b.HasTenantKey();
+            b.Property(p => p.Name).HasMaxLength(60);
+            b.Property(p => p.Instalment).HasPrecision(14, 2);
+            b.Property(p => p.Bonus).HasPrecision(14, 2);
+        });
+
+        modelBuilder.Entity<SchemeMember>(b =>
+        {
+            b.ToTable("scheme_members");
+            b.HasTenantKey();
+            b.HasIndex(m => new { m.ShopId, m.Number }).IsUnique();
+            b.HasIndex(m => new { m.ShopId, m.CustomerId });
+        });
+
+        modelBuilder.Entity<SchemeInstalment>(b =>
+        {
+            b.ToTable("scheme_instalments");
+            b.HasTenantKey();
+            b.Property(i => i.Amount).HasPrecision(14, 2);
+            b.HasIndex(i => new { i.ShopId, i.MemberId });
+            b.HasIndex(i => new { i.ShopId, i.EntryId }).IsUnique();
+        });
+
+        modelBuilder.Entity<JewelleryOrder>(b =>
+        {
+            b.ToTable("jewellery_orders");
+            b.HasTenantKey();
+            b.Property(o => o.Kind).HasMaxLength(10);
+            b.Property(o => o.Status).HasMaxLength(12);
+            b.Property(o => o.Description).HasMaxLength(200);
+            b.Property(o => o.Note).HasMaxLength(200);
+            b.Property(o => o.Metal).HasMaxLength(10);
+            b.Property(o => o.Weight).HasPrecision(10, 3);
+            b.Property(o => o.WeightOut).HasPrecision(10, 3);
+            b.Property(o => o.FixedRate).HasPrecision(12, 2);
+            b.Property(o => o.Charge).HasPrecision(14, 2);
+            b.Property(o => o.Advance).HasPrecision(14, 2);
+            b.HasIndex(o => new { o.ShopId, o.Number }).IsUnique();
+            b.HasIndex(o => new { o.ShopId, o.Status, o.DueOn });
+        });
+
+        modelBuilder.Entity<ApprovalMemo>(b =>
+        {
+            b.ToTable("approval_memos");
+            b.HasTenantKey();
+            b.Property(m => m.Party).HasMaxLength(80);
+            b.HasIndex(m => new { m.ShopId, m.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<ApprovalItem>(b =>
+        {
+            b.ToTable("approval_items");
+            b.HasTenantKey();
+            b.Property(i => i.GrossOut).HasPrecision(10, 3);
+            b.Property(i => i.GrossBack).HasPrecision(10, 3);
+            b.HasIndex(i => new { i.ShopId, i.MemoId });
+            b.HasIndex(i => new { i.ShopId, i.PieceId });
+        });
+
+        modelBuilder.Entity<OldMetalPurchase>(b =>
+        {
+            b.ToTable("old_metal_purchases");
+            b.HasTenantKey();
+            b.Property(o => o.Metal).HasMaxLength(10);
+            b.Property(o => o.Description).HasMaxLength(120);
+            b.Property(o => o.Gross).HasPrecision(10, 3);
+            b.Property(o => o.Fine).HasPrecision(10, 3);
+            b.Property(o => o.Reading).HasPrecision(5, 2);
+            b.Property(o => o.DeductionPercent).HasPrecision(5, 2);
+            b.Property(o => o.RatePerGram).HasPrecision(12, 2);
+            b.Property(o => o.Value).HasPrecision(14, 2);
+            b.HasIndex(o => new { o.ShopId, o.BillId });
+        });
+
+        modelBuilder.Entity<GroceryKhata.Api.Planner.ShopWhatsAppMessage>(b =>
+        {
+            b.ToTable("shop_whatsapp_messages");
+            b.HasTenantKey();
+            b.Property(m => m.Phone).HasMaxLength(20);
+            b.Property(m => m.Kind).HasMaxLength(20);
+            b.Property(m => m.Body).HasMaxLength(4000);
+            b.Property(m => m.MetaMessageId).HasMaxLength(120);
+            b.Property(m => m.Status).HasMaxLength(20);
+            b.Property(m => m.Error).HasMaxLength(300);
+            b.Property(m => m.Direction).HasConversion<string>().HasMaxLength(5);
+            b.HasIndex(m => new { m.ShopId, m.Phone, m.At });
+            b.HasIndex(m => m.MetaMessageId);
+        });
+
+        modelBuilder.Entity<GroceryKhata.Api.Planner.WhatsAppNumber>(b =>
+        {
+            b.ToTable("whatsapp_numbers");
+            b.HasKey(n => n.PhoneNumberId);
+            b.Property(n => n.PhoneNumberId).HasMaxLength(40);
+            b.HasIndex(n => n.ShopId);
+        });
+
+        modelBuilder.Entity<GroceryKhata.Api.Ledger.Loan>(b =>
+        {
+            b.ToTable("loans");
+            b.HasTenantKey();
+            b.Property(l => l.Lender).HasMaxLength(80);
+            b.Property(l => l.Note).HasMaxLength(200);
+            b.Property(l => l.Amount).HasPrecision(14, 2);
+            b.Property(l => l.RatePercent).HasPrecision(6, 3);
+            b.Property(l => l.Emi).HasPrecision(14, 2);
+            b.Property(l => l.ReceivedInto).HasConversion<string>().HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<GroceryKhata.Api.Ledger.LoanPayment>(b =>
+        {
+            b.ToTable("loan_payments");
+            b.HasTenantKey();
+            b.Property(p => p.Principal).HasPrecision(14, 2);
+            b.Property(p => p.Interest).HasPrecision(14, 2);
+            b.HasIndex(p => new { p.ShopId, p.LoanId });
+        });
+
+        modelBuilder.Entity<GroceryKhata.Api.Ledger.PurchaseUpload>(b =>
+        {
+            b.ToTable("purchase_uploads");
+            b.HasTenantKey();
+            b.Property(u => u.Source).HasMaxLength(10);
+            b.HasIndex(u => new { u.ShopId, u.UsedAt });
+        });
+
+        modelBuilder.Entity<PrintLook>(b =>
+        {
+            b.ToTable("print_looks");
+            b.HasTenantKey();
+            b.Property(p => p.Theme).HasMaxLength(20);
+            b.Property(p => p.Terms).HasMaxLength(GroceryKhata.Api.Shops.PrintLooks.MaxTerms);
+            b.HasIndex(p => p.ShopId).IsUnique();
+        });
+
         modelBuilder.Entity<ClientCard>(b =>
         {
             b.ToTable("client_cards");
@@ -1074,6 +1780,42 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasIndex(e => new { e.ShopId, e.JobId });
         });
 
+        modelBuilder.Entity<Ledger.PushDevice>(b =>
+        {
+            b.ToTable("push_devices");
+            b.HasTenantKey();
+            b.Property(d => d.Endpoint).HasMaxLength(1000);
+            b.Property(d => d.P256dh).HasMaxLength(200);
+            b.Property(d => d.Auth).HasMaxLength(100);
+            b.HasIndex(d => d.Endpoint).IsUnique();
+        });
+
+        modelBuilder.Entity<Ledger.PushKey>(b =>
+        {
+            b.ToTable("push_keys");
+            b.Property(k => k.Id).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<Catalogue.Stocktake>(b =>
+        {
+            b.ToTable("stocktakes");
+            b.HasTenantKey();
+            b.Property(t => t.Lines).HasColumnType("jsonb");
+            b.Property(t => t.ValueDifference).HasPrecision(14, 2);
+            b.HasIndex(t => new { t.ShopId, t.Number }).IsUnique();
+        });
+
+        modelBuilder.Entity<Ledger.CashMove>(b =>
+        {
+            b.ToTable("cash_moves");
+            b.HasTenantKey();
+            b.Property(m => m.Amount).HasPrecision(12, 2);
+            b.Property(m => m.Note).HasMaxLength(120);
+            b.Property(m => m.BankAccount).HasMaxLength(40);
+            b.Ignore(m => m.CashEffect);
+            b.HasIndex(m => new { m.ShopId, m.OccurredAt });
+        });
+
         modelBuilder.Entity<Expense>(b =>
         {
             b.ToTable("expenses");
@@ -1101,6 +1843,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Source).HasDefaultValue(ProposalSource.App);
             b.HasIndex(p => new { p.UserId, p.CreatedAt });
             b.HasOne<User>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProductExtraPhoto>(b =>
+        {
+            b.ToTable("product_extra_photos");
+            b.HasKey(p => p.Id);
+            b.HasIndex(p => new { p.ShopId, p.ProductId });
+            b.Property(p => p.ContentType).HasMaxLength(20);
+            b.Property(p => p.ThumbType).HasMaxLength(20);
+            b.HasOne<Product>().WithMany().HasForeignKey(p => p.ProductId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ProductImage>(b =>
@@ -1138,6 +1890,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("customers");
             b.HasTenantKey();
             b.Property(c => c.Name).HasMaxLength(120);
+            b.Property(c => c.State).HasMaxLength(2);
             b.Property(c => c.Phone).HasMaxLength(16);
             b.HasIndex(c => new { c.ShopId, c.Name });
             b.HasIndex(c => new { c.ShopId, c.Phone });
@@ -1150,6 +1903,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         modelBuilder.Entity<Bill>(b =>
         {
             b.ToTable("bills");
+            b.Property(x => x.Payments).HasColumnType("jsonb");
+            b.Property(x => x.Prefix).HasMaxLength(3);
+            b.Property(x => x.Fields).HasColumnType("jsonb");
             b.HasTenantKey();
             b.HasIndex(x => new { x.ShopId, x.OccurredAt });
             b.HasTenantForeignKey<Bill, Customer>(nameof(Bill.CustomerId));
@@ -1279,6 +2035,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         {
             b.ToTable("bill_lines");
             b.Property(l => l.Name).HasMaxLength(120);
+            b.Property(l => l.OfferName).HasMaxLength(60);
+            b.HasIndex(l => l.OfferId).HasFilter("offer_id IS NOT NULL");
             b.Property(l => l.Quantity).HasPrecision(12, 3);
             b.Property(l => l.GstRate).HasPrecision(5, 2);
             b.Property(l => l.HsnCode).HasMaxLength(8);
@@ -1303,7 +2061,59 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.HasTenantForeignKey<LedgerEntry, Bill>(nameof(LedgerEntry.BillId));
             b.HasTenantForeignKey<LedgerEntry, LedgerEntry>(nameof(LedgerEntry.ReversesEntryId));
             b.Property(e => e.UpiRef).HasMaxLength(30);
-            b.HasIndex(e => new { e.ShopId, e.UpiRef }).IsUnique().HasFilter("upi_ref IS NOT NULL");
+            b.Property(e => e.ChequeNo).HasMaxLength(12);
+            b.Property(e => e.ChequeBank).HasMaxLength(40);
+            b.HasIndex(e => new { e.ShopId, e.ChequeStatus }).HasFilter("cheque_status IS NOT NULL");
+            // Not unique: a corrected or split payment shows the same reference. One UTR, one receipt is kept on the receipt.
+            b.HasIndex(e => new { e.ShopId, e.UpiRef }).HasFilter("upi_ref IS NOT NULL");
+        });
+
+        modelBuilder.Entity<Ledger.BalanceConfirmation>(b =>
+        {
+            b.ToTable("balance_confirmations");
+            b.HasTenantKey();
+            b.HasIndex(c => new { c.ShopId, c.CustomerId, c.CreatedAt });
+            b.HasTenantForeignKey<Ledger.BalanceConfirmation, Customer>(nameof(Ledger.BalanceConfirmation.CustomerId));
+        });
+
+        modelBuilder.Entity<Ledger.CustomerConsent>(b =>
+        {
+            b.ToTable("customer_consents");
+            b.HasTenantKey();
+            b.HasIndex(c => new { c.ShopId, c.CustomerId, c.RecordedAt });
+            b.HasTenantForeignKey<Ledger.CustomerConsent, Customer>(nameof(Ledger.CustomerConsent.CustomerId));
+        });
+
+        modelBuilder.Entity<Ledger.ReminderLog>(b =>
+        {
+            b.ToTable("reminder_logs");
+            b.HasTenantKey();
+            b.HasIndex(r => new { r.ShopId, r.CustomerId, r.SentAt });
+            b.HasTenantForeignKey<Ledger.ReminderLog, Customer>(nameof(Ledger.ReminderLog.CustomerId));
+        });
+
+        modelBuilder.Entity<Ledger.IncomingReceipt>(b =>
+        {
+            b.ToTable("incoming_receipts");
+            b.HasTenantKey();
+            b.Property(r => r.Amount).HasPrecision(14, 2);
+            b.HasIndex(r => new { r.ShopId, r.Utr }).IsUnique().HasFilter("utr IS NOT NULL");
+            b.HasIndex(r => new { r.ShopId, r.Fingerprint }).IsUnique().HasFilter("fingerprint IS NOT NULL");
+            b.HasIndex(r => new { r.ShopId, r.ReceivedAt });
+            b.HasTenantForeignKey<Ledger.IncomingReceipt, Customer>(nameof(Ledger.IncomingReceipt.ClaimedByCustomerId));
+            b.HasOne<Shop>().WithMany().HasForeignKey(r => r.ShopId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Ledger.ReceiptAllocation>(b =>
+        {
+            b.ToTable("receipt_allocations");
+            b.HasTenantKey();
+            b.Property(a => a.Amount).HasPrecision(14, 2);
+            b.HasIndex(a => new { a.ShopId, a.ReceiptId });
+            b.HasIndex(a => new { a.ShopId, a.LedgerEntryId }).IsUnique();
+            b.HasTenantForeignKey<Ledger.ReceiptAllocation, Ledger.IncomingReceipt>(nameof(Ledger.ReceiptAllocation.ReceiptId));
+            b.HasTenantForeignKey<Ledger.ReceiptAllocation, Customer>(nameof(Ledger.ReceiptAllocation.CustomerId));
+            b.HasTenantForeignKey<Ledger.ReceiptAllocation, LedgerEntry>(nameof(Ledger.ReceiptAllocation.LedgerEntryId));
         });
 
         modelBuilder.Entity<Dispute>(b =>

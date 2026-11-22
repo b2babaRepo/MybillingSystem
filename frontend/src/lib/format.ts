@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 const wholeRupees = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })
 const withPaise = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -13,10 +14,13 @@ export function formatPhone(phone: string | null | undefined) {
 }
 
 export const formatDateTime = (iso: string) =>
-  new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+  new Date(iso).toLocaleString(shownLocale(), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 
 /** wa.me link with a prefilled message. The shopkeeper taps send in WhatsApp themself. */
 export function whatsAppLink(phone: string | null, text: string) {
   const digits = phone?.replace(/\D/g, '') ?? ''
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`
 }
+
+/** Today in India, "2026-11-09", whatever the phone's own time zone. */
+export const indiaToday = () => new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10)

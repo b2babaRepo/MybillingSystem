@@ -14,7 +14,7 @@ export function OpenDisputesBanner() {
   const count = useOpenDisputes().data?.length ?? 0
   if (count === 0) return null
   return (
-    <button onClick={() => navigate('/disputes')} className="mb-3 flex min-h-12 w-full items-center justify-between rounded-[14px] bg-amber-50 px-4 text-left font-semibold text-amber-950">
+    <button onClick={() => navigate('/disputes')} className="mb-3 flex min-h-12 w-full items-center justify-between rounded-[14px] bg-warn-soft px-4 text-left font-semibold text-amber-950">
       ⚠ {t('dispute.openCount', { count })}
       <span aria-hidden>›</span>
     </button>

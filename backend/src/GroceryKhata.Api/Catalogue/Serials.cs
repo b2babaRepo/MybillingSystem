@@ -73,7 +73,7 @@ public static class Serials
         var productIds = rows.Select(r => r.ProductId).Distinct().ToList();
         var products = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var billIds = rows.Where(r => r.BillId != null).Select(r => r.BillId!.Value).ToList();
-        var bills = await db.Bills.AsNoTracking().Where(b => billIds.Contains(b.Id)).Select(b => new { b.Id, b.FinancialYear, b.Number }).ToDictionaryAsync(b => b.Id, b => $"{b.FinancialYear}/{b.Number:D4}", ct);
+        var bills = await db.Bills.AsNoTracking().Where(b => billIds.Contains(b.Id)).Select(b => new { b.Id, b.Prefix, b.FinancialYear, b.Number }).ToDictionaryAsync(b => b.Id, b => Ledger.Bill.No(b.Prefix, b.FinancialYear, b.Number), ct);
         var customerIds = rows.Where(r => r.CustomerId != null).Select(r => r.CustomerId!.Value).ToList();
         var customers = await db.Customers.AsNoTracking().Where(c => customerIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name, ct);
         return rows.Select(s => new SerialDto(s.Id, s.ProductId, products.GetValueOrDefault(s.ProductId) ?? "", s.SerialNo, s.Status, s.ReceivedOn, s.BillId,

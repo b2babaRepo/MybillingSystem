@@ -1,5 +1,6 @@
 using System.Net;
 using GroceryKhata.Api.Ledger;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GroceryKhata.Api.Tests;
 
@@ -7,6 +8,38 @@ namespace GroceryKhata.Api.Tests;
 public sealed class InvoicePhotoTests(ApiFactory api) : IClassFixture<ApiFactory>
 {
     private static readonly DateOnly Today = new(2026, 11, 3);
+
+    [Fact]
+    public void Other_trades_match_by_shared_words_and_size_with_no_batch_or_expiry_needed()
+    {
+        var white20 = (Guid.NewGuid(), "Apcolite Emulsion White 20L");
+        var white10 = (Guid.NewGuid(), "Apcolite Emulsion White 10L");
+        var cement = (Guid.NewGuid(), "Cement");
+        (Guid, string)[] items = [white10, white20, cement];
+
+        Assert.Equal(white20, InvoicePhotos.Match("ASIAN PAINTS APCOLITE EMULSION WHITE 20L", items, medical: false));
+        Assert.Equal(cement, InvoicePhotos.Match("ACC CEMENT 50 KG", items, medical: false));
+        Assert.Null(InvoicePhotos.Match("APCOLITE PRIMER 4L", items, medical: false));
+
+        var guess = new InvoiceGuess("Sharma Traders", "S-9", null, [new InvoiceLineGuess("ACC CEMENT 50 KG", null, null, null, 10m, 0m, 380m, 0m, 18m)]);
+        var draft = InvoicePhotos.Draft(guess, [(cement.Item1, cement.Item2, null)], [], Today, medical: false);
+        Assert.Empty(draft.Lines.Single().Problems);
+    }
+
+    [Fact]
+    public async Task The_daily_ai_allowance_is_kept_in_the_database_so_a_restart_cannot_reset_it()
+    {
+        var day = DateOnly.FromDayNumber(Random.Shared.Next(800_000, 3_000_000));
+        async Task<bool> Take()
+        {
+            using var scope = api.Services.CreateScope();
+            return await GroceryKhata.Api.Common.AiBudget.TryTakeAsync(scope.ServiceProvider.GetRequiredService<GroceryKhata.Api.Persistence.AppDbContext>(), day, 2, default);
+        }
+
+        var taken = new List<bool>();
+        for (var i = 0; i < 4; i++) taken.Add(await Take());
+        Assert.Equal(new List<bool> { true, true, false, false }, taken);
+    }
 
     [Fact]
     public void Model_output_is_bounded_and_unreadable_values_become_null()

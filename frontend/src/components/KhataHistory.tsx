@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { DisputeItemView, ItemOutcome, StatementLine } from '../lib/types'
-import { PendingDot } from './ui'
+import { PendingDot, btn } from './ui'
 
 type Line = StatementLine & { pending?: boolean }
 
@@ -30,13 +30,13 @@ export function KhataHistory({ entries, canRemove, onRemove, onDispute, focusEnt
     focused.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [focusEntryId, loaded])
   return (
-    <ul className="divide-y divide-[#edf2f1] rounded-2xl bg-white px-1">
+    <ul className="divide-y divide-[#edf2f1] rounded-card bg-white px-1 shadow-sm">
       {entries.length === 0 && <li className="p-4 text-muted">{t('noEntries')}</li>}
       {[...entries].reverse().map((e, i, newestFirst) => (
         <li key={e.id} ref={e.id === focusEntryId ? focused : undefined} className={e.id === focusEntryId ? 'rounded-xl ring-2 ring-amber-400' : undefined}>
           {/* The account came back to zero here: everything below this line is settled. */}
           {e.runningBalance === 0 && i > 0 && !e.isReversed && newestFirst.length > 1 && (
-            <div className="mx-2 mt-2 rounded-lg bg-teal-50 px-3 py-1.5 text-center text-sm font-semibold text-teal-800">
+            <div className="mx-2 mt-2 rounded-lg bg-brand-soft px-3 py-1.5 text-center text-sm font-semibold text-brand-strong">
               ✓ {t('ledgerView.settledDivider', { date: formatDateTime(e.occurredAt) })}
             </div>
           )}
@@ -44,7 +44,7 @@ export function KhataHistory({ entries, canRemove, onRemove, onDispute, focusEnt
             entry={e}
             open={open === e.id}
             onToggle={() => setOpen(open === e.id ? null : e.id)}
-            canRemove={!!onRemove && !e.upiRef && (canRemove?.(e) ?? true)}
+            canRemove={!!onRemove && (canRemove?.(e) ?? true)}
             onRemove={() => onRemove?.(e)}
             onDispute={onDispute && e.kind !== 'reversal' && e.kind !== 'return' && !(e.dispute && !e.dispute.resolvedAt) ? () => onDispute(e) : undefined}
           />
@@ -69,16 +69,20 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
     <div className={e.isReversed ? 'opacity-40' : ''}>
       <div className="flex items-center gap-3 p-3">
         <button
-          className="flex flex-1 items-center gap-2 text-left"
+          className="flex flex-1 items-center gap-3 text-left"
           onClick={items.length ? onToggle : undefined}
           aria-expanded={items.length ? open : undefined}
         >
-          <div className="flex-1">
+          <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-bold ${e.kind === 'reversal' ? 'bg-slate-100 text-muted' : e.amount > 0 ? 'bg-orange-50 text-udhaar' : 'bg-green-50 text-jama'}`}>
+            {e.kind === 'reversal' ? '↺' : e.amount > 0 ? '↑' : '↓'}
+          </span>
+          <div className="min-w-0 flex-1">
             <div className={`flex flex-wrap items-center gap-x-2 font-semibold ${e.isReversed ? 'line-through' : ''}`}>
               {e.kind === 'reversal' ? t('reversal') : e.kind === 'return' ? t('dispute.returned') : e.amount > 0 ? t('creditShort') : t('paymentShort')}
-              {e.paymentMode && <span className="text-xs text-muted uppercase">{t(e.paymentMode)}</span>}
+              {e.paymentMode && <span className="rounded-full bg-[#edf2f1] px-2 py-0.5 text-[11px] font-semibold text-muted uppercase">{t(e.paymentMode)}{e.chequeNo ? ` #${e.chequeNo}` : ''}</span>}
+              {e.chequeStatus && e.kind !== 'reversal' && <span className={`rounded px-1 text-xs font-normal ${e.chequeStatus === 'cleared' ? 'bg-emerald-50 text-emerald-800' : e.chequeStatus === 'bounced' ? 'bg-due-soft text-red-800' : 'bg-warn-soft text-warn'}`}>{t(`cheques.status.${e.chequeStatus}`)}</span>}
               {items.length > 0 && (
-                <span className="text-xs font-normal text-teal-700">
+                <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand-strong">
                   {t('ledgerView.items', { count: items.length })} {open ? '▴' : '▾'}
                 </span>
               )}
@@ -89,7 +93,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
               {e.recordedBy && ` · ${t(e.kind === 'reversal' ? 'ledgerView.removedBy' : 'ledgerView.by', { name: e.recordedBy })}`}
             </div>
             {e.enteredLate && e.recordedAt && (
-              <div className="text-xs font-semibold text-amber-800">{t('ledgerView.enteredLate', { date: formatDateTime(e.recordedAt) })}</div>
+              <div className="text-xs font-semibold text-warn">{t('ledgerView.enteredLate', { date: formatDateTime(e.recordedAt) })}</div>
             )}
             {e.note && (
               <div className={`text-xs ${e.kind === 'reversal' ? 'font-semibold text-due' : 'text-muted'}`}>
@@ -97,28 +101,28 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
               </div>
             )}
           </div>
-          <div className={`text-right font-bold ${e.amount > 0 ? 'text-udhaar' : 'text-jama'}`}>
+          <div className={`shrink-0 text-right text-[17px] font-bold ${e.amount > 0 ? 'text-udhaar' : 'text-jama'}`}>
             {e.amount > 0 ? '+' : '−'}
             {formatRupees(Math.abs(e.amount))}
-            <div className="text-xs font-normal text-muted">{t('ledgerView.balanceAfter', { amount: formatRupees(e.runningBalance) })}</div>
+            <div className="text-xs font-normal text-muted">{e.runningBalance < 0 ? `${t('advance')} ${formatRupees(-e.runningBalance)}` : t('ledgerView.balanceAfter', { amount: formatRupees(e.runningBalance) })}</div>
           </div>
         </button>
         {onDispute && (
-          <button className="min-h-11 px-1 text-sm font-semibold text-due underline" onClick={onDispute}>
+          <button className={`min-h-11 px-1 text-sm ${btn.dangerOutline}`} onClick={onDispute}>
             {t('dispute.raise')}
           </button>
         )}
-        {canRemove && e.kind !== 'reversal' && !e.isReversed && !e.pending && (
+        {canRemove && e.kind !== 'reversal' && !e.reversesEntryId && !e.isReversed && !e.pending && (
           <button className="min-h-11 px-1 text-sm text-muted underline" onClick={onRemove}>
             {t('remove')}
           </button>
         )}
       </div>
       {e.upiRef && (
-        <div className="-mt-2 px-3 pb-2 text-xs font-semibold text-jama">🔒 {t('ledgerView.upiLocked', { ref: e.upiRef })}</div>
+        <div className="-mt-2 px-3 pb-2 text-xs font-semibold text-jama">{t('ledgerView.upiLocked', { ref: e.upiRef })}</div>
       )}
       {e.dispute && (
-        <div className={`mx-3 mb-3 rounded-xl p-3 text-sm ${e.dispute.resolvedAt ? 'bg-[#f4f8f7]' : 'bg-amber-50 text-amber-950'}`}>
+        <div className={`mx-3 mb-3 rounded-xl p-3 text-sm ${e.dispute.resolvedAt ? 'bg-[#f4f8f7]' : 'bg-warn-soft text-amber-950'}`}>
           {e.dispute.message && <div className="font-semibold">⚠ {t('dispute.customerSays', { message: e.dispute.message })}</div>}
           {e.dispute.items.length > 0 && <DisputeItems items={e.dispute.items} />}
           <div className="text-xs opacity-80">{formatDateTime(e.dispute.raisedAt)}</div>
@@ -133,7 +137,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
         </div>
       )}
       {open && e.bill && (
-        <div className="mx-3 mb-3 rounded-xl bg-[#f4f8f7] p-3 text-sm">
+        <div className="mx-3 mb-3 ml-16 rounded-xl bg-[#f4f8f7] p-3 text-sm ring-1 ring-line">
           {items.map((item, n) => (
             <div
               key={n}
@@ -141,7 +145,7 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
             >
               <span className="min-w-0 truncate">{item.name}</span>
               <span className="shrink-0 text-muted">
-                {item.quantity} {t(`units.${item.unit}`)} × {formatRupees(item.unitPrice)} = <b className="text-ink">{formatRupees(item.amount)}</b>
+                {item.quantity} {t(`units.${item.unit}`, { count: item.quantity })} × {formatRupees(item.unitPrice)} = <b className="text-ink">{formatRupees(item.amount)}</b>
               </span>
             </div>
           ))}
@@ -162,9 +166,9 @@ function HistoryRow({ entry: e, open, canRemove, onToggle, onRemove, onDispute }
 }
 
 const outcomeStyle: Record<ItemOutcome, string> = {
-  handed_over: 'bg-teal-50 text-teal-800',
-  refunded: 'bg-teal-50 text-teal-800',
-  disagreed: 'bg-red-50 text-due',
+  handed_over: 'bg-brand-soft text-brand-strong',
+  refunded: 'bg-brand-soft text-brand-strong',
+  disagreed: 'bg-due-soft text-due',
 }
 
 /**
@@ -183,8 +187,8 @@ export function DisputeItems({ items, onResolve }: { items: DisputeItemView[]; o
           </div>
           <div className="text-xs">
             {item.problem === 'short'
-              ? t('dispute.problem.short', { got: item.receivedQuantity, of: item.quantity, unit: t(`units.${item.unit}`) })
-              : t(`dispute.problem.${item.problem}`, { qty: item.quantity, unit: t(`units.${item.unit}`) })}
+              ? t('dispute.problem.short', { got: item.receivedQuantity, of: item.quantity, unit: t(`units.${item.unit}`, { count: item.quantity }) })
+              : t(`dispute.problem.${item.problem}`, { qty: item.quantity, unit: t(`units.${item.unit}`, { count: item.quantity }) })}
           </div>
           {item.outcome && (
             <div className={`mt-1 rounded px-2 py-1 text-xs font-semibold ${outcomeStyle[item.outcome]}`}>
@@ -195,8 +199,8 @@ export function DisputeItems({ items, onResolve }: { items: DisputeItemView[]; o
           )}
           {!item.outcome && onResolve && (
             <div className="mt-2 grid grid-cols-3 gap-1.5 text-xs font-semibold">
-              <button className="min-h-11 rounded-lg bg-teal-700 px-1 text-white" onClick={() => onResolve(item, 'handed_over')}>{t('dispute.fix.handed_over')}</button>
-              <button className="min-h-11 rounded-lg border-2 border-teal-700 px-1 text-teal-800" onClick={() => onResolve(item, 'refunded')}>{t('dispute.fix.refunded')}</button>
+              <button className={`min-h-11 px-1 rounded-xl ${btn.solid}`} onClick={() => onResolve(item, 'handed_over')}>{t('dispute.fix.handed_over')}</button>
+              <button className={`min-h-11 px-1 rounded-xl ${btn.outline}`} onClick={() => onResolve(item, 'refunded')}>{t('dispute.fix.refunded')}</button>
               <button className="min-h-11 rounded-lg border border-line bg-white px-1 text-due" onClick={() => onResolve(item, 'disagreed')}>{t('dispute.fix.disagreed')}</button>
             </div>
           )}

@@ -33,9 +33,13 @@ export default defineConfig({
       workbox: {
         // The app shell is cached so billing opens with no network; API data is never cached here (offline data
         // lives in IndexedDB, written by the app itself). Item photos are the one exception, below.
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,wasm}'],
+        // The backup barcode reader (WebAssembly, about 1 MB) is kept too, so the camera scans offline.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
+        // The morning stock reminder: shown from a push, and opens "What to order" when tapped.
+        importScripts: ['push-sw.js'],
         // The Mukta font, kept after the first visit so text looks the same offline.
         runtimeCaching: [
           {
@@ -59,7 +63,8 @@ export default defineConfig({
     }),
   ],
   server: {
-    proxy: { '/api': 'http://localhost:5274' },
+    // GK_API points a second dev server at another API (one running a branch's changes); the usual one is on 5274.
+    proxy: { '/api': process.env.GK_API ?? 'http://localhost:5274' },
     // A Cloudflare quick tunnel (cloudflared tunnel --url http://localhost:5175) for demos from this PC.
     allowedHosts: ['.trycloudflare.com'],
   },

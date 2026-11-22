@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Anthropic;
 using Anthropic.Models.Messages;
 
@@ -17,9 +17,14 @@ public static class ClaudeJson
         AnthropicClient client, string model, ILogger? logger, string what, string instructions, Dictionary<string, JsonElement> schema, string text,
         (string MediaType, string Base64)? photo = null, Effort? effort = null, int maxTokens = 2000, CancellationToken ct = default)
     {
-        AiBudget.Take();
+        await AiBudget.TakeAsync(ct);
         var content = new List<ContentBlockParam>();
-        if (photo is { } p)
+        if (photo is { MediaType: "application/pdf" } pdf)
+        {
+            // A PDF bill: Claude reads its pages (printed text and any scanned pictures in it).
+            content.Add(new DocumentBlockParam { Source = new Base64PdfSource { Data = pdf.Base64 } });
+        }
+        else if (photo is { } p)
         {
             content.Add(new ImageBlockParam
             {

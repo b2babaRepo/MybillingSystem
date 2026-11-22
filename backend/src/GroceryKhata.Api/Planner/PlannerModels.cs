@@ -37,7 +37,8 @@ public sealed record UpsertItemRequest(string? Name, decimal Quantity, Unit? Uni
     }
 }
 
-public sealed record ShopDirectoryDto(Guid Id, string Name, string? Area, string? Address, Shops.ShopType Type = Shops.ShopType.Kirana, double? DistanceKm = null);
+/// <summary><see cref="Slug"/> opens the shop's item list (its online store page); <see cref="Number"/> is its ID, GKS-000042.</summary>
+public sealed record ShopDirectoryDto(Guid Id, string Name, string? Area, string? Address, Shops.ShopType Type = Shops.ShopType.Kirana, double? DistanceKm = null, string? Slug = null, long? Number = null);
 
 /// <summary>For one list item: the exact option picked at this shop (or none: the shop chooses), and what the shop may do.</summary>
 public sealed record LineChoice(Guid ListItemId, Guid? ProductId, ReplacePreference? Preference);
@@ -92,9 +93,17 @@ public sealed record OrderDto(
     DateTimeOffset? CancelledAt,
     IReadOnlyList<OrderLineDto> Lines,
     OrderSource Source,
-    string? Address)
+    string? Address,
+    string? ShopSlug = null,
+    string? ShopPhone = null,
+    decimal DeliveryFee = 0,
+    DateTimeOffset? AcceptedAt = null,
+    DateTimeOffset? ReadyAt = null,
+    Guid? BillId = null,
+    string? ShopAddress = null,
+    decimal? PaidAmount = null)
 {
-    public static OrderDto From(Order o, string shopName) => new(
+    public static OrderDto From(Order o, string shopName, string? shopSlug = null, string? shopPhone = null, string? shopAddress = null) => new(
         o.Id, o.ShopId, shopName, o.CustomerName, o.CustomerPhone, o.ListKind, o.Fulfilment, o.Slot, o.Payment, o.Note,
         o.Status, o.FinalAmount, o.CreatedAt, o.PackedAt, o.DeliveredAt, o.CancelledAt,
         o.Lines.OrderBy(l => l.LineNo).Select(l => new OrderLineDto(
@@ -102,7 +111,15 @@ public sealed record OrderDto(
             l.Removed || l.UnitPrice is null ? null : Money.LineAmount(l.PackedQuantity ?? l.Quantity, l.UnitPrice.Value),
             l.ProductId, l.RequestedProductId, l.RequestedName, l.Preference, l.ExpectedAmount, l.Approval, l.AiConfidence)).ToList(),
         o.Source,
-        o.Address);
+        o.Address,
+        shopSlug,
+        shopPhone,
+        o.DeliveryFee,
+        o.AcceptedAt,
+        o.ReadyAt,
+        o.BillId,
+        shopAddress,
+        o.PaidAmount);
 }
 
 /// <summary>One packed line. <see cref="ProductId"/>: the shop's option actually packed, when it differs from the line's.</summary>

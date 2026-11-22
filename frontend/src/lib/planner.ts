@@ -13,7 +13,7 @@ import type { Unit } from './types'
 export type ListKind = 'monthly' | 'weekly'
 export type Fulfilment = 'delivery' | 'pickup'
 export type OrderPayment = 'cash' | 'upi' | 'khata'
-export type OrderStatus = 'placed' | 'packed' | 'delivered' | 'cancelled'
+export type OrderStatus = 'placed' | 'accepted' | 'packed' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'cancelled'
 
 export interface ListItem {
   id: string
@@ -65,6 +65,10 @@ export interface ShopEntry {
   address: string | null
   type?: string
   distanceKm?: number | null
+  /** Opens the shop's own item list (its online store page). */
+  slug?: string | null
+  /** The shop ID shown as GKS-000042. */
+  number?: number | null
 }
 
 export interface OrderLine {
@@ -139,6 +143,19 @@ export interface Order {
   /** A household planner list, or a guest's cart from the online store. */
   source?: 'list' | 'store'
   address?: string | null
+  /** The shop's store link and owner's mobile: to open the shop, call or WhatsApp it from the order. */
+  shopSlug?: string | null
+  shopPhone?: string | null
+  /** Where the shop is (address, area): who sold it, on the order page. */
+  shopAddress?: string | null
+  /** Paid at delivery (the rest went on the khata); null before delivery or for older orders. */
+  paidAmount?: number | null
+  /** The delivery charge fixed when it was placed (in finalAmount once packed). */
+  deliveryFee?: number
+  acceptedAt?: string | null
+  readyAt?: string | null
+  /** The bill made at delivery (its ID is the order's own); on khata, it is the khata entry. */
+  billId?: string | null
   /** Sent from this phone, not on the server yet. */
   pending?: boolean
 }
@@ -197,7 +214,7 @@ export function useMyOrders(userId: string) {
     queryKey: [key, 'orders'],
     queryFn: () => cachedGet<Order[]>(key, 'orders', '/v1/me/orders'),
     // While an order is still with the shop, check every 15 s so "Packed" and "Delivered" show without a reload.
-    refetchInterval: (q) => ((q.state.data ?? []).some((o) => o.status === 'placed' || o.status === 'packed') ? 15_000 : false),
+    refetchInterval: (q) => ((q.state.data ?? []).some((o) => o.status !== 'delivered' && o.status !== 'cancelled') ? 15_000 : false),
     refetchIntervalInBackground: false,
   })
   const { ops } = useOutbox(key)
@@ -217,15 +234,6 @@ export function useCatalogue(userId: string) {
   return useQuery({ queryKey: ['catalogue'], queryFn: () => cachedGet<CatalogueItem[]>(key, 'catalogue', '/v1/catalogue'), staleTime: 3_600_000 })
 }
 
-/** One shop's prices for catalogue items, to estimate the list's total before sending. */
-export function useShopPrices(shopId: string | undefined) {
-  return useQuery({
-    queryKey: ['shop-prices', shopId],
-    queryFn: () => api<ShopPrice[]>(`/v1/shops/${shopId}/prices`),
-    enabled: !!shopId,
-    staleTime: 60_000,
-  })
-}
 
 /** A shop's options for every common-list item, default first. */
 export function useShopOptions(shopId: string | undefined) {

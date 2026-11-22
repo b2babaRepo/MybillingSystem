@@ -1,3 +1,5 @@
+import { btn } from '../components/ui'
+import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../lib/format'
@@ -49,7 +51,7 @@ export function PlanBillPage({ path }: { path: string }) {
   if (!match || bill.isError) return <p className="p-6 text-center">{t('planBill.notFound')}</p>
   const b = bill.data
   if (!b) return <p className="p-6 text-center">…</p>
-  const date = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  const date = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 
   return (
     <div className="mx-auto max-w-xl bg-white p-6 text-[15px] text-black print:p-0">
@@ -91,7 +93,7 @@ export function PlanBillPage({ path }: { path: string }) {
       <p className="mt-2 flex justify-between border-t-2 border-black pt-2 text-xl font-extrabold"><span>{t('planBill.total')}</span><span>{formatRupees(b.amount)}</span></p>
       <p className="mt-1">{t('planBill.paidBy', { method: t(`planBill.methods.${b.method}`), ref: b.reference ? ` · ${b.reference}` : '' })}</p>
       <p className="mt-6 text-center text-sm text-gray-600">{t('planBill.thanks')}</p>
-      <button onClick={() => window.print()} className="mt-6 w-full rounded-xl bg-teal-700 py-3 font-bold text-white print:hidden">{t('planBill.print')}</button>
+      <button onClick={() => window.print()} className={`mt-6 w-full py-3 print:hidden rounded-xl ${btn.solid}`}>{t('planBill.print')}</button>
     </div>
   )
 }

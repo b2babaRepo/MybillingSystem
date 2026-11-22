@@ -30,7 +30,8 @@ public sealed class TenantMiddleware(RequestDelegate next)
 
         if (!Guid.TryParse(shopClaim, out var shopId) || shopId == Guid.Empty
             || !Guid.TryParse(context.User.FindFirst(AppClaims.MembershipId)?.Value, out var membershipId)
-            || context.User.UserId() is not { } userId)
+            || context.User.UserId() is not { } userId
+            || !RoleNames.TryParse(context.User.FindFirst(AppClaims.Role)?.Value, out var role))
         {
             await DenyAsync(context, "Invalid token.");
             return;
@@ -43,9 +44,19 @@ public sealed class TenantMiddleware(RequestDelegate next)
         tenant.SetShop(shopId);
         await db.Database.OpenConnectionAsync(context.RequestAborted);
 
-        if (!await access.IsAllowedAsync(userId, membershipId, shopId, context.RequestAborted))
+        var blocked = await access.BlockedAsync(userId, membershipId, shopId, role, context.RequestAborted);
+        if (blocked is null)
         {
             await DenyAsync(context, "Your access to this shop has ended.", "Please sign in again.");
+            return;
+        }
+
+        // A helper the owner has limited: stop what they may not do before it runs.
+        var limits = role == ShopRole.Owner ? [] : blocked;
+        tenant.SetBlocked(limits);
+        if (StaffLimits.Blocks(limits, context.Request.Method, context.Request.Path.Value ?? "") is { } limit)
+        {
+            await Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Not allowed", detail: StaffLimits.Message(limit)).ExecuteAsync(context);
             return;
         }
 
@@ -56,14 +67,21 @@ public sealed class TenantMiddleware(RequestDelegate next)
         Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: title, detail: detail).ExecuteAsync(context);
 }
 
-/// <summary>Checks on every request that a shop token is still good: user active, membership active, shop open.</summary>
+/// <summary>
+/// Checks on every request that a shop token is still good: user active, membership active, shop open, and the role the
+/// same as when it was issued. A changed role refreshes the token, so a demoted owner loses owner rights at once.
+/// </summary>
 public sealed class ShopAccessChecker(AppDbContext db)
 {
-    public Task<bool> IsAllowedAsync(Guid userId, Guid membershipId, Guid shopId, CancellationToken cancellationToken) =>
+    public async Task<bool> IsAllowedAsync(Guid userId, Guid membershipId, Guid shopId, ShopRole role, CancellationToken cancellationToken) =>
+        await BlockedAsync(userId, membershipId, shopId, role, cancellationToken) is not null;
+
+    /// <summary>Null: no access. Otherwise what the owner has stopped this membership doing (often nothing).</summary>
+    public async Task<string[]?> BlockedAsync(Guid userId, Guid membershipId, Guid shopId, ShopRole role, CancellationToken cancellationToken) =>
         // One query per request: membership, user and shop together.
-        (from m in db.Memberships.AsNoTracking()
-         join u in db.Users.AsNoTracking() on m.UserId equals u.Id
-         join s in db.Shops.AsNoTracking() on m.ShopId equals s.Id
-         where m.Id == membershipId && m.UserId == userId && m.ShopId == shopId && m.IsActive && u.IsActive && s.IsActive
-         select m.Id).AnyAsync(cancellationToken);
+        (await (from m in db.Memberships.AsNoTracking()
+                join u in db.Users.AsNoTracking() on m.UserId equals u.Id
+                join s in db.Shops.AsNoTracking() on m.ShopId equals s.Id
+                where m.Id == membershipId && m.UserId == userId && m.ShopId == shopId && m.Role == role && m.IsActive && u.IsActive && s.IsActive
+                select new { m.Blocked }).ToListAsync(cancellationToken)).Select(m => m.Blocked).FirstOrDefault();
 }

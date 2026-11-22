@@ -1,3 +1,4 @@
+using GroceryKhata.Api.Shops;
 using System.Security.Claims;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
@@ -23,7 +24,19 @@ public sealed class CreditNote : Entity, ITenantOwned
 
     public string FinancialYear { get; set; } = "";
 
-    public string NoteNo => $"CN/{FinancialYear}/{Number:D4}";
+    public string NoteNo => No(FinancialYear, Number, TaxFree);
+
+    /// <summary>"CN/.." a GST credit note; "RN/.." a return note, for a bill without GST (no GSTIN, or a composition bill of supply).</summary>
+    public static string No(string year, int number, bool taxFree) => $"{(taxFree ? "RN" : "CN")}/{year}/{number:D4}";
+
+    /// <summary>The bill had no GST to take back: the note is a plain return note, not a tax credit note.</summary>
+    public bool TaxFree { get; set; }
+
+    /// <summary>An exchange slip's secret 4 digits, printed on it and in its QR: the number alone can't be used.</summary>
+    public string? SlipCode { get; set; }
+
+    /// <summary>The owner cancelled the exchange slip (lost, or given by mistake): what's left on it can't be used.</summary>
+    public DateTimeOffset? SlipCancelledAt { get; set; }
 
     public required string Reason { get; set; }
 
@@ -31,6 +44,18 @@ public sealed class CreditNote : Entity, ITenantOwned
 
     /// <summary>The goods went back on the shelf (not damaged or missing).</summary>
     public bool Restocked { get; set; }
+
+    /// <summary>Kept as credit for an exchange: no money goes back; the new bill (<see cref="ExchangeBillId"/>) uses it.</summary>
+    public bool ForExchange { get; set; }
+
+    /// <summary>How a walk-in's refund went back: cash, UPI, card or bank. Null for a khata customer or an exchange.</summary>
+    public PaymentMode? RefundMode { get; set; }
+
+    /// <summary>The last bill this exchange credit paid for.</summary>
+    public Guid? ExchangeBillId { get; set; }
+
+    /// <summary>How much of the exchange credit bills have used: the rest stays on the slip for another bill.</summary>
+    public decimal Spent { get; set; }
 
     public DateTimeOffset OccurredAt { get; set; }
 
@@ -70,7 +95,9 @@ public sealed class CreditNoteLine : Entity, ITenantOwned
 public sealed record CreditNoteLineRequest(int LineNo, decimal Quantity);
 
 /// <summary><see cref="Restock"/>: the goods go back on the shelf (not damaged).</summary>
-public sealed record CreditNoteRequest(Guid Id, string? Reason, IReadOnlyList<CreditNoteLineRequest>? Lines, bool Restock = true);
+/// <summary><see cref="RefundMode"/>: how a walk-in's money went back (cash, UPI, card or bank); default the bill's main mode.</summary>
+public sealed record CreditNoteRequest(Guid Id, string? Reason, IReadOnlyList<CreditNoteLineRequest>? Lines, bool Restock = true, bool Exchange = false, IReadOnlyList<string>? Serials = null,
+    PaymentMode? RefundMode = null);
 
 public sealed record CreditNoteLineDto(int BillLineNo, string Name, decimal Quantity, decimal Amount, decimal TaxableValue, decimal Cgst, decimal Sgst, decimal Igst);
 
@@ -82,7 +109,7 @@ public static class CreditNotes
     {
         var group = app.MapGroup("/api/v1/bills/{billId:guid}/credit-notes").WithTags("Khata").RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("", ListAsync);
-        group.MapPost("", AddAsync);
+        group.MapPost("", AddAsync).RequireBillPasscode();
         return app;
     }
 
@@ -122,6 +149,26 @@ public static class CreditNotes
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = ["Say why, and take back no more than was sold (less what was already returned)."] });
         }
 
+        // Units sold by serial come back by serial: when only some of them return, the shop says which.
+        var comingBack = new List<ProductSerial>();
+        if (request.Restock)
+        {
+            var onBill = await db.ProductSerials.Where(s => s.BillId == billId && s.Status == SerialStatus.Sold).ToListAsync(ct);
+            var named = (request.Serials ?? []).Select(Serials.Clean).ToHashSet();
+            foreach (var group in asked.GroupBy(a => bill.Lines.Single(l => l.LineNo == a.LineNo).ProductId))
+            {
+                var units = onBill.Where(s => s.ProductId == group.Key).ToList();
+                var quantity = group.Sum(a => a.Quantity);
+                var chosen = quantity >= units.Count ? units : units.Where(s => named.Contains(s.SerialNo)).ToList();
+                if (chosen.Count != Math.Min(quantity, units.Count))
+                {
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Serials"] = [$"Enter the {quantity:0.###} serial number(s) coming back: {string.Join(", ", units.Select(s => s.SerialNo))}."] });
+                }
+
+                comingBack.AddRange(chosen);
+            }
+        }
+
         var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
         var lines = asked.Select(a =>
         {
@@ -129,7 +176,8 @@ public static class CreditNotes
             var share = a.Quantity / line.Quantity;
             var amount = decimal.Round(line.Amount * share, 2);
             // Tax in the same share as the bill line had; a line with no stored tax is worked out from its rate.
-            var taxable = line.TaxableValue is { } t ? decimal.Round(t * share, 2) : bill.Gstin is not null && line.GstRate is { } r ? decimal.Round(amount / (1 + (r / 100)), 2) : amount;
+            // A bill of supply collected none, so there is none to give back.
+            var taxable = line.TaxableValue is { } t ? decimal.Round(t * share, 2) : bill.Gstin is not null && !bill.BillOfSupply && line.GstRate is { } r ? decimal.Round(amount / (1 + (r / 100)), 2) : amount;
             var igst = line.Igst is > 0 ? amount - taxable : 0;
             var cgst = igst == 0 ? decimal.Round((amount - taxable) / 2, 2) : 0;
             return new CreditNoteLine
@@ -145,13 +193,22 @@ public static class CreditNotes
         var startYear = india.Month >= 4 ? india.Year : india.Year - 1;
         var year = $"{startYear}-{(startYear + 1) % 100:D2}";
         var number = (await db.CreditNotes.Where(n => n.FinancialYear == year).MaxAsync(n => (int?)n.Number, ct) ?? 0) + 1;
+        // How the money went back to a walk-in: as asked, else the way the bill was mostly paid.
+        var refundMode = request.RefundMode is PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Card or PaymentMode.Bank ? request.RefundMode.Value : bill.PaymentMode ?? PaymentMode.Cash;
         var note = new CreditNote
         {
             Id = request.Id, BillId = billId, CustomerId = bill.CustomerId, FinancialYear = year, Number = number, Reason = reason!,
-            Total = total, Restocked = request.Restock, OccurredAt = now, CreatedByUserId = userId, Lines = lines,
+            Total = total, Restocked = request.Restock, OccurredAt = now, CreatedByUserId = userId, Lines = lines, ForExchange = request.Exchange,
+            RefundMode = request.Exchange || bill.CustomerId is not null ? null : refundMode,
+            TaxFree = bill.Gstin is null || bill.BillOfSupply,
+            SlipCode = request.Exchange ? ExchangeSlips.NewCode() : null,
         };
         db.CreditNotes.Add(note);
-        if (bill.CustomerId is { } customerId)
+        if (request.Exchange)
+        {
+            // An exchange: the value stays as credit for the new bill, so neither the khata nor the drawer moves now.
+        }
+        else if (bill.CustomerId is { } customerId)
         {
             db.LedgerEntries.Add(new LedgerEntry
             {
@@ -161,7 +218,7 @@ public static class CreditNotes
         else
         {
             // A walk-in sale was paid at the counter: the money goes back out of the drawer.
-            db.Expenses.Add(new Expense { Amount = total, Category = ExpenseCategory.Other, Mode = bill.PaymentMode ?? PaymentMode.Cash, Note = $"Refund {note.NoteNo}", OccurredAt = now, CreatedByUserId = userId });
+            db.Expenses.Add(new Expense { Amount = total, Category = ExpenseCategory.Other, Mode = refundMode, Note = $"Refund {note.NoteNo}", OccurredAt = now, CreatedByUserId = userId });
         }
 
         if (request.Restock)
@@ -170,14 +227,20 @@ public static class CreditNotes
             {
                 db.StockMovements.Add(new StockMovement
                 {
-                    ProductId = line.ProductId!.Value, Kind = StockMovementKind.Adjustment, Reason = StockReason.Return, Quantity = ask.Quantity, BillId = billId,
+                    RefType = "credit_note", RefId = note.Id, ProductId = line.ProductId!.Value, Kind = StockMovementKind.Adjustment, Reason = StockReason.Return, Quantity = ask.Quantity, BillId = billId,
                     OccurredAt = now, CreatedByUserId = userId, Note = note.NoteNo,
                 });
             }
         }
 
+        foreach (var unit in comingBack)
+        {
+            (unit.Status, unit.BillId, unit.CustomerId, unit.SoldOn, unit.WarrantyUntil, unit.WarrantyRegistered) = (SerialStatus.InStock, null, null, null, null, false);
+        }
+
         await db.SaveChangesAsync(ct);
-        if (bill.CustomerId is { } owing)
+        // An exchange moves the khata when its credit is used, on the new bill.
+        if (!request.Exchange && bill.CustomerId is { } owing)
         {
             await db.Customers.Where(c => c.Id == owing).ExecuteUpdateAsync(s => s.SetProperty(c => c.Balance, c => c.Balance - total), ct);
         }
@@ -188,6 +251,7 @@ public static class CreditNotes
             {
                 var quantity = group.Sum(x => x.a.Quantity);
                 await db.Products.Where(p => p.Id == group.Key).ExecuteUpdateAsync(s => s.SetProperty(p => p.Stock, p => p.Stock + quantity), ct);
+                await Batches.ReturnAsync(db, billId, group.Key, quantity, ct);
             }
         }
 

@@ -25,12 +25,12 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            query = query.Where(p => p.Category == category.Trim());
+            query = query.Where(p => p.Category != null && p.Category.ToLower() == category.Trim().ToLower());
         }
 
         if (lowOnly)
         {
-            query = query.Where(p => !p.IsService && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)));
+            query = query.Where(p => !p.IsService && !p.Uncounted && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)));
         }
 
         if (popular)
@@ -42,18 +42,35 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
                 .Select(AsDto).ToListAsync(ct)).Select(Linked).ToList();
         }
 
-        return (await query.OrderBy(p => p.Category).ThenBy(p => p.Name).Select(AsDto).ToListAsync(ct)).Select(Linked).ToList();
+        var list = (await query.OrderBy(p => p.Category).ThenBy(p => p.Name).Select(AsDto).ToListAsync(ct)).Select(Linked).ToList();
+        return await WithDailySalesAsync(list, ct);
+    }
+
+    /// <summary>Each item's average sold a day over the last 30 days, from its sale movements, in one query.</summary>
+    private async Task<IReadOnlyList<ProductDto>> WithDailySalesAsync(List<ProductDto> list, CancellationToken ct)
+    {
+        var sold = await Cover.SoldAsync(db, clock, ct);
+        var bagged = list.Where(p => p.BagSize != null).Select(p => p.Id).ToList();
+        var bags = bagged.Count == 0 ? [] : await db.StockMovements.AsNoTracking().Where(m => m.Bags != null && bagged.Contains(m.ProductId))
+            .GroupBy(m => m.ProductId).Select(g => new { g.Key, Bags = g.Sum(m => m.Bags!.Value) }).ToDictionaryAsync(x => x.Key, x => x.Bags, ct);
+        var promised = await Ledger.SaleOrders.PromisedAsync(db, ct);
+        var photos = await ProductPhotoEndpoints.IdsAsync(db, list.Count == 1 ? [list[0].Id] : null, ct);
+        return list.Select(p => (sold.TryGetValue(p.Id, out var q) && q > 0 ? p with { DailySales = decimal.Round(q / Cover.Days, 3) } : p) with
+        {
+            Bags = bags.GetValueOrDefault(p.Id), Promised = promised.GetValueOrDefault(p.Id), ExtraPhotos = photos.GetValueOrDefault(p.Id),
+        }).ToList();
     }
 
     /// <summary>Items made before products remembered their common-list item still get one, from their name.</summary>
     private static ProductDto Linked(ProductDto p) => p.CatalogueItemId is null ? p with { CatalogueItemId = CommonCatalogue.Match(p.Name) } : p;
 
+    /// <summary>Names of the categories that hold active items, in the shop's own order.</summary>
     public async Task<IReadOnlyList<string>> CategoriesAsync(CancellationToken ct) =>
-        await db.Products.AsNoTracking().Where(p => p.IsActive && p.Category != null)
-            .Select(p => p.Category!).Distinct().OrderBy(c => c).ToListAsync(ct);
+        await db.Categories.AsNoTracking().Where(c => c.MergedIntoId == null && c.IsActive && db.Products.Any(p => p.IsActive && p.CategoryId == c.Id))
+            .OrderBy(c => c.SortOrder).ThenBy(c => c.Name).Select(c => c.Name).ToListAsync(ct);
 
     public async Task<ProductDto?> FindAsync(Guid id, CancellationToken ct) =>
-        await db.Products.AsNoTracking().Where(p => p.Id == id).Select(AsDto).SingleOrDefaultAsync(ct) is { } found ? Linked(found) : null;
+        await db.Products.AsNoTracking().Where(p => p.Id == id).Select(AsDto).SingleOrDefaultAsync(ct) is { } found ? (await WithDailySalesAsync([Linked(found)], ct))[0] : null;
 
     public async Task<IReadOnlyList<StockMovementDto>> MovementsAsync(Guid productId, CancellationToken ct) =>
         await db.StockMovements.AsNoTracking().Where(m => m.ProductId == productId)
@@ -86,6 +103,17 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             errors[field] = messages;
         }
 
+        // A new item can come with its barcode (made from a scan the shop didn't know yet).
+        var barcode = Barcodes.Normalize(request.Barcode);
+        if (barcode.Length > 0 && (barcode.Length is < 4 or > 30 || !Barcodes.CheckDigitOk(barcode)))
+        {
+            errors[nameof(request.Barcode)] = ["Check the barcode: 4 to 30 letters and digits, with the right last digit."];
+        }
+        else if (barcode.Length > 0 && await db.Products.AnyAsync(p => p.Barcode == barcode && p.IsActive, ct))
+        {
+            errors[nameof(request.Barcode)] = ["Another item already has this barcode."];
+        }
+
         if (errors.Count > 0)
         {
             return (null, errors, false);
@@ -93,13 +121,22 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var product = NewProduct(request.Id, request.Name!, request.Category, request.Unit!.Value, request.SellingPrice, request.CostPrice, request.ReorderLevel);
-        product.GstRate = request.GstRate;
-        product.HsnCode = Clean(request.HsnCode);
+        await Categories.LinkAsync(db, product, ct);
+        // The category's defaults fill what the item doesn't say.
+        var defaults = product.CategoryId is { } cid ? await db.Categories.AsNoTracking().SingleAsync(c => c.Id == cid, ct) : null;
+        product.GstRate = request.GstRate ?? defaults?.DefaultGstRate;
+        product.HsnCode = Clean(request.HsnCode) ?? defaults?.DefaultHsn;
         (product.IsService, product.DurationMinutes) = (request.IsService, request.DurationMinutes is > 0 and <= 1440 ? request.DurationMinutes : null);
         product.Schedule = request.IsService ? null : request.Schedule;
         product.UnitsPerPack = request.IsService ? null : request.UnitsPerPack is > 1 and <= 1000 ? request.UnitsPerPack : null;
         (product.TracksSerials, product.WarrantyMonths) = request.IsService ? (false, null) : (request.TracksSerials, request.WarrantyMonths is > 0 and <= 240 ? request.WarrantyMonths : null);
         product.Mrp = CleanMrp(request.Mrp, request.SellingPrice);
+        product.BillName = BillNames.Clean(request.BillName);
+        (product.StyleName, product.Size, product.Colour) = (Short(request.StyleName, 120), Short(request.Size, 20), Short(request.Colour, 30));
+        product.Barcode = barcode.Length > 0 ? barcode : null;
+        product.BagSize = request.BagSize is > 0 and <= 100_000 && !request.IsService ? request.BagSize : null;
+        product.PurchaseUnit = product.BagSize is null || request.PurchaseUnit == product.Unit ? null : request.PurchaseUnit;
+        product.WeightKg = request.WeightKg is > 0 and <= 100_000 && !request.IsService ? request.WeightKg : null;
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)
@@ -112,7 +149,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     }
 
     /// <summary>Changes the details, never the stock (that only moves through movements).</summary>
-    public async Task<(ProductDto? Product, Dictionary<string, string[]>? Errors)> UpdateAsync(Guid id, ProductUpdate request, CancellationToken ct)
+    /// <param name="isOwner">Prices are the owner's: a helper who could change one would have no discount limit.</param>
+    public async Task<(ProductDto? Product, Dictionary<string, string[]>? Errors)> UpdateAsync(Guid id, ProductUpdate request, CancellationToken ct, bool isOwner = true)
     {
         var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id, ct);
         if (product is null)
@@ -126,15 +164,35 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             return (null, errors);
         }
 
+        // Wholesale: a price under the regular one, from a quantity above 1. 0 clears it; null keeps it (older apps).
+        if (request.WholesalePrice is > 0 and var wp && (wp >= request.SellingPrice || !Money.IsValidAmount(wp)))
+        {
+            return (null, new() { ["WholesalePrice"] = ["The wholesale price must be below the regular price."] });
+        }
+
+        if (request.WholesalePrice is > 0 && request.WholesaleMinQty is not (> 1 and <= 1_000_000))
+        {
+            return (null, new() { ["WholesaleMinQty"] = ["Say from how many the wholesale price starts (more than 1)."] });
+        }
+
+        if (!isOwner && (request.SellingPrice != product.SellingPrice || request.CostPrice != product.CostPrice
+            || (request.Mrp is { } asked && CleanMrp(asked, product.SellingPrice) != product.Mrp)
+            || (request.WholesalePrice is { } w && (w > 0 ? w : null) != product.WholesalePrice)))
+        {
+            return (null, new() { ["SellingPrice"] = ["Only the owner can change prices."] });
+        }
+
         product.Name = request.Name!.Trim();
         // A renamed option keeps its common-list item unless the new name says another one.
         product.CatalogueItemId = CommonCatalogue.Match(product.Name) ?? product.CatalogueItemId;
         product.Category = Clean(request.Category);
+        await Categories.LinkAsync(db, product, ct);
         product.Unit = request.Unit!.Value;
         product.SellingPrice = request.SellingPrice;
         product.CostPrice = request.CostPrice;
         product.ReorderLevel = request.ReorderLevel;
         product.IsActive = request.IsActive ?? product.IsActive;
+        product.Uncounted = request.Uncounted ?? product.Uncounted;
         if (TaxErrors(request.GstRate, request.HsnCode) is { Count: > 0 } taxErrors)
         {
             return (null, taxErrors);
@@ -153,13 +211,33 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.WarrantyMonths = request.WarrantyMonths is { } months ? (months is > 0 and <= 240 && !product.IsService ? months : null) : product.WarrantyMonths;
         // Null keeps the MRP; 0 clears it.
         product.Mrp = request.Mrp is { } mrp ? CleanMrp(mrp, product.SellingPrice) : product.Mrp;
+        // Null keeps it (older apps); an empty string clears it.
+        product.BillName = request.BillName is null ? product.BillName : BillNames.Clean(request.BillName);
+        // Style, size and colour: null keeps them (older apps); an empty string clears them.
+        product.StyleName = request.StyleName is null ? product.StyleName : Short(request.StyleName, 120);
+        product.Size = request.Size is null ? product.Size : Short(request.Size, 20);
+        product.Colour = request.Colour is null ? product.Colour : Short(request.Colour, 30);
+        product.BagSize = request.BagSize is { } bag ? (bag is > 0 and <= 100_000 && !product.IsService ? bag : null) : product.BagSize;
+        product.PurchaseUnit = product.BagSize is null ? null : request.PurchaseUnit is { } pu ? (pu == product.Unit || pu == Unit.Bag ? null : pu) : product.PurchaseUnit;
+        // Null keeps it; 0 clears it.
+        product.WeightKg = request.WeightKg is { } kg ? (kg is > 0 and <= 100_000 && !product.IsService ? kg : null) : product.WeightKg;
+        if (request.WholesalePrice is { } wholesale)
+        {
+            (product.WholesalePrice, product.WholesaleMinQty) = wholesale > 0 ? ((decimal?)wholesale, request.WholesaleMinQty) : ((decimal?)null, (decimal?)null);
+        }
+        else if (product.WholesalePrice >= product.SellingPrice)
+        {
+            // The regular price came down to or below it: it is no longer a wholesale price.
+            (product.WholesalePrice, product.WholesaleMinQty) = (null, null);
+        }
+
         await db.SaveChangesAsync(ct);
         return (await FindAsync(id, ct), null);
     }
 
     /// <summary>A purchase (+) or an adjustment (±, with a reason). Idempotent on the app's ID.</summary>
     public async Task<(StockMovementDto? Movement, Dictionary<string, string[]>? Errors, bool NotFound)> AddMovementAsync(
-        StockMovementRequest request, Guid userId, CancellationToken ct)
+        StockMovementRequest request, Guid userId, CancellationToken ct, bool isOwner = true)
     {
         if (await db.StockMovements.AsNoTracking().SingleOrDefaultAsync(m => m.Id == request.Id, ct) is { } existing)
         {
@@ -188,7 +266,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         if (request.Kind == StockMovementKind.Adjustment && request.Reason is null)
         {
-            errors[nameof(request.Reason)] = ["Say why: damage, wastage, count correction, return or other."];
+            errors[nameof(request.Reason)] = ["Say why: damage, wastage, lost, stolen, destroyed, written off, gift, free sample, count correction, return or other."];
         }
 
         if (request.CostPrice is { } cost && !Money.IsValidAmount(cost))
@@ -201,14 +279,27 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             errors[nameof(request.Note)] = ["Keep the note under 200 characters."];
         }
 
+        if (request.Bags is { } bagCount && (Math.Abs(bagCount) > 100_000 || decimal.Round(bagCount, 3) != bagCount || (bagCount != 0 && Math.Sign(bagCount) != Math.Sign(request.Quantity))))
+        {
+            errors["Bags"] = ["Bags go the same way as the weight: in with goods in, out with a reduction."];
+        }
+
         if (errors.Count > 0)
         {
             return (null, errors, false);
         }
 
-        if (!await db.Products.AnyAsync(p => p.Id == request.ProductId, ct))
+        if (await db.Products.AsNoTracking().Where(p => p.Id == request.ProductId).Select(p => new { p.CostPrice, p.SellingPrice }).SingleOrDefaultAsync(ct) is not { } item)
         {
             return (null, null, true);
+        }
+
+        // A helper may change stock by hand only so much either way (valued at cost, or the selling price when no cost
+        // is known); more needs the owner, so stock can't be quietly written off or invented.
+        if (!isOwner && request.Kind == StockMovementKind.Adjustment
+            && Math.Abs(request.Quantity) * (item.CostPrice ?? item.SellingPrice) > await WriteOffLimitAsync(ct))
+        {
+            return (null, new() { ["Quantity"] = [$"Changing stock by more than ₹{await WriteOffLimitAsync(ct):0.##} needs the shop owner."] }, false);
         }
 
         try
@@ -216,10 +307,18 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             var movement = await RecordAsync(request.Id, request.ProductId, request.Kind!.Value, request.Quantity,
                 request.Kind == StockMovementKind.Adjustment ? request.Reason : null, request.CostPrice, request.Note, userId, ct);
+            if (request.Bags is { } bagsMoved and not 0)
+            {
+                movement.Bags = bagsMoved;
+                await db.SaveChangesAsync(ct);
+            }
             if (request.Kind == StockMovementKind.Purchase && request.CostPrice is { } latest)
             {
-                // The latest purchase price becomes the product's cost, for profit estimates.
-                await db.Products.Where(p => p.Id == request.ProductId).ExecuteUpdateAsync(s => s.SetProperty(p => p.CostPrice, latest), ct);
+                // Weighted average with what was already on the shelf, the same rule supplier bills keep.
+                var before = await db.Products.AsNoTracking().Where(p => p.Id == request.ProductId).Select(p => new { p.Stock, p.CostPrice }).SingleAsync(ct);
+                var held = before.Stock - request.Quantity;
+                var averaged = before.CostPrice is { } old && held > 0 ? decimal.Round(((held * old) + (request.Quantity * latest)) / (held + request.Quantity), 2) : latest;
+                await db.Products.Where(p => p.Id == request.ProductId).ExecuteUpdateAsync(s => s.SetProperty(p => p.CostPrice, averaged), ct);
             }
 
             await transaction.CommitAsync(ct);
@@ -237,7 +336,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     /// A stocktake: for each counted item that differs from the books, a count-correction adjustment. Each
     /// adjustment's ID is derived from the stocktake's ID and the product, so sending the same count twice is a no-op.
     /// </summary>
-    public async Task<(StocktakeResult? Result, Dictionary<string, string[]>? Errors)> StocktakeAsync(StocktakeRequest request, Guid userId, CancellationToken ct)
+    public async Task<(StocktakeResult? Result, Dictionary<string, string[]>? Errors)> StocktakeAsync(StocktakeRequest request, Guid userId, CancellationToken ct, bool isOwner = true)
     {
         if (request.Id == Guid.Empty || request.Counts is not { Count: > 0 and <= MaxImportRows })
         {
@@ -253,8 +352,34 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var products = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var adjusted = 0;
         var unchanged = 0;
+        if (await db.Stocktakes.AnyAsync(t => t.Id == request.Id, ct))
+        {
+            return (new StocktakeResult(0, request.Counts.Count), null);
+        }
+
+        var lines = request.Counts.DistinctBy(c => c.ProductId).Where(c => products.ContainsKey(c.ProductId))
+            .Select(c => { var p = products[c.ProductId]; return new StocktakeLine(p.Id, p.Name, p.Stock, c.Counted, c.Counted - p.Stock, p.CostPrice); }).ToList();
+        // A helper's count may move stock only so much either way (at cost, or the selling price when no cost is known).
+        decimal Worth(StocktakeLine l) => l.CostPrice ?? products[l.ProductId].SellingPrice;
+        var lossAtCost = -lines.Where(l => l.Difference < 0).Sum(l => l.Difference * Worth(l));
+        var gainAtCost = lines.Where(l => l.Difference > 0).Sum(l => l.Difference * Worth(l));
+        if (!isOwner && lossAtCost > await WriteOffLimitAsync(ct))
+        {
+            return (null, new() { ["Counts"] = [$"This count writes off ₹{lossAtCost:0.##} at cost, more than a helper may (₹{await WriteOffLimitAsync(ct):0.##}). Ask the shop owner to save it."] });
+        }
+
+        if (!isOwner && gainAtCost > await WriteOffLimitAsync(ct))
+        {
+            return (null, new() { ["Counts"] = [$"This count adds ₹{gainAtCost:0.##} of stock, more than a helper may (₹{await WriteOffLimitAsync(ct):0.##}). Ask the shop owner to save it."] });
+        }
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        db.Stocktakes.Add(new Stocktake
+        {
+            Id = request.Id, Number = (await db.Stocktakes.MaxAsync(t => (int?)t.Number, ct) ?? 0) + 1, TakenAt = clock.GetUtcNow(), CreatedByUserId = userId,
+            Lines = System.Text.Json.JsonSerializer.Serialize(lines), Items = lines.Count, Differences = lines.Count(l => l.Difference != 0),
+            ValueDifference = decimal.Round(lines.Sum(l => l.Difference * (l.CostPrice ?? 0)), 2),
+        });
         foreach (var count in request.Counts.DistinctBy(c => c.ProductId))
         {
             if (!products.TryGetValue(count.ProductId, out var product))
@@ -269,11 +394,13 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
                 continue;
             }
 
-            await RecordAsync(movementId, product.Id, StockMovementKind.Adjustment, count.Counted - product.Stock,
+            var correction = await RecordAsync(movementId, product.Id, StockMovementKind.Adjustment, count.Counted - product.Stock,
                 StockReason.CountCorrection, null, "Stocktake", userId, ct);
+            (correction.RefType, correction.RefId) = ("stocktake", request.Id);
             adjusted++;
         }
 
+        await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return (new StocktakeResult(adjusted, unchanged), null);
     }
@@ -322,6 +449,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var openings = new List<(Guid ProductId, decimal Quantity)>();
+        var categoryCache = new Dictionary<string, Category?>();
         foreach (var row in request.Rows)
         {
             if (!existing.Add(row.Name!.Trim().ToLowerInvariant()))
@@ -331,8 +459,10 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             }
 
             var product = NewProduct(Guid.CreateVersion7(), row.Name, row.Category, row.Unit!.Value, row.SellingPrice ?? 0, row.CostPrice, row.ReorderLevel);
+            await Categories.LinkAsync(db, product, ct, categoryCache);
             product.CatalogueItemId = row.CatalogueItemId ?? product.CatalogueItemId;
             product.MasterItemId = row.MasterItemId;
+            (product.StyleName, product.Size) = (Short(row.StyleName, 120), Short(row.Size, 20));
             product.PackSize = row.PackSize is > 0 ? row.PackSize : null;
             product.PackUnit = product.PackSize is null ? null : row.PackUnit;
             product.GstRate = row.GstRate;
@@ -362,6 +492,37 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     }
 
     /// <summary>Saves a movement and moves the product's stock with it. The caller owns the transaction.</summary>
+    /// <summary>Opens sealed bags to sell loose. Refused when that many sealed bags aren't on hand.</summary>
+    public async Task<string?> OpenBagAsync(Guid productId, OpenBagRequest request, Guid userId, CancellationToken ct)
+    {
+        if (request.Id == Guid.Empty || request.Bags is <= 0 or > 10_000 || decimal.Round(request.Bags, 0) != request.Bags)
+        {
+            return "Open one or more whole bags.";
+        }
+
+        if (await db.StockMovements.AnyAsync(m => m.Id == request.Id, ct))
+        {
+            return null;
+        }
+
+        var sealedBags = await db.StockMovements.Where(m => m.ProductId == productId && m.Bags != null).SumAsync(m => (decimal?)m.Bags, ct) ?? 0;
+        if (sealedBags < request.Bags)
+        {
+            return $"Only {sealedBags:0.##} sealed bags are on hand.";
+        }
+
+        db.StockMovements.Add(new StockMovement
+        {
+            Id = request.Id, ProductId = productId, Kind = StockMovementKind.OpenBag, Quantity = 0, Bags = -request.Bags,
+            Note = "Opened to sell loose", OccurredAt = clock.GetUtcNow(), CreatedByUserId = userId,
+        });
+        await db.SaveChangesAsync(ct);
+        return null;
+    }
+
+    private Task<decimal> WriteOffLimitAsync(CancellationToken ct) =>
+        db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.StaffMaxWriteOff).FirstAsync(ct);
+
     private async Task<StockMovement> RecordAsync(
         Guid id, Guid productId, StockMovementKind kind, decimal quantity, StockReason? reason, decimal? costPrice, string? note,
         Guid userId, CancellationToken ct)
@@ -381,6 +542,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         db.StockMovements.Add(movement);
         await db.SaveChangesAsync(ct);
         await db.Products.Where(p => p.Id == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Stock, p => p.Stock + quantity), ct);
+        if (kind == StockMovementKind.Adjustment)
+        {
+            await Batches.AdjustAsync(db, productId, quantity, ct);
+        }
+
         return movement;
     }
 
@@ -425,6 +591,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         return errors;
     }
+
+    private static string? Short(string? text, int max) => string.IsNullOrWhiteSpace(text) ? null : text.Trim()[..Math.Min(max, text.Trim().Length)];
 
     private static Product NewProduct(Guid id, string name, string? category, Unit unit, decimal price, decimal? cost, decimal? reorderLevel) => new()
     {
@@ -483,16 +651,19 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
     private static readonly System.Linq.Expressions.Expression<Func<Product, ProductDto>> AsDto = p => new ProductDto(
         p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.CostPrice, p.Stock, p.ReorderLevel,
-        !p.IsService && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption,
+        !p.IsService && !p.Uncounted && (p.Stock <= 0 || (p.ReorderLevel != null && p.Stock <= p.ReorderLevel)), p.Reserved, p.CatalogueItemId, p.PackSize, p.PackUnit, p.IsDefaultOption,
         // The shop's own photo, else its master item's (the server serves whichever it is at the same address).
         p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null),
         p.GstRate, p.HsnCode, p.IsService, p.DurationMinutes, p.Schedule, p.UnitsPerPack, p.TracksSerials, p.WarrantyMonths, p.Mrp, p.Barcode,
         p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? MasterPhotos.Representative : null,
-        p.PhotoReports, p.PhotoReportNote);
+        p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn, null, p.BagSize, 0, 0, p.PurchaseUnit, p.WeightKg,
+        p.MasterItem != null ? p.MasterItem.Name : p.CatalogueItem != null ? p.CatalogueItem.NameEn : null,
+        p.MasterItem != null ? p.MasterItem.NameHi : p.CatalogueItem != null ? p.CatalogueItem.Name : null,
+        p.WholesalePrice, p.WholesaleMinQty);
 
-    /// <summary>An MRP only counts when it is above the selling price (otherwise there is nothing "off" to show).</summary>
+    /// <summary>An MRP below the selling price is a typing slip. At the price it stays: it's what stops a bill going above it.</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>
-        mrp is { } m && m > sellingPrice && Money.IsValidAmount(m) ? m : null;
+        mrp is { } m && m >= sellingPrice && Money.IsValidAmount(m) ? m : null;
 
     private static StockMovementDto ToDto(StockMovement m) =>
         new(m.Id, m.ProductId, m.Kind, m.Quantity, m.Reason, m.BillId, m.CostPrice, m.Note, m.OccurredAt);

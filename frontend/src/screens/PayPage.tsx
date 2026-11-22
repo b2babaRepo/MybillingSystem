@@ -23,7 +23,7 @@ export function PayPage({ path }: { path: string }) {
         <>
           <p className="text-muted">{t('payPage.to')}</p>
           <h1 className="text-2xl font-bold">{shop.data.name}</h1>
-          {amount > 0 && <p className="text-4xl font-bold text-teal-800">{formatRupees(amount)}</p>}
+          {amount > 0 && <p className="text-4xl font-bold text-brand-strong">{formatRupees(amount)}</p>}
           <a href={upiUri(shop.data.upiId, shop.data.name, amount, t('payPage.note', { shop: shop.data.name }))}
             className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#15803d] text-lg font-bold text-white">
             {t('payPage.pay')}

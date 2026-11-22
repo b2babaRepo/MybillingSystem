@@ -12,6 +12,164 @@ namespace GroceryKhata.Api.Tests;
 public sealed class OnlineStoreTests(ApiFactory api)
 {
     [Fact]
+    public async Task Carts_and_saved_items_at_two_shops_both_come_back()
+    {
+        var (shopA, authA) = await api.SignUpAsync("Kirana One");
+        var (shopB, authB) = await api.SignUpAsync("Clothes Two");
+        var atta = await CreateProductAsync(shopA, "Atta", "kg", 44m, 10m);
+        var kurta = await CreateProductAsync(shopB, "Kurta", "piece", 699m, 5m);
+        var customer = api.CreateClient();
+        var me = await (await customer.PostJsonAsync("/api/v1/auth/register", new { fullName = "Meera", phone = ApiFactory.NewPhone(), password = "secret123" })).ReadAsync<GroceryKhata.Api.Identity.AuthResponse>();
+        customer.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", me.AccessToken);
+
+        // Each shop's items are read as that shop: two shops in one request must both work.
+        (await customer.PutAsJsonAsync($"/api/v1/me/carts/{authA.ShopId}", new { lines = new[] { new { productId = atta.Id, quantity = 2m } } })).EnsureSuccessStatusCode();
+        (await customer.PutAsJsonAsync($"/api/v1/me/carts/{authB.ShopId}", new { lines = new[] { new { productId = kurta.Id, quantity = 1m } } })).EnsureSuccessStatusCode();
+        var carts = await customer.GetJsonAsync<List<GroceryKhata.Api.Planner.CartDto>>("/api/v1/me/carts");
+        Assert.Equal(["Clothes Two", "Kirana One"], carts.Select(c => c.ShopName).Order().ToArray());
+
+        (await customer.PutAsJsonAsync($"/api/v1/me/saved-items/{authA.ShopId}/{atta.Id}", new { })).EnsureSuccessStatusCode();
+        (await customer.PutAsJsonAsync($"/api/v1/me/saved-items/{authB.ShopId}/{kurta.Id}", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(2, (await customer.GetJsonAsync<List<SavedItemDto>>("/api/v1/me/saved-items")).Count);
+    }
+
+    [Fact]
+    public async Task A_customer_keeps_carts_and_shops_on_the_account_and_cancels_before_packing()
+    {
+        var (shop, auth) = await api.SignUpAsync("Account Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var atta = await CreateProductAsync(shop, "Atta", "kg", 44m, 10m);
+        var dal = await CreateProductAsync(shop, "Dal", "kg", 120m, 10m);
+        var customer = api.CreateClient();
+        var me = await (await customer.PostJsonAsync("/api/v1/auth/register", new { fullName = "Priya", phone = ApiFactory.NewPhone(), password = "secret123" })).ReadAsync<GroceryKhata.Api.Identity.AuthResponse>();
+        customer.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", me.AccessToken);
+
+        // A cart at the shop, priced live; emptying it removes it.
+        (await customer.PutAsJsonAsync($"/api/v1/me/carts/{auth.ShopId}", new { lines = new[] { new { productId = atta.Id, quantity = 2m }, new { productId = dal.Id, quantity = 1m } } })).EnsureSuccessStatusCode();
+        var carts = await customer.GetJsonAsync<List<GroceryKhata.Api.Planner.CartDto>>("/api/v1/me/carts");
+        Assert.Equal(("Account Store", 2, 208m), (carts.Single().ShopName, carts.Single().Items.Count, carts.Single().Total));
+        (await customer.PutAsJsonAsync($"/api/v1/me/carts/{auth.ShopId}", new { lines = Array.Empty<object>() })).EnsureSuccessStatusCode();
+        Assert.Empty(await customer.GetJsonAsync<List<GroceryKhata.Api.Planner.CartDto>>("/api/v1/me/carts"));
+
+        // Saved shops, saved twice is still once.
+        (await customer.PutAsJsonAsync($"/api/v1/me/shops/{auth.ShopId}", new { })).EnsureSuccessStatusCode();
+        (await customer.PutAsJsonAsync($"/api/v1/me/shops/{auth.ShopId}", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(slug, Assert.Single(await customer.GetJsonAsync<List<GroceryKhata.Api.Planner.SavedShopDto>>("/api/v1/me/shops")).Slug);
+
+        // An order the shop hasn't packed: the customer cancels it and the stock it held comes back.
+        var orderId = Guid.CreateVersion7();
+        (await customer.PostJsonAsync($"/api/v1/store/{slug}/orders", new { id = orderId, name = "Priya", phone = ApiFactory.NewPhone(), fulfilment = "pickup", lines = new object[] { new { productId = atta.Id, quantity = 3m } } })).EnsureSuccessStatusCode();
+        Assert.Equal(7m, (await customer.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single(i => i.Id == atta.Id).Available);
+        var mine = Assert.Single(await customer.GetJsonAsync<List<OrderDto>>("/api/v1/me/orders"));
+        Assert.Equal(slug, mine.ShopSlug);
+        (await customer.PostJsonAsync($"/api/v1/me/orders/{orderId}/cancel", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(OrderStatus.Cancelled, Assert.Single(await customer.GetJsonAsync<List<OrderDto>>("/api/v1/me/orders")).Status);
+        Assert.Equal(10m, (await customer.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single(i => i.Id == atta.Id).Available);
+
+        // The first address is the default; another can be made the default.
+        var home = Guid.CreateVersion7();
+        var work = Guid.CreateVersion7();
+        (await customer.PostJsonAsync("/api/v1/addresses", new { id = home, label = "Home", text = "12 MI Road, Jaipur" })).EnsureSuccessStatusCode();
+        (await customer.PostJsonAsync("/api/v1/addresses", new { id = work, label = "Work", text = "5 C-Scheme, Jaipur" })).EnsureSuccessStatusCode();
+        Assert.True((await customer.GetJsonAsync<List<GroceryKhata.Api.Identity.SavedAddressDto>>("/api/v1/addresses")).First().IsDefault);
+        (await customer.PostJsonAsync($"/api/v1/addresses/{work}/default", new { })).EnsureSuccessStatusCode();
+        Assert.Equal(work, (await customer.GetJsonAsync<List<GroceryKhata.Api.Identity.SavedAddressDto>>("/api/v1/addresses")).First().Id);
+    }
+
+    [Fact]
+    public async Task An_item_has_more_photos_shown_in_the_store()
+    {
+        const string png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+        var (shop, auth) = await api.SignUpAsync("Photo Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var kurta = await CreateProductAsync(shop, "Kurta", "piece", 899m, 5m);
+        var ids = new List<Guid>();
+        for (var i = 0; i < 5; i++)
+        {
+            var id = Guid.CreateVersion7();
+            ids.Add(id);
+            (await shop.PostJsonAsync($"/api/v1/products/{kurta.Id}/photos", new { id, dataUrl = png })).EnsureSuccessStatusCode();
+        }
+
+        // Five more is the most; a sixth is refused until one goes.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/products/{kurta.Id}/photos", new { id = Guid.CreateVersion7(), dataUrl = png })).StatusCode);
+        (await shop.DeleteAsync($"/api/v1/products/{kurta.Id}/photos/{ids[0]}")).EnsureSuccessStatusCode();
+
+        var guest = api.CreateClient();
+        var item = (await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single();
+        Assert.Equal(ids.Skip(1), item.ExtraPhotos!);
+        var photo = await guest.GetAsync($"/api/v1/images/{auth.ShopId}/{kurta.Id}/{ids[1]}");
+        Assert.Equal((HttpStatusCode.OK, "image/png"), (photo.StatusCode, photo.Content.Headers.ContentType?.MediaType));
+        Assert.Equal(4, (await shop.GetJsonAsync<GroceryKhata.Api.Catalogue.ProductDto>($"/api/v1/products/{kurta.Id}")).ExtraPhotos!.Count);
+    }
+
+    [Fact]
+    public async Task A_signed_in_customers_store_order_shows_in_their_own_orders()
+    {
+        var (shop, auth) = await api.SignUpAsync("Linked Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var atta = await CreateProductAsync(shop, "Atta", "kg", 44m, 10m);
+        var customer = api.CreateClient();
+        var me = await (await customer.PostJsonAsync("/api/v1/auth/register", new { fullName = "Priya", phone = ApiFactory.NewPhone(), password = "secret123" })).ReadAsync<GroceryKhata.Api.Identity.AuthResponse>();
+        customer.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", me.AccessToken);
+
+        (await customer.PostJsonAsync($"/api/v1/store/{slug}/orders", new
+        {
+            id = Guid.CreateVersion7(), name = "Priya", phone = ApiFactory.NewPhone(), fulfilment = "pickup",
+            lines = new object[] { new { productId = atta.Id, quantity = 2m } },
+        })).EnsureSuccessStatusCode();
+
+        var mine = await customer.GetJsonAsync<List<GroceryKhata.Api.Planner.OrderDto>>("/api/v1/me/orders");
+        Assert.Equal("Linked Store", Assert.Single(mine).ShopName);
+        Assert.Single(mine.Single().Lines);
+    }
+
+    [Fact]
+    public async Task An_order_cannot_take_more_than_is_there_or_an_item_out_today()
+    {
+        var (shop, auth) = await api.SignUpAsync("Limits Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var atta = await CreateProductAsync(shop, "Atta", "kg", 44m, 2m);
+        var guest = api.CreateClient();
+        Task<HttpResponseMessage> Order(decimal quantity) => guest.PostJsonAsync($"/api/v1/store/{slug}/orders", new
+        {
+            id = Guid.CreateVersion7(), name = "Neha", phone = ApiFactory.NewPhone(), fulfilment = "pickup",
+            lines = new object[] { new { productId = atta.Id, quantity } },
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await Order(3m)).StatusCode);
+
+        (await shop.PutAsJsonAsync($"/api/v1/products/{atta.Id}/out-today", new { @out = true })).EnsureSuccessStatusCode();
+        Assert.Equal(0m, (await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single().Available);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Order(1m)).StatusCode);
+
+        (await shop.PutAsJsonAsync($"/api/v1/products/{atta.Id}/out-today", new { @out = false })).EnsureSuccessStatusCode();
+        Assert.Equal(2m, (await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single().Available);
+        Assert.Equal(HttpStatusCode.Created, (await Order(2m)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Order(1m)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Items_the_shop_does_not_count_stay_on_sale_and_are_never_low()
+    {
+        var (shop, auth) = await api.SignUpAsync("Uncounted Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var counted = await CreateProductAsync(shop, "Counted atta", "kg", 44m, 10m);
+        var loose = await CreateProductAsync(shop, "Loose nails", "kg", 90m, 0m);
+        var guest = api.CreateClient();
+        Assert.True((await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single(i => i.Id == loose.Id).Available <= 0);
+
+        (await shop.PostJsonAsync("/api/v1/products/stop-counting-empty", new { })).EnsureSuccessStatusCode();
+
+        var store = await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}");
+        Assert.True(store.Items.Single(i => i.Id == loose.Id).Available > 0);
+        Assert.Equal(10m, store.Items.Single(i => i.Id == counted.Id).Available);
+        var items = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        Assert.Equal((true, false), (items.Single(p => p.Id == loose.Id).Uncounted, items.Single(p => p.Id == loose.Id).IsLow));
+        Assert.False(items.Single(p => p.Id == counted.Id).Uncounted);
+    }
+
+    [Fact]
     public async Task A_guest_orders_online_the_shop_packs_and_delivers_paid_in_full_in_cash()
     {
         var (shop, auth) = await api.SignUpAsync("Sharma Store");
@@ -152,19 +310,19 @@ public sealed class OnlineStoreTests(ApiFactory api)
             .ReadAsync<ProductDto>();
         var dates = await (await shop.PostJsonAsync("/api/v1/products", new { id = Guid.CreateVersion7(), name = "Dates", unit = "packet", sellingPrice = 205m, openingStock = 5m, mrp = 150m }))
             .ReadAsync<ProductDto>();
-        // An MRP at or below the price has nothing "off", so it isn't kept.
+        // An MRP below the price is a slip, so it isn't kept.
         Assert.Equal((850m, (decimal?)null), (anjeer.Mrp!.Value, dates.Mrp));
 
-        var full = "data:image/webp;base64," + Convert.ToBase64String(new byte[] { 0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 5, 6 });
-        var small = "data:image/webp;base64," + Convert.ToBase64String(new byte[] { 0x52, 0x49, 0x46, 0x46 });
+        var full = "data:image/webp;base64," + Convert.ToBase64String(new byte[] { 0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50, 5, 6 });
+        var small = "data:image/webp;base64," + Convert.ToBase64String(new byte[] { 0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50 });
         (await shop.PutAsJsonAsync($"/api/v1/products/{anjeer.Id}/image", new { dataUrl = full, thumbDataUrl = small }, ApiFactory.Json)).EnsureSuccessStatusCode();
         (await shop.PutAsJsonAsync($"/api/v1/products/{dates.Id}/image", new { dataUrl = full }, ApiFactory.Json)).EnsureSuccessStatusCode();
 
         var guest = api.CreateClient();
         async Task<int> Bytes(Guid id, string size) => (await (await guest.GetAsync($"/api/v1/images/{auth.ShopId}/{id}?v=1&size={size}")).Content.ReadAsByteArrayAsync()).Length;
-        Assert.Equal((4, 10), (await Bytes(anjeer.Id, "thumb"), await Bytes(anjeer.Id, "full")));
-        // No small copy yet: the grid gets the full photo instead of nothing.
-        Assert.Equal(10, await Bytes(dates.Id, "thumb"));
+        Assert.Equal((12, 14), (await Bytes(anjeer.Id, "thumb"), await Bytes(anjeer.Id, "full")));
+        // No small copy yet: the grid still gets a picture (made from the full photo), not nothing.
+        Assert.True(await Bytes(dates.Id, "thumb") > 0);
 
         var store = await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}");
         Assert.Equal(850m, store.Items.Single(i => i.Id == anjeer.Id).Mrp!.Value);
@@ -180,5 +338,28 @@ public sealed class OnlineStoreTests(ApiFactory api)
 
         return await (await client.PostJsonAsync("/api/v1/products", new { id = Guid.CreateVersion7(), name, unit, sellingPrice = price, openingStock = stock }))
             .ReadAsync<ProductDto>();
+    }
+
+    [Fact]
+    public async Task The_store_shows_the_sale_offer_and_the_order_keeps_its_price()
+    {
+        var (shop, auth) = await api.SignUpAsync("Sale Store");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var atta = await CreateProductAsync(shop, "Atta", "kg", 50m, 10m);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5)).ToString("yyyy-MM-dd");
+        (await shop.PostJsonAsync("/api/v1/offers", new { id = Guid.CreateVersion7(), name = "Diwali sale", kind = "percent", value = 10m, startsOn = today, endsOn = today, scope = "items", productIds = new[] { atta.Id } })).EnsureSuccessStatusCode();
+
+        var guest = api.CreateClient();
+        var item = (await guest.GetJsonAsync<StoreDto>($"/api/v1/store/{slug}")).Items.Single();
+        Assert.Equal((45m, (decimal?)50m, "Diwali sale"), (item.Price, item.RegularPrice, item.OfferName));
+
+        var placed = await guest.PostJsonAsync($"/api/v1/store/{slug}/orders", new
+        {
+            id = Guid.CreateVersion7(), name = "Neha", phone = ApiFactory.NewPhone(), fulfilment = "pickup",
+            lines = new object[] { new { productId = atta.Id, quantity = 2m } },
+        });
+        Assert.Equal(HttpStatusCode.Created, placed.StatusCode);
+        var order = (await shop.GetJsonAsync<List<System.Text.Json.JsonElement>>("/api/v1/orders?status=placed")).Single();
+        Assert.Equal(45m, order.GetProperty("lines")[0].GetProperty("unitPrice").GetDecimal());
     }
 }

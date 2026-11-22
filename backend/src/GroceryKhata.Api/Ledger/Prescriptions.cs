@@ -162,8 +162,8 @@ public static class Prescriptions
                           join rx in db.BillPrescriptions.AsNoTracking() on b.Id equals rx.BillId
                           where p.Schedule == DrugSchedule.H1 && b.OccurredAt >= startAt && b.OccurredAt < endAt
                           orderby b.OccurredAt, l.LineNo
-                          select new { b.OccurredAt, b.FinancialYear, b.Number, b.CancelledAt, rx, l.Name, l.Quantity, l.Batch }).Take(5000).ToListAsync(ct);
-        return rows.Select(r => new H1RegisterRow(r.OccurredAt, r.Number > 0 ? $"{r.FinancialYear}/{r.Number:D4}" : null, r.rx.PatientName, r.rx.PatientAddress, r.rx.DoctorName,
+                          select new { b.OccurredAt, b.Prefix, b.FinancialYear, b.Number, b.CancelledAt, rx, l.Name, l.Quantity, l.Batch }).Take(5000).ToListAsync(ct);
+        return rows.Select(r => new H1RegisterRow(r.OccurredAt, r.Number > 0 ? Bill.No(r.Prefix, r.FinancialYear, r.Number) : null, r.rx.PatientName, r.rx.PatientAddress, r.rx.DoctorName,
             r.rx.DoctorAddress, r.rx.DoctorRegNo, r.Name, r.Quantity, r.Batch, r.CancelledAt != null)).ToList();
     }
 }

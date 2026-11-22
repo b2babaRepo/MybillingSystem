@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
-import { Button } from '../components/ui'
-import { useOutbox } from '../lib/data'
+import { Button, btn } from '../components/ui'
+import { counterName, setCounterName, useOutbox } from '../lib/data'
+import { useState } from 'react'
 import { formatDateTime } from '../lib/format'
 import { discardFailed, flush, retryFailed } from '../lib/outbox'
 
@@ -11,8 +12,9 @@ export function SyncScreen({ shopId, persistent }: { shopId: string; persistent:
 
   return (
     <div className="space-y-3 p-4">
-      {!persistent && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">{t('storageWarning')}</p>}
-      <div className="rounded-[18px] bg-white p-4">
+      {!persistent && <p className="rounded-xl bg-warn-soft p-3 text-warn">{t('storageWarning')}</p>}
+      <CounterName />
+      <div className="rounded-card bg-white p-4">
         <p className="text-lg font-semibold">
           {state === 'syncing' ? t('syncing') : pending + failed === 0 ? t('allSynced') : t('waiting', { count: pending })}
         </p>
@@ -23,7 +25,7 @@ export function SyncScreen({ shopId, persistent }: { shopId: string; persistent:
           {failed > 0 && <Button tone="plain" onClick={() => void retryFailed(shopId)}>{t('retry')}</Button>}
         </div>
       </div>
-      <ul className="divide-y divide-[#edf2f1] rounded-[18px] bg-white">
+      <ul className="divide-y divide-[#edf2f1] rounded-card bg-white">
         {ops.map((op) => (
           <li key={op.seq} className="flex items-center gap-3 p-3">
             <div className="flex-1">
@@ -36,7 +38,7 @@ export function SyncScreen({ shopId, persistent }: { shopId: string; persistent:
               )}
             </div>
             {op.status === 'failed' && (
-              <button className="text-sm text-due underline" onClick={() => void discardFailed(op.seq!)}>
+              <button className={`min-h-9 text-sm ${btn.dangerOutline}`} onClick={() => void discardFailed(op.seq!)}>
                 {t('discard')}
               </button>
             )}
@@ -44,5 +46,22 @@ export function SyncScreen({ shopId, persistent }: { shopId: string; persistent:
         ))}
       </ul>
     </div>
+  )
+}
+
+/** Names this device as a counter ("Counter 2"): bills made here carry the name. Kept on this device only. */
+function CounterName() {
+  const { t } = useTranslation()
+  const [name, setName] = useState(counterName)
+  const [saved, setSaved] = useState(false)
+  return (
+    <label className="flex flex-col gap-1 rounded-card bg-white p-4 text-sm">
+      <b>{t('counter.label')}</b>
+      <span className="text-muted">{t('counter.hint')}</span>
+      <span className="flex gap-2">
+        <input value={name} maxLength={30} onChange={(e) => { setName(e.target.value); setSaved(false) }} className="h-11 flex-1 rounded-xl border border-line px-3" />
+        <button onClick={() => { setCounterName(name); setSaved(true) }} className={`h-11 px-4 rounded-xl ${btn.solid}`}>{saved ? '✓' : t('counter.save')}</button>
+      </span>
+    </label>
   )
 }

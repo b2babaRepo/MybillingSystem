@@ -56,6 +56,16 @@ public sealed class BillingService(AppDbContext db, Entitlements entitlements, T
         var subscription = await entitlements.FindOrNewAsync(shopId, ct, track: true);
         // Paying early loses nothing: the paid time starts after what's left of the plan or the trial.
         var start = new[] { subscription.PaidUntil ?? now, subscription.TrialEndsAt, now }.Max();
+        // Paid time on another plan keeps its value, not its length: a year of Silver is about half a year of Gold.
+        if (subscription.PlanCode is { } current && current != quote.PlanCode && subscription.PaidUntil is { } paidUntil && paidUntil > now)
+        {
+            var prices = await db.Plans.AsNoTracking().Where(p => p.Code == current || p.Code == quote.PlanCode).ToDictionaryAsync(p => p.Code, p => p.PriceYear1, ct);
+            if (prices.GetValueOrDefault(current) is { } oldPrice && prices.GetValueOrDefault(quote.PlanCode) is { } newPrice)
+            {
+                start = ConvertedEnd(now, paidUntil, oldPrice, newPrice);
+            }
+        }
+
         var end = quote.Term switch
         {
             PlanTerm.Monthly => start.AddMonths(1),
@@ -98,11 +108,16 @@ public sealed class BillingService(AppDbContext db, Entitlements entitlements, T
         return payment;
     }
 
+    /// <summary>When time left at one plan's price runs out at another's.</summary>
+    public static DateTimeOffset ConvertedEnd(DateTimeOffset now, DateTimeOffset paidUntil, decimal oldYearly, decimal newYearly) =>
+        newYearly <= 0 ? paidUntil : now.AddDays((paidUntil - now).TotalDays * (double)(oldYearly / newYearly));
+
     /// <summary>
     /// Refunds a 1- or 3-year payment within the refund window: money back, and the paid period it bought is taken off.
-    /// Monthly payments aren't refunded. Returns an error to show, or null.
+    /// Monthly payments aren't refunded. Returns an error to show, or null. A card or UPI payment made through Razorpay
+    /// is refunded there: its webhook comes here with <paramref name="fromGateway"/>, so the two can't disagree.
     /// </summary>
-    public async Task<string?> RefundAsync(Guid paymentId, CancellationToken ct)
+    public async Task<string?> RefundAsync(Guid paymentId, CancellationToken ct, bool fromGateway = false)
     {
         var payment = await db.SubscriptionPayments.SingleOrDefaultAsync(p => p.Id == paymentId, ct);
         var now = clock.GetUtcNow();
@@ -111,12 +126,17 @@ public sealed class BillingService(AppDbContext db, Entitlements entitlements, T
             return "Payment not found, or already refunded.";
         }
 
-        if (payment.Term == PlanTerm.Monthly)
+        if (payment.Method == PaymentMethod.Gateway && !fromGateway)
+        {
+            return "Refund this in Razorpay. It will update here by itself.";
+        }
+
+        if (payment.Term == PlanTerm.Monthly && !fromGateway)
         {
             return "Monthly payments aren't refunded.";
         }
 
-        if (payment.PaidAt.AddDays(entitlements.Options.RefundDays) < now)
+        if (payment.PaidAt.AddDays(entitlements.Options.RefundDays) < now && !fromGateway)
         {
             return $"Refunds are within {entitlements.Options.RefundDays} days of paying.";
         }
@@ -181,7 +201,14 @@ public sealed class BillingService(AppDbContext db, Entitlements entitlements, T
         var india = now.ToOffset(TimeSpan.FromHours(5.5));
         var startYear = india.Month >= 4 ? india.Year : india.Year - 1;
         var prefix = $"GK/{startYear}-{(startYear + 1) % 100:D2}/";
-        var count = await db.SubscriptionPayments.CountAsync(p => p.InvoiceNo.StartsWith(prefix), ct);
-        return $"{prefix}{count + 1:D4}";
+        // One statement, so two payments at once can't take the same number. The first of a year counts what's already there.
+        var like = prefix + "%";
+        var number = (await db.Database.SqlQuery<int>($"""
+            INSERT INTO invoice_counters (prefix, last_number)
+            VALUES ({prefix}, (SELECT count(*)::int + 1 FROM subscription_payments WHERE invoice_no LIKE {like}))
+            ON CONFLICT (prefix) DO UPDATE SET last_number = invoice_counters.last_number + 1
+            RETURNING last_number AS "Value"
+            """).ToListAsync(ct)).Single();
+        return $"{prefix}{number:D4}";
     }
 }

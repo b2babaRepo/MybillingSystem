@@ -1,7 +1,8 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
@@ -15,8 +16,8 @@ interface Appointment {
 interface Day { date: string; stylists: { id: string; name: string }[]; appointments: Appointment[] }
 
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-const time12 = (t: string) => new Date(`2000-01-01T${t}`).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
-const TONE: Record<Status, string> = { booked: 'border-teal-200 bg-white', arrived: 'border-amber-300 bg-amber-50', done: 'border-line bg-slate-50 text-muted', no_show: 'border-line bg-slate-50 text-muted line-through', cancelled: 'border-line bg-slate-50 text-muted line-through' }
+const time12 = (t: string) => new Date(`2000-01-01T${t}`).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })
+const TONE: Record<Status, string> = { booked: 'border-teal-200 bg-white', arrived: 'border-amber-300 bg-warn-soft', done: 'border-line bg-slate-50 text-muted', no_show: 'border-line bg-slate-50 text-muted line-through', cancelled: 'border-line bg-slate-50 text-muted line-through' }
 
 /** The salon's day: a column for each stylist (and "any stylist"), each appointment by time, from booking to bill. */
 export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopName: string }) {
@@ -55,11 +56,11 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
   }
   const shift = (n: number) => { const d = new Date(`${date}T00:00`); d.setDate(d.getDate() + n); setDate(isoDay(d)) }
   const columns = [...(day?.stylists ?? []).map((s) => ({ id: s.id as string | null, name: s.name })), { id: null, name: t('appointments.anyStylist') }]
-  const reminder = (a: Appointment) => t('appointments.reminder', { name: a.name, shop: shopName, date: new Date(`${a.date}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), time: time12(a.start), services: a.services.map((s) => s.name).join(', ') })
+  const reminder = (a: Appointment) => t('appointments.reminder', { name: a.name, shop: shopName, date: new Date(`${a.date}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }), time: time12(a.start), services: a.services.map((s) => s.name).join(', ') })
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+      <div className="flex items-center justify-between rounded-card bg-white p-2">
         <button onClick={() => shift(-1)} aria-label={t('tables.prev')} className="h-11 w-11 text-xl">‹</button>
         <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label={t('tables.date')} className="h-11 rounded-xl border border-line px-2 font-bold" />
         <button onClick={() => shift(1)} aria-label={t('tables.next')} className="h-11 w-11 text-xl">›</button>
@@ -92,13 +93,13 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
                       <Button className="h-10 px-3 text-sm" tone={a.status === 'arrived' ? 'primary' : 'plain'} onClick={() => void openBill(a)}>{t('appointments.bill')}</Button>
                       {a.status === 'booked' && <button onClick={() => void run(`${a.id}/status`, { status: 'no_show' })} className="h-10 px-2 text-sm font-semibold">{t('appointments.noShow')}</button>}
                       {a.phone && a.status === 'booked' && <a href={whatsAppLink(a.phone, reminder(a))} target="_blank" rel="noreferrer" className="flex h-10 items-center rounded-xl bg-[#15803d] px-3 text-sm font-semibold text-white">{t('tables.remind')}</a>}
-                      <button onClick={async () => { if ((await confirmAsk(t('appointments.cancelConfirm')))) void run(`${a.id}/status`, { status: 'cancelled' }) }} className="h-10 px-2 text-sm font-semibold text-due">{t('cancel')}</button>
+                      <button onClick={async () => { if ((await confirmAsk(t('appointments.cancelConfirm')))) void run(`${a.id}/status`, { status: 'cancelled' }) }} className={`h-10 text-sm ${btn.dangerOutline}`}>{t('cancel')}</button>
                     </div>
                   )}
                   {paying === a.id && (
                     <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-2">
                       {quote && quote.lines.some((l) => l.applied) && (
-                        <div className="col-span-3 rounded-lg bg-teal-50 p-2 text-xs">
+                        <div className="col-span-3 rounded-lg bg-brand-soft p-2 text-xs">
                           {quote.lines.map((l, i) => <div key={i} className="flex justify-between"><span>{l.name}</span><span>{l.price !== l.listPrice ? <><s className="text-muted">{formatRupees(l.listPrice)}</s> </> : null}{formatRupees(l.price)}</span></div>)}
                           <div className="flex justify-between font-bold"><span>{t('total')}</span><span>{formatRupees(quote.total)}</span></div>
                         </div>
@@ -154,7 +155,7 @@ function NewAppointment({ shopId, date, walkIn, stylists, onDone }: { shopId: st
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+    <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <h3 className="font-bold">{t(walkIn ? 'appointments.walkIn' : 'appointments.book')}</h3>
       {!walkIn && <div className="grid grid-cols-2 gap-2"><Field label={t('tables.date')} type="date" value={d.date} onChange={set('date')} /><Field label={t('tables.time')} type="time" value={d.start} onChange={set('start')} /></div>}
       <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('appointments.stylist')}</span>
@@ -169,7 +170,7 @@ function NewAppointment({ shopId, date, walkIn, stylists, onDone }: { shopId: st
       <div className="flex flex-wrap gap-2">
         {services.map((s) => (
           <button key={s.id} type="button" onClick={() => setChosen((c) => (c.includes(s.id) ? c.filter((x) => x !== s.id) : [...c, s.id]))}
-            className={`min-h-11 rounded-full px-3 text-sm font-semibold ${chosen.includes(s.id) ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`}>
+            className={`min-h-11 rounded-full px-3 text-sm font-semibold ${chosen.includes(s.id) ? 'bg-brand text-white' : 'border border-line bg-white'}`}>
             {s.name}{s.sellingPrice > 0 ? ` · ${formatRupees(s.sellingPrice)}` : ''}
           </button>
         ))}

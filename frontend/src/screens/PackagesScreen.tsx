@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +14,7 @@ interface CustomerPlan {
   discountPercent: number | null; expiresOn: string; state: 'active' | 'used' | 'expired' | 'closed'
 }
 
-const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 
 /** Packages and memberships: sell one to a customer, see who is running out, and (owner) set what the salon offers. */
 export function PackagesScreen({ shopId, shopName, isOwner }: { shopId: string; shopName: string; isOwner: boolean }) {
@@ -42,9 +43,9 @@ export function PackagesScreen({ shopId, shopName, isOwner }: { shopId: string; 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('packages.hint')}</p>
-      {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('packages.sell')}</h3>
         <select value={sale.customerId} onChange={(e) => setSale({ ...sale, customerId: e.target.value })} aria-label={t('jobs.customer')} className={select}>
           <option value="">{t('packages.chooseCustomer')}</option>{customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -57,11 +58,11 @@ export function PackagesScreen({ shopId, shopName, isOwner }: { shopId: string; 
         <p className="text-xs text-muted">{t('packages.sellHint')}</p>
       </section>
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('packages.expiring', { count: expiring.length })}</h3>
         {expiring.length === 0 && <p className="text-sm text-muted">{t('packages.noneExpiring')}</p>}
         {expiring.map((p) => (
-          <div key={p.id} className={`rounded-xl p-2 ${p.state === 'expired' ? 'bg-red-50' : 'bg-amber-50'}`}>
+          <div key={p.id} className={`rounded-xl p-2 ${p.state === 'expired' ? 'bg-due-soft' : 'bg-warn-soft'}`}>
             <p className="font-semibold">{p.customerName} · {p.name}</p>
             <p className="text-xs">{p.kind === 'package' ? t('packages.sessionsLeft', { count: p.sessionsLeft }) + ' · ' : ''}{t(p.state === 'expired' ? 'packages.expiredOn' : 'packages.endsOn', { date: day(p.expiresOn) })}</p>
             <div className="mt-1 flex gap-2">
@@ -72,7 +73,7 @@ export function PackagesScreen({ shopId, shopName, isOwner }: { shopId: string; 
         ))}
       </section>
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('packages.offer')}</h3>
         {plans.length === 0 && <p className="text-sm text-muted">{t('packages.noPlans')}</p>}
         {plans.map((p) => <p key={p.id} className="text-sm"><span className="font-semibold">{p.name}</span> · {formatRupees(p.price)} · {describe(p)}</p>)}

@@ -46,7 +46,7 @@ public sealed class ClaudeOrderReader(AnthropicClient client, string model, stri
         });
 
         var used = input.ImageBase64 is not null ? photoModel ?? model : model;
-        GroceryKhata.Api.Common.AiBudget.Take();
+        await GroceryKhata.Api.Common.AiBudget.TakeAsync(ct);
         var response = await client.Messages.Create(new MessageCreateParams
         {
             Model = used,

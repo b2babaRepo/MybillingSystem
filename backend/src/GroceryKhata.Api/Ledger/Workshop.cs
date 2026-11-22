@@ -240,7 +240,7 @@ public static class Workshop
             });
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = request.ProductId, Kind = StockMovementKind.SentToKarigar, Quantity = -request.Quantity, CostPrice = product.CostPrice,
+                RefType = "karigar", RefId = request.Id, ProductId = request.ProductId, Kind = StockMovementKind.SentToKarigar, Quantity = -request.Quantity, CostPrice = product.CostPrice,
                 Note = $"Karigar challan #{number}", OccurredAt = now, CreatedByUserId = user.UserId()!.Value,
             });
             await db.SaveChangesAsync(ct);
@@ -274,7 +274,7 @@ public static class Workshop
             {
                 db.StockMovements.Add(new StockMovement
                 {
-                    ProductId = challan.ProductId, Kind = StockMovementKind.BackFromKarigar, Quantity = request.Quantity, CostPrice = challan.UnitCost,
+                    RefType = "karigar", RefId = challan.Id, ProductId = challan.ProductId, Kind = StockMovementKind.BackFromKarigar, Quantity = request.Quantity, CostPrice = challan.UnitCost,
                     Note = $"Karigar challan #{challan.Number}", OccurredAt = now, CreatedByUserId = user.UserId()!.Value,
                 });
             }

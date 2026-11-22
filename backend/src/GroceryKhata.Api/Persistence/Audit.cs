@@ -11,8 +11,9 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 namespace GroceryKhata.Api.Persistence;
 
 /// <summary>
-/// Who changed what, and when, for records that are edited in place: products (prices!), customers and orders.
-/// Khata entries and stock movements need no entry here: they are append-only and carry who and when themselves.
+/// Who changed what, and when, for records that are edited in place: products (prices!), customers, orders, supplier
+/// bills and their cost, suppliers, shop settings (GSTIN, closed books), staff, kharcha, orders to suppliers, godowns
+/// and bags. Khata entries and stock movements need no entry here: they are append-only and carry who and when themselves.
 /// </summary>
 public sealed class AuditEntry : Entity, ITenantOwned
 {
@@ -20,7 +21,7 @@ public sealed class AuditEntry : Entity, ITenantOwned
 
     public Guid UserId { get; set; }
 
-    /// <summary>"products", "customers" or "orders".</summary>
+    /// <summary>The kind of record: "products", "customers", "supplier_bills", "shop", "books" (month closed or reopened) and so on.</summary>
     public required string Table { get; set; }
 
     public Guid RecordId { get; set; }
@@ -42,10 +43,23 @@ public sealed class AuditInterceptor(ITenantContext tenant) : SaveChangesInterce
         [typeof(Product)] = "products",
         [typeof(Customer)] = "customers",
         [typeof(Order)] = "orders",
+        [typeof(Purchase)] = "supplier_bills",
+        [typeof(PurchaseLine)] = "supplier_bill_lines",
+        [typeof(Supplier)] = "suppliers",
+        [typeof(Shops.Shop)] = "shop",
+        [typeof(Membership)] = "staff",
+        [typeof(Expense)] = "kharcha",
+        [typeof(PurchaseOrder)] = "orders_to_suppliers",
+        [typeof(Godown)] = "godowns",
+        [typeof(BagType)] = "bag_types",
     };
 
-    // Bookkeeping columns, not decisions anyone made.
-    private static readonly HashSet<string> Ignored = [nameof(Entity.UpdatedAt), nameof(Entity.CreatedAt), nameof(Customer.LastRemindedAt)];
+    // Bookkeeping columns, not decisions anyone made, and secrets, which must not be copied into a readable log.
+    private static readonly HashSet<string> Ignored =
+    [
+        nameof(Entity.UpdatedAt), nameof(Entity.CreatedAt), nameof(Customer.LastRemindedAt),
+        nameof(Customer.KhataToken), nameof(Customer.KhataTokenAt), nameof(Customer.ConfirmCodeHash), nameof(Customer.ConfirmCodeAt), nameof(Customer.ConfirmCodeTries),
+    ];
 
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)

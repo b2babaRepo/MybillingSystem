@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
@@ -42,7 +43,13 @@ public static class OrderEndpoints
         // Query strings carry the JSON spelling ("placed"), which enum binding wouldn't accept.
         if (Enum.TryParse<OrderStatus>(status, ignoreCase: true, out var wanted))
         {
-            query = query.Where(o => o.Status == wanted);
+            // The inbox's three tabs: new (accepted ones too, still to pack), packed (ready or on the way too), delivered.
+            query = wanted switch
+            {
+                OrderStatus.Placed => query.Where(o => o.Status == OrderStatus.Placed || o.Status == OrderStatus.Accepted),
+                OrderStatus.Packed => query.Where(o => o.Status == OrderStatus.Packed || o.Status == OrderStatus.ReadyForPickup || o.Status == OrderStatus.OutForDelivery),
+                _ => query.Where(o => o.Status == wanted),
+            };
         }
 
         var orders = await query.OrderByDescending(o => o.CreatedAt).Take(100).ToListAsync(ct);
@@ -55,7 +62,7 @@ public static class OrderEndpoints
             : TypedResults.NotFound();
 
     /// <summary>Sets what was actually packed and its price. Every line must be answered: packed or removed.</summary>
-    private static async Task<IResult> PackAsync(Guid id, PackRequest request, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> PackAsync(Guid id, PackRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, IServiceProvider services, TimeProvider clock, CancellationToken ct)
     {
         var order = await FindAsync(db, tenant, id, ct, tracked: true);
         if (order is null)
@@ -63,15 +70,19 @@ public static class OrderEndpoints
             return TypedResults.NotFound();
         }
 
-        if (order.Status is not (OrderStatus.Placed or OrderStatus.Packed))
+        if (order.Status is not (OrderStatus.Placed or OrderStatus.Accepted or OrderStatus.Packed))
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This order is already delivered or cancelled.");
         }
 
         var answers = (request.Lines ?? []).ToDictionary(l => l.Id);
         // The shop may pack another of its options than the one on the line (another brand, another pack size).
-        var swaps = answers.Values.Where(a => a.ProductId is not null).Select(a => a.ProductId!.Value).ToList();
+        var swaps = answers.Values.Where(a => a.ProductId is not null).Select(a => a.ProductId!.Value)
+            .Concat(order.Lines.Where(l => l.ProductId is not null).Select(l => l.ProductId!.Value)).ToList();
         var options = await db.Products.AsNoTracking().Where(p => swaps.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var isOwner = LedgerEndpoints.IsOwner(user);
+        var maxDiscount = isOwner ? 100m : await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.StaffMaxDiscountPercent).SingleAsync(ct);
+        var movedHolds = new List<(Guid From, Guid To, decimal Quantity)>();
         var errors = new Dictionary<string, string[]>();
         foreach (var line in order.Lines)
         {
@@ -90,6 +101,8 @@ public static class OrderEndpoints
 
             line.Removed = answer.Removed;
             line.ShopNote = string.IsNullOrWhiteSpace(answer.ShopNote) ? null : answer.ShopNote.Trim();
+            // The price the customer saw is theirs to keep; a helper's limit is for a price changed here.
+            var quoted = line.UnitPrice;
             if (!answer.Removed && answer.ProductId is { } swap && swap != line.ProductId)
             {
                 if (!options.TryGetValue(swap, out var option))
@@ -98,6 +111,13 @@ public static class OrderEndpoints
                     continue;
                 }
 
+                // The stock it was holding moves to what is really going out.
+                if (line.ProductId is { } before && line.ReservedQuantity > 0)
+                {
+                    movedHolds.Add((before, option.Id, line.ReservedQuantity));
+                }
+
+                quoted = null;
                 line.ProductId = option.Id;
                 line.Name = option.Name;
                 line.Unit = option.Unit;
@@ -117,6 +137,18 @@ public static class OrderEndpoints
             else if (answer.UnitPrice is not { } price || price < 0 || price > Money.MaxAmount || decimal.Round(price, 2) != price)
             {
                 errors[field] = [$"Enter the price of \"{line.Name}\"."];
+            }
+            else if (line.ProductId is { } packedId && options[packedId] is var packed && (packed.TracksSerials || packed.Schedule is DrugSchedule.H or DrugSchedule.H1 or DrugSchedule.X))
+            {
+                errors[field] = [$"{packed.Name} needs a serial number or prescription: remove it here and make a bill at the counter."];
+            }
+            else if (line.ProductId is { } mrpId && options[mrpId].Mrp is > 0 and var mrp && price > mrp)
+            {
+                errors[field] = [$"{line.Name} has MRP ₹{mrp:0.##}: the price can't be above it."];
+            }
+            else if (!isOwner && price != quoted && line.ProductId is { } pricedId && LedgerService.DiscountProblem(line.Name, options[pricedId], price, maxDiscount) is { } tooLow)
+            {
+                errors[field] = [tooLow];
             }
             else
             {
@@ -146,7 +178,16 @@ public static class OrderEndpoints
         order.FinalAmount = FinalAmount(order);
         order.Status = OrderStatus.Packed;
         order.PackedAt = clock.GetUtcNow();
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        foreach (var (from, to, held) in movedHolds)
+        {
+            await db.Products.Where(p => p.Id == from).ExecuteUpdateAsync(s => s.SetProperty(p => p.Reserved, p => p.Reserved - held), ct);
+            await db.Products.Where(p => p.Id == to).ExecuteUpdateAsync(s => s.SetProperty(p => p.Reserved, p => p.Reserved + held), ct);
+        }
+
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        await OrderUpdates.NotifyAsync(services, db, order, order.Lines.Any(l => l.Approval == LineApproval.Pending) ? "updated" : "packed", ct);
         return TypedResults.Ok((await PlannerEndpoints.WithShopNamesAsync(db, [order], ct))[0]);
     }
 
@@ -156,7 +197,7 @@ public static class OrderEndpoints
     /// </summary>
     private static async Task<IResult> DeliverAsync(
         Guid id, DeliverRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, LedgerService ledger,
-        TimeProvider clock, CancellationToken ct)
+        IServiceProvider services, TimeProvider clock, CancellationToken ct)
     {
         var order = await FindAsync(db, tenant, id, ct, tracked: true);
         if (order is null)
@@ -169,7 +210,7 @@ public static class OrderEndpoints
             return TypedResults.Ok((await PlannerEndpoints.WithShopNamesAsync(db, [order], ct))[0]);
         }
 
-        if (order.Status != OrderStatus.Packed)
+        if (order.Status is not (OrderStatus.Packed or OrderStatus.ReadyForPickup or OrderStatus.OutForDelivery))
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Pack the order before delivering it.");
         }
@@ -184,10 +225,17 @@ public static class OrderEndpoints
 
         var customerId = await db.Customers.Where(c => c.Phone == order.CustomerPhone).OrderBy(c => c.CreatedAt)
             .Select(c => (Guid?)c.Id).FirstOrDefaultAsync(ct);
+        // A business buyer's GSTIN from their profile reaches the shop's record (if it has none), so this bill is a tax invoice in their name.
+        var buyerGstin = order.PlacedByUserId is { } placer ? await db.Users.AsNoTracking().Where(u => u.Id == placer).Select(u => u.Gstin).SingleOrDefaultAsync(ct) : null;
         if (customerId is null)
         {
             var created = await ledger.CreateCustomerAsync(new CustomerRequest(Guid.CreateVersion7(), order.CustomerName, order.CustomerPhone), ct);
             customerId = created.Value?.Id;
+        }
+
+        if (buyerGstin is not null && customerId is { } who)
+        {
+            await db.Customers.Where(c => c.Id == who && c.Gstin == null).ExecuteUpdateAsync(x => x.SetProperty(c => c.Gstin, buyerGstin), ct);
         }
 
         var bill = await ledger.CreateBillAsync(
@@ -195,7 +243,10 @@ public static class OrderEndpoints
                 order.Id,
                 customerId,
                 order.Lines.Where(l => !l.Removed).OrderBy(l => l.LineNo)
-                    .Select(l => new BillLineRequest(l.ProductId, l.Name, l.PackedQuantity!.Value, l.Unit, l.UnitPrice!.Value)).ToList(),
+                    .Select(l => new BillLineRequest(l.ProductId, l.Name, l.PackedQuantity!.Value, l.Unit, l.UnitPrice!.Value, OfferId: l.OfferId))
+                    // The delivery charge the customer saw on the cart: its own line, so the bill shows it plainly.
+                    .Concat(order.DeliveryFee > 0 ? [new BillLineRequest(null, DeliveryChargeLine, 1, Unit.Piece, order.DeliveryFee)] : [])
+                    .ToList(),
                 paid,
                 mode,
                 clock.GetUtcNow()),
@@ -210,16 +261,20 @@ public static class OrderEndpoints
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         order = (await FindAsync(db, tenant, id, ct, tracked: true))!;
         order.BillId = bill.Value.Id;
+        order.PaidAmount = paid;
         order.Status = OrderStatus.Delivered;
         order.DeliveredAt = clock.GetUtcNow();
         // The bill has taken the real stock off the shelf; the hold placed at ordering goes, in the same step.
         await ReleaseReservationsAsync(db, order, ct);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
+        await OrderUpdates.NotifyAsync(services, db, order, "delivered", ct);
         return TypedResults.Ok((await PlannerEndpoints.WithShopNamesAsync(db, [order], ct))[0]);
     }
 
-    private static async Task<IResult> CancelAsync(Guid id, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
+    public const string DeliveryChargeLine = "Delivery charge";
+
+    private static async Task<IResult> CancelAsync(Guid id, AppDbContext db, ITenantContext tenant, IServiceProvider services, TimeProvider clock, CancellationToken ct)
     {
         var order = await FindAsync(db, tenant, id, ct, tracked: true);
         if (order is null)
@@ -240,6 +295,7 @@ public static class OrderEndpoints
             await ReleaseReservationsAsync(db, order, ct);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
+            await OrderUpdates.NotifyAsync(services, db, order, "cancelled", ct);
         }
 
         return TypedResults.Ok((await PlannerEndpoints.WithShopNamesAsync(db, [order], ct))[0]);
@@ -249,7 +305,7 @@ public static class OrderEndpoints
     /// Gives back the stock an order's lines were holding (store orders reserve at checkout). Each line's hold is
     /// zeroed as it is released, so calling this twice for one order releases once.
     /// </summary>
-    private static async Task ReleaseReservationsAsync(AppDbContext db, Order order, CancellationToken ct)
+    internal static async Task ReleaseReservationsAsync(AppDbContext db, Order order, CancellationToken ct)
     {
         foreach (var line in order.Lines.Where(l => l.ProductId is not null && l.ReservedQuantity > 0))
         {
@@ -260,8 +316,9 @@ public static class OrderEndpoints
         }
     }
 
+    /// <summary>The packed items plus the delivery charge fixed at ordering.</summary>
     internal static decimal FinalAmount(Order order) =>
-        order.Lines.Where(l => !l.Removed).Sum(l => Money.LineAmount(l.PackedQuantity!.Value, l.UnitPrice!.Value));
+        order.Lines.Where(l => !l.Removed).Sum(l => Money.LineAmount(l.PackedQuantity!.Value, l.UnitPrice!.Value)) + order.DeliveryFee;
 
     /// <summary>Only this shop's orders: the shop's staff never see what a household sent elsewhere.</summary>
     private static Task<Order?> FindAsync(AppDbContext db, ITenantContext tenant, Guid id, CancellationToken ct, bool tracked)

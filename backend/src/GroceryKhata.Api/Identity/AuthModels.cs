@@ -31,9 +31,9 @@ public sealed record SignUpRequest(string? ShopName, string? FullName, string? P
             errors[nameof(Password)] = [$"Use a password or PIN of at least {MinPasswordLength} characters."];
         }
 
-        if (Language is not (null or "en" or "hi"))
+        if (Language is not (null or "en" or "hi" or "gu" or "hn"))
         {
-            errors[nameof(Language)] = ["Language must be en or hi."];
+            errors[nameof(Language)] = ["Language must be en, hi or gu."];
         }
 
         return errors;

@@ -60,7 +60,7 @@ const UNIT_WORDS: Record<string, Unit> = {
 }
 
 /** Splits one CSV line, honouring "quoted, values". Tabs (pasted from Excel) count as separators too. */
-function splitLine(line: string): string[] {
+export function splitLine(line: string): string[] {
   const cells: string[] = []
   let cell = ''
   let quoted = false

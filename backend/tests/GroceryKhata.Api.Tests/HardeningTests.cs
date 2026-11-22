@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.Json;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
@@ -71,6 +72,228 @@ public sealed class HardeningTests(ApiFactory api)
         Assert.Equal("Shop A", export.GetProperty("shop").GetProperty("name").GetString());
         Assert.Equal(["Only in A"], export.GetProperty("customers").EnumerateArray().Select(c => c.GetProperty("name").GetString()));
         Assert.Equal(250m, export.GetProperty("ledgerEntries")[0].GetProperty("amount").GetDecimal());
+    }
+
+    [Fact]
+    public async Task The_bill_list_shows_each_bills_due_today_with_khata_payments_clearing_the_oldest_first()
+    {
+        var (shop, _) = await api.SignUpAsync("Bill List Store");
+        var ramesh = await KhataTests.CreateCustomerAsync(shop, "Ramesh");
+        async Task<Guid> BillAsync(Guid? customer, decimal total, decimal paid, int daysAgo)
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/bills", new { id, customerId = customer, lines = new[] { new { name = "Atta", quantity = 1m, unitPrice = total } },
+                paidAmount = paid, paymentMode = "cash", occurredAt = DateTimeOffset.UtcNow.AddDays(-daysAgo) })).EnsureSuccessStatusCode();
+            return id;
+        }
+
+        var old = await BillAsync(ramesh, 300m, 0m, 3);       // all on khata, 3 days ago
+        var newer = await BillAsync(ramesh, 500m, 100m, 1);   // ₹400 on khata
+        var walkIn = await BillAsync(null, 200m, 200m, 0);    // paid at the counter
+        var gone = await BillAsync(ramesh, 50m, 0m, 0);
+        (await shop.PostJsonAsync($"/api/v1/bills/{gone}/cancel", new { reason = "Wrong bill" })).EnsureSuccessStatusCode();
+        // Ramesh pays ₹350 on his khata: it clears the old bill (300) and 50 of the newer one.
+        (await shop.PostJsonAsync("/api/v1/khata-entries", new { id = Guid.CreateVersion7(), customerId = ramesh, type = "payment", amount = 350m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+
+        var list = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/bills/list")).RootElement;
+        JsonElement Row(Guid id) => list.GetProperty("bills").EnumerateArray().Single(b => b.GetProperty("id").GetGuid() == id);
+        Assert.Equal("paid", Row(old).GetProperty("status").GetString());
+        Assert.Equal("partial", Row(newer).GetProperty("status").GetString());
+        Assert.Equal(350m, Row(newer).GetProperty("due").GetDecimal());
+        Assert.Equal("paid", Row(walkIn).GetProperty("status").GetString());
+        Assert.Equal("cancelled", Row(gone).GetProperty("status").GetString());
+        Assert.Equal(1000m, list.GetProperty("total").GetDecimal()); // cancelled bill left out
+        Assert.Equal(350m, list.GetProperty("due").GetDecimal());
+        Assert.Equal(650m, list.GetProperty("received").GetDecimal());
+
+        var partial = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/bills/list?status=partial")).RootElement.GetProperty("bills");
+        Assert.Equal(newer, Assert.Single(partial.EnumerateArray()).GetProperty("id").GetGuid());
+    }
+
+    [Fact]
+    public async Task A_bill_prefix_goes_on_new_bills_only_and_the_shops_own_fields_print_on_the_bill()
+    {
+        var (shop, _) = await api.SignUpAsync("Prefix Store");
+        async Task<JsonElement> BillAsync(object? fields = null)
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/bills", new { id, lines = new[] { new { name = "Atta", quantity = 1m, unitPrice = 50m } }, paidAmount = 50m, paymentMode = "cash", fields })).EnsureSuccessStatusCode();
+            return JsonDocument.Parse(await shop.GetStringAsync($"/api/v1/bills/{id}")).RootElement.GetProperty("bill");
+        }
+
+        var before = await BillAsync();
+        Assert.DoesNotContain("PS/", before.GetProperty("billNo").GetString());
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Prefix Store", billPrefix = "ABCD" })).StatusCode);
+        (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Prefix Store", billPrefix = "ps", billFields = new[] { "PO no.", " ", "Site" } })).EnsureSuccessStatusCode();
+        var settings = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop")).RootElement;
+        Assert.Equal("PS", settings.GetProperty("billPrefix").GetString());
+        Assert.Equal(["PO no.", "Site"], settings.GetProperty("billFields").EnumerateArray().Select(f => f.GetString()));
+
+        var after = await BillAsync(new[] { new { label = "PO no.", value = "4471" }, new { label = "Site", value = " " } });
+        var number = after.GetProperty("billNo").GetString()!;
+        Assert.StartsWith("PS/", number);
+        Assert.True(number.Length <= 16);
+        var fields = after.GetProperty("fields").EnumerateArray().ToList();
+        Assert.Single(fields); // the blank one is dropped
+        Assert.Equal("4471", fields[0].GetProperty("value").GetString());
+
+        // The old bill keeps its number; the new one is found by its full number.
+        Assert.Equal(before.GetProperty("billNo").GetString(), JsonDocument.Parse(await shop.GetStringAsync($"/api/v1/bills/{before.GetProperty("id").GetGuid()}")).RootElement.GetProperty("bill").GetProperty("billNo").GetString());
+        var found = JsonDocument.Parse(await shop.GetStringAsync($"/api/v1/bills/find?q={Uri.EscapeDataString(number)}")).RootElement;
+        Assert.Contains(found.EnumerateArray(), b => b.GetProperty("billNo").GetString() == number);
+    }
+
+    [Fact]
+    public async Task A_bill_passcode_guards_cancelling_a_bill_and_needs_the_old_one_to_change()
+    {
+        var (shop, _) = await api.SignUpAsync("Passcode Store");
+        async Task<Guid> NewBillAsync()
+        {
+            var id = Guid.CreateVersion7();
+            (await shop.PostJsonAsync("/api/v1/bills", new { id, lines = new[] { new { name = "Atta", quantity = 1m, unitPrice = 50m } }, paidAmount = 50m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+            return id;
+        }
+
+        // No passcode: cancelling works as before.
+        Assert.True((await shop.PostJsonAsync($"/api/v1/bills/{await NewBillAsync()}/cancel", new { reason = "Wrong item" })).IsSuccessStatusCode);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/shop/bill-passcode", new { passcode = "1234" })).StatusCode);
+        (await shop.PutAsJsonAsync("/api/v1/shop/bill-passcode", new { passcode = "4826" })).EnsureSuccessStatusCode();
+        Assert.True(JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/bill-passcode")).RootElement.GetProperty("set").GetBoolean());
+
+        var bill = await NewBillAsync();
+        var bare = await shop.PostJsonAsync($"/api/v1/bills/{bill}/cancel", new { reason = "Wrong item" });
+        Assert.Equal(HttpStatusCode.Forbidden, bare.StatusCode);
+        Assert.Equal("bill-passcode", JsonDocument.Parse(await bare.Content.ReadAsStringAsync()).RootElement.GetProperty("type").GetString());
+
+        async Task<HttpResponseMessage> CancelWithAsync(string code)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/bills/{bill}/cancel") { Content = JsonContent.Create(new { reason = "Wrong item" }) };
+            request.Headers.Add("X-Bill-Passcode", code);
+            return await shop.SendAsync(request);
+        }
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await CancelWithAsync("1111")).StatusCode);
+        Assert.True((await CancelWithAsync("4826")).IsSuccessStatusCode);
+
+        // Changing or removing it needs the one in use.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/shop/bill-passcode", new { passcode = (string?)null })).StatusCode);
+        (await shop.PutAsJsonAsync("/api/v1/shop/bill-passcode", new { passcode = (string?)null, current = "4826" })).EnsureSuccessStatusCode();
+        Assert.False(JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/bill-passcode")).RootElement.GetProperty("set").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Profit_is_reported_by_customer_bill_and_category_from_each_line_cost()
+    {
+        var (shop, _) = await api.SignUpAsync("Profit Store");
+        var soap = Guid.NewGuid();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = soap, name = "Soap", unit = "piece", sellingPrice = 40m, costPrice = 30m, category = "Toiletries", openingStock = 50m })).EnsureSuccessStatusCode();
+        var ramesh = await KhataTests.CreateCustomerAsync(shop, "Ramesh");
+        // Ramesh: 5 soaps (₹50 profit); a walk-in: 2 soaps (₹20) and a loose item with no cost.
+        (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), customerId = ramesh, lines = new[] { new { productId = soap, name = "Soap", quantity = 5m, unitPrice = 40m } }, paidAmount = 0m })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new object[] { new { productId = soap, name = "Soap", quantity = 2m, unitPrice = 40m }, new { name = "Bag", quantity = 1m, unitPrice = 10m } }, paidAmount = 90m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+
+        var party = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/reports/profit-by?by=party")).RootElement;
+        Assert.Equal(70m, party.GetProperty("profit").GetDecimal());
+        var rows = party.GetProperty("rows").EnumerateArray().ToList();
+        Assert.Equal("Ramesh", rows[0].GetProperty("name").GetString());
+        Assert.Equal(50m, rows[0].GetProperty("profit").GetDecimal());
+        Assert.Equal(10m, rows[1].GetProperty("uncosted").GetDecimal());
+
+        var bills = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/reports/profit-by?by=bill")).RootElement.GetProperty("rows");
+        Assert.Equal(2, bills.GetArrayLength());
+        var category = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/reports/profit-by?by=category")).RootElement.GetProperty("rows")[0];
+        Assert.Equal("Toiletries", category.GetProperty("name").GetString());
+        Assert.Equal(70m, category.GetProperty("profit").GetDecimal());
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.GetAsync("/api/v1/reports/profit-by?by=colour")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Credit_days_give_dues_a_due_date_and_an_overdue_amount_and_old_dues_split_by_age()
+    {
+        var (shop, _) = await api.SignUpAsync("Ageing Store");
+        var customer = await KhataTests.CreateCustomerAsync(shop, "Ramesh");
+        // Udhaar 100 days ago, 45 days ago and today.
+        foreach (var (days, amount) in new[] { (100, 300m), (45, 200m), (0, 50m) })
+        {
+            var entry = new { id = Guid.CreateVersion7(), customerId = customer, type = "credit", amount, occurredAt = DateTimeOffset.UtcNow.AddDays(-days) };
+            Assert.Equal(HttpStatusCode.Created, (await shop.PostJsonAsync("/api/v1/khata-entries", entry)).StatusCode);
+        }
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/customers/{customer}/credit-days", new { creditDays = 400 })).StatusCode);
+        (await shop.PutAsJsonAsync($"/api/v1/customers/{customer}/credit-days", new { creditDays = 30 })).EnsureSuccessStatusCode();
+
+        var dues = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/reports/dues")).RootElement;
+        var ramesh = dues.GetProperty("customers")[0];
+        Assert.Equal(200m, ramesh.GetProperty("days31To60").GetDecimal());
+        Assert.Equal(300m, ramesh.GetProperty("over90").GetDecimal());
+        Assert.Equal(500m, ramesh.GetProperty("overdue").GetDecimal()); // older than 30 days
+        Assert.Equal(30, ramesh.GetProperty("creditDays").GetInt32());
+        // The oldest udhaar (100 days ago) was due 70 days ago.
+        var dueOn = DateOnly.Parse(ramesh.GetProperty("dueOn").GetString()!);
+        Assert.InRange(DateOnly.FromDateTime(DateTime.UtcNow).DayNumber - dueOn.DayNumber, 69, 71);
+        Assert.Equal(500m, dues.GetProperty("overdue").GetDecimal());
+    }
+
+    [Fact]
+    public async Task A_wholesale_price_must_be_below_the_regular_one_and_can_be_cleared()
+    {
+        var (shop, _) = await api.SignUpAsync("Wholesale Store");
+        var soap = Guid.NewGuid();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = soap, name = "Soap", unit = "piece", sellingPrice = 40m, costPrice = 30m })).EnsureSuccessStatusCode();
+        object Update(decimal wholesale, decimal? from) => new { name = "Soap", unit = "piece", sellingPrice = 40m, costPrice = 30m, wholesalePrice = wholesale, wholesaleMinQty = from };
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/products/{soap}", Update(45m, 12m))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/products/{soap}", Update(36m, 1m))).StatusCode);
+
+        var set = JsonDocument.Parse(await (await shop.PutAsJsonAsync($"/api/v1/products/{soap}", Update(36m, 12m))).Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal(36m, set.GetProperty("wholesalePrice").GetDecimal());
+        Assert.Equal(12m, set.GetProperty("wholesaleMinQty").GetDecimal());
+
+        var cleared = JsonDocument.Parse(await (await shop.PutAsJsonAsync($"/api/v1/products/{soap}", Update(0m, null))).Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal(JsonValueKind.Null, cleared.GetProperty("wholesalePrice").ValueKind);
+    }
+
+    [Fact]
+    public async Task The_print_look_is_saved_checked_and_kept_to_its_shop()
+    {
+        var (shop, _) = await api.SignUpAsync("Print Look Store");
+        var (other, _) = await api.SignUpAsync("Other Look Store");
+        const string png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+        var bad = await shop.PutAsJsonAsync("/api/v1/shop/print", new { logo = "not a picture", theme = "neon" });
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, bad.StatusCode);
+
+        var saved = await shop.PutAsJsonAsync("/api/v1/shop/print", new { logo = png, signature = (string?)null, theme = "modern", terms = "No returns" });
+        Assert.True(saved.IsSuccessStatusCode);
+        var mine = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/print")).RootElement;
+        Assert.Equal("modern", mine.GetProperty("theme").GetString());
+        Assert.Equal(png, mine.GetProperty("logo").GetString());
+        Assert.Equal("No returns", mine.GetProperty("terms").GetString());
+
+        var theirs = JsonDocument.Parse(await other.GetStringAsync("/api/v1/shop/print")).RootElement;
+        Assert.Equal("classic", theirs.GetProperty("theme").GetString());
+        Assert.Equal(JsonValueKind.Null, theirs.GetProperty("logo").ValueKind);
+    }
+
+    [Fact]
+    public async Task A_backup_is_marked_as_one_and_records_when_it_was_taken()
+    {
+        var (shop, _) = await api.SignUpAsync("Backup Store");
+        var before = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/backup-status")).RootElement;
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("lastBackupAt").ValueKind);
+        Assert.True(before.GetProperty("empty").GetBoolean());
+
+        await KhataTests.CreateCustomerAsync(shop, "Mohan");
+        var export = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/export")).RootElement;
+        Assert.Equal("grocery-khata-backup", export.GetProperty("format").GetString());
+        Assert.Equal(JsonValueKind.Array, export.GetProperty("suppliers").ValueKind);
+
+        var after = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/shop/backup-status")).RootElement;
+        Assert.NotEqual(JsonValueKind.Null, after.GetProperty("lastBackupAt").ValueKind);
+        Assert.False(after.GetProperty("empty").GetBoolean());
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-using GroceryKhata.Api.Common;
+﻿using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -15,20 +15,30 @@ public sealed record AddPersonRequest(string? Name, string? Phone, ShopRole? Rol
 /// </summary>
 public static class ShopPeople
 {
+    public const int MaxAccountants = 2;
+
     public static async Task<IResult?> CheckAsync(AddPersonRequest request, Guid shopId, AppDbContext db, Billing.Entitlements entitlements, CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
         if (request.Name?.Trim() is not { Length: >= 2 and <= 120 }) errors["Name"] = ["Enter the person's name."];
         if (PhoneNumber.Normalize(request.Phone) is null) errors["Phone"] = ["Enter a 10-digit mobile number."];
-        if (request.Role is null) errors["Role"] = ["Choose owner or helper."];
+        if (request.Role is null) errors["Role"] = ["Choose owner, helper or accountant."];
         if (request.Role == ShopRole.Staff && Pins.Problem(request.Pin) is { } pin) errors["Pin"] = [pin];
         if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(errors);
         }
 
-        var plan = await entitlements.ForShopAsync(shopId, ct);
         var count = await db.Memberships.IgnoreQueryFilters().CountAsync(m => m.ShopId == shopId && m.Role == request.Role && m.IsActive, ct);
+        // A CA only reads: every plan has room for two, apart from owners and helpers.
+        if (request.Role == ShopRole.Accountant)
+        {
+            return count >= MaxAccountants
+                ? TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: $"A shop can give read-only access to {MaxAccountants} accountants. Turn one off to add another.")
+                : null;
+        }
+
+        var plan = await entitlements.ForShopAsync(shopId, ct);
         var (limit, what) = request.Role == ShopRole.Owner ? (plan.MaxOwners, "owners") : (plan.MaxStaff, "helper logins");
         return count >= limit
             ? TypedResults.Problem(statusCode: StatusCodes.Status402PaymentRequired, title: $"The {plan.PlanName} plan has room for {limit} {what}. Move to a bigger plan to add more.")
@@ -63,7 +73,7 @@ public static class ShopPeople
     }
 
     /// <summary>Turns someone's access off or on. The last active owner can't be turned off; signing out follows at once.</summary>
-    public static async Task<IResult> SetActiveAsync(Guid membershipId, bool active, Guid shopId, Guid? actingUserId, AppDbContext db, CancellationToken ct)
+    public static async Task<IResult> SetActiveAsync(Guid membershipId, bool active, Guid shopId, Guid? actingUserId, AppDbContext db, Billing.Entitlements entitlements, CancellationToken ct)
     {
         var membership = await db.Memberships.IgnoreQueryFilters().SingleOrDefaultAsync(m => m.Id == membershipId && m.ShopId == shopId, ct);
         if (membership is null)
@@ -81,6 +91,18 @@ public static class ShopPeople
             if (!await db.Memberships.IgnoreQueryFilters().AnyAsync(m => m.ShopId == shopId && m.Role == ShopRole.Owner && m.IsActive && m.Id != membershipId, ct))
             {
                 return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "A shop needs at least one owner.");
+            }
+        }
+
+        // Coming back counts against the plan like joining does, or off-and-on would beat the limit.
+        if (active && !membership.IsActive)
+        {
+            var plan = await entitlements.ForShopAsync(shopId, ct);
+            var count = await db.Memberships.IgnoreQueryFilters().CountAsync(m => m.ShopId == shopId && m.Role == membership.Role && m.IsActive, ct);
+            var limit = membership.Role switch { ShopRole.Owner => plan.MaxOwners, ShopRole.Accountant => MaxAccountants, _ => plan.MaxStaff };
+            if (count >= limit)
+            {
+                return TypedResults.Problem(statusCode: StatusCodes.Status402PaymentRequired, title: $"The {plan.PlanName} plan has room for {limit}. Turn someone off or move to a bigger plan.");
             }
         }
 

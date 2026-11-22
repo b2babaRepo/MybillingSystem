@@ -15,6 +15,12 @@ public static class AppClaims
     public const string MembershipId = "mid";
     public const string Role = "role";
 
+    /// <summary>
+    /// "true" on a sign-in made with a shop's PIN. A shop owner chooses that PIN, for any number, so it proves nothing about
+    /// the person: it opens that one shop's counter, never their account, other shops or admin rights.
+    /// </summary>
+    public const string PinOnly = "pin";
+
     /// <summary>"true" on a platform admin's tokens; the policy checks the table again on every request.</summary>
     public const string PlatformAdmin = "platform_admin";
 
@@ -25,6 +31,9 @@ public static class AppClaims
 
 public static class AppPolicies
 {
+    /// <summary>Any sign-in, a PIN one included. Only for what isn't personal: everything else refuses a PIN by default.</summary>
+    public const string AnySession = nameof(AnySession);
+
     /// <summary>Signed in with a token for one shop. Every shop endpoint needs this.</summary>
     public const string ShopMember = nameof(ShopMember);
 
@@ -100,6 +109,9 @@ public sealed class AuthOptions
     /// <summary>Requests per minute per IP address on sign-up, sign-in and refresh.</summary>
     public int AuthRequestsPerMinutePerIp { get; set; } = 20;
 
+    /// <summary>SMS codes an hour per IP address: each one costs money, and the daily ceiling is shared by everyone.</summary>
+    public int OtpSendsPerHourPerIp { get; set; } = 10;
+
     /// <summary>Requests per minute per IP address on the public online store (browsing and checkout).</summary>
     public int StoreRequestsPerMinutePerIp { get; set; } = 60;
 }
@@ -108,7 +120,7 @@ public sealed class AuthOptions
 /// What an access token says. <see cref="ShopId"/>, <see cref="MembershipId"/> and <see cref="Role"/>
 /// are all set (a shop token) or all null (a user token, before a shop is picked).
 /// </summary>
-public sealed record AccessTokenSubject(Guid UserId, Guid? ShopId, Guid? MembershipId, ShopRole? Role, bool IsPlatformAdmin = false);
+public sealed record AccessTokenSubject(Guid UserId, Guid? ShopId, Guid? MembershipId, ShopRole? Role, bool IsPlatformAdmin = false, bool PinOnly = false);
 
 public sealed record AccessToken(string Token, DateTimeOffset ExpiresAt);
 
@@ -129,6 +141,11 @@ public sealed class AccessTokenIssuer(IOptions<JwtOptions> options, TimeProvider
             claims.Add(new Claim(AppClaims.ShopId, shopId.ToString()));
             claims.Add(new Claim(AppClaims.MembershipId, membershipId.ToString()));
             claims.Add(new Claim(AppClaims.Role, RoleNames.ToName(role)));
+        }
+
+        if (subject.PinOnly)
+        {
+            claims.Add(new Claim(AppClaims.PinOnly, "true"));
         }
 
         if (subject.IsPlatformAdmin)

@@ -7,12 +7,23 @@ using Microsoft.EntityFrameworkCore;
 namespace GroceryKhata.Api.Planner;
 
 /// <summary>A shop as its online store shows it. <see cref="Phone"/>: the owner's, for "send on WhatsApp".</summary>
-public sealed record StoreDto(string Name, string Slug, string? Area, string? Address, string? Phone, IReadOnlyList<StoreItemDto> Items, Guid ShopId = default);
+public sealed record StoreDto(string Name, string Slug, string? Area, string? Address, string? Phone, IReadOnlyList<StoreItemDto> Items, Guid ShopId = default,
+    StoreSettingsDto? Settings = null, string? UpiId = null, Shops.ShopType? Type = null, IReadOnlyList<StoreRateDto>? Rates = null);
+
+/// <summary>A jewellery shop's selling rate per gram (before GST) for one metal and purity, and when it was set.</summary>
+public sealed record StoreRateDto(string Metal, int Purity, decimal PerGram, DateTimeOffset SetAt);
 
 /// <summary><see cref="Available"/>: on the shelf minus what other online orders hold.</summary>
 public sealed record StoreItemDto(
     Guid Id, string Name, string? Category, Unit Unit, decimal Price, decimal Available, int? CatalogueItemId = null, DateTimeOffset? ImageAt = null,
-    decimal? Mrp = null, decimal? PackSize = null, Unit? PackUnit = null, string? ImageCredit = null);
+    decimal? Mrp = null, decimal? PackSize = null, Unit? PackUnit = null, string? ImageCredit = null,
+    decimal? RegularPrice = null, string? OfferName = null, IReadOnlyList<Guid>? ExtraPhotos = null, DateTimeOffset? AddedAt = null, int? ServiceMinutes = null);
+
+public static class StoreStock
+{
+    /// <summary>What an item the shop doesn't count offers online: more than any one order takes.</summary>
+    public const decimal Uncounted = 9999m;
+}
 
 public sealed record StoreLineRequest(Guid ProductId, decimal Quantity);
 
@@ -24,7 +35,8 @@ public sealed record StoreOrderRequest(
     Fulfilment? Fulfilment,
     string? Slot,
     string? Note,
-    IReadOnlyList<StoreLineRequest>? Lines);
+    IReadOnlyList<StoreLineRequest>? Lines,
+    OrderPayment? Payment = null);
 
 /// <summary>Returned once at checkout: <see cref="StatusToken"/> goes in the customer's order-status link.</summary>
 public sealed record StoreOrderPlaced(OrderDto Order, string StatusToken);
@@ -62,9 +74,10 @@ public static class StoreEndpoints
         return string.IsNullOrWhiteSpace(upi) ? TypedResults.NotFound() : TypedResults.Ok(new StorePayDto(shop.Name, upi));
     }
 
-    private static async Task<IResult> GetStoreAsync(string slug, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    private static async Task<IResult> GetStoreAsync(string slug, AppDbContext db, TenantContext tenant, Billing.Entitlements entitlements, TimeProvider clock, CancellationToken ct)
     {
-        if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop)
+        var today = IndiaTime.Today(clock);
+        if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop || !(await entitlements.ForShopAsync(shop.Id, ct)).Has(Billing.Features.Store))
         {
             return TypedResults.NotFound();
         }
@@ -73,21 +86,48 @@ public static class StoreEndpoints
         var items = await db.Products.AsNoTracking()
             .Where(p => p.IsActive && p.SellingPrice > 0)
             .OrderBy(p => p.Category).ThenBy(p => p.Name)
-            .Select(p => new StoreItemDto(p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.Stock - p.Reserved, p.CatalogueItemId,
+            .Select(p => new StoreItemDto(p.Id, p.Name, p.Category, p.Unit, p.SellingPrice, p.OutOn == today ? 0 : p.Uncounted ? StoreStock.Uncounted : p.Stock - p.Reserved, p.CatalogueItemId,
                 p.ImageAt ?? (p.MasterItem != null ? p.MasterItem.ImageAt : null), p.Mrp, p.PackSize, p.PackUnit,
-                p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? Catalogue.MasterPhotos.Representative : null))
+                p.ImageAt != null ? p.ImageCredit : p.MasterItem != null && p.MasterItem.ImageAt != null ? p.MasterItem.ImageCredit ?? Catalogue.MasterPhotos.Representative : null,
+                null, null, null, p.CreatedAt, p.IsService ? p.DurationMinutes ?? Ledger.Appointments.DefaultMinutes : null))
             .ToListAsync(ct);
         items = items.Select(i => i.CatalogueItemId is null ? i with { CatalogueItemId = Catalogue.CommonCatalogue.Match(i.Name) } : i).ToList();
-        return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items, shop.Id));
+        // The gallery: every photo of an item beyond its main one.
+        var photos = await Catalogue.ProductPhotoEndpoints.IdsAsync(db, null, ct);
+        items = items.Select(i => photos.TryGetValue(i.Id, out var more) ? i with { ExtraPhotos = more } : i).ToList();
+
+        // The shop's running sale offers: the customer sees the offer price, the regular price struck out, and its name.
+        var now = clock.GetUtcNow();
+        var running = await Ledger.SaleOffers.RunningAsync(db, now, ct);
+        if (running.Count > 0)
+        {
+            var onSale = await db.Products.AsNoTracking().Where(p => p.IsActive && p.SellingPrice > 0).ToDictionaryAsync(p => p.Id, ct);
+            items = items.Select(i => onSale.TryGetValue(i.Id, out var product) && Ledger.SaleOffers.Best(running, product, now) is { } best && best.Price < i.Price
+                ? i with { Price = best.Price, RegularPrice = i.Price, OfferName = best.Offer.Name } : i).ToList();
+        }
+
+        var row = await db.Shops.AsNoTracking().SingleAsync(s => s.Id == shop.Id, ct);
+        // A jewellery shop's rates of the day, as customers check them before coming in: 24K, 22K, 18K and silver.
+        IReadOnlyList<StoreRateDto>? rates = null;
+        if (await db.MetalRates.AnyAsync(ct))
+        {
+            var shown = new[] { ("gold", 999), ("gold", 916), ("gold", 750), ("silver", 999) };
+            rates = (await Ledger.JewelleryEndpoints.CurrentRatesAsync(db, clock, ct)).Current
+                .Where(r => shown.Contains((r.Metal, r.Purity)))
+                .Select(r => new StoreRateDto(r.Metal, r.Purity, r.SellPerGram, r.SetAt)).ToList();
+        }
+
+        return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items, shop.Id,
+            OrderUpdates.SettingsOf(row), string.IsNullOrWhiteSpace(row.UpiId) ? null : row.UpiId, row.Type, rates is { Count: > 0 } ? rates : null));
     }
 
     /// <summary>
     /// Guest checkout. Prices come from the catalogue, never from the request. Each line reserves its quantity on
     /// the product, in the same transaction as the order. Idempotent on the app's order ID.
     /// </summary>
-    private static async Task<IResult> PlaceAsync(string slug, StoreOrderRequest request, AppDbContext db, TenantContext tenant, CancellationToken ct)
+    private static async Task<IResult> PlaceAsync(string slug, StoreOrderRequest request, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, TenantContext tenant, Billing.Entitlements entitlements, TimeProvider clock, CancellationToken ct)
     {
-        if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop)
+        if (await OpenShopAsync(db, tenant, slug, ct) is not { } shop || !(await entitlements.ForShopAsync(shop.Id, ct)).Has(Billing.Features.Store))
         {
             return TypedResults.NotFound();
         }
@@ -151,32 +191,74 @@ public static class StoreEndpoints
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = ["Some items are no longer sold. Please refresh the store."] });
         }
 
+        // The store screen limits quantities, but only here is it certain. Services have no stock to run out of.
+        var today = IndiaTime.Today(clock);
+        var unavailable = wanted.Select(w => (Product: products[w.ProductId], w.Quantity))
+            .Where(w => !w.Product.IsService && (w.Product.OutOn == today || (!w.Product.Uncounted && w.Product.Stock - w.Product.Reserved < w.Quantity)))
+            .Select(w => w.Product.Name).ToList();
+        if (unavailable.Count > 0)
+        {
+            return NotEnough(unavailable);
+        }
+
+        // The price the customer saw: a running offer's, when there is one.
+        var running = await Ledger.SaleOffers.RunningAsync(db, clock.GetUtcNow(), ct);
+        var itemTotal = wanted.Sum(w => Money.LineAmount(w.Quantity, Ledger.SaleOffers.Best(running, products[w.ProductId], clock.GetUtcNow())?.Price ?? products[w.ProductId].SellingPrice));
+
+        // The cart showed the minimum and the charge before checkout; here they are made sure of, nothing added on top.
+        var shopRow = await db.Shops.AsNoTracking().SingleAsync(s => s.Id == shop.Id, ct);
+        var settings = OrderUpdates.SettingsOf(shopRow);
+        if (settings.MinOrder is > 0 and var min && itemTotal < min)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = [$"{shop.Name} takes online orders of ₹{min:0.##} or more."] });
+        }
+
+        var fee = OrderUpdates.DeliveryFee(settings, fulfilment, itemTotal);
+        var payment = request.Payment ?? OrderPayment.Cash;
+        if (payment == OrderPayment.Upi && string.IsNullOrWhiteSpace(shopRow.UpiId))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Payment"] = ["This shop has no UPI ID yet. Pay at delivery or pickup."] });
+        }
+
+        // On khata: the order is that khata customer's, under the phone the khata is kept against, so delivery posts it there.
+        var khata = payment == OrderPayment.Khata ? await OrderUpdates.MyKhataAsync(db, user.UserId(), ct) : null;
+        if (payment == OrderPayment.Khata && OrderUpdates.KhataProblem(khata, itemTotal + fee) is { } khataProblem)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Payment"] = [khataProblem] });
+        }
         var token = Secrets.NewRefreshToken();
         var lineNo = 0;
         var order = new Order
         {
             Id = request.Id,
             Source = OrderSource.Store,
+            // A signed-in customer: the order is theirs too, so it shows in their app's orders. A guest stays null.
+            PlacedByUserId = user.UserId(),
             CustomerName = request.Name!.Trim(),
-            CustomerPhone = phone!,
+            CustomerPhone = khata?.Phone ?? phone!,
             ListKind = ListKind.Weekly,
             Fulfilment = fulfilment,
             Address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim(),
             Slot = string.IsNullOrWhiteSpace(request.Slot) ? null : request.Slot.Trim(),
-            Payment = OrderPayment.Cash,
+            Payment = payment,
+            DeliveryFee = fee,
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
             StatusTokenHash = Secrets.Sha256Hex(token),
             Lines = wanted.Select(w =>
             {
                 var product = products[w.ProductId];
+                var best = Ledger.SaleOffers.Best(running, product, clock.GetUtcNow());
                 return new OrderLine
                 {
+                    // Lines carry the customer too: row security lets them read only lines placed by them.
+                    PlacedByUserId = user.UserId(),
                     LineNo = ++lineNo,
                     ProductId = product.Id,
                     Name = product.Name,
                     Quantity = w.Quantity,
                     Unit = product.Unit,
-                    UnitPrice = product.SellingPrice,
+                    UnitPrice = best?.Price ?? product.SellingPrice,
+                    OfferId = best?.Offer.Id,
                     ReservedQuantity = w.Quantity,
                 };
             }).ToList(),
@@ -184,10 +266,17 @@ public static class StoreEndpoints
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         db.Orders.Add(order);
+        UsageEvents.Record(db, UsageKind.OrderPlaced, order.ShopId, order.PlacedByUserId, detail: "store");
         await db.SaveChangesAsync(ct);
         foreach (var (productId, quantity) in wanted)
         {
-            await db.Products.Where(p => p.Id == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Reserved, p => p.Reserved + quantity), ct);
+            // Checked again as it is taken, so two customers can't both get the last one. Leaving here undoes the whole order.
+            var taken = await db.Products.Where(p => p.Id == productId && (p.IsService || p.Uncounted || p.Stock - p.Reserved >= quantity))
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.Reserved, p => p.Reserved + quantity), ct);
+            if (taken == 0)
+            {
+                return NotEnough([products[productId].Name]);
+            }
         }
 
         await transaction.CommitAsync(ct);
@@ -196,6 +285,11 @@ public static class StoreEndpoints
     }
 
     /// <summary>The guest's status page. Needs the token from the link; a wrong or missing one looks like no order.</summary>
+    private static IResult NotEnough(IEnumerable<string> names) => TypedResults.ValidationProblem(new Dictionary<string, string[]>
+    {
+        [nameof(StoreOrderRequest.Lines)] = [$"Not available in that quantity: {string.Join(", ", names)}. Please refresh the store."],
+    });
+
     private static async Task<IResult> GetOrderAsync(string slug, Guid id, string? token, AppDbContext db, TenantContext tenant, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(token) || await OpenShopAsync(db, tenant, slug, ct) is not { } shop)

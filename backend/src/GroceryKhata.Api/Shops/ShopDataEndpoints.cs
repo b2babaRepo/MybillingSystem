@@ -27,40 +27,69 @@ public static class ShopDataEndpoints
     {
         var group = app.MapGroup("/api/v1/shop").WithTags("Shop").RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("/export", ExportAsync);
+        group.MapGet("/backup-status", BackupStatusAsync);
         group.MapPost("/delete", DeleteAsync);
         return app;
     }
 
-    private static async Task<IResult> ExportAsync(AppDbContext db, ITenantContext tenant, TimeProvider clock, ILogger<AppDbContext> logger, CancellationToken ct)
+    /// <summary>What a backup file says it is: the restore screen refuses any other JSON.</summary>
+    public const string BackupFormat = "grocery-khata-backup";
+
+    /// <summary>The audit log's record of each backup download: who and when, so the app can say "last backed up".</summary>
+    public const string BackupTable = "backup";
+
+    /// <summary>
+    /// When the shop last downloaded a backup, and whether it is still empty (no customers, suppliers, items or bills),
+    /// which is the only kind of shop a backup can be restored into.
+    /// </summary>
+    private static async Task<IResult> BackupStatusAsync(AppDbContext db, CancellationToken ct)
+    {
+        var last = await db.AuditEntries.AsNoTracking().Where(a => a.Table == BackupTable).MaxAsync(a => (DateTimeOffset?)a.CreatedAt, ct);
+        var empty = !await db.Customers.AnyAsync(ct) && !await db.Suppliers.AnyAsync(ct) && !await db.Products.AnyAsync(ct) && !await db.Bills.AnyAsync(ct);
+        return TypedResults.Ok(new { lastBackupAt = last, empty });
+    }
+
+    private static async Task<IResult> ExportAsync(ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, ILogger<AppDbContext> logger, CancellationToken ct)
     {
         var shop = await db.Shops.AsNoTracking().SingleAsync(s => s.Id == tenant.ShopId, ct);
+        // What each supplier is owed now: the sum of their account (bills +, payments −).
+        var supplierDue = await db.SupplierEntries.AsNoTracking().GroupBy(e => e.SupplierId).Select(g => new { g.Key, Due = g.Sum(e => e.Amount) }).ToDictionaryAsync(g => g.Key, g => g.Due, ct);
         // Every query below is limited to this shop by the tenant filter (and row-level security).
         var export = new
         {
+            format = BackupFormat,
+            version = 1,
             exportedAt = clock.GetUtcNow(),
             shop = new { shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.CreatedAt },
             products = await db.Products.AsNoTracking().ToListAsync(ct),
             stockMovements = await db.StockMovements.AsNoTracking().OrderBy(m => m.OccurredAt).ToListAsync(ct),
-            customers = await db.Customers.AsNoTracking().ToListAsync(ct),
+            // Named fields, not whole rows: khata links and code hashes are keys, and this file gets passed around.
+            customers = await db.Customers.AsNoTracking().Select(c => new { c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.Gstin, c.Address, c.State, c.LastRemindedAt, c.ReminderConsentAt, c.CreatedAt }).ToListAsync(ct),
             ledgerEntries = await db.LedgerEntries.AsNoTracking().OrderBy(e => e.OccurredAt).ToListAsync(ct),
             bills = await db.Bills.AsNoTracking().Include(b => b.Lines).OrderBy(b => b.OccurredAt).ToListAsync(ct),
             orders = await db.Orders.AsNoTracking().Include(o => o.Lines).Where(o => o.ShopId == tenant.ShopId).OrderBy(o => o.CreatedAt)
                 .Select(o => new { o.Id, o.Source, o.CustomerName, o.CustomerPhone, o.Address, o.Status, o.FinalAmount, o.CreatedAt, o.DeliveredAt, o.Lines })
                 .ToListAsync(ct),
-            auditLog = await db.AuditEntries.AsNoTracking().OrderBy(a => a.CreatedAt).ToListAsync(ct),
+            // Rows from before these were kept out of the log.
+            auditLog = (await db.AuditEntries.AsNoTracking().OrderBy(a => a.CreatedAt).ToListAsync(ct)).Where(a => !a.Changes.Contains("khata_token") && !a.Changes.Contains("confirm_code_hash")).ToList(),
             expenses = await db.Expenses.AsNoTracking().OrderBy(e => e.OccurredAt).ToListAsync(ct),
             cashCounts = await db.CashCounts.AsNoTracking().OrderBy(c => c.Day).ToListAsync(ct),
             challans = await db.Challans.AsNoTracking().OrderBy(c => c.OccurredAt).ToListAsync(ct),
             painters = await db.Painters.AsNoTracking().ToListAsync(ct),
+            suppliers = (await db.Suppliers.AsNoTracking().Where(s => s.IsActive).Select(s => new { s.Id, s.Name, s.Phone, s.Gstin, s.Address, s.PaymentDays }).ToListAsync(ct))
+                .Select(s => new { s.Id, s.Name, s.Phone, s.Gstin, s.Address, s.PaymentDays, Balance = supplierDue.GetValueOrDefault(s.Id) }).ToList(),
         };
+        // Kept in the audit log, so "last backed up" is the same on every phone.
+        db.AuditEntries.Add(new AuditEntry { ShopId = tenant.ShopId, UserId = user.UserId()!.Value, Table = BackupTable, RecordId = tenant.ShopId, Action = "download", Changes = "{}" });
+        await db.SaveChangesAsync(ct);
         logger.LogInformation("Shop {ShopId} exported its data", tenant.ShopId);
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(export, Json));
         return TypedResults.File(bytes, "application/json", $"{shop.Slug}-{IndiaTime.Today(clock):yyyy-MM-dd}.json");
     }
 
     /// <summary>
-    /// Deletes the shop and all its rows, children before parents, in one transaction: all or nothing. People's
-    /// accounts stay (they may own other shops or shop as households); only their access to this shop goes.
+    /// Closes the shop: nobody can open it and its store goes. Its records stay, because GST invoices must be kept for
+    /// years. People's accounts stay too. Support can reopen it.
     /// </summary>
     private static async Task<IResult> DeleteAsync(
         DeleteShopRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, ILogger<AppDbContext> logger, CancellationToken ct)
@@ -74,38 +103,11 @@ public static class ShopDataEndpoints
             });
         }
 
-        var shopId = tenant.ShopId;
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await db.AuditEntries.ExecuteDeleteAsync(ct);
-        await db.Database.ExecuteSqlAsync($"DELETE FROM bill_counters", ct);
-        await db.Expenses.ExecuteDeleteAsync(ct);
-        await db.CashCounts.ExecuteDeleteAsync(ct);
-        await db.Challans.ExecuteDeleteAsync(ct);
-        await db.BalanceChecks.ExecuteDeleteAsync(ct);
-        await db.StockMovements.ExecuteDeleteAsync(ct);
-        await db.OrderLines.Where(l => l.ShopId == shopId).ExecuteDeleteAsync(ct);
-        await db.Orders.Where(o => o.ShopId == shopId).ExecuteDeleteAsync(ct);
-        // Reversals point at the entries they cancel: delete those first.
-        await db.LedgerEntries.Where(e => e.ReversesEntryId != null).ExecuteDeleteAsync(ct);
-        await db.LedgerEntries.ExecuteDeleteAsync(ct);
-        await db.CreditNoteLines.ExecuteDeleteAsync(ct);
-        await db.CreditNotes.ExecuteDeleteAsync(ct);
-        await db.SupplierEntries.ExecuteDeleteAsync(ct);
-        await db.PurchaseLines.ExecuteDeleteAsync(ct);
-        await db.Purchases.ExecuteDeleteAsync(ct);
-        await db.Suppliers.ExecuteDeleteAsync(ct);
-        await db.BillLines.ExecuteDeleteAsync(ct);
-        await db.Bills.ExecuteDeleteAsync(ct);
-        await db.Painters.ExecuteDeleteAsync(ct);
-        await db.Customers.ExecuteDeleteAsync(ct);
-        await db.Products.ExecuteDeleteAsync(ct);
-        var membershipIds = await db.Memberships.Where(m => m.ShopId == shopId).Select(m => m.Id).ToListAsync(ct);
-        await db.RefreshTokens.Where(t => t.MembershipId != null && membershipIds.Contains(t.MembershipId.Value)).ExecuteDeleteAsync(ct);
-        await db.Memberships.Where(m => m.ShopId == shopId).ExecuteDeleteAsync(ct);
-        await db.Shops.Where(s => s.Id == shopId).ExecuteDeleteAsync(ct);
-        await transaction.CommitAsync(ct);
-
-        logger.LogWarning("Shop {ShopId} deleted by its owner {UserId}", shopId, user.UserId());
+        // Closed, not erased: bills are tax records that must be kept, and a mistake can be undone by support.
+        var closing = await db.Shops.SingleAsync(s => s.Id == tenant.ShopId, ct);
+        (closing.IsActive, closing.BlockedReason) = (false, "Closed by its owner.");
+        await db.SaveChangesAsync(ct);
+        logger.LogWarning("Shop {ShopId} was closed by user {UserId}", tenant.ShopId, user.UserId());
         return TypedResults.NoContent();
     }
 }

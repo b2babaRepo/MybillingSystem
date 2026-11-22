@@ -53,10 +53,10 @@ export function ServiceDeskScreen({ shopId }: { shopId: string }) {
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <section className="flex flex-col gap-1 rounded-[18px] bg-white p-3 text-sm">
+      <section className="flex flex-col gap-1 rounded-card bg-white p-3 text-sm">
         <h3 className="font-bold">{t('desk.flagsTitle')}</h3>
         <p className="text-xs text-muted">{t('desk.flagsHint')}</p>
-        {flags.data?.length === 0 && <p className="text-teal-800">✓ {t('desk.allClear')}</p>}
+        {flags.data?.length === 0 && <p className="text-brand-strong">✓ {t('desk.allClear')}</p>}
         {flags.data?.map((f, i) => (
           <div key={i} className="flex justify-between gap-2 border-b border-line py-1.5">
             <span><b>{t(`desk.flag.${f.kind}`)}</b> · {f.text}</span>
@@ -65,10 +65,10 @@ export function ServiceDeskScreen({ shopId }: { shopId: string }) {
         ))}
       </section>
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3 text-sm">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3 text-sm">
         <h3 className="font-bold">{t('desk.priceTitle')}</h3>
         <p className="text-xs text-muted">{t('desk.priceHint')}</p>
-        <label className="flex min-h-12 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-line font-semibold text-teal-700">
+        <label className="flex min-h-12 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-line font-semibold text-brand">
           {busy ? '…' : t('desk.pickPhoto')}
           <input type="file" accept="image/*" capture="environment" onChange={(e) => void read(e)} disabled={busy} className="sr-only" />
         </label>
@@ -88,7 +88,7 @@ export function ServiceDeskScreen({ shopId }: { shopId: string }) {
           </div>
         ))}
         {lines.some((l) => l.use) && <Button onClick={() => void save()}>{t('desk.saveRates', { count: lines.filter((l) => l.use).length })}</Button>}
-        {message && <p className="font-semibold text-teal-900">{message}</p>}
+        {message && <p className="font-semibold text-brand-deep">{message}</p>}
       </section>
     </div>
   )

@@ -117,8 +117,9 @@ public static class AgentPerformance
             foreach (var r in mine.Where(r => r.ShopId != null))
             {
                 var shopPayments = payments.Where(p => p.ShopId == r.ShopId).OrderBy(p => p.PaidAt).ToList();
-                // The first payment is the one confirmed from the sign-up; a refunded one no longer counts.
-                var firstPayment = shopPayments.FirstOrDefault(p => p.Id == r.PaymentId);
+                // The first payment is the one confirmed from the sign-up; a refunded one no longer counts. A pay-later shop has
+                // none confirmed, so its first real payment counts: that is the sale the agent made.
+                var firstPayment = r.PaymentId is null ? shopPayments.FirstOrDefault() : shopPayments.FirstOrDefault(p => p.Id == r.PaymentId);
                 if (firstPayment is not null)
                 {
                     paidAllTime++;
@@ -139,7 +140,7 @@ public static class AgentPerformance
                 }
 
                 // Renewals: every later payment for the shop.
-                foreach (var renewal in shopPayments.Where(p => p.Id != r.PaymentId && (firstPayment is null || p.PaidAt > firstPayment.PaidAt)))
+                foreach (var renewal in shopPayments.Where(p => p.Id != r.PaymentId && p.Id != firstPayment?.Id && (firstPayment is null || p.PaidAt > firstPayment.PaidAt)))
                 {
                     earned += decimal.Round(renewal.Amount * o.RenewalPercent / 100, 2);
                 }
@@ -212,6 +213,9 @@ public static class AgentPerformance
     private static async Task<IResult> PayAsync(
         Guid agentId, PayoutRequest request, ClaimsPrincipal admin, AppDbContext db, TimeProvider clock, IOptions<CommissionOptions> options, CancellationToken ct)
     {
+        // One payout at a time per agent, so two can't both pass the "no more than is due" check.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlAsync($"SELECT 1 FROM field_agents WHERE id = {agentId} FOR UPDATE", ct);
         var now = clock.GetUtcNow();
         var all = await ComputeAsync(db, now, (now.Year, now.Month), options.Value, ct);
         if (all.SingleOrDefault(s => s.Agent.Id == agentId) is not { } stats)
@@ -227,6 +231,7 @@ public static class AgentPerformance
 
         db.AgentPayouts.Add(new AgentPayout { AgentId = agentId, Amount = request.Amount, Reference = request.Reference?.Trim(), PaidByUserId = admin.UserId()!.Value });
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return TypedResults.Ok(await PayoutsAsync(db, agentId, ct));
     }
 

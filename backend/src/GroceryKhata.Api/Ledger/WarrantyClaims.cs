@@ -172,7 +172,7 @@ public static class WarrantyClaims
         {
             db.SupplierEntries.Add(new SupplierEntry
             {
-                SupplierId = claim.SupplierId, Amount = -request.Amount, Note = $"Warranty claim #{claim.Number}{(claim.CreditNoteNo is { } n ? $" · credit note {n}" : "")}",
+                SupplierId = claim.SupplierId, Kind = SupplierEntryKind.CreditNote, Amount = -request.Amount, Note = $"Warranty claim #{claim.Number}{(claim.CreditNoteNo is { } n ? $" · credit note {n}" : "")}",
                 OccurredAt = now, CreatedByUserId = user.UserId()!.Value,
             });
         }

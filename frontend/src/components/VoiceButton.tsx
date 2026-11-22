@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../lib/api'
+import { CustIcon } from './CustIcons'
 
 /** Voice notes stop by themselves here: the speech service is meant for clips under 30 seconds. */
 const MAX_SECONDS = 25
@@ -72,7 +73,7 @@ export function VoiceButton({ onText, onError }: { onText: (text: string) => voi
         recording ? 'animate-pulse bg-red-600 text-white' : 'bg-gradient-to-r from-rose-500 to-orange-400 text-white'
       }`}
     >
-      🎤 {sending ? t('ai.hearing') : recording ? t('ai.stop', { seconds: MAX_SECONDS - seconds }) : t('ai.speak')}
+      <CustIcon name="mic" size={20} /> {sending ? t('ai.hearing') : recording ? t('ai.stop', { seconds: MAX_SECONDS - seconds }) : t('ai.speak')}
     </button>
   )
 }

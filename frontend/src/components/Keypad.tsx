@@ -1,9 +1,30 @@
+import { useEffect, useRef } from 'react'
 import { pressKey } from '../lib/keypad'
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫']
 
-/** A big number pad: faster than the phone keyboard and never covers the buttons. */
-export function Keypad({ value, onChange, maxDecimals = 2 }: { value: string; onChange: (next: string) => void; maxDecimals?: number }) {
+/**
+ * A big number pad: faster than the phone keyboard and never covers the buttons. A computer's keys
+ * work too (digits, point, Backspace), except while a text box has the cursor. On by default; `keyboard={false}` when
+ * two keypads are on screen at once.
+ */
+export function Keypad({ value, onChange, maxDecimals = 2, keyboard = true }: { value: string; onChange: (next: string) => void; maxDecimals?: number; keyboard?: boolean }) {
+  const latest = useRef({ value, onChange })
+  useEffect(() => { latest.current = { value, onChange } })
+  useEffect(() => {
+    if (!keyboard) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return
+      const key = /^[0-9.]$/.test(e.key) ? e.key : e.key === 'Backspace' ? '⌫' : null
+      if (!key) return
+      e.preventDefault()
+      latest.current.onChange(pressKey(latest.current.value, key, maxDecimals))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [keyboard, maxDecimals])
   return (
     <div className="grid grid-cols-3 gap-2">
       {KEYS.map((key) => (

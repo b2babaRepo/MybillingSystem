@@ -99,12 +99,23 @@ public sealed class Order : Entity, IPlacedByUser
 
     public DateTimeOffset? PackedAt { get; set; }
 
+    public DateTimeOffset? AcceptedAt { get; set; }
+
+    /// <summary>When it was put out for pickup, or sent out for delivery.</summary>
+    public DateTimeOffset? ReadyAt { get; set; }
+
+    /// <summary>The shop's delivery charge, fixed when the order is placed and shown on the cart before it: never added later.</summary>
+    public decimal DeliveryFee { get; set; }
+
     public DateTimeOffset? DeliveredAt { get; set; }
 
     public DateTimeOffset? CancelledAt { get; set; }
 
     /// <summary>The bill made at delivery; it posts any unpaid amount to the customer's khata.</summary>
     public Guid? BillId { get; set; }
+
+    /// <summary>What was paid at delivery (the rest went on the khata); null before delivery or for older orders.</summary>
+    public decimal? PaidAmount { get; set; }
 
     public List<OrderLine> Lines { get; set; } = [];
 }
@@ -140,6 +151,9 @@ public sealed class OrderLine : Entity, IPlacedByUser
     public decimal? PackedQuantity { get; set; }
 
     public decimal? UnitPrice { get; set; }
+
+    /// <summary>The shop's sale offer this line was priced under in the online store; it goes onto the bill.</summary>
+    public Guid? OfferId { get; set; }
 
     /// <summary>Out of stock or not wanted: left out of the bill.</summary>
     public bool Removed { get; set; }
@@ -214,4 +228,13 @@ public enum OrderStatus
     Packed,
     Delivered,
     Cancelled,
+
+    /// <summary>The shop has seen it and will pack it: the customer can still add items.</summary>
+    Accepted,
+
+    /// <summary>Packed and waiting at the counter (a pickup order).</summary>
+    ReadyForPickup,
+
+    /// <summary>Packed and on its way (a delivery order).</summary>
+    OutForDelivery,
 }

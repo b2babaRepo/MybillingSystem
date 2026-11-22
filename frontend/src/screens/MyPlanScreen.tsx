@@ -1,3 +1,4 @@
+import { shownLocale } from '../i18n'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,8 +9,8 @@ import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 
 const STATUS_STYLE: Record<string, string> = {
-  trial: 'bg-teal-50 text-teal-900', active: 'bg-emerald-50 text-emerald-900', complimentary: 'bg-violet-50 text-violet-900',
-  grace: 'bg-amber-50 text-amber-900', on_hold: 'bg-red-50 text-red-900', free: 'bg-[#edf2f1] text-ink',
+  trial: 'bg-brand-soft text-brand-deep', active: 'bg-emerald-50 text-emerald-900', complimentary: 'bg-violet-50 text-violet-900',
+  grace: 'bg-warn-soft text-warn-ink', on_hold: 'bg-due-soft text-red-900', free: 'bg-[#edf2f1] text-ink',
 }
 
 /**
@@ -100,7 +101,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
       {welcome && (
         <section className="flex flex-col gap-1">
           <h2 className="text-2xl font-extrabold">{t('plan2.welcomeTitle')}</h2>
-          <button onClick={() => navigate('/')} className="min-h-11 text-left font-semibold text-teal-700 underline">{t('plan2.tryFree')}</button>
+          <button onClick={() => navigate('/')} className="min-h-11 text-left font-semibold text-brand underline">{t('plan2.tryFree')}</button>
         </section>
       )}
 
@@ -112,17 +113,17 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
         {s.daysLeft !== null && <span className="text-sm">{t('plan2.daysLeft', { count: s.daysLeft })}</span>}
         {s.compReason && <span className="text-sm">{s.compReason}</span>}
         {s.holdReason && <span className="text-sm font-semibold">{t('plan2.holdReason', { reason: s.holdReason })}</span>}
-        {s.priceLockUntil && <span className="text-sm">{t('plan2.priceLock', { date: new Date(s.priceLockUntil).toLocaleDateString('en-IN') })}</span>}
+        {s.priceLockUntil && <span className="text-sm">{t('plan2.priceLock', { date: new Date(s.priceLockUntil).toLocaleDateString(shownLocale()) })}</span>}
         <span className="mt-1 text-xs opacity-80">{t('plan2.alwaysFree')}</span>
       </section>
 
       {s.rejectedClaim && (
-        <p className="rounded-[14px] bg-red-50 p-3 text-sm text-red-900">
+        <p className="rounded-[14px] bg-due-soft p-3 text-sm text-red-900">
           {t('plan2.rejected', { amount: formatRupees(s.rejectedClaim.amount), ref: s.rejectedClaim.upiRef, reason: s.rejectedClaim.note ?? '' })}
         </p>
       )}
       {s.pendingClaim && (
-        <p className="rounded-[14px] bg-amber-50 p-3 text-sm text-amber-900">
+        <p className="rounded-[14px] bg-warn-soft p-3 text-sm text-warn-ink">
           {t('plan2.pending', { amount: formatRupees(s.pendingClaim.amount), ref: s.pendingClaim.upiRef })}
         </p>
       )}
@@ -132,7 +133,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
         {offered.map((p) => (
           <button key={p.code} onClick={() => { setPicked(p.code); setQuote(null); remember(p.code, term) }}
             aria-pressed={planCode === p.code}
-            className={`flex flex-col gap-1 rounded-[18px] border-2 bg-white p-4 text-left disabled:opacity-80 ${planCode === p.code ? 'border-teal-700' : 'border-transparent'}`}>
+            className={`flex flex-col gap-1 rounded-card border-2 bg-white p-4 text-left disabled:opacity-80 ${planCode === p.code ? 'border-brand' : 'border-transparent'}`}>
             <span className="flex items-baseline justify-between">
               <span className="text-lg font-extrabold">{p.name}</span>
               <span className="font-bold">{`${formatRupees(p.priceYear1 ?? 0)}/${t('plan2.year')}`}</span>
@@ -149,13 +150,13 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
 
       {/* Period, offer, pay */}
       {chosen && (
-        <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4">
+        <section className="flex flex-col gap-3 rounded-[20px] bg-white p-4 shadow-sm print:shadow-none">
           <div role="radiogroup" aria-label={t('plan2.period')} className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {terms.map((x) => {
               const price = priceFor(chosen, x)
               return price === null ? null : (
                 <button key={x} role="radio" aria-checked={term === x} onClick={() => { setTerm(x); setQuote(null); remember(planCode, x) }}
-                  className={`flex min-h-14 flex-col items-center justify-center rounded-xl text-sm font-semibold ${term === x ? 'bg-teal-700 text-white' : 'border border-line'}`}>
+                  className={`flex min-h-14 flex-col items-center justify-center rounded-xl text-sm font-semibold ${term === x ? 'bg-brand text-white' : 'border border-line'}`}>
                   <span>{t(`plan2.term.${x}`)}</span>
                   <span>{formatRupees(price)}{x === 'year5' ? `/${t('plan2.year')}` : ''}</span>
                 </button>
@@ -167,8 +168,8 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
           <div className="flex gap-2">
             <label className="sr-only" htmlFor="offer-code">{t('plan2.offer')}</label>
             <input id="offer-code" value={offer} onChange={(e) => setOffer(e.target.value.toUpperCase())} placeholder={t('plan2.offer')}
-              className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 uppercase" />
-            <button disabled={busy || !offer.trim()} onClick={() => void applyOffer()} className="h-12 rounded-xl border border-line px-4 font-semibold">{t('plan2.apply')}</button>
+              className="h-12 min-w-0 flex-1 rounded-xl border border-line px-3 uppercase bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
+            <button disabled={busy || !offer.trim()} onClick={() => void applyOffer()} className="h-12 rounded-xl border border-line px-4 font-semibold transition hover:bg-[#f6faf9]">{t('plan2.apply')}</button>
           </div>
 
           <div className="flex items-baseline justify-between text-lg">
@@ -183,12 +184,12 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
             <>
               {s.onlinePay && <Button disabled={busy || amount === null} onClick={() => void payOnline()}>{t('plan2.payOnline')}</Button>}
               {upiLink
-                ? <a href={upiLink} className="flex h-12 items-center justify-center rounded-2xl bg-teal-700 font-bold text-white">{t('plan2.payUpi', { upi: s.payToUpi })}</a>
+                ? <a href={upiLink} className="flex h-12 items-center justify-center rounded-2xl bg-brand font-bold text-white">{t('plan2.payUpi', { upi: s.payToUpi })}</a>
                 : <p className="rounded-xl bg-ground p-3 text-sm">{t('plan2.noUpi')}</p>}
               <label className="flex flex-col gap-1">
                 <span className="text-sm font-semibold">{t('plan2.utr')}</span>
                 <input value={utr} onChange={(e) => setUtr(e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 30))} inputMode="numeric" placeholder="412345678901"
-                  className="h-12 rounded-xl border border-line px-3 text-lg" />
+                  className="h-12 rounded-xl border border-line px-3 text-lg bg-white outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
               </label>
               <Button disabled={busy || utr.length < 6 || !!s.pendingClaim} onClick={() => void claim()}>{t('plan2.sendRef')}</Button>
             </>
@@ -196,10 +197,10 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
         </section>
       )}
 
-      {message && <p className="rounded-[14px] bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+      {message && <p className="rounded-[14px] bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
 
       {/* Bring a shop */}
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
         <h2 className="font-bold">{t('plan2.referTitle', { days: s.referralBonusDays })}</h2>
         <p className="text-sm text-muted">{t('plan2.referHint')}</p>
         <p className="rounded-xl bg-ground p-2 text-center font-mono text-lg font-bold">{s.referralCode}</p>
@@ -208,15 +209,15 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
       </section>
 
       {s.payments.length > 0 && (
-        <section className="rounded-[18px] bg-white p-4">
+        <section className="rounded-card bg-white p-4 shadow-sm">
           <h2 className="mb-2 font-bold">{t('plan2.payments')}</h2>
           <ul className="divide-y divide-[#edf2f1] text-sm">
             {s.payments.map((p) => (
               <li key={p.id} className={`flex justify-between gap-2 py-2 ${p.refundedAt ? 'text-muted line-through' : ''}`}>
-                <span>{p.invoiceNo} · {t(`plan2.term.${p.term}`)} {s.plans.find((x) => x.code === p.planCode)?.name ?? p.planCode}<br /><span className="text-xs text-muted">{new Date(p.paidAt).toLocaleDateString('en-IN')} → {new Date(p.periodEnd).toLocaleDateString('en-IN')}</span></span>
+                <span>{p.invoiceNo} · {t(`plan2.term.${p.term}`)} {s.plans.find((x) => x.code === p.planCode)?.name ?? p.planCode}<br /><span className="text-xs text-muted">{new Date(p.paidAt).toLocaleDateString(shownLocale())} → {new Date(p.periodEnd).toLocaleDateString(shownLocale())}</span></span>
                 <span className="flex flex-col items-end gap-1">
                   <span className="font-bold">{formatRupees(p.amount)}</span>
-                  {p.billToken && <a href={`#/bill/plan/${p.id}?t=${p.billToken}`} className="text-xs font-semibold text-teal-700 underline">{t('planBill.bill')}</a>}
+                  {p.billToken && <a href={`#/bill/plan/${p.id}?t=${p.billToken}`} className="text-xs font-semibold text-brand underline">{t('planBill.bill')}</a>}
                 </span>
               </li>
             ))}

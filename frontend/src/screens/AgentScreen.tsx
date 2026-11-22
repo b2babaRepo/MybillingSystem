@@ -39,7 +39,7 @@ export function AgentScreen({ userName }: { userName: string }) {
   const showForm = !agent || agent.status === 'rejected'
   return (
     <div className="mx-auto min-h-dvh max-w-md pb-10">
-      <header className="sticky top-0 z-10 flex items-center gap-2 bg-teal-800 px-4 py-3 text-white">
+      <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand-strong px-4 py-3 text-white">
         <button onClick={() => navigate('/')} className="-ml-2 flex h-11 w-11 items-center justify-center" aria-label={t('a11y.back')}><BackIcon /></button>
         <h1 className="text-xl font-bold">{t('fieldAgent.title')}</h1>
       </header>
@@ -48,7 +48,7 @@ export function AgentScreen({ userName }: { userName: string }) {
         {me.isLoading && <p className="text-muted">…</p>}
 
         {agent && (
-          <section className={`flex flex-col gap-1 rounded-[20px] p-4 ${agent.status === 'approved' ? 'bg-emerald-50 text-emerald-900' : agent.status === 'applied' ? 'bg-amber-50 text-amber-900' : 'bg-red-50 text-red-900'}`}>
+          <section className={`flex flex-col gap-1 rounded-[20px] p-4 ${agent.status === 'approved' ? 'bg-emerald-50 text-emerald-900' : agent.status === 'applied' ? 'bg-warn-soft text-warn-ink' : 'bg-due-soft text-red-900'}`}>
             <span className="text-sm font-semibold">{t(`fieldAgent.status.${agent.status}`)}</span>
             {agent.code && <span className="font-mono text-3xl font-extrabold">{agent.code}</span>}
             <span>{agent.fullName} · {agent.market}</span>
@@ -78,7 +78,7 @@ export function AgentScreen({ userName }: { userName: string }) {
               <input type="checkbox" checked={form.acceptAgreement} onChange={(e) => setForm({ ...form, acceptAgreement: e.target.checked })} className="mt-0.5 h-5 w-5 shrink-0" />
               <span>{t('fieldAgent.agreement')}</span>
             </label>
-            {error && <p className="rounded-lg bg-red-50 p-3 text-due">{error}</p>}
+            {error && <p className="rounded-lg bg-due-soft p-3 text-due">{error}</p>}
             <Button disabled={busy || !aadhaarOk || !form.acceptAgreement || form.address.trim().length < 5 || form.market.trim().length < 2} onClick={() => void apply()}>
               {agent?.status === 'rejected' ? t('fieldAgent.applyAgain') : t('fieldAgent.apply')}
             </Button>

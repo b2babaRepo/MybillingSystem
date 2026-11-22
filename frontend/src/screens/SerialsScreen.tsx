@@ -1,31 +1,20 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
+import type { Serial } from '../lib/serials'
 import { navigate } from '../router'
 
-export interface Serial {
-  id: string; productId: string; productName: string; serialNo: string; status: 'in_stock' | 'sold'; receivedOn: string; billNo: string | null
-  customerName: string | null; soldOn: string | null; warrantyUntil: string | null; inWarranty: boolean; warrantyRegistered: boolean
-}
-
-const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-
-/** In-stock serials of one item, for the bill's picker. */
-export function useSerialsInStock(shopId: string, productId: string | null) {
-  return useQuery({
-    queryKey: [shopId, 'serials', productId, 'in_stock'], enabled: !!productId,
-    queryFn: () => api<Serial[]>(`/v1/serials?productId=${productId}&status=in_stock`),
-  }).data ?? []
-}
+const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 
 /** On a sales & service shop's home. */
 export function ServiceHomeCard({ isOwner }: { isOwner: boolean }) {
   const { t } = useTranslation()
   const link = (path: string, label: string) => (
-    <button onClick={() => navigate(path)} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-[18px] bg-white px-4 text-left font-semibold">
+    <button onClick={() => navigate(path)} className="mx-4 mt-3 flex min-h-12 w-[calc(100%-2rem)] items-center justify-between rounded-card bg-white px-4 text-left font-semibold">
       <span>{label}</span><span aria-hidden="true">→</span>
     </button>
   )
@@ -61,18 +50,18 @@ export function SerialsScreen({ shopId }: { shopId: string }) {
     <div key={s.id} className="flex flex-col gap-1 border-b border-line py-2 text-sm">
       <p className="flex justify-between gap-2"><b>{s.serialNo}</b><span>{s.productName}</span></p>
       {s.status === 'in_stock'
-        ? <p className="text-teal-800">{t('serials.inStock', { date: day(s.receivedOn) })}</p>
+        ? <p className="text-brand-strong">{t('serials.inStock', { date: day(s.receivedOn) })}</p>
         : <p>{t('serials.sold', { date: s.soldOn ? day(s.soldOn) : '', bill: s.billNo ?? '', customer: s.customerName ?? t('walkIn') })}</p>}
-      {s.warrantyUntil && <p className={s.inWarranty ? 'text-teal-800' : 'text-due'}>{t(s.inWarranty ? 'serials.warrantyTill' : 'serials.warrantyOver', { date: day(s.warrantyUntil) })}</p>}
+      {s.warrantyUntil && <p className={s.inWarranty ? 'text-brand-strong' : 'text-due'}>{t(s.inWarranty ? 'serials.warrantyTill' : 'serials.warrantyOver', { date: day(s.warrantyUntil) })}</p>}
       {s.status === 'sold' && (s.warrantyRegistered
-        ? <p className="text-xs text-teal-800">✓ {t('serials.registered')}</p>
+        ? <p className="text-xs text-brand-strong">✓ {t('serials.registered')}</p>
         : <Button tone="plain" className="h-9 self-start px-3 text-xs" onClick={() => void run(() => api(`/v1/serials/${s.id}/registered`, 'POST', {}), t('saved'))}>{t('serials.markRegistered')}</Button>)}
     </div>
   )
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('serials.lookupTitle')}</h3>
         <div className="grid grid-cols-[1fr_auto] items-end gap-2">
           <Field label={t('serials.serial')} value={find} onChange={(e) => setFind(e.target.value)} />
@@ -82,7 +71,7 @@ export function SerialsScreen({ shopId }: { shopId: string }) {
         {found?.map(row)}
       </section>
 
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <h3 className="font-bold">{t('serials.receiveTitle')}</h3>
         <p className="text-xs text-muted">{t('serials.receiveHint')}</p>
         <select value={productId} onChange={(e) => setProductId(e.target.value)} aria-label={t('serials.item')} className="h-12 w-full rounded-xl border border-line bg-white px-3">
@@ -95,7 +84,7 @@ export function SerialsScreen({ shopId }: { shopId: string }) {
           setText('')
           setMessage(t('serials.added', { added: r.added, skipped: r.skipped }))
         }, '')}>{t('serials.save', { count: serials.length })}</Button>
-        {message && <p className="text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
         {productId && list.map(row)}
       </section>
     </div>

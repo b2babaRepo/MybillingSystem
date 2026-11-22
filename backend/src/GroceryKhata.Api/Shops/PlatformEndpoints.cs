@@ -53,6 +53,13 @@ public sealed class PlatformAdminHandler(AppDbContext db) : AuthorizationHandler
 {
     protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PlatformAdminRequirement requirement)
     {
+        // A shop's PIN says nothing about who this is.
+        if (context.User.HasClaim(claim => claim.Type == AppClaims.PinOnly))
+        {
+            return;
+        }
+
+
         if (context.User.FindFirst(AppClaims.PlatformAdmin)?.Value != "true" || context.User.UserId() is not { } userId)
         {
             return;
@@ -122,8 +129,8 @@ public static class PlatformEndpoints
                 : Results.NotFound());
         group.MapPost("/shops", CreateShopAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
         group.MapPost("/shops/{id:guid}/people", AddPersonAsync).RequireAuthorization(AppPolicies.PlatformOpenShop);
-        group.MapPost("/shops/{id:guid}/people/{membershipId:guid}/active", (Guid id, Guid membershipId, bool active, ClaimsPrincipal admin, AppDbContext db, CancellationToken ct) =>
-            ShopPeople.SetActiveAsync(membershipId, active, id, admin.UserId(), db, ct)).RequireAuthorization(AppPolicies.PlatformOpenShop);
+        group.MapPost("/shops/{id:guid}/people/{membershipId:guid}/active", (Guid id, Guid membershipId, bool active, ClaimsPrincipal admin, AppDbContext db, Billing.Entitlements entitlements, CancellationToken ct) =>
+            ShopPeople.SetActiveAsync(membershipId, active, id, admin.UserId(), db, entitlements, ct)).RequireAuthorization(AppPolicies.PlatformOpenShop);
         group.MapPost("/shops/{id:guid}/approve", ApproveAsync).RequireAuthorization(AppPolicies.PlatformApprover);
         group.MapPost("/shops/{id:guid}/block", BlockAsync).RequireAuthorization(AppPolicies.PlatformApprover);
         group.MapPost("/shops/{id:guid}/unblock", UnblockAsync).RequireAuthorization(AppPolicies.PlatformApprover);
@@ -156,12 +163,14 @@ public static class PlatformEndpoints
         if (request.MarketId is { } marketId && !await db.Markets.AnyAsync(m => m.Id == marketId, ct)) errors["MarketId"] = ["Choose a market from the list."];
         if (request.Latitude is not null != request.Longitude is not null || request.Latitude is < -90 or > 90 || request.Longitude is < -180 or > 180) errors["Latitude"] = ["The location isn't valid."];
         var gstin = string.IsNullOrWhiteSpace(request.Gstin) ? null : request.Gstin.Trim().ToUpperInvariant();
-        if (gstin is not null && (gstin.Length != 15 || !gstin.All(char.IsAsciiLetterOrDigit))) errors["Gstin"] = ["A GSTIN has 15 letters and digits."];
+        if (gstin is not null && !Ledger.GstExport.IsValidGstin(gstin)) errors["Gstin"] = ["This GSTIN isn't valid: check each letter and digit (the last one is a check digit)."];
         var shopNo = request.ShopNo?.Trim();
         if (shopNo?.Length > 30) errors["ShopNo"] = ["Keep the shop number short."];
         var shopId = Guid.CreateVersion7();
         var photo = Markets.ParsePhoto(shopId, request.PhotoDataUrl);
         if (request.PhotoDataUrl is not null && photo is null) errors["PhotoDataUrl"] = ["Send a JPEG or WebP photo under 150 KB."];
+        // Nothing proves who opened an unproved account, and the shop would become theirs. The same rule as making an admin.
+        if (user is { PhoneVerifiedAt: null }) errors["Phone"] = ["This number hasn't been proved yet. Ask the owner to sign in once with an SMS code, then open the shop."];
         if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(errors);

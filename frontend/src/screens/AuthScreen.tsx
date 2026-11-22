@@ -2,7 +2,7 @@ import { SHOP_TYPES } from '../lib/reports'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { navigate, usePath } from '../router'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { ApiError, authenticate, readProblem, request } from '../lib/api'
 import type { AuthResponse } from '../lib/types'
 
@@ -71,8 +71,15 @@ export function AuthScreen() {
   const agentPath = usePath() === '/agent'
 
   return (
+    <div className="min-h-dvh bg-gradient-to-b from-teal-700 via-teal-700 to-ground to-[42%]">
     <form onSubmit={submit} className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-4">
-      <h1 className="text-center text-3xl font-bold text-teal-800">{t('appName')}</h1>
+      {/* A branded top: the app's mark, name and what it does. */}
+      <div className="flex flex-col items-center gap-2 pb-2 text-center text-white">
+        <span aria-hidden className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white/15 text-4xl shadow-lg ring-1 ring-white/25 backdrop-blur">📒</span>
+        <h1 className="text-3xl font-extrabold tracking-tight">{t('appName')}</h1>
+        <p className="text-[15px] text-white/85">{t('authTagline')}</p>
+      </div>
+      <div className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-[0_12px_40px_rgba(16,32,29,0.16)]">
       {preset && mode === 'sign-up' && <p className="text-center text-lg font-semibold">{t(preset === 'beauty' ? 'salon.signUpTitle' : preset === 'dairy' ? 'dairy.signUpTitle' : preset === 'sales_service' ? 'serials.signUpTitle' : 'medical.signUpTitle')}</p>}
       {mode === 'sign-up' && (
         <>
@@ -84,8 +91,9 @@ export function AuthScreen() {
                 role="radio"
                 aria-checked={role === r}
                 onClick={() => setRole(r)}
-                className={`min-h-14 rounded-2xl px-2 font-semibold ${role === r ? 'border-2 border-teal-700 bg-teal-50 text-teal-800' : 'border border-line bg-white'}`}
+                className={`flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl px-2 font-semibold transition ${role === r ? 'border-2 border-brand bg-brand-soft text-brand-strong shadow-sm' : 'border border-line bg-white hover:bg-[#f6faf9]'}`}
               >
+                <span aria-hidden className="text-2xl">{r === 'home' ? '🏠' : '🏪'}</span>
                 {r === 'home' ? t('plan.iAmHome') : t('plan.iAmShop')}
               </button>
             ))}
@@ -95,7 +103,7 @@ export function AuthScreen() {
           {role === 'shop' && !preset && (
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-muted">{t('shopType.label')}</span>
-              <select value={form.type} onChange={set('type')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg">
+              <select value={form.type} onChange={set('type')} className="h-12 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10">
                 {SHOP_TYPES.map((type) => <option key={type} value={type}>{t(`shopType.${type}`)}</option>)}
               </select>
             </label>
@@ -109,7 +117,7 @@ export function AuthScreen() {
           required inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={6} />
       )}
       {useOtp && otpStep === 'name' && <Field label={t('yourName')} value={form.fullName} onChange={set('fullName')} required autoComplete="name" />}
-      {info && !error && <p className="rounded-lg bg-teal-50 p-3 text-teal-900">{info}</p>}
+      {info && !error && <p className="rounded-lg bg-brand-soft p-3 text-brand-deep">{info}</p>}
       {!useOtp && <Field
         label={t('password')}
         value={form.password}
@@ -120,26 +128,28 @@ export function AuthScreen() {
         minLength={mode === 'sign-in' ? 4 : 6}
         autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
       />}
-      {error && <p className="rounded-lg bg-red-50 p-3 text-due">{error}</p>}
-      <Button type="submit" disabled={busy}>
+      {error && <p className="rounded-lg bg-due-soft p-3 text-due">{error}</p>}
+      <Button type="submit" disabled={busy} className="h-14">
         {useOtp ? (otpStep === 'phone' ? t('otp.send') : t('signIn')) : mode === 'sign-in' ? t('signIn') : role === 'shop' ? t('signUp') : t('plan.register')}
       </Button>
       {useOtp && otpStep !== 'phone' && (
-        <button type="button" disabled={busy} className="text-teal-700 underline" onClick={() => { setError(''); void sendCode().catch((err: Error) => setError(err.message)) }}>{t('otp.resend')}</button>
+        <button type="button" disabled={busy} className="text-brand underline" onClick={() => { setError(''); void sendCode().catch((err: Error) => setError(err.message)) }}>{t('otp.resend')}</button>
       )}
       {mode === 'sign-in' && (
-        <button type="button" className="text-teal-700 underline" onClick={() => { setMethod(method === 'otp' ? 'password' : 'otp'); setError(''); setInfo('') }}>
+        <button type="button" className="min-h-10 text-sm font-semibold text-brand underline" onClick={() => { setMethod(method === 'otp' ? 'password' : 'otp'); setError(''); setInfo('') }}>
           {method === 'otp' ? t('otp.usePassword') : t('otp.useCode')}
         </button>
       )}
-      <button type="button" className="text-teal-700 underline" onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
+      </div>
+      <button type="button" className={`min-h-12 rounded-xl ${btn.outline}`} onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
         {mode === 'sign-in' ? t('newShop') : t('haveAccount')}
       </button>
       {/* Field agents sign in (or register as a person) first; the app then opens their application. */}
       {agentPath
-        ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t('fieldAgent.signInFirst')}</p>
+        ? <p className="rounded-lg bg-warn-soft p-3 text-sm text-warn-ink">{t('fieldAgent.signInFirst')}</p>
         : <button type="button" className="text-sm text-muted underline" onClick={() => { navigate('/agent'); setMode('sign-up'); setRole('home') }}>{t('fieldAgent.join')}</button>}
     </form>
+    </div>
   )
 }
 
@@ -173,7 +183,7 @@ export function BlockedShopsNotice({ session }: { session: AuthResponse }) {
   const { t } = useTranslation()
   if (!session.blockedShops?.length) return null
   return (
-    <div role="alert" className="mx-4 mt-3 flex flex-col gap-1 rounded-2xl bg-red-50 p-4 text-red-900">
+    <div role="alert" className="mx-4 mt-3 flex flex-col gap-1 rounded-2xl bg-due-soft p-4 text-red-900">
       {session.blockedShops.map((b) => (
         <p key={b.shopName}><b>{t('blocked.title', { shop: b.shopName })}</b><br />{t('blocked.reason', { reason: b.reason })}</p>
       ))}

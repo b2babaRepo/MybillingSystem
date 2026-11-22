@@ -370,7 +370,7 @@ public static class Jobs
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         db.StockMovements.Add(new StockMovement
         {
-            ProductId = request.ProductId, Kind = StockMovementKind.UsedOnJob, Quantity = -request.Quantity, CostPrice = unitCost,
+            RefType = "job", RefId = job.Id, ProductId = request.ProductId, Kind = StockMovementKind.UsedOnJob, Quantity = -request.Quantity, CostPrice = unitCost,
             Note = $"Job #{job.Number}", OccurredAt = now, CreatedByUserId = userId,
         });
         db.JobEntries.Add(new JobEntry

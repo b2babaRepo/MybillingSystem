@@ -20,21 +20,25 @@ public sealed class TradeTests(ApiFactory api)
 
         var first = await Challan(shop, contractor, cement.Id, 50m, "Mansarovar plot 12");
         var second = await Challan(shop, contractor, cement.Id, 30m, "Mansarovar plot 12");
+
+        // Goods sent to another state: the challan keeps the state for the invoice.
+        var away = await (await shop.PostJsonAsync("/api/v1/challans", new { id = Guid.CreateVersion7(), customerId = contractor, lines = new[] { new { productId = cement.Id, quantity = 1m, unitPrice = 385m } }, placeOfSupply = "24" })).ReadAsync<ChallanDto>();
+        Assert.Equal("24", away.PlaceOfSupply);
         Assert.Equal("RJ14GB1234", first.VehicleNumber);
 
         // The bags left the shelf, but nothing is owed yet and nothing is a sale yet.
-        Assert.Equal(-80m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).Stock);
+        Assert.Equal(-81m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).Stock);
         Assert.Equal(0m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{contractor}/statement")).ClosingBalance);
-        Assert.Equal(2, (await shop.GetJsonAsync<List<ChallanDto>>($"/api/v1/challans?customerId={contractor}")).Count);
+        Assert.Equal(3, (await shop.GetJsonAsync<List<ChallanDto>>($"/api/v1/challans?customerId={contractor}")).Count);
 
         var invoiceId = Guid.CreateVersion7();
         var invoice = await (await shop.PostJsonAsync("/api/v1/challans/invoice",
             new { id = invoiceId, challanIds = new[] { first.Id, second.Id }, paidAmount = 0m })).ReadAsync<BillDto>();
-        Assert.Equal((80m * 385m, "Mansarovar plot 12"), (invoice.Total, invoice.Site));
+        Assert.Equal((80m * 385m, "Mansarovar plot 12", "RJ14GB1234"), (invoice.Total, invoice.Site, invoice.VehicleNumber));
         Assert.Equal(18m, invoice.Lines[0].GstRate); // the item's GST kept on the line
         Assert.Equal(80m * 385m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{contractor}/statement")).ClosingBalance);
-        Assert.Equal(-80m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).Stock); // not taken twice
-        Assert.Empty(await shop.GetJsonAsync<List<ChallanDto>>($"/api/v1/challans?customerId={contractor}"));
+        Assert.Equal(-81m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).Stock); // not taken twice
+        Assert.Single(await shop.GetJsonAsync<List<ChallanDto>>($"/api/v1/challans?customerId={contractor}"));
 
         // A challan can't be billed again on another invoice.
         Assert.Equal(HttpStatusCode.Conflict, (await shop.PostJsonAsync("/api/v1/challans/invoice",
@@ -58,7 +62,7 @@ public sealed class TradeTests(ApiFactory api)
 
         await Bill(); // no GSTIN yet: no GST in it
         var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
-        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" });
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" });
         await Bill();
         var cancelled = await Bill();
         await shop.PostJsonAsync($"/api/v1/bills/{cancelled.Id}/cancel", new { reason = "Wrong bill" });
@@ -74,7 +78,7 @@ public sealed class TradeTests(ApiFactory api)
         await shop.PostJsonAsync("/api/v1/products/starter", new { });
         var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
         var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
-        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" });
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" });
         async Task SetCost(decimal cost) => await shop.PutAsJsonAsync($"/api/v1/products/{cement.Id}", new { name = cement.Name, unit = "bag", sellingPrice = 1180m, costPrice = cost });
         await SetCost(800m);
         await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), paidAmount = 1180m, lines = new[] { new { productId = cement.Id, quantity = 1m, unitPrice = 1180m } } });
@@ -149,22 +153,46 @@ public sealed class TradeTests(ApiFactory api)
         await shop.PostJsonAsync("/api/v1/products/starter", new { });
         var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
         var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
-        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" });
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" });
         var buyer = await KhataTests.CreateCustomerAsync(shop, "Delhi Builders");
-        async Task<BillDto> Bill(Guid? customer) => await (await shop.PostJsonAsync("/api/v1/bills", new
+        async Task<BillDto> Bill(Guid? customer, string? deliveredTo = null) => await (await shop.PostJsonAsync("/api/v1/bills", new
         {
-            id = Guid.CreateVersion7(), customerId = customer, paidAmount = 1180m,
+            id = Guid.CreateVersion7(), customerId = customer, paidAmount = 1180m, placeOfSupply = deliveredTo,
             lines = new[] { new { productId = cement.Id, quantity = 1m, unitPrice = 1180m } },
         })).ReadAsync<BillDto>();
 
         var local = await Bill(null);
         Assert.Equal((1000m, 90m, 90m, 0m), (local.Lines[0].TaxableValue, local.Lines[0].Cgst, local.Lines[0].Sgst, local.Lines[0].Igst));
+        Assert.Equal("08", local.PlaceOfSupply);
+
+        // Delivered to another state (no GSTIN): the place of supply is where it went, so IGST.
+        var delivered = await Bill(null, "27");
+        Assert.Equal(("27", 180m, 0m), (delivered.PlaceOfSupply, delivered.Lines[0].Igst, delivered.Lines[0].Cgst));
+        Assert.Equal("08", (await Bill(null, "99")).PlaceOfSupply); // not a state code: the shop's own state
         (await shop.PutAsJsonAsync($"/api/v1/customers/{buyer}/gstin", new { gstin = "07AAACD1234E1ZB" })).EnsureSuccessStatusCode();
         var other = await Bill(buyer);
         Assert.Equal(("07AAACD1234E1ZB", 180m, 0m), (other.BuyerGstin, other.Lines[0].Igst, other.Lines[0].Cgst));
-        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5", GstComposition = true });
+        Assert.Equal("07", other.PlaceOfSupply);
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0", GstComposition = true });
         var supply = await Bill(null);
         Assert.Equal((true, (decimal?)null), (supply.BillOfSupply, supply.Lines[0].TaxableValue));
+    }
+
+    [Fact]
+    public async Task A_bill_carries_the_shop_and_buyer_addresses_for_printing()
+    {
+        var shop = await SignUpAsync("building_materials");
+        var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Address = "12 Station Road" })).EnsureSuccessStatusCode();
+        var buyer = await KhataTests.CreateCustomerAsync(shop, "Mill Lane Traders");
+        (await shop.PutAsJsonAsync($"/api/v1/customers/{buyer}/address", new { address = " 4 Mill Lane, Jaipur " })).EnsureSuccessStatusCode();
+        var id = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/bills", new { id, customerId = buyer, paidAmount = 100m, lines = new[] { new { name = "Paint", quantity = 1m, unitPrice = 100m } } })).EnsureSuccessStatusCode();
+
+        var view = await shop.GetJsonAsync<BillView>($"/api/v1/bills/{id}");
+
+        Assert.Contains("12 Station Road", view.Bill.ShopAddress);
+        Assert.Equal("4 Mill Lane, Jaipur", view.Bill.BuyerAddress);
     }
 
     [Fact]
@@ -182,7 +210,7 @@ public sealed class TradeTests(ApiFactory api)
         await shop.PostJsonAsync("/api/v1/products/starter", new { });
         var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
         var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
-        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" });
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" });
         await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), paidAmount = 1180m, lines = new[] { new { productId = cement.Id, quantity = 1m, unitPrice = 1180m } } });
 
         var month = await shop.GetJsonAsync<GroceryKhata.Api.Ledger.GstMonthDto>("/api/v1/gst/month");
@@ -200,7 +228,7 @@ public sealed class TradeTests(ApiFactory api)
         await shop.PostJsonAsync("/api/v1/products/starter", new { });
         var cement = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Cement OPC 53 (50 kg)");
         var settings = await shop.GetJsonAsync<GroceryKhata.Api.Shops.ShopSettingsDto>("/api/v1/shop");
-        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" });
+        await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" });
         var customer = await KhataTests.CreateCustomerAsync(shop, "Gupta");
         var bill = await (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), customerId = customer, paidAmount = 0m, lines = new[] { new { productId = cement.Id, quantity = 4m, unitPrice = 1180m } } })).ReadAsync<BillDto>();
 

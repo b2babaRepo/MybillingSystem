@@ -10,6 +10,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Ledger;
 
+/// <summary>One Tally account the export writes to: its key, the default name, and the name the CA uses.</summary>
+public sealed record TallyLedgerDto(string Key, string Default, string Name);
+
 /// <summary>Something the CA would trip on, with how many bills or lines it touches.</summary>
 public sealed record GstCheck(string Code, int Count);
 
@@ -17,7 +20,11 @@ public sealed record GstCheck(string Code, int Count);
 public sealed record GstMonthDto(
     string Month, bool Composition, int Bills, int Cancelled, string? FirstBillNo, string? LastBillNo,
     decimal Sales, decimal Taxable, decimal Cgst, decimal Sgst, decimal Igst, decimal B2bSales, IReadOnlyList<GstCheck> Checks, bool CanDownload,
-    int CreditNotes = 0, decimal CreditNoteValue = 0, decimal CreditNoteTax = 0);
+    int CreditNotes = 0, decimal CreditNoteValue = 0, decimal CreditNoteTax = 0, int Receipts = 0, decimal ReceiptValue = 0,
+    // Input tax credit on the month's purchase bills (none for a composition shop), for "collected less credit".
+    int PurchaseBills = 0, decimal InputTaxable = 0, decimal InputGst = 0,
+    // GSTR-3B (or CMP-08) working and the GSTR-1 HSN table, net of credit notes.
+    TaxPayableDto? Payable = null, IReadOnlyList<HsnRow>? Hsn = null);
 
 /// <summary>
 /// "GST &amp; Tally": a month's bills as Tally import files (parties first, then sales) and a summary sheet, for the
@@ -26,7 +33,8 @@ public sealed record GstMonthDto(
 /// </summary>
 public static class GstExport
 {
-    private static readonly Dictionary<string, string> States = new()
+    /// <summary>GST state codes and names (the first two digits of a GSTIN).</summary>
+    public static readonly IReadOnlyDictionary<string, string> States = new Dictionary<string, string>
     {
         ["01"] = "Jammu and Kashmir", ["02"] = "Himachal Pradesh", ["03"] = "Punjab", ["04"] = "Chandigarh", ["05"] = "Uttarakhand",
         ["06"] = "Haryana", ["07"] = "Delhi", ["08"] = "Rajasthan", ["09"] = "Uttar Pradesh", ["10"] = "Bihar", ["11"] = "Sikkim",
@@ -42,7 +50,79 @@ public static class GstExport
         var group = app.MapGroup("/api/v1/gst").WithTags("Reports").RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("/month", MonthAsync);
         group.MapGet("/export.zip", ExportAsync).RequireFeature(Features.GstExport);
+        group.MapGet("/sales-register.csv", SalesRegisterAsync).RequireFeature(Features.GstExport);
+        group.MapGet("/ledgers", LedgersAsync);
+        group.MapPut("/ledgers", SaveLedgersAsync);
         return app;
+    }
+
+    /// <summary>The accounts the Tally file writes to, by key, with Tally's usual names as defaults.</summary>
+    public static readonly IReadOnlyDictionary<string, string> LedgerDefaults = new Dictionary<string, string>
+    {
+        ["sales"] = "Sales", ["cgst"] = "Output CGST", ["sgst"] = "Output SGST", ["igst"] = "Output IGST",
+        ["roundOff"] = "Round Off", ["cash"] = "Cash", ["upi"] = "UPI Collections",
+        // Buying and spending: supplier bills, payments and the kharcha book.
+        ["purchases"] = "Purchase", ["inputCgst"] = "Input CGST", ["inputSgst"] = "Input SGST", ["inputIgst"] = "Input IGST",
+        ["freight"] = "Freight Inward", ["freightPayable"] = "Freight Payable", ["bank"] = "Bank Account", ["capital"] = "Capital Account",
+        ["tea"] = "Staff Welfare", ["transport"] = "Conveyance", ["rent"] = "Rent", ["electricity"] = "Electricity Charges", ["salary"] = "Salary",
+        ["packaging"] = "Packing Material", ["repair"] = "Repairs and Maintenance", ["other"] = "Miscellaneous Expenses",
+        ["home"] = "Drawings", ["tax"] = "Taxes Paid", ["loan"] = "Loan Repayment", ["equipment"] = "Furniture and Equipment", ["advance"] = "Staff Advance",
+    };
+
+    /// <summary>Where each kharcha heading sits in Tally: its account key and the group it belongs to. Bank deposits are a Contra, not an account.</summary>
+    private static readonly Dictionary<ExpenseCategory, (string Key, string Group)> ExpenseLedgers = new()
+    {
+        [ExpenseCategory.Tea] = ("tea", "Indirect Expenses"), [ExpenseCategory.Transport] = ("transport", "Indirect Expenses"),
+        [ExpenseCategory.Rent] = ("rent", "Indirect Expenses"), [ExpenseCategory.Electricity] = ("electricity", "Indirect Expenses"),
+        [ExpenseCategory.Salary] = ("salary", "Indirect Expenses"), [ExpenseCategory.Packaging] = ("packaging", "Direct Expenses"),
+        [ExpenseCategory.Repair] = ("repair", "Indirect Expenses"), [ExpenseCategory.Other] = ("other", "Indirect Expenses"),
+        [ExpenseCategory.Purchase] = ("purchases", "Purchase Accounts"), [ExpenseCategory.Home] = ("home", "Capital Account"),
+        [ExpenseCategory.Tax] = ("tax", "Duties & Taxes"), [ExpenseCategory.Loan] = ("loan", "Loans (Liability)"),
+        [ExpenseCategory.Equipment] = ("equipment", "Fixed Assets"), [ExpenseCategory.Advance] = ("advance", "Loans & Advances (Asset)"),
+    };
+
+    /// <summary>The shop's account names: the CA's where set, else the defaults.</summary>
+    public static Dictionary<string, string> LedgerNames(string? json)
+    {
+        var saved = new Dictionary<string, string>();
+        try
+        {
+            saved = string.IsNullOrWhiteSpace(json) ? saved : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? saved;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // An unreadable value: the defaults.
+        }
+
+        return LedgerDefaults.ToDictionary(x => x.Key, x => saved.TryGetValue(x.Key, out var name) && !string.IsNullOrWhiteSpace(name) ? name.Trim() : x.Value);
+    }
+
+    private static async Task<IResult> LedgersAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var names = LedgerNames(await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.TallyLedgers).SingleAsync(ct));
+        return TypedResults.Ok(LedgerDefaults.Select(x => new TallyLedgerDto(x.Key, x.Value, names[x.Key])).ToList());
+    }
+
+    /// <summary>Saves the CA's names: each different from the others, up to 100 characters; blank keeps the default.</summary>
+    private static async Task<IResult> SaveLedgersAsync(Dictionary<string, string?> request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var kept = request.Where(x => LedgerDefaults.ContainsKey(x.Key) && !string.IsNullOrWhiteSpace(x.Value) && x.Value!.Trim() != LedgerDefaults[x.Key])
+            .ToDictionary(x => x.Key, x => x.Value!.Trim());
+        if (kept.Values.Any(v => v.Length > 100))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["names"] = ["Keep each account name under 100 characters."] });
+        }
+
+        var all = LedgerDefaults.Select(x => kept.TryGetValue(x.Key, out var name) ? name : x.Value).ToList();
+        if (all.Distinct(StringComparer.OrdinalIgnoreCase).Count() != all.Count)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["names"] = ["Two accounts have the same name: give each its own."] });
+        }
+
+        var shop = await db.Shops.SingleAsync(s => s.Id == tenant.ShopId, ct);
+        shop.TallyLedgers = kept.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(kept);
+        await db.SaveChangesAsync(ct);
+        return await LedgersAsync(db, tenant, ct);
     }
 
     /// <summary>The GSTIN check digit (the 15th character), as the GST portal works it out.</summary>
@@ -64,7 +144,10 @@ public static class GstExport
         return chars[(36 - (sum % 36)) % 36] == gstin[14];
     }
 
-    private sealed record MonthData(List<Bill> Bills, List<Bill> Cancelled, Dictionary<Guid, (string Name, string? Gstin)> Customers, bool Composition, string? ShopGstin, int Returns, List<CreditNote> Notes);
+    private sealed record MonthData(List<Bill> Bills, List<Bill> Cancelled, Dictionary<Guid, (string Name, string? Gstin)> Customers, bool Composition, string? ShopGstin, int Returns, List<CreditNote> Notes, List<LedgerEntry> Receipts, Dictionary<string, string> Names,
+        List<Purchase> Purchases, List<SupplierEntry> SupplierPayments, Dictionary<Guid, (string Name, string? Gstin)> Suppliers, List<Expense> Expenses,
+        List<SupplierEntry> SupplierCredits, HashSet<Guid> FreightExpenses, List<(PurchaseCharge Charge, Purchase Bill)> UnpaidFreight,
+        Dictionary<(Guid Bill, int Line), BillLine> NoteSources, Dictionary<Guid, Bill> NoteBills, Dictionary<Guid, string> Users, List<CashMove> CashMoves);
 
     private static async Task<MonthData> LoadAsync(AppDbContext db, ITenantContext tenant, (int Year, int Month) period, CancellationToken ct)
     {
@@ -72,12 +155,44 @@ public static class GstExport
         var all = await db.Bills.AsNoTracking().Include(b => b.Lines).Where(b => b.OccurredAt >= start && b.OccurredAt < end)
             .OrderBy(b => b.FinancialYear).ThenBy(b => b.Number).ToListAsync(ct);
         var notes = await db.CreditNotes.AsNoTracking().Include(n => n.Lines).Where(n => n.OccurredAt >= start && n.OccurredAt < end).OrderBy(n => n.FinancialYear).ThenBy(n => n.Number).ToListAsync(ct);
-        var ids = all.Where(b => b.CustomerId != null).Select(b => b.CustomerId!.Value).Concat(notes.Where(n => n.CustomerId != null).Select(n => n.CustomerId!.Value)).Distinct().ToList();
+        // Money received on khata (cash or UPI; kept as a negative khata amount, exported as a positive receipt), leaving out payments later reversed: Receipt vouchers, so the CA's
+        // party balances match the shop's khata.
+        var reversed = db.LedgerEntries.AsNoTracking().Where(e => e.ReversesEntryId != null).Select(e => e.ReversesEntryId!.Value);
+        var receipts = await db.LedgerEntries.AsNoTracking()
+            .Where(e => e.Kind == LedgerEntryKind.Payment && (e.PaymentMode == PaymentMode.Cheque ? e.ChequeStatus == ChequeStatus.Cleared && (e.ReversesEntryId == null ? e.ChequeSettledAt >= start && e.ChequeSettledAt < end : e.OccurredAt >= start && e.OccurredAt < end) : e.OccurredAt >= start && e.OccurredAt < end) && !reversed.Contains(e.Id))
+            .OrderBy(e => e.OccurredAt).ToListAsync(ct);
+        var ids = all.Where(b => b.CustomerId != null).Select(b => b.CustomerId!.Value).Concat(notes.Where(n => n.CustomerId != null).Select(n => n.CustomerId!.Value))
+            .Concat(receipts.Select(e => e.CustomerId)).Distinct().ToList();
         var customers = await db.Customers.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => (c.Name, c.Gstin), ct);
-        var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.GstComposition, s.Gstin }).SingleAsync(ct);
+        var shop = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => new { s.GstComposition, s.Gstin, s.TallyLedgers }).SingleAsync(ct);
         // Returns from order disputes have no credit note: they still need one from the CA.
-        var returns = await db.LedgerEntries.AsNoTracking().CountAsync(e => e.Kind == LedgerEntryKind.Return && e.OccurredAt >= start && e.OccurredAt < end && (e.Note == null || !e.Note.StartsWith("CN/")), ct);
-        return new MonthData(all.Where(b => b.CancelledAt == null).ToList(), all.Where(b => b.CancelledAt != null).ToList(), customers, shop.GstComposition, shop.Gstin, returns, notes);
+        var returns = await db.LedgerEntries.AsNoTracking().CountAsync(e => e.Kind == LedgerEntryKind.Return && e.OccurredAt >= start && e.OccurredAt < end && (e.Note == null || !(e.Note.StartsWith("CN/") || e.Note.StartsWith("RN/"))), ct);
+        // Buying and spending. Supplier payments also write a "Supplier payment" kharcha line, and a credit-note refund is in the
+        // credit note, so those lines are left out of the kharcha here: nothing goes into Tally twice.
+        var purchases = await db.Purchases.AsNoTracking().Include(p => p.Lines).Where(p => p.OccurredAt >= start && p.OccurredAt < end && p.CancelledAt == null).OrderBy(p => p.OccurredAt).ToListAsync(ct);
+        var payments = await db.SupplierEntries.AsNoTracking().Where(e => e.Kind == SupplierEntryKind.Payment && e.OccurredAt >= start && e.OccurredAt < end).OrderBy(e => e.OccurredAt).ToListAsync(ct);
+        // Supplier credit notes (goods sent back, rate differences): the supplier owes the shop that much less.
+        var credits = await db.SupplierEntries.AsNoTracking().Where(e => e.Kind == SupplierEntryKind.CreditNote && e.OccurredAt >= start && e.OccurredAt < end).OrderBy(e => e.OccurredAt).ToListAsync(ct);
+        // Freight, hamali and commission on the month's supplier bills: paid ones are kharcha lines that belong to
+        // Freight Inward, not Purchase; unpaid ones are owed to the transporter.
+        var billIds = purchases.Select(p => p.Id).ToList();
+        var charges = await db.PurchaseCharges.AsNoTracking().Where(c => billIds.Contains(c.PurchaseId)).ToListAsync(ct);
+        var paidFreight = (await db.PurchaseCharges.AsNoTracking().Where(c => c.ExpenseId != null).Select(c => c.ExpenseId!.Value).ToListAsync(ct)).ToHashSet();
+        var unpaid = charges.Where(c => c.ExpenseId == null).Select(c => (c, purchases.First(p => p.Id == c.PurchaseId))).ToList();
+        var supplierIds = purchases.Select(p => p.SupplierId).Concat(payments.Select(e => e.SupplierId)).Concat(credits.Select(e => e.SupplierId)).Distinct().ToList();
+        // The bills the month's credit notes turn round (perhaps from an earlier month): their units and buyer.
+        var noteBillIds = notes.Select(n => n.BillId).Distinct().ToList();
+        var noteBills = await db.Bills.AsNoTracking().Include(b => b.Lines).Where(b => noteBillIds.Contains(b.Id)).ToDictionaryAsync(b => b.Id, ct);
+        var sources = noteBills.Values.SelectMany(b => b.Lines.Select(l => (b.Id, l))).ToDictionary(x => (x.Id, x.l.LineNo), x => x.l);
+        var makers = all.Select(b => b.CreatedByUserId).Distinct().ToList();
+        var users = await db.Users.AsNoTracking().Where(u => makers.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName, ct);
+        var suppliers = await db.Suppliers.AsNoTracking().Where(x => supplierIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => (x.Name, x.Gstin), ct);
+        var expenses = await db.Expenses.AsNoTracking()
+            .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && (e.Note == null || (e.Note != "Supplier payment" && !(e.Note.StartsWith("Refund CN/") || e.Note.StartsWith("Refund RN/")))))
+            .OrderBy(e => e.OccurredAt).ToListAsync(ct);
+        return new MonthData(all.Where(b => b.CancelledAt == null).ToList(), all.Where(b => b.CancelledAt != null).ToList(), customers, shop.GstComposition, shop.Gstin, returns, notes, receipts, LedgerNames(shop.TallyLedgers),
+            purchases, payments, suppliers, expenses, credits, paidFreight, unpaid, sources, noteBills, users,
+            await db.CashMoves.AsNoTracking().Where(m => m.OccurredAt >= start && m.OccurredAt < end && m.StruckAt == null).OrderBy(m => m.OccurredAt).ToListAsync(ct));
     }
 
     private static (decimal Taxable, decimal Cgst, decimal Sgst, decimal Igst) Tax(Bill b) =>
@@ -103,7 +218,7 @@ public static class GstExport
         return (taxable, half, l.Amount - taxable - half, 0);
     }
 
-    private static async Task<IResult> MonthAsync(string? month, AppDbContext db, ITenantContext tenant, Entitlements entitlements, TimeProvider clock, CancellationToken ct)
+    internal static async Task<IResult> MonthAsync(string? month, AppDbContext db, ITenantContext tenant, Entitlements entitlements, TimeProvider clock, CancellationToken ct)
     {
         if (IndiaTime.ParseMonth(month ?? IndiaTime.Today(clock).ToString("yyyy-MM", CultureInfo.InvariantCulture)) is not { } period)
         {
@@ -120,8 +235,13 @@ public static class GstExport
             new("oldTax", lines.Count(l => l.GstRate is not null && l.TaxableValue is null)),
             new("badBuyerGstin", d.Bills.Count(b => b.BuyerGstin is not null && !IsValidGstin(b.BuyerGstin))),
             new("returns", d.Returns),
+            // A bill dated earlier than one numbered before it (a backdated bill takes the next number): the CA should know.
+            new("outOfOrder", d.Bills.Concat(d.Cancelled).OrderBy(b => b.FinancialYear).ThenBy(b => b.Number)
+                .Aggregate((Latest: DateTimeOffset.MinValue, Count: 0), (acc, b) => b.OccurredAt < acc.Latest ? (acc.Latest, acc.Count + 1) : (b.OccurredAt, acc.Count)).Count),
         }.Where(c => c.Count > 0).ToList();
         var taxes = d.Bills.Select(Tax).ToList();
+        var (saleLines, returnLines) = (SaleLines(d), ReturnLines(d));
+        var payable = GstReturns.Payable(d.Composition, d.Bills.Sum(b => b.Total) - d.Notes.Sum(n => n.Total), saleLines, returnLines, InputTax(d));
         return TypedResults.Ok(new GstMonthDto(
             $"{period.Year:D4}-{period.Month:D2}", d.Composition, d.Bills.Count, d.Cancelled.Count,
             d.Bills.Concat(d.Cancelled).OrderBy(b => b.FinancialYear).ThenBy(b => b.Number).FirstOrDefault()?.BillNo,
@@ -129,7 +249,8 @@ public static class GstExport
             d.Bills.Sum(b => b.Total), taxes.Sum(x => x.Taxable), taxes.Sum(x => x.Cgst), taxes.Sum(x => x.Sgst), taxes.Sum(x => x.Igst),
             d.Bills.Where(b => b.BuyerGstin is not null && IsValidGstin(b.BuyerGstin)).Sum(b => b.Total), checks,
             (await entitlements.ForShopAsync(tenant.ShopId, ct)).Has(Features.GstExport),
-            d.Notes.Count, d.Notes.Sum(n => n.Total), d.Notes.Sum(n => n.Lines.Sum(l => l.Cgst + l.Sgst + l.Igst))));
+            d.Notes.Count, d.Notes.Sum(n => n.Total), d.Notes.Sum(n => n.Lines.Sum(l => l.Cgst + l.Sgst + l.Igst)), d.Receipts.Count, d.Receipts.Sum(e => Math.Abs(e.Amount)),
+            d.Purchases.Count, d.Purchases.Sum(p => p.Lines.Sum(l => l.Taxable)), InputTax(d) is var input ? input.Cgst + input.Sgst + input.Igst : 0, payable, d.Composition ? [] : GstReturns.Hsn(saleLines, returnLines)));
     }
 
     private static async Task<IResult> ExportAsync(string? month, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
@@ -150,7 +271,14 @@ public static class GstExport
             Add(archive, "READ-ME.txt", """
                 Grocery Khata: a month of sales for your CA.
                 In TallyPrime: Import > Masters > 1-masters.xml first, then Import > Vouchers > 2-vouchers.xml.
-                Ledger names can be renamed in Tally after import. Cancelled bills are listed in the summary, not imported.
+                Account names follow the ones set on the GST & Tally screen (or Tally's usual names). Cancelled bills are listed in the summary, not imported.
+                Money received on khata comes in as Receipt vouchers, so customer balances match the shop's khata.
+                Walk-in sales paid by UPI or card go straight to the UPI or bank account, so cash in Tally matches the cash box.
+                Input tax is taken only on bills from suppliers with a valid GSTIN; other suppliers' GST stays in the purchase cost.
+                Supplier credit notes come in as Debit Notes. Freight, hamali and commission paid on a supplier bill go to Freight
+                Inward; those not yet paid are a Journal to Freight Payable (pay it against that account).
+                Supplier bills come in as Purchase vouchers and supplier payments as Payment vouchers; the kharcha book comes in as
+                Payment vouchers to each heading's account (cash put in the bank as a Contra). Check the expense accounts with your CA.
                 Bills made before the shop had GST on its plan carry no GSTIN and are marked in the summary.
                 This is a working aid: check it before filing.
                 """);
@@ -169,7 +297,7 @@ public static class GstExport
 
     private static string Amount(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
 
-    private static string Party(Bill b, MonthData d) => b.CustomerId is { } id && d.Customers.TryGetValue(id, out var c) ? c.Name : "Cash";
+    private static string Party(Bill b, MonthData d) => b.CustomerId is { } id && d.Customers.TryGetValue(id, out var c) ? c.Name : d.Names["cash"];
 
     private static string StateOf(string? gstin, string? fallback) =>
         gstin is { Length: >= 2 } && States.TryGetValue(gstin[..2], out var state) ? state : fallback is { Length: >= 2 } && States.TryGetValue(fallback[..2], out var own) ? own : "";
@@ -183,14 +311,81 @@ public static class GstExport
         var body = new StringBuilder();
         void Ledger(string name, string parent, string extra = "") =>
             body.Append($"<TALLYMESSAGE><LEDGER NAME=\"{X(name)}\" ACTION=\"Create\"><NAME>{X(name)}</NAME><PARENT>{X(parent)}</PARENT>{extra}</LEDGER></TALLYMESSAGE>\n");
-        Ledger("Sales", "Sales Accounts");
+        var n = d.Names;
+        Ledger(n["sales"], "Sales Accounts");
         foreach (var head in new[] { "CGST", "SGST", "IGST" })
         {
-            Ledger($"Output {head}", "Duties & Taxes", $"<TAXTYPE>GST</TAXTYPE><GSTDUTYHEAD>{(head == "SGST" ? "State Tax" : head == "CGST" ? "Central Tax" : "Integrated Tax")}</GSTDUTYHEAD>");
+            Ledger(n[head.ToLowerInvariant()], "Duties & Taxes", $"<TAXTYPE>GST</TAXTYPE><GSTDUTYHEAD>{(head == "SGST" ? "State Tax" : head == "CGST" ? "Central Tax" : "Integrated Tax")}</GSTDUTYHEAD>");
         }
 
-        Ledger("Round Off", "Indirect Expenses");
-        Ledger("Cash", "Cash-in-Hand");
+        Ledger(n["roundOff"], "Indirect Expenses");
+        Ledger(n["cash"], "Cash-in-Hand");
+        var walkIn = d.Bills.Where(b => b.CustomerId is null).SelectMany(b => b.Parts()).Select(p => p.Mode).Concat(d.Notes.Where(n => n.RefundMode != null).Select(n => n.RefundMode!.Value)).ToList();
+        var upiUsed = d.Receipts.Any(e => e.PaymentMode == PaymentMode.Upi) || walkIn.Contains(PaymentMode.Upi);
+        if (upiUsed)
+        {
+            Ledger(n["upi"], "Bank Accounts");
+        }
+
+        if (d.UnpaidFreight.Count > 0)
+        {
+            Ledger(n["freightPayable"], "Sundry Creditors");
+        }
+        if (d.Purchases.Count > 0)
+        {
+            Ledger(n["purchases"], "Purchase Accounts");
+            if (!d.Composition)
+            {
+                foreach (var head in new[] { "CGST", "SGST", "IGST" })
+                {
+                    Ledger(n[$"input{head[0]}{head[1..].ToLowerInvariant()}"], "Duties & Taxes", $"<TAXTYPE>GST</TAXTYPE><GSTDUTYHEAD>{(head == "SGST" ? "State Tax" : head == "CGST" ? "Central Tax" : "Integrated Tax")}</GSTDUTYHEAD>");
+                }
+            }
+
+            if (d.Purchases.Any(p => p.ExtraCharges != 0) || d.UnpaidFreight.Count > 0 || d.Expenses.Any(e => d.FreightExpenses.Contains(e.Id)))
+            {
+                Ledger(n["freight"], "Direct Expenses");
+            }
+        }
+
+        var money = d.SupplierPayments.Select(e => e.Mode).Concat(d.Expenses.Select(e => (PaymentMode?)e.Mode)).ToList();
+        if (money.Contains(PaymentMode.Upi) && !upiUsed)
+        {
+            Ledger(n["upi"], "Bank Accounts");
+        }
+
+        if (d.CashMoves.Any(m => m.Kind == CashMoveKind.Added))
+        {
+            Ledger(n["capital"], "Capital Account");
+        }
+
+        if (d.CashMoves.Any(m => m.Kind == CashMoveKind.Removed) && !d.Expenses.Any(e => e.Category == ExpenseCategory.Home))
+        {
+            Ledger(n["home"], "Capital Account");
+        }
+
+        if (money.Contains(PaymentMode.Bank) || d.Expenses.Any(e => e.Category == ExpenseCategory.Deposit) || d.CashMoves.Any(m => m.Kind is CashMoveKind.ToBank or CashMoveKind.FromBank) || d.Receipts.Any(e => e.PaymentMode is PaymentMode.Card or PaymentMode.Cheque)
+            || walkIn.Any(m => m is PaymentMode.Card or PaymentMode.Cheque or PaymentMode.Bank))
+        {
+            Ledger(n["bank"], "Bank Accounts");
+        }
+
+        foreach (var (key, group) in d.Expenses.Where(e => ExpenseLedgers.ContainsKey(e.Category) && e.Category != ExpenseCategory.Purchase).Select(e => ExpenseLedgers[e.Category]).Distinct())
+        {
+            Ledger(n[key], group);
+        }
+
+        if (d.Expenses.Any(e => e.Category == ExpenseCategory.Purchase) && d.Purchases.Count == 0)
+        {
+            Ledger(n["purchases"], "Purchase Accounts");
+        }
+
+        foreach (var (_, sup) in d.Suppliers.OrderBy(x => x.Value.Name))
+        {
+            var gst = sup.Gstin is not null && IsValidGstin(sup.Gstin) ? $"<PARTYGSTIN>{sup.Gstin}</PARTYGSTIN><GSTREGISTRATIONTYPE>Regular</GSTREGISTRATIONTYPE>" : "<GSTREGISTRATIONTYPE>Unregistered/Consumer</GSTREGISTRATIONTYPE>";
+            Ledger(sup.Name, "Sundry Creditors", $"{gst}<LEDSTATENAME>{X(StateOf(sup.Gstin, d.ShopGstin))}</LEDSTATENAME><ISBILLWISEON>Yes</ISBILLWISEON>");
+        }
+
         foreach (var (_, c) in d.Customers.OrderBy(x => x.Value.Name))
         {
             var gst = c.Gstin is not null && IsValidGstin(c.Gstin) ? $"<PARTYGSTIN>{c.Gstin}</PARTYGSTIN><GSTREGISTRATIONTYPE>Regular</GSTREGISTRATIONTYPE>" : "<GSTREGISTRATIONTYPE>Unregistered/Consumer</GSTREGISTRATIONTYPE>";
@@ -209,21 +404,28 @@ public static class GstExport
             var (taxable, cgst, sgst, igst) = Tax(b);
             var party = Party(b, d);
             var date = b.OccurredAt.ToOffset(IndiaTime.Offset).ToString("yyyyMMdd", CultureInfo.InvariantCulture);
-            var credits = new List<(string Ledger, decimal Amount)> { ("Sales", taxable), ("Output CGST", cgst), ("Output SGST", sgst), ("Output IGST", igst) };
+            var credits = new List<(string Ledger, decimal Amount)> { (d.Names["sales"], taxable), (d.Names["cgst"], cgst), (d.Names["sgst"], sgst), (d.Names["igst"], igst) };
             var roundOff = b.Total - credits.Sum(x => x.Amount);
             body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"Sales\" ACTION=\"Create\"><GUID>gk-{b.Id}</GUID><DATE>{date}</DATE><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>")
                 .Append($"<VOUCHERNUMBER>{X(b.BillNo)}</VOUCHERNUMBER><PARTYLEDGERNAME>{X(party)}</PARTYLEDGERNAME>")
                 .Append(b.BuyerGstin is { } g ? $"<PARTYGSTIN>{g}</PARTYGSTIN>" : "")
-                .Append($"<PLACEOFSUPPLY>{X(StateOf(b.BuyerGstin, b.Gstin ?? d.ShopGstin))}</PLACEOFSUPPLY><PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>")
-                .Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(party)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{Amount(b.Total)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
+                .Append($"<PLACEOFSUPPLY>{X(b.PlaceOfSupply is { } pos && States.TryGetValue(pos, out var posName) ? posName : StateOf(b.BuyerGstin, b.Gstin ?? d.ShopGstin))}</PLACEOFSUPPLY><PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>")
+                ;
+            // A khata customer is debited with the bill (what they paid at the counter comes in as a Receipt). A walk-in
+            // sale's money goes straight where it went: cash to Cash, UPI to the UPI account, card or cheque to the bank.
+            foreach (var (ledger, amount) in Debits(b, party, d))
+            {
+                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{Amount(amount)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
+            }
+
             foreach (var (ledger, amount) in credits.Where(x => x.Amount != 0))
             {
-                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{ledger}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{Amount(amount)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
+                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{Amount(amount)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
             }
 
             if (roundOff != 0)
             {
-                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>Round Off</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{Amount(roundOff)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
+                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(d.Names["roundOff"])}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{Amount(roundOff)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
             }
 
             body.Append("</VOUCHER></TALLYMESSAGE>\n");
@@ -232,27 +434,323 @@ public static class GstExport
         // Credit notes: the sale turned round. The party is credited; sales and tax are debited.
         foreach (var n in d.Notes)
         {
-            var party = n.CustomerId is { } id && d.Customers.TryGetValue(id, out var c) ? c.Name : "Cash";
-            var debits = new List<(string Ledger, decimal Amount)> { ("Sales", n.Lines.Sum(l => l.TaxableValue)), ("Output CGST", n.Lines.Sum(l => l.Cgst)), ("Output SGST", n.Lines.Sum(l => l.Sgst)), ("Output IGST", n.Lines.Sum(l => l.Igst)) };
+            // A khata customer is credited; a walk-in's refund comes out of the account it went back from.
+            var party = n.CustomerId is { } id && d.Customers.TryGetValue(id, out var c) ? c.Name : n.RefundMode is { } refund ? Into(refund, d) : d.Names["cash"];
+            var debits = new List<(string Ledger, decimal Amount)> { (d.Names["sales"], n.Lines.Sum(l => l.TaxableValue)), (d.Names["cgst"], n.Lines.Sum(l => l.Cgst)), (d.Names["sgst"], n.Lines.Sum(l => l.Sgst)), (d.Names["igst"], n.Lines.Sum(l => l.Igst)) };
             var roundOff = n.Total - debits.Sum(x => x.Amount);
             body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"Credit Note\" ACTION=\"Create\"><GUID>gk-{n.Id}</GUID><DATE>{n.OccurredAt.ToOffset(IndiaTime.Offset):yyyyMMdd}</DATE><VOUCHERTYPENAME>Credit Note</VOUCHERTYPENAME>")
                 .Append($"<VOUCHERNUMBER>{X(n.NoteNo)}</VOUCHERNUMBER><PARTYLEDGERNAME>{X(party)}</PARTYLEDGERNAME><NARRATION>{X(n.Reason)}</NARRATION><PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>")
                 .Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(party)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{Amount(n.Total)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
             foreach (var (ledger, amount) in debits.Where(x => x.Amount != 0))
             {
-                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{ledger}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{Amount(amount)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
+                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{Amount(amount)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
             }
 
             if (roundOff != 0)
             {
-                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>Round Off</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{Amount(roundOff)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
+                body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(d.Names["roundOff"])}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{Amount(roundOff)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
             }
 
             body.Append("</VOUCHER></TALLYMESSAGE>\n");
         }
 
+        // Receipts: money received on khata. Cash or the UPI bank account is debited, the party credited.
+        foreach (var e in d.Receipts)
+        {
+            var party = d.Customers.TryGetValue(e.CustomerId, out var c) ? c.Name : d.Names["cash"];
+            // Card and cheque money lands in the bank account; UPI in its own; the rest in cash.
+            var into = e.PaymentMode switch { PaymentMode.Upi => d.Names["upi"], PaymentMode.Card or PaymentMode.Cheque => d.Names["bank"], _ => d.Names["cash"] };
+            var note = string.Join(" · ", new[] { e.Note, e.UpiRef is { } upi ? $"UPI {upi}" : null, e.ChequeNo is { } cheque ? $"Cheque {cheque}" : null }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"Receipt\" ACTION=\"Create\"><GUID>gk-{e.Id}</GUID><DATE>{e.OccurredAt.ToOffset(IndiaTime.Offset):yyyyMMdd}</DATE><VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>")
+                .Append($"<PARTYLEDGERNAME>{X(party)}</PARTYLEDGERNAME>{(note.Length > 0 ? $"<NARRATION>{X(note)}</NARRATION>" : "")}<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>")
+                .Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(into)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{Amount(Math.Abs(e.Amount))}</AMOUNT></ALLLEDGERENTRIES.LIST>")
+                .Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(party)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{Amount(Math.Abs(e.Amount))}</AMOUNT></ALLLEDGERENTRIES.LIST>")
+                .Append("</VOUCHER></TALLYMESSAGE>\n");
+        }
+
+        Buying(d, body);
         return Envelope("Vouchers", body.ToString());
     }
+
+    /// <summary>Every taxed sale line of the month, for the HSN table and the tax summary.</summary>
+    private static List<GstReturns.TaxLine> SaleLines(MonthData d) =>
+        d.Bills.Where(b => b.Gstin != null && !b.BillOfSupply).SelectMany(b => b.Lines.Select(l =>
+        {
+            var t = LineTax(l);
+            return new GstReturns.TaxLine(b.BuyerGstin is { } g && IsValidGstin(g), l.HsnCode, l.GstRate, l.Unit, l.Quantity, t.Taxable, t.Cgst, t.Sgst, t.Igst);
+        })).ToList();
+
+    /// <summary>The month's credit notes on taxed bills, line by line, with the unit and buyer of the bill they turn round.</summary>
+    private static List<GstReturns.TaxLine> ReturnLines(MonthData d) =>
+        d.Notes.Where(n => d.NoteBills.TryGetValue(n.BillId, out var b) && b.Gstin != null && !b.BillOfSupply).SelectMany(n => n.Lines.Select(l =>
+        {
+            var bill = d.NoteBills[n.BillId];
+            var unit = d.NoteSources.TryGetValue((n.BillId, l.BillLineNo), out var source) ? source.Unit : Catalogue.Unit.Piece;
+            return new GstReturns.TaxLine(bill.BuyerGstin is { } g && IsValidGstin(g), l.HsnCode, l.GstRate, unit, l.Quantity, l.TaxableValue, l.Cgst, l.Sgst, l.Igst);
+        })).ToList();
+
+    /// <summary>Input tax the month's bills give, by head: only claimable bills; another state's supplier charges IGST.</summary>
+    private static (decimal Cgst, decimal Sgst, decimal Igst) InputTax(MonthData d)
+    {
+        var shopState = d.ShopGstin is { Length: 15 } sg ? sg[..2] : null;
+        decimal c = 0, s = 0, i = 0;
+        // Supplier credit notes take back the input tax on what went back.
+        foreach (var e in d.SupplierCredits.Where(e => e.Gst is { } g && g != 0 && ClaimableFrom(e.SupplierId, d)))
+        {
+            var gstin = d.Suppliers[e.SupplierId].Gstin!;
+            if (shopState is not null && gstin[..2] != shopState)
+            {
+                i -= e.Gst!.Value;
+            }
+            else
+            {
+                var half = decimal.Round(e.Gst!.Value / 2, 2);
+                (c, s) = (c - half, s - (e.Gst.Value - half));
+            }
+        }
+
+        foreach (var p in d.Purchases.Where(p => Claimable(p, d)))
+        {
+            var gst = p.Lines.Sum(l => l.Gst);
+            var gstin = d.Suppliers[p.SupplierId].Gstin!;
+            if (shopState is not null && gstin[..2] != shopState)
+            {
+                i += gst;
+            }
+            else
+            {
+                var half = decimal.Round(gst / 2, 2);
+                (c, s) = (c + half, s + gst - half);
+            }
+        }
+
+        return (c, s, i);
+    }
+
+    /// <summary>
+    /// The sales register for the CA: every bill of the month in number order (cancelled ones too, with who cancelled
+    /// and why), then the credit notes, with the tax by head, how it was paid, what went on khata, the counter and who
+    /// made it, and a totals row of what stands.
+    /// </summary>
+    private static async Task<IResult> SalesRegisterAsync(string? month, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
+    {
+        if (IndiaTime.ParseMonth(month ?? IndiaTime.Today(clock).ToString("yyyy-MM", CultureInfo.InvariantCulture)) is not { } period)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["month"] = ["Use a month like 2026-10."] });
+        }
+
+        var d = await LoadAsync(db, tenant, period, ct);
+        static string C(string? text) => text is null ? "" : text.Contains(',') || text.Contains('"') || text.Contains('\n') ? $"\"{text.Replace("\"", "\"\"")}\"" : text;
+        var csv = new StringBuilder("Date,Time,Bill no,Party,Buyer GSTIN,Type,Status,Taxable,CGST,SGST,IGST,Bill total,Cash,UPI,Card or bank,On khata,Counter,Made by,Cancelled by reason,Cancelled on\n");
+        decimal tT = 0, tC = 0, tS = 0, tI = 0, tTotal = 0, tCash = 0, tUpi = 0, tBank = 0, tKhata = 0;
+        foreach (var b in d.Bills.Concat(d.Cancelled).OrderBy(b => b.FinancialYear).ThenBy(b => b.Number))
+        {
+            var (taxable, cgst, sgst, igst) = Tax(b);
+            var at = b.OccurredAt.ToOffset(IndiaTime.Offset);
+            var type = b.Gstin is null ? "No GSTIN" : b.BillOfSupply ? "Bill of supply" : b.BuyerGstin is not null && IsValidGstin(b.BuyerGstin) ? "B2B" : "B2C";
+            var (cash, upi) = (b.PaidBy(PaymentMode.Cash), b.PaidBy(PaymentMode.Upi));
+            var bank = b.PaidAmount - cash - upi;
+            var khata = b.CustomerId is null ? 0 : Math.Max(0, b.Total - b.PaidAmount - b.ExchangeCredit);
+            var live = b.CancelledAt is null;
+            if (live)
+            {
+                (tT, tC, tS, tI, tTotal, tCash, tUpi, tBank, tKhata) = (tT + taxable, tC + cgst, tS + sgst, tI + igst, tTotal + b.Total, tCash + cash, tUpi + upi, tBank + bank, tKhata + khata);
+            }
+
+            csv.AppendJoin(',', at.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), at.ToString("HH:mm", CultureInfo.InvariantCulture), b.BillNo, C(Party(b, d)), b.BuyerGstin ?? "", type,
+                live ? "Active" : "Cancelled", Amount(taxable), Amount(cgst), Amount(sgst), Amount(igst), Amount(b.Total), Amount(cash), Amount(upi), Amount(bank), Amount(khata),
+                C(b.Counter), C(d.Users.GetValueOrDefault(b.CreatedByUserId)), C(b.CancelReason),
+                b.CancelledAt?.ToOffset(IndiaTime.Offset).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "").Append('\n');
+        }
+
+        csv.AppendJoin(',', "Total (bills that stand)", "", "", "", "", "", "", Amount(tT), Amount(tC), Amount(tS), Amount(tI), Amount(tTotal), Amount(tCash), Amount(tUpi), Amount(tBank), Amount(tKhata)).Append('\n');
+        csv.Append("\nCredit note,Date,Against bill,Party,Reason,Taxable,CGST,SGST,IGST,Total\n");
+        foreach (var n in d.Notes)
+        {
+            var party = n.CustomerId is { } id && d.Customers.TryGetValue(id, out var cust) ? cust.Name : "Cash";
+            csv.AppendJoin(',', n.NoteNo, n.OccurredAt.ToOffset(IndiaTime.Offset).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), d.NoteBills.GetValueOrDefault(n.BillId)?.BillNo ?? "", C(party), C(n.Reason),
+                Amount(n.Lines.Sum(l => l.TaxableValue)), Amount(n.Lines.Sum(l => l.Cgst)), Amount(n.Lines.Sum(l => l.Sgst)), Amount(n.Lines.Sum(l => l.Igst)), Amount(n.Total)).Append('\n');
+        }
+
+        var name = $"{period.Year:D4}-{period.Month:D2}";
+        return TypedResults.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv", $"sales-register-{name}.csv");
+    }
+
+    /// <summary>What a sale debits: the khata party with the whole bill, or for a walk-in the accounts the money went into.</summary>
+    private static List<(string Ledger, decimal Amount)> Debits(Bill b, string party, MonthData d)
+    {
+        if (b.CustomerId is not null)
+        {
+            return [(party, b.Total)];
+        }
+
+        var parts = b.Parts().Where(p => p.Amount > 0).GroupBy(p => Into(p.Mode, d)).Select(g => (Ledger: g.Key, Amount: g.Sum(p => p.Amount))).ToList();
+        var rest = b.Total - parts.Sum(p => p.Amount);
+        if (rest != 0)
+        {
+            // Not paid in money (an exchange credit, a rounding): it stays against cash, as before.
+            var cash = parts.FindIndex(p => p.Ledger == d.Names["cash"]);
+            if (cash >= 0) parts[cash] = (parts[cash].Ledger, parts[cash].Amount + rest);
+            else parts.Add((d.Names["cash"], rest));
+        }
+
+        return parts.Where(p => p.Amount != 0).ToList();
+    }
+
+    /// <summary>The account money comes into: UPI to its own, card, cheque and bank transfer to the bank, the rest to cash.</summary>
+    private static string Into(PaymentMode? mode, MonthData d) => mode switch
+    {
+        PaymentMode.Upi => d.Names["upi"],
+        PaymentMode.Card or PaymentMode.Cheque or PaymentMode.Bank => d.Names["bank"],
+        _ => d.Names["cash"],
+    };
+
+    /// <summary>
+    /// Input tax can be claimed only by a regular (not composition) shop, and only on a bill from a supplier with a valid
+    /// GSTIN: an unregistered supplier's "GST" is part of the cost.
+    /// </summary>
+    private static bool Claimable(Purchase p, MonthData d) => ClaimableFrom(p.SupplierId, d);
+
+    private static bool ClaimableFrom(Guid supplierId, MonthData d) =>
+        !d.Composition && d.Suppliers.TryGetValue(supplierId, out var s) && s.Gstin is not null && IsValidGstin(s.Gstin);
+
+    /// <summary>Money paid out comes from cash, the UPI account or the bank, as it was paid.</summary>
+    private static string PaidFrom(PaymentMode? mode, MonthData d) => mode switch
+    {
+        PaymentMode.Upi => d.Names["upi"],
+        PaymentMode.Bank => d.Names["bank"],
+        _ => d.Names["cash"],
+    };
+
+    /// <summary>
+    /// Supplier bills as Purchase vouchers (the supplier credited; purchase, input tax and freight debited), supplier
+    /// payments as Payment vouchers, and the kharcha book as Payment vouchers to each heading's account. A composition
+    /// shop can't claim input tax, so its tax stays in the purchase cost. Cash put in the bank is a Contra.
+    /// </summary>
+    private static void Buying(MonthData d, StringBuilder body)
+    {
+        var shopState = d.ShopGstin is { Length: 15 } sg ? sg[..2] : null;
+        void Entry(string ledger, decimal amount, bool debit) =>
+            body.Append($"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{X(ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>{(debit ? "Yes" : "No")}</ISDEEMEDPOSITIVE><AMOUNT>{(debit ? "-" : "")}{Amount(amount)}</AMOUNT></ALLLEDGERENTRIES.LIST>");
+        string Day(DateTimeOffset at) => at.ToOffset(IndiaTime.Offset).ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+
+        foreach (var p in d.Purchases)
+        {
+            var (name, gstin) = d.Suppliers.GetValueOrDefault(p.SupplierId, ("Supplier", null));
+            var taxable = p.Lines.Sum(l => l.Taxable);
+            var gst = p.Lines.Sum(l => l.Gst);
+            var interState = shopState is not null && gstin is { Length: 15 } && gstin[..2] != shopState;
+            var debits = new List<(string Ledger, decimal Amount)>();
+            if (!Claimable(p, d))
+            {
+                debits.Add((d.Names["purchases"], taxable + gst));
+            }
+            else
+            {
+                debits.Add((d.Names["purchases"], taxable));
+                var half = decimal.Round(gst / 2, 2);
+                debits.AddRange(interState ? [(d.Names["inputIgst"], gst)] : [(d.Names["inputCgst"], half), (d.Names["inputSgst"], gst - half)]);
+            }
+
+            debits.Add((d.Names["freight"], p.ExtraCharges));
+            var roundOff = p.Total - debits.Sum(x => x.Amount);
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"Purchase\" ACTION=\"Create\"><GUID>gk-{p.Id}</GUID><DATE>{Day(p.OccurredAt)}</DATE><VOUCHERTYPENAME>Purchase</VOUCHERTYPENAME>")
+                .Append($"<REFERENCE>{X(p.BillNo ?? "")}</REFERENCE><PARTYLEDGERNAME>{X(name)}</PARTYLEDGERNAME>{(gstin is not null ? $"<PARTYGSTIN>{gstin}</PARTYGSTIN>" : "")}<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
+            Entry(name, p.Total, debit: false);
+            foreach (var (ledger, amount) in debits.Where(x => x.Amount != 0))
+            {
+                Entry(ledger, amount, debit: true);
+            }
+
+            if (roundOff != 0)
+            {
+                Entry(d.Names["roundOff"], Math.Abs(roundOff), debit: roundOff > 0);
+            }
+
+            body.Append("</VOUCHER></TALLYMESSAGE>\n");
+        }
+
+        foreach (var e in d.SupplierPayments)
+        {
+            var name = d.Suppliers.GetValueOrDefault(e.SupplierId, ("Supplier", null)).Name;
+            var note = string.Join(" · ", new[] { e.Note, e.Reference }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"Payment\" ACTION=\"Create\"><GUID>gk-{e.Id}</GUID><DATE>{Day(e.OccurredAt)}</DATE><VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>")
+                .Append($"<PARTYLEDGERNAME>{X(name)}</PARTYLEDGERNAME>{(note.Length > 0 ? $"<NARRATION>{X(note)}</NARRATION>" : "")}<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
+            Entry(name, Math.Abs(e.Amount), debit: true);
+            Entry(PaidFrom(e.Mode, d), Math.Abs(e.Amount), debit: false);
+            body.Append("</VOUCHER></TALLYMESSAGE>\n");
+        }
+
+        // Supplier credit notes as Debit Notes: the supplier is debited (owed less), purchases credited.
+        foreach (var e in d.SupplierCredits)
+        {
+            // A note undone (its goods receipt cancelled) has the opposite sign: the same voucher with every side turned over.
+            var undo = e.Amount > 0;
+            var name = d.Suppliers.GetValueOrDefault(e.SupplierId, ("Supplier", null)).Name;
+            var note = string.Join(" · ", new[] { e.Note, e.Reference }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"{(undo ? "Credit Note" : "Debit Note")}\" ACTION=\"Create\"><GUID>gk-{e.Id}</GUID><DATE>{Day(e.OccurredAt)}</DATE><VOUCHERTYPENAME>{(undo ? "Credit Note" : "Debit Note")}</VOUCHERTYPENAME>{(e.Reference is { Length: > 0 } no ? $"<VOUCHERNUMBER>{X(no)}</VOUCHERNUMBER>" : "")}")
+                .Append($"<PARTYLEDGERNAME>{X(name)}</PARTYLEDGERNAME>{(note.Length > 0 ? $"<NARRATION>{X(note)}</NARRATION>" : "")}<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
+            Entry(name, Math.Abs(e.Amount), debit: !undo);
+            // The GST in it reverses the input tax taken on those goods (only where it was claimable).
+            var back = e.Gst is { } g && g != 0 && ClaimableFrom(e.SupplierId, d) ? Math.Abs(g) : 0;
+            Entry(d.Names["purchases"], Math.Abs(e.Amount) - back, debit: undo);
+            if (back > 0)
+            {
+                var sGstin = d.Suppliers[e.SupplierId].Gstin!;
+                if (shopState is not null && sGstin[..2] != shopState)
+                {
+                    Entry(d.Names["inputIgst"], back, debit: undo);
+                }
+                else
+                {
+                    var half = decimal.Round(back / 2, 2);
+                    Entry(d.Names["inputCgst"], half, debit: undo);
+                    Entry(d.Names["inputSgst"], back - half, debit: undo);
+                }
+            }
+            body.Append("</VOUCHER></TALLYMESSAGE>\n");
+        }
+
+        // Freight, hamali or commission not paid yet: in the goods' cost, and owed to the transporter until paid.
+        foreach (var (charge, bill) in d.UnpaidFreight)
+        {
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"Journal\" ACTION=\"Create\"><GUID>gk-{charge.Id}</GUID><DATE>{Day(bill.OccurredAt)}</DATE><VOUCHERTYPENAME>Journal</VOUCHERTYPENAME>")
+                .Append($"<NARRATION>{X($"{charge.Label} on supplier bill {bill.BillNo}".Trim())}</NARRATION><PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
+            Entry(d.Names["freight"], charge.Amount, debit: true);
+            Entry(d.Names["freightPayable"], charge.Amount, debit: false);
+            body.Append("</VOUCHER></TALLYMESSAGE>\n");
+        }
+
+        // Cash moved by hand: into or out of the bank is a Contra; cash brought in is capital, cash taken out drawings.
+        foreach (var m in d.CashMoves)
+        {
+            var (kind, debit, credit) = m.Kind switch
+            {
+                CashMoveKind.ToBank => ("Contra", d.Names["bank"], d.Names["cash"]),
+                CashMoveKind.FromBank => ("Contra", d.Names["cash"], d.Names["bank"]),
+                CashMoveKind.Added => ("Receipt", d.Names["cash"], d.Names["capital"]),
+                _ => ("Payment", d.Names["home"], d.Names["cash"]),
+            };
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"{kind}\" ACTION=\"Create\"><GUID>gk-{m.Id}</GUID><DATE>{Day(m.OccurredAt)}</DATE><VOUCHERTYPENAME>{kind}</VOUCHERTYPENAME>")
+                .Append($"{(string.IsNullOrWhiteSpace(m.Note) ? "" : $"<NARRATION>{X(m.Note)}</NARRATION>")}<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
+            Entry(debit, m.Amount, debit: true);
+            Entry(credit, m.Amount, debit: false);
+            body.Append("</VOUCHER></TALLYMESSAGE>\n");
+        }
+
+        foreach (var e in d.Expenses)
+        {
+            var deposit = e.Category == ExpenseCategory.Deposit;
+            var kind = deposit ? "Contra" : "Payment";
+            var to = deposit ? d.Names["bank"] : d.FreightExpenses.Contains(e.Id) ? d.Names["freight"] : d.Names[(ExpenseLedgers.TryGetValue(e.Category, out var where) ? where.Key : "other")];
+            body.Append($"<TALLYMESSAGE><VOUCHER VCHTYPE=\"{kind}\" ACTION=\"Create\"><GUID>gk-{e.Id}</GUID><DATE>{Day(e.OccurredAt)}</DATE><VOUCHERTYPENAME>{kind}</VOUCHERTYPENAME>")
+                .Append($"{(string.IsNullOrWhiteSpace(e.Note) ? "" : $"<NARRATION>{X(e.Note)}</NARRATION>")}<PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>");
+            Entry(to, e.Amount, debit: true);
+            Entry(deposit ? d.Names["cash"] : PaidFrom(e.Mode, d), e.Amount, debit: false);
+            body.Append("</VOUCHER></TALLYMESSAGE>\n");
+        }
+    }
+
 
     /// <summary>The sheet for the CA: every bill, then GST by rate, then by HSN. Opens in Excel.</summary>
     private static string Summary(MonthData d)
@@ -283,11 +781,35 @@ public static class GstExport
                 Amount(n.Total), Amount(n.Lines.Sum(l => l.TaxableValue)), Amount(n.Lines.Sum(l => l.Cgst)), Amount(n.Lines.Sum(l => l.Sgst)), Amount(n.Lines.Sum(l => l.Igst))).Append('\n');
         }
 
-        csv.Append("\nHSN,GST rate,Quantity,Taxable,Total tax\n");
-        foreach (var g in taxed.GroupBy(l => (l.HsnCode, l.GstRate)).OrderBy(g => g.Key.HsnCode))
+        // GSTR-1 Table 12: B2B and B2C apart, by HSN, rate and unit code, with credit notes taken off.
+        var (saleLines, returnLines) = (SaleLines(d), ReturnLines(d));
+        csv.Append("\nHSN table (GSTR-1 Table 12),HSN,GST rate,UQC,Quantity,Taxable,CGST,SGST,IGST\n");
+        foreach (var h in GstReturns.Hsn(saleLines, returnLines))
         {
-            csv.AppendJoin(',', g.Key.HsnCode ?? "No HSN", g.Key.GstRate is { } r ? $"{r:0.##}%" : "", g.Sum(l => l.Quantity).ToString(CultureInfo.InvariantCulture),
-                Amount(g.Sum(l => LineTax(l).Taxable)), Amount(g.Sum(l => { var t = LineTax(l); return t.Cgst + t.Sgst + t.Igst; }))).Append('\n');
+            csv.AppendJoin(',', h.Section, h.Hsn, h.Rate is { } r ? $"{r:0.##}%" : "", h.Uqc, h.Quantity.ToString(CultureInfo.InvariantCulture),
+                Amount(h.Taxable), Amount(h.Cgst), Amount(h.Sgst), Amount(h.Igst)).Append('\n');
+        }
+
+        var pay = GstReturns.Payable(d.Composition, d.Bills.Sum(b => b.Total) - d.Notes.Sum(n => n.Total), saleLines, returnLines, InputTax(d));
+        if (d.Composition)
+        {
+            csv.Append($"\nCMP-08 working,Turnover {Amount(pay.CompositionTurnover ?? 0)},Tax at 1% {Amount(pay.CompositionTax ?? 0)},CGST {Amount(pay.PayCgst)},SGST {Amount(pay.PaySgst)}\n");
+        }
+        else
+        {
+            csv.Append("\nGSTR-3B working,CGST,SGST,IGST\n");
+            csv.AppendJoin(',', "Tax on sales (less credit notes)", Amount(pay.OutputCgst), Amount(pay.OutputSgst), Amount(pay.OutputIgst)).Append('\n');
+            csv.AppendJoin(',', "Input tax claimable", Amount(pay.InputCgst), Amount(pay.InputSgst), Amount(pay.InputIgst)).Append('\n');
+            csv.AppendJoin(',', "To pay", Amount(pay.PayCgst), Amount(pay.PaySgst), Amount(pay.PayIgst)).Append('\n');
+            csv.AppendJoin(',', "Credit carried forward", Amount(pay.CarryCgst), Amount(pay.CarrySgst), Amount(pay.CarryIgst)).Append('\n');
+        }
+
+        csv.Append("\nReceipt (money received),Date,Party,Mode,UPI ref,Amount\n");
+        foreach (var e in d.Receipts)
+        {
+            var party = d.Customers.TryGetValue(e.CustomerId, out var c) ? c.Name : "Cash";
+            csv.AppendJoin(',', "Receipt", e.OccurredAt.ToOffset(IndiaTime.Offset).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), C(party),
+                e.PaymentMode switch { PaymentMode.Upi => "UPI", PaymentMode.Card => "Card", PaymentMode.Cheque => "Cheque", _ => "Cash" }, e.UpiRef ?? e.ChequeNo ?? "", Amount(Math.Abs(e.Amount))).Append('\n');
         }
 
         return csv.ToString();

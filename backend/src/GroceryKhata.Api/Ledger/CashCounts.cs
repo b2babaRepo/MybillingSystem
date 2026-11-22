@@ -10,7 +10,8 @@ namespace GroceryKhata.Api.Ledger;
 /// <summary>
 /// The evening count of the cash box (galla), like the last line of the rokad bahi: what was in it at opening, what the
 /// day's cash in and out says should be there, what was really counted, and the difference (short or extra).
-/// One per shop day; counting again replaces it. The next day opens with what was counted.
+/// Every count is kept: counting again adds a new one, and the latest stands, so a shortage can't be wiped out by a
+/// recount. Helpers count today only; only the owner can count a past day. The next day opens with what was counted.
 /// </summary>
 public sealed class CashCount : Entity, ITenantOwned
 {
@@ -39,7 +40,11 @@ public sealed class CashCount : Entity, ITenantOwned
 /// </summary>
 public sealed record CashCountDto(
     DateOnly Date, decimal Opening, bool OpeningFromCount, decimal CashIn, decimal CashOut, decimal Expected,
-    decimal? Counted, decimal? Difference, string? Note, string? CountedBy, DateTimeOffset? CountedAt);
+    decimal? Counted, decimal? Difference, string? Note, string? CountedBy, DateTimeOffset? CountedAt,
+    IReadOnlyList<CashCountEntryDto>? History = null, decimal? ExpectedAtCount = null);
+
+/// <summary>One count as it was saved: what the books said then, what was counted, the difference, who and when.</summary>
+public sealed record CashCountEntryDto(DateTimeOffset At, string? By, decimal Expected, decimal Counted, decimal Difference, string? Note);
 
 public sealed record CashCountRequest(string? Date, decimal? Opening, decimal Counted, string? Note);
 
@@ -73,14 +78,22 @@ public static class CashCountEndpoints
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Counted"] = ["Enter the cash you counted."] });
         }
 
-        var summary = await SummaryAsync(db, day, request.Opening, ct);
-        var count = await db.CashCounts.SingleOrDefaultAsync(c => c.Day == day, ct);
-        if (count is null)
+        if (day < IndiaTime.Today(clock) && !LedgerEndpoints.IsOwner(user))
         {
-            count = new CashCount { Day = day };
-            db.CashCounts.Add(count);
+            return TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Only the owner can count a past day.");
         }
 
+        var summary = await SummaryAsync(db, day, request.Opening, ct);
+        // With no earlier count to start from, the opening cash must be given: taking it as 0 would make every earlier
+        // day's cash look short or extra.
+        if (request.Opening is null && !summary.OpeningFromCount)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Opening"] = ["Enter the cash that was in the box at opening."] });
+        }
+
+        // A new count each time: earlier ones stay in the day's history.
+        var count = new CashCount { Day = day };
+        db.CashCounts.Add(count);
         count.Opening = summary.Opening;
         count.Expected = summary.Expected;
         count.Counted = request.Counted;
@@ -96,22 +109,28 @@ public static class CashCountEndpoints
     /// The day's sum. Opening: the typed one, else this day's saved count's, else the last earlier count's counted
     /// cash, else 0 (and the screen asks).
     /// </summary>
+    /// <summary>The day's drawer sum, for the day report.</summary>
+    internal static Task<CashCountDto> SummaryForAsync(AppDbContext db, DateOnly day, CancellationToken ct) => SummaryAsync(db, day, null, ct);
+
     private static async Task<CashCountDto> SummaryAsync(AppDbContext db, DateOnly day, decimal? typedOpening, CancellationToken ct)
     {
-        var saved = await (from c in db.CashCounts.AsNoTracking()
-                           where c.Day == day
-                           join u in db.Users.AsNoTracking() on c.CountedByUserId equals u.Id into users
-                           from u in users.DefaultIfEmpty()
-                           select new { c, Name = u == null ? null : u.FullName })
-            .SingleOrDefaultAsync(ct);
-        var previous = await db.CashCounts.AsNoTracking().Where(c => c.Day < day).OrderByDescending(c => c.Day)
+        var counts = await (from c in db.CashCounts.AsNoTracking()
+                            where c.Day == day
+                            join u in db.Users.AsNoTracking() on c.CountedByUserId equals u.Id into users
+                            from u in users.DefaultIfEmpty()
+                            orderby c.CountedAt descending
+                            select new { c, Name = u == null ? null : u.FullName }).ToListAsync(ct);
+        var saved = counts.FirstOrDefault();
+        var previous = await db.CashCounts.AsNoTracking().Where(c => c.Day < day).OrderByDescending(c => c.Day).ThenByDescending(c => c.CountedAt)
             .Select(c => (decimal?)c.Counted).FirstOrDefaultAsync(ct);
         var opening = typedOpening ?? saved?.c.Opening ?? previous ?? 0m;
         var book = await CashBookEndpoints.DayAsync(db, day, ct);
         var expected = opening + book.Cash - book.SpentCash;
         return new CashCountDto(
             day, opening, typedOpening is null && (saved is not null || previous is not null), book.Cash, book.SpentCash, expected,
-            saved?.c.Counted, saved is null ? null : saved.c.Counted - expected, saved?.c.Note, saved?.Name, saved?.c.CountedAt);
+            // The difference as it stood when counted: a later change in the books doesn't quietly move it.
+            saved?.c.Counted, saved?.c.Difference, saved?.c.Note, saved?.Name, saved?.c.CountedAt,
+            counts.Select(x => new CashCountEntryDto(x.c.CountedAt, x.Name, x.c.Expected, x.c.Counted, x.c.Difference, x.c.Note)).ToList(), saved?.c.Expected);
     }
 
     private static DateOnly? ParseDay(string? date, TimeProvider clock) =>

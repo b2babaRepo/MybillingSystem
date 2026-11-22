@@ -60,6 +60,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             ["Database:MigrateOnStartup"] = "true",
             ["Auth:AuthRequestsPerMinutePerIp"] = "10000",
             ["Auth:StoreRequestsPerMinutePerIp"] = "10000",
+            ["Auth:OtpSendsPerHourPerIp"] = "100000",
+            ["Billing:RazorpayWebhookSecret"] = "test-webhook-secret",
             ["Security:RequestsPerMinutePerIp"] = "100000",
             ["Ai:Enabled"] = "false",
             ["Whatsapp:AppSecret"] = "test-app-secret",
@@ -98,6 +100,9 @@ public static class HttpExtensions
 {
     public static Task<HttpResponseMessage> PostJsonAsync(this HttpClient client, string url, object body) =>
         client.PostAsJsonAsync(url, body, ApiFactory.Json);
+
+    public static Task<HttpResponseMessage> PutJsonAsync(this HttpClient client, string url, object body) =>
+        client.PutAsJsonAsync(url, body, ApiFactory.Json);
 
     public static async Task<T> ReadAsync<T>(this HttpResponseMessage response)
     {

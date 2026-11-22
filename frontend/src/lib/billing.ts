@@ -24,7 +24,7 @@ export interface PlanInfo {
   shops?: number
 }
 
-export const FEATURES = ['reports', 'store', 'whatsapp', 'staff', 'bill_photo', 'gst', 'gst_export', 'trade', 'ai'] as const
+export const FEATURES = ['reports', 'store', 'whatsapp', 'staff', 'bill_photo', 'gst_export', 'trade', 'ai'] as const
 
 /** Every plan, for admins: on sale or not, with its shop count. */
 export function usePlans() {
@@ -100,12 +100,6 @@ export function priceFor(plan: PlanInfo, term: PlanTerm): number | null {
   if (term === 'year1') return plan.priceYear1
   if (term === 'year3') return plan.priceYear3
   return plan.priceYear5 === null ? null : Math.round(plan.priceYear5 / 5)
-}
-
-/** GST billing is on the shop's plan. True until the plan is known (offline), so nothing disappears by mistake. */
-export function useGstBilling(shopId: string) {
-  const features = useSubscription(shopId).data?.features
-  return !features || features.includes('gst')
 }
 
 export function useSubscription(shopId: string, enabled = true) {

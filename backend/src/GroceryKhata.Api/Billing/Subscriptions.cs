@@ -71,11 +71,10 @@ public static class Features
     public const string Ai = "ai";
     public const string Trade = "trade";
     public const string BillPhoto = "bill_photo";
-    public const string Gst = "gst";
     /// <summary>Tally files and the GST summary for the CA.</summary>
     public const string GstExport = "gst_export";
 
-    public static readonly string[] All = [Reports, Store, WhatsApp, Staff, Ai, Trade, BillPhoto, Gst, GstExport];
+    public static readonly string[] All = [Reports, Store, WhatsApp, Staff, Ai, Trade, BillPhoto, GstExport];
 }
 
 /// <summary>
@@ -291,6 +290,14 @@ public sealed class BillingOptions
 }
 
 /// <summary>Works out what a shop may use, from its subscription's dates and the plans.</summary>
+/// <summary>The next invoice number of each financial year. Platform data, not a shop's.</summary>
+public sealed class InvoiceCounter
+{
+    public required string Prefix { get; set; }
+
+    public int LastNumber { get; set; }
+}
+
 public sealed class Entitlements(AppDbContext db, TimeProvider clock, Microsoft.Extensions.Options.IOptions<BillingOptions> options)
 {
     public BillingOptions Options => options.Value;

@@ -1,11 +1,14 @@
-using GroceryKhata.Api.Catalogue;
+﻿using GroceryKhata.Api.Catalogue;
 
 namespace GroceryKhata.Api.Ledger;
 
 /// <summary><see cref="Id"/> is made by the app, so a retried or synced-again request finds the same customer.</summary>
-public sealed record CustomerRequest(Guid Id, string? Name, string? Phone);
+public sealed record CustomerRequest(Guid Id, string? Name, string? Phone, bool NameLater = false);
 
-public sealed record CustomerDto(Guid Id, string Name, string? Phone, decimal Balance, decimal? CreditLimit = null);
+/// <summary>Puts a paid walk-in bill on a customer's khata after the fact; older than a week needs the owner and a reason.</summary>
+public sealed record AttachCustomerRequest(Guid CustomerId, string? Reason);
+
+public sealed record CustomerDto(Guid Id, string Name, string? Phone, decimal Balance, decimal? CreditLimit = null, bool NameLater = false, int? CreditDays = null);
 
 /// <summary>
 /// The fast path: "Ramesh, ₹340, udhaar" with no items. <see cref="Amount"/> is always positive;
@@ -19,7 +22,10 @@ public sealed record KhataEntryRequest(
     PaymentMode? PaymentMode,
     string? Note,
     DateTimeOffset? OccurredAt,
-    string? UpiRef = null);
+    string? UpiRef = null,
+    string? ChequeNo = null,
+    string? ChequeBank = null,
+    DateOnly? ChequeDate = null);
 
 public enum KhataEntryType
 {
@@ -32,7 +38,8 @@ public enum KhataEntryType
 
 public sealed record ReverseRequest(Guid Id, string? Note);
 
-public sealed record BillLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice);
+/// <summary><see cref="OfferId"/>: the planned offer the counter applied to this line, if any.</summary>
+public sealed record BillLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice, Guid? SalespersonId = null, Guid? OfferId = null, decimal? Bags = null);
 
 public sealed record BillRequest(
     Guid Id,
@@ -45,7 +52,21 @@ public sealed record BillRequest(
     string? VehicleNumber = null,
     Guid? PainterId = null,
     PrescriptionRequest? Prescription = null,
-    IReadOnlyList<Catalogue.BillSerialRequest>? Serials = null);
+    IReadOnlyList<Catalogue.BillSerialRequest>? Serials = null,
+    Guid? ExchangeNoteId = null,
+    string? PlaceOfSupply = null,
+    int? EntrySeconds = null,
+    // The shop chose a bill without GST (goods with no GST, or a sale the shop doesn't bill under its GSTIN): no tax
+    // invoice, no GST worked out, and it stays out of the GST return.
+    bool WithoutGst = false,
+    // Paid more than one way: each part's mode and amount. They add up to PaidAmount; none: one way, by PaymentMode.
+    IReadOnlyList<BillPaymentRequest>? Payments = null,
+    // The counter (device) it was made on, as named on that device.
+    string? Counter = null,
+    // Handed out from this godown rather than the shop shelf: the goods move out of the godown with the bill.
+    Guid? GodownId = null,
+    // The shop's own extra bill fields as filled in (PO no., doctor…).
+    IReadOnlyList<BillFieldValue>? Fields = null);
 
 /// <summary>For Schedule H, H1 and X medicines: who prescribed them and for whom, as the drug rules ask.</summary>
 public sealed record PrescriptionRequest(string? DoctorName, string? DoctorAddress, string? DoctorRegNo, string? PatientName, string? PatientAddress, DateOnly? PrescribedOn);
@@ -69,7 +90,7 @@ public sealed record LedgerEntryDto(
 public sealed record KhataEntryResponse(LedgerEntryDto Entry, decimal CustomerBalance);
 
 public sealed record BillLineDto(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Amount, decimal? GstRate = null, string? HsnCode = null,
-    decimal? TaxableValue = null, decimal? Cgst = null, decimal? Sgst = null, decimal? Igst = null, string? Batch = null);
+    decimal? TaxableValue = null, decimal? Cgst = null, decimal? Sgst = null, decimal? Igst = null, string? Batch = null, decimal? ListPrice = null, string? PrintName = null, decimal? Bags = null);
 
 public sealed record BillDto(
     Guid Id,
@@ -90,7 +111,19 @@ public sealed record BillDto(
     string? CancelReason = null,
     string? BuyerGstin = null,
     bool BillOfSupply = false,
-    PrescriptionRequest? Prescription = null);
+    PrescriptionRequest? Prescription = null,
+    decimal ExchangeCredit = 0,
+    string? ExchangeNoteNo = null,
+    string? PlaceOfSupply = null,
+    string? ShopAddress = null,
+    string? BuyerAddress = null,
+    IReadOnlyList<BillPaymentPart>? Payments = null,
+    string? Counter = null,
+    Shops.BillPrintDto? Print = null,
+    // The khata part of the bill is due on this day (the customer's credit days after the bill). Null: no terms.
+    DateOnly? DueOn = null,
+    // The shop's own extra fields as filled on this bill.
+    IReadOnlyList<BillFieldValue>? Fields = null);
 
 public sealed record CancelBillRequest(string? Reason);
 
@@ -110,7 +143,9 @@ public sealed record StatementLine(
     string? UpiRef = null,
     DisputeView? Dispute = null,
     bool EnteredLate = false,
-    DateTimeOffset? RecordedAt = null);
+    DateTimeOffset? RecordedAt = null,
+    string? ChequeNo = null,
+    ChequeStatus? ChequeStatus = null);
 
 /// <summary>The latest dispute on an entry, as both sides see it.</summary>
 public sealed record DisputeView(
@@ -132,7 +167,7 @@ public sealed record DisputeItemView(
     DateTimeOffset? ResolvedAt);
 
 /// <summary>What was bought on a bill, so the khata shows the items behind each udhaar, not just an amount.</summary>
-public sealed record BillSummary(decimal Total, decimal Paid, IReadOnlyList<BillItem> Items, string? Site = null);
+public sealed record BillSummary(decimal Total, decimal Paid, IReadOnlyList<BillItem> Items, string? Site = null, string? BillNo = null);
 
 public sealed record BillItem(Guid Id, string Name, decimal Quantity, Catalogue.Unit Unit, decimal UnitPrice, decimal Amount);
 
@@ -140,7 +175,7 @@ public sealed record BillItem(Guid Id, string Name, decimal Quantity, Catalogue.
 /// <see cref="OpeningBalance"/>: owed before the period (previous dues carried forward); 0 for the whole khata.
 /// <see cref="ClosingBalance"/>: owed at its end. <see cref="Month"/>: "2026-10", or null for everything.
 /// </summary>
-public sealed record StatementDto(CustomerDto Customer, IReadOnlyList<StatementLine> Entries, decimal OpeningBalance, decimal ClosingBalance, string? Month);
+public sealed record StatementDto(CustomerDto Customer, IReadOnlyList<StatementLine> Entries, decimal OpeningBalance, decimal ClosingBalance, string? Month, BalanceConfirmedDto? Confirmed = null);
 
 /// <summary>A bill as printed or shared: its lines, and the customer it was for.</summary>
 public sealed record BillView(BillDto Bill, CustomerDto? Customer);
@@ -151,6 +186,9 @@ public sealed record BalanceMismatch(Guid CustomerId, string Name, decimal Store
 /// The outcome of a write. <see cref="Replayed"/> means the ID was already saved, so nothing new was
 /// written: the normal result of an offline queue sending the same request twice.
 /// </summary>
+/// <summary>An item whose stock, stock ledger and batches disagree.</summary>
+public sealed record StockMismatch(Guid ProductId, string Name, decimal Stock, decimal Ledger, decimal? Batches);
+
 public sealed record LedgerResult<T>(T? Value, bool Replayed, Dictionary<string, string[]>? Errors, bool NotFound, string? Conflict)
     where T : class
 {

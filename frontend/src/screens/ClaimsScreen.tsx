@@ -49,14 +49,14 @@ export function ClaimsScreen({ shopId }: { shopId: string }) {
   const open = claims.filter((c) => !c.settledAt)
   const companies = [...new Set(open.map((c) => c.supplierName))]
   const band = (name: string, [lo, hi]: readonly [number, number]) => open.filter((c) => c.supplierName === name && c.daysOpen >= lo && c.daysOpen <= hi).reduce((s, c) => s + c.amount, 0)
-  const chip = (on: boolean) => `min-h-11 flex-1 rounded-full text-sm font-semibold ${on ? 'bg-teal-700 text-white' : 'border border-line bg-white'}`
+  const chip = (on: boolean) => `min-h-11 flex-1 rounded-full text-sm font-semibold ${on ? 'bg-brand text-white' : 'border border-line bg-white'}`
   const select = 'h-12 w-full rounded-xl border border-line bg-white px-3'
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('claims.hint')}</p>
       {!all && open.length > 0 && (
-        <section className="rounded-[18px] bg-white p-3 text-sm">
+        <section className="rounded-card bg-white p-3 text-sm">
           <h3 className="mb-2 font-bold">{t('claims.ageing', { amount: formatRupees(open.reduce((s, c) => s + c.amount, 0)) })}</h3>
           <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-1">
             <span /><b>0–30</b><b>31–60</b><b className="text-due">60+</b>
@@ -72,7 +72,7 @@ export function ClaimsScreen({ shopId }: { shopId: string }) {
         <button onClick={() => setAll(true)} className={chip(all)}>{t('claims.all')}</button>
       </div>
       {!all && (adding ? (
-        <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+        <section className="flex flex-col gap-2 rounded-card bg-white p-3">
           <select value={d.supplierId} onChange={(e) => setD({ ...d, supplierId: e.target.value })} aria-label={t('claims.company')} className={select}>
             <option value="">{t('claims.company')}</option>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
@@ -92,7 +92,7 @@ export function ClaimsScreen({ shopId }: { shopId: string }) {
         </section>
       ) : <Button onClick={() => setAdding(true)}>{t('claims.new')}</Button>)}
       {message && <p className="text-sm text-due">{message}</p>}
-      {claims.length === 0 && <p className="rounded-[18px] bg-white p-4 text-center text-muted">{t('claims.empty')}</p>}
+      {claims.length === 0 && <p className="rounded-card bg-white p-4 text-center text-muted">{t('claims.empty')}</p>}
       {claims.map((c) => <ClaimCard key={c.id} claim={c} run={run} />)}
     </div>
   )
@@ -108,12 +108,12 @@ function ClaimCard({ claim: c, run }: { claim: Claim; run: (work: () => Promise<
     .then((ok) => { if (ok) setForm(null) })
 
   return (
-    <div className="flex flex-col gap-1 rounded-[18px] bg-white p-3 text-sm">
+    <div className="flex flex-col gap-1 rounded-card bg-white p-3 text-sm">
       <p className="flex justify-between gap-2"><b>#{c.number} {c.supplierName}</b><b>{formatRupees(c.amount)}</b></p>
       <p>{c.description}{c.serialNo ? ` · S/N ${c.serialNo}` : ''}{c.jobNumber ? ` · ${t('claims.jobNo', { number: c.jobNumber })}` : ''}</p>
       <p className="text-xs text-muted">{t('claims.split', { parts: formatRupees(c.parts), labour: formatRupees(c.labour) })}</p>
       {c.settledAt
-        ? <p className={c.creditAmount ? 'text-teal-800' : 'text-due'}>{c.creditAmount ? t('claims.credited', { amount: formatRupees(c.creditAmount), loss: formatRupees(c.loss) }) : t('claims.rejected', { reason: c.rejectReason ?? '' })}</p>
+        ? <p className={c.creditAmount ? 'text-brand-strong' : 'text-due'}>{c.creditAmount ? t('claims.credited', { amount: formatRupees(c.creditAmount), loss: formatRupees(c.loss) }) : t('claims.rejected', { reason: c.rejectReason ?? '' })}</p>
         : <p className={c.daysOpen > 60 ? 'font-semibold text-due' : 'text-muted'}>{t('claims.daysOpen', { days: c.daysOpen })}{c.dispatchNo ? ` · ${t('claims.sent', { no: c.dispatchNo })}` : ` · ${t('claims.notSent')}`}</p>}
       {!c.settledAt && !form && (
         <div className="flex gap-2">

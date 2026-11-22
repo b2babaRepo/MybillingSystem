@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Ledger;
@@ -141,7 +141,9 @@ public sealed class ReportsTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.BadRequest, noAmount.StatusCode);
         Assert.Equal(("sharmastore@okaxis", "Raja Park"), (saved.UpiId, saved.Area));
         // Lists never compare equal in a record: compare the rest.
-        Assert.Equal(saved with { ExtraTypes = null }, (await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop")) with { ExtraTypes = null });
+        var read = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
+        Assert.Equal(saved.BillFields ?? [], read.BillFields ?? []);
+        Assert.Equal(saved with { ExtraTypes = null, BillFields = null }, read with { ExtraTypes = null, BillFields = null });
     }
 
     private static async Task PostBillAsync(HttpClient client, object line, decimal paid, string mode) =>

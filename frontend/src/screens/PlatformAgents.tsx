@@ -1,5 +1,6 @@
+import { btn } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, request } from '../lib/api'
 import { BADGE_ICON, isValidAadhaar, type AgentPerformanceRow, type FieldAgent, type FieldAgentStatus, type Registration } from '../lib/agents'
@@ -17,16 +18,39 @@ const TABS: FieldAgentStatus[] = ['applied', 'approved', 'blocked', 'rejected']
  * Field agents (super and agent-manager admins): applications to check, approved agents with their codes, blocked and
  * rejected ones. Approving asks the manager to confirm they saw the Aadhaar card; the app only checks the number's form.
  */
-export function AgentsPanel() {
+/**
+ * The field agents page at a glance: what is waiting to be checked, who is working, and commission owed. Uses the
+ * same lists as the panels below, so nothing is fetched twice.
+ */
+export function AgentsSummary({ showMoney }: { showMoney: boolean }) {
+  const { t } = useTranslation()
+  const applied = useQuery({ queryKey: ['platform', 'agents', 'applied'], queryFn: () => api<FieldAgent[]>('/v1/platform/agents?status=applied') }).data?.length
+  const approved = useQuery({ queryKey: ['platform', 'agents', 'approved'], queryFn: () => api<FieldAgent[]>('/v1/platform/agents?status=approved') }).data?.length
+  const shops = useQuery({ queryKey: ['platform', 'registrations', 'submitted'], queryFn: () => api<Registration[]>('/v1/platform/registrations?status=submitted') }).data?.length
+  const due = useQuery({ queryKey: ['platform', 'agent-performance'], queryFn: () => api<AgentPerformanceRow[]>('/v1/platform/agent-performance'), enabled: showMoney }).data?.reduce((n, r) => n + r.commissionDue, 0)
+  const card = 'flex min-h-[84px] flex-col justify-between rounded-[18px] p-3'
+  return (
+    <div className={`grid grid-cols-2 gap-2 ${showMoney ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
+      <div className={`${card} ${applied ? 'bg-[#b45309] text-white shadow-lg shadow-[#b45309]/30' : 'bg-[#fdf1e3] text-[#a1460a]'}`}><span className="text-[13px] font-bold">{t('plat6.agentsToCheck')}</span><b className="text-[28px] leading-none">{applied ?? '–'}</b></div>
+      <div className={`${card} bg-[#e8effd] text-[#1d4ed8]`}><span className="text-[13px] font-bold">{t('plat6.shopsToCheck')}</span><b className="text-[28px] leading-none">{shops ?? '–'}</b></div>
+      <div className={`${card} bg-[#e3f2ee] text-[#0b5e4f]`}><span className="text-[13px] font-bold">{t('plat6.approvedAgents')}</span><b className="text-[28px] leading-none">{approved ?? '–'}</b></div>
+      {showMoney && <div className={`${card} bg-[#f1eafd] text-[#6d28d9]`}><span className="text-[13px] font-bold">{t('plat6.commissionDue')}</span><b className="text-2xl leading-none">{due == null ? '–' : formatRupees(due)}</b></div>}
+    </div>
+  )
+}
+
+export function AgentsPanel({ addRequest = 0 }: { addRequest?: number }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const [tab, setTab] = useState<FieldAgentStatus>('applied')
   const agents = useQuery({ queryKey: ['platform', 'agents', tab], queryFn: () => api<FieldAgent[]>(`/v1/platform/agents?status=${tab}`), enabled: open })
   const waiting = useQuery({ queryKey: ['platform', 'agents', 'applied'], queryFn: () => api<FieldAgent[]>('/v1/platform/agents?status=applied') }).data?.length ?? 0
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  // The page header's "Add an agent" opens the form here.
+  useEffect(() => { if (addRequest > 0) setAdding(true) }, [addRequest])
   const empty = { fullName: '', phone: '', address: '', market: '', aadhaar: '', upiId: '' }
   const [form, setForm] = useState(empty)
 
@@ -49,14 +73,14 @@ export function AgentsPanel() {
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
         <h2 className="text-lg font-bold">{t('agentsAdmin.title', { count: waiting })}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
-        <p className="text-sm text-muted">{t('agentsAdmin.hint')}</p>
+        <p className="flex items-start gap-2 rounded-xl bg-warn-soft p-3 text-sm font-semibold text-warn-ink"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0"><path d="M3 6h18v12H3zM7 10h4M7 14h6M15 10h2v4h-2z" /></svg>{t('agentsAdmin.hint')}</p>
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-ground p-1 text-xs font-semibold">
           {TABS.map((s) => (
             <button key={s} role="tab" aria-selected={tab === s} onClick={() => setTab(s)}
-              className={`min-h-11 rounded-xl ${tab === s ? 'bg-teal-700 text-white' : ''}`}>{t(`fieldAgent.status.${s}`)}</button>
+              className={`min-h-11 rounded-xl ${tab === s ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`fieldAgent.status.${s}`)}</button>
           ))}
         </div>
 
@@ -66,9 +90,9 @@ export function AgentsPanel() {
             <li key={a.id} className="flex flex-col gap-1 rounded-xl border border-line p-3 text-sm">
               <span className="flex items-baseline justify-between gap-2">
                 <b className="text-base">{a.fullName}</b>
-                {a.code && <span className="font-mono font-bold text-teal-800">{a.code}</span>}
+                {a.code && <span className="font-mono font-bold text-brand-strong">{a.code}</span>}
               </span>
-              <span>{formatPhone(a.phone)} · <a href={`tel:${a.phone}`} className="text-teal-700 underline">{t('agentsAdmin.call')}</a></span>
+              <span>{formatPhone(a.phone)} · <a href={`tel:${a.phone}`} className="text-brand underline">{t('agentsAdmin.call')}</a></span>
               <span>{a.market}</span>
               <span className="text-muted">{a.address}</span>
               <span className="text-muted">
@@ -81,7 +105,7 @@ export function AgentsPanel() {
 
               <div className="mt-1 grid grid-cols-2 gap-2">
                 {a.status === 'applied' && <>
-                  <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white"
+                  <button disabled={busy} className={`min-h-11 rounded-xl ${btn.solid}`}
                     onClick={async () => (await confirmAsk(t('agentsAdmin.kycAsk', { name: a.fullName, last4: a.aadhaarLast4 })))
                       && void run(() => api(`/v1/platform/agents/${a.id}/approve`, 'POST', { kycChecked: true }), t('agentsAdmin.approved', { name: a.fullName }))}>
                     {t('agentsAdmin.approve')}</button>
@@ -98,7 +122,7 @@ export function AgentsPanel() {
                     {t('agentsAdmin.block')}</button>
                 </>}
                 {a.status === 'blocked' && (
-                  <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-teal-700 font-bold text-white"
+                  <button disabled={busy} className={`col-span-2 min-h-11 rounded-xl ${btn.solid}`}
                     onClick={() => void run(() => api(`/v1/platform/agents/${a.id}/unblock`, 'POST', {}))}>{t('agentsAdmin.unblock')}</button>
                 )}
               </div>
@@ -119,7 +143,7 @@ export function AgentsPanel() {
             <input aria-label={t('fieldAgent.upi')} placeholder={t('fieldAgent.upi')} value={form.upiId} onChange={(e) => setForm({ ...form, upiId: e.target.value.trim() })} className={box} />
             <div className="grid grid-cols-2 gap-2">
               <button disabled={busy || !isValidAadhaar(form.aadhaar) || form.fullName.trim().length < 2 || form.phone.trim().length < 10}
-                className="min-h-11 rounded-xl bg-teal-700 font-bold text-white disabled:opacity-40"
+                className={`min-h-11 rounded-xl ${btn.solid}`}
                 onClick={() => void run(async () => {
                   const result = await api<{ agent: FieldAgent; tempPassword: string | null }>('/v1/platform/agents', 'POST', { ...form, upiId: form.upiId || null })
                   setForm(empty)
@@ -130,10 +154,8 @@ export function AgentsPanel() {
               <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold" onClick={() => setAdding(false)}>{t('plans.cancel')}</button>
             </div>
           </div>
-        ) : (
-          <button onClick={() => setAdding(true)} className="min-h-11 rounded-xl border-2 border-dashed border-line font-semibold">+ {t('agentsAdmin.addTitle')}</button>
-        )}
-        {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+        ) : null}
+        {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       </>}
     </section>
   )
@@ -162,7 +184,7 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
   const review = role !== 'billing'
   const money = role === 'super' || role === 'billing'
   const first = review ? 'submitted' : 'payment'
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const [tab, setTab] = useState<(typeof REG_TABS)[number]>(first)
   const list = useQuery({ queryKey: ['platform', 'registrations', tab], queryFn: () => api<Registration[]>(`/v1/platform/registrations?status=${tab}`), enabled: open })
   const waiting = useQuery({ queryKey: ['platform', 'registrations', first], queryFn: () => api<Registration[]>(`/v1/platform/registrations?status=${first}`) }).data?.length ?? 0
@@ -187,12 +209,12 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
         <h2 className="text-lg font-bold">{t('registrations.title', { count: waiting })}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl bg-ground p-1 text-xs font-semibold">
           {REG_TABS.filter((x) => review || x === 'payment').map((x) => (
-            <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-teal-700 text-white' : ''}`}>{t(`registrations.tab.${x}`)}</button>
+            <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 rounded-xl ${tab === x ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`registrations.tab.${x}`)}</button>
           ))}
         </div>
         {list.data?.length === 0 && <p className="text-sm text-muted">{t('agentsAdmin.none')}</p>}
@@ -200,12 +222,12 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
           {list.data?.map((r) => (
             <li key={r.id} className="flex flex-col gap-2 rounded-xl border border-line p-3 text-sm">
               <span className="flex items-baseline justify-between gap-2"><b className="text-base">{r.shopName}</b><span className="font-mono text-xs">{r.agentCode} · {r.agentName}</span></span>
-              {r.warnings.map((w) => <span key={w} className="rounded-lg bg-red-50 px-2 py-1 font-semibold text-red-800">⚠ {w}</span>)}
+              {r.warnings.map((w) => <span key={w} className="rounded-lg bg-due-soft px-2 py-1 font-semibold text-red-800">⚠ {w}</span>)}
               <div className="grid grid-cols-3 gap-2">
                 {r.photos.map((p) => <AuthPhoto key={p.id} path={`/v1/platform/registrations/${r.id}/photos/${p.id}`} alt={p.kind} />)}
               </div>
               <span>{t(`shopType.${r.type}`)} · {r.address} · {r.market}</span>
-              <a href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer" className="text-teal-700 underline">
+              <a href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer" className="text-brand underline">
                 {t('registrations.map')}{r.accuracyMetres ? ` (±${Math.round(r.accuracyMetres)} m)` : ''}</a>
               <span>{r.ownerName} · {formatPhone(r.ownerPhone)}{r.altPhone ? ` / ${formatPhone(r.altPhone)}` : ''}{r.gstin ? ` · GSTIN ${r.gstin}` : ''}</span>
               <span className="text-xs text-muted">{t('registrations.consent', { date: formatDateTime(r.consentAt) })}</span>
@@ -213,13 +235,13 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
               {r.rejectReason && <span className="font-semibold text-red-800">{r.rejectReason}</span>}
               <div className="grid grid-cols-2 gap-2">
                 {review && r.status === 'submitted' && <>
-                  <button disabled={busy} className="min-h-11 rounded-xl bg-teal-700 font-bold text-white"
+                  <button disabled={busy} className={`min-h-11 rounded-xl ${btn.solid}`}
                     onClick={() => void run(() => api(`/v1/platform/registrations/${r.id}/approve`, 'POST', {}), t('registrations.approved', { name: r.shopName }))}>{t('registrations.approve')}</button>
                   <button disabled={busy} className="min-h-11 rounded-xl border border-line font-semibold text-red-700"
                     onClick={async () => { const reason = (await ask(t('registrations.rejectAsk'))); if (reason) void run(() => api(`/v1/platform/registrations/${r.id}/reject`, 'POST', { reason })) }}>{t('agentsAdmin.reject')}</button>
                 </>}
                 {money && r.status === 'approved' && r.paymentStatus === 'received' && (
-                  <button disabled={busy} className="col-span-2 min-h-11 rounded-xl bg-teal-700 font-bold text-white"
+                  <button disabled={busy} className={`col-span-2 min-h-11 rounded-xl ${btn.solid}`}
                     onClick={async () => (await confirmAsk(t('registrations.confirmAsk', { amount: formatRupees(r.amount), how: t(`agentShops.pay.${r.paymentMode}`) })))
                       && void run(() => api(`/v1/platform/registrations/${r.id}/confirm-payment`, 'POST', {}), t('registrations.paid'))}>{t('registrations.confirmPay', { amount: formatRupees(r.amount) })}</button>
                 )}
@@ -227,7 +249,7 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
             </li>
           ))}
         </ul>
-        {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       </>}
     </section>
   )
@@ -240,7 +262,7 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
 export function PerformancePanel({ role }: { role: AdminRole }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const rows = useQuery({ queryKey: ['platform', 'agent-performance'], queryFn: () => api<AgentPerformanceRow[]>('/v1/platform/agent-performance'), enabled: open })
   const pays = role === 'super' || role === 'billing'
   const [message, setMessage] = useState<string | null>(null)
@@ -263,12 +285,35 @@ export function PerformancePanel({ role }: { role: AdminRole }) {
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-4">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 items-center justify-between text-left">
         <h2 className="text-lg font-bold">{t('performance.title')}</h2>
-        <span aria-hidden className="text-xl">{open ? '−' : '+'}</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && <>
         <p className="text-sm text-muted">{t('performance.hint')}</p>
         {rows.data?.length === 0 && <p className="text-sm text-muted">{t('agentsAdmin.none')}</p>}
-        <ul className="flex flex-col gap-2">
+        {(rows.data?.length ?? 0) > 0 && (
+          <div className="hidden overflow-x-auto rounded-xl border border-line lg:block">
+            <table className="w-full min-w-[860px] border-collapse text-sm">
+              <thead className="bg-[#f6faf9] text-left text-[11px] tracking-wide text-muted uppercase">
+                <tr><th className="px-3 py-2.5">{t('plat4.agent')}</th><th className="px-2 py-2.5">{t('plat4.market')}</th><th className="px-2 py-2.5 text-right">{t('plat4.signed')}</th><th className="px-2 py-2.5 text-right">{t('plat4.approved')}</th><th className="px-2 py-2.5 text-right">{t('plat4.paid')}</th><th className="px-2 py-2.5 text-right">{t('plat4.allTime')}</th><th className="px-2 py-2.5 text-right">{t('plat4.commission')}</th><th className="px-3 py-2.5 text-right" /></tr>
+              </thead>
+              <tbody>
+                {rows.data!.map((r) => (
+                  <tr key={r.agentId} className="border-t border-line">
+                    <td className="px-3 py-2.5"><span className="flex items-center gap-2.5"><span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8effd] text-xs font-extrabold text-[#1d4ed8]">{r.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')}</span><span className="flex flex-col"><b>{r.rankOverall > 0 ? `#${r.rankOverall} ` : ''}{r.name} {BADGE_ICON[r.thisMonth.badge]}</b><span className="text-xs text-muted">{r.code} · {formatPhone(r.phone)}</span></span></span></td>
+                    <td className="px-2 py-2.5"><span className="rounded-full bg-[#e8effd] px-2.5 py-0.5 text-xs font-bold text-[#1d4ed8]">{r.market}</span></td>
+                    <td className="px-2 py-2.5 text-right">{r.thisMonth.submitted}</td>
+                    <td className="px-2 py-2.5 text-right">{r.thisMonth.approved}{r.thisMonth.rejected > 0 && <span className="block text-xs text-due">{t('plat4.rejected', { count: r.thisMonth.rejected })}</span>}</td>
+                    <td className="px-2 py-2.5 text-right">{r.thisMonth.paid}</td>
+                    <td className="px-2 py-2.5 text-right text-muted">{t('agentHome.allTime', { shops: r.shopsAllTime, paid: r.paidShopsAllTime })}</td>
+                    <td className="px-2 py-2.5 text-right"><span className="flex flex-col items-end"><b>{t('plat4.due', { amount: formatRupees(r.commissionDue) })}</b><span className="text-xs text-muted">{t('plat4.waitingPaid', { waiting: formatRupees(r.commissionWaiting), paid: formatRupees(r.commissionPaid) })}</span>{r.cashToDeposit > 0 && <span className="text-xs font-semibold text-warn">{t('performance.cash', { amount: formatRupees(r.cashToDeposit) })}</span>}</span></td>
+                    <td className="px-3 py-2.5 text-right">{pays && r.commissionDue > 0 && <button onClick={() => void pay(r)} className={`min-h-9 rounded-xl px-3 whitespace-nowrap ${btn.solid}`}>{t('plat4.recordPay')}</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <ul className="flex flex-col gap-2 lg:hidden">
           {rows.data?.map((r) => (
             <li key={r.agentId} className="flex flex-col gap-1 rounded-xl border border-line p-3 text-sm">
               <span className="flex items-baseline justify-between gap-2">
@@ -278,15 +323,15 @@ export function PerformancePanel({ role }: { role: AdminRole }) {
               <span className="text-muted">{r.market} · {formatPhone(r.phone)}</span>
               <span>{t('performance.month', { submitted: r.thisMonth.submitted, approved: r.thisMonth.approved, rejected: r.thisMonth.rejected, paid: r.thisMonth.paid })}</span>
               <span className="text-muted">{t('agentHome.allTime', { shops: r.shopsAllTime, paid: r.paidShopsAllTime })}</span>
-              {r.cashToDeposit > 0 && <span className="font-semibold text-amber-800">{t('performance.cash', { amount: formatRupees(r.cashToDeposit) })}</span>}
+              {r.cashToDeposit > 0 && <span className="font-semibold text-warn">{t('performance.cash', { amount: formatRupees(r.cashToDeposit) })}</span>}
               <span>{t('performance.money', { due: formatRupees(r.commissionDue), waiting: formatRupees(r.commissionWaiting), paid: formatRupees(r.commissionPaid) })}</span>
               {pays && r.commissionDue > 0 && (
-                <button onClick={() => void pay(r)} className="mt-1 min-h-11 rounded-xl bg-teal-700 font-bold text-white">{t('performance.pay', { amount: formatRupees(r.commissionDue) })}</button>
+                <button onClick={() => void pay(r)} className={`mt-1 min-h-11 rounded-xl ${btn.solid}`}>{t('performance.pay', { amount: formatRupees(r.commissionDue) })}</button>
               )}
             </li>
           ))}
         </ul>
-        {message && <p className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}
+        {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       </>}
     </section>
   )

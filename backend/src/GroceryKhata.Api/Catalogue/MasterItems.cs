@@ -182,7 +182,7 @@ public static class MasterItems
         var assembly = typeof(MasterItems).Assembly;
         foreach (var (resource, trade) in new[] { ("medical-master.csv", ShopTypes.Name(ShopType.Medical)), ("kirana-master.csv", ShopTypes.Name(ShopType.Kirana)),
             ("paint-master.csv", ShopTypes.Name(ShopType.Paint)), ("hardware-master.csv", ShopTypes.Name(ShopType.Hardware)),
-            ("beauty-master.csv", ShopTypes.Name(ShopType.Beauty)) })
+            ("beauty-master.csv", ShopTypes.Name(ShopType.Beauty)), ("clothes-master.csv", ShopTypes.Name(ShopType.Clothes)) })
         {
             var name = assembly.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(resource, StringComparison.OrdinalIgnoreCase));
             if (name is null)
@@ -213,6 +213,20 @@ public static class MasterItems
                 listed[item.ToLower()] = f[2];
                 if (!have.Add(item.ToLower()))
                 {
+                    // Already there (a starter item, or added before): fill only what it lacks, never overwrite an admin's edit.
+                    if (existing.GetValueOrDefault(item.ToLower()) is { } old)
+                    {
+                        if (old.NameHi is null && f[1].Length > 0)
+                        {
+                            (old.NameHi, old.UpdatedAt) = (f[1], now);
+                        }
+
+                        if (old.PackSizes.Count == 0 && f.Length > 6 && Sizes(f[6].Split('|')) is { Count: > 0 } fill)
+                        {
+                            (old.PackSizes, old.UpdatedAt) = (fill, now);
+                        }
+                    }
+
                     continue;
                 }
 
@@ -246,6 +260,8 @@ public static class MasterItems
     /// <summary>Starter items' old categories (medical, hardware, paint), and the groups they now belong to.</summary>
     private static readonly Dictionary<string, string> StarterGroups = new()
     {
+        // Clothes starter items from before the clothes list (only clothes uses these names).
+        ["Men"] = "Men · Shirts and T-shirts", ["Women"] = "Women · Ethnic wear", ["Kids"] = "Kids · Girls",
         // Hardware and paint starter items, folded into the long lists' groups.
         ["Hinges"] = "Door and furniture fittings", ["Fittings"] = "Door and furniture fittings", ["Tools"] = "Hand tools", ["Plumbing"] = "Pipes and fittings",
         ["Screws & nails"] = "Fasteners", ["Bolts"] = "Fasteners", ["Adhesives"] = "Adhesives and tapes",
@@ -328,9 +344,15 @@ public static class MasterItems
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Ids"] = ["These items aren't on your trades' lists."] });
         }
 
+        // Items take the name in the owner's language: the Hindi name for a shop run in Hindi, else the English one,
+        // so a search for "jeans" finds the jeans. Either name still finds the item on the master list.
+        var hindi = await db.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => u.PreferredLanguage).SingleOrDefaultAsync(ct) == "hi";
+        string NameOf(MasterItem i) => hindi ? i.NameHi ?? i.Name : i.Name;
         var rows = items.SelectMany(i => i.PackSizes.Count == 0
-            ? [new ImportRow(i.NameHi ?? i.Name, i.Unit, 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id)]
-            : SizesFor(i, sizes).Select(size => new ImportRow($"{i.NameHi ?? i.Name} {size}", PackUnit(i.Unit), 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id)))
+            ? [new ImportRow(NameOf(i), i.Unit, 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id, Schedule: ScheduleOf(i))]
+            : SizesFor(i, sizes).Select(size => new ImportRow($"{NameOf(i)} {size}", PackUnit(i.Unit), 0, null, i.Category, null, null, i.CatalogueItemId, GstRate: i.GstRate, HsnCode: i.HsnCode, MasterItemId: i.Id,
+                // Clothes sizes make one style: "Men jeans" in 30, 32, 34. Grocery pack sizes stay separate items.
+                StyleName: IsWearSize(i) ? NameOf(i) : null, Size: IsWearSize(i) ? size : null, Schedule: ScheduleOf(i))))
             .ToList();
         var (result, errors) = await stock.ImportAsync(new ImportRequest(rows), userId, ct);
         return errors is null ? TypedResults.Ok(result) : TypedResults.ValidationProblem(errors);
@@ -388,6 +410,9 @@ public static class MasterItems
     }
 
     /// <summary>A packed size of something sold by weight or volume is sold by the packet; a sized bag or piece keeps its unit.</summary>
+    /// <summary>A size that makes a style (clothes: 32, M, 34B, 0-3M), not a pack weight (500 g).</summary>
+    private static bool IsWearSize(MasterItem item) => item.Trade == ShopTypes.Name(ShopType.Clothes);
+
     private static Unit PackUnit(Unit unit) => unit is Unit.Kg or Unit.G or Unit.Litre or Unit.Ml ? Unit.Packet : unit;
 
     private static List<string> Sizes(IReadOnlyList<string>? sizes) =>
@@ -420,6 +445,37 @@ public static class MasterItems
             .Where(m => m.CreatedAt >= since && !byName.Where(kv => kv.Value == m).Any(kv => held.Contains(kv.Key)))
             .OrderBy(m => m.Category).ThenBy(m => m.Name).Take(200).ToList();
         return (changed, fresh);
+    }
+
+    /// <summary>Molecules on Schedule H1 (sold only with a prescription, entered in the H1 register).</summary>
+    private static readonly string[] H1Molecules =
+    [
+        "alprazolam", "clonazepam", "diazepam", "lorazepam", "nitrazepam", "zolpidem", "codeine", "tramadol", "buprenorphine", "pentazocine",
+        "cefixime", "cefpodoxime", "ceftriaxone", "cefuroxime", "levofloxacin", "moxifloxacin", "gemifloxacin", "ofloxacin",
+        "isoniazid", "rifampicin", "ethambutol", "pyrazinamide",
+    ];
+
+    /// <summary>Prescription medicine groups: Schedule H unless the molecule is on H1.</summary>
+    private static readonly string[] PrescriptionGroups = ["Antibiotics", "Heart", "Diabetes", "Thyroid", "Brain"];
+
+    /// <summary>
+    /// A medicine's drug schedule when it comes from the master list (which carries none): H1 for the H1 molecules,
+    /// H for prescription groups, else none. A starting point the owner can change on the item.
+    /// </summary>
+    private static DrugSchedule? ScheduleOf(MasterItem i)
+    {
+        if (i.Trade != "medical")
+        {
+            return null;
+        }
+
+        var name = i.Name.ToLowerInvariant();
+        if (H1Molecules.Any(name.Contains))
+        {
+            return DrugSchedule.H1;
+        }
+
+        return PrescriptionGroups.Any(g => i.Category.StartsWith(g, StringComparison.OrdinalIgnoreCase)) ? DrugSchedule.H : null;
     }
 
     /// <summary>Every name picking gives a master item's shop items ("तूर दाल", "Bhujia 1 kg"), to find them again by name.</summary>

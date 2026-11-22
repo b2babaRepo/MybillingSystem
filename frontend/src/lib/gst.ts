@@ -4,6 +4,16 @@ import type { BillLineView } from './types'
 export const GST_RATES = ['0', '5', '18', '40']
 
 /**
+ * Clothes and footwear (HSN 61, 62, 64): 5% when a piece sells at up to ₹2,500 before GST, 18% above (from Sep 2025).
+ * The same rule as the server's GarmentGst, so the bill screen shows what the saved bill will charge.
+ */
+export function garmentRate(hsnCode: string | null | undefined, itemRate: number | null | undefined, unitPrice: number) {
+  const garment = !!hsnCode && /^(61|62|64)/.test(hsnCode)
+  if (!garment || !(itemRate === 5 || itemRate === 12 || itemRate === 18)) return itemRate ?? null
+  return unitPrice / 1.05 <= 2500 ? 5 : 18
+}
+
+/**
  * GST inside GST-inclusive prices, by rate: taxable value = amount ÷ (1 + rate), tax = the rest, split equally into
  * CGST and SGST (a sale within the state, which a counter sale is). 0% lines are a row of their own; lines with no
  * rate set aren't in the table (see {@link gstUnsetAmount}).
@@ -19,6 +29,41 @@ export function gstSummary(lines: Pick<BillLineView, 'amount' | 'gstRate'>[]) {
     const half = Math.round((tax / 2) * 100) / 100
     return { rate, amount, taxable, cgst: half, sgst: Math.round((tax - half) * 100) / 100 }
   })
+}
+
+/**
+ * The tax a bill will carry, worked out line by line as the server does when it saves (so the figure on the screen is
+ * the one on the bill), then added up by rate. Lines with no rate carry no tax: they come back in `unset`.
+ */
+export function billTax(lines: { amount: number; gstRate: number | null }[], interState: boolean) {
+  const byRate = new Map<number, { rate: number; taxable: number; cgst: number; sgst: number; igst: number }>()
+  let unset = 0
+  for (const line of lines) {
+    if (line.gstRate == null) {
+      unset += Math.round(line.amount * 100)
+      continue
+    }
+
+    const paise = Math.round(line.amount * 100)
+    const taxable = Math.round(paise / (1 + line.gstRate / 100))
+    const tax = paise - taxable
+    // The server rounds a half to the even paisa, so an odd tax splits the same way here.
+    const low = Math.floor(tax / 2)
+    const half = tax % 2 === 0 || low % 2 === 0 ? low : low + 1
+    const row = byRate.get(line.gstRate) ?? { rate: line.gstRate, taxable: 0, cgst: 0, sgst: 0, igst: 0 }
+    row.taxable += taxable
+    if (interState) row.igst += tax
+    else { row.cgst += half; row.sgst += tax - half }
+    byRate.set(line.gstRate, row)
+  }
+
+  const rupees = (paise: number) => paise / 100
+  const rows = [...byRate.values()].sort((a, b) => a.rate - b.rate)
+  return {
+    rows: rows.map((r) => ({ rate: r.rate, taxable: rupees(r.taxable), cgst: rupees(r.cgst), sgst: rupees(r.sgst), igst: rupees(r.igst) })),
+    tax: rupees(rows.reduce((sum, r) => sum + r.cgst + r.sgst + r.igst, 0)),
+    unset: rupees(unset),
+  }
 }
 
 /** Tax by rate as kept on the bill when it was made; null for bills from before tax was kept. */

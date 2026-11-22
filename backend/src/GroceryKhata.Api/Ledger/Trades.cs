@@ -31,6 +31,9 @@ public sealed class Challan : Entity, ITenantOwned
 
     public string? VehicleNumber { get; set; }
 
+    /// <summary>The state the goods went to (two-digit GST code), when it isn't the shop's own. The invoice made from it keeps it.</summary>
+    public string? PlaceOfSupply { get; set; }
+
     /// <summary>The invoice these goods were billed on. Null: still open.</summary>
     public Guid? InvoiceId { get; set; }
 
@@ -49,17 +52,28 @@ public sealed class Painter : Entity, ITenantOwned
     public decimal CommissionPercent { get; set; }
 }
 
-public sealed record ChallanRequest(Guid Id, Guid CustomerId, IReadOnlyList<BillLineRequest>? Lines, string? Site, string? VehicleNumber, DateTimeOffset? OccurredAt);
+public sealed record ChallanRequest(Guid Id, Guid CustomerId, IReadOnlyList<BillLineRequest>? Lines, string? Site, string? VehicleNumber, DateTimeOffset? OccurredAt, string? PlaceOfSupply = null);
 
 public sealed record ChallanDto(
-    Guid Id, Guid CustomerId, DateTimeOffset OccurredAt, IReadOnlyList<BillLineDto> Lines, decimal Total, string? Site, string? VehicleNumber, Guid? InvoiceId);
+    Guid Id, Guid CustomerId, DateTimeOffset OccurredAt, IReadOnlyList<BillLineDto> Lines, decimal Total, string? Site, string? VehicleNumber, Guid? InvoiceId, string? PlaceOfSupply = null);
 
 /// <summary>Make open challans into one invoice (the bill that goes on the khata).</summary>
 public sealed record InvoiceChallansRequest(Guid Id, IReadOnlyList<Guid>? ChallanIds, decimal PaidAmount, PaymentMode? PaymentMode);
 
 public sealed record CreditLimitRequest(decimal? CreditLimit);
 
+public sealed record CreditDaysRequest(int? CreditDays);
+
 public sealed record CustomerGstinRequest(string? Gstin);
+
+public sealed record CustomerAddressRequest(string? Address);
+
+public sealed record CustomerDetailsRequest(string? Name, string? Phone);
+
+public sealed record CustomerStateRequest(string? State);
+
+/// <summary>What a bill needs to know about its customer: where the tax goes, and whether the bill has an address.</summary>
+public sealed record CustomerBillDetails(string? Gstin, string? Address, string? State);
 
 /// <summary>What a contractor's khata adds up to at one site.</summary>
 public sealed record SiteTotal(string Site, int Bills, decimal Billed, int OpenChallans);
@@ -86,9 +100,18 @@ public static class TradeEndpoints
         shop.MapPost("/challans/invoice", InvoiceAsync).RequireFeature(Billing.Features.Trade);
         shop.MapGet("/customers/{id:guid}/sites", SitesAsync);
         shop.MapPut("/customers/{id:guid}/credit-limit", SetLimitAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapPut("/customers/{id:guid}/credit-days", SetCreditDaysAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapPut("/customers/{id:guid}", SetDetailsAsync).RequireAuthorization(AppPolicies.ShopOwner);
         shop.MapGet("/customers/{id:guid}/gstin", async (Guid id, AppDbContext db, CancellationToken ct) =>
             Results.Ok(new CustomerGstinRequest(await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Gstin).SingleOrDefaultAsync(ct))));
         shop.MapPut("/customers/{id:guid}/gstin", SetGstinAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapGet("/customers/{id:guid}/address", async (Guid id, AppDbContext db, CancellationToken ct) =>
+            Results.Ok(new CustomerAddressRequest(await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Address).SingleOrDefaultAsync(ct))));
+        shop.MapPut("/customers/{id:guid}/address", SetAddressAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapGet("/customers/{id:guid}/bill-details", async (Guid id, AppDbContext db, CancellationToken ct) =>
+            await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => new CustomerBillDetails(c.Gstin, c.Address, c.State)).SingleOrDefaultAsync(ct) is { } details
+                ? Results.Ok(details) : Results.NotFound());
+        shop.MapPut("/customers/{id:guid}/state", SetStateAsync).RequireAuthorization(AppPolicies.ShopOwner);
         shop.MapGet("/painters", (AppDbContext db, CancellationToken ct) =>
             db.Painters.AsNoTracking().OrderBy(p => p.Name).Select(p => new PainterDto(p.Id, p.Name, p.Phone, p.CommissionPercent)).ToListAsync(ct));
         shop.MapPost("/painters", AddPainterAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Trade);
@@ -105,7 +128,7 @@ public static class TradeEndpoints
             .OrderBy(c => c.OccurredAt).ToListAsync(ct))
         .Select(ToDto).ToList();
 
-    private static async Task<IResult> AddChallanAsync(ChallanRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    private static async Task<IResult> AddChallanAsync(ChallanRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         if (await db.Challans.AsNoTracking().SingleOrDefaultAsync(c => c.Id == request.Id, ct) is { } existing)
         {
@@ -146,6 +169,27 @@ public static class TradeEndpoints
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = ["Product not found."] });
         }
 
+        // Anything the invoice would refuse is stopped here, before the goods leave: a challan can't be taken back.
+        var isOwner = LedgerEndpoints.IsOwner(user);
+        var maxDiscount = isOwner ? 100m : await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.StaffMaxDiscountPercent).SingleAsync(ct);
+        foreach (var line in request.Lines!.Where(l => l.ProductId is not null))
+        {
+            var product = products[line.ProductId!.Value];
+            var problem = product.TracksSerials || product.Schedule is DrugSchedule.H or DrugSchedule.H1 or DrugSchedule.X
+                ? $"{product.Name} needs a serial number or prescription: make a bill for it, not a challan."
+                : product.Mrp is > 0 && line.UnitPrice > product.Mrp ? $"{product.Name} has MRP ₹{product.Mrp:0.##}: the price can't be above it."
+                : isOwner ? null : LedgerService.DiscountProblem(product.Name, product, line.UnitPrice, maxDiscount);
+            if (problem is not null)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = [problem] });
+            }
+        }
+
+        if (!isOwner && request.OccurredAt < clock.GetUtcNow() - LedgerService.HelperBackdateLimit)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["OccurredAt"] = ["Only the owner can enter something older than 7 days. Ask the owner to add it."] });
+        }
+
         var dtoLines = request.Lines!.Select(l =>
         {
             var product = l.ProductId is { } id ? products[id] : null;
@@ -164,6 +208,7 @@ public static class TradeEndpoints
             Total = dtoLines.Sum(l => l.Amount),
             Site = string.IsNullOrWhiteSpace(request.Site) ? null : request.Site.Trim(),
             VehicleNumber = string.IsNullOrWhiteSpace(request.VehicleNumber) ? null : request.VehicleNumber.Trim().ToUpperInvariant().Replace(" ", ""),
+            PlaceOfSupply = request.PlaceOfSupply?.Trim() is { Length: 2 } state && GstExport.States.ContainsKey(state) ? state : null,
             CreatedByUserId = user.UserId()!.Value,
         };
 
@@ -175,7 +220,7 @@ public static class TradeEndpoints
         {
             db.StockMovements.Add(new StockMovement
             {
-                ProductId = productId, Kind = StockMovementKind.Sale, Quantity = -quantity, OccurredAt = challan.OccurredAt,
+                RefType = "challan", RefId = challan.Id, ProductId = productId, Kind = StockMovementKind.Sale, Quantity = -quantity, OccurredAt = challan.OccurredAt,
                 CreatedByUserId = challan.CreatedByUserId, Note = "Delivery challan",
             });
         }
@@ -200,7 +245,7 @@ public static class TradeEndpoints
     private static async Task<IResult> InvoiceAsync(InvoiceChallansRequest request, ClaimsPrincipal user, AppDbContext db, LedgerService ledger, CancellationToken ct)
     {
         var challans = request.ChallanIds is { Count: > 0 and <= 100 } ids
-            ? await db.Challans.Where(c => ids.Contains(c.Id)).OrderBy(c => c.OccurredAt).ToListAsync(ct)
+            ? await db.Challans.AsNoTracking().Where(c => ids.Contains(c.Id)).OrderBy(c => c.OccurredAt).ToListAsync(ct)
             : [];
         if (challans.Count == 0 || challans.Count != request.ChallanIds!.Distinct().Count())
         {
@@ -220,21 +265,18 @@ public static class TradeEndpoints
         var challanLines = challans.SelectMany(c => JsonSerializer.Deserialize<List<BillLineDto>>(c.Lines, Json)!).ToList();
         var lines = challanLines.Select(l => new BillLineRequest(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice)).ToList();
         var sites = challans.Select(c => c.Site).Distinct().ToList();
+        // The vehicle and the state the goods went to carry onto the invoice when every challan agrees.
+        var vehicles = challans.Select(c => c.VehicleNumber).Distinct().ToList();
+        var states = challans.Select(c => c.PlaceOfSupply).Distinct().ToList();
+        var challanIds = challans.Select(c => c.Id).ToList();
         var result = await ledger.CreateBillAsync(
-            new BillRequest(request.Id, challans[0].CustomerId, lines, request.PaidAmount, request.PaymentMode, null, sites.Count == 1 ? sites[0] : null),
-            user.UserId()!.Value, ct, stockAlreadyOut: true, taxSnapshot: challanLines.Select(l => (l.GstRate, l.HsnCode)).ToList());
-        if (result.Value is not { } bill)
-        {
-            return result.ToHttp($"/api/v1/bills/{request.Id}");
-        }
-
-        foreach (var challan in challans)
-        {
-            challan.InvoiceId = bill.Id;
-        }
-
-        await db.SaveChangesAsync(ct);
-        return result.ToHttp($"/api/v1/bills/{bill.Id}");
+            new BillRequest(request.Id, challans[0].CustomerId, lines, request.PaidAmount, request.PaymentMode, null, sites.Count == 1 ? sites[0] : null,
+                vehicles.Count == 1 ? vehicles[0] : null, PlaceOfSupply: states.Count == 1 ? states[0] : null),
+            user.UserId()!.Value, ct, stockAlreadyOut: true, taxSnapshot: challanLines.Select(l => (l.GstRate, l.HsnCode)).ToList(),
+            // In the bill's transaction: of two invoices at once, the second finds them taken and its bill is undone.
+            beforeCommit: async () => await db.Challans.Where(c => challanIds.Contains(c.Id) && c.InvoiceId == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.InvoiceId, request.Id), ct) == challanIds.Count ? null : "Some of these challans are already billed.");
+        return result.ToHttp($"/api/v1/bills/{request.Id}");
     }
 
     /// <summary>A contractor's khata by site: what was billed at each, and challans still to bill there.</summary>
@@ -270,6 +312,25 @@ public static class TradeEndpoints
         return TypedResults.Ok(new CustomerDto(customer.Id, customer.Name, customer.Phone, customer.Balance, customer.CreditLimit));
     }
 
+    /// <summary>How many days the customer has to pay (1 to 365); null or 0 clears it.</summary>
+    private static async Task<IResult> SetCreditDaysAsync(Guid id, CreditDaysRequest request, AppDbContext db, CancellationToken ct)
+    {
+        if (request.CreditDays is < 0 or > 365)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["CreditDays"] = ["Enter 1 to 365 days, or leave it empty for none."] });
+        }
+
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        customer.CreditDays = request.CreditDays is > 0 ? request.CreditDays : null;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(new CustomerDto(customer.Id, customer.Name, customer.Phone, customer.Balance, customer.CreditLimit, customer.NameLater, customer.CreditDays));
+    }
+
     /// <summary>A business customer's GSTIN, for their tax invoices. Empty clears it.</summary>
     private static async Task<IResult> SetGstinAsync(Guid id, CustomerGstinRequest request, AppDbContext db, CancellationToken ct)
     {
@@ -288,6 +349,95 @@ public static class TradeEndpoints
         customer.Gstin = gstin;
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(request with { Gstin = gstin });
+    }
+
+    /// <summary>
+    /// Puts right a customer's name or phone. A new number is a new person as far as the khata can tell: the old link
+    /// stops and they must confirm again, so a wrong number that once had access keeps none. Both changes are audited.
+    /// </summary>
+    private static async Task<IResult> SetDetailsAsync(Guid id, CustomerDetailsRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string[]>();
+        var name = request.Name?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length > 120)
+        {
+            errors[nameof(request.Name)] = ["Enter the customer's name."];
+        }
+
+        var phone = PhoneNumber.Normalize(request.Phone);
+        if (!string.IsNullOrWhiteSpace(request.Phone) && phone is null)
+        {
+            errors[nameof(request.Phone)] = ["Enter a valid mobile number, or leave it empty."];
+        }
+
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (customer.Phone != phone)
+        {
+            (customer.Phone, customer.PhoneConfirmedAt, customer.ConfirmCodeHash, customer.ConfirmCodeAt, customer.ConfirmCodeTries) = (phone, null, null, null, 0);
+            (customer.KhataToken, customer.KhataTokenAt) = (null, null);
+            // The agreement was for the old number.
+            customer.ReminderConsentAt = null;
+        }
+
+        // Named at last: no longer a "name later" khata.
+        if (customer.Name != name || phone is not null)
+        {
+            customer.NameLater = false;
+        }
+
+        customer.Name = name!;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(new CustomerDto(customer.Id, customer.Name, customer.Phone, customer.Balance, customer.CreditLimit, customer.NameLater));
+    }
+
+    /// <summary>The state a customer lives in, by its GST code. Empty clears it.</summary>
+    private static async Task<IResult> SetStateAsync(Guid id, CustomerStateRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var state = string.IsNullOrWhiteSpace(request.State) ? null : request.State.Trim();
+        if (state is not null && !GstExport.States.ContainsKey(state))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["State"] = ["Choose a state from the list."] });
+        }
+
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        customer.State = state;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(request with { State = state });
+    }
+
+    /// <summary>The customer's address, for their bills. Empty clears it.</summary>
+    private static async Task<IResult> SetAddressAsync(Guid id, CustomerAddressRequest request, AppDbContext db, CancellationToken ct)
+    {
+        var address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
+        if (address?.Length > 200)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Address"] = ["Keep the address under 200 letters."] });
+        }
+
+        var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
+        if (customer is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        customer.Address = address;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(request with { Address = address });
     }
 
     private static async Task<IResult> AddPainterAsync(PainterRequest request, AppDbContext db, CancellationToken ct)
@@ -330,5 +480,5 @@ public static class TradeEndpoints
     }
 
     private static ChallanDto ToDto(Challan c) =>
-        new(c.Id, c.CustomerId, c.OccurredAt, JsonSerializer.Deserialize<List<BillLineDto>>(c.Lines, Json) ?? [], c.Total, c.Site, c.VehicleNumber, c.InvoiceId);
+        new(c.Id, c.CustomerId, c.OccurredAt, JsonSerializer.Deserialize<List<BillLineDto>>(c.Lines, Json) ?? [], c.Total, c.Site, c.VehicleNumber, c.InvoiceId, c.PlaceOfSupply);
 }

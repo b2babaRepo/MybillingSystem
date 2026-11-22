@@ -24,12 +24,27 @@ public sealed record ProductRequest(
     int? UnitsPerPack = null,
     bool TracksSerials = false,
     int? WarrantyMonths = null,
-    decimal? Mrp = null);
+    decimal? Mrp = null,
+    string? BillName = null,
+    string? StyleName = null,
+    string? Size = null,
+    string? Colour = null,
+    string? Barcode = null,
+    decimal? BagSize = null,
+    Unit? PurchaseUnit = null,
+    decimal? WeightKg = null);
 
 /// <summary><see cref="GstRate"/> and <see cref="HsnCode"/>: null keeps what the item has (older apps don't send them), unless <see cref="ReplaceTax"/> says null means clear it.</summary>
 public sealed record ProductUpdate(
     string? Name, Unit? Unit, decimal SellingPrice, decimal? CostPrice, string? Category, decimal? ReorderLevel, bool? IsActive,
-    decimal? GstRate = null, string? HsnCode = null, bool ReplaceTax = false, bool? IsService = null, int? DurationMinutes = null, DrugSchedule? Schedule = null, bool ReplaceSchedule = false, int? UnitsPerPack = null, bool? TracksSerials = null, int? WarrantyMonths = null, decimal? Mrp = null);
+    decimal? GstRate = null, string? HsnCode = null, bool ReplaceTax = false, bool? IsService = null, int? DurationMinutes = null, DrugSchedule? Schedule = null, bool ReplaceSchedule = false, int? UnitsPerPack = null, bool? TracksSerials = null, int? WarrantyMonths = null, decimal? Mrp = null, string? BillName = null, string? StyleName = null, string? Size = null, string? Colour = null, bool? Uncounted = null,
+    // Null keeps it; 0 clears it (no longer kept in bags).
+    decimal? BagSize = null,
+    Unit? PurchaseUnit = null,
+    decimal? WeightKg = null,
+    // The wholesale price and the quantity it starts at: null keeps them; a price of 0 clears both.
+    decimal? WholesalePrice = null,
+    decimal? WholesaleMinQty = null);
 
 /// <summary><see cref="IsLow"/>: out of stock, or at/below the reorder level.</summary>
 public sealed record ProductDto(
@@ -60,10 +75,40 @@ public sealed record ProductDto(
     string? Barcode = null,
     string? ImageCredit = null,
     int PhotoReports = 0,
-    string? PhotoReportNote = null);
+    string? PhotoReportNote = null,
+    string? BillName = null,
+    string? StyleName = null,
+    string? Size = null,
+    string? Colour = null,
+    bool Uncounted = false,
+    DateOnly? OutOn = null,
+    // Average sold a day over the last 30 days (null: none sold): stock over this is the days of stock left.
+    decimal? DailySales = null,
+    // Kept in bags of this size; Bags is how many sealed bags are on hand.
+    decimal? BagSize = null,
+    decimal Bags = 0,
+    // Promised on open sale orders and not yet delivered: Stock − Reserved − Promised is free to sell.
+    decimal Promised = 0,
+    // What the bag size counts when buying (carton, strip); null: a bag.
+    Unit? PurchaseUnit = null,
+    decimal? WeightKg = null,
+    // The item's English and Hindi names from the master list or common catalogue, so the app can show the one for its
+    // language; the shop's own name is used when it renamed the item.
+    string? NameEn = null,
+    string? NameHi = null,
+    // From this quantity on a bill, the price per unit is WholesalePrice.
+    decimal? WholesalePrice = null,
+    decimal? WholesaleMinQty = null,
+    // More photos beyond the main one, oldest first (see ProductExtraPhoto).
+    IReadOnlyList<Guid>? ExtraPhotos = null);
+
+public sealed record OutTodayRequest(bool Out);
+
+/// <summary>Open sealed bags to sell loose: the bag count goes down, the weight doesn't change.</summary>
+public sealed record OpenBagRequest(Guid Id, decimal Bags);
 
 /// <summary>A purchase (positive) or an adjustment (signed, with a reason).</summary>
-public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note);
+public sealed record StockMovementRequest(Guid Id, Guid ProductId, StockMovementKind? Kind, decimal Quantity, StockReason? Reason, decimal? CostPrice, string? Note, decimal? Bags = null);
 
 public sealed record StockMovementDto(
     Guid Id,
@@ -82,11 +127,16 @@ public sealed record StocktakeRequest(Guid Id, IReadOnlyList<StocktakeCount>? Co
 
 public sealed record StocktakeResult(int Adjusted, int Unchanged);
 
+public sealed record BarcodeRequest(string? Barcode);
+
+/// <summary>One selling price for all sizes of <see cref="StyleName"/>.</summary>
+public sealed record StylePriceRequest(string? StyleName, decimal? SellingPrice);
+
 public sealed record ImportRow(
     string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel,
     int? CatalogueItemId = null, decimal? PackSize = null, Unit? PackUnit = null, decimal? GstRate = null, string? HsnCode = null,
     bool IsService = false, int? DurationMinutes = null, DrugSchedule? Schedule = null, int? UnitsPerPack = null, bool TracksSerials = false, int? WarrantyMonths = null,
-    int? MasterItemId = null);
+    int? MasterItemId = null, string? StyleName = null, string? Size = null);
 
 /// <summary>One item's new rate on the "today's rates" screen.</summary>
 public sealed record RateChange(Guid ProductId, decimal SellingPrice);
@@ -108,6 +158,9 @@ public sealed record FromCatalogueRequest(IReadOnlyList<FromCatalogueRow>? Items
 
 public static class ProductEndpoints
 {
+    /// <summary>The EAN-13 check digit for the first 12 digits.</summary>
+    public static int Ean13Check(string twelve) => (10 - twelve.Select((c, i) => (c - '0') * (i % 2 == 0 ? 1 : 3)).Sum() % 10) % 10;
+
     public static IEndpointRouteBuilder MapCatalogue(this IEndpointRouteBuilder app)
     {
         var products = app.MapGroup("/api/v1/products").WithTags("Catalogue").RequireAuthorization(AppPolicies.ShopMember);
@@ -131,8 +184,8 @@ public static class ProductEndpoints
                 _ => Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "This ID is already in use."),
             });
 
-        products.MapPut("/{id:guid}", async (Guid id, ProductUpdate request, StockService stock, CancellationToken ct) =>
-            await stock.UpdateAsync(id, request, ct) switch
+        products.MapPut("/{id:guid}", async (Guid id, ProductUpdate request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
+            await stock.UpdateAsync(id, request, ct, Ledger.LedgerEndpoints.IsOwner(user)) switch
             {
                 { Errors: { } errors } => Results.ValidationProblem(errors),
                 { Product: { } product } => Results.Ok(product),
@@ -141,6 +194,18 @@ public static class ProductEndpoints
 
         // Today's rates: building-material prices move daily, so the owner changes many at once. Each change is in
         // the audit log (old and new price), which is the rate history.
+        // Sold out for today. Helpers can too: they are the ones at the shelf.
+        products.MapPut("/{id:guid}/out-today", async (Guid id, OutTodayRequest request, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        {
+            DateOnly? day = request.Out ? IndiaTime.Today(clock) : null;
+            return await db.Products.Where(p => p.Id == id).ExecuteUpdateAsync(s => s.SetProperty(p => p.OutOn, day), ct) > 0 ? Results.NoContent() : Results.NotFound();
+        });
+
+        // Shops that never counted: every item at zero stops showing as out, in one go. Owner only.
+        products.MapPost("/stop-counting-empty", async (AppDbContext db, CancellationToken ct) =>
+            TypedResults.Ok(new { Changed = await db.Products.Where(p => !p.IsService && !p.Uncounted && p.Stock <= 0).ExecuteUpdateAsync(s => s.SetProperty(p => p.Uncounted, true), ct) }))
+            .RequireAuthorization(AppPolicies.ShopOwner);
+
         products.MapPut("/rates", async (RatesRequest request, StockService stock, CancellationToken ct) =>
             await stock.SetRatesAsync(request, ct) switch
             {
@@ -229,10 +294,100 @@ public static class ProductEndpoints
             return Results.NoContent();
         });
 
+        // The item's barcode: a code from its pack ("8901234567890"), set or cleared by the shop. Unique in the shop,
+        // since scanning it at the counter adds this item to the bill.
+        products.MapPut("/{id:guid}/barcode", async (Guid id, BarcodeRequest request, AppDbContext db, CancellationToken ct) =>
+        {
+            var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id, ct);
+            if (product is null)
+            {
+                return Results.NotFound();
+            }
+
+            var code = Barcodes.Normalize(request.Barcode);
+            if (code.Length is > 0 and (< 4 or > 30))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["A barcode is 4 to 30 letters and digits."] });
+            }
+
+            if (!Barcodes.CheckDigitOk(code))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["The last digit of this barcode doesn't match the rest: check the number on the pack, or scan it again."] });
+            }
+
+            if (code.Length > 0 && await db.Products.AnyAsync(p => p.Id != id && p.Barcode == code && p.IsActive, ct))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["Another item already has this barcode."] });
+            }
+
+            product.Barcode = code.Length > 0 ? code : null;
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+            {
+                // Saved at the same moment for another item: the database's one-code-per-item rule caught it.
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["Another item already has this barcode."] });
+            }
+
+            return Results.Ok(new { product.Barcode });
+        });
+
+        // A shop code for an item with no barcode of its own (loose clothes): EAN-13 in the in-store range (starts with 2),
+        // with its check digit, so any scanner reads the printed tag. Numbered after the shop's highest such code.
+        products.MapPost("/{id:guid}/barcode/new", async (Guid id, AppDbContext db, CancellationToken ct) =>
+        {
+            var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id, ct);
+            if (product is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (product.Barcode is null)
+            {
+                // One shop code at a time, so two items made at once never get the same number.
+                await using var transaction = await db.Database.BeginTransactionAsync(ct);
+                await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext('shop_barcodes'))", ct);
+                var used = await db.Products.Where(p => p.Barcode != null && p.Barcode.Length == 13 && p.Barcode.StartsWith("2")).Select(p => p.Barcode!).ToListAsync(ct);
+                var next = used.Select(c => long.TryParse(c[1..12], out var n) ? n : 0).DefaultIfEmpty(0).Max() + 1;
+                var body = "2" + next.ToString("D11");
+                product.Barcode = body + Ean13Check(body);
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
+
+            return Results.Ok(new { product.Barcode });
+        });
+
         var stockGroup = app.MapGroup("/api/v1").WithTags("Stock").RequireAuthorization(AppPolicies.ShopMember);
 
+        // One selling price for every size of a style ("Men jeans" 28 to 42): sizes come in from the master list with no price.
+        stockGroup.MapPost("/products/style-price", async (StylePriceRequest request, AppDbContext db, CancellationToken ct) =>
+        {
+            var name = request.StyleName?.Trim();
+            if (string.IsNullOrEmpty(name) || request.SellingPrice is not > 0 || !Money.IsValidAmount(request.SellingPrice.Value))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["SellingPrice"] = ["Enter the style and a selling price above 0."] });
+            }
+
+            var sizes = await db.Products.Where(p => p.StyleName == name && !p.IsService).ToListAsync(ct);
+            if (sizes.Count == 0)
+            {
+                return Results.NotFound();
+            }
+
+            foreach (var p in sizes)
+            {
+                p.SellingPrice = request.SellingPrice.Value;
+            }
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { Updated = sizes.Count });
+        }).RequireAuthorization(AppPolicies.ShopOwner);
+
         stockGroup.MapPost("/stock-movements", async (StockMovementRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
-            await stock.AddMovementAsync(request, user.UserId()!.Value, ct) switch
+            await stock.AddMovementAsync(request, user.UserId()!.Value, ct, user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))) switch
             {
                 { Errors: { } errors } => Results.ValidationProblem(errors),
                 { NotFound: true } => Results.ValidationProblem(new Dictionary<string, string[]> { ["ProductId"] = ["Product not found."] }),
@@ -240,8 +395,11 @@ public static class ProductEndpoints
                 _ => Results.BadRequest(),
             });
 
+        stockGroup.MapPost("/products/{id:guid}/open-bag", async (Guid id, OpenBagRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
+            await stock.OpenBagAsync(id, request, user.UserId()!.Value, ct) is { } problem ? Results.ValidationProblem(new Dictionary<string, string[]> { ["Bags"] = [problem] }) : Results.NoContent());
+
         stockGroup.MapPost("/stocktakes", async (StocktakeRequest request, ClaimsPrincipal user, StockService stock, CancellationToken ct) =>
-            await stock.StocktakeAsync(request, user.UserId()!.Value, ct) switch
+            await stock.StocktakeAsync(request, user.UserId()!.Value, ct, user.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))) switch
             {
                 { Errors: { } errors } => Results.ValidationProblem(errors),
                 { Result: { } result } => Results.Ok(result),

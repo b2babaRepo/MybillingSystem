@@ -42,7 +42,7 @@ export function TripsScreen({ shopId, isOwner }: { shopId: string; isOwner: bool
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('trips.hint')}</p>
-      <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+      <section className="flex flex-col gap-2 rounded-card bg-white p-3">
         <div className="grid grid-cols-2 gap-2">
           <Field label={t('trips.technician')} value={d.technician} onChange={(e) => setD({ ...d, technician: e.target.value })} />
           <Field label={t('trips.place')} value={d.place} onChange={(e) => setD({ ...d, place: e.target.value })} />
@@ -53,7 +53,7 @@ export function TripsScreen({ shopId, isOwner }: { shopId: string; isOwner: bool
         </Button>
       </section>
       {message && <p className="text-sm text-due">{message}</p>}
-      {trips.length === 0 && <p className="rounded-[18px] bg-white p-4 text-center text-muted">{t('trips.empty')}</p>}
+      {trips.length === 0 && <p className="rounded-card bg-white p-4 text-center text-muted">{t('trips.empty')}</p>}
       {trips.map((trip) => <TripCard key={trip.id} shopId={shopId} trip={trip} jobs={jobs} isOwner={isOwner} run={run} />)}
     </div>
   )
@@ -81,7 +81,7 @@ function TripCard({ shopId, trip, jobs, isOwner, run }: {
   const select = 'h-12 rounded-xl border border-line bg-white px-3'
 
   return (
-    <section className="flex flex-col gap-2 rounded-[18px] bg-white p-3 text-sm">
+    <section className="flex flex-col gap-2 rounded-card bg-white p-3 text-sm">
       <h3 className="font-bold">#{trip.number} {trip.technician} · {trip.place}{open ? '' : ` · ${t('trips.settled')}`}</h3>
       {trip.broughtForward !== 0 && line(t('trips.broughtForward'), trip.broughtForward)}
       {line(t('trips.advance'), trip.advance)}
@@ -93,7 +93,7 @@ function TripCard({ shopId, trip, jobs, isOwner, run }: {
         {trip.entries.map((e) => (
           <li key={e.id} className="flex justify-between py-0.5">
             <span>{t(`trips.kind.${e.kind}`)}{e.description.toLowerCase() !== e.kind ? ` · ${e.description}` : ''}{e.customerName ? ` · ${e.customerName}` : ''}
-              {e.hasPhoto && <button onClick={() => void openPhoto(e.id)} className="ml-1 font-semibold text-teal-700">📷 {t('trips.viewBill')}</button>}</span>
+              {e.hasPhoto && <button onClick={() => void openPhoto(e.id)} className="ml-1 font-semibold text-brand">📷 {t('trips.viewBill')}</button>}</span>
             <span>{formatRupees(e.amount)}</span>
           </li>
         ))}
@@ -114,7 +114,7 @@ function TripCard({ shopId, trip, jobs, isOwner, run }: {
             </select>
           )}
           {['travel', 'food', 'stay', 'other'].includes(f.kind) && (
-            <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-dashed border-line font-semibold text-teal-700">
+            <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-dashed border-line font-semibold text-brand">
               {f.photo ? `✓ ${t('trips.photoAdded')}` : `📷 ${t('trips.addPhoto')}`}
               <input type="file" accept="image/*" capture="environment" onChange={(e) => void pickPhoto(e.target.files?.[0])} className="sr-only" />
             </label>

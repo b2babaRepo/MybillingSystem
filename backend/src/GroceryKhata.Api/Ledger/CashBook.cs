@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace GroceryKhata.Api.Ledger;
 
 /// <summary>One line of the day book: money that came in (or, for a reversed payment, went back).</summary>
-public sealed record CashBookLine(DateTimeOffset OccurredAt, CashBookSource Source, string Who, PaymentMode Mode, decimal Amount, Guid? BillId);
+/// <summary><see cref="ChequePending"/>: a cheque counted the day it came in that hasn't cleared at the bank yet.</summary>
+public sealed record CashBookLine(DateTimeOffset OccurredAt, CashBookSource Source, string Who, PaymentMode Mode, decimal Amount, Guid? BillId, Guid? MoveId = null, bool ChequePending = false);
 
 public enum CashBookSource
 {
@@ -25,6 +26,35 @@ public enum CashBookSource
 
     /// <summary>Cash given to a technician for a field trip (negative), or handed back when it is settled.</summary>
     Technician,
+
+    /// <summary>
+    /// A bill cancelled today (negative: what was paid on it goes back). The bill itself stays on the day it was made,
+    /// so a day whose drawer was counted never changes afterwards.
+    /// </summary>
+    BillCancelled,
+
+    /// <summary>Cash put in or taken out by hand, with a reason.</summary>
+    CashAdded,
+    CashRemoved,
+
+    /// <summary>Cash paid into the bank (out of the drawer) or drawn from it (into the drawer).</summary>
+    ToBank,
+    FromBank,
+
+    /// <summary>Empty bags sold to the bardana dealer (in), or bought (out).</summary>
+    BagsSold,
+    BagsBought,
+
+    /// <summary>Money handed back to a walk-in customer on a credit note (negative). Not kharcha.</summary>
+    Refund,
+
+    /// <summary>A girvi (gold) loan given against pledged jewellery (negative), and money paid back on one.</summary>
+    GirviGiven,
+    GirviReceived,
+
+    /// <summary>Money paid to a karigar or bullion trader (labour, or metal bought by rate cut), and money received on a rate cut.</summary>
+    MetalPaid,
+    MetalReceived,
 }
 
 /// <summary>
@@ -66,29 +96,35 @@ public static class CashBookEndpoints
     internal static async Task<CashBookDto> DayAsync(AppDbContext db, DateOnly day, CancellationToken ct)
     {
         var (start, end) = IndiaTime.Day(day);
-        var bills = await (from b in db.Bills.AsNoTracking()
-                           where b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null
-                           join c in db.Customers.AsNoTracking() on b.CustomerId equals c.Id into customers
-                           from c in customers.DefaultIfEmpty()
-                           select new { b.Id, b.OccurredAt, b.Total, b.PaidAmount, b.PaymentMode, Name = c == null ? null : c.Name })
+        // Bills made today, cancelled or not (a later cancel shows on its own day), and bills cancelled today.
+        var touched = await (from b in db.Bills.AsNoTracking()
+                             where (b.OccurredAt >= start && b.OccurredAt < end) || (b.CancelledAt >= start && b.CancelledAt < end)
+                             join c in db.Customers.AsNoTracking() on b.CustomerId equals c.Id into customers
+                             from c in customers.DefaultIfEmpty()
+                             select new { b.Id, b.OccurredAt, b.Total, b.PaidAmount, b.PaymentMode, b.Payments, b.CancelledAt, Name = c == null ? null : c.Name })
             .ToListAsync(ct);
+        var bills = touched.Where(b => b.OccurredAt >= start && b.OccurredAt < end).ToList();
         var entries = await (from e in db.LedgerEntries.AsNoTracking()
-                             where e.OccurredAt >= start && e.OccurredAt < end && e.TripId == null
+                             where (e.OccurredAt >= start && e.OccurredAt < end) && e.TripId == null
                              join c in db.Customers.AsNoTracking() on e.CustomerId equals c.Id
-                             select new { e.OccurredAt, e.Kind, e.Amount, e.PaymentMode, e.BillId, c.Name })
+                             select new { e.OccurredAt, e.Kind, e.Amount, e.PaymentMode, e.BillId, c.Name, e.ChequeStatus })
             .ToListAsync(ct);
 
         var lines = new List<CashBookLine>();
-        lines.AddRange(bills.Where(b => b.PaidAmount > 0 && b.PaymentMode is not null)
-            .Select(b => new CashBookLine(b.OccurredAt, CashBookSource.Bill, b.Name ?? "", b.PaymentMode!.Value, b.PaidAmount, b.Id)));
+        // One line per way a bill was paid: a ₹500 cash + ₹300 UPI bill puts ₹500 in the drawer and ₹300 under UPI.
+        lines.AddRange(bills.SelectMany(b => BillPayments.Parts(b.PaymentMode, b.PaidAmount, b.Payments)
+            .Select(p => new CashBookLine(b.OccurredAt, CashBookSource.Bill, b.Name ?? "", p.Mode, p.Amount, b.Id))));
+        lines.AddRange(touched.Where(b => b.CancelledAt >= start && b.CancelledAt < end).SelectMany(b => BillPayments.Parts(b.PaymentMode, b.PaidAmount, b.Payments)
+            .Select(p => new CashBookLine(b.CancelledAt!.Value, CashBookSource.BillCancelled, b.Name ?? "", p.Mode, -p.Amount, b.Id))));
         // Khata payments not tied to a bill (a bill's own payment is already counted on the bill line above).
         lines.AddRange(entries.Where(e => e.PaymentMode is not null && e.BillId is null)
             .Select(e => new CashBookLine(e.OccurredAt, e.Kind == LedgerEntryKind.Reversal ? CashBookSource.Reversal : CashBookSource.KhataPayment,
-                e.Name, e.PaymentMode!.Value, -e.Amount, null)));
+                e.Name, e.PaymentMode!.Value, -e.Amount, null, null,
+                e.PaymentMode == PaymentMode.Cheque && e.Kind != LedgerEntryKind.Reversal && e.ChequeStatus == ChequeStatus.Pending)));
         // Money out: the day's kharcha (struck lines don't count).
         lines.AddRange(await db.Expenses.AsNoTracking()
             .Where(e => e.OccurredAt >= start && e.OccurredAt < end && e.StruckAt == null && e.TripId == null)
-            .Select(e => new CashBookLine(e.OccurredAt, CashBookSource.Expense, e.Note ?? e.Category.ToString(), e.Mode, -e.Amount, null))
+            .Select(e => new CashBookLine(e.OccurredAt, e.Note != null && (e.Note.StartsWith("Refund CN/") || e.Note.StartsWith("Refund RN/")) ? CashBookSource.Refund : CashBookSource.Expense, e.Note ?? e.Category.ToString(), e.Mode, -e.Amount, null))
             .ToListAsync(ct));
         // Technicians' trip cash: the advance leaves the drawer the day it is given; what they hand back comes in at settlement.
         lines.AddRange(await (from e in db.TripEntries.AsNoTracking()
@@ -97,15 +133,48 @@ public static class CashBookEndpoints
                               select new CashBookLine(e.OccurredAt, CashBookSource.Technician, t.Technician, PaymentMode.Cash, -e.Amount, null)).ToListAsync(ct));
         lines.AddRange(await db.Trips.AsNoTracking().Where(t => t.SettledAt >= start && t.SettledAt < end && t.Returned != null && t.Returned != 0)
             .Select(t => new CashBookLine(t.SettledAt!.Value, CashBookSource.Technician, t.Technician, PaymentMode.Cash, t.Returned!.Value, null)).ToListAsync(ct));
+        // Cash moved by hand, or between the drawer and the bank.
+        lines.AddRange((await db.CashMoves.AsNoTracking().Where(m => m.OccurredAt >= start && m.OccurredAt < end && m.StruckAt == null).ToListAsync(ct))
+            .Select(m => new CashBookLine(m.OccurredAt, m.Kind switch
+            {
+                CashMoveKind.Added => CashBookSource.CashAdded, CashMoveKind.Removed => CashBookSource.CashRemoved,
+                CashMoveKind.ToBank => CashBookSource.ToBank, _ => CashBookSource.FromBank,
+            }, m.Note ?? "", PaymentMode.Cash, m.CashEffect, null, m.Id)));
+        // Empty bags: sold to the bardana dealer, or bought.
+        lines.AddRange(await (from m in db.BagMoves.AsNoTracking()
+                              where m.OccurredAt >= start && m.OccurredAt < end && m.StruckAt == null && m.Amount != null && m.Mode != null
+                              join t in db.BagTypes.AsNoTracking() on m.BagTypeId equals t.Id
+                              select new CashBookLine(m.OccurredAt, m.Kind == BagMoveKind.Sold ? CashBookSource.BagsSold : CashBookSource.BagsBought,
+                                  m.Party ?? t.Name, m.Mode!.Value, m.Kind == BagMoveKind.Sold ? m.Amount!.Value : -m.Amount!.Value, null)).ToListAsync(ct));
+        // Girvi: the loan leaves the drawer the day it is written; repayments come in.
+        lines.AddRange(await (from l in db.GirviLoans.AsNoTracking()
+                              where l.CreatedAt >= start && l.CreatedAt < end
+                              join c in db.Customers.AsNoTracking() on l.CustomerId equals c.Id
+                              select new CashBookLine(l.CreatedAt, CashBookSource.GirviGiven, c.Name + " · girvi #" + l.Number, l.Mode, -l.Principal, null)).ToListAsync(ct));
+        lines.AddRange(await (from p in db.GirviPayments.AsNoTracking()
+                              where p.At >= start && p.At < end
+                              join l in db.GirviLoans.AsNoTracking() on p.LoanId equals l.Id
+                              join c in db.Customers.AsNoTracking() on l.CustomerId equals c.Id
+                              select new CashBookLine(p.At, CashBookSource.GirviReceived, c.Name + " · girvi #" + l.Number, p.Mode, p.Amount, null)).ToListAsync(ct));
+        // Karigars and traders: labour paid and metal settled in money.
+        lines.AddRange(await (from m in db.MetalMoves.AsNoTracking()
+                              where m.At >= start && m.At < end && m.CashEffect != 0 && m.Mode != null
+                              join p in db.MetalParties.AsNoTracking() on m.PartyId equals p.Id
+                              select new CashBookLine(m.At, m.CashEffect > 0 ? CashBookSource.MetalReceived : CashBookSource.MetalPaid,
+                                  p.Name + (m.Kind == "labour_paid" ? " · labour" : " · rate cut"), m.Mode!.Value, m.CashEffect, null)).ToListAsync(ct));
         lines.Sort((a, b) => a.OccurredAt.CompareTo(b.OccurredAt));
 
-        var money = lines.Where(l => l.Source != CashBookSource.Expense).ToList();
+        // Money out of the drawer that isn't a refund of money in: kharcha, cash taken out, cash put in the bank.
+        static bool Out(CashBookSource s) => s is CashBookSource.Expense or CashBookSource.CashRemoved or CashBookSource.ToBank or CashBookSource.BagsBought or CashBookSource.Refund or CashBookSource.GirviGiven or CashBookSource.MetalPaid;
+        var money = lines.Where(l => !Out(l.Source)).ToList();
         var cash = money.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount);
         var upi = money.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount);
-        var spent = lines.Where(l => l.Source == CashBookSource.Expense).ToList();
-        var udhaar = entries.Where(e => e.PaymentMode is null).Sum(e => e.Amount)
+        var spent = lines.Where(l => Out(l.Source)).ToList();
+        var udhaar = entries.Where(e => e.PaymentMode is null && e.Kind != LedgerEntryKind.Opening).Sum(e => e.Amount)
             + entries.Where(e => e.PaymentMode is not null && e.BillId is not null).Sum(e => e.Amount);
-        return new CashBookDto(day, cash, upi, cash + upi, bills.Sum(b => b.Total), udhaar, lines,
+        // Money received is every way it came: cash, UPI, and card, cheque or bank transfer.
+        var other = money.Where(l => l.Mode is not (PaymentMode.Cash or PaymentMode.Upi)).Sum(l => l.Amount);
+        return new CashBookDto(day, cash, upi, cash + upi + other, bills.Where(b => b.CancelledAt == null).Sum(b => b.Total), udhaar, lines,
             -spent.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount), -spent.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount));
     }
 }

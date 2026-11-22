@@ -8,8 +8,11 @@ public sealed class Product : Entity, ITenantOwned
 
     public required string Name { get; set; }
 
-    /// <summary>Free text the shop chooses ("Atta & rice", "Oil & ghee"); used to group and filter.</summary>
+    /// <summary>The category's name, copied from <see cref="CategoryId"/> so screens can group by it; kept in step on rename and merge.</summary>
     public string? Category { get; set; }
+
+    /// <summary>The shop's category this item is in (see <see cref="Catalogue.Category"/>).</summary>
+    public Guid? CategoryId { get; set; }
 
     /// <summary>
     /// The common catalogue item this is: set when the shop adds it from the common list, or matched from its name
@@ -22,6 +25,19 @@ public sealed class Product : Entity, ITenantOwned
     /// Null for loose goods sold by weight, and for things sold one by one.
     /// </summary>
     public decimal? PackSize { get; set; }
+
+    /// <summary>
+    /// Bought and sold in bags (bori, katta) of about this much of the item's unit (50 for a 50 kg bag). Stock stays
+    /// in the unit; the bags are counted beside it on every movement, so the shop knows both "how many kg" and
+    /// "how many sealed bags". Null: not kept in bags.
+    /// </summary>
+    public decimal? BagSize { get; set; }
+
+    /// <summary>What <see cref="BagSize"/> is a count of when buying: a carton of 24, a strip of 10. Null: a bag.</summary>
+    public Unit? PurchaseUnit { get; set; }
+
+    /// <summary>Kilograms in one unit (a piece, a packet, a litre): for the lorry's load and sharing freight by weight. Null: not known.</summary>
+    public decimal? WeightKg { get; set; }
 
     public Unit? PackUnit { get; set; }
 
@@ -63,6 +79,18 @@ public sealed class Product : Entity, ITenantOwned
     /// <summary>At or below this, the item is on the low-stock list. Null: never warn.</summary>
     public decimal? ReorderLevel { get; set; }
 
+    /// <summary>
+    /// The shop doesn't count this item: it is never "out" or "low", it stays orderable online, and it adds nothing to
+    /// stock value. Movements are still recorded, so counting can start again from a stocktake.
+    /// </summary>
+    public bool Uncounted { get; set; }
+
+    /// <summary>The day the shop marked this item sold out: not on sale online for that day, then back by itself.</summary>
+    public DateOnly? OutOn { get; set; }
+
+    /// <summary>Whether the online store offers it today.</summary>
+    public bool OnSale(DateOnly today) => OutOn != today && (Uncounted || Stock - Reserved > 0);
+
     /// <summary>Hidden from billing and lists, kept for history.</summary>
     public bool IsActive { get; set; } = true;
 
@@ -87,6 +115,32 @@ public sealed class Product : Entity, ITenantOwned
     /// <summary>The printed MRP, when the shop sells below it: the store shows it struck through with the % off.</summary>
     public decimal? Mrp { get; set; }
 
+    /// <summary>
+    /// The price per <see cref="Unit"/> when a bill takes at least <see cref="WholesaleMinQty"/> (a carton of soap, 10 bags
+    /// of cement): the bill switches to it by itself. Null: one price for any quantity.
+    /// </summary>
+    public decimal? WholesalePrice { get; set; }
+
+    public decimal? WholesaleMinQty { get; set; }
+
+    /// <summary>
+    /// The name printed on the customer's bill and receipt instead of <see cref="Name"/> ("Innerwear" for a bra or
+    /// bridal nightwear), so a private purchase isn't spelled out. Null: the real name, or the discreet default for
+    /// innerwear and nightwear (<see cref="BillNames"/>).
+    /// </summary>
+    public string? BillName { get; set; }
+
+    /// <summary>
+    /// Clothes and similar: items that are one design in several sizes or colours share a <see cref="StyleName"/>
+    /// ("पुरुष जींस"), and each is one <see cref="Size"/> ("32") and <see cref="Colour"/> ("Blue"). Each stays its own
+    /// item with its own stock and price; the style only groups them on screen. Null for ordinary items.
+    /// </summary>
+    public string? StyleName { get; set; }
+
+    public string? Size { get; set; }
+
+    public string? Colour { get; set; }
+
     /// <summary>The pack's barcode (EAN-13 on Indian packs), when the shop has given it.</summary>
     public string? Barcode { get; set; }
 
@@ -102,6 +156,8 @@ public sealed class Product : Entity, ITenantOwned
     public int? MasterItemId { get; set; }
 
     public MasterItem? MasterItem { get; set; }
+
+    public CatalogueItem? CatalogueItem { get; set; }
 }
 
 public enum DrugSchedule
@@ -140,6 +196,33 @@ public enum Unit
     SqFt,
     /// <summary>Running feet: beading, patti and edge band.</summary>
     RunningFt,
+    /// <summary>100 kg.</summary>
+    Quintal,
+    Carton,
+    Bottle,
+    Set,
+    /// <summary>A strip of tablets or capsules.</summary>
+    Strip,
+}
+
+public static class Units
+{
+    /// <summary>Units that only come whole: half a carton or 2.5 pieces is a typing slip.</summary>
+    public static bool IsWhole(Unit unit) => unit is Unit.Piece or Unit.Packet or Unit.Bag or Unit.Pair or Unit.Box or Unit.Jar
+        or Unit.Carton or Unit.Bottle or Unit.Set or Unit.Strip;
+
+    /// <summary>
+    /// Kilograms in a quantity of the item: exact for weight units, from <paramref name="weightKg"/> (kg in one unit) for
+    /// the rest, and null when the weight isn't known, so a total never quietly counts pieces as kilograms.
+    /// </summary>
+    public static decimal? Kg(Unit unit, decimal? weightKg, decimal quantity) => unit switch
+    {
+        Unit.Kg => quantity,
+        Unit.G => quantity / 1000,
+        Unit.Quintal => quantity * 100,
+        Unit.Tonne => quantity * 1000,
+        _ => weightKg is > 0 ? quantity * weightKg : null,
+    };
 }
 
 /// <summary>
@@ -164,6 +247,14 @@ public sealed class StockMovement : Entity, ITenantOwned
 
     /// <summary>For purchases: what the shop paid per unit this time.</summary>
     public decimal? CostPrice { get; set; }
+
+    /// <summary>Sealed bags in (+) or out (−) with this movement, beside the weight; null when not counted in bags.</summary>
+    public decimal? Bags { get; set; }
+
+    /// <summary>The document behind it, besides a bill: "purchase", "receipt", "challan", "supplier_return", "credit_note", "job", "karigar", "stocktake".</summary>
+    public string? RefType { get; set; }
+
+    public Guid? RefId { get; set; }
 
     public string? Note { get; set; }
 
@@ -197,6 +288,9 @@ public enum StockMovementKind
 
     /// <summary>Back from the karigar.</summary>
     BackFromKarigar,
+
+    /// <summary>A sealed bag opened to sell loose: the bags go down, the weight stays.</summary>
+    OpenBag,
 }
 
 public enum StockReason
@@ -206,4 +300,15 @@ public enum StockReason
     CountCorrection,
     Return,
     Other,
+
+    // The losses GST rule 56 asks to show in the stock account.
+    Lost,
+    Stolen,
+    Destroyed,
+    WrittenOff,
+    Gift,
+    FreeSample,
+
+    /// <summary>Weight lost in storage or handling (moisture, spillage): stock found lighter than the books.</summary>
+    WeightLoss,
 }

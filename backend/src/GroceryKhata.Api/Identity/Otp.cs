@@ -138,13 +138,13 @@ public static class OtpSignIn
     public static IEndpointRouteBuilder MapOtpSignIn(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/auth/otp").WithTags("Sign-in").AllowAnonymous().RequireRateLimiting(AuthSetup.AuthRateLimit);
-        group.MapPost("/send", SendAsync);
+        group.MapPost("/send", SendAsync).RequireRateLimiting(AuthSetup.OtpSendRateLimit);
         group.MapPost("/verify", VerifyAsync);
         return app;
     }
 
     /// <summary>Sends a code. Answers the same whether or not the number has an account, so nothing is revealed.</summary>
-    private static async Task<IResult> SendAsync(
+    internal static async Task<IResult> SendAsync(
         OtpSendRequest request, AppDbContext db, IServiceProvider services, IOptions<OtpOptions> options, TimeProvider clock, ILogger<OtpCode> logger, CancellationToken ct)
     {
         if (PhoneNumber.Normalize(request.Phone) is not { } phone)
@@ -165,7 +165,9 @@ public static class OtpSignIn
             return TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Please wait before asking for another code.");
         }
 
-        if (await db.OtpCodes.CountAsync(c => c.CreatedAt > now.AddDays(-1), ct) >= o.MaxSendsPerDay)
+        // The cost brake holds back strangers' numbers only: someone flooding it must not lock real people out of their
+        // accounts. Each number has its own limit above, so known numbers can't run up much either.
+        if (await db.OtpCodes.CountAsync(c => c.CreatedAt > now.AddDays(-1), ct) >= o.MaxSendsPerDay && !await db.Users.AsNoTracking().AnyAsync(u => u.Phone == phone, ct))
         {
             logger.LogError("Daily sign-in code ceiling of {Max} reached: possible SMS abuse", o.MaxSendsPerDay);
             return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Codes by SMS aren't available right now.", detail: "Please sign in with your password.");
@@ -195,20 +197,10 @@ public static class OtpSignIn
         OtpVerifyRequest request, AppDbContext db, AuthService auth, IOptions<OtpOptions> options, TimeProvider clock, CancellationToken ct)
     {
         var phone = PhoneNumber.Normalize(request.Phone);
-        var codeText = request.Code?.Trim();
         var now = clock.GetUtcNow();
-        var otp = phone is null || codeText is not { Length: 6 }
-            ? null
-            : await db.OtpCodes.Where(c => c.Phone == phone && c.UsedAt == null && c.ExpiresAt > now).OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync(ct);
-        if (otp is null || otp.Attempts >= options.Value.MaxAttempts)
+        var otp = await MatchAsync(db, phone, request.Code, options.Value, now, ct);
+        if (otp is null)
         {
-            return WrongCode();
-        }
-
-        if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(otp.CodeHash), Convert.FromHexString(Hash(phone!, codeText!))))
-        {
-            otp.Attempts++;
-            await db.SaveChangesAsync(ct);
             return WrongCode();
         }
 
@@ -221,13 +213,38 @@ public static class OtpSignIn
         }
 
         otp.UsedAt = now;
-        var result = await auth.SignInWithVerifiedPhoneAsync(user, phone!, name, request.Language is "en" ? "en" : "hi", ct);
+        var result = await auth.SignInWithVerifiedPhoneAsync(user, phone!, name, request.Language is "en" or "gu" or "hn" ? request.Language : "hi", ct);
         return result switch
         {
             { Value: { } value } => TypedResults.Ok(value),
             { Error: AuthError.LockedOut } => TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Account locked for a while."),
             _ => WrongCode(),
         };
+    }
+
+    /// <summary>
+    /// The newest live code sent to this number, if <paramref name="code"/> is it (not yet marked used: the caller does
+    /// that once the whole step succeeds). A wrong code counts against the number's tries. Null: wrong, used up or expired.
+    /// </summary>
+    internal static async Task<OtpCode?> MatchAsync(AppDbContext db, string? phone, string? code, OtpOptions options, DateTimeOffset now, CancellationToken ct)
+    {
+        var codeText = code?.Trim();
+        var otp = phone is null || codeText is not { Length: 6 }
+            ? null
+            : await db.OtpCodes.Where(c => c.Phone == phone && c.UsedAt == null && c.ExpiresAt > now).OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync(ct);
+        if (otp is null || otp.Attempts >= options.MaxAttempts)
+        {
+            return null;
+        }
+
+        if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(otp.CodeHash), Convert.FromHexString(Hash(phone!, codeText!))))
+        {
+            otp.Attempts++;
+            await db.SaveChangesAsync(ct);
+            return null;
+        }
+
+        return otp;
     }
 
     private static IResult WrongCode() =>

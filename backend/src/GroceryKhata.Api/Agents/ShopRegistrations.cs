@@ -260,7 +260,7 @@ public static class ShopRegistrationEndpoints
         if (phone is null) errors["OwnerPhone"] = ["Enter the owner's mobile number."];
         if (!string.IsNullOrWhiteSpace(request.AltPhone) && alt is null) errors["AltPhone"] = ["Check the other number."];
         var gstin = string.IsNullOrWhiteSpace(request.Gstin) ? null : request.Gstin.Trim().ToUpperInvariant();
-        if (gstin is not null && (gstin.Length != 15 || !gstin.All(char.IsAsciiLetterOrDigit))) errors["Gstin"] = ["A GSTIN has 15 letters and digits."];
+        if (gstin is not null && !Ledger.GstExport.IsValidGstin(gstin)) errors["Gstin"] = ["This GSTIN isn't valid: check each letter and digit (the last one is a check digit)."];
         if (request.Term is null || request.PaymentMode is null) errors["PlanCode"] = ["Choose the plan, period and how it's paid."];
         var paymentRef = string.IsNullOrWhiteSpace(request.PaymentRef) ? null : request.PaymentRef.Trim().ToUpperInvariant();
         if (request.PaymentMode == RegistrationPayment.Upi && paymentRef is not { Length: >= 6 and <= 30 }) errors["PaymentRef"] = ["Enter the UPI reference (UTR) from the payment."];
@@ -375,7 +375,10 @@ public static class ShopRegistrationEndpoints
             return TypedResults.NotFound();
         }
 
-        if (r.Status != RegistrationStatus.Submitted)
+        // One update decides who approves, and everything lands together: a double tap can't make two shops.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        if (await db.ShopRegistrations.Where(x => x.Id == id && x.Status == RegistrationStatus.Submitted)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, RegistrationStatus.Approved), ct) == 0)
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Already reviewed.");
         }
@@ -388,6 +391,12 @@ public static class ShopRegistrationEndpoints
             // Nobody knows this password: the owner signs in with an SMS code and can set one later.
             user.PasswordHash = hasher.HashPassword(user, Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)));
             db.Users.Add(user);
+        }
+        else if (user.PhoneVerifiedAt is null)
+        {
+            // The owner's code proves the number now. Whoever opened this account before can't walk into their shop.
+            (user.PasswordHash, user.PhoneVerifiedAt) = (null, r.ConsentAt);
+            await db.RefreshTokens.Where(t => t.UserId == user.Id && t.RevokedAt == null).ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
         }
 
         var shop = new Shop { Name = r.ShopName, Slug = AuthService.NewSlug(r.ShopName), Area = r.Market, Type = r.Type, Gstin = r.Gstin, ApprovedAt = now };
@@ -408,6 +417,7 @@ public static class ShopRegistrationEndpoints
         var subscription = await entitlements.FindOrNewAsync(shop.Id, ct, track: true);
         (subscription.ChosenPlanCode, subscription.ChosenTerm) = (r.PlanCode, r.Term);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return TypedResults.Ok((await ViewsAsync(db, db.ShopRegistrations.Where(x => x.Id == id), ct)).Single());
     }
 
@@ -449,6 +459,14 @@ public static class ShopRegistrationEndpoints
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Approve the shop first; only a payment the agent reported can be confirmed.");
         }
 
+        // One update decides who confirms, so a double tap can't add two periods for one payment.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        if (await db.ShopRegistrations.Where(x => x.Id == id && x.PaymentStatus == RegistrationPaymentStatus.Received)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.PaymentStatus, RegistrationPaymentStatus.Confirmed), ct) == 0)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "This payment is already confirmed.");
+        }
+
         var quote = await billing.QuoteAsync(shopId, r.PlanCode, r.Term, null, ct);
         if (quote.Error is not null)
         {
@@ -459,6 +477,7 @@ public static class ShopRegistrationEndpoints
             r.PaymentMode == RegistrationPayment.Upi ? PaymentMethod.Upi : PaymentMethod.Cash, r.PaymentRef, admin.UserId(), ct);
         (r.PaymentStatus, r.PaymentId) = (RegistrationPaymentStatus.Confirmed, payment.Id);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return TypedResults.Ok((await ViewsAsync(db, db.ShopRegistrations.Where(x => x.Id == id), ct)).Single());
     }
 

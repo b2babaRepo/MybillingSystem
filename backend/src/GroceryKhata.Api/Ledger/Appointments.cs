@@ -138,7 +138,7 @@ public static class Appointments
     /// Books (or, for a walk-in, starts now) an appointment. Its end is the start plus the services' minutes. A stylist
     /// already booked for any of that time is refused, so the same person is never in two chairs.
     /// </summary>
-    private static async Task<IResult> CreateAsync(AppointmentRequest request, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
+    internal static async Task<IResult> CreateAsync(AppointmentRequest request, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         if (await db.Appointments.AnyAsync(a => a.Id == request.Id, ct))
         {

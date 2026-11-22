@@ -1,4 +1,4 @@
-using System.Threading.RateLimiting;
+﻿using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -11,6 +11,8 @@ public static class AuthSetup
 {
     /// <summary>Rate-limit policy for sign-up, sign-in and refresh endpoints (per IP address).</summary>
     public const string AuthRateLimit = "auth";
+
+    public const string OtpSendRateLimit = "otp-send";
 
     public static IServiceCollection AddAppAuthentication(this IServiceCollection services)
     {
@@ -48,9 +50,14 @@ public static class AuthSetup
                 };
             });
 
+        // Refusing a PIN sign-in here means a new endpoint is safe by default, with nothing to remember.
+        var ownAccount = new AuthorizationPolicyBuilder().RequireAuthenticatedUser()
+            .RequireAssertion(context => !context.User.HasClaim(claim => claim.Type == AppClaims.PinOnly)).Build();
         services.AddAuthorizationBuilder()
             // An endpoint that says nothing about access still needs a signed-in user; public ones say AllowAnonymous.
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
+            .SetFallbackPolicy(ownAccount)
+            .SetDefaultPolicy(ownAccount)
+            .AddPolicy(AppPolicies.AnySession, policy => policy.RequireAuthenticatedUser())
             .AddPolicy(AppPolicies.ShopMember, policy => policy
                 .RequireAuthenticatedUser()
                 .RequireClaim(AppClaims.ShopId)
@@ -59,7 +66,9 @@ public static class AuthSetup
                 .RequireAuthenticatedUser()
                 .RequireClaim(AppClaims.ShopId)
                 .RequireClaim(AppClaims.MembershipId)
-                .RequireClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner)))
+                // The owner; or the shop's accountant, only to read (what the owner sees, never a change).
+                .RequireAssertion(context => context.User.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Owner))
+                    || (context.User.HasClaim(AppClaims.Role, RoleNames.ToName(ShopRole.Accountant)) && context.Resource is HttpContext http && ReadOnlyAccess.IsRead(http.Request.Method))))
             .AddPolicy(AppPolicies.PlatformAdmin, policy => policy
                 .RequireAuthenticatedUser()
                 .AddRequirements(new Shops.PlatformAdminRequirement()))
@@ -98,6 +107,13 @@ public static class AuthSetup
                 return RateLimitPartition.GetFixedWindowLimiter(
                     http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                     _ => new FixedWindowRateLimiterOptions { PermitLimit = perMinute, Window = TimeSpan.FromMinutes(1) });
+            });
+            limiter.AddPolicy(OtpSendRateLimit, http =>
+            {
+                var perHour = http.RequestServices.GetRequiredService<IOptions<AuthOptions>>().Value.OtpSendsPerHourPerIp;
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = perHour, Window = TimeSpan.FromHours(1) });
             });
             limiter.AddPolicy(AuthRateLimit, http =>
             {

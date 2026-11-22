@@ -20,10 +20,14 @@ public static class AuthEndpoints
         group.MapPost("/refresh", RefreshAsync).AllowAnonymous().RequireRateLimiting(AuthSetup.AuthRateLimit);
         group.MapPost("/sign-out", SignOutAsync).AllowAnonymous().RequireRateLimiting(AuthSetup.AuthRateLimit); // the access token may have expired
         group.MapPost("/select-shop", SelectShopAsync).RequireAuthorization();
-        group.MapGet("/me", GetMeAsync).RequireAuthorization();
+        group.MapGet("/me", GetMeAsync).RequireAuthorization(AppPolicies.AnySession);
 
         return app;
     }
+
+    /// <summary>The one membership a PIN sign-in may see; null for a real sign-in.</summary>
+    private static Guid? PinMembership(ClaimsPrincipal user) =>
+        user.HasClaim(c => c.Type == AppClaims.PinOnly) && Guid.TryParse(user.FindFirst(AppClaims.MembershipId)?.Value, out var id) ? id : null;
 
     private static async Task<IResult> SignUpAsync(SignUpRequest request, AuthService auth, CancellationToken cancellationToken)
     {
@@ -71,7 +75,7 @@ public static class AuthEndpoints
     private static async Task<Results<Ok<MeResponse>, UnauthorizedHttpResult>> GetMeAsync(
         ClaimsPrincipal user, AuthService auth, CancellationToken cancellationToken)
     {
-        if (user.UserId() is not { } userId || await auth.GetMeAsync(userId, cancellationToken) is not { } me)
+        if (user.UserId() is not { } userId || await auth.GetMeAsync(userId, cancellationToken, PinMembership(user)) is not { } me)
         {
             return TypedResults.Unauthorized();
         }

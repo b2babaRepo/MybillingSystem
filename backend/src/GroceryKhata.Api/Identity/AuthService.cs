@@ -26,6 +26,9 @@ public sealed class AuthService(
 
     private AuthOptions Options => authOptions.Value;
 
+    /// <summary>How soon after use a refresh token may come back without counting as stolen.</summary>
+    public static readonly TimeSpan RefreshRetryWindow = TimeSpan.FromMinutes(5);
+
     public async Task<AuthResult<AuthResponse>> SignUpAsync(SignUpRequest request, CancellationToken cancellationToken)
     {
         var phone = PhoneNumber.Normalize(request.Phone)!;
@@ -42,6 +45,8 @@ public sealed class AuthService(
             return AuthResult<AuthResponse>.Fail(error);
         }
 
+        // One free trial per person: a further shop starts on the free plan, or trials could run for ever.
+        var ownsShop = await db.Memberships.AsNoTracking().AnyAsync(m => m.UserId == user.Id && m.Role == ShopRole.Owner, cancellationToken);
         var shop = new Shop
         {
             Name = request.ShopName!.Trim(),
@@ -57,11 +62,18 @@ public sealed class AuthService(
         {
             var code = request.ReferralCode.Trim().ToLowerInvariant();
             var referrer = await db.Shops.AsNoTracking().Where(s => s.Slug == code && s.IsActive).Select(s => (Guid?)s.Id).SingleOrDefaultAsync(cancellationToken);
-            if (referrer is not null)
+            // Referring yourself earns nothing.
+            if (referrer is not null && !await db.Memberships.AsNoTracking().AnyAsync(m => m.UserId == user.Id && m.ShopId == referrer && m.Role == ShopRole.Owner, cancellationToken))
             {
-                db.Subscriptions.Add(new Billing.Subscription { ShopId = shop.Id, TrialEndsAt = clock.GetUtcNow().AddDays(30), ReferredByShopId = referrer });
+                db.Subscriptions.Add(new Billing.Subscription { ShopId = shop.Id, TrialEndsAt = ownsShop ? clock.GetUtcNow() : clock.GetUtcNow().AddDays(30), ReferredByShopId = referrer });
             }
         }
+
+        if (ownsShop && !db.Subscriptions.Local.Any(s => s.ShopId == shop.Id))
+        {
+            db.Subscriptions.Add(new Billing.Subscription { ShopId = shop.Id, TrialEndsAt = clock.GetUtcNow() });
+        }
+
         logger.LogInformation("User {UserId} opened shop {ShopId}", user.Id, shop.Id);
 
         return AuthResult<AuthResponse>.Ok(await IssueAsync(user, membership, cancellationToken));
@@ -142,6 +154,14 @@ public sealed class AuthService(
             return AuthResult<AuthResponse>.Fail(AuthError.LockedOut);
         }
 
+        // The first proof this number is theirs. Anyone could have opened the account with this number and a password of
+        // their own, so that password and every sign-in made with it end here.
+        if (user.PhoneVerifiedAt is null)
+        {
+            user.PasswordHash = null;
+            await RevokeAllAsync(user.Id, clock.GetUtcNow(), cancellationToken);
+        }
+
         user.FailedSignInCount = 0;
         user.PhoneVerifiedAt = clock.GetUtcNow();
         var memberships = await ListMembershipsAsync(user.Id, cancellationToken);
@@ -176,7 +196,11 @@ public sealed class AuthService(
             return AuthResult<AuthResponse>.Fail(AuthError.InvalidCredentials);
         }
 
-        if (stored.RevokedAt is not null)
+        // Two tabs refreshing together, or a reply lost on a bad network, send a just-used token again. That isn't theft, as
+        // long as what replaced it is still good: signing a shop out mid-rush for it would be far worse.
+        var retried = stored is { RevokedAt: { } used, ReplacedById: { } next } && now - used <= RefreshRetryWindow
+            && await db.RefreshTokens.AnyAsync(t => t.Id == next && t.RevokedAt == null, cancellationToken);
+        if (stored.RevokedAt is not null && !retried)
         {
             // A used or signed-out token came back: it may be stolen. End every sign-in of this user.
             await RevokeAllAsync(stored.UserId, now, cancellationToken);
@@ -203,7 +227,7 @@ public sealed class AuthService(
             return AuthResult<AuthResponse>.Fail(AuthError.InvalidCredentials);
         }
 
-        return AuthResult<AuthResponse>.Ok(await IssueAsync(user, membership, cancellationToken, replacing: stored));
+        return AuthResult<AuthResponse>.Ok(await IssueAsync(user, membership, cancellationToken, replacing: retried ? null : stored, pinOnly: stored.PinOnly));
     }
 
     public async Task SignOutAsync(RefreshRequest request, CancellationToken cancellationToken)
@@ -222,9 +246,15 @@ public sealed class AuthService(
         }
     }
 
-    public async Task<MeResponse?> GetMeAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task<MeResponse?> GetMeAsync(Guid userId, CancellationToken cancellationToken, Guid? onlyMembership = null)
     {
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.IsActive, cancellationToken);
+        if (user is not null && onlyMembership is not null)
+        {
+            var shown = (await ListMembershipsAsync(userId, cancellationToken)).Where(m => m.MembershipId == onlyMembership).ToList();
+            return new MeResponse((await SummarizeAsync(user, cancellationToken)) with { IsPlatformAdmin = false, PlatformRole = null }, shown, []);
+        }
+
         return user is null ? null : new MeResponse(await SummarizeAsync(user, cancellationToken), await ListMembershipsAsync(userId, cancellationToken), await ListBlockedAsync(userId, cancellationToken));
     }
 
@@ -271,7 +301,7 @@ public sealed class AuthService(
 
         user.FailedSignInCount = 0;
         user.LockoutEndsAt = null;
-        return AuthResult<AuthResponse>.Ok(await IssueAsync(user, match, cancellationToken));
+        return AuthResult<AuthResponse>.Ok(await IssueAsync(user, match, cancellationToken, pinOnly: true));
     }
 
     /// <summary>Null when the password is right; counts wrong ones and locks the account after too many.</summary>
@@ -341,11 +371,16 @@ public sealed class AuthService(
 
     /// <summary>Creates an access token and a new refresh token, revoking <paramref name="replacing"/> if given, and saves.</summary>
     private async Task<AuthResponse> IssueAsync(
-        User user, Membership? membership, CancellationToken cancellationToken, RefreshToken? replacing = null)
+        User user, Membership? membership, CancellationToken cancellationToken, RefreshToken? replacing = null, bool pinOnly = false)
     {
         var now = clock.GetUtcNow();
         var summary = await SummarizeAsync(user, cancellationToken);
-        var access = tokens.Issue(new AccessTokenSubject(user.Id, membership?.ShopId, membership?.Id, membership?.Role, summary.IsPlatformAdmin));
+        if (pinOnly)
+        {
+            summary = summary with { IsPlatformAdmin = false, PlatformRole = null };
+        }
+
+        var access = tokens.Issue(new AccessTokenSubject(user.Id, membership?.ShopId, membership?.Id, membership?.Role, summary.IsPlatformAdmin, pinOnly));
 
         var refreshValue = Secrets.NewRefreshToken();
         var refresh = new RefreshToken
@@ -354,6 +389,7 @@ public sealed class AuthService(
             MembershipId = membership?.Id,
             TokenHash = Secrets.Sha256Hex(refreshValue),
             ExpiresAt = now.AddDays(Options.RefreshTokenDays),
+            PinOnly = pinOnly,
         };
         db.RefreshTokens.Add(refresh);
 
@@ -371,10 +407,10 @@ public sealed class AuthService(
             refreshValue,
             refresh.ExpiresAt,
             summary,
-            await ListMembershipsAsync(user.Id, cancellationToken),
+            pinOnly ? (await ListMembershipsAsync(user.Id, cancellationToken)).Where(m => m.MembershipId == membership?.Id).ToList() : await ListMembershipsAsync(user.Id, cancellationToken),
             membership?.ShopId,
             membership?.Role,
-            await ListBlockedAsync(user.Id, cancellationToken));
+            pinOnly ? [] : await ListBlockedAsync(user.Id, cancellationToken));
     }
 
     private async Task RevokeAllAsync(Guid userId, DateTimeOffset now, CancellationToken cancellationToken)
@@ -384,8 +420,12 @@ public sealed class AuthService(
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), cancellationToken);
     }
 
-    /// <summary>"Sharma General Store" → "sharma-general-store-k3f9". The suffix keeps names unique without a lookup.</summary>
-    internal static string NewSlug(string name)
+    /// <summary>
+    /// "Sharma General Store" → "sharma-general-store-k3f9a2c1". The suffix keeps names unique without a lookup: eight
+    /// characters, since thousands of shops share common names (four gave only 65,536 links per name, and a clash made
+    /// sign-up fail). Links already given out keep their shorter suffix.
+    /// </summary>
+    public static string NewSlug(string name)
     {
         var builder = new StringBuilder();
         foreach (var c in name.Trim().ToLowerInvariant())
@@ -406,7 +446,7 @@ public sealed class AuthService(
             stem = stem[..60].TrimEnd('-');
         }
 
-        var suffix = Guid.NewGuid().ToString("N")[..4];
+        var suffix = Guid.NewGuid().ToString("N")[..8];
         return stem.Length == 0 ? $"shop-{suffix}" : $"{stem}-{suffix}";
     }
 }

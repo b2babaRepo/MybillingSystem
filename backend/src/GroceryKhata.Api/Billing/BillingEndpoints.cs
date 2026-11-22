@@ -258,15 +258,19 @@ public static class BillingEndpoints
 
     private static async Task<IResult> ConfirmAsync(Guid id, ClaimsPrincipal admin, AppDbContext db, BillingService billing, CancellationToken ct)
     {
-        var claim = await db.PaymentClaims.SingleOrDefaultAsync(c => c.Id == id && c.Status == ClaimStatus.Pending, ct);
-        if (claim is null)
+        // One update decides who confirms, so two admins (or a double tap) can't add two periods for one payment.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var decidedBy = admin.UserId();
+        var won = await db.PaymentClaims.Where(c => c.Id == id && c.Status == ClaimStatus.Pending)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, ClaimStatus.Confirmed).SetProperty(c => c.DecidedByUserId, decidedBy), ct);
+        if (won == 0)
         {
             return TypedResults.NotFound();
         }
 
-        claim.Status = ClaimStatus.Confirmed;
-        claim.DecidedByUserId = admin.UserId();
-        var payment = await billing.RecordAsync(claim.ShopId, new Quote(claim.PlanCode, claim.Term, claim.Amount, claim.OfferCode, null), PaymentMethod.Upi, claim.UpiRef, admin.UserId(), ct);
+        var claim = await db.PaymentClaims.AsNoTracking().SingleAsync(c => c.Id == id, ct);
+        var payment = await billing.RecordAsync(claim.ShopId, new Quote(claim.PlanCode, claim.Term, claim.Amount, claim.OfferCode, null), PaymentMethod.Upi, claim.UpiRef, decidedBy, ct);
+        await transaction.CommitAsync(ct);
         return TypedResults.Ok(ToDto.Compile()(payment));
     }
 

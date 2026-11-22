@@ -1,7 +1,8 @@
+import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field } from '../components/ui'
+import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatPhone, formatRupees, whatsAppLink } from '../lib/format'
@@ -17,7 +18,7 @@ interface Day { date: string; people: number; bookings: TableBooking[] }
 
 const OCCASIONS: Occasion[] = ['none', 'birthday', 'anniversary', 'other']
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-const TONE: Record<Status, string> = { booked: 'bg-teal-100 text-teal-900', seated: 'bg-slate-200 text-ink', no_show: 'bg-amber-100 text-amber-900', cancelled: 'bg-red-50 text-due' }
+const TONE: Record<Status, string> = { booked: 'bg-teal-100 text-brand-deep', seated: 'bg-slate-200 text-ink', no_show: 'bg-amber-100 text-warn-ink', cancelled: 'bg-due-soft text-due' }
 const ICON: Record<Occasion, string> = { none: '', birthday: '🎂 ', anniversary: '💐 ', other: '🎉 ' }
 
 /** A day's table bookings by time: family dinners, and birthday or anniversary parties with cake and decoration. */
@@ -42,13 +43,13 @@ export function TableBookingsScreen({ shopId, shopName }: { shopId: string; shop
     }
   }
   const shift = (n: number) => { const d = new Date(`${date}T00:00`); d.setDate(d.getDate() + n); setDate(isoDay(d)) }
-  const time12 = (time: string) => new Date(`2000-01-01T${time}`).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
-  const reminder = (b: TableBooking) => t('tables.reminder', { name: b.name, shop: shopName, date: new Date(`${b.date}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), time: time12(b.time), people: b.people })
+  const time12 = (time: string) => new Date(`2000-01-01T${time}`).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })
+  const reminder = (b: TableBooking) => t('tables.reminder', { name: b.name, shop: shopName, date: new Date(`${b.date}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' }), time: time12(b.time), people: b.people })
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('tables.hint')}</p>
-      <div className="flex items-center justify-between rounded-[18px] bg-white p-2">
+      <div className="flex items-center justify-between rounded-card bg-white p-2">
         <button onClick={() => shift(-1)} aria-label={t('tables.prev')} className="h-11 w-11 text-xl">‹</button>
         <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label={t('tables.date')} className="h-11 rounded-xl border border-line px-2 font-bold" />
         <button onClick={() => shift(1)} aria-label={t('tables.next')} className="h-11 w-11 text-xl">›</button>
@@ -56,10 +57,10 @@ export function TableBookingsScreen({ shopId, shopName }: { shopId: string; shop
       {day && <p className="font-semibold">{t('tables.expected', { count: day.people })}</p>}
       {adding ? <NewTableBooking shopId={shopId} date={date} onDone={() => setAdding(false)} /> : <Button onClick={() => setAdding(true)}>{t('tables.new')}</Button>}
       {message && <p className="text-sm text-due">{message}</p>}
-      {day?.bookings.length === 0 && <p className="rounded-[18px] bg-white p-4 text-center text-muted">{t('tables.none')}</p>}
+      {day?.bookings.length === 0 && <p className="rounded-card bg-white p-4 text-center text-muted">{t('tables.none')}</p>}
       <ul className="flex flex-col gap-2">
         {day?.bookings.map((b) => (
-          <li key={b.id} className="rounded-[18px] bg-white p-3">
+          <li key={b.id} className="rounded-card bg-white p-3">
             <div className="flex items-start gap-2">
               <span className="w-16 shrink-0 font-bold">{time12(b.time)}</span>
               <span className="min-w-0 flex-1">
@@ -67,7 +68,7 @@ export function TableBookingsScreen({ shopId, shopName }: { shopId: string; shop
                 <span className="block text-xs text-muted">
                   {[b.table, b.phone && formatPhone(b.phone), b.occasion !== 'none' && t(`tables.occasion.${b.occasion}`), b.cake && `${t('tables.cake')}: ${b.cake}`, b.decoration && t('tables.decoration'), b.note].filter(Boolean).join(' · ')}
                 </span>
-                {b.deposit > 0 && <span className="block text-xs font-semibold text-teal-800">{t('tables.depositTaken', { amount: formatRupees(b.deposit) })}</span>}
+                {b.deposit > 0 && <span className="block text-xs font-semibold text-brand-strong">{t('tables.depositTaken', { amount: formatRupees(b.deposit) })}</span>}
               </span>
               <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${TONE[b.status]}`}>{t(`tables.status.${b.status}`)}</span>
             </div>
@@ -77,7 +78,7 @@ export function TableBookingsScreen({ shopId, shopName }: { shopId: string; shop
                 <Button tone="plain" className="h-11 px-3 text-sm" onClick={() => void run(`${b.id}/status`, { status: 'no_show' })}>{t('tables.noShow')}</Button>
                 {b.customerId && <Button tone="plain" className="h-11 px-3 text-sm" onClick={() => setDepositFor(depositFor === b.id ? null : b.id)}>{t('tables.takeDeposit')}</Button>}
                 {b.phone && <a href={whatsAppLink(b.phone, reminder(b))} target="_blank" rel="noreferrer" className="flex h-11 items-center rounded-xl bg-[#15803d] px-3 text-sm font-semibold text-white">{t('tables.remind')}</a>}
-                <button onClick={async () => { if ((await confirmAsk(t('tables.cancelConfirm')))) void run(`${b.id}/status`, { status: 'cancelled' }) }} className="h-11 px-2 text-sm font-semibold text-due">{t('tables.cancel')}</button>
+                <button onClick={async () => { if ((await confirmAsk(t('tables.cancelConfirm')))) void run(`${b.id}/status`, { status: 'cancelled' }) }} className={`h-11 text-sm ${btn.dangerOutline}`}>{t('tables.cancel')}</button>
               </div>
             )}
             {depositFor === b.id && (
@@ -121,7 +122,7 @@ function NewTableBooking({ shopId, date, onDone }: { shopId: string; date: strin
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-[18px] bg-white p-3">
+    <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <div className="grid grid-cols-3 gap-2">
         <Field label={t('tables.date')} type="date" value={d.date} onChange={set('date')} />
         <Field label={t('tables.time')} type="time" value={d.time} onChange={set('time')} />

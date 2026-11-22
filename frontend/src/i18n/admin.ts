@@ -4,6 +4,7 @@
  */
 export const adminText = {
   en: {
+    usage: { title: 'Customer app use', days: 'Last {{count}} days', carts: 'Carts started', checkouts: 'Checkouts opened', storeOrders: 'Store orders', listOrders: '+ {{count}} from lists', conversion: 'Cart to order', fromCheckout: 'Checkout to order: {{pct}}', answers: 'Changes answered', answerTime: 'Typical answer time', minutes: '{{count}} min', languages: 'Customers by language', note: 'Counts only: no items, prices or names. A cart or checkout counts once a day per shop per phone.' },
     people: { addMore: 'Add owner or helper', save: 'Save people', added: 'Added. Owners sign in with an SMS code; helpers with their PIN.' },
     performance: {
       title: 'Agent performance and commission',
@@ -126,7 +127,7 @@ export const adminText = {
       runNow: 'Look at all shops now',
       ran: 'Looked at all shops.',
     },
-    platformNav: { brand: 'Grocery Khata admin', plans: 'Plans and billing', markets: 'Markets', agents: 'Field agents', ai: 'AI suggestions', admins: 'Admins and activity', oldClaims: 'Payments waiting over a day', jobsBehind: 'Daily jobs failed or late' },
+    platformNav: { role: 'Platform admin', toShop: 'Open my shop', brand: 'Grocery Khata admin', plans: 'Plans and billing', markets: 'Markets', agents: 'Field agents', ai: 'AI suggestions', admins: 'Admins and activity', oldClaims: 'Payments waiting over a day', jobsBehind: 'Daily jobs failed or late' },
     markets: { title: 'Markets ({{count}})', market: 'Market', none: 'No market', noneHere: 'No market here yet: add it in Markets', name: 'Market name', state: 'State', district: 'District', city: 'City', village: 'Village (if any)', add: 'Add market', rename: 'Rename', edit: 'Edit', openMap: 'Open on map', stop: 'Stop', restart: 'Restart', shops: '{{count}} shops', gps: 'Capture shop location', gpsDone: 'Location captured ✓', gpsFailed: 'Could not get the location. Allow location and try again.', photo: 'Add shop photo', photoDone: 'Photo added ✓', shopNo: 'Shop number', gstin: 'GST number (if any)' },
     plans: {
       owners: 'Owners',
@@ -163,7 +164,9 @@ export const adminText = {
       title: 'Admin activity',
       hint: 'Everything any admin changed: who, when, and what they sent. It can’t be edited.',
       none: 'Nothing yet.',
+      longValue: '(a photo or file)',
       actions: {
+        photo: 'Changed a master item photo',
         approve: 'Approved shop', block: 'Blocked shop', unblock: 'Unblocked shop', note: 'Support note', unlock: 'Unlocked a person',
         openShop: 'Opened a shop', addAdmin: 'Added admin', changeAdmin: 'Changed admin role', removeAdmin: 'Removed admin',
         confirmClaim: 'Confirmed UPI payment', rejectClaim: 'Rejected UPI payment', recordPayment: 'Recorded payment', refund: 'Refunded payment',
@@ -199,6 +202,7 @@ export const adminText = {
     },
   },
   hi: {
+    usage: { title: 'ग्राहक ऐप का इस्तेमाल', days: 'पिछले {{count}} दिन', carts: 'कार्ट शुरू हुईं', checkouts: 'चेकआउट खुले', storeOrders: 'स्टोर ऑर्डर', listOrders: '+ {{count}} लिस्ट से', conversion: 'कार्ट से ऑर्डर', fromCheckout: 'चेकआउट से ऑर्डर: {{pct}}', answers: 'बदलाव पर जवाब', answerTime: 'आम तौर पर जवाब में', minutes: '{{count}} मिनट', languages: 'भाषा के हिसाब से ग्राहक', note: 'सिर्फ़ गिनती: सामान, दाम या नाम नहीं। कार्ट या चेकआउट हर फ़ोन पर हर दुकान के लिए दिन में एक बार गिना जाता है।' },
     people: { addMore: 'मालिक या साथी जोड़ें', save: 'लोग सेव करें', added: 'जुड़ गए। मालिक SMS कोड से, साथी अपने PIN से लॉगिन करेंगे।' },
     performance: {
       title: 'एजेंट का काम और कमीशन',
@@ -321,7 +325,7 @@ export const adminText = {
       runNow: 'अभी सभी दुकानें देखें',
       ran: 'सभी दुकानें देख लीं।',
     },
-    platformNav: { brand: 'ग्रोसरी खाता एडमिन', plans: 'प्लान और बिलिंग', markets: 'बाज़ार', agents: 'फ़ील्ड एजेंट', ai: 'AI सुझाव', admins: 'एडमिन और गतिविधि', oldClaims: 'एक दिन से रुके पेमेंट', jobsBehind: 'रोज़ के काम रुके या देर से' },
+    platformNav: { role: 'प्लेटफ़ॉर्म एडमिन', toShop: 'मेरी दुकान खोलें', brand: 'ग्रोसरी खाता एडमिन', plans: 'प्लान और बिलिंग', markets: 'बाज़ार', agents: 'फ़ील्ड एजेंट', ai: 'AI सुझाव', admins: 'एडमिन और गतिविधि', oldClaims: 'एक दिन से रुके पेमेंट', jobsBehind: 'रोज़ के काम रुके या देर से' },
     markets: { title: 'बाज़ार ({{count}})', market: 'बाज़ार', none: 'कोई बाज़ार नहीं', noneHere: 'यहाँ कोई बाज़ार नहीं: बाज़ार में जोड़ें', name: 'बाज़ार का नाम', state: 'राज्य', district: 'ज़िला', city: 'शहर', village: 'गाँव (अगर है)', add: 'बाज़ार जोड़ें', rename: 'नाम बदलें', edit: 'बदलें', openMap: 'नक्शे पर देखें', stop: 'बंद करें', restart: 'फिर चालू करें', shops: '{{count}} दुकानें', gps: 'दुकान की लोकेशन लें', gpsDone: 'लोकेशन मिल गई ✓', gpsFailed: 'लोकेशन नहीं मिली। अनुमति देकर फिर कोशिश करें।', photo: 'दुकान की फ़ोटो जोड़ें', photoDone: 'फ़ोटो जुड़ गई ✓', shopNo: 'दुकान नंबर', gstin: 'GST नंबर (अगर है)' },
     plans: {
       owners: 'मालिक',
@@ -358,7 +362,9 @@ export const adminText = {
       title: 'एडमिन गतिविधि',
       hint: 'किसी भी एडमिन ने जो बदला: किसने, कब, और क्या भेजा। इसे बदला नहीं जा सकता।',
       none: 'अभी कुछ नहीं।',
+      longValue: '(फ़ोटो या फ़ाइल)',
       actions: {
+        photo: 'मास्टर सामान की फ़ोटो बदली',
         approve: 'दुकान मंज़ूर की', block: 'दुकान बंद की', unblock: 'दुकान फिर चालू की', note: 'सपोर्ट नोट', unlock: 'लॉक खोला',
         openShop: 'दुकान खोली', addAdmin: 'एडमिन जोड़ा', changeAdmin: 'एडमिन की भूमिका बदली', removeAdmin: 'एडमिन हटाया',
         confirmClaim: 'UPI भुगतान पक्का किया', rejectClaim: 'UPI भुगतान नहीं माना', recordPayment: 'भुगतान दर्ज किया', refund: 'रिफ़ंड किया',

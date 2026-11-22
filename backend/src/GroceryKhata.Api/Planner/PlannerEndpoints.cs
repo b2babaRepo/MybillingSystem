@@ -20,6 +20,7 @@ public static class PlannerEndpoints
         me.MapPut("/lists/{kind}/items/{id:guid}", UpsertItemAsync);
         me.MapDelete("/lists/{kind}/items/{id:guid}", DeleteItemAsync);
         me.MapGet("/orders", GetMyOrdersAsync);
+        me.MapGet("/orders/{id:guid}/bill-link", BillLinkAsync);
         me.MapPost("/orders", PlaceOrderAsync);
         me.MapPost("/orders/{id:guid}/lines/{lineId:guid}/approve", ApproveLineAsync);
 
@@ -108,6 +109,17 @@ public static class PlannerEndpoints
     {
         var hold = platform.Value.HoldNewShops;
         var query = db.Shops.AsNoTracking().Where(s => s.IsActive && (!hold || s.ApprovedAt != null));
+        // Connecting to one shop: its ID (GKS-000042), its store link or QR (…/s/its-name), or the owner's mobile.
+        // These match exactly, so a part of a number or code never lists other shops.
+        if (Exact(search) is { } exact)
+        {
+            var (number, slug, phone) = exact;
+            var found = db.Shops.AsNoTracking().Where(s => s.IsActive && (!hold || s.ApprovedAt != null) && (
+                (number != null && s.Number == number) || (slug != null && s.Slug == slug)
+                || (phone != null && db.Memberships.Any(m => m.ShopId == s.Id && m.IsActive && m.Role == Identity.ShopRole.Owner && db.Users.Any(u => u.Id == m.UserId && u.Phone == phone)))));
+            return await found.OrderBy(s => s.Name).Take(5).Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, null, s.Slug, s.Number)).ToListAsync(ct);
+        }
+
         if (!string.IsNullOrWhiteSpace(search))
         {
             var pattern = $"%{search.Trim()}%";
@@ -130,14 +142,41 @@ public static class PlannerEndpoints
             var (dLat, dLng) = (radiusKm / 111.0, radiusKm / (111.0 * Math.Cos(lat.Value * Math.PI / 180)));
             var near = await query.Where(s => s.Latitude != null && s.Longitude != null
                     && s.Latitude > lat - dLat && s.Latitude < lat + dLat && s.Longitude > lng - dLng && s.Longitude < lng + dLng)
-                .Select(s => new { s.Id, s.Name, s.Area, s.Address, s.Type, Lat = s.Latitude!.Value, Lng = s.Longitude!.Value }).Take(500).ToListAsync(ct);
-            return near.Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, Math.Round(DistanceKm(lat.Value, lng!.Value, s.Lat, s.Lng), 1)))
+                .Select(s => new { s.Id, s.Name, s.Area, s.Address, s.Type, s.Slug, s.Number, Lat = s.Latitude!.Value, Lng = s.Longitude!.Value }).Take(500).ToListAsync(ct);
+            return near.Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, Math.Round(DistanceKm(lat.Value, lng!.Value, s.Lat, s.Lng), 1), s.Slug, s.Number))
                 .Where(s => s.DistanceKm <= radiusKm).OrderBy(s => s.DistanceKm).Take(50).ToList();
         }
 
         return await query.OrderBy(s => s.Area).ThenBy(s => s.Name).Take(50)
-            .Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, null))
+            .Select(s => new ShopDirectoryDto(s.Id, s.Name, s.Area, s.Address, s.Type, null, s.Slug, s.Number))
             .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// A search that names one shop: "GKS-000042" (or "gks42"), a store link or QR text with "/s/its-slug", or a mobile
+    /// number. Null for an ordinary name or area search.
+    /// </summary>
+    internal static (long? Number, string? Slug, string? Phone)? Exact(string? search)
+    {
+        var text = search?.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        var link = System.Text.RegularExpressions.Regex.Match(text, @"/s/([a-z0-9-]{3,80})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (link.Success)
+        {
+            return (null, link.Groups[1].Value.ToLowerInvariant(), null);
+        }
+
+        var code = System.Text.RegularExpressions.Regex.Match(text, @"^gks[\s-]*0*(\d{1,9})$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (code.Success)
+        {
+            return (long.Parse(code.Groups[1].Value), null, null);
+        }
+
+        return text.Count(char.IsAsciiDigit) >= 10 && PhoneNumber.Normalize(text) is { } phone ? (null, null, phone) : null;
     }
 
     /// <summary>Straight-line distance on the earth (haversine).</summary>
@@ -148,12 +187,29 @@ public static class PlannerEndpoints
         return 6371 * 2 * Math.Asin(Math.Sqrt(a));
     }
 
-    private static async Task<IReadOnlyList<OrderDto>> GetMyOrdersAsync(ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    /// <summary>
+    /// The shop's bill for the person's own delivered order, as the same signed link the shop would send on WhatsApp
+    /// (open, print, save as PDF). 404 until the order is delivered and billed.
+    /// </summary>
+    private static async Task<IResult> BillLinkAsync(Guid id, ClaimsPrincipal user, AppDbContext db, Microsoft.Extensions.Options.IOptions<Billing.BillingOptions> options, CancellationToken ct)
+    {
+        var order = await db.Orders.AsNoTracking().Where(o => o.Id == id && o.PlacedByUserId == user.UserId() && o.BillId != null)
+            .Select(o => new { o.ShopId, BillId = o.BillId!.Value }).SingleOrDefaultAsync(ct);
+        var slug = order is null ? null : await db.Shops.AsNoTracking().Where(s => s.Id == order.ShopId && s.IsActive).Select(s => s.Slug).SingleOrDefaultAsync(ct);
+        return order is null || slug is null ? TypedResults.NotFound()
+            : TypedResults.Ok(new Ledger.BillLinkDto(slug, order.BillId, Ledger.BillLinks.Token(options.Value.BillLinkKey, order.BillId)));
+    }
+
+    /// <summary>How many orders a page of history holds.</summary>
+    public const int OrdersPage = 30;
+
+    /// <summary>A page of the person's orders, newest first. <paramref name="before"/>: only orders placed before it (the next page of history).</summary>
+    private static async Task<IReadOnlyList<OrderDto>> GetMyOrdersAsync(ClaimsPrincipal user, AppDbContext db, DateTimeOffset? before, CancellationToken ct)
     {
         var userId = user.UserId()!.Value;
         var orders = await db.Orders.AsNoTracking().Include(o => o.Lines)
-            .Where(o => o.PlacedByUserId == userId)
-            .OrderByDescending(o => o.CreatedAt).Take(30)
+            .Where(o => o.PlacedByUserId == userId && (before == null || o.CreatedAt < before.Value.ToUniversalTime()))
+            .OrderByDescending(o => o.CreatedAt).Take(OrdersPage)
             .ToListAsync(ct);
         return await WithShopNamesAsync(db, orders, ct);
     }
@@ -240,6 +296,7 @@ public static class PlannerEndpoints
                 .Select(i => OrderLines.FromListItem(i, choices.GetValueOrDefault(i.Id), products, shopItems, userId, ++lineNo)).ToList(),
         };
         db.Orders.Add(order);
+        UsageEvents.Record(db, UsageKind.OrderPlaced, order.ShopId, userId, detail: "list");
         foreach (var item in list.Items)
         {
             item.Checked = false;
@@ -284,6 +341,8 @@ public static class PlannerEndpoints
         if (line.Approval == LineApproval.Pending && order.Status == OrderStatus.Packed)
         {
             line.Approval = request.Approve ? LineApproval.Approved : LineApproval.Declined;
+            var waited = order.PackedAt is { } packed ? (int?)Math.Max(0, (int)(DateTimeOffset.UtcNow - packed).TotalSeconds) : null;
+            UsageEvents.Record(db, UsageKind.ChangeAnswered, order.ShopId, userId, waited);
             if (!request.Approve)
             {
                 line.Removed = true;
@@ -307,8 +366,18 @@ public static class PlannerEndpoints
     internal static async Task<IReadOnlyList<OrderDto>> WithShopNamesAsync(AppDbContext db, IReadOnlyList<Order> orders, CancellationToken ct)
     {
         var shopIds = orders.Select(o => o.ShopId).Distinct().ToList();
-        var names = await db.Shops.AsNoTracking().Where(s => shopIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
-        return orders.Select(o => OrderDto.From(o, names.GetValueOrDefault(o.ShopId, ""))).ToList();
+        var shops = await (from s in db.Shops.AsNoTracking()
+                           where shopIds.Contains(s.Id)
+                           select new
+                           {
+                               s.Id, s.Name, s.Slug, s.Address, s.Area,
+                               Phone = (from m in db.Memberships
+                                        join u in db.Users on m.UserId equals u.Id
+                                        where m.ShopId == s.Id && m.Role == Identity.ShopRole.Owner && m.IsActive
+                                        orderby m.CreatedAt
+                                        select u.Phone).FirstOrDefault(),
+                           }).ToDictionaryAsync(s => s.Id, ct);
+        return orders.Select(o => shops.TryGetValue(o.ShopId, out var s) ? OrderDto.From(o, s.Name, s.Slug, s.Phone, string.Join(", ", new[] { s.Address, s.Area }.Where(x => !string.IsNullOrWhiteSpace(x)))) : OrderDto.From(o, "")).ToList();
     }
 
     private static async Task<ShoppingList> EnsureListAsync(AppDbContext db, Guid userId, ListKind kind, CancellationToken ct)

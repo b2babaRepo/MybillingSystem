@@ -1,4 +1,4 @@
-import { getSession, setSession } from './session'
+import { getSession, savedSession, setSession } from './session'
 import type { AuthResponse, ProblemDetails } from './types'
 
 /** The request never reached the server (offline, or the server is down). Safe to retry later. */
@@ -48,6 +48,7 @@ async function fetchOrThrow(path: string, method: string, body: unknown, token?:
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         // The phone's clock: the server puts entry times right when it is wrong.
         'X-Client-Time': new Date().toISOString(),
+        ...(billPasscode ? { 'X-Bill-Passcode': billPasscode } : {}),
       },
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     })
@@ -58,11 +59,27 @@ async function fetchOrThrow(path: string, method: string, body: unknown, token?:
 
 let refreshing: Promise<boolean> | null = null
 
-/** Swaps the refresh token for new tokens. One at a time: parallel calls share the same refresh. */
+/** One tab at a time across the whole app (where the browser can), else just within this tab. */
+function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? (navigator as Navigator & { locks?: LockManager }).locks : undefined
+  return locks ? (locks.request('gk-session-refresh', work) as Promise<T>) : work()
+}
+
+/**
+ * Swaps the refresh token for new tokens. One at a time: parallel calls in this tab share the same refresh, and tabs
+ * take turns. A tab whose token another tab has already swapped takes that tab's new session instead of sending the
+ * old token, which the server would take for a stolen one and sign the person out everywhere.
+ */
 export function refreshSession(): Promise<boolean> {
-  refreshing ??= (async () => {
+  const mine = getSession()?.refreshToken
+  refreshing ??= oneAtATime(async () => {
     try {
-      const session = getSession()
+      const saved = savedSession()
+      if (saved && saved.refreshToken !== mine && new Date(saved.accessTokenExpiresAt).getTime() > Date.now() + 60_000) {
+        setSession(saved)
+        return true
+      }
+      const session = saved ?? getSession()
       if (!session) return false
       const response = await send('/v1/auth/refresh', 'POST', { refreshToken: session.refreshToken })
       if (response.ok) {
@@ -74,7 +91,7 @@ export function refreshSession(): Promise<boolean> {
     } finally {
       refreshing = null
     }
-  })()
+  })
   return refreshing
 }
 
@@ -115,6 +132,40 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
   // 204 No Content: nothing to read (an action done, or nothing there yet).
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
+}
+
+/** The bill passcode typed for the action being sent: only while {@link withBillPasscode} retries it. */
+let billPasscode: string | null = null
+
+/** The server wants the shop's bill passcode for this action (cancel a bill, a return…). */
+export const needsBillPasscode = (error: unknown): error is ApiError => error instanceof ApiError && error.status === 403 && error.problem?.type === 'bill-passcode'
+
+/**
+ * Runs an action that undoes money. When the shop has a bill passcode, the server refuses it at first: then the
+ * passcode is asked for and the action sent again with it. Closing the prompt ends it with the server's refusal.
+ */
+export async function withBillPasscode<T>(run: () => Promise<T>, askPasscode: (wrongBefore: boolean) => Promise<string | null>): Promise<T> {
+  try {
+    return await run()
+  } catch (refused) {
+    if (!needsBillPasscode(refused)) throw refused
+    let last: ApiError = refused
+    // Two tries at typing it; the server locks it after five wrong ones.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const code = (await askPasscode(attempt > 0))?.trim()
+      if (!code) throw last
+      billPasscode = code
+      try {
+        return await run()
+      } catch (again) {
+        if (!needsBillPasscode(again)) throw again
+        last = again
+      } finally {
+        billPasscode = null
+      }
+    }
+    throw last
+  }
 }
 
 /** Sign-in calls go without a token and save the session they return. */

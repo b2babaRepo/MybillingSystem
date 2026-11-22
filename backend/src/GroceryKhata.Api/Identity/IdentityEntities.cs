@@ -1,4 +1,4 @@
-using GroceryKhata.Api.Common;
+﻿using GroceryKhata.Api.Common;
 
 namespace GroceryKhata.Api.Identity;
 
@@ -24,7 +24,14 @@ public sealed class User : Entity
     [System.ComponentModel.DataAnnotations.MaxLength(6)]
     public string? Pincode { get; set; }
 
-    /// <summary>"en" or "hi".</summary>
+    /// <summary>A business buyer's GSTIN: copied to the shop's customer record when an app order is delivered, so the bill is a tax invoice in their name.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(15)]
+    public string? Gstin { get; set; }
+
+    /// <summary>When the person read the shopping app's privacy notice and declared they are 18 or older. Null: not yet (asked on first use).</summary>
+    public DateTimeOffset? PrivacyAcceptedAt { get; set; }
+
+    /// <summary>"en", "hi", "gu" or "hn" (Hinglish, customer app only).</summary>
     public string PreferredLanguage { get; set; } = "hi";
 
     public bool IsActive { get; set; } = true;
@@ -44,6 +51,9 @@ public sealed class User : Entity
     /// that trusts the number itself (being made a platform admin) needs this.
     /// </summary>
     public DateTimeOffset? PhoneVerifiedAt { get; set; }
+
+    /// <summary>Asked for order updates (accepted, changed, ready, delivered) on WhatsApp from the shops they order from.</summary>
+    public bool OrderWhatsApp { get; set; }
 }
 
 /// <summary>A user's role in one shop. A user can own or work in many shops. Unique (user_id, shop_id).</summary>
@@ -57,17 +67,26 @@ public sealed class Membership : Entity
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Commission on what this person sells, as a percent of their sales (the staff sales report works it out).</summary>
+    public decimal? CommissionPercent { get; set; }
+
     /// <summary>
     /// A short PIN (4 to 6 digits) for signing in at this shop's counter, set by the owner for staff. Hashed like a
     /// password; wrong tries count towards the same lockout. Null: this membership signs in with a password only.
     /// </summary>
     public string? PinHash { get; set; }
+
+    /// <summary>What the owner has stopped this helper doing (<see cref="StaffLimits"/>). Empty: nothing.</summary>
+    public string[] Blocked { get; set; } = [];
 }
 
 public enum ShopRole
 {
     Owner,
     Staff,
+
+    /// <summary>The shop's CA or accountant: sees what the owner sees (reports, GST, books), changes nothing.</summary>
+    Accountant,
 }
 
 /// <summary>
@@ -88,4 +107,7 @@ public sealed class RefreshToken : Entity
     public DateTimeOffset? RevokedAt { get; set; }
 
     public Guid? ReplacedById { get; set; }
+
+    /// <summary>Made with a shop's PIN: refreshing it stays as narrow as the sign-in was.</summary>
+    public bool PinOnly { get; set; }
 }

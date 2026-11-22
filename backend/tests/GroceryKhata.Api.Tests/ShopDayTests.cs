@@ -25,7 +25,7 @@ public sealed class ShopDayTests(ApiFactory api)
     {
         var shop = await SignUpAsync(trade);
         var settings = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
-        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" }, ApiFactory.Json)).EnsureSuccessStatusCode();
 
         // Stock list from the trade's starter items, priced at â‚¹500 and costed at â‚¹350.
         (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
@@ -91,6 +91,28 @@ public sealed class ShopDayTests(ApiFactory api)
         var xml = await vouchers.ReadToEndAsync();
         Assert.Equal(2, xml.Split("VCHTYPE=\"Sales\"").Length - 1);
         Assert.Contains("VCHTYPE=\"Credit Note\"", xml);
+        // Buying and spending go in too: the supplier bill as a Purchase, the ₹100 paid on it and the rent as Payments,
+        // and the supplier payment's own kharcha line is not sent a second time.
+        Assert.Single(xml.Split("VCHTYPE=\"Purchase\"").Skip(1));
+        Assert.Equal(2, xml.Split("VCHTYPE=\"Payment\"").Length - 1);
+        Assert.Contains("<LEDGERNAME>Rent</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-250.00</AMOUNT>", xml);
+        var masters = await new StreamReader(archive.GetEntry("1-masters.xml")!.Open()).ReadToEndAsync();
+        Assert.Contains("<PARENT>Sundry Creditors</PARENT>", masters);
+        // The UPI money received on khata comes in as a Receipt into the UPI bank ledger, credited to the customer.
+        Assert.True(gst.Receipts >= 1);
+        Assert.Contains("VCHTYPE=\"Receipt\"", xml);
+        Assert.Contains("<LEDGERNAME>UPI Collections</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-100.00</AMOUNT>", xml);
+
+        // The CA's own account names: saved once, used in the next file; two accounts can't share a name.
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/gst/ledgers", new Dictionary<string, string> { ["sales"] = "Cash" })).StatusCode);
+        (await shop.PutAsJsonAsync("/api/v1/gst/ledgers", new Dictionary<string, string> { ["sales"] = "Sales GST & Local", ["upi"] = "HDFC Bank" })).EnsureSuccessStatusCode();
+        var named = await shop.GetJsonAsync<List<GroceryKhata.Api.Ledger.TallyLedgerDto>>("/api/v1/gst/ledgers");
+        Assert.Equal(("HDFC Bank", "Output CGST"), (named.Single(x => x.Key == "upi").Name, named.Single(x => x.Key == "cgst").Name));
+        using var renamed = new ZipArchive(await (await shop.GetAsync($"/api/v1/gst/export.zip?month={gst.Month}")).Content.ReadAsStreamAsync());
+        var xml2 = await new StreamReader(renamed.GetEntry("2-vouchers.xml")!.Open()).ReadToEndAsync();
+        Assert.Contains("<LEDGERNAME>HDFC Bank</LEDGERNAME>", xml2);
+        Assert.Contains("<LEDGERNAME>Sales GST &amp; Local</LEDGERNAME>", xml2);
+        Assert.DoesNotContain("UPI Collections", xml2);
     }
 
     [Fact]
@@ -319,7 +341,7 @@ public sealed class ShopDayTests(ApiFactory api)
         (await shop.PostJsonAsync("/api/v1/trips", new { id, technician = "Suresh", place = "Rampur" })).EnsureSuccessStatusCode();
         async Task<TripDto> Add(object body) => await (await shop.PostJsonAsync($"/api/v1/trips/{id}/entries", body)).ReadAsync<TripDto>();
         await Add(new { id = Guid.CreateVersion7(), kind = "advance", amount = 2000m });
-        var photo = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 1, 2, 3 });
+        var photo = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3 });
         var trip = await Add(new { id = Guid.CreateVersion7(), kind = "travel", amount = 800m, photoDataUrl = photo });
         Assert.True(trip.Entries.Single(e => e.Kind == TripEntryKind.Travel).HasPhoto);
         var bill = await shop.GetAsync($"/api/v1/trips/photos/{trip.Entries.Single(e => e.Kind == TripEntryKind.Travel).Id}");
@@ -876,7 +898,7 @@ public sealed class ShopDayTests(ApiFactory api)
     {
         var shop = await SignUpAsync("lodge");
         var settings = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
-        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" }, ApiFactory.Json)).EnsureSuccessStatusCode();
         var room = Guid.CreateVersion7();
         (await shop.PostJsonAsync("/api/v1/rooms", new { id = room, name = "301", rate = 2000m })).EnsureSuccessStatusCode();
         var today = DateOnly.FromDateTime(DateTime.Today);
@@ -1174,7 +1196,7 @@ public sealed class ShopDayTests(ApiFactory api)
     {
         var shop = await SignUpAsync("medical");
         var settings = await shop.GetJsonAsync<ShopSettingsDto>("/api/v1/shop");
-        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z5" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        (await shop.PutAsJsonAsync("/api/v1/shop", settings with { Gstin = "08ABCDE1234F1Z0" }, ApiFactory.Json)).EnsureSuccessStatusCode();
         var med = Guid.CreateVersion7();
         (await shop.PostJsonAsync("/api/v1/products", new { id = med, name = "Montelukast (strip)", unit = "piece", sellingPrice = 42m, gstRate = 5m, hsnCode = "3004" })).EnsureSuccessStatusCode();
         var supplier = Guid.CreateVersion7();
@@ -1222,15 +1244,16 @@ public sealed class ShopDayTests(ApiFactory api)
         Assert.Equal(6m, bill.Total);
         Assert.Equal(4.7m, (await Item(shop, para.Id)).Stock);
 
-        // 4.4 more strips sold this month: with 0.3 left, a month's worth is due from Shree Pharma at the last rate.
+        // 4.4 more strips sold this month: with 0.3 left, an order is due from Shree Pharma at the last rate.
         (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = para.Id, quantity = 4.4m, unitPrice = 20m } }, paidAmount = 88m, paymentMode = "cash" })).EnsureSuccessStatusCode();
         var group = Assert.Single(await shop.GetJsonAsync<List<ReorderGroupDto>>("/api/v1/pharmacy/reorder"), g => g.SupplierId == supplier);
         var line = Assert.Single(group.Lines);
-        Assert.Equal((4.7m, 5m, 14m), (line.SoldLast30Days, line.Suggested, line.LastRate!.Value));
+        // A month and the supplier's delivery days (3 until measured), with a safety margin: 6 strips.
+        Assert.Equal((4.7m, 6m, 14m), (line.SoldLast30Days, line.Suggested, line.LastRate!.Value));
         Assert.Equal("9829935486", group.Phone);
 
         // A prescription photo stays with the bill, for the shop only.
-        var png = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 1, 2, 3 });
+        var png = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3 });
         Assert.Equal(HttpStatusCode.NotFound, (await shop.GetAsync($"/api/v1/bills/{bill.Id}/prescription-photo")).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await shop.PutAsJsonAsync($"/api/v1/bills/{bill.Id}/prescription-photo", new { dataUrl = png }, ApiFactory.Json)).StatusCode);
         Assert.Equal("image/png", (await shop.GetAsync($"/api/v1/bills/{bill.Id}/prescription-photo")).Content.Headers.ContentType!.MediaType);

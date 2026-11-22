@@ -1,12 +1,13 @@
 // Shapes of the API's JSON (camelCase, enums in snake_case). Keep in step with backend/src/GroceryKhata.Api.
 
-export type ShopRole = 'owner' | 'staff'
+export type ShopRole = 'owner' | 'staff' | 'accountant'
 /** A platform admin's role: super (everything), approver (approve and block shops), support (notes, unlocking). */
 export type AdminRole = 'super' | 'approver' | 'support' | 'billing' | 'agent_manager'
 
-export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'pair' | 'dozen' | 'box' | 'jar' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre' | 'sq_ft' | 'running_ft'
-export type PaymentMode = 'cash' | 'upi'
-export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return'
+export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'pair' | 'dozen' | 'box' | 'jar' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre' | 'sq_ft' | 'running_ft' | 'quintal' | 'carton' | 'bottle' | 'set' | 'strip'
+/** Card and cheque reach the bank, not the drawer. A cheque is for khata payments, and counts once cleared. */
+export type PaymentMode = 'cash' | 'upi' | 'card' | 'cheque'
+export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return' | 'opening'
 export type KhataEntryType = 'credit' | 'payment'
 
 export interface MembershipSummary {
@@ -38,6 +39,10 @@ export interface Customer {
   balance: number
   /** The most they may owe: a bill that would cross it warns the shop. */
   creditLimit?: number | null
+  /** Days the customer has to pay what they take on credit. Null: no terms. */
+  creditDays?: number | null
+  /** A placeholder khata ("Name later 3") for udhaar to someone not named yet. */
+  nameLater?: boolean
 }
 
 export interface Product {
@@ -53,8 +58,26 @@ export interface Product {
   costPrice: number | null
   stock: number
   reorderLevel: number | null
+  /** Average sold a day over the last 30 days; stock over it is the days of stock left. */
+  dailySales?: number | null
+  /** Kept in bags of this much of its unit (50 = a 50 kg bag); bags is the sealed bags on hand. */
+  bagSize?: number | null
+  /** What bagSize counts when buying (carton, strip); null: a bag. */
+  purchaseUnit?: Unit | null
+  /** Kilograms in one unit, for load weight and freight by weight. */
+  weightKg?: number | null
+  /** The item's English and Hindi names from the master list or common catalogue (see lib/itemName). */
+  nameEn?: string | null
+  nameHi?: string | null
+  bags?: number
+  /** Promised on open sale orders, not yet delivered. */
+  promised?: number
   /** Out of stock, or at/below the reorder level. */
   isLow: boolean
+  /** The shop doesn't count this item: never out or low. */
+  uncounted?: boolean
+  /** "2026-11-07": the day the shop marked it sold out. */
+  outOn?: string | null
   /** A service (haircut): sold without stock. */
   isService?: boolean
   durationMinutes?: number | null
@@ -66,6 +89,15 @@ export interface Product {
   tracksSerials?: boolean
   warrantyMonths?: number | null
   mrp?: number | null
+  /** From wholesaleMinQty on a bill, the price per unit is wholesalePrice. */
+  wholesalePrice?: number | null
+  wholesaleMinQty?: number | null
+  /** Printed on the customer's bill instead of the name ("Innerwear"); see lib/billNames.ts. */
+  billName?: string | null
+  /** Clothes: the design this item is one size/colour of ("पुरुष जींस"); see lib/styles.ts. */
+  styleName?: string | null
+  size?: string | null
+  colour?: string | null
   barcode?: string | null
   imageCredit?: string | null
   photoReports?: number
@@ -81,12 +113,14 @@ export interface Product {
   isDefaultOption?: boolean
   /** When the shop added its photo; none: the app draws a picture. */
   imageAt?: string | null
+  /** More photos beyond the main one, oldest first. */
+  extraPhotos?: string[] | null
   /** Has stock changes on this phone not yet on the server. */
   pending?: boolean
 }
 
 export type StockMovementKind = 'opening' | 'purchase' | 'sale' | 'adjustment'
-export type StockReason = 'damage' | 'wastage' | 'count_correction' | 'return' | 'other'
+export type StockReason = 'damage' | 'wastage' | 'count_correction' | 'return' | 'other' | 'lost' | 'stolen' | 'destroyed' | 'written_off' | 'gift' | 'free_sample' | 'weight_loss'
 
 export interface StockMovement {
   id: string
@@ -115,8 +149,10 @@ export interface StatementLine {
   bill?: BillSummary | null
   /** Who wrote the line; on a removal, who removed it. */
   recordedBy?: string | null
-  /** The bank reference of a UPI payment: such a payment can't be removed. */
+  /** The bank reference of a UPI payment: removing it needs a reason, and frees the money to be matched again. */
   upiRef?: string | null
+  chequeNo?: string | null
+  chequeStatus?: 'pending' | 'cleared' | 'bounced' | null
   /** The latest dispute the customer raised on this line. */
   dispute?: DisputeView | null
   /** Written more than a day after the date it carries. */
@@ -157,6 +193,8 @@ export interface BillSummary {
   total: number
   paid: number
   items: { id: string; name: string; quantity: number; unit: Unit; unitPrice: number; amount: number }[]
+  /** The bill's printed number, e.g. 2026-27/0001. */
+  billNo?: string | null
 }
 
 export interface Statement {
@@ -167,15 +205,19 @@ export interface Statement {
   closingBalance: number
   /** "2026-10", or null for everything. */
   month: string | null
+  /** The customer's latest confirmation of their balance, from their own app. */
+  confirmed?: { balance: number; at: string } | null
 }
 
 export interface CashBookLine {
   occurredAt: string
-  source: 'bill' | 'khata_payment' | 'reversal' | 'expense' | 'technician'
+  source: 'bill' | 'khata_payment' | 'reversal' | 'expense' | 'technician' | 'bill_cancelled' | 'cash_added' | 'cash_removed' | 'to_bank' | 'from_bank'
   who: string
   mode: PaymentMode
   amount: number
   billId: string | null
+  /** A cheque counted the day it came in, not yet cleared at the bank. */
+  chequePending?: boolean
 }
 
 export interface CashBook {
@@ -206,11 +248,21 @@ export interface BillLineView {
   cgst?: number | null
   sgst?: number | null
   igst?: number | null
+  /** The item's regular price when the line was sold below it (a discount). */
+  listPrice?: number | null
+  /** What the customer's bill shows instead of the name ("Innerwear"). */
+  printName?: string | null
+  /** Whole bags sold on this line. */
+  bags?: number | null
 }
 
 export type DrugSchedule = 'g' | 'h' | 'h1' | 'x'
 
 export interface Prescription { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null; prescribedOn: string | null }
+
+export type PrintTheme = 'classic' | 'modern' | 'compact'
+
+export interface BillPrint { logo: string | null; signature: string | null; theme: PrintTheme; terms: string | null }
 
 export interface BillView {
   bill: {
@@ -220,6 +272,7 @@ export interface BillView {
     paidAmount: number
     onKhata: number
     paymentMode: PaymentMode | null
+    payments?: { mode: PaymentMode; amount: number; reference?: string | null }[] | null
     occurredAt: string
     lines: BillLineView[]
     customerBalance: number | null
@@ -233,12 +286,28 @@ export interface BillView {
     cancelReason?: string | null
     buyerGstin?: string | null
     billOfSupply?: boolean
+    placeOfSupply?: string | null
+    shopAddress?: string | null
+    buyerAddress?: string | null
     prescription?: Prescription | null
+    /** An exchange: what the returned goods (credit note exchangeNoteNo) paid of this bill. */
+    exchangeCredit?: number
+    exchangeNoteNo?: string | null
+    /** The counter (device) it was made on. */
+    counter?: string | null
+    /** How the shop prints its bills: logo and signature (data URLs), style and terms. */
+    print?: BillPrint | null
+    /** The khata part is due on this day ("2026-12-01"). */
+    dueOn?: string | null
+    /** The shop's own extra fields as filled on this bill. */
+    fields?: { label: string; value: string }[] | null
   }
   customer: Customer | null
 }
 
 export interface ProblemDetails {
+  /** What kind of problem: "bill-passcode" when an action needs the shop's bill passcode. */
+  type?: string
   title?: string
   detail?: string
   errors?: Record<string, string[]>
@@ -256,4 +325,13 @@ export interface Today {
   topDues: Customer[]
   /** Khata money received today. */
   collected?: number
+  card?: number
+  /** Cheques cleared that were received today. */
+  cheque?: number
+  /** Cheques still waiting on the bank, shop-wide. */
+  chequesPending?: number
+  chequesPendingCount?: number
+  /** Udhaar to people not named yet. */
+  nameLaterDue?: number
+  nameLaterCount?: number
 }
