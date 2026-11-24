@@ -169,20 +169,24 @@ public static class StockAlerts
         var (dueTomorrow, dueToday, late) = await GoodsTracking.RemindersAsync(db, clock, ct);
         // A festival within three weeks with items to stock up on: worth a morning note of its own.
         var festival = await Catalogue.Festivals.PromptAsync(db, clock, 21, ct);
-        if (today.Count == 0 && overdue == 0 && late + dueToday + dueTomorrow == 0 && festival is null && !always)
+        var jewellery = await JewelleryBookEndpoints.MorningAsync(db, clock, ct);
+        var jewelleryAny = jewellery.GirviDue + jewellery.GirviRisk + jewellery.SchemeMissed + jewellery.OrdersReady > 0;
+        if (today.Count == 0 && overdue == 0 && late + dueToday + dueTomorrow == 0 && festival is null && !jewelleryAny && !always)
         {
             return 0;
         }
 
         // Only the festival to tell about: open its list instead of What to order.
-        var url = today.Count == 0 && overdue == 0 && late + dueToday + dueTomorrow == 0 && festival is not null ? "/#/festivals" : "/#/reorder";
+        var url = today.Count == 0 && overdue == 0 && late + dueToday + dueTomorrow == 0
+            ? jewelleryAny ? "/#/jewellery" : festival is not null ? "/#/festivals" : "/#/reorder"
+            : "/#/reorder";
         var payloads = new Dictionary<string, string>();
         string PayloadFor(string? language)
         {
             var lang = language is "hi" or "gu" ? language : "en";
             if (!payloads.TryGetValue(lang, out var p))
             {
-                var (title, body) = Message(lang, today, overdue, (late, dueToday, dueTomorrow), festival is { } f ? (f.Name, f.DaysLeft, f.Items) : null);
+                var (title, body) = Message(lang, today, overdue, (late, dueToday, dueTomorrow), festival is { } f ? (f.Name, f.DaysLeft, f.Items) : null, jewellery);
                 payloads[lang] = p = JsonSerializer.Serialize(new { title, body, url });
             }
 
@@ -219,7 +223,8 @@ public static class StockAlerts
     /// The morning note in the phone's language ("en", "hi" or "gu"). Item names: the Hindi list name on Hindi phones,
     /// otherwise the English one (the lists have no Gujarati names), falling back to the shop's own name for the item.
     /// </summary>
-    public static (string Title, string Body) Message(string lang, OrderTodayDto today, int overdue, (int Late, int Today, int Tomorrow) goods, (string Name, int DaysLeft, int Items)? festival)
+    public static (string Title, string Body) Message(string lang, OrderTodayDto today, int overdue, (int Late, int Today, int Tomorrow) goods, (string Name, int DaysLeft, int Items)? festival,
+        (int GirviDue, int GirviRisk, int SchemeMissed, int OrdersReady) jewellery = default)
     {
         var hi = lang == "hi";
         var gu = lang == "gu";
@@ -261,6 +266,19 @@ public static class StockAlerts
             body += hi ? $" · {f.Name} {when}: {f.Items} सामान का स्टॉक भरें"
                 : gu ? $" · {f.Name} {when}: {f.Items} વસ્તુનો સ્ટોક ભરો"
                 : $" · {f.Name} {when}: stock up {f.Items} item{S(f.Items)}";
+        }
+
+        // Jewellery: what to chase today (each has a WhatsApp button on the counter's Due today list).
+        var j = string.Join(", ", new[]
+        {
+            jewellery.GirviDue > 0 ? (hi ? $"{jewellery.GirviDue} गिरवी तारीख पार" : gu ? $"{jewellery.GirviDue} ગીરવે તારીખ વીતી" : $"{jewellery.GirviDue} girvi past due") : null,
+            jewellery.GirviRisk > 0 ? (hi ? $"{jewellery.GirviRisk} गिरवी सोने की कीमत के पास" : gu ? $"{jewellery.GirviRisk} ગીરવે સોનાની કિંમતની નજીક" : $"{jewellery.GirviRisk} girvi near the gold's value") : null,
+            jewellery.SchemeMissed > 0 ? (hi ? $"{jewellery.SchemeMissed} स्कीम किस्त छूटी" : gu ? $"{jewellery.SchemeMissed} સ્કીમ હપ્તા ચૂક્યા" : $"{jewellery.SchemeMissed} scheme instalment{S(jewellery.SchemeMissed)} missed") : null,
+            jewellery.OrdersReady > 0 ? (hi ? $"{jewellery.OrdersReady} ऑर्डर तैयार" : gu ? $"{jewellery.OrdersReady} ઓર્ડર તૈયાર" : $"{jewellery.OrdersReady} order{S(jewellery.OrdersReady)} ready") : null,
+        }.Where(x => x is not null));
+        if (j.Length > 0)
+        {
+            body += (hi ? " · गहने: " : gu ? " · ઘરેણાં: " : " · Jewellery: ") + j;
         }
 
         return (title, body);

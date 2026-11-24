@@ -196,6 +196,8 @@ export interface Member {
   id: string; number: number; planId: string; plan: string; customerId: string; customer: string; phone: string | null; startedOn: string; months: number; instalment: number; bonus: number
   paid: number; paidTotal: number; complete: boolean; redeemedBillId: string | null; closedOn: string | null; nextDue: string
   kind: 'amount' | 'grams'; purity: number | null; grams: number
+  /** Instalments past their date plus 7 days' grace and not paid; the date the scheme must be redeemed by (within a year). */
+  missed: number; closeBy: string | null
 }
 
 export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
@@ -207,7 +209,7 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
   const [joining, setJoining] = useState<{ planId: string; customerId: string | null } | null>(null)
   const { busy, error, run } = useRun()
   const refresh = () => queryClient.invalidateQueries({ queryKey: [shopId, 'jewellery'] })
-  const late = members.filter((m) => !m.complete && m.nextDue < today())
+  const late = members.filter((m) => !m.complete && m.missed > 0)
 
   return (
     <div className="flex flex-col gap-3">
@@ -245,7 +247,7 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
                     <span className="flex items-center gap-2"><span className="h-2 w-24 overflow-hidden rounded-full bg-[#edf2f1]"><span className="block h-full bg-brand" style={{ width: `${(m.paid / m.months) * 100}%` }} /></span>{m.paid}/{m.months}</span>
                     <span className="text-xs text-muted">{formatRupees(m.paidTotal)}{m.kind === 'grams' && <b className="ml-1 text-[#a1460a]">· {t('jwl5.gramsSaved', { grams: m.grams.toFixed(3) })}</b>}</span>
                   </td>
-                  <td className="px-2 py-2.5">{m.complete ? <span className="rounded-full bg-[#f1eafd] px-2.5 py-0.5 text-xs font-bold text-[#6d28d9]">{t('jwl2.complete', { bonus: formatRupees(m.bonus) })}</span> : m.nextDue < today() ? <span className="rounded-full bg-due-soft px-2.5 py-0.5 text-xs font-bold text-due">{date(m.nextDue)}</span> : date(m.nextDue)}</td>
+                  <td className="px-2 py-2.5">{m.complete ? <span className="rounded-full bg-[#f1eafd] px-2.5 py-0.5 text-xs font-bold text-[#6d28d9]">{t('jwl2.complete', { bonus: formatRupees(m.bonus) })}</span> : m.missed > 0 ? <><span className="rounded-full bg-due-soft px-2.5 py-0.5 text-xs font-bold text-due">{date(m.nextDue)}</span><span className="mt-1 block text-xs font-semibold text-due">{t('jwl6.missed', { count: m.missed })}</span></> : date(m.nextDue)}{!m.complete && !m.closedOn && m.closeBy && <span className="block text-xs text-muted">{t('jwl6.closeBy', { date: date(m.closeBy) })}</span>}</td>
                   <td className="px-3 py-2.5 text-right">{!m.complete && <button disabled={busy} onClick={() => void run(() => api(`/v1/jewellery/schemes/members/${m.id}/instalments`, 'POST', { entryId: crypto.randomUUID(), mode: 'cash' })).then(() => refresh())}
                     className={`min-h-9 rounded-xl px-3 text-sm ${btn.solid}`}>{t('jwl2.takeInstalment', { amount: formatRupees(m.instalment) })}</button>}</td>
                 </tr>
@@ -261,7 +263,7 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
         <Drawer title={t('jwl2.newPlan')} onClose={() => setNewPlan(null)}>
           <Field label={t('jwl2.planName')}><input value={newPlan.name} onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })} maxLength={60} placeholder={t('jwl2.planPlaceholder')} className={box} /></Field>
           <div className="grid grid-cols-3 gap-2">
-            <Field label={t('jwl2.months')}><input value={newPlan.months} onChange={(e) => setNewPlan({ ...newPlan, months: num(e.target.value) })} inputMode="numeric" className={box} /></Field>
+            <Field label={t('jwl2.months')}><input value={newPlan.months} onChange={(e) => setNewPlan({ ...newPlan, months: num(e.target.value) })} inputMode="numeric" className={box} /><span className="mt-1 block text-xs text-muted">{t('jwl6.monthsHint')}</span></Field>
             <Field label={t('jwl2.instalment')}><input value={newPlan.instalment} onChange={(e) => setNewPlan({ ...newPlan, instalment: num(e.target.value) })} inputMode="decimal" className={box} /></Field>
             <Field label={t('jwl2.bonus')}><input value={newPlan.bonus} onChange={(e) => setNewPlan({ ...newPlan, bonus: num(e.target.value) })} inputMode="decimal" className={box} /></Field>
           </div>

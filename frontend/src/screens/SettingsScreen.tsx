@@ -43,6 +43,9 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     staffMaxWriteOff: String(initial.staffMaxWriteOff ?? 1000),
     exchangeSlipDays: String(initial.exchangeSlipDays ?? 90),
     exchangeSlipHelperMax: String(initial.exchangeSlipHelperMax ?? 5000),
+    cashReceiptLimit: String(initial.cashReceiptLimit ?? 200000),
+    panFrom: String(initial.panFrom ?? 200000),
+    cashPayoutLimit: String(initial.cashPayoutLimit ?? 10000),
     billPrefix: initial.billPrefix ?? '',
     billFields: [0, 1, 2, 3].map((i) => initial.billFields?.[i] ?? ''),
   })
@@ -53,7 +56,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   async function save() {
     setMessage('')
     try {
-      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, billPrefix: form.billPrefix.trim(), billFields: form.billFields.map((f) => f.trim()).filter(Boolean), extraTypes: extra.filter((x) => x !== form.type) })
+      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, cashReceiptLimit: Number(form.cashReceiptLimit) || 200000, panFrom: Number(form.panFrom) || 200000, cashPayoutLimit: Number(form.cashPayoutLimit) || 0, billPrefix: form.billPrefix.trim(), billFields: form.billFields.map((f) => f.trim()).filter(Boolean), extraTypes: extra.filter((x) => x !== form.type) })
       queryClient.setQueryData([shopId, 'settings'], saved)
       setMessage(t('settings.saved'))
     } catch (err) {
@@ -191,6 +194,18 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
           ₹ <input value={form.exchangeSlipHelperMax} onChange={(e) => setForm({ ...form, exchangeSlipHelperMax: e.target.value })} inputMode="decimal" className="h-12 w-32 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
           <span className="mt-1 block text-xs text-muted">{t('slip.helperMaxHint')}</span>
         </label>
+        {(form.type === 'jewellery' || extra.includes('jewellery' as ShopType)) && (
+          <fieldset className="flex flex-col gap-3 rounded-xl border border-line p-3">
+            <legend className="px-1 text-sm font-bold">{t('jwl6.cashRules')}</legend>
+            <p className="text-xs text-muted">{t('jwl6.cashRulesHint')}</p>
+            <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('jwl6.cashReceiptLimit')}</span>
+              ₹ <input value={form.cashReceiptLimit} onChange={(e) => setForm({ ...form, cashReceiptLimit: e.target.value })} inputMode="decimal" className="h-12 w-36 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
+            <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('jwl6.panFrom')}</span>
+              ₹ <input value={form.panFrom} onChange={(e) => setForm({ ...form, panFrom: e.target.value })} inputMode="decimal" className="h-12 w-36 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
+            <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('jwl6.cashPayoutLimit')}</span>
+              ₹ <input value={form.cashPayoutLimit} onChange={(e) => setForm({ ...form, cashPayoutLimit: e.target.value })} inputMode="decimal" className="h-12 w-36 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /></label>
+          </fieldset>
+        )}
           </>}
           {tab === 'reminder' && <>
         <label className="block">

@@ -11639,6 +11639,16 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("books_closed_until");
 
+                    b.Property<decimal>("CashPayoutLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("cash_payout_limit");
+
+                    b.Property<decimal>("CashReceiptLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("cash_receipt_limit");
+
                     b.Property<string>("City")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
@@ -11715,6 +11725,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("number")
                         .HasDefaultValueSql("nextval('shop_number_seq')");
+
+                    b.Property<decimal>("PanFrom")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("pan_from");
 
                     b.Property<string>("ReminderTemplate")
                         .HasMaxLength(500)

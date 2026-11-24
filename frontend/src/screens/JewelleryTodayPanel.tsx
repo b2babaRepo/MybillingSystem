@@ -30,7 +30,7 @@ export function useDueToday(shopId: string, shopName: string) {
   for (const m of members) {
     if (m.complete || m.closedOn || m.nextDue > today) continue
     const vars = { name: m.customer, plan: m.plan, n: m.paid + 1, months: m.months, shop: shopName, date: formatDate(m.nextDue), amount: formatRupees(m.instalment) }
-    items.push({ key: `s${m.id}`, kind: 'scheme', title: t('jwl5.schemeDue', vars), who: m.customer, phone: m.phone, message: t('jwl5.schemeMsg', vars), overdue: m.nextDue < today })
+    items.push({ key: `s${m.id}`, kind: 'scheme', title: t('jwl5.schemeDue', vars), who: m.customer, phone: m.phone, message: t('jwl5.schemeMsg', vars), overdue: m.missed > 0 })
   }
   for (const o of orders) {
     if (o.status !== 'ready' && !o.late) continue

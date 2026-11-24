@@ -58,9 +58,9 @@ public static class OldMetalVoucherEndpoints
 
     private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
-    private static string[] ProblemsFor(PaymentMode mode, decimal total) =>
-        mode == PaymentMode.Cash && total > CashPaymentLimit
-            ? [$"Paying ₹{total:N0} in cash: cash payments above ₹10,000 to one person in a day are not allowed as a business expense (s.40A(3)). Pay by UPI or bank."]
+    private static string[] ProblemsFor(PaymentMode mode, decimal total, decimal limit = CashPaymentLimit) =>
+        mode == PaymentMode.Cash && total > limit
+            ? [$"Paying ₹{total:N0} in cash: cash payments above ₹{limit:N0} to one person in a day are not allowed as a business expense (s.40A(3)). Pay by UPI or bank."]
             : [];
 
     private static async Task<IResult> BuyAsync(OldMetalVoucherRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
@@ -93,7 +93,8 @@ public static class OldMetalVoucherEndpoints
 
         var pan = request.Pan?.Trim().ToUpperInvariant();
         if (pan is { Length: > 0 } && !JewelleryEndpoints.PanPattern.IsMatch(pan)) return Invalid("Pan", "Enter a PAN like ABCDE1234F, or FORM 60.");
-        if (total >= JewelleryMath.PanFrom && string.IsNullOrEmpty(pan)) return Invalid("Pan", "This purchase is ₹2 lakh or more: enter the seller's PAN (or FORM 60).");
+        var rules = await JewelleryMath.RulesAsync(db, ct);
+        if (total >= rules.PanFrom && string.IsNullOrEmpty(pan)) return Invalid("Pan", $"This purchase is ₹{rules.PanFrom:N0} or more: enter the seller's PAN (or FORM 60).");
 
         var userId = user.UserId()!.Value;
         var number = (await db.OldMetalVouchers.MaxAsync(v => (int?)v.Number, ct) ?? 0) + 1;
@@ -120,7 +121,7 @@ public static class OldMetalVoucherEndpoints
         var v = await db.OldMetalVouchers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
         if (v is null) return TypedResults.NotFound();
         var olds = await db.OldMetalPurchases.AsNoTracking().Where(o => o.VoucherId == id).OrderBy(o => o.CreatedAt).ToListAsync(ct);
-        return TypedResults.Ok(ToDto(v, olds));
+        return TypedResults.Ok(ToDto(v, olds, (await JewelleryMath.RulesAsync(db, ct)).CashPayoutLimit));
     }
 
     private static async Task<IResult> ListAsync(AppDbContext db, CancellationToken ct)
@@ -128,11 +129,12 @@ public static class OldMetalVoucherEndpoints
         var vouchers = await db.OldMetalVouchers.AsNoTracking().OrderByDescending(v => v.Number).Take(100).ToListAsync(ct);
         var ids = vouchers.Select(v => v.Id).ToList();
         var olds = (await db.OldMetalPurchases.AsNoTracking().Where(o => o.VoucherId != null && ids.Contains(o.VoucherId.Value)).ToListAsync(ct)).ToLookup(o => o.VoucherId);
-        return TypedResults.Ok(vouchers.Select(v => ToDto(v, olds[v.Id].OrderBy(o => o.CreatedAt).ToList())).ToList());
+        var limit = (await JewelleryMath.RulesAsync(db, ct)).CashPayoutLimit;
+        return TypedResults.Ok(vouchers.Select(v => ToDto(v, olds[v.Id].OrderBy(o => o.CreatedAt).ToList(), limit)).ToList());
     }
 
-    private static OldMetalVoucherDto ToDto(OldMetalVoucher v, List<OldMetalPurchase> olds) => new(
+    private static OldMetalVoucherDto ToDto(OldMetalVoucher v, List<OldMetalPurchase> olds, decimal cashLimit) => new(
         v.Id, v.Number, v.CustomerId, v.SellerName, v.SellerPhone, v.SellerAddress, v.Pan, v.Mode, v.Total,
         olds.Select(o => new OldMetalDto(o.Description, o.Metal, o.Gross, o.Reading, o.Fine, o.RatePerGram, o.DeductionPercent, decimal.Round(o.Fine * o.RatePerGram, 2) - o.Value, o.Value)).ToList(),
-        ProblemsFor(v.Mode, v.Total), v.CreatedAt);
+        ProblemsFor(v.Mode, v.Total, cashLimit), v.CreatedAt);
 }

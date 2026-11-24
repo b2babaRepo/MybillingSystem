@@ -238,7 +238,8 @@ public sealed record SchemeJoinRequest(Guid PlanId, Guid CustomerId);
 public sealed record SchemePayRequest(Guid EntryId, decimal? Amount, PaymentMode? Mode);
 public sealed record SchemeMemberDto(
     Guid Id, int Number, Guid PlanId, string Plan, Guid CustomerId, string Customer, string? Phone, DateOnly StartedOn, int Months, decimal Instalment, decimal Bonus,
-    int Paid, decimal PaidTotal, bool Complete, Guid? RedeemedBillId, DateOnly? ClosedOn, DateOnly NextDue, string Kind = "amount", int? Purity = null, decimal Grams = 0);
+    int Paid, decimal PaidTotal, bool Complete, Guid? RedeemedBillId, DateOnly? ClosedOn, DateOnly NextDue, string Kind = "amount", int? Purity = null, decimal Grams = 0,
+    int Missed = 0, DateOnly? CloseBy = null);
 
 public sealed record JewelleryOrderRequest(string Kind, Guid CustomerId, string Description, string? Metal, int? Purity, decimal? Weight, decimal? FixedRate, decimal? Charge, string DueOn, string? Note);
 public sealed record JewelleryAdvanceRequest(Guid EntryId, decimal Amount, PaymentMode? Mode);
@@ -412,6 +413,23 @@ public static class JewelleryBookEndpoints
         return (Math.Max(0, simple - interestPaid), l.Principal - principalPaid, 0);
     }
 
+    /// <summary>
+    /// For the morning phone note: girvi loans past their date, loans owed 85% or more of the gold's value today, scheme
+    /// members with missed instalments, and orders ready to hand over. All zero for a shop without jewellery.
+    /// </summary>
+    internal static async Task<(int GirviDue, int GirviRisk, int SchemeMissed, int OrdersReady)> MorningAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (!await db.GirviLoans.AnyAsync(ct) && !await db.SchemeMembers.AnyAsync(ct) && !await db.JewelleryOrders.AnyAsync(ct))
+        {
+            return (0, 0, 0, 0);
+        }
+
+        var girvi = await GirviViewsAsync(db, clock, q => q.Where(l => l.ClosedOn == null), ct);
+        var members = await MemberViewsAsync(db, q => q.Where(m => m.ClosedOn == null), ct, IndiaTime.Today(clock));
+        var ready = await db.JewelleryOrders.CountAsync(o => o.Status == "ready", ct);
+        return (girvi.Count(g => g.Overdue), girvi.Count(g => g.CoverPercent >= 85), members.Count(m => !m.Complete && m.Missed > 0), ready);
+    }
+
     private static async Task<IResult> GirviListAsync(string? status, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
         TypedResults.Ok(await GirviViewsAsync(db, clock, q => status == "closed" ? q.Where(l => l.ClosedOn != null) : status == "all" ? q : q.Where(l => l.ClosedOn == null), ct));
 
@@ -455,6 +473,14 @@ public static class JewelleryBookEndpoints
         var past = await db.GirviPayments.AsNoTracking().Where(p => p.LoanId == id).ToListAsync(ct);
         var (interestDue, principalLeft, _) = Owed(loan, past, on);
         if (r.Amount > interestDue + principalLeft) return Invalid("Amount", $"Only ₹{interestDue + principalLeft:N0} is owed on this girvi.");
+        // Cash from one person in a day (bills and girvi together) must stay below the limit (s.269ST).
+        if ((r.Mode ?? PaymentMode.Cash) == PaymentMode.Cash && on == IndiaTime.Today(clock))
+        {
+            var limit = (await JewelleryMath.RulesAsync(db, ct)).CashReceiptLimit;
+            var already = await JewelleryMath.CashTodayAsync(db, loan.CustomerId, clock, ct);
+            if (already + r.Amount >= limit)
+                return Invalid("Amount", $"Cash of ₹{limit:N0} or more from one person in a day is not allowed (s.269ST). Take at most ₹{Math.Max(0, limit - 1 - already):N0} in cash today; the rest by UPI or bank.");
+        }
         var interestPart = Math.Min(r.Amount, interestDue);
         var payment = new GirviPayment { LoanId = id, PaidOn = on, Amount = r.Amount, InterestPart = interestPart, PrincipalPart = r.Amount - interestPart, Mode = r.Mode ?? PaymentMode.Cash, At = clock.GetUtcNow() };
         db.GirviPayments.Add(payment);
@@ -497,7 +523,10 @@ public static class JewelleryBookEndpoints
     {
         if (!LedgerEndpoints.IsOwner(user)) return TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Only the owner starts a scheme.");
         if (string.IsNullOrWhiteSpace(r.Name) || r.Name.Trim().Length > 60) return Invalid("Name", "Name the scheme.");
-        if (r.Months is < 2 or > 36 || r.Instalment is <= 0 or > 10_000_000 || r.Bonus is < 0 or > 10_000_000) return Invalid("Months", "Enter 2–36 months, the monthly instalment and the bonus.");
+        // Money taken for goods must be turned into jewellery within 365 days, or the law can treat it as a deposit
+        // (Companies deposit rules, BUDS Act 2019): so at most 11 monthly instalments, redeemed by the 12th month.
+        if (r.Months is < 2 or > MaxSchemeMonths || r.Instalment is <= 0 or > 10_000_000 || r.Bonus is < 0 or > 10_000_000)
+            return Invalid("Months", $"Enter 2–{MaxSchemeMonths} months, the monthly instalment and the bonus. A scheme must end within a year.");
         var kind = r.Kind ?? "amount";
         if (kind is not ("amount" or "grams")) return Invalid("Kind", "A scheme saves rupees or grams of gold.");
         if (kind == "grams" && (r.Purity is not { } p || !JewelleryMath.ValidPurity("gold", p))) return Invalid("Purity", "Choose the gold purity the scheme saves in.");
@@ -507,8 +536,19 @@ public static class JewelleryBookEndpoints
         return TypedResults.Ok(new SchemePlanDto(plan.Id, plan.Name, plan.Months, plan.Instalment, plan.Bonus, true, 0, plan.Kind, plan.Purity));
     }
 
-    internal static async Task<List<SchemeMemberDto>> MemberViewsAsync(AppDbContext db, Func<IQueryable<SchemeMember>, IQueryable<SchemeMember>> filter, CancellationToken ct)
+    /// <summary>Most monthly instalments a scheme can have, so it is redeemed within 365 days of the first one.</summary>
+    public const int MaxSchemeMonths = 11;
+
+    /// <summary>Days after an instalment's date before it counts as missed.</summary>
+    public const int SchemeGraceDays = 7;
+
+    /// <summary>Instalments whose date (plus the grace days) has passed but are not paid yet.</summary>
+    public static int MissedInstalments(DateOnly startedOn, int months, int paid, DateOnly today) =>
+        Math.Max(0, Enumerable.Range(0, months).Count(k => startedOn.AddMonths(k).AddDays(SchemeGraceDays) < today) - paid);
+
+    internal static async Task<List<SchemeMemberDto>> MemberViewsAsync(AppDbContext db, Func<IQueryable<SchemeMember>, IQueryable<SchemeMember>> filter, CancellationToken ct, DateOnly? today = null)
     {
+        var on = today ?? IndiaTime.Today(TimeProvider.System);
         var members = await filter(db.SchemeMembers.AsNoTracking()).OrderByDescending(m => m.Number).Take(500).ToListAsync(ct);
         var ids = members.Select(m => m.Id).ToList();
         var paid = (await db.SchemeInstalments.AsNoTracking().Where(i => ids.Contains(i.MemberId)).ToListAsync(ct)).ToLookup(i => i.MemberId);
@@ -522,12 +562,13 @@ public static class JewelleryBookEndpoints
             var who = people.GetValueOrDefault(m.CustomerId);
             return new SchemeMemberDto(m.Id, m.Number, m.PlanId, plan.Name, m.CustomerId, who?.Name ?? "", who?.Phone, m.StartedOn, plan.Months, plan.Instalment, plan.Bonus,
                 count, paid[m.Id].Sum(i => i.Amount), count >= plan.Months, m.RedeemedBillId, m.ClosedOn, m.StartedOn.AddMonths(Math.Min(count, plan.Months)),
-                plan.Kind, plan.Purity, paid[m.Id].Sum(i => i.Grams ?? 0));
+                plan.Kind, plan.Purity, paid[m.Id].Sum(i => i.Grams ?? 0),
+                m.ClosedOn is null ? MissedInstalments(m.StartedOn, plan.Months, count, on) : 0, m.StartedOn.AddDays(364));
         }).ToList();
     }
 
-    private static async Task<IResult> MembersAsync(string? status, AppDbContext db, CancellationToken ct) =>
-        TypedResults.Ok(await MemberViewsAsync(db, q => status == "closed" ? q.Where(m => m.ClosedOn != null) : status == "all" ? q : q.Where(m => m.ClosedOn == null), ct));
+    private static async Task<IResult> MembersAsync(string? status, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        TypedResults.Ok(await MemberViewsAsync(db, q => status == "closed" ? q.Where(m => m.ClosedOn != null) : status == "all" ? q : q.Where(m => m.ClosedOn == null), ct, IndiaTime.Today(clock)));
 
     private static async Task<IResult> JoinAsync(SchemeJoinRequest r, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {

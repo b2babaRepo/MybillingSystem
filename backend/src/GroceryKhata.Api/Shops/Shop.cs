@@ -64,6 +64,15 @@ public sealed class Shop : Entity
     /// <summary>How many days an exchange slip can be used (big chains: Max 90, Westside 180).</summary>
     public int ExchangeSlipDays { get; set; } = 90;
 
+    /// <summary>Cash from one person in a day must stay below this (Income Tax s.269ST: ₹2 lakh). A setting so the shop can follow a change in the rule.</summary>
+    public decimal CashReceiptLimit { get; set; } = 200_000m;
+
+    /// <summary>A jewellery sale or old-gold purchase this big needs the customer's PAN (or Form 60): ₹2 lakh.</summary>
+    public decimal PanFrom { get; set; } = 200_000m;
+
+    /// <summary>Cash paid to one person in a day above this is not a business expense (s.40A(3): ₹10,000): warned.</summary>
+    public decimal CashPayoutLimit { get; set; } = 10_000m;
+
     /// <summary>
     /// Jewellery: the most staff may take off a tagged piece's making charge or wastage on a bill, in percent of it
     /// (10 = making ₹500/g can go down to ₹450/g). Null: no limit. The owner is never limited.

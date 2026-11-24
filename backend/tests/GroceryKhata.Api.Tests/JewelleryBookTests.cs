@@ -78,6 +78,36 @@ public sealed class JewelleryBookTests(ApiFactory api)
         Assert.Equal((75_000m, 106.7m), (now.ValueToday, now.CoverPercent));
     }
 
+    [Fact]
+    public void A_scheme_instalment_counts_as_missed_a_week_after_its_date()
+    {
+        var start = new DateOnly(2026, 1, 10);
+        // Second instalment falls on 10 Feb: still fine on 17 Feb, missed from 18 Feb.
+        Assert.Equal(0, JewelleryBookEndpoints.MissedInstalments(start, 11, 1, new DateOnly(2026, 2, 17)));
+        Assert.Equal(1, JewelleryBookEndpoints.MissedInstalments(start, 11, 1, new DateOnly(2026, 2, 18)));
+        Assert.Equal(0, JewelleryBookEndpoints.MissedInstalments(start, 11, 2, new DateOnly(2026, 2, 18)));
+        Assert.Equal(10, JewelleryBookEndpoints.MissedInstalments(start, 11, 1, new DateOnly(2027, 6, 1)));
+    }
+
+    [Fact]
+    public async Task A_scheme_ends_within_a_year_and_girvi_cash_stays_under_the_shops_limit()
+    {
+        var (shop, _) = await api.SignUpAsync("Ganesh Sarafa");
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/jewellery/schemes", new { name = "Gold 12", months = 12, instalment = 5_000m })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/jewellery/schemes", new { name = "Gold 11", months = 11, instalment = 5_000m })).EnsureSuccessStatusCode();
+
+        // A lower cash limit for the test: ₹50,000.
+        (await shop.PutJsonAsync("/api/v1/shop", new { name = "Ganesh Sarafa", cashReceiptLimit = 50_000m })).EnsureSuccessStatusCode();
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m } } });
+        var customer = await Customer(shop, "Ramesh");
+        var loan = await (await shop.PostJsonAsync("/api/v1/jewellery/girvi", new { customerId = customer, items = "Kada", metal = "gold", gross = 20m, reading = 100m, principal = 100_000m, ratePerMonth = 0m }))
+            .ReadAsync<GirviDto>();
+        (await shop.PostJsonAsync($"/api/v1/jewellery/girvi/{loan.Id}/payments", new { amount = 40_000m, mode = "cash" })).EnsureSuccessStatusCode();
+        // Another ₹10,000 in cash today makes ₹50,000: refused; by UPI it is fine.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/jewellery/girvi/{loan.Id}/payments", new { amount = 10_000m, mode = "cash" })).StatusCode);
+        (await shop.PostJsonAsync($"/api/v1/jewellery/girvi/{loan.Id}/payments", new { amount = 10_000m, mode = "upi" })).EnsureSuccessStatusCode();
+    }
+
     private static async Task<Guid> Customer(HttpClient shop, string name)
     {
         var id = Guid.CreateVersion7();
