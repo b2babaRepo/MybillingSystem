@@ -45,7 +45,7 @@ function WhoField({ shopId, value, onChange }: { shopId: string; value: string |
 
 /* ---------------- girvi ---------------- */
 
-interface Girvi {
+export interface Girvi {
   id: string; number: number; customerId: string; customer: string; phone: string | null; items: string; metal: Metal; gross: number; reading: number; fine: number; pledgeValue: number
   principal: number; ratePerMonth: number; dayWise: boolean; pledgedOn: string; dueOn: string; kyc: string | null; note: string | null; closedOn: string | null
   principalLeft: number; interestDue: number; toClose: number; overdue: boolean; payments: { paidOn: string; amount: number; interestPart: number; principalPart: number; mode: string }[]
@@ -242,7 +242,7 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
 
 /* ---------------- orders and repairs ---------------- */
 
-interface Order {
+export interface Order {
   id: string; number: number; kind: 'order' | 'repair'; customerId: string; customer: string; phone: string | null; description: string; metal: Metal | null; purity: number | null
   weight: number | null; weightOut: number | null; fixedRate: number | null; charge: number | null; dueOn: string; status: string; advance: number; billId: string | null; note: string | null; late: boolean
 }
@@ -345,7 +345,7 @@ export function OrdersPanel({ shopId }: { shopId: string }) {
 
 /* ---------------- approval memos ---------------- */
 
-interface Approval { id: string; number: number; customerId: string | null; party: string; outAt: string; dueBack: string; closedOn: string | null; late: boolean; items: { pieceId: string; tagNo: number; name: string; grossOut: number; grossBack: number | null; returned: boolean; sold: boolean; weightDiffers: boolean }[] }
+export interface Approval { id: string; number: number; customerId: string | null; party: string; outAt: string; dueBack: string; closedOn: string | null; late: boolean; items: { pieceId: string; tagNo: number; name: string; grossOut: number; grossBack: number | null; returned: boolean; sold: boolean; weightDiffers: boolean }[] }
 
 export function ApprovalsPanel({ shopId }: { shopId: string }) {
   const { t } = useTranslation()

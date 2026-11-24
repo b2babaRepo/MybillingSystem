@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
+import QRCode from 'qrcode'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
@@ -54,8 +56,33 @@ export function JewelleryBreakdown({ billId, enabled }: { billId: string; enable
           ))}
         </div>
       )}
+      <HuidCodes huids={bill.lines.map((l) => l.huid).filter((h): h is string => !!h)} />
       {bill.pan && <p>PAN: {bill.pan}</p>}
       <p className="text-gray-600">{t('jwl.bisNote')}</p>
+    </div>
+  )
+}
+
+/** A QR per hallmarked piece holding its HUID, for the customer to scan and check in the BIS CARE app. */
+function HuidCodes({ huids }: { huids: string[] }) {
+  const { t } = useTranslation()
+  const [codes, setCodes] = useState<{ huid: string; src: string }[]>([])
+  const key = huids.join(',')
+  useEffect(() => {
+    let live = true
+    void Promise.all(huids.map(async (huid) => ({ huid, src: await QRCode.toDataURL(huid, { width: 120, margin: 1 }) }))).then((c) => { if (live) setCodes(c) })
+    return () => { live = false }
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (codes.length === 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-md border border-gray-300 p-2">
+      {codes.map((c) => (
+        <figure key={c.huid} className="m-0 flex flex-col items-center">
+          <img src={c.src} alt={`HUID ${c.huid}`} className="h-16 w-16" />
+          <figcaption className="font-mono text-[11px]">{c.huid}</figcaption>
+        </figure>
+      ))}
+      <p className="min-w-40 flex-1 text-gray-600">{t('jwl.huidVerify')}</p>
     </div>
   )
 }

@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Http.Headers;
+using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
 
 namespace GroceryKhata.Api.Tests;
@@ -9,6 +11,15 @@ public sealed class JewelleryTests(ApiFactory api)
 {
     // IBJA 24K, 27 Oct 2026: ₹1,41,082 per 10 g.
     private const decimal Pure = 14_108.20m;
+
+    [Fact]
+    public void Every_IS_2112_2025_silver_grade_can_be_stocked()
+    {
+        foreach (var grade in new[] { 999, 990, 970, 958, 925, 900, 800 })
+            Assert.True(JewelleryMath.ValidPurity("silver", grade), $"silver {grade}");
+        Assert.False(JewelleryMath.ValidPurity("silver", 916));
+        Assert.Equal(76m, JewelleryMath.Derive(95m, 800));
+    }
 
     [Fact]
     public void A_22K_chain_is_worked_out_like_the_shop_does_it()
@@ -90,6 +101,82 @@ public sealed class JewelleryTests(ApiFactory api)
         // The drawer: the whole bill came in, the old gold "bought" went out, so only the ₹9,939 that changed hands remains.
         var drawer = await shop.GetJsonAsync<CashCountDto>("/api/v1/cash-count");
         Assert.Equal(9_939m, drawer.CashIn - drawer.CashOut);
+    }
+
+    [Fact]
+    public async Task Old_gold_bought_without_a_sale_gets_a_numbered_voucher_and_needs_PAN_from_two_lakh()
+    {
+        var (shop, _) = await api.SignUpAsync("Swarn Kala");
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = Pure, buyPerGram = 13_800m } } });
+        var ring = new { description = "Old ring", metal = "gold", gross = 10m, reading = 91.6m, deductionPercent = 2m };
+
+        var id = Guid.CreateVersion7();
+        var voucher = await (await shop.PostJsonAsync("/api/v1/jewellery/old-metal-vouchers", new { id, sellerName = "Kamla Devi", sellerPhone = "9876500011", mode = "cash", oldMetal = new[] { ring } }))
+            .ReadAsync<OldMetalVoucherDto>();
+        // 10 g × 91.6% = 9.160 g fine × ₹13,800 = ₹1,26,408, less 2% = ₹1,23,879.84.
+        Assert.Equal((1, "Kamla Devi", 123_879.84m), (voucher.Number, voucher.SellerName, voucher.Total));
+        Assert.Contains(voucher.Problems, p => p.Contains("40A(3)"));
+        var again = await (await shop.PostJsonAsync("/api/v1/jewellery/old-metal-vouchers", new { id, sellerName = "Kamla Devi", mode = "cash", oldMetal = new[] { ring } })).ReadAsync<OldMetalVoucherDto>();
+        Assert.Equal(voucher.Id, again.Id);
+
+        var big = new { description = "Old bangles", metal = "gold", gross = 20m, reading = 91.6m };
+        var noPan = await shop.PostJsonAsync("/api/v1/jewellery/old-metal-vouchers", new { id = Guid.CreateVersion7(), sellerName = "Rani", mode = "bank", oldMetal = new[] { big } });
+        Assert.Equal(HttpStatusCode.BadRequest, noPan.StatusCode);
+        var withPan = await (await shop.PostJsonAsync("/api/v1/jewellery/old-metal-vouchers", new { id = Guid.CreateVersion7(), sellerName = "Rani", pan = "abcde1234f", mode = "bank", oldMetal = new[] { big } }))
+            .ReadAsync<OldMetalVoucherDto>();
+        Assert.Equal((2, "ABCDE1234F"), (withPan.Number, withPan.Pan));
+        Assert.Empty(withPan.Problems);
+        Assert.Equal(2, (await shop.GetJsonAsync<List<OldMetalVoucherDto>>("/api/v1/jewellery/old-metal-vouchers")).Count);
+    }
+
+    [Fact]
+    public async Task A_rate_booked_on_an_order_protects_the_customer_when_gold_goes_up()
+    {
+        var (shop, _) = await api.SignUpAsync("Akshaya Jewellers");
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 916, sellPerGram = 7_000m }, new { metal = "gold", purity = 999, sellPerGram = 7_600m } } });
+        var customer = Guid.CreateVersion7();
+        await shop.PostJsonAsync("/api/v1/customers", new { id = customer, name = "Sunita", phone = "9876501299" });
+        var order = await shop.PostJsonAsync("/api/v1/jewellery/orders", new { kind = "order", customerId = customer, description = "Bridal set", metal = "gold", purity = 916, weight = 40m, fixedRate = 7_000m, dueOn = "2027-05-01" });
+        Assert.Equal(HttpStatusCode.OK, order.StatusCode);
+
+        // Gold goes up: the booked ₹7,000/g applies.
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 916, sellPerGram = 7_400m } } });
+        var line = new { name = "Bridal set", metal = "gold", purity = 916, gross = 40m, huid = "BR1D4L" };
+        var up = await (await shop.PostJsonAsync("/api/v1/jewellery/quote", new { customerId = customer, lines = new[] { line } })).ReadAsync<JewelleryQuoteDto>();
+        Assert.Equal(7_000m, up.Lines[0].RatePerGram);
+        Assert.Contains(up.Problems, p => p.Contains("booked rate"));
+
+        // Gold comes down below the booking: the customer pays today's lower rate. Walk-ins pay today's rate as always.
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 916, sellPerGram = 6_800m } } });
+        var down = await (await shop.PostJsonAsync("/api/v1/jewellery/quote", new { customerId = customer, lines = new[] { line } })).ReadAsync<JewelleryQuoteDto>();
+        Assert.Equal(6_800m, down.Lines[0].RatePerGram);
+        var walkIn = await (await shop.PostJsonAsync("/api/v1/jewellery/quote", new { lines = new[] { line } })).ReadAsync<JewelleryQuoteDto>();
+        Assert.Equal(6_800m, walkIn.Lines[0].RatePerGram);
+    }
+
+    [Fact]
+    public async Task Staff_can_only_cut_making_and_wastage_as_far_as_the_owner_allows()
+    {
+        var (owner, _) = await api.SignUpAsync("Kundan Jewellers");
+        await owner.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = Pure } } });
+        var piece = await (await owner.PostJsonAsync("/api/v1/jewellery/pieces", new { name = "Chain", metal = "gold", purity = 916, gross = 10m, wastagePercent = 8m, makingType = "per_gram", makingValue = 500m, huid = "KJ12AB" }))
+            .ReadAsync<JewelleryPieceDto>();
+        var helperPhone = ApiFactory.NewPhone();
+        await owner.PostJsonAsync("/api/v1/shop/staff", new { name = "Raju", phone = helperPhone, pin = "4826" });
+        var helperAuth = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-in", new { phone = helperPhone, password = "4826" })).ReadAsync<AuthResponse>();
+        var helper = api.CreateClient();
+        helper.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", helperAuth.AccessToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await helper.PutJsonAsync("/api/v1/jewellery/settings", new { maxOffPercent = 50m })).StatusCode);
+        Assert.Equal(10m, (await (await owner.PutJsonAsync("/api/v1/jewellery/settings", new { maxOffPercent = 10m })).ReadAsync<JewellerySettingsDto>()).MaxOffPercent);
+
+        // ₹500/g making may go down to ₹450/g for staff, not ₹400/g; the owner may give any discount.
+        object Bill(decimal making) => new { billId = Guid.CreateVersion7(), lines = new[] { new { pieceId = piece.Id, makingValue = making } }, moneyPaid = 0m, mode = "upi" };
+        var tooMuch = await helper.PostJsonAsync("/api/v1/jewellery/bills", Bill(400m));
+        Assert.Equal(HttpStatusCode.BadRequest, tooMuch.StatusCode);
+        Assert.Contains("at most 10%", await tooMuch.Content.ReadAsStringAsync());
+        var quote = await (await helper.PostJsonAsync("/api/v1/jewellery/quote", new { lines = new[] { new { pieceId = piece.Id, makingValue = 450m } } })).ReadAsync<JewelleryQuoteDto>();
+        Assert.Equal(HttpStatusCode.OK, (await helper.PostJsonAsync("/api/v1/jewellery/bills", new { billId = Guid.CreateVersion7(), lines = new[] { new { pieceId = piece.Id, makingValue = 450m } }, moneyPaid = quote.Total, mode = "upi" })).StatusCode);
     }
 
     [Fact]

@@ -4,10 +4,32 @@ export type Metal = 'gold' | 'silver'
 export type MakingType = 'per_gram' | 'percent' | 'per_piece'
 
 export const GOLD_PURITIES = [999, 995, 916, 750, 585] as const
-export const SILVER_PURITIES = [999, 925] as const
+/** IS 2112:2025 silver grades; a hallmarked silver piece carries a HUID like gold. */
+export const SILVER_PURITIES = [999, 990, 970, 958, 925, 900, 800] as const
 
 export interface MetalRate { metal: Metal; purity: number; sellPerGram: number; buyPerGram: number | null; setAt: string; derived: boolean }
 export interface MetalRates { current: MetalRate[]; today: MetalRate[] }
+
+const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
+
+/**
+ * Today's rates as a WhatsApp message, the way shops broadcast them: gold per 10 g (24K, 22K, 18K), silver per kg.
+ * Only the grades customers ask about; derived ones are included (22K from 24K) because that is the shop's rate too.
+ */
+export function rateMessage(rates: MetalRate[], title: string, note: string, silverLabel: string) {
+  const find = (m: Metal, p: number) => rates.find((r) => r.metal === m && r.purity === p)
+  const lines = [title, '']
+  for (const p of [999, 916, 750]) {
+    const r = find('gold', p)
+    if (r) lines.push(`${karat('gold', p)} (${p}): ${inr(r.sellPerGram * 10)} / 10 g`)
+  }
+  for (const p of [999, 925]) {
+    const r = find('silver', p)
+    if (r) lines.push(`${silverLabel} ${p}: ${inr(r.sellPerGram * 1000)} / kg`)
+  }
+  lines.push('', note)
+  return lines.join('\n')
+}
 
 export interface JewelleryPiece {
   id: string; tagNo: number; name: string; category: string | null; metal: Metal; purity: number; gross: number; stone: number; net: number
