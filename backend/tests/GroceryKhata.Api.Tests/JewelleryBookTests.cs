@@ -59,6 +59,25 @@ public sealed class JewelleryBookTests(ApiFactory api)
         Assert.Equal(-150_000m, drawer.CashIn - drawer.CashOut);
     }
 
+    [Fact]
+    public async Task A_girvi_is_watched_against_todays_gold_value_and_cannot_start_above_it()
+    {
+        var (shop, _) = await api.SignUpAsync("Lakshmi Sarafa");
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m } } });
+        var customer = await Customer(shop, "Mohan");
+        // 10 g at 100% = 10 g fine × ₹10,000 = ₹1,00,000: lending more than that is refused.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/jewellery/girvi",
+            new { customerId = customer, items = "Coin", metal = "gold", gross = 10m, reading = 100m, principal = 100_001m, ratePerMonth = 0m })).StatusCode);
+        var loan = await (await shop.PostJsonAsync("/api/v1/jewellery/girvi",
+            new { customerId = customer, items = "Coin", metal = "gold", gross = 10m, reading = 100m, principal = 80_000m, ratePerMonth = 0m })).ReadAsync<GirviDto>();
+        Assert.Equal((100_000m, 80m), (loan.ValueToday, loan.CoverPercent));
+
+        // Gold falls to ₹7,500 a gram: the same ₹80,000 is now more than the gold is worth.
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 7_500m } } });
+        var now = (await shop.GetJsonAsync<List<GirviDto>>("/api/v1/jewellery/girvi")).Single(g => g.Id == loan.Id);
+        Assert.Equal((75_000m, 106.7m), (now.ValueToday, now.CoverPercent));
+    }
+
     private static async Task<Guid> Customer(HttpClient shop, string name)
     {
         var id = Guid.CreateVersion7();

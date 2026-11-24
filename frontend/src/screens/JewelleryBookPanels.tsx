@@ -51,6 +51,17 @@ export interface Girvi {
   principal: number; ratePerMonth: number; dayWise: boolean; pledgedOn: string; dueOn: string; kyc: string | null; note: string | null; closedOn: string | null
   principalLeft: number; interestDue: number; toClose: number; overdue: boolean; payments: { paidOn: string; amount: number; interestPart: number; principalPart: number; mode: string }[]
   compoundYearly: boolean; capitalised: number
+  /** The pledged metal at today's buying rate, and what is owed as a percent of it (open loans). */
+  valueToday: number | null; coverPercent: number | null
+}
+
+/** 75%: watch it; 85%: ask for interest or more gold; 100%: what is owed is more than the gold is worth today. */
+function CoverBadge({ g }: { g: Girvi }) {
+  const { t } = useTranslation()
+  const c = g.coverPercent
+  if (c == null || c < 75) return null
+  const [key, tone] = c >= 100 ? ['loss', 'bg-due text-white'] : c >= 85 ? ['alert', 'bg-due-soft text-due'] : ['watch', 'bg-warn-soft text-warn-ink']
+  return <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${tone}`} title={t('jwl6.coverHint', { value: formatRupees(g.valueToday ?? 0) })}>{t(`jwl6.cover.${key}`, { pct: Math.round(c) })}</span>
 }
 
 export function GirviPanel({ shopId, shopName, isOwner }: { shopId: string; shopName: string; isOwner: boolean }) {
@@ -77,6 +88,9 @@ export function GirviPanel({ shopId, shopName, isOwner }: { shopId: string; shop
         <Card tone="bg-[#fdf1e3] text-[#a1460a]" label={t('jwl2.interestDue')} value={formatRupees(open.reduce((n, g) => n + g.interestDue, 0))} />
         <Card tone={open.some((g) => g.overdue) ? 'bg-[#b45309] text-white' : 'bg-[#edf2f1] text-[#33423d]'} label={t('jwl2.overdue')} value={open.filter((g) => g.overdue).length} />
       </div>
+      {open.some((g) => (g.coverPercent ?? 0) >= 85) && (
+        <p className="rounded-xl bg-due-soft p-3 text-sm font-semibold text-due">{t('jwl6.atRisk', { count: open.filter((g) => (g.coverPercent ?? 0) >= 85).length })}</p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex gap-1 rounded-xl bg-[#edf2f1] p-1">
           {(['open', 'closed'] as const).map((s) => <button key={s} onClick={() => setStatus(s)} aria-pressed={status === s} className={`min-h-9 rounded-lg px-3 text-sm font-semibold ${status === s ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`jwl2.girviStatus.${s}`)}</button>)}
@@ -103,7 +117,7 @@ export function GirviPanel({ shopId, shopName, isOwner }: { shopId: string; shop
                     {g.payments.some((p) => p.amount < 0) && <span className="block text-xs font-semibold text-[#1d4ed8]">{t('jwl5.topUpRow')} {formatRupees(-g.payments.filter((p) => p.amount < 0).reduce((s, p) => s + p.amount, 0))}</span>}</td>
                   <td className="px-2 py-2.5">{g.ratePerMonth}% {t('jwl2.perMonth')}<span className="block text-xs text-muted">{g.dayWise ? t('jwl2.dayWise') : t('jwl2.monthWise')}{g.compoundYearly ? ` · ${t('jwl5.compoundTag')}` : ''}</span>
                     {g.capitalised > 0 && <span className="block text-xs font-semibold text-[#a1460a]">{t('jwl5.capitalised', { amount: formatRupees(g.capitalised) })}</span>}</td>
-                  <td className="px-2 py-2.5 text-right">{g.closedOn ? <span className="text-muted">{t('jwl2.closedOn', { date: date(g.closedOn) })}</span> : <><b>{formatRupees(g.toClose)}</b><span className="block text-xs text-muted">{t('jwl2.interestShort')} {formatRupees(g.interestDue)}</span></>}</td>
+                  <td className="px-2 py-2.5 text-right">{g.closedOn ? <span className="text-muted">{t('jwl2.closedOn', { date: date(g.closedOn) })}</span> : <><b>{formatRupees(g.toClose)}</b><span className="block text-xs text-muted">{t('jwl2.interestShort')} {formatRupees(g.interestDue)}</span><CoverBadge g={g} /></>}</td>
                   <td className="px-2 py-2.5">{g.overdue ? <span className="rounded-full bg-due-soft px-2.5 py-0.5 text-xs font-bold text-due">{date(g.dueOn)}</span> : date(g.dueOn)}</td>
                   <td className="px-3 py-2.5 text-right"><span className="flex flex-wrap justify-end gap-1.5">
                     {!g.closedOn && <button onClick={() => { setPaying(g); setPay({ amount: String(g.toClose), mode: 'cash' }) }} className={`min-h-9 rounded-xl px-3 text-sm ${btn.solid}`}>{t('jwl2.receive')}</button>}

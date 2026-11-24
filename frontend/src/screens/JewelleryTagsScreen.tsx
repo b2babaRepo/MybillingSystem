@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import QRCode from 'qrcode'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { btn } from '../components/ui'
@@ -23,7 +24,15 @@ function Bars({ code }: { code: string }) {
   )
 }
 
-/** One tag: the left half with the item and weights, the right half with the tag number as a barcode the bill scans. */
+/** A hallmarked piece's HUID as a small QR on the tag: the customer scans it to read the code, then checks it in BIS CARE. */
+function HuidQr({ huid, size }: { huid: string; size: number }) {
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => { let live = true; void QRCode.toDataURL(huid, { margin: 0, width: 160 }).then((d) => { if (live) setSrc(d) }); return () => { live = false } }, [huid])
+  return src ? <img src={src} alt={`HUID ${huid}`} style={{ width: `${size}mm`, height: `${size}mm` }} className="shrink-0" /> : null
+}
+
+/** One tag: the left half with the item and weights, the right half with the tag number as a barcode the bill scans,
+ * and the HUID as a QR beside it on hallmarked pieces. */
 function Tag({ p, shopName, w, h }: { p: JewelleryPiece; shopName: string; w: number; h: number }) {
   const text = `${Math.min(2.2, h * 0.17)}mm`
   return (
@@ -34,9 +43,12 @@ function Tag({ p, shopName, w, h }: { p: JewelleryPiece; shopName: string; w: nu
         <span className="truncate">{p.stone ? `St ${p.stone.toFixed(3)} · ` : ''}N {p.net.toFixed(3)}</span>
         <span className="truncate">{p.huid ? `HUID ${p.huid}` : shopName}</span>
       </div>
-      <div className="flex w-1/2 min-w-0 flex-col items-center justify-center pl-1">
-        <div className="min-h-0 w-full flex-1"><Bars code={tagCode(p.tagNo)} /></div>
-        <b>J-{p.tagNo}</b>
+      <div className="flex w-1/2 min-w-0 items-center gap-1 pl-1">
+        <div className="flex h-full min-w-0 flex-1 flex-col items-center justify-center">
+          <div className="min-h-0 w-full flex-1"><Bars code={tagCode(p.tagNo)} /></div>
+          <b>J-{p.tagNo}</b>
+        </div>
+        {p.huid && <HuidQr huid={p.huid} size={h - 1.6} />}
       </div>
     </div>
   )

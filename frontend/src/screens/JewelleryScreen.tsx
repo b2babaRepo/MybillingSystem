@@ -1,3 +1,5 @@
+import { RateCardImage } from '../components/RateCardImage'
+import { useShopSettings } from '../lib/reports'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -65,7 +67,7 @@ export function JewelleryScreen({ shopId, shopName, isOwner }: { shopId: string;
           </button>
         ))}
       </div>
-      {shown === 'rates' && <RatesPanel shopId={shopId} isOwner={isOwner} rates={rates.data} />}
+      {shown === 'rates' && <RatesPanel shopId={shopId} shopName={shopName} isOwner={isOwner} rates={rates.data} />}
       {shown === 'stock' && <StockPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'bill' && <BillPanel shopId={shopId} />}
       {shown === 'girvi' && <GirviPanel shopId={shopId} shopName={shopName} isOwner={isOwner} />}
@@ -84,7 +86,8 @@ export function JewelleryScreen({ shopId, shopName, isOwner }: { shopId: string;
 /* ---------------- rates ---------------- */
 
 /** Gold per 10 g, silver per kg, as the trade quotes them; stored per gram. Purities left empty come from 24K. */
-function RatesPanel({ shopId, isOwner, rates }: { shopId: string; isOwner: boolean; rates: MetalRates | undefined }) {
+function RatesPanel({ shopId, shopName, isOwner, rates }: { shopId: string; shopName: string; isOwner: boolean; rates: MetalRates | undefined }) {
+  const slug = useShopSettings(shopId).data?.slug
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const rows: { metal: Metal; purity: number }[] = [...GOLD_PURITIES.map((p) => ({ metal: 'gold' as Metal, purity: p })), ...SILVER_PURITIES.map((p) => ({ metal: 'silver' as Metal, purity: p }))]
@@ -150,6 +153,7 @@ function RatesPanel({ shopId, isOwner, rates }: { shopId: string; isOwner: boole
         <a href={whatsAppLink(null, rateMessage(rates!.current, t('jwl5.rateMsgTitle', { date: new Date().toLocaleDateString([], { day: 'numeric', month: 'short' }) }), t('jwl5.rateMsgNote'), t('jwl.silver')))}
           target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center rounded-xl bg-[#1f9d55] px-4 font-bold text-white sm:self-start">{t('jwl5.shareRates')}</a>
       )}
+      {(rates?.current.length ?? 0) > 0 && <RateCardImage rates={rates!.current} shopName={shopName} link={slug ? `${window.location.origin}/#/s/${slug}` : null} />}
       {isOwner && <StaffCapSetting shopId={shopId} />}
       {(rates?.today.length ?? 0) > 0 && (
         <div className="flex flex-col gap-1">

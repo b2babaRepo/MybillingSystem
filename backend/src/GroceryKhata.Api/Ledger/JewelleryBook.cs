@@ -230,7 +230,7 @@ public sealed record GirviPaymentDto(DateOnly PaidOn, decimal Amount, decimal In
 public sealed record GirviDto(
     Guid Id, int Number, Guid CustomerId, string Customer, string? Phone, string Items, string Metal, decimal Gross, decimal Reading, decimal Fine, decimal PledgeValue,
     decimal Principal, decimal RatePerMonth, bool DayWise, DateOnly PledgedOn, DateOnly DueOn, string? Kyc, string? Note, DateOnly? ClosedOn,
-    decimal PrincipalLeft, decimal InterestDue, decimal ToClose, bool Overdue, IReadOnlyList<GirviPaymentDto> Payments, bool CompoundYearly = false, decimal Capitalised = 0);
+    decimal PrincipalLeft, decimal InterestDue, decimal ToClose, bool Overdue, IReadOnlyList<GirviPaymentDto> Payments, bool CompoundYearly = false, decimal Capitalised = 0, decimal? ValueToday = null, decimal? CoverPercent = null);
 
 public sealed record SchemePlanRequest(string Name, int Months, decimal Instalment, decimal? Bonus, string? Kind = null, int? Purity = null);
 public sealed record SchemePlanDto(Guid Id, string Name, int Months, decimal Instalment, decimal Bonus, bool IsActive, int Members, string Kind = "amount", int? Purity = null);
@@ -375,14 +375,20 @@ public static class JewelleryBookEndpoints
         var custIds = loans.Select(l => l.CustomerId).Distinct().ToList();
         var people = await db.Customers.AsNoTracking().Where(c => custIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => new { c.Name, c.Phone }, ct);
         var today = IndiaTime.Today(clock);
+        // The pledged metal at today's buying rate (pure, 999): what is owed is watched against it, because the loan was
+        // made at that day's rate and the rate moves.
+        var rates = (await JewelleryEndpoints.CurrentRatesAsync(db, clock, ct)).Current;
+        decimal? PureRate(string metal) => rates.FirstOrDefault(x => x.Metal == metal && x.Purity == 999) is { } r ? r.BuyPerGram ?? r.SellPerGram : null;
         return loans.Select(l =>
         {
             var ps = pays[l.Id].ToList();
             var (interest, left, capitalised) = l.ClosedOn is null ? Owed(l, ps, today) : (0, 0, 0);
+            decimal? valueToday = PureRate(l.Metal) is { } rate ? decimal.Round(l.Fine * rate, 2) : null;
+            decimal? cover = l.ClosedOn is null && valueToday is > 0 ? decimal.Round((left + interest) * 100 / valueToday.Value, 1) : null;
             var who = people.GetValueOrDefault(l.CustomerId);
             return new GirviDto(l.Id, l.Number, l.CustomerId, who?.Name ?? "", who?.Phone, l.Items, l.Metal, l.Gross, l.Reading, l.Fine, l.PledgeValue, l.Principal, l.RatePerMonth,
                 l.DayWise, l.PledgedOn, l.DueOn, l.Kyc, l.Note, l.ClosedOn, left, interest, left + interest, l.ClosedOn is null && today > l.DueOn,
-                ps.Select(p => new GirviPaymentDto(p.PaidOn, p.Amount, p.InterestPart, p.PrincipalPart, p.Mode)).ToList(), l.CompoundYearly, capitalised);
+                ps.Select(p => new GirviPaymentDto(p.PaidOn, p.Amount, p.InterestPart, p.PrincipalPart, p.Mode)).ToList(), l.CompoundYearly, capitalised, valueToday, cover);
         }).ToList();
     }
 
@@ -423,6 +429,9 @@ public static class JewelleryBookEndpoints
         var rates = (await JewelleryEndpoints.CurrentRatesAsync(db, clock, ct)).Current;
         var pure = rates.FirstOrDefault(x => x.Metal == r.Metal && x.Purity == 999);
         var value = pure is null ? 0 : decimal.Round(fine * (pure.BuyPerGram ?? pure.SellPerGram), 2);
+        // Lending more than the metal is worth today is a loss from the first day.
+        if (value > 0 && r.Principal > value)
+            return Invalid("Principal", $"The pledge is worth ₹{value:N0} at today's rate: lend at most that.");
         var number = (await db.GirviLoans.MaxAsync(l => (int?)l.Number, ct) ?? 0) + 1;
         var loan = new GirviLoan
         {
