@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { addCustomer, useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { GOLD_PURITIES, grams, karat, type JewelleryPiece, type Metal } from '../lib/jewellery'
+import { GirviTicketDrawer } from './GirviTicket'
 import { navigate } from '../router'
 
 // Phase 2 of the jewellery counter: girvi, savings schemes, orders and repairs, approval memos.
@@ -49,16 +50,20 @@ export interface Girvi {
   id: string; number: number; customerId: string; customer: string; phone: string | null; items: string; metal: Metal; gross: number; reading: number; fine: number; pledgeValue: number
   principal: number; ratePerMonth: number; dayWise: boolean; pledgedOn: string; dueOn: string; kyc: string | null; note: string | null; closedOn: string | null
   principalLeft: number; interestDue: number; toClose: number; overdue: boolean; payments: { paidOn: string; amount: number; interestPart: number; principalPart: number; mode: string }[]
+  compoundYearly: boolean; capitalised: number
 }
 
-export function GirviPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
+export function GirviPanel({ shopId, shopName, isOwner }: { shopId: string; shopName: string; isOwner: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<'open' | 'closed'>('open')
   const list = useQuery({ queryKey: [shopId, 'jewellery', 'girvi', status], queryFn: () => api<Girvi[]>(`/v1/jewellery/girvi?status=${status}`) }).data ?? []
   const [adding, setAdding] = useState(false)
   const [paying, setPaying] = useState<Girvi | null>(null)
-  const [form, setForm] = useState({ customerId: null as string | null, items: '', metal: 'gold' as Metal, gross: '', reading: '91.6', principal: '', rate: '1.5', dayWise: false, months: '12', kyc: '', mode: 'cash' })
+  const [toppingUp, setToppingUp] = useState<Girvi | null>(null)
+  const [ticket, setTicket] = useState<Girvi | null>(null)
+  const [topUp, setTopUp] = useState({ amount: '', mode: 'cash' })
+  const [form, setForm] = useState({ customerId: null as string | null, items: '', metal: 'gold' as Metal, gross: '', reading: '91.6', principal: '', rate: '1.5', dayWise: false, compound: false, months: '12', kyc: '', mode: 'cash' })
   const [pay, setPay] = useState({ amount: '', mode: 'cash' })
   const { busy, error, run } = useRun()
   const refresh = () => queryClient.invalidateQueries({ queryKey: [shopId, 'jewellery', 'girvi'] })
@@ -94,11 +99,17 @@ export function GirviPanel({ shopId, isOwner }: { shopId: string; isOwner: boole
                   <td className="px-3 py-2.5 font-mono font-bold">{g.number}</td>
                   <td className="px-2 py-2.5"><b>{g.customer}</b>{g.phone && <span className="block text-xs text-muted">{g.phone}</span>}</td>
                   <td className="px-2 py-2.5">{g.items}<span className="block text-xs text-muted">{grams(g.gross)} · {g.reading}% · {t('jwl.fine')} {grams(g.fine)}{g.pledgeValue ? ` · ${formatRupees(g.pledgeValue)}` : ''}</span></td>
-                  <td className="px-2 py-2.5 text-right">{formatRupees(g.principal)}<span className="block text-xs text-muted">{date(g.pledgedOn)}</span></td>
-                  <td className="px-2 py-2.5">{g.ratePerMonth}% {t('jwl2.perMonth')}<span className="block text-xs text-muted">{g.dayWise ? t('jwl2.dayWise') : t('jwl2.monthWise')}</span></td>
+                  <td className="px-2 py-2.5 text-right">{formatRupees(g.principal)}<span className="block text-xs text-muted">{date(g.pledgedOn)}</span>
+                    {g.payments.some((p) => p.amount < 0) && <span className="block text-xs font-semibold text-[#1d4ed8]">{t('jwl5.topUpRow')} {formatRupees(-g.payments.filter((p) => p.amount < 0).reduce((s, p) => s + p.amount, 0))}</span>}</td>
+                  <td className="px-2 py-2.5">{g.ratePerMonth}% {t('jwl2.perMonth')}<span className="block text-xs text-muted">{g.dayWise ? t('jwl2.dayWise') : t('jwl2.monthWise')}{g.compoundYearly ? ` · ${t('jwl5.compoundTag')}` : ''}</span>
+                    {g.capitalised > 0 && <span className="block text-xs font-semibold text-[#a1460a]">{t('jwl5.capitalised', { amount: formatRupees(g.capitalised) })}</span>}</td>
                   <td className="px-2 py-2.5 text-right">{g.closedOn ? <span className="text-muted">{t('jwl2.closedOn', { date: date(g.closedOn) })}</span> : <><b>{formatRupees(g.toClose)}</b><span className="block text-xs text-muted">{t('jwl2.interestShort')} {formatRupees(g.interestDue)}</span></>}</td>
                   <td className="px-2 py-2.5">{g.overdue ? <span className="rounded-full bg-due-soft px-2.5 py-0.5 text-xs font-bold text-due">{date(g.dueOn)}</span> : date(g.dueOn)}</td>
-                  <td className="px-3 py-2.5 text-right">{!g.closedOn && <button onClick={() => { setPaying(g); setPay({ amount: String(g.toClose), mode: 'cash' }) }} className={`min-h-9 rounded-xl px-3 text-sm ${btn.solid}`}>{t('jwl2.receive')}</button>}</td>
+                  <td className="px-3 py-2.5 text-right"><span className="flex flex-wrap justify-end gap-1.5">
+                    {!g.closedOn && <button onClick={() => { setPaying(g); setPay({ amount: String(g.toClose), mode: 'cash' }) }} className={`min-h-9 rounded-xl px-3 text-sm ${btn.solid}`}>{t('jwl2.receive')}</button>}
+                    {!g.closedOn && isOwner && <button onClick={() => { setToppingUp(g); setTopUp({ amount: '', mode: 'cash' }) }} className={`min-h-9 rounded-xl px-3 text-sm ${btn.outline}`}>{t('jwl5.topUp')}</button>}
+                    <button onClick={() => setTicket(g)} className="min-h-9 rounded-xl border border-line px-3 text-sm font-semibold">{t('jwl5.ticket')}</button>
+                  </span></td>
                 </tr>
               ))}
             </tbody>
@@ -121,12 +132,13 @@ export function GirviPanel({ shopId, isOwner }: { shopId: string; isOwner: boole
             <Field label={t('jwl2.months')}><input value={form.months} onChange={(e) => setForm({ ...form, months: num(e.target.value) })} inputMode="numeric" className={box} /></Field>
           </div>
           <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={form.dayWise} onChange={(e) => setForm({ ...form, dayWise: e.target.checked })} className="h-5 w-5" />{t('jwl2.dayWiseLabel')}</label>
+          <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={form.compound} onChange={(e) => setForm({ ...form, compound: e.target.checked })} className="h-5 w-5" />{t('jwl5.compoundLabel')}</label>
           <Field label={t('jwl2.kyc')}><input value={form.kyc} onChange={(e) => setForm({ ...form, kyc: e.target.value })} maxLength={60} placeholder={t('jwl2.kycPlaceholder')} className={box} /></Field>
           <Field label={t('jwl2.givenBy')}><select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })} className={box}><option value="cash">{t('cash')}</option><option value="upi">{t('upi')}</option><option value="bank">{t('bank')}</option></select></Field>
           {error && <p className="text-sm font-semibold text-due">{error}</p>}
           <Button busy={busy} disabled={!form.customerId || !form.items.trim() || !(Number(form.gross) > 0) || !(Number(form.principal) > 0)} onClick={() => void run(async () => {
             await api('/v1/jewellery/girvi', 'POST', { customerId: form.customerId, items: form.items, metal: form.metal, gross: Number(form.gross), reading: Number(form.reading), principal: Number(form.principal),
-              ratePerMonth: Number(form.rate) || 0, dayWise: form.dayWise, months: Number(form.months) || 12, kyc: form.kyc || null, mode: form.mode })
+              ratePerMonth: Number(form.rate) || 0, dayWise: form.dayWise, compoundYearly: form.compound, months: Number(form.months) || 12, kyc: form.kyc || null, mode: form.mode })
           }).then((ok) => { if (ok) { setAdding(false); void refresh() } })}>{t('jwl2.giveLoan')}</Button>
         </Drawer>
       )}
@@ -144,6 +156,21 @@ export function GirviPanel({ shopId, isOwner }: { shopId: string; isOwner: boole
             .then((ok) => { if (ok) { setPaying(null); void refresh() } })}>{t('jwl2.savePayment')}</Button>
         </Drawer>
       )}
+
+      {toppingUp && (
+        <Drawer title={t('jwl5.topUpTitle', { number: toppingUp.number })} onClose={() => setToppingUp(null)}>
+          <p className="rounded-xl bg-[#f6faf9] p-3 text-sm">{t('jwl2.owedNow', { principal: formatRupees(toppingUp.principalLeft), interest: formatRupees(toppingUp.interestDue), total: formatRupees(toppingUp.toClose) })}</p>
+          <p className="text-xs text-muted">{t('jwl5.topUpHint')}</p>
+          <Field label={t('jwl2.amountLent')}><input value={topUp.amount} onChange={(e) => setTopUp({ ...topUp, amount: num(e.target.value) })} inputMode="decimal" className={`${box} text-lg font-bold`} /></Field>
+          <div className="grid grid-cols-3 gap-1 rounded-2xl bg-[#edf2f1] p-1 text-sm">
+            {(['cash', 'upi', 'bank'] as const).map((m) => <button key={m} onClick={() => setTopUp({ ...topUp, mode: m })} aria-pressed={topUp.mode === m} className={`min-h-11 rounded-xl font-semibold ${topUp.mode === m ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(m)}</button>)}
+          </div>
+          {error && <p className="text-sm font-semibold text-due">{error}</p>}
+          <Button busy={busy} disabled={!(Number(topUp.amount) > 0)} onClick={() => void run(() => api(`/v1/jewellery/girvi/${toppingUp.id}/top-up`, 'POST', { amount: Number(topUp.amount), mode: topUp.mode }))
+            .then((ok) => { if (ok) { setToppingUp(null); void refresh() } })}>{t('jwl5.topUpSave', { amount: formatRupees(Number(topUp.amount) || 0) })}</Button>
+        </Drawer>
+      )}
+      {ticket && <GirviTicketDrawer g={ticket} shopName={shopName} onClose={() => setTicket(null)} />}
     </div>
   )
 }

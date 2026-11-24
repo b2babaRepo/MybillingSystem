@@ -70,6 +70,9 @@ public sealed class Shop : Entity
     /// </summary>
     public decimal? JewelleryMaxOffPercent { get; set; }
 
+    /// <summary>Jewellery: show tagged pieces in stock, priced at today's rate, on the shop's online page.</summary>
+    public bool JewelleryShowOnline { get; set; }
+
     /// <summary>A helper can use an exchange slip up to this much; more needs the owner.</summary>
     public decimal ExchangeSlipHelperMax { get; set; } = 5000m;
 

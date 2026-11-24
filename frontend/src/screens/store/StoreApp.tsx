@@ -4,6 +4,7 @@ import { StartDeliverySheet } from '../../components/DeliveryPlans'
 import { DELIVERY_TRADES } from '../../lib/deliveries'
 import { takeBookAgain } from '../../lib/salon'
 import { MetalRates, type StoreRate } from '../../components/MetalRates'
+import { StorePieces, type StorePiece } from '../../components/StorePieces'
 import { putCart, useCarts, useSavedShops, useSaveShop } from '../../lib/customer'
 import { api } from '../../lib/api'
 import { aisleName } from '../../lib/aisleNames'
@@ -75,6 +76,8 @@ interface Store {
   type?: string | null
   /** A jewellery shop's gold and silver rates of the day. */
   rates?: StoreRate[] | null
+  /** Tagged pieces in stock with today's price, when the shop shows them online. */
+  pieces?: StorePiece[] | null
 }
 
 /** What a line saves against MRP or the price before the shop's offer. */
@@ -317,6 +320,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
       {festive(settings.theme) && <p className={`mx-4 mt-3 rounded-2xl p-3 text-center font-bold text-white ${festive(settings.theme)!.header}`}>{festive(settings.theme)!.emoji} {t(`cust4.festive.${settings.theme}`)}</p>}
 
       {data.rates && <MetalRates rates={data.rates} />}
+      {data.pieces && <StorePieces pieces={data.pieces} phone={data.phone} />}
       <ShopTerms settings={settings} khata={khataHere} />
       {salonServices.length > 0 && (signedIn
         ? <button onClick={() => setBooking(true)} className={`mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-center gap-2 rounded-xl text-base ${btn.solid}`}>{t('cust5.bookTitle')}</button>
@@ -664,7 +668,7 @@ function PhotoNote({ shopId, item }: { shopId: string; item: StoreItem }) {
     </div>
   )
 }
-
+
 /** The shop's terms before shopping: delivery charge, minimum order, and whether this customer can put it on khata. */
 function ShopTerms({ settings, khata }: { settings: StoreSettings; khata: KhataAtCheckout | null | undefined }) {
   const { t } = useTranslation()

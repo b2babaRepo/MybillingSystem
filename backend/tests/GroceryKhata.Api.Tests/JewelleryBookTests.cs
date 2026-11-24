@@ -22,6 +22,43 @@ public sealed class JewelleryBookTests(ApiFactory api)
         Assert.Equal(250m, GirviMath.Interest(10_000m, 2m, true, Jan1, Jan1.AddDays(45), [(Jan1.AddDays(30), 5_000m)]));
     }
 
+    [Fact]
+    public void Compound_girvi_adds_unpaid_interest_to_the_principal_each_year()
+    {
+        // ₹10,000 at 2% a month, month-wise, two years: year one earns ₹2,400, added; year two earns 2% on ₹12,400.
+        Assert.Equal((2_976m, 2_400m), GirviMath.Compound(10_000m, 2m, false, Jan1, Jan1.AddYears(2), []));
+        // ₹1,000 of interest paid in year one: only ₹1,400 is added, and year two runs on ₹11,400 (₹2,736). The interest
+        // not added is that ₹1,000 plus ₹2,736; less the ₹1,000 paid, ₹2,736 is still owed.
+        Assert.Equal((3_736m, 1_400m), GirviMath.Compound(10_000m, 2m, false, Jan1, Jan1.AddYears(2), [(Jan1.AddMonths(6), 1_000m, 0m)]));
+        var loan = new GirviLoan { Items = "Chain", Metal = "gold", Principal = 10_000m, RatePerMonth = 2m, PledgedOn = Jan1, CompoundYearly = true };
+        var paid = new GirviPayment { PaidOn = Jan1.AddMonths(6), Amount = 1_000m, InterestPart = 1_000m };
+        Assert.Equal((2_736m, 11_400m, 1_400m), JewelleryBookEndpoints.Owed(loan, [paid], Jan1.AddYears(2)));
+        // Inside the first year it is the same as simple interest.
+        Assert.Equal((1_200m, 0m), GirviMath.Compound(10_000m, 2m, false, Jan1, Jan1.AddMonths(6), []));
+    }
+
+    [Fact]
+    public async Task A_top_up_lends_more_on_the_same_pledge_up_to_its_value()
+    {
+        var (shop, _) = await api.SignUpAsync("Annapurna Sarafa");
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m } } });
+        var customer = await Customer(shop, "Gopal");
+        // 20 g at 91.6% = 18.32 g fine × ₹10,000 = ₹1,83,200 pledge value.
+        var loan = await (await shop.PostJsonAsync("/api/v1/jewellery/girvi", new { customerId = customer, items = "Bangles", metal = "gold", gross = 20m, reading = 91.6m, principal = 100_000m, ratePerMonth = 1m, compoundYearly = true }))
+            .ReadAsync<GirviDto>();
+        Assert.True(loan.CompoundYearly);
+
+        var more = await (await shop.PostJsonAsync($"/api/v1/jewellery/girvi/{loan.Id}/top-up", new { amount = 50_000m, mode = "cash" })).ReadAsync<GirviDto>();
+        Assert.Equal(150_000m, more.PrincipalLeft);
+        Assert.Equal(-50_000m, more.Payments.Single().Amount);
+        var tooMuch = await shop.PostJsonAsync($"/api/v1/jewellery/girvi/{loan.Id}/top-up", new { amount = 40_000m, mode = "cash" });
+        Assert.Equal(HttpStatusCode.BadRequest, tooMuch.StatusCode);
+
+        // Both amounts left the drawer.
+        var drawer = await shop.GetJsonAsync<CashCountDto>("/api/v1/cash-count");
+        Assert.Equal(-150_000m, drawer.CashIn - drawer.CashOut);
+    }
+
     private static async Task<Guid> Customer(HttpClient shop, string name)
     {
         var id = Guid.CreateVersion7();

@@ -68,7 +68,7 @@ export function JewelleryScreen({ shopId, shopName, isOwner }: { shopId: string;
       {shown === 'rates' && <RatesPanel shopId={shopId} isOwner={isOwner} rates={rates.data} />}
       {shown === 'stock' && <StockPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'bill' && <BillPanel shopId={shopId} />}
-      {shown === 'girvi' && <GirviPanel shopId={shopId} isOwner={isOwner} />}
+      {shown === 'girvi' && <GirviPanel shopId={shopId} shopName={shopName} isOwner={isOwner} />}
       {shown === 'schemes' && <SchemesPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'orders' && <OrdersPanel shopId={shopId} />}
       {shown === 'approvals' && <ApprovalsPanel shopId={shopId} />}

@@ -9,7 +9,7 @@ import { decimalText } from '../lib/decimalText'
 export function StaffCapSetting({ shopId }: { shopId: string }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const current = useQuery({ queryKey: [shopId, 'jewellery', 'settings'], queryFn: () => api<{ maxOffPercent: number | null }>('/v1/jewellery/settings') }).data
+  const current = useQuery({ queryKey: [shopId, 'jewellery', 'settings'], queryFn: () => api<{ maxOffPercent: number | null; showOnline: boolean }>('/v1/jewellery/settings') }).data
   const [draft, setDraft] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
@@ -34,6 +34,11 @@ export function StaffCapSetting({ shopId }: { shopId: string }) {
         <Button className="px-6" busy={busy} onClick={() => void save()}>{t('jwl5.capSave')}</Button>
         {message && <span role="status" className="text-sm font-semibold text-brand-deep">{message}</span>}
       </div>
+      <label className="mt-2 flex min-h-11 items-start gap-2 border-t border-line pt-3 text-sm">
+        <input type="checkbox" checked={current?.showOnline ?? false} disabled={!current || busy} className="mt-0.5 h-5 w-5"
+          onChange={(e) => { const show = e.target.checked; setBusy(true); void api('/v1/jewellery/settings/show-online', 'PUT', { show }).then(() => qc.invalidateQueries({ queryKey: [shopId, 'jewellery', 'settings'] })).finally(() => setBusy(false)) }} />
+        <span><b>{t('jwl5.showOnline')}</b><span className="block text-muted">{t('jwl5.showOnlineHint')}</span></span>
+      </label>
     </div>
   )
 }

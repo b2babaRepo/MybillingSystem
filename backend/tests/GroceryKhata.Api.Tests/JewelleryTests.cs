@@ -51,6 +51,26 @@ public sealed class JewelleryTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Tagged_pieces_show_online_priced_like_the_bill_once_the_owner_turns_it_on()
+    {
+        var (shop, auth) = await api.SignUpAsync("Online Jewellers");
+        var slug = auth.Memberships.Single().ShopSlug;
+        var guest = api.CreateClient();
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = Pure } } });
+        var chain = new { name = "Chain", metal = "gold", purity = 916, gross = 20.45m, wastagePercent = 8m, makingType = "per_gram", makingValue = 350m, huid = "AB12CD", category = "Chains" };
+        (await shop.PostJsonAsync("/api/v1/jewellery/pieces", chain)).EnsureSuccessStatusCode();
+        var sold = await (await shop.PostJsonAsync("/api/v1/jewellery/pieces", chain with { huid = "ZZ99ZZ" })).ReadAsync<JewelleryPieceDto>();
+        (await shop.PostJsonAsync("/api/v1/jewellery/bills", new { billId = Guid.CreateVersion7(), lines = new[] { new { pieceId = sold.Id } }, moneyPaid = 301_355m, mode = "upi", pan = "ABCDE1234F" })).EnsureSuccessStatusCode();
+
+        Assert.Null((await guest.GetJsonAsync<GroceryKhata.Api.Planner.StoreDto>($"/api/v1/store/{slug}")).Pieces);
+        (await shop.PutJsonAsync("/api/v1/jewellery/settings/show-online", new { show = true })).EnsureSuccessStatusCode();
+        var pieces = (await guest.GetJsonAsync<GroceryKhata.Api.Planner.StoreDto>($"/api/v1/store/{slug}")).Pieces!;
+        // Only the unsold one, at the same ₹3,01,355 the counter bills (see the 22K chain above).
+        var piece = Assert.Single(pieces);
+        Assert.Equal(("Chain", "22K", "AB12CD", 301_355m), (piece.Name, piece.Karat, piece.Huid, piece.Price));
+    }
+
+    [Fact]
     public async Task The_shop_page_shows_todays_gold_and_silver_rates()
     {
         var (shop, auth) = await api.SignUpAsync("Rate Jewellers");

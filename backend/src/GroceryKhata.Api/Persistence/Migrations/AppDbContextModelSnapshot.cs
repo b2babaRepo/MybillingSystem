@@ -5826,6 +5826,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("closed_on");
 
+                    b.Property<bool>("CompoundYearly")
+                        .HasColumnType("boolean")
+                        .HasColumnName("compound_yearly");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -11683,6 +11687,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)")
                         .HasColumnName("jewellery_max_off_percent");
+
+                    b.Property<bool>("JewelleryShowOnline")
+                        .HasColumnType("boolean")
+                        .HasColumnName("jewellery_show_online");
 
                     b.Property<double?>("Latitude")
                         .HasColumnType("double precision")

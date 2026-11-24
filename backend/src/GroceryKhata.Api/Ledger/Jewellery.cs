@@ -187,7 +187,8 @@ public sealed class OldMetalPurchase : Entity, ITenantOwned
 }
 
 /// <summary>The jewellery counter's owner settings: how much staff may take off making or wastage (null: no limit).</summary>
-public sealed record JewellerySettingsDto(decimal? MaxOffPercent);
+public sealed record JewellerySettingsDto(decimal? MaxOffPercent, bool ShowOnline = false);
+public sealed record JewelleryShowOnlineRequest(bool Show);
 
 public sealed record MetalRateDto(string Metal, int Purity, decimal SellPerGram, decimal? BuyPerGram, DateTimeOffset SetAt, bool Derived);
 public sealed record MetalRatesDto(IReadOnlyList<MetalRateDto> Current, IReadOnlyList<MetalRateDto> Today);
@@ -332,7 +333,14 @@ public static class JewelleryEndpoints
         group.MapGet("/bills/{billId:guid}", BillDetailAsync);
         OldMetalVoucherEndpoints.Map(group);
         group.MapGet("/settings", async (AppDbContext db, CancellationToken ct) =>
-            TypedResults.Ok(new JewellerySettingsDto(await db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.JewelleryMaxOffPercent).SingleOrDefaultAsync(ct))));
+            TypedResults.Ok(await db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => new JewellerySettingsDto(s.JewelleryMaxOffPercent, s.JewelleryShowOnline)).SingleAsync(ct)));
+        group.MapPut("/settings/show-online", async (JewelleryShowOnlineRequest r, AppDbContext db, CancellationToken ct) =>
+        {
+            var shop = await db.Shops.SingleAsync(s => s.Id == db.ShopIdNow, ct);
+            shop.JewelleryShowOnline = r.Show;
+            await db.SaveChangesAsync(ct);
+            return TypedResults.Ok(new JewellerySettingsDto(shop.JewelleryMaxOffPercent, shop.JewelleryShowOnline));
+        }).RequireAuthorization(AppPolicies.ShopOwner);
         group.MapPut("/settings", SetSettingsAsync).RequireAuthorization(AppPolicies.ShopOwner);
         return app;
     }
@@ -343,7 +351,7 @@ public static class JewelleryEndpoints
         var shop = await db.Shops.SingleAsync(s => s.Id == db.ShopIdNow, ct);
         shop.JewelleryMaxOffPercent = request.MaxOffPercent is { } p ? decimal.Round(p, 2) : null;
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(new JewellerySettingsDto(shop.JewelleryMaxOffPercent));
+        return TypedResults.Ok(new JewellerySettingsDto(shop.JewelleryMaxOffPercent, shop.JewelleryShowOnline));
     }
 
     private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
