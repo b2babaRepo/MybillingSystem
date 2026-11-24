@@ -95,6 +95,15 @@ public sealed class SchemePlan : Entity, ITenantOwned
     public decimal Bonus { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// "amount": the member saves rupees. "grams": each instalment buys gold of <see cref="Purity"/> at that day's rate,
+    /// and the member gets those grams at the end (valued at the day they buy, never less than they paid).
+    /// </summary>
+    public string Kind { get; set; } = "amount";
+
+    /// <summary>Gold purity a gram scheme saves in (916 for 22K).</summary>
+    public int? Purity { get; set; }
 }
 
 /// <summary>A customer enrolled in a scheme. Instalments are khata payments, so the money waits on their khata as an advance.</summary>
@@ -126,6 +135,11 @@ public sealed class SchemeInstalment : Entity, ITenantOwned
     public decimal Amount { get; set; }
 
     public DateOnly PaidOn { get; set; }
+
+    /// <summary>Gram schemes: the gold this instalment bought, and the selling rate per gram that day.</summary>
+    public decimal? Grams { get; set; }
+
+    public decimal? RatePerGram { get; set; }
 }
 
 /// <summary>A made-to-order piece or a repair taken in: what, how heavy, by when, and advances paid.</summary>
@@ -214,13 +228,13 @@ public sealed record GirviDto(
     decimal Principal, decimal RatePerMonth, bool DayWise, DateOnly PledgedOn, DateOnly DueOn, string? Kyc, string? Note, DateOnly? ClosedOn,
     decimal PrincipalLeft, decimal InterestDue, decimal ToClose, bool Overdue, IReadOnlyList<GirviPaymentDto> Payments);
 
-public sealed record SchemePlanRequest(string Name, int Months, decimal Instalment, decimal? Bonus);
-public sealed record SchemePlanDto(Guid Id, string Name, int Months, decimal Instalment, decimal Bonus, bool IsActive, int Members);
+public sealed record SchemePlanRequest(string Name, int Months, decimal Instalment, decimal? Bonus, string? Kind = null, int? Purity = null);
+public sealed record SchemePlanDto(Guid Id, string Name, int Months, decimal Instalment, decimal Bonus, bool IsActive, int Members, string Kind = "amount", int? Purity = null);
 public sealed record SchemeJoinRequest(Guid PlanId, Guid CustomerId);
 public sealed record SchemePayRequest(Guid EntryId, decimal? Amount, PaymentMode? Mode);
 public sealed record SchemeMemberDto(
     Guid Id, int Number, Guid PlanId, string Plan, Guid CustomerId, string Customer, string? Phone, DateOnly StartedOn, int Months, decimal Instalment, decimal Bonus,
-    int Paid, decimal PaidTotal, bool Complete, Guid? RedeemedBillId, DateOnly? ClosedOn, DateOnly NextDue);
+    int Paid, decimal PaidTotal, bool Complete, Guid? RedeemedBillId, DateOnly? ClosedOn, DateOnly NextDue, string Kind = "amount", int? Purity = null, decimal Grams = 0);
 
 public sealed record JewelleryOrderRequest(string Kind, Guid CustomerId, string Description, string? Metal, int? Purity, decimal? Weight, decimal? FixedRate, decimal? Charge, string DueOn, string? Note);
 public sealed record JewelleryAdvanceRequest(Guid EntryId, decimal Amount, PaymentMode? Mode);
@@ -391,7 +405,7 @@ public static class JewelleryBookEndpoints
     {
         var counts = await db.SchemeMembers.AsNoTracking().Where(m => m.ClosedOn == null).GroupBy(m => m.PlanId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
         var plans = await db.SchemePlans.AsNoTracking().OrderBy(p => p.CreatedAt).ToListAsync(ct);
-        return TypedResults.Ok(plans.Select(p => new SchemePlanDto(p.Id, p.Name, p.Months, p.Instalment, p.Bonus, p.IsActive, counts.GetValueOrDefault(p.Id))));
+        return TypedResults.Ok(plans.Select(p => new SchemePlanDto(p.Id, p.Name, p.Months, p.Instalment, p.Bonus, p.IsActive, counts.GetValueOrDefault(p.Id), p.Kind, p.Purity)));
     }
 
     private static async Task<IResult> AddPlanAsync(SchemePlanRequest r, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
@@ -399,10 +413,13 @@ public static class JewelleryBookEndpoints
         if (!LedgerEndpoints.IsOwner(user)) return TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Only the owner starts a scheme.");
         if (string.IsNullOrWhiteSpace(r.Name) || r.Name.Trim().Length > 60) return Invalid("Name", "Name the scheme.");
         if (r.Months is < 2 or > 36 || r.Instalment is <= 0 or > 10_000_000 || r.Bonus is < 0 or > 10_000_000) return Invalid("Months", "Enter 2–36 months, the monthly instalment and the bonus.");
-        var plan = new SchemePlan { Name = r.Name.Trim(), Months = r.Months, Instalment = decimal.Round(r.Instalment, 2), Bonus = decimal.Round(r.Bonus ?? 0, 2) };
+        var kind = r.Kind ?? "amount";
+        if (kind is not ("amount" or "grams")) return Invalid("Kind", "A scheme saves rupees or grams of gold.");
+        if (kind == "grams" && (r.Purity is not { } p || !JewelleryMath.ValidPurity("gold", p))) return Invalid("Purity", "Choose the gold purity the scheme saves in.");
+        var plan = new SchemePlan { Name = r.Name.Trim(), Months = r.Months, Instalment = decimal.Round(r.Instalment, 2), Bonus = decimal.Round(r.Bonus ?? 0, 2), Kind = kind, Purity = kind == "grams" ? r.Purity : null };
         db.SchemePlans.Add(plan);
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(new SchemePlanDto(plan.Id, plan.Name, plan.Months, plan.Instalment, plan.Bonus, true, 0));
+        return TypedResults.Ok(new SchemePlanDto(plan.Id, plan.Name, plan.Months, plan.Instalment, plan.Bonus, true, 0, plan.Kind, plan.Purity));
     }
 
     internal static async Task<List<SchemeMemberDto>> MemberViewsAsync(AppDbContext db, Func<IQueryable<SchemeMember>, IQueryable<SchemeMember>> filter, CancellationToken ct)
@@ -419,7 +436,8 @@ public static class JewelleryBookEndpoints
             var count = paid[m.Id].Count();
             var who = people.GetValueOrDefault(m.CustomerId);
             return new SchemeMemberDto(m.Id, m.Number, m.PlanId, plan.Name, m.CustomerId, who?.Name ?? "", who?.Phone, m.StartedOn, plan.Months, plan.Instalment, plan.Bonus,
-                count, paid[m.Id].Sum(i => i.Amount), count >= plan.Months, m.RedeemedBillId, m.ClosedOn, m.StartedOn.AddMonths(Math.Min(count, plan.Months)));
+                count, paid[m.Id].Sum(i => i.Amount), count >= plan.Months, m.RedeemedBillId, m.ClosedOn, m.StartedOn.AddMonths(Math.Min(count, plan.Months)),
+                plan.Kind, plan.Purity, paid[m.Id].Sum(i => i.Grams ?? 0));
         }).ToList();
     }
 
@@ -446,10 +464,19 @@ public static class JewelleryBookEndpoints
         if (await db.SchemeInstalments.CountAsync(i => i.MemberId == id, ct) >= plan.Months) return Invalid("Amount", "Every instalment is paid. The member can buy jewellery now.");
         var amount = r.Amount ?? plan.Instalment;
         if (amount <= 0 || amount > Money.MaxAmount) return Invalid("Amount", "Enter the instalment.");
+        // A gram scheme turns the instalment into gold at the day's selling rate for its purity.
+        decimal? grams = null, rateUsed = null;
+        if (plan.Kind == "grams")
+        {
+            var rates = (await JewelleryEndpoints.CurrentRatesAsync(db, clock, ct)).Current;
+            var rate = rates.FirstOrDefault(x => x.Metal == "gold" && x.Purity == plan.Purity)?.SellPerGram ?? 0;
+            if (rate <= 0) return Invalid("Amount", "Set today's gold rate first: a gram scheme turns each instalment into gold at the day's rate.");
+            (grams, rateUsed) = (decimal.Round(amount / rate, 3), rate);
+        }
         var entry = await ledger.AddKhataEntryAsync(new KhataEntryRequest(r.EntryId, member.CustomerId, KhataEntryType.Payment, amount, r.Mode ?? PaymentMode.Cash, $"Scheme {plan.Name} #{member.Number}", null),
             user.UserId()!.Value, ct, LedgerEndpoints.IsOwner(user));
         if (entry.Value is null) return entry.ToHttp("");
-        db.SchemeInstalments.Add(new SchemeInstalment { MemberId = id, EntryId = r.EntryId, Amount = amount, PaidOn = IndiaTime.Today(clock) });
+        db.SchemeInstalments.Add(new SchemeInstalment { MemberId = id, EntryId = r.EntryId, Amount = amount, PaidOn = IndiaTime.Today(clock), Grams = grams, RatePerGram = rateUsed });
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok((await MemberViewsAsync(db, q => q.Where(m => m.Id == id), ct)).Single());
     }

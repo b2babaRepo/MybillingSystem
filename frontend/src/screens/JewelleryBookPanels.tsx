@@ -6,7 +6,7 @@ import { Button, Drawer, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { addCustomer, useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
-import { grams, karat, type JewelleryPiece, type Metal } from '../lib/jewellery'
+import { GOLD_PURITIES, grams, karat, type JewelleryPiece, type Metal } from '../lib/jewellery'
 import { navigate } from '../router'
 
 // Phase 2 of the jewellery counter: girvi, savings schemes, orders and repairs, approval memos.
@@ -150,10 +150,11 @@ export function GirviPanel({ shopId, isOwner }: { shopId: string; isOwner: boole
 
 /* ---------------- schemes ---------------- */
 
-interface Plan { id: string; name: string; months: number; instalment: number; bonus: number; isActive: boolean; members: number }
+interface Plan { id: string; name: string; months: number; instalment: number; bonus: number; isActive: boolean; members: number; kind: 'amount' | 'grams'; purity: number | null }
 export interface Member {
   id: string; number: number; planId: string; plan: string; customerId: string; customer: string; phone: string | null; startedOn: string; months: number; instalment: number; bonus: number
   paid: number; paidTotal: number; complete: boolean; redeemedBillId: string | null; closedOn: string | null; nextDue: string
+  kind: 'amount' | 'grams'; purity: number | null; grams: number
 }
 
 export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
@@ -161,7 +162,7 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
   const queryClient = useQueryClient()
   const plans = useQuery({ queryKey: [shopId, 'jewellery', 'plans'], queryFn: () => api<Plan[]>('/v1/jewellery/schemes') }).data ?? []
   const members = useQuery({ queryKey: [shopId, 'jewellery', 'members'], queryFn: () => api<Member[]>('/v1/jewellery/schemes/members') }).data ?? []
-  const [newPlan, setNewPlan] = useState<{ name: string; months: string; instalment: string; bonus: string } | null>(null)
+  const [newPlan, setNewPlan] = useState<{ name: string; months: string; instalment: string; bonus: string; kind: 'amount' | 'grams'; purity: number } | null>(null)
   const [joining, setJoining] = useState<{ planId: string; customerId: string | null } | null>(null)
   const { busy, error, run } = useRun()
   const refresh = () => queryClient.invalidateQueries({ queryKey: [shopId, 'jewellery'] })
@@ -180,11 +181,12 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
           <div key={p.id} className="flex min-w-56 flex-1 flex-col gap-2 rounded-[18px] bg-[#fdf1e3] p-4">
             <b className="text-lg">{p.name}</b>
             <span className="text-sm">{t('jwl2.planLine', { months: p.months, amount: formatRupees(p.instalment), bonus: formatRupees(p.bonus) })}</span>
+            {p.kind === 'grams' && p.purity && <span className="self-start rounded-full bg-white px-2.5 py-0.5 text-xs font-bold text-[#a1460a]">{t('jwl5.gramPlan', { karat: karat('gold', p.purity) })}</span>}
             <span className="text-xs text-muted">{t('jwl2.membersCount', { count: p.members })}</span>
             {p.isActive && <button onClick={() => setJoining({ planId: p.id, customerId: null })} className={`min-h-10 self-start rounded-xl px-3 text-sm ${btn.solid}`}>+ {t('jwl2.enrol')}</button>}
           </div>
         ))}
-        {isOwner && <button onClick={() => setNewPlan({ name: '', months: '11', instalment: '', bonus: '' })} className={`min-h-[120px] min-w-56 flex-1 rounded-[18px] ${btn.add}`}>+ {t('jwl2.newPlan')}</button>}
+        {isOwner && <button onClick={() => setNewPlan({ name: '', months: '11', instalment: '', bonus: '', kind: 'amount', purity: 916 })} className={`min-h-[120px] min-w-56 flex-1 rounded-[18px] ${btn.add}`}>+ {t('jwl2.newPlan')}</button>}
       </div>
       {members.length > 0 && (
         <div className="overflow-x-auto rounded-card bg-white shadow-sm">
@@ -200,7 +202,7 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
                   <td className="px-2 py-2.5">{m.plan}</td>
                   <td className="px-2 py-2.5">
                     <span className="flex items-center gap-2"><span className="h-2 w-24 overflow-hidden rounded-full bg-[#edf2f1]"><span className="block h-full bg-brand" style={{ width: `${(m.paid / m.months) * 100}%` }} /></span>{m.paid}/{m.months}</span>
-                    <span className="text-xs text-muted">{formatRupees(m.paidTotal)}</span>
+                    <span className="text-xs text-muted">{formatRupees(m.paidTotal)}{m.kind === 'grams' && <b className="ml-1 text-[#a1460a]">· {t('jwl5.gramsSaved', { grams: m.grams.toFixed(3) })}</b>}</span>
                   </td>
                   <td className="px-2 py-2.5">{m.complete ? <span className="rounded-full bg-[#f1eafd] px-2.5 py-0.5 text-xs font-bold text-[#6d28d9]">{t('jwl2.complete', { bonus: formatRupees(m.bonus) })}</span> : m.nextDue < today() ? <span className="rounded-full bg-due-soft px-2.5 py-0.5 text-xs font-bold text-due">{date(m.nextDue)}</span> : date(m.nextDue)}</td>
                   <td className="px-3 py-2.5 text-right">{!m.complete && <button disabled={busy} onClick={() => void run(() => api(`/v1/jewellery/schemes/members/${m.id}/instalments`, 'POST', { entryId: crypto.randomUUID(), mode: 'cash' })).then(() => refresh())}
@@ -223,8 +225,15 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
             <Field label={t('jwl2.bonus')}><input value={newPlan.bonus} onChange={(e) => setNewPlan({ ...newPlan, bonus: num(e.target.value) })} inputMode="decimal" className={box} /></Field>
           </div>
           <p className="text-xs text-muted">{t('jwl2.bonusHint')}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label={t('jwl5.saves')}><select value={newPlan.kind} onChange={(e) => setNewPlan({ ...newPlan, kind: e.target.value as 'amount' | 'grams' })} className={box}>
+              <option value="amount">{t('jwl5.savesAmount')}</option><option value="grams">{t('jwl5.savesGrams')}</option></select></Field>
+            {newPlan.kind === 'grams' && <Field label={t('jwl.purity')}><select value={newPlan.purity} onChange={(e) => setNewPlan({ ...newPlan, purity: Number(e.target.value) })} className={box}>
+              {GOLD_PURITIES.map((p) => <option key={p} value={p}>{karat('gold', p)} · {p}</option>)}</select></Field>}
+          </div>
+          {newPlan.kind === 'grams' && <p className="text-xs text-muted">{t('jwl5.gramsHint')}</p>}
           {error && <p className="text-sm font-semibold text-due">{error}</p>}
-          <Button busy={busy} disabled={!newPlan.name.trim() || !(Number(newPlan.instalment) > 0)} onClick={() => void run(() => api('/v1/jewellery/schemes', 'POST', { name: newPlan.name, months: Number(newPlan.months), instalment: Number(newPlan.instalment), bonus: Number(newPlan.bonus) || 0 }))
+          <Button busy={busy} disabled={!newPlan.name.trim() || !(Number(newPlan.instalment) > 0)} onClick={() => void run(() => api('/v1/jewellery/schemes', 'POST', { name: newPlan.name, months: Number(newPlan.months), instalment: Number(newPlan.instalment), bonus: Number(newPlan.bonus) || 0, kind: newPlan.kind, purity: newPlan.kind === 'grams' ? newPlan.purity : null }))
             .then((ok) => { if (ok) { setNewPlan(null); void refresh() } })}>{t('save')}</Button>
         </Drawer>
       )}

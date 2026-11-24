@@ -645,6 +645,25 @@ public static class JewelleryEndpoints
                 left -= off;
                 schemeDiscount += off;
             }
+
+            // A gram scheme: the member's saved grams at today's rate. If gold went up, the rise comes off the bill (the
+            // money paid already waits on their khata); if it went down they keep what they paid.
+            if (member.Kind == "grams" && member.Purity is { } savedPurity && rates.TryGetValue(("gold", savedPurity), out var todayRate))
+            {
+                var gain = Math.Max(0, decimal.Round(member.Grams * todayRate.SellPerGram - member.PaidTotal, 2));
+                if (gain > 0) problems.Add($"Gram scheme: {member.Grams:0.000} g saved is worth {member.Grams * todayRate.SellPerGram:N2} today, {gain:N2} more than paid, taken off this bill.");
+                for (var i = 0; i < worked.Count && gain > 0; i++)
+                {
+                    var l = worked[i];
+                    if (l.FixedPrice) continue;
+                    var offMaking = Math.Min(gain, l.MakingAmount);
+                    var offMetal = Math.Min(gain - offMaking, l.MetalValue);
+                    var taxableNow = l.Taxable - offMaking - offMetal;
+                    worked[i] = l with { MakingAmount = l.MakingAmount - offMaking, MetalValue = l.MetalValue - offMetal, Taxable = taxableNow, Gst = decimal.Round(taxableNow * JewelleryMath.GstPercent / 100m, 2) };
+                    gain -= offMaking + offMetal;
+                    schemeDiscount += offMaking + offMetal;
+                }
+            }
         }
 
         var (taxable, gst, roundOff, total) = JewelleryMath.Sum(worked);

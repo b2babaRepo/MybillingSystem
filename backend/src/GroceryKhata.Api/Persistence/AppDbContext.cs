@@ -1552,6 +1552,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Name).HasMaxLength(60);
             b.Property(p => p.Instalment).HasPrecision(14, 2);
             b.Property(p => p.Bonus).HasPrecision(14, 2);
+            b.Property(p => p.Kind).HasMaxLength(10).HasDefaultValue("amount");
         });
 
         modelBuilder.Entity<SchemeMember>(b =>
@@ -1567,6 +1568,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("scheme_instalments");
             b.HasTenantKey();
             b.Property(i => i.Amount).HasPrecision(14, 2);
+            b.Property(i => i.Grams).HasPrecision(10, 3);
+            b.Property(i => i.RatePerGram).HasPrecision(12, 2);
             b.HasIndex(i => new { i.ShopId, i.MemberId });
             b.HasIndex(i => new { i.ShopId, i.EntryId }).IsUnique();
         });

@@ -52,6 +52,37 @@ public sealed class JewelleryBookTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_gram_scheme_saves_gold_at_each_days_rate_and_the_rise_comes_off_the_bill()
+    {
+        var (shop, _) = await api.SignUpAsync("Swarna Bachat");
+        async Task Rate(decimal r) => await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m }, new { metal = "gold", purity = 916, sellPerGram = r } } });
+        var customer = await Customer(shop, "Kavita");
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/jewellery/schemes", new { name = "Gold 3", months = 3, instalment = 7_000m, kind = "grams" })).StatusCode);
+        var plan = await (await shop.PostJsonAsync("/api/v1/jewellery/schemes", new { name = "Gold 3", months = 3, instalment = 7_000m, kind = "grams", purity = 916 })).ReadAsync<SchemePlanDto>();
+        Assert.Equal(("grams", 916), (plan.Kind, plan.Purity));
+        var member = await (await shop.PostJsonAsync("/api/v1/jewellery/schemes/members", new { planId = plan.Id, customerId = customer })).ReadAsync<SchemeMemberDto>();
+
+        // ₹7,000 at ₹7,000/g = 1 g; at ₹7,000/g again = 1 g; at ₹8,750/g = 0.8 g: 2.8 g for ₹21,000.
+        foreach (var r in new[] { 7_000m, 7_000m, 8_750m })
+        {
+            await Rate(r);
+            member = await (await shop.PostJsonAsync($"/api/v1/jewellery/schemes/members/{member.Id}/instalments", new { entryId = Guid.CreateVersion7(), mode = "upi" })).ReadAsync<SchemeMemberDto>();
+        }
+
+        Assert.Equal((true, 2.8m, 21_000m), (member.Complete, member.Grams, member.PaidTotal));
+        // Today 22K is ₹9,000/g: 2.8 g is worth ₹25,200, ₹4,200 more than paid. It comes off the making (₹5,000) first.
+        await Rate(9_000m);
+        var chain = new { name = "Chain", metal = "gold", purity = 916, gross = 10m, makingType = "per_gram", makingValue = 500m, huid = "GS12CH" };
+        var quote = await (await shop.PostJsonAsync("/api/v1/jewellery/quote", new { customerId = customer, lines = new[] { chain }, schemeMemberId = member.Id })).ReadAsync<JewelleryQuoteDto>();
+        Assert.Equal((4_200m, 800m, 90_800m), (quote.SchemeDiscount, quote.Lines[0].MakingAmount, quote.Taxable));
+
+        // Gold falls below what was paid: nothing extra comes off, and the ₹21,000 on the khata still pays.
+        await Rate(6_000m);
+        var down = await (await shop.PostJsonAsync("/api/v1/jewellery/quote", new { customerId = customer, lines = new[] { chain }, schemeMemberId = member.Id })).ReadAsync<JewelleryQuoteDto>();
+        Assert.Equal((0m, 21_000m), (down.SchemeDiscount, down.KhataAdvance));
+    }
+
+    [Fact]
     public async Task A_finished_scheme_takes_its_bonus_off_making_and_the_instalments_pay_the_bill()
     {
         var (shop, _) = await api.SignUpAsync("Ganesh Jewellers");

@@ -9050,6 +9050,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("entry_id");
 
+                    b.Property<decimal?>("Grams")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)")
+                        .HasColumnName("grams");
+
                     b.Property<Guid>("MemberId")
                         .HasColumnType("uuid")
                         .HasColumnName("member_id");
@@ -9057,6 +9062,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateOnly>("PaidOn")
                         .HasColumnType("date")
                         .HasColumnName("paid_on");
+
+                    b.Property<decimal?>("RatePerGram")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("rate_per_gram");
 
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
@@ -9158,6 +9168,14 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("amount")
+                        .HasColumnName("kind");
+
                     b.Property<int>("Months")
                         .HasColumnType("integer")
                         .HasColumnName("months");
@@ -9167,6 +9185,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("character varying(60)")
                         .HasColumnName("name");
+
+                    b.Property<int?>("Purity")
+                        .HasColumnType("integer")
+                        .HasColumnName("purity");
 
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
