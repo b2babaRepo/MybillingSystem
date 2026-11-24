@@ -73,6 +73,18 @@ public sealed class Shop : Entity
     /// <summary>Cash paid to one person in a day above this is not a business expense (s.40A(3): ₹10,000): warned.</summary>
     public decimal CashPayoutLimit { get; set; } = 10_000m;
 
+    /// <summary>The state whose money-lending law the shop's girvi follows ("gujarat"); null: no state rules shown.</summary>
+    public string? GirviState { get; set; }
+
+    /// <summary>The shop's money-lender licence number, printed on the girvi ticket; warned when missing.</summary>
+    public string? GirviLicence { get; set; }
+
+    /// <summary>The highest yearly interest the state allows (percent), as the shop's CA confirms it; null: not set.</summary>
+    public decimal? GirviMaxYearlyRate { get; set; }
+
+    /// <summary>Days of written notice to the borrower before pledged gold can be sold.</summary>
+    public int GirviNoticeDays { get; set; } = 15;
+
     /// <summary>
     /// Jewellery: the most staff may take off a tagged piece's making charge or wastage on a bill, in percent of it
     /// (10 = making ₹500/g can go down to ₹450/g). Null: no limit. The owner is never limited.

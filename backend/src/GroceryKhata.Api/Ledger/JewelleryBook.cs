@@ -230,7 +230,8 @@ public sealed record GirviPaymentDto(DateOnly PaidOn, decimal Amount, decimal In
 public sealed record GirviDto(
     Guid Id, int Number, Guid CustomerId, string Customer, string? Phone, string Items, string Metal, decimal Gross, decimal Reading, decimal Fine, decimal PledgeValue,
     decimal Principal, decimal RatePerMonth, bool DayWise, DateOnly PledgedOn, DateOnly DueOn, string? Kyc, string? Note, DateOnly? ClosedOn,
-    decimal PrincipalLeft, decimal InterestDue, decimal ToClose, bool Overdue, IReadOnlyList<GirviPaymentDto> Payments, bool CompoundYearly = false, decimal Capitalised = 0, decimal? ValueToday = null, decimal? CoverPercent = null);
+    decimal PrincipalLeft, decimal InterestDue, decimal ToClose, bool Overdue, IReadOnlyList<GirviPaymentDto> Payments, bool CompoundYearly = false, decimal Capitalised = 0, decimal? ValueToday = null, decimal? CoverPercent = null,
+    IReadOnlyList<string>? Warnings = null);
 
 public sealed record SchemePlanRequest(string Name, int Months, decimal Instalment, decimal? Bonus, string? Kind = null, int? Purity = null);
 public sealed record SchemePlanDto(Guid Id, string Name, int Months, decimal Instalment, decimal Bonus, bool IsActive, int Members, string Kind = "amount", int? Purity = null);
@@ -379,6 +380,7 @@ public static class JewelleryBookEndpoints
         // The pledged metal at today's buying rate (pure, 999): what is owed is watched against it, because the loan was
         // made at that day's rate and the rate moves.
         var rates = (await JewelleryEndpoints.CurrentRatesAsync(db, clock, ct)).Current;
+        var rules = await GirviRules.ForShopAsync(db, ct);
         decimal? PureRate(string metal) => rates.FirstOrDefault(x => x.Metal == metal && x.Purity == 999) is { } r ? r.BuyPerGram ?? r.SellPerGram : null;
         return loans.Select(l =>
         {
@@ -389,7 +391,8 @@ public static class JewelleryBookEndpoints
             var who = people.GetValueOrDefault(l.CustomerId);
             return new GirviDto(l.Id, l.Number, l.CustomerId, who?.Name ?? "", who?.Phone, l.Items, l.Metal, l.Gross, l.Reading, l.Fine, l.PledgeValue, l.Principal, l.RatePerMonth,
                 l.DayWise, l.PledgedOn, l.DueOn, l.Kyc, l.Note, l.ClosedOn, left, interest, left + interest, l.ClosedOn is null && today > l.DueOn,
-                ps.Select(p => new GirviPaymentDto(p.PaidOn, p.Amount, p.InterestPart, p.PrincipalPart, p.Mode)).ToList(), l.CompoundYearly, capitalised, valueToday, cover);
+                ps.Select(p => new GirviPaymentDto(p.PaidOn, p.Amount, p.InterestPart, p.PrincipalPart, p.Mode)).ToList(), l.CompoundYearly, capitalised, valueToday, cover,
+                l.ClosedOn is null ? GirviRules.Warnings(rules, l.RatePerMonth, today > l.DueOn) : []);
         }).ToList();
     }
 

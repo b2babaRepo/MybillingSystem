@@ -11681,6 +11681,23 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("text[]")
                         .HasColumnName("extra_types");
 
+                    b.Property<string>("GirviLicence")
+                        .HasColumnType("text")
+                        .HasColumnName("girvi_licence");
+
+                    b.Property<decimal?>("GirviMaxYearlyRate")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("girvi_max_yearly_rate");
+
+                    b.Property<int>("GirviNoticeDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("girvi_notice_days");
+
+                    b.Property<string>("GirviState")
+                        .HasColumnType("text")
+                        .HasColumnName("girvi_state");
+
                     b.Property<bool>("GstComposition")
                         .HasColumnType("boolean")
                         .HasColumnName("gst_composition");

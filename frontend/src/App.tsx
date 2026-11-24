@@ -110,6 +110,7 @@ const BookingsScreen = lazy(() => import('./screens/BookingsScreen').then((modul
 const JobsScreen = lazy(() => import('./screens/JobsScreen').then((module) => ({ default: module.JobsScreen })))
 const SaleOrdersScreen = lazy(() => import('./screens/SaleOrdersScreen').then((module) => ({ default: module.SaleOrdersScreen })))
 const ExchangeSlipsScreen = lazy(() => import('./screens/ExchangeSlipsScreen').then((module) => ({ default: module.ExchangeSlipsScreen })))
+const PricingPage = lazy(() => import('./screens/PricingPage').then((module) => ({ default: module.PricingPage })))
 const FindBillScreen = lazy(() => import('./screens/FindBillScreen').then((module) => ({ default: module.FindBillScreen })))
 const EstimatesScreen = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatesScreen })))
 const EstimatePrint = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatePrint })))
@@ -146,6 +147,14 @@ export default function App() {
     return (
       <Suspense fallback={<Loading />}>
         <StoreApp path={path} />
+      </Suspense>
+    )
+  }
+  // The public price page: open to anyone.
+  if (path === '/pricing') {
+    return (
+      <Suspense fallback={<Loading />}>
+        <PricingPage />
       </Suspense>
     )
   }

@@ -374,6 +374,7 @@ public sealed class Entitlements(AppDbContext db, TimeProvider clock, Microsoft.
             FeatureKeys = [Features.Reports, Features.Store, Features.WhatsApp, Features.Staff], MaxStaff = 1, MaxOwners = 1, WhatsAppPerMonth = 100,
         },
         Silver(),
+        Jewellery(),
         new()
         {
             Code = "pro", Name = "Gold", SortOrder = 3, PriceMonthly = 199, PriceYear1 = 1999, PriceYear3 = 4499, PriceYear5 = 6999,
@@ -386,6 +387,16 @@ public sealed class Entitlements(AppDbContext db, TimeProvider clock, Microsoft.
     {
         Code = "silver", Name = "Silver", SortOrder = 2, PriceMonthly = 99, PriceYear1 = 999, PriceYear3 = 2299, PriceYear5 = 3499,
         FeatureKeys = [Features.Reports, Features.Store, Features.WhatsApp, Features.Staff, Features.BillPhoto], MaxStaff = 3, MaxOwners = 2, WhatsAppPerMonth = 300,
+    };
+
+    /// <summary>
+    /// For jewellers: one flat yearly price with everything in it and no caps on tagged pieces or girvi loans (rivals
+    /// charge ₹10,000–₹48,000 a year or cap free tiers). Super admins change the price later.
+    /// </summary>
+    public static Plan Jewellery() => new()
+    {
+        Code = "jewellery", Name = "Jewellery", SortOrder = 4, PriceMonthly = null, PriceYear1 = 4999, PriceYear3 = 11999, PriceYear5 = 17999,
+        FeatureKeys = Features.All, MaxStaff = 10, MaxOwners = 3, WhatsAppPerMonth = 500,
     };
 
     public static Offer DefaultOffer() => new()

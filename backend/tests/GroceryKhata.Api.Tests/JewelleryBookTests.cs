@@ -108,6 +108,35 @@ public sealed class JewelleryBookTests(ApiFactory api)
         (await shop.PostJsonAsync($"/api/v1/jewellery/girvi/{loan.Id}/payments", new { amount = 10_000m, mode = "upi" })).EnsureSuccessStatusCode();
     }
 
+    [Fact]
+    public async Task Gujarat_rules_warn_about_the_licence_the_interest_cap_and_notice_before_sale()
+    {
+        var (shop, _) = await api.SignUpAsync("Surat Sarafa");
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m } } });
+        var customer = await Customer(shop, "Kanu");
+        var loan = await (await shop.PostJsonAsync("/api/v1/jewellery/girvi", new { customerId = customer, items = "Chain", metal = "gold", gross = 10m, reading = 100m, principal = 50_000m, ratePerMonth = 2m }))
+            .ReadAsync<GirviDto>();
+        Assert.Empty(loan.Warnings!);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutJsonAsync("/api/v1/shop", new { name = "Surat Sarafa", girviState = "atlantis" })).StatusCode);
+        (await shop.PutJsonAsync("/api/v1/shop", new { name = "Surat Sarafa", girviState = "gujarat", girviMaxYearlyRate = 18m })).EnsureSuccessStatusCode();
+        var warned = (await shop.GetJsonAsync<List<GirviDto>>("/api/v1/jewellery/girvi")).Single();
+        Assert.Equal(["no_licence:Gujarat Money-Lenders Act, 2011", "over_cap:24:18"], warned.Warnings!);
+
+        (await shop.PutJsonAsync("/api/v1/shop", new { name = "Surat Sarafa", girviLicence = "ML/AHD/1234", girviMaxYearlyRate = 0m })).EnsureSuccessStatusCode();
+        Assert.Empty((await shop.GetJsonAsync<List<GirviDto>>("/api/v1/jewellery/girvi")).Single().Warnings!);
+        // Past the due date, the notice before sale is shown.
+        Assert.Equal(["notice:15"], GirviRules.Warnings(new GirviRuleSet(GirviRules.States["gujarat"], "ML/1", null, 15), 1m, overdue: true));
+    }
+
+    [Fact]
+    public async Task The_price_page_lists_the_jewellery_plan_without_signing_in()
+    {
+        var plans = await api.CreateClient().GetJsonAsync<List<GroceryKhata.Api.Billing.PublicPlanDto>>("/api/v1/plans/public");
+        var jewellery = plans.Single(p => p.Code == "jewellery");
+        Assert.Equal((4999m, (int?)null), (jewellery.PriceYear1, jewellery.MaxCustomers));
+    }
+
     private static async Task<Guid> Customer(HttpClient shop, string name)
     {
         var id = Guid.CreateVersion7();

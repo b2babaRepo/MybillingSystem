@@ -144,6 +144,7 @@ export function AuthScreen() {
       <button type="button" className={`min-h-12 rounded-xl ${btn.outline}`} onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
         {mode === 'sign-in' ? t('newShop') : t('haveAccount')}
       </button>
+      <button type="button" className="text-sm font-semibold text-brand underline" onClick={() => navigate('/pricing')}>{t('jwl7.pricing')}</button>
       {/* Field agents sign in (or register as a person) first; the app then opens their application. */}
       {agentPath
         ? <p className="rounded-lg bg-warn-soft p-3 text-sm text-warn-ink">{t('fieldAgent.signInFirst')}</p>

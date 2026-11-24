@@ -53,6 +53,17 @@ export interface Girvi {
   compoundYearly: boolean; capitalised: number
   /** The pledged metal at today's buying rate, and what is owed as a percent of it (open loans). */
   valueToday: number | null; coverPercent: number | null
+  /** State-law warnings: "no_licence:<act>", "over_cap:<yearly>:<cap>", "notice:<days>". */
+  warnings?: string[]
+}
+
+/** A state-law warning in words. */
+function GirviWarning({ w }: { w: string }) {
+  const { t } = useTranslation()
+  const [kind, a, b] = w.split(':')
+  if (kind === 'no_licence') return null
+  const text = kind === 'over_cap' ? t('jwl7.overCap', { rate: a, cap: b }) : kind === 'notice' ? t('jwl7.noticeDue', { days: a }) : w
+  return <span className="mt-1 block text-[11px] font-semibold text-warn-ink">⚠ {text}</span>
 }
 
 /** 75%: watch it; 85%: ask for interest or more gold; 100%: what is owed is more than the gold is worth today. */
@@ -88,6 +99,9 @@ export function GirviPanel({ shopId, shopName, isOwner }: { shopId: string; shop
         <Card tone="bg-[#fdf1e3] text-[#a1460a]" label={t('jwl2.interestDue')} value={formatRupees(open.reduce((n, g) => n + g.interestDue, 0))} />
         <Card tone={open.some((g) => g.overdue) ? 'bg-[#b45309] text-white' : 'bg-[#edf2f1] text-[#33423d]'} label={t('jwl2.overdue')} value={open.filter((g) => g.overdue).length} />
       </div>
+      {open.find((g) => g.warnings?.some((w) => w.startsWith('no_licence:'))) && (
+        <p className="rounded-xl bg-warn-soft p-3 text-sm font-semibold text-warn-ink">{t('jwl7.noLicence', { act: open.flatMap((g) => g.warnings ?? []).find((w) => w.startsWith('no_licence:'))!.slice('no_licence:'.length) })}</p>
+      )}
       {open.some((g) => (g.coverPercent ?? 0) >= 85) && (
         <p className="rounded-xl bg-due-soft p-3 text-sm font-semibold text-due">{t('jwl6.atRisk', { count: open.filter((g) => (g.coverPercent ?? 0) >= 85).length })}</p>
       )}
@@ -117,7 +131,7 @@ export function GirviPanel({ shopId, shopName, isOwner }: { shopId: string; shop
                     {g.payments.some((p) => p.amount < 0) && <span className="block text-xs font-semibold text-[#1d4ed8]">{t('jwl5.topUpRow')} {formatRupees(-g.payments.filter((p) => p.amount < 0).reduce((s, p) => s + p.amount, 0))}</span>}</td>
                   <td className="px-2 py-2.5">{g.ratePerMonth}% {t('jwl2.perMonth')}<span className="block text-xs text-muted">{g.dayWise ? t('jwl2.dayWise') : t('jwl2.monthWise')}{g.compoundYearly ? ` · ${t('jwl5.compoundTag')}` : ''}</span>
                     {g.capitalised > 0 && <span className="block text-xs font-semibold text-[#a1460a]">{t('jwl5.capitalised', { amount: formatRupees(g.capitalised) })}</span>}</td>
-                  <td className="px-2 py-2.5 text-right">{g.closedOn ? <span className="text-muted">{t('jwl2.closedOn', { date: date(g.closedOn) })}</span> : <><b>{formatRupees(g.toClose)}</b><span className="block text-xs text-muted">{t('jwl2.interestShort')} {formatRupees(g.interestDue)}</span><CoverBadge g={g} /></>}</td>
+                  <td className="px-2 py-2.5 text-right">{g.closedOn ? <span className="text-muted">{t('jwl2.closedOn', { date: date(g.closedOn) })}</span> : <><b>{formatRupees(g.toClose)}</b><span className="block text-xs text-muted">{t('jwl2.interestShort')} {formatRupees(g.interestDue)}</span><CoverBadge g={g} />{g.warnings?.map((w) => <GirviWarning key={w} w={w} />)}</>}</td>
                   <td className="px-2 py-2.5">{g.overdue ? <span className="rounded-full bg-due-soft px-2.5 py-0.5 text-xs font-bold text-due">{date(g.dueOn)}</span> : date(g.dueOn)}</td>
                   <td className="px-3 py-2.5 text-right"><span className="flex flex-wrap justify-end gap-1.5">
                     {!g.closedOn && <button onClick={() => { setPaying(g); setPay({ amount: String(g.toClose), mode: 'cash' }) }} className={`min-h-9 rounded-xl px-3 text-sm ${btn.solid}`}>{t('jwl2.receive')}</button>}

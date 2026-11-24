@@ -19,8 +19,8 @@ public sealed class BillingTests(ApiFactory api)
         var view = await shop.GetJsonAsync<SubscriptionView>("/api/v1/subscription");
         Assert.Equal((SubscriptionStatus.Trial, "pro"), (view.Status, view.PlanCode));
         Assert.InRange(view.DaysLeft!.Value, 29, 30);
-        Assert.Equal(["free", "basic", "silver", "pro"], view.Plans.Select(p => p.Code));
-        Assert.Equal(["Free", "Basic", "Silver", "Gold"], view.Plans.Select(p => p.Name));
+        Assert.Equal(["free", "basic", "silver", "pro", "jewellery"], view.Plans.Select(p => p.Code));
+        Assert.Equal(["Free", "Basic", "Silver", "Gold", "Jewellery"], view.Plans.Select(p => p.Name));
         Assert.Equal(499m, view.Plans.Single(p => p.Code == "basic").PriceYear1);
     }
 

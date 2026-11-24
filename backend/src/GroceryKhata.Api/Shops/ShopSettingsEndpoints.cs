@@ -9,13 +9,16 @@ namespace GroceryKhata.Api.Shops;
 public sealed record ShopLocationDto(double? Latitude, double? Longitude);
 
 public sealed record ShopSettingsDto(string Name, string Slug, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType Type = ShopType.Kirana, string? Gstin = null, bool GstComposition = false, IReadOnlyList<ShopType>? ExtraTypes = null, decimal StaffMaxDiscountPercent = 10m, bool? DeliversGoods = null, decimal StaffMaxWriteOff = 1000m, int ExchangeSlipDays = 90, decimal ExchangeSlipHelperMax = 5000m, string? BillPrefix = null, IReadOnlyList<string>? BillFields = null,
-    decimal CashReceiptLimit = 200_000m, decimal PanFrom = 200_000m, decimal CashPayoutLimit = 10_000m);
+    decimal CashReceiptLimit = 200_000m, decimal PanFrom = 200_000m, decimal CashPayoutLimit = 10_000m,
+    string? GirviState = null, string? GirviLicence = null, decimal? GirviMaxYearlyRate = null, int GirviNoticeDays = 15);
 
 /// <summary><see cref="Type"/>: null keeps the shop's trade.</summary>
 public sealed record ShopSettingsUpdate(string? Name, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType? Type = null, string? Gstin = null, bool? GstComposition = null, IReadOnlyList<ShopType>? ExtraTypes = null, decimal? StaffMaxDiscountPercent = null, bool? DeliversGoods = null, decimal? StaffMaxWriteOff = null, int? ExchangeSlipDays = null, decimal? ExchangeSlipHelperMax = null,
     // Null keeps them (older apps); "" / an empty list clears them.
     string? BillPrefix = null, IReadOnlyList<string>? BillFields = null,
-    decimal? CashReceiptLimit = null, decimal? PanFrom = null, decimal? CashPayoutLimit = null);
+    decimal? CashReceiptLimit = null, decimal? PanFrom = null, decimal? CashPayoutLimit = null,
+    // Girvi state rules: "" clears the state, licence or cap; null keeps them.
+    string? GirviState = null, string? GirviLicence = null, decimal? GirviMaxYearlyRate = null, int? GirviNoticeDays = null);
 
 /// <summary>The shop's own details: name, where it is, UPI ID and reminder wording. Everyone reads; the owner changes.</summary>
 public static partial class ShopSettingsEndpoints
@@ -46,7 +49,7 @@ public static partial class ShopSettingsEndpoints
     private static async Task<IResult> GetAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
         await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId)
             .SingleOrDefaultAsync(ct) is { } s
-            ? TypedResults.Ok(new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate, s.Type, s.Gstin, s.GstComposition, ShopTypes.Parse(s.ExtraTypes), s.StaffMaxDiscountPercent, s.DeliversGoods, s.StaffMaxWriteOff, s.ExchangeSlipDays, s.ExchangeSlipHelperMax, s.BillPrefix, Ledger.BillFields.Labels(s.BillFields), s.CashReceiptLimit, s.PanFrom, s.CashPayoutLimit))
+            ? TypedResults.Ok(new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate, s.Type, s.Gstin, s.GstComposition, ShopTypes.Parse(s.ExtraTypes), s.StaffMaxDiscountPercent, s.DeliversGoods, s.StaffMaxWriteOff, s.ExchangeSlipDays, s.ExchangeSlipHelperMax, s.BillPrefix, Ledger.BillFields.Labels(s.BillFields), s.CashReceiptLimit, s.PanFrom, s.CashPayoutLimit, s.GirviState, s.GirviLicence, s.GirviMaxYearlyRate, s.GirviNoticeDays))
             : TypedResults.NotFound();
 
     private static async Task<IResult> UpdateAsync(ShopSettingsUpdate request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
@@ -81,6 +84,16 @@ public static partial class ShopSettingsEndpoints
         if (request.CashReceiptLimit is < 1_000 or > 10_000_000 || request.PanFrom is < 1_000 or > 10_000_000 || request.CashPayoutLimit is < 0 or > 10_000_000)
         {
             errors[nameof(request.CashReceiptLimit)] = ["Set the cash and PAN limits between ₹1,000 and ₹1 crore."];
+        }
+
+        if (request.GirviState is { Length: > 0 } st && !Ledger.GirviRules.States.ContainsKey(st))
+        {
+            errors[nameof(request.GirviState)] = ["Choose a state from the list."];
+        }
+
+        if (request.GirviLicence is { Length: > 60 } || request.GirviMaxYearlyRate is < 0 or > 100 || request.GirviNoticeDays is < 0 or > 365)
+        {
+            errors[nameof(request.GirviLicence)] = ["Licence up to 60 letters, a yearly interest cap from 0 to 100% and notice from 0 to 365 days."];
         }
 
         if (request.ExchangeSlipHelperMax is < 0 or > 10_000_000)
@@ -137,6 +150,10 @@ public static partial class ShopSettingsEndpoints
         shop.CashReceiptLimit = request.CashReceiptLimit ?? shop.CashReceiptLimit;
         shop.PanFrom = request.PanFrom ?? shop.PanFrom;
         shop.CashPayoutLimit = request.CashPayoutLimit ?? shop.CashPayoutLimit;
+        if (request.GirviState is not null) shop.GirviState = request.GirviState.Length == 0 ? null : request.GirviState;
+        if (request.GirviLicence is not null) shop.GirviLicence = string.IsNullOrWhiteSpace(request.GirviLicence) ? null : request.GirviLicence.Trim();
+        if (request.GirviMaxYearlyRate is not null) shop.GirviMaxYearlyRate = request.GirviMaxYearlyRate == 0 ? null : request.GirviMaxYearlyRate;
+        shop.GirviNoticeDays = request.GirviNoticeDays ?? shop.GirviNoticeDays;
         // New bills take the prefix; bills already made keep theirs.
         if (prefix is not null) shop.BillPrefix = prefix.Length == 0 ? null : prefix;
         if (fieldLabels is not null) shop.BillFields = Ledger.BillFields.LabelsJson(fieldLabels);
@@ -145,7 +162,7 @@ public static partial class ShopSettingsEndpoints
             shop.ExtraTypes = extra.Where(x => x != shop.Type).Distinct().Select(ShopTypes.Name).ToArray();
         }
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.Type, shop.Gstin, shop.GstComposition, ShopTypes.Parse(shop.ExtraTypes), shop.StaffMaxDiscountPercent, shop.DeliversGoods, shop.StaffMaxWriteOff, shop.ExchangeSlipDays, shop.ExchangeSlipHelperMax, shop.BillPrefix, Ledger.BillFields.Labels(shop.BillFields), shop.CashReceiptLimit, shop.PanFrom, shop.CashPayoutLimit));
+        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.Type, shop.Gstin, shop.GstComposition, ShopTypes.Parse(shop.ExtraTypes), shop.StaffMaxDiscountPercent, shop.DeliversGoods, shop.StaffMaxWriteOff, shop.ExchangeSlipDays, shop.ExchangeSlipHelperMax, shop.BillPrefix, Ledger.BillFields.Labels(shop.BillFields), shop.CashReceiptLimit, shop.PanFrom, shop.CashPayoutLimit, shop.GirviState, shop.GirviLicence, shop.GirviMaxYearlyRate, shop.GirviNoticeDays));
     }
 
     private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
