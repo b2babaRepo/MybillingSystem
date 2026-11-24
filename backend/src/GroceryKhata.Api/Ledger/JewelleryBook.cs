@@ -44,6 +44,9 @@ public sealed class GirviLoan : Entity, ITenantOwned
     /// <summary>True: interest counted by the day (30 days a month). False: every month started counts in full.</summary>
     public bool DayWise { get; set; }
 
+    /// <summary>True: interest not paid by each anniversary of the loan is added to the principal.</summary>
+    public bool CompoundYearly { get; set; }
+
     public DateOnly PledgedOn { get; set; }
 
     public DateOnly DueOn { get; set; }
@@ -95,6 +98,15 @@ public sealed class SchemePlan : Entity, ITenantOwned
     public decimal Bonus { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// "amount": the member saves rupees. "grams": each instalment buys gold of <see cref="Purity"/> at that day's rate,
+    /// and the member gets those grams at the end (valued at the day they buy, never less than they paid).
+    /// </summary>
+    public string Kind { get; set; } = "amount";
+
+    /// <summary>Gold purity a gram scheme saves in (916 for 22K).</summary>
+    public int? Purity { get; set; }
 }
 
 /// <summary>A customer enrolled in a scheme. Instalments are khata payments, so the money waits on their khata as an advance.</summary>
@@ -126,6 +138,11 @@ public sealed class SchemeInstalment : Entity, ITenantOwned
     public decimal Amount { get; set; }
 
     public DateOnly PaidOn { get; set; }
+
+    /// <summary>Gram schemes: the gold this instalment bought, and the selling rate per gram that day.</summary>
+    public decimal? Grams { get; set; }
+
+    public decimal? RatePerGram { get; set; }
 }
 
 /// <summary>A made-to-order piece or a repair taken in: what, how heavy, by when, and advances paid.</summary>
@@ -206,21 +223,22 @@ public sealed class ApprovalItem : Entity, ITenantOwned
 // ---------- requests and views ----------
 
 public sealed record GirviRequest(Guid CustomerId, string Items, string Metal, decimal Gross, decimal Reading, decimal Principal, decimal RatePerMonth, bool? DayWise,
-    int? Months, PaymentMode? Mode, string? Kyc, string? Note, string? PledgedOn);
+    int? Months, PaymentMode? Mode, string? Kyc, string? Note, string? PledgedOn, bool? CompoundYearly = null);
+public sealed record GirviTopUpRequest(decimal Amount, PaymentMode? Mode, string? On);
 public sealed record GirviPayRequest(decimal Amount, PaymentMode? Mode, string? PaidOn);
 public sealed record GirviPaymentDto(DateOnly PaidOn, decimal Amount, decimal InterestPart, decimal PrincipalPart, PaymentMode Mode);
 public sealed record GirviDto(
     Guid Id, int Number, Guid CustomerId, string Customer, string? Phone, string Items, string Metal, decimal Gross, decimal Reading, decimal Fine, decimal PledgeValue,
     decimal Principal, decimal RatePerMonth, bool DayWise, DateOnly PledgedOn, DateOnly DueOn, string? Kyc, string? Note, DateOnly? ClosedOn,
-    decimal PrincipalLeft, decimal InterestDue, decimal ToClose, bool Overdue, IReadOnlyList<GirviPaymentDto> Payments);
+    decimal PrincipalLeft, decimal InterestDue, decimal ToClose, bool Overdue, IReadOnlyList<GirviPaymentDto> Payments, bool CompoundYearly = false, decimal Capitalised = 0);
 
-public sealed record SchemePlanRequest(string Name, int Months, decimal Instalment, decimal? Bonus);
-public sealed record SchemePlanDto(Guid Id, string Name, int Months, decimal Instalment, decimal Bonus, bool IsActive, int Members);
+public sealed record SchemePlanRequest(string Name, int Months, decimal Instalment, decimal? Bonus, string? Kind = null, int? Purity = null);
+public sealed record SchemePlanDto(Guid Id, string Name, int Months, decimal Instalment, decimal Bonus, bool IsActive, int Members, string Kind = "amount", int? Purity = null);
 public sealed record SchemeJoinRequest(Guid PlanId, Guid CustomerId);
 public sealed record SchemePayRequest(Guid EntryId, decimal? Amount, PaymentMode? Mode);
 public sealed record SchemeMemberDto(
     Guid Id, int Number, Guid PlanId, string Plan, Guid CustomerId, string Customer, string? Phone, DateOnly StartedOn, int Months, decimal Instalment, decimal Bonus,
-    int Paid, decimal PaidTotal, bool Complete, Guid? RedeemedBillId, DateOnly? ClosedOn, DateOnly NextDue);
+    int Paid, decimal PaidTotal, bool Complete, Guid? RedeemedBillId, DateOnly? ClosedOn, DateOnly NextDue, string Kind = "amount", int? Purity = null, decimal Grams = 0);
 
 public sealed record JewelleryOrderRequest(string Kind, Guid CustomerId, string Description, string? Metal, int? Purity, decimal? Weight, decimal? FixedRate, decimal? Charge, string DueOn, string? Note);
 public sealed record JewelleryAdvanceRequest(Guid EntryId, decimal Amount, PaymentMode? Mode);
@@ -274,6 +292,39 @@ public static class GirviMath
         return decimal.Round(total, 0, MidpointRounding.AwayFromZero);
     }
 
+    /// <summary>
+    /// Interest with yearly compounding: at each anniversary of the loan, interest earned and not yet paid is added to
+    /// the principal (the usual girvi practice). Returns the interest earned that was not added, and the amount added.
+    /// Payments carry the interest and principal they paid; a top-up is a negative principal payment.
+    /// </summary>
+    public static (decimal Interest, decimal Capitalised) Compound(decimal principal, decimal ratePerMonth, bool dayWise, DateOnly from, DateOnly to,
+        IReadOnlyList<(DateOnly On, decimal InterestPaid, decimal PrincipalPaid)> payments)
+    {
+        if (to < from) return (0, 0);
+        decimal interest = 0, capitalised = 0, basePrincipal = principal;
+        var start = from;
+        while (true)
+        {
+            var anniversary = start.AddYears(1);
+            var end = anniversary < to ? anniversary : to;
+            var inSegment = payments.Where(p => p.On >= start && p.On < end || (end == to && p.On == to)).Select(p => (p.On, p.PrincipalPaid)).ToList();
+            interest += Interest(basePrincipal, ratePerMonth, dayWise, start, end, inSegment);
+            basePrincipal -= inSegment.Sum(p => p.PrincipalPaid);
+            if (end == to) break;
+            var unpaid = interest - payments.Where(p => p.On < end).Sum(p => p.InterestPaid);
+            if (unpaid > 0)
+            {
+                basePrincipal += unpaid;
+                capitalised += unpaid;
+                interest -= unpaid;
+            }
+
+            start = end;
+        }
+
+        return (interest, capitalised);
+    }
+
     /// <summary>Months started from <paramref name="from"/> to <paramref name="to"/>: 1 Jan to 1 Feb is 1, to 2 Feb is 2.</summary>
     public static int MonthsStarted(DateOnly from, DateOnly to)
     {
@@ -297,6 +348,7 @@ public static class JewelleryBookEndpoints
         g.MapGet("/girvi", GirviListAsync);
         g.MapPost("/girvi", GirviAddAsync);
         g.MapPost("/girvi/{id:guid}/payments", GirviPayAsync);
+        g.MapPost("/girvi/{id:guid}/top-up", GirviTopUpAsync);
         g.MapGet("/schemes", PlansAsync);
         g.MapPost("/schemes", AddPlanAsync);
         g.MapGet("/schemes/members", MembersAsync);
@@ -326,14 +378,32 @@ public static class JewelleryBookEndpoints
         return loans.Select(l =>
         {
             var ps = pays[l.Id].ToList();
-            var left = l.Principal - ps.Sum(p => p.PrincipalPart);
-            var end = l.ClosedOn ?? today;
-            var interest = l.ClosedOn is null ? Math.Max(0, GirviMath.Interest(l.Principal, l.RatePerMonth, l.DayWise, l.PledgedOn, end, ps.Select(p => (p.PaidOn, p.PrincipalPart)).ToList()) - ps.Sum(p => p.InterestPart)) : 0;
+            var (interest, left, capitalised) = l.ClosedOn is null ? Owed(l, ps, today) : (0, 0, 0);
             var who = people.GetValueOrDefault(l.CustomerId);
             return new GirviDto(l.Id, l.Number, l.CustomerId, who?.Name ?? "", who?.Phone, l.Items, l.Metal, l.Gross, l.Reading, l.Fine, l.PledgeValue, l.Principal, l.RatePerMonth,
                 l.DayWise, l.PledgedOn, l.DueOn, l.Kyc, l.Note, l.ClosedOn, left, interest, left + interest, l.ClosedOn is null && today > l.DueOn,
-                ps.Select(p => new GirviPaymentDto(p.PaidOn, p.Amount, p.InterestPart, p.PrincipalPart, p.Mode)).ToList());
+                ps.Select(p => new GirviPaymentDto(p.PaidOn, p.Amount, p.InterestPart, p.PrincipalPart, p.Mode)).ToList(), l.CompoundYearly, capitalised);
         }).ToList();
+    }
+
+    /// <summary>
+    /// What is owed on a loan on <paramref name="on"/>: interest not yet paid, principal left (with top-ups and any
+    /// interest added on anniversaries of a compounding loan), and the interest so added.
+    /// </summary>
+    public static (decimal InterestDue, decimal PrincipalLeft, decimal Capitalised) Owed(GirviLoan l, IReadOnlyList<GirviPayment> ps, DateOnly on)
+    {
+        var principalPaid = ps.Sum(p => p.PrincipalPart);
+        var interestPaid = ps.Sum(p => p.InterestPart);
+        if (l.CompoundYearly)
+        {
+            // Earned = added to principal + interest paid before each anniversary + the rest; so what is still owed is the
+            // interest not added, less all interest paid.
+            var (interest, capitalised) = GirviMath.Compound(l.Principal, l.RatePerMonth, l.DayWise, l.PledgedOn, on, ps.Select(p => (p.PaidOn, p.InterestPart, p.PrincipalPart)).ToList());
+            return (Math.Max(0, interest - interestPaid), l.Principal + capitalised - principalPaid, capitalised);
+        }
+
+        var simple = GirviMath.Interest(l.Principal, l.RatePerMonth, l.DayWise, l.PledgedOn, on, ps.Select(p => (p.PaidOn, p.PrincipalPart)).ToList());
+        return (Math.Max(0, simple - interestPaid), l.Principal - principalPaid, 0);
     }
 
     private static async Task<IResult> GirviListAsync(string? status, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
@@ -357,7 +427,7 @@ public static class JewelleryBookEndpoints
         var loan = new GirviLoan
         {
             Number = number, CustomerId = r.CustomerId, Items = r.Items.Trim(), Metal = r.Metal, Gross = JewelleryMath.Grams(r.Gross), Reading = r.Reading, Fine = fine, PledgeValue = value,
-            Principal = decimal.Round(r.Principal, 2), RatePerMonth = r.RatePerMonth, DayWise = r.DayWise ?? false, PledgedOn = on, DueOn = on.AddMonths(Math.Clamp(r.Months ?? 12, 1, 60)),
+            Principal = decimal.Round(r.Principal, 2), RatePerMonth = r.RatePerMonth, DayWise = r.DayWise ?? false, PledgedOn = on, DueOn = on.AddMonths(Math.Clamp(r.Months ?? 12, 1, 60)), CompoundYearly = r.CompoundYearly ?? false,
             Mode = r.Mode ?? PaymentMode.Cash, Kyc = string.IsNullOrWhiteSpace(r.Kyc) ? null : r.Kyc.Trim()[..Math.Min(60, r.Kyc.Trim().Length)],
             Note = string.IsNullOrWhiteSpace(r.Note) ? null : r.Note.Trim()[..Math.Min(200, r.Note.Trim().Length)], CreatedByUserId = user.UserId()!.Value,
         };
@@ -373,14 +443,34 @@ public static class JewelleryBookEndpoints
         if (loan.ClosedOn is not null) return Invalid("Amount", "This girvi is already closed.");
         if (r.Amount <= 0 || r.Amount > Money.MaxAmount) return Invalid("Amount", "Enter the amount paid.");
         if (Day(r.PaidOn, clock) is not { } on || on < loan.PledgedOn || on > IndiaTime.Today(clock)) return Invalid("PaidOn", "Enter the date paid.");
-        var view = (await GirviViewsAsync(db, clock, q => q.Where(l => l.Id == id), ct)).Single();
-        var ps = view.Payments.Select(p => (p.PaidOn, p.PrincipalPart)).ToList();
-        var interestDue = Math.Max(0, GirviMath.Interest(loan.Principal, loan.RatePerMonth, loan.DayWise, loan.PledgedOn, on, ps) - view.Payments.Sum(p => p.InterestPart));
-        if (r.Amount > interestDue + view.PrincipalLeft) return Invalid("Amount", $"Only ₹{interestDue + view.PrincipalLeft:N0} is owed on this girvi.");
+        var past = await db.GirviPayments.AsNoTracking().Where(p => p.LoanId == id).ToListAsync(ct);
+        var (interestDue, principalLeft, _) = Owed(loan, past, on);
+        if (r.Amount > interestDue + principalLeft) return Invalid("Amount", $"Only ₹{interestDue + principalLeft:N0} is owed on this girvi.");
         var interestPart = Math.Min(r.Amount, interestDue);
         var payment = new GirviPayment { LoanId = id, PaidOn = on, Amount = r.Amount, InterestPart = interestPart, PrincipalPart = r.Amount - interestPart, Mode = r.Mode ?? PaymentMode.Cash, At = clock.GetUtcNow() };
         db.GirviPayments.Add(payment);
-        if (payment.PrincipalPart >= view.PrincipalLeft) loan.ClosedOn = on;
+        if (payment.PrincipalPart >= principalLeft) loan.ClosedOn = on;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok((await GirviViewsAsync(db, clock, q => q.Where(l => l.Id == id), ct)).Single());
+    }
+
+    /// <summary>
+    /// More money lent on the same pledge (a top-up). Kept as a payment with a negative principal part, so interest on
+    /// it runs from its own date and the loan's history stays in one place. Owner only; the pledge must still cover it.
+    /// </summary>
+    private static async Task<IResult> GirviTopUpAsync(Guid id, GirviTopUpRequest r, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (!LedgerEndpoints.IsOwner(user)) return TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Only the owner lends more on a girvi.");
+        if (await db.GirviLoans.SingleOrDefaultAsync(l => l.Id == id, ct) is not { } loan) return TypedResults.NotFound();
+        if (loan.ClosedOn is not null) return Invalid("Amount", "This girvi is already closed.");
+        if (r.Amount <= 0 || r.Amount > Money.MaxAmount) return Invalid("Amount", "Enter the amount lent.");
+        if (r.Mode is { } m && m is not (PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Bank)) return Invalid("Mode", "Lend by cash, UPI or bank.");
+        if (Day(r.On, clock) is not { } on || on < loan.PledgedOn || on > IndiaTime.Today(clock)) return Invalid("On", "Enter the date lent.");
+        var past = await db.GirviPayments.AsNoTracking().Where(p => p.LoanId == id).ToListAsync(ct);
+        var (interestDue, principalLeft, _) = Owed(loan, past, on);
+        if (loan.PledgeValue > 0 && principalLeft + interestDue + r.Amount > loan.PledgeValue)
+            return Invalid("Amount", $"The pledge is worth ₹{loan.PledgeValue:N0}: at most ₹{Math.Max(0, loan.PledgeValue - principalLeft - interestDue):N0} more can be lent on it.");
+        db.GirviPayments.Add(new GirviPayment { LoanId = id, PaidOn = on, Amount = -r.Amount, InterestPart = 0, PrincipalPart = -r.Amount, Mode = r.Mode ?? PaymentMode.Cash, At = clock.GetUtcNow() });
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok((await GirviViewsAsync(db, clock, q => q.Where(l => l.Id == id), ct)).Single());
     }
@@ -391,7 +481,7 @@ public static class JewelleryBookEndpoints
     {
         var counts = await db.SchemeMembers.AsNoTracking().Where(m => m.ClosedOn == null).GroupBy(m => m.PlanId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
         var plans = await db.SchemePlans.AsNoTracking().OrderBy(p => p.CreatedAt).ToListAsync(ct);
-        return TypedResults.Ok(plans.Select(p => new SchemePlanDto(p.Id, p.Name, p.Months, p.Instalment, p.Bonus, p.IsActive, counts.GetValueOrDefault(p.Id))));
+        return TypedResults.Ok(plans.Select(p => new SchemePlanDto(p.Id, p.Name, p.Months, p.Instalment, p.Bonus, p.IsActive, counts.GetValueOrDefault(p.Id), p.Kind, p.Purity)));
     }
 
     private static async Task<IResult> AddPlanAsync(SchemePlanRequest r, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
@@ -399,10 +489,13 @@ public static class JewelleryBookEndpoints
         if (!LedgerEndpoints.IsOwner(user)) return TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Only the owner starts a scheme.");
         if (string.IsNullOrWhiteSpace(r.Name) || r.Name.Trim().Length > 60) return Invalid("Name", "Name the scheme.");
         if (r.Months is < 2 or > 36 || r.Instalment is <= 0 or > 10_000_000 || r.Bonus is < 0 or > 10_000_000) return Invalid("Months", "Enter 2–36 months, the monthly instalment and the bonus.");
-        var plan = new SchemePlan { Name = r.Name.Trim(), Months = r.Months, Instalment = decimal.Round(r.Instalment, 2), Bonus = decimal.Round(r.Bonus ?? 0, 2) };
+        var kind = r.Kind ?? "amount";
+        if (kind is not ("amount" or "grams")) return Invalid("Kind", "A scheme saves rupees or grams of gold.");
+        if (kind == "grams" && (r.Purity is not { } p || !JewelleryMath.ValidPurity("gold", p))) return Invalid("Purity", "Choose the gold purity the scheme saves in.");
+        var plan = new SchemePlan { Name = r.Name.Trim(), Months = r.Months, Instalment = decimal.Round(r.Instalment, 2), Bonus = decimal.Round(r.Bonus ?? 0, 2), Kind = kind, Purity = kind == "grams" ? r.Purity : null };
         db.SchemePlans.Add(plan);
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(new SchemePlanDto(plan.Id, plan.Name, plan.Months, plan.Instalment, plan.Bonus, true, 0));
+        return TypedResults.Ok(new SchemePlanDto(plan.Id, plan.Name, plan.Months, plan.Instalment, plan.Bonus, true, 0, plan.Kind, plan.Purity));
     }
 
     internal static async Task<List<SchemeMemberDto>> MemberViewsAsync(AppDbContext db, Func<IQueryable<SchemeMember>, IQueryable<SchemeMember>> filter, CancellationToken ct)
@@ -419,7 +512,8 @@ public static class JewelleryBookEndpoints
             var count = paid[m.Id].Count();
             var who = people.GetValueOrDefault(m.CustomerId);
             return new SchemeMemberDto(m.Id, m.Number, m.PlanId, plan.Name, m.CustomerId, who?.Name ?? "", who?.Phone, m.StartedOn, plan.Months, plan.Instalment, plan.Bonus,
-                count, paid[m.Id].Sum(i => i.Amount), count >= plan.Months, m.RedeemedBillId, m.ClosedOn, m.StartedOn.AddMonths(Math.Min(count, plan.Months)));
+                count, paid[m.Id].Sum(i => i.Amount), count >= plan.Months, m.RedeemedBillId, m.ClosedOn, m.StartedOn.AddMonths(Math.Min(count, plan.Months)),
+                plan.Kind, plan.Purity, paid[m.Id].Sum(i => i.Grams ?? 0));
         }).ToList();
     }
 
@@ -446,10 +540,19 @@ public static class JewelleryBookEndpoints
         if (await db.SchemeInstalments.CountAsync(i => i.MemberId == id, ct) >= plan.Months) return Invalid("Amount", "Every instalment is paid. The member can buy jewellery now.");
         var amount = r.Amount ?? plan.Instalment;
         if (amount <= 0 || amount > Money.MaxAmount) return Invalid("Amount", "Enter the instalment.");
+        // A gram scheme turns the instalment into gold at the day's selling rate for its purity.
+        decimal? grams = null, rateUsed = null;
+        if (plan.Kind == "grams")
+        {
+            var rates = (await JewelleryEndpoints.CurrentRatesAsync(db, clock, ct)).Current;
+            var rate = rates.FirstOrDefault(x => x.Metal == "gold" && x.Purity == plan.Purity)?.SellPerGram ?? 0;
+            if (rate <= 0) return Invalid("Amount", "Set today's gold rate first: a gram scheme turns each instalment into gold at the day's rate.");
+            (grams, rateUsed) = (decimal.Round(amount / rate, 3), rate);
+        }
         var entry = await ledger.AddKhataEntryAsync(new KhataEntryRequest(r.EntryId, member.CustomerId, KhataEntryType.Payment, amount, r.Mode ?? PaymentMode.Cash, $"Scheme {plan.Name} #{member.Number}", null),
             user.UserId()!.Value, ct, LedgerEndpoints.IsOwner(user));
         if (entry.Value is null) return entry.ToHttp("");
-        db.SchemeInstalments.Add(new SchemeInstalment { MemberId = id, EntryId = r.EntryId, Amount = amount, PaidOn = IndiaTime.Today(clock) });
+        db.SchemeInstalments.Add(new SchemeInstalment { MemberId = id, EntryId = r.EntryId, Amount = amount, PaidOn = IndiaTime.Today(clock), Grams = grams, RatePerGram = rateUsed });
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok((await MemberViewsAsync(db, q => q.Where(m => m.Id == id), ct)).Single());
     }

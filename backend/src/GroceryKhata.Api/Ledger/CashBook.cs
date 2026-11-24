@@ -155,7 +155,7 @@ public static class CashBookEndpoints
                               where p.At >= start && p.At < end
                               join l in db.GirviLoans.AsNoTracking() on p.LoanId equals l.Id
                               join c in db.Customers.AsNoTracking() on l.CustomerId equals c.Id
-                              select new CashBookLine(p.At, CashBookSource.GirviReceived, c.Name + " · girvi #" + l.Number, p.Mode, p.Amount, null)).ToListAsync(ct));
+                              select new CashBookLine(p.At, p.Amount < 0 ? CashBookSource.GirviGiven : CashBookSource.GirviReceived, c.Name + (p.Amount < 0 ? " · girvi top-up #" : " · girvi #") + l.Number, p.Mode, p.Amount, null)).ToListAsync(ct));
         // Karigars and traders: labour paid and metal settled in money.
         lines.AddRange(await (from m in db.MetalMoves.AsNoTracking()
                               where m.At >= start && m.At < end && m.CashEffect != 0 && m.Mode != null

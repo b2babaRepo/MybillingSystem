@@ -161,6 +161,9 @@ public sealed class OldMetalPurchase : Entity, ITenantOwned
 
     public Guid? BillId { get; set; }
 
+    /// <summary>Old metal bought on its own (no sale): the purchase voucher it belongs to.</summary>
+    public Guid? VoucherId { get; set; }
+
     public Guid? CustomerId { get; set; }
 
     public string? Description { get; set; }
@@ -182,6 +185,10 @@ public sealed class OldMetalPurchase : Entity, ITenantOwned
 
     public decimal Value { get; set; }
 }
+
+/// <summary>The jewellery counter's owner settings: how much staff may take off making or wastage (null: no limit).</summary>
+public sealed record JewellerySettingsDto(decimal? MaxOffPercent, bool ShowOnline = false);
+public sealed record JewelleryShowOnlineRequest(bool Show);
 
 public sealed record MetalRateDto(string Metal, int Purity, decimal SellPerGram, decimal? BuyPerGram, DateTimeOffset SetAt, bool Derived);
 public sealed record MetalRatesDto(IReadOnlyList<MetalRateDto> Current, IReadOnlyList<MetalRateDto> Today);
@@ -239,7 +246,8 @@ public static class JewelleryMath
 
     public static readonly int[] GoldPurities = [999, 995, 916, 750, 585];
 
-    public static readonly int[] SilverPurities = [999, 925];
+    /// <summary>The silver grades of IS 2112:2025 (BIS); a hallmarked silver piece carries a HUID like gold.</summary>
+    public static readonly int[] SilverPurities = [999, 990, 970, 958, 925, 900, 800];
 
     public static readonly string[] MakingTypes = ["per_gram", "percent", "per_piece"];
 
@@ -309,7 +317,7 @@ public static class JewelleryMath
 public static class JewelleryEndpoints
 {
     private static readonly Regex HuidPattern = new("^[A-Z0-9]{6}$", RegexOptions.Compiled);
-    private static readonly Regex PanPattern = new("^([A-Z]{5}[0-9]{4}[A-Z]|FORM 60)$", RegexOptions.Compiled);
+    internal static readonly Regex PanPattern =new("^([A-Z]{5}[0-9]{4}[A-Z]|FORM 60)$", RegexOptions.Compiled);
 
     public static IEndpointRouteBuilder MapJewellery(this IEndpointRouteBuilder app)
     {
@@ -323,7 +331,27 @@ public static class JewelleryEndpoints
         group.MapPost("/quote", QuoteAsync);
         group.MapPost("/bills", BillAsync);
         group.MapGet("/bills/{billId:guid}", BillDetailAsync);
+        OldMetalVoucherEndpoints.Map(group);
+        group.MapGet("/settings", async (AppDbContext db, CancellationToken ct) =>
+            TypedResults.Ok(await db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => new JewellerySettingsDto(s.JewelleryMaxOffPercent, s.JewelleryShowOnline)).SingleAsync(ct)));
+        group.MapPut("/settings/show-online", async (JewelleryShowOnlineRequest r, AppDbContext db, CancellationToken ct) =>
+        {
+            var shop = await db.Shops.SingleAsync(s => s.Id == db.ShopIdNow, ct);
+            shop.JewelleryShowOnline = r.Show;
+            await db.SaveChangesAsync(ct);
+            return TypedResults.Ok(new JewellerySettingsDto(shop.JewelleryMaxOffPercent, shop.JewelleryShowOnline));
+        }).RequireAuthorization(AppPolicies.ShopOwner);
+        group.MapPut("/settings", SetSettingsAsync).RequireAuthorization(AppPolicies.ShopOwner);
         return app;
+    }
+
+    private static async Task<IResult> SetSettingsAsync(JewellerySettingsDto request, AppDbContext db, CancellationToken ct)
+    {
+        if (request.MaxOffPercent is < 0 or > 100) return Invalid("MaxOffPercent", "Enter 0 to 100, or leave it empty for no limit.");
+        var shop = await db.Shops.SingleAsync(s => s.Id == db.ShopIdNow, ct);
+        shop.JewelleryMaxOffPercent = request.MaxOffPercent is { } p ? decimal.Round(p, 2) : null;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(new JewellerySettingsDto(shop.JewelleryMaxOffPercent, shop.JewelleryShowOnline));
     }
 
     private static IResult Invalid(string field, string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
@@ -515,6 +543,26 @@ public static class JewelleryEndpoints
     private sealed record Worked(JewelleryQuoteDto Quote, List<JewelleryPiece> Pieces);
 
     /// <summary>Works out a bill from tags (or typed lines) and today's rates. Problems are listed, not thrown.</summary>
+    /// <summary>Old gold or silver valued: fine weight (gross × test reading) at the pure buying rate, less the deduction.</summary>
+    internal static (List<OldMetalDto>? Olds, string? Problem) ValueOld(IReadOnlyList<OldMetalRequest>? oldMetal, IReadOnlyDictionary<(string, int), MetalRateDto> rates)
+    {
+        var olds = new List<OldMetalDto>();
+        foreach (var o in oldMetal ?? [])
+        {
+            if (o.Metal is not ("gold" or "silver") || o.Gross is <= 0 or > 10_000 || o.Reading is <= 0 or > 100 || o.DeductionPercent is < 0 or > 30)
+            {
+                return (null, "Old metal needs gold or silver, its weight, the test reading (1–100%) and a deduction of 0–30%.");
+            }
+
+            var pure = rates.TryGetValue((o.Metal, 999), out var pr) ? pr.BuyPerGram ?? pr.SellPerGram : 0;
+            var rate = o.RatePerGram ?? pure;
+            if (rate <= 0) return (null, $"Set today's pure {o.Metal} buying rate first.");
+            olds.Add(JewelleryMath.Old(string.IsNullOrWhiteSpace(o.Description) ? null : o.Description.Trim(), o.Metal, o.Gross, o.Reading, decimal.Round(rate, 2), o.DeductionPercent ?? 0));
+        }
+
+        return (olds, null);
+    }
+
     private static async Task<(Worked? Worked, string? Problem)> WorkAsync(
         Guid? customerId, IReadOnlyList<JewelleryLineRequest>? lines, IReadOnlyList<OldMetalRequest>? oldMetal, AppDbContext db, TimeProvider clock, CancellationToken ct, Guid? schemeMemberId = null)
     {
@@ -525,6 +573,12 @@ public static class JewelleryEndpoints
         var pieces = await db.JewelleryPieces.Where(p => pieceIds.Contains(p.Id)).ToListAsync(ct);
         var labGrown = (await db.PieceStones.AsNoTracking().Where(s => pieceIds.Contains(s.PieceId) && s.LabGrown).Select(s => s.PieceId).Distinct().ToListAsync(ct)).ToHashSet();
         var problems = new List<string>();
+        // Advance rate booking: an open order of this customer that fixed the rate (Akshaya Tritiya, wedding bookings).
+        // The customer pays the lower of the booked rate and today's, the price protection shops promise.
+        var booked = customerId is { } bookedFor
+            ? await db.JewelleryOrders.AsNoTracking().Where(o => o.CustomerId == bookedFor && o.Kind == "order" && o.FixedRate != null && (o.Status == "booked" || o.Status == "ready"))
+                .OrderBy(o => o.CreatedAt).Select(o => new { o.Number, o.Metal, o.Purity, Rate = o.FixedRate!.Value }).ToListAsync(ct)
+            : [];
         var worked = new List<JewelleryLineDto>();
         var n = 0;
         foreach (var l in lines)
@@ -562,24 +616,23 @@ public static class JewelleryEndpoints
             if (!JewelleryMath.MakingTypes.Contains(makingType)) return (null, $"{name}: making is per gram, a percent, or per piece.");
             if (wastage is < 0 or > 50 || making < 0 || stoneValue < 0 || hallmark < 0) return (null, $"{name}: amounts must be zero or more.");
             var rate = l.RatePerGram ?? (rates.TryGetValue((metal, purity), out var r) ? r.SellPerGram : 0);
+            if (l.RatePerGram is null && fixedPrice is null && booked.FirstOrDefault(b => (b.Metal ?? "gold") == metal && (b.Purity ?? purity) == purity) is { } b)
+            {
+                if (rate <= 0 || b.Rate < rate)
+                {
+                    rate = b.Rate;
+                    problems.Add($"{name}: booked rate {b.Rate:N2}/g from order {b.Number} applied (today's rate is higher).");
+                }
+                else problems.Add($"{name}: today's rate is lower than the rate booked on order {b.Number}, so today's rate applies.");
+            }
+
             if (fixedPrice is null && rate <= 0) return (null, $"Set today's {metal} rate first ({JewelleryMath.Karat(metal, purity)}).");
             if (huid is null && metal == "gold" && fixedPrice is null && gross >= 2) problems.Add($"{name}: no HUID. Gold jewellery must carry a BIS hallmark with HUID (pieces under 2 g and kundan/polki are exempt).");
             worked.Add(JewelleryMath.Line(n, l.PieceId, tag, name, metal, purity, gross, stone, decimal.Round(rate, 2), wastage, makingType, making, stoneValue, hallmark, huid, fixedPrice));
         }
 
-        var olds = new List<OldMetalDto>();
-        foreach (var o in oldMetal ?? [])
-        {
-            if (o.Metal is not ("gold" or "silver") || o.Gross is <= 0 or > 10_000 || o.Reading is <= 0 or > 100 || o.DeductionPercent is < 0 or > 30)
-            {
-                return (null, "Old metal needs gold or silver, its weight, the test reading (1–100%) and a deduction of 0–30%.");
-            }
-
-            var pure = rates.TryGetValue((o.Metal, 999), out var pr) ? pr.BuyPerGram ?? pr.SellPerGram : 0;
-            var rate = o.RatePerGram ?? pure;
-            if (rate <= 0) return (null, $"Set today's pure {o.Metal} buying rate first.");
-            olds.Add(JewelleryMath.Old(string.IsNullOrWhiteSpace(o.Description) ? null : o.Description.Trim(), o.Metal, o.Gross, o.Reading, decimal.Round(rate, 2), o.DeductionPercent ?? 0));
-        }
+        var (olds, oldProblem) = ValueOld(oldMetal, rates);
+        if (olds is null) return (null, oldProblem);
 
         // A finished savings scheme: its bonus comes off the making charges, line by line.
         var schemeDiscount = 0m;
@@ -599,6 +652,25 @@ public static class JewelleryEndpoints
                 worked[i] = l with { MakingAmount = l.MakingAmount - off, Taxable = taxableNow, Gst = decimal.Round(taxableNow * JewelleryMath.GstPercent / 100m, 2) };
                 left -= off;
                 schemeDiscount += off;
+            }
+
+            // A gram scheme: the member's saved grams at today's rate. If gold went up, the rise comes off the bill (the
+            // money paid already waits on their khata); if it went down they keep what they paid.
+            if (member.Kind == "grams" && member.Purity is { } savedPurity && rates.TryGetValue(("gold", savedPurity), out var todayRate))
+            {
+                var gain = Math.Max(0, decimal.Round(member.Grams * todayRate.SellPerGram - member.PaidTotal, 2));
+                if (gain > 0) problems.Add($"Gram scheme: {member.Grams:0.000} g saved is worth {member.Grams * todayRate.SellPerGram:N2} today, {gain:N2} more than paid, taken off this bill.");
+                for (var i = 0; i < worked.Count && gain > 0; i++)
+                {
+                    var l = worked[i];
+                    if (l.FixedPrice) continue;
+                    var offMaking = Math.Min(gain, l.MakingAmount);
+                    var offMetal = Math.Min(gain - offMaking, l.MetalValue);
+                    var taxableNow = l.Taxable - offMaking - offMetal;
+                    worked[i] = l with { MakingAmount = l.MakingAmount - offMaking, MetalValue = l.MetalValue - offMetal, Taxable = taxableNow, Gst = decimal.Round(taxableNow * JewelleryMath.GstPercent / 100m, 2) };
+                    gain -= offMaking + offMetal;
+                    schemeDiscount += offMaking + offMetal;
+                }
             }
         }
 
@@ -641,6 +713,27 @@ public static class JewelleryEndpoints
         return (new Worked(quote, pieces), null);
     }
 
+    /// <summary>
+    /// Staff may lower a tagged piece's making or wastage only as far as the owner allows (Shop.JewelleryMaxOffPercent):
+    /// the guard against quiet discounts at the counter.
+    /// </summary>
+    private static async Task<string?> StaffDiscountProblemAsync(JewelleryQuoteDto q, IReadOnlyList<JewelleryPiece> pieces, AppDbContext db, CancellationToken ct)
+    {
+        var cap = await db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.JewelleryMaxOffPercent).SingleOrDefaultAsync(ct);
+        if (cap is not { } maxOff) return null;
+        var keep = 1 - maxOff / 100m;
+        foreach (var l in q.Lines)
+        {
+            if (l.PieceId is not { } pid || l.FixedPrice || pieces.FirstOrDefault(p => p.Id == pid) is not { } p) continue;
+            var makingCut = p.MakingType == l.MakingType && l.MakingValue < decimal.Round(p.MakingValue * keep, 2);
+            var wastageCut = l.WastagePercent < decimal.Round(p.WastagePercent * keep, 2);
+            if (makingCut || wastageCut)
+                return $"{l.Name}: staff can take at most {maxOff:0.##}% off the making and wastage. Ask the owner for a bigger discount.";
+        }
+
+        return null;
+    }
+
     private static async Task<IResult> QuoteAsync(JewelleryQuoteRequest request, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
         var (worked, problem) = await WorkAsync(request.CustomerId, request.Lines, request.OldMetal, db, clock, ct, request.SchemeMemberId);
@@ -662,6 +755,7 @@ public static class JewelleryEndpoints
         var (worked, problem) = await WorkAsync(request.CustomerId, request.Lines, request.OldMetal, db, clock, ct, request.SchemeMemberId);
         if (worked is null) return Invalid("Lines", problem!);
         var q = worked.Quote;
+        if (!LedgerEndpoints.IsOwner(user) && await StaffDiscountProblemAsync(q, worked.Pieces, db, ct) is { } tooMuch) return Invalid("Lines", tooMuch);
 
         var pan = request.Pan?.Trim().ToUpperInvariant();
         if (pan is { Length: > 0 } && !PanPattern.IsMatch(pan)) return Invalid("Pan", "Enter a PAN like ABCDE1234F, or FORM 60.");

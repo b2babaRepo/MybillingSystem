@@ -198,6 +198,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     public DbSet<JewelleryBill> JewelleryBills => Set<JewelleryBill>();
     public DbSet<JewelleryBillLine> JewelleryBillLines => Set<JewelleryBillLine>();
     public DbSet<OldMetalPurchase> OldMetalPurchases => Set<OldMetalPurchase>();
+
+    public DbSet<OldMetalVoucher> OldMetalVouchers => Set<OldMetalVoucher>();
     public DbSet<GirviLoan> GirviLoans => Set<GirviLoan>();
     public DbSet<MetalParty> MetalParties => Set<MetalParty>();
     public DbSet<MetalMove> MetalMoves => Set<MetalMove>();
@@ -509,6 +511,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         modelBuilder.Entity<Shop>(b =>
         {
             b.ToTable("shops");
+            b.Property(s => s.JewelleryMaxOffPercent).HasPrecision(5, 2);
             b.Property(s => s.State).HasMaxLength(80);
             b.Property(s => s.BillPrefix).HasMaxLength(3);
             b.Property(s => s.BillFields).HasColumnType("jsonb");
@@ -1549,6 +1552,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Name).HasMaxLength(60);
             b.Property(p => p.Instalment).HasPrecision(14, 2);
             b.Property(p => p.Bonus).HasPrecision(14, 2);
+            b.Property(p => p.Kind).HasMaxLength(10).HasDefaultValue("amount");
         });
 
         modelBuilder.Entity<SchemeMember>(b =>
@@ -1564,6 +1568,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("scheme_instalments");
             b.HasTenantKey();
             b.Property(i => i.Amount).HasPrecision(14, 2);
+            b.Property(i => i.Grams).HasPrecision(10, 3);
+            b.Property(i => i.RatePerGram).HasPrecision(12, 2);
             b.HasIndex(i => new { i.ShopId, i.MemberId });
             b.HasIndex(i => new { i.ShopId, i.EntryId }).IsUnique();
         });
@@ -1617,6 +1623,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(o => o.RatePerGram).HasPrecision(12, 2);
             b.Property(o => o.Value).HasPrecision(14, 2);
             b.HasIndex(o => new { o.ShopId, o.BillId });
+            b.HasIndex(o => new { o.ShopId, o.VoucherId });
+        });
+
+        modelBuilder.Entity<OldMetalVoucher>(b =>
+        {
+            b.ToTable("old_metal_vouchers");
+            b.HasTenantKey();
+            b.Property(v => v.SellerName).HasMaxLength(80);
+            b.Property(v => v.SellerPhone).HasMaxLength(20);
+            b.Property(v => v.SellerAddress).HasMaxLength(200);
+            b.Property(v => v.Pan).HasMaxLength(10);
+            b.Property(v => v.Mode).HasConversion<string>().HasMaxLength(10);
+            b.Property(v => v.Total).HasPrecision(14, 2);
+            b.HasIndex(v => new { v.ShopId, v.Number }).IsUnique();
         });
 
         modelBuilder.Entity<GroceryKhata.Api.Planner.ShopWhatsAppMessage>(b =>

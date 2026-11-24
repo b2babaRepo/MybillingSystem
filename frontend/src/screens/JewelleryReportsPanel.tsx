@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { saveCsv } from '../lib/csv'
 import { formatRupees } from '../lib/format'
 import { grams, karat, type Metal } from '../lib/jewellery'
+import { JewelleryBookReport } from './JewelleryBookReport'
 
 // Phase 4 of the jewellery counter: stock and sales by karat with fine weight, and cash per customer for PMLA (₹10 lakh)
 // and the SFT return (more than ₹2 lakh), by financial year.
@@ -30,7 +31,7 @@ export function JewelleryReportsPanel({ shopId, isOwner }: { shopId: string; isO
   const now = new Date()
   const thisFy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1
   const [fy, setFy] = useState(thisFy)
-  const [view, setView] = useState<'stock' | 'sales' | 'cash'>('stock')
+  const [view, setView] = useState<'stock' | 'sales' | 'cash' | 'book'>('stock')
   const stock = useQuery({ queryKey: [shopId, 'jewellery', 'report-stock'], queryFn: () => api<StockReport>('/v1/jewellery/reports/stock'), enabled: view === 'stock' }).data
   const sales = useQuery({ queryKey: [shopId, 'jewellery', 'report-sales', fy], queryFn: () => api<SalesReport>(`/v1/jewellery/reports/sales?fy=${fy}`), enabled: view === 'sales' }).data
   const cash = useQuery({ queryKey: [shopId, 'jewellery', 'report-cash', fy], queryFn: () => api<CashReport>(`/v1/jewellery/reports/cash?fy=${fy}`), enabled: view === 'cash' && isOwner }).data
@@ -51,15 +52,16 @@ export function JewelleryReportsPanel({ shopId, isOwner }: { shopId: string; isO
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex gap-1 rounded-xl bg-[#edf2f1] p-1">
-          {(isOwner ? (['stock', 'sales', 'cash'] as const) : (['stock', 'sales'] as const)).map((v) => <button key={v} onClick={() => setView(v)} aria-pressed={view === v} className={`min-h-9 rounded-lg px-3 text-sm font-semibold ${view === v ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`jwl4.view.${v}`)}</button>)}
+          {(isOwner ? (['stock', 'sales', 'cash', 'book'] as const) : (['stock', 'sales'] as const)).map((v) => <button key={v} onClick={() => setView(v)} aria-pressed={view === v} className={`min-h-9 rounded-lg px-3 text-sm font-semibold ${view === v ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`jwl4.view.${v}`)}</button>)}
         </div>
-        {view !== 'stock' && (
+        {(view === 'sales' || view === 'cash') && (
           <select value={fy} onChange={(e) => setFy(Number(e.target.value))} aria-label={t('jwl4.year')} className="ml-auto h-11 rounded-xl border border-line bg-white px-3">
             {[0, 1, 2, 3].map((n) => <option key={n} value={thisFy - n}>{fyLabel(thisFy - n)}</option>)}
           </select>
         )}
       </div>
 
+      {view === 'book' && <JewelleryBookReport shopId={shopId} />}
       {view === 'stock' && stock && (
         <>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

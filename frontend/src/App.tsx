@@ -568,7 +568,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
         ) : path === '/painters' ? (
           <PaintersScreen shopId={shopId} shopName={shopName} />
         ) : path === '/jewellery' ? (
-          <JewelleryScreen shopId={shopId} isOwner={isOwner} />
+          <JewelleryScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
         ) : jwlTagsMatch ? (
           <JewelleryTagsScreen shopId={shopId} shopName={shopName} ids={jwlTagsMatch[1].split(',')} />
         ) : tagsMatch && isOwner ? (

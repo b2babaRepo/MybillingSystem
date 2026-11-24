@@ -8,7 +8,10 @@ namespace GroceryKhata.Api.Planner;
 
 /// <summary>A shop as its online store shows it. <see cref="Phone"/>: the owner's, for "send on WhatsApp".</summary>
 public sealed record StoreDto(string Name, string Slug, string? Area, string? Address, string? Phone, IReadOnlyList<StoreItemDto> Items, Guid ShopId = default,
-    StoreSettingsDto? Settings = null, string? UpiId = null, Shops.ShopType? Type = null, IReadOnlyList<StoreRateDto>? Rates = null);
+    StoreSettingsDto? Settings = null, string? UpiId = null, Shops.ShopType? Type = null, IReadOnlyList<StoreRateDto>? Rates = null, IReadOnlyList<StorePieceDto>? Pieces = null);
+
+/// <summary>A tagged jewellery piece in stock, priced at today's rate as the counter would bill it (GST included).</summary>
+public sealed record StorePieceDto(int TagNo, string Name, string? Category, string Metal, int Purity, string Karat, decimal Gross, decimal Net, string? Huid, decimal Price);
 
 /// <summary>A jewellery shop's selling rate per gram (before GST) for one metal and purity, and when it was set.</summary>
 public sealed record StoreRateDto(string Metal, int Purity, decimal PerGram, DateTimeOffset SetAt);
@@ -117,8 +120,27 @@ public static class StoreEndpoints
                 .Select(r => new StoreRateDto(r.Metal, r.Purity, r.SellPerGram, r.SetAt)).ToList();
         }
 
+        // Tagged pieces, when the owner shows them online: priced at today's rate exactly as a bill works them out.
+        IReadOnlyList<StorePieceDto>? pieces = null;
+        if (row.JewelleryShowOnline)
+        {
+            var current = (await Ledger.JewelleryEndpoints.CurrentRatesAsync(db, clock, ct)).Current.ToDictionary(r => (r.Metal, r.Purity), r => r.SellPerGram);
+            var onApproval = await db.ApprovalItems.AsNoTracking().Where(i => i.ReturnedAt == null && i.SoldBillId == null).Select(i => i.PieceId).ToListAsync(ct);
+            var inStock = await db.JewelleryPieces.AsNoTracking().Where(p => p.SoldBillId == null && !onApproval.Contains(p.Id)).OrderBy(p => p.Category).ThenBy(p => p.TagNo).Take(500).ToListAsync(ct);
+            pieces = inStock
+                .Select(p => (p, rate: current.GetValueOrDefault((p.Metal, p.Purity))))
+                .Where(x => x.p.FixedPrice is not null || x.rate > 0)
+                .Select(x =>
+                {
+                    var line = Ledger.JewelleryMath.Line(1, x.p.Id, x.p.TagNo, x.p.Name, x.p.Metal, x.p.Purity, x.p.Gross, x.p.Stone, decimal.Round(x.rate, 2), x.p.WastagePercent,
+                        x.p.MakingType, x.p.MakingValue, x.p.StoneValue, x.p.HallmarkCharge, x.p.Huid, x.p.FixedPrice);
+                    return new StorePieceDto(x.p.TagNo, x.p.Name, x.p.Category, x.p.Metal, x.p.Purity, Ledger.JewelleryMath.Karat(x.p.Metal, x.p.Purity),
+                        x.p.Gross, line.Net, x.p.Huid, decimal.Round(line.Taxable + line.Gst, 0, MidpointRounding.AwayFromZero));
+                }).ToList();
+        }
+
         return TypedResults.Ok(new StoreDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.OwnerPhone, items, shop.Id,
-            OrderUpdates.SettingsOf(row), string.IsNullOrWhiteSpace(row.UpiId) ? null : row.UpiId, row.Type, rates is { Count: > 0 } ? rates : null));
+            OrderUpdates.SettingsOf(row), string.IsNullOrWhiteSpace(row.UpiId) ? null : row.UpiId, row.Type, rates is { Count: > 0 } ? rates : null, pieces));
     }
 
     /// <summary>

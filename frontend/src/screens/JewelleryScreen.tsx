@@ -5,14 +5,17 @@ import { CustomerFinder } from '../components/CustomerFinder'
 import { Button, Drawer, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { addCustomer, useCustomers } from '../lib/data'
-import { formatRupees } from '../lib/format'
-import { GOLD_PURITIES, SILVER_PURITIES, grams, karat, type JewelleryBill, type JewelleryPiece, type JewelleryQuote, type MakingType, type Metal, type MetalRates } from '../lib/jewellery'
+import { formatRupees, whatsAppLink } from '../lib/format'
+import { GOLD_PURITIES, SILVER_PURITIES, grams, karat, rateMessage, type JewelleryBill, type JewelleryPiece, type JewelleryQuote, type MakingType, type Metal, type MetalRates } from '../lib/jewellery'
 import { navigate } from '../router'
 import { ApprovalsPanel, GirviPanel, OrdersPanel, SchemesPanel, type Member } from './JewelleryBookPanels'
 import { JewelleryReportsPanel } from './JewelleryReportsPanel'
+import { JewelleryTodayPanel, useDueToday } from './JewelleryTodayPanel'
+import { OldGoldPanel } from './OldGoldPanel'
+import { StaffCapSetting } from './StaffCapSetting'
 import { StonesEditor, TraysPanel, WeighButton, WorkshopPanel, stoneBody, stoneToDraft, useScales, type StoneDraft } from './JewelleryWorkshopPanels'
 
-type Tab = 'bill' | 'stock' | 'rates' | 'girvi' | 'schemes' | 'orders' | 'approvals' | 'workshop' | 'trays' | 'reports'
+type Tab = 'bill' | 'today' | 'buyOld' |'stock' | 'rates' | 'girvi' | 'schemes' | 'orders' | 'approvals' | 'workshop' | 'trays' | 'reports'
 const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
 const box = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3 outline-none focus:border-brand-line'
 const num = (v: string) => v.replace(/[^\d.]/g, '')
@@ -22,13 +25,15 @@ const num = (v: string) => v.replace(/[^\d.]/g, '')
  * purity (with old gold taken in, PAN from ₹2 lakh and the ₹2 lakh-a-day cash limit). The bill is an ordinary GST
  * bill underneath (3% on the whole value, HSN 7113), so khata, cash book and reports carry on as usual.
  */
-export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
+export function JewelleryScreen({ shopId, shopName, isOwner }: { shopId: string; shopName: string; isOwner: boolean }) {
   const { t } = useTranslation()
   const rates = useQuery({ queryKey: [shopId, 'jewellery', 'rates'], queryFn: () => api<MetalRates>('/v1/jewellery/rates') })
+  const due = useDueToday(shopId, shopName)
   const [tab, setTab] = useState<Tab | null>(null)
   const shown: Tab = tab ?? (rates.data && rates.data.current.length === 0 ? 'rates' : 'bill')
   const tabs: { key: Tab; label: string; d: string; on: string; off: string }[] = [
     { key: 'bill', label: t('jwl.newBill'), d: 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4', on: 'bg-[#0b5e4f] text-white shadow-lg shadow-[#0b5e4f]/30', off: 'bg-[#e3f2ee] text-[#0b5e4f] hover:bg-[#d2ebe4]' },
+    { key: 'today', label: due.length ? `${t('jwl5.todayTab')} · ${due.length}` : t('jwl5.todayTab'), d: 'M12 8v4l3 2M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18', on: 'bg-[#be123c] text-white shadow-lg shadow-[#be123c]/30', off: due.some((d) => d.overdue) ? 'bg-[#fde8ec] text-[#be123c] ring-2 ring-[#be123c]/40 hover:bg-[#fbd5dd]' : 'bg-[#fde8ec] text-[#be123c] hover:bg-[#fbd5dd]' },
     { key: 'stock', label: t('jwl.stock'), d: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10', on: 'bg-[#6d28d9] text-white shadow-lg shadow-[#6d28d9]/30', off: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
     { key: 'rates', label: t('jwl.rates'), d: 'M3 17l6-6 4 4 8-8M15 7h6v6', on: 'bg-[#a1460a] text-white shadow-lg shadow-[#a1460a]/30', off: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' },
     { key: 'orders', label: t('jwl2.tabOrders'), d: 'M9 3h6l1 3H8zM5 6h14v15H5zM9 11h6M9 15h4', on: 'bg-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/30', off: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe6fc]' },
@@ -37,6 +42,7 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
     { key: 'approvals', label: t('jwl2.tabApprovals'), d: 'M14 3H6v18h12V7zM14 3v4h4M9 13l2 2 4-4', on: 'bg-[#6d28d9] text-white shadow-lg shadow-[#6d28d9]/30', off: 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]' },
     { key: 'workshop', label: t('jwl3.tabWorkshop'), d: 'M14 7l3-3 3 3-3 3zM4 20l9-9M12 4l8 8M3 13l4 4', on: 'bg-[#a1460a] text-white shadow-lg shadow-[#a1460a]/30', off: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' },
     { key: 'trays', label: t('jwl3.tabTrays'), d: 'M3 7h18v4H3zM5 11v8h14v-8M9 15h6', on: 'bg-[#33423d] text-white shadow-lg shadow-[#33423d]/30', off: 'bg-[#edf2f1] text-[#33423d] hover:bg-[#e2eae8]' },
+    { key: 'buyOld', label: t('jwl5.tab'), d: 'M12 3v12M7 10l5 5 5-5M4 19h16', on: 'bg-[#a1460a] text-white shadow-lg shadow-[#a1460a]/30', off: 'bg-[#fdf1e3] text-[#a1460a] hover:bg-[#fbe6cc]' },
     { key: 'reports', label: t('jwl4.tab'), d: 'M4 20V10M10 20V4M16 20v-7M22 20H2', on: 'bg-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/30', off: 'bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe6fc]' },
   ]
   const gold22 = rates.data?.current.find((r) => r.metal === 'gold' && r.purity === 916)
@@ -62,13 +68,15 @@ export function JewelleryScreen({ shopId, isOwner }: { shopId: string; isOwner: 
       {shown === 'rates' && <RatesPanel shopId={shopId} isOwner={isOwner} rates={rates.data} />}
       {shown === 'stock' && <StockPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'bill' && <BillPanel shopId={shopId} />}
-      {shown === 'girvi' && <GirviPanel shopId={shopId} isOwner={isOwner} />}
+      {shown === 'girvi' && <GirviPanel shopId={shopId} shopName={shopName} isOwner={isOwner} />}
       {shown === 'schemes' && <SchemesPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'orders' && <OrdersPanel shopId={shopId} />}
       {shown === 'approvals' && <ApprovalsPanel shopId={shopId} />}
       {shown === 'workshop' && <WorkshopPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'trays' && <TraysPanel shopId={shopId} isOwner={isOwner} />}
-      {shown === 'reports' && <JewelleryReportsPanel shopId={shopId} isOwner={isOwner} />}
+      {shown === 'today' && <JewelleryTodayPanel items={due} />}
+      {shown === 'buyOld' && <OldGoldPanel shopId={shopId} />}
+      {shown === 'reports' &&<JewelleryReportsPanel shopId={shopId} isOwner={isOwner} />}
     </div>
   )
 }
@@ -138,6 +146,11 @@ function RatesPanel({ shopId, isOwner, rates }: { shopId: string; isOwner: boole
         ? <Button className="self-start px-8" busy={busy} onClick={() => void save()}>{t('jwl.saveRates')}</Button>
         : <p className="text-sm text-muted">{t('jwl.ownerSetsRates')}</p>}
       {message && <p role="status" className="text-sm font-semibold text-brand-deep">{message}</p>}
+      {(rates?.current.length ?? 0) > 0 && (
+        <a href={whatsAppLink(null, rateMessage(rates!.current, t('jwl5.rateMsgTitle', { date: new Date().toLocaleDateString([], { day: 'numeric', month: 'short' }) }), t('jwl5.rateMsgNote'), t('jwl.silver')))}
+          target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center rounded-xl bg-[#1f9d55] px-4 font-bold text-white sm:self-start">{t('jwl5.shareRates')}</a>
+      )}
+      {isOwner && <StaffCapSetting shopId={shopId} />}
       {(rates?.today.length ?? 0) > 0 && (
         <div className="flex flex-col gap-1">
           <b className="text-sm">{t('jwl.todayChanges')}</b>

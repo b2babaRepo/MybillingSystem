@@ -5826,6 +5826,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("closed_on");
 
+                    b.Property<bool>("CompoundYearly")
+                        .HasColumnType("boolean")
+                        .HasColumnName("compound_yearly");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -7712,13 +7716,96 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("numeric(14,2)")
                         .HasColumnName("value");
 
+                    b.Property<Guid?>("VoucherId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("voucher_id");
+
                     b.HasKey("Id");
 
                     b.HasAlternateKey("ShopId", "Id");
 
                     b.HasIndex("ShopId", "BillId");
 
+                    b.HasIndex("ShopId", "VoucherId");
+
                     b.ToTable("old_metal_purchases", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.OldMetalVoucher", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<Guid>("ExpenseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("expense_id");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("mode");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<string>("Pan")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("pan");
+
+                    b.Property<string>("SellerAddress")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("seller_address");
+
+                    b.Property<string>("SellerName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("seller_name");
+
+                    b.Property<string>("SellerPhone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("seller_phone");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("total");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("old_metal_vouchers", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.OrderFollowUp", b =>
@@ -8967,6 +9054,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("entry_id");
 
+                    b.Property<decimal?>("Grams")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)")
+                        .HasColumnName("grams");
+
                     b.Property<Guid>("MemberId")
                         .HasColumnType("uuid")
                         .HasColumnName("member_id");
@@ -8974,6 +9066,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateOnly>("PaidOn")
                         .HasColumnType("date")
                         .HasColumnName("paid_on");
+
+                    b.Property<decimal?>("RatePerGram")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("rate_per_gram");
 
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
@@ -9075,6 +9172,14 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("amount")
+                        .HasColumnName("kind");
+
                     b.Property<int>("Months")
                         .HasColumnType("integer")
                         .HasColumnName("months");
@@ -9084,6 +9189,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("character varying(60)")
                         .HasColumnName("name");
+
+                    b.Property<int?>("Purity")
+                        .HasColumnType("integer")
+                        .HasColumnName("purity");
 
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
@@ -11573,6 +11682,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
+
+                    b.Property<decimal?>("JewelleryMaxOffPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("jewellery_max_off_percent");
+
+                    b.Property<bool>("JewelleryShowOnline")
+                        .HasColumnType("boolean")
+                        .HasColumnName("jewellery_show_online");
 
                     b.Property<double?>("Latitude")
                         .HasColumnType("double precision")

@@ -114,7 +114,7 @@ public static class JewelleryReportEndpoints
             .Select(e => new { e.CustomerId, e.Amount, e.OccurredAt }).ToListAsync(ct);
         var girvi = await (from p in db.GirviPayments.AsNoTracking()
                            join l in db.GirviLoans.AsNoTracking() on p.LoanId equals l.Id
-                           where p.Mode == PaymentMode.Cash && p.At >= start && p.At < end
+                           where p.Mode == PaymentMode.Cash && p.Amount > 0 && p.At >= start && p.At < end
                            select new { l.CustomerId, p.Amount, p.At }).ToListAsync(ct);
 
         // Who: a customer, or a PAN on a bill with no customer.
