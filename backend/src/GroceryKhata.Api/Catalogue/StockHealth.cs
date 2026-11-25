@@ -16,8 +16,9 @@ public sealed record StockHealthItem(
 /// <summary>Stock value by how long ago it came in (0–30, 31–60, 61–90, 90+ days).</summary>
 public sealed record AgeBucket(string Label, decimal Value, int Items);
 
+/// <summary><see cref="Unvalued"/>: items in stock with no cost price, left out of every value here.</summary>
 public sealed record StockHealthDto(decimal Value, decimal DeadValue, int DeadItems, decimal SlowValue, int SlowItems, IReadOnlyList<AgeBucket> Ageing,
-    int RankA, int RankB, int RankC, decimal Turnover, IReadOnlyList<StockHealthItem> Items);
+    int RankA, int RankB, int RankC, decimal Turnover, IReadOnlyList<StockHealthItem> Items, int Unvalued = 0);
 
 /// <summary>
 /// Where the shop's money sits on the shelf. Movement over the last 90 days: dead = nothing sold (and held more
@@ -95,6 +96,7 @@ public static class StockHealth
             rank.Count(r => r.Value == "A"), rank.Count(r => r.Value == "B"), items.Count(i => i.Rank == "C"),
             value > 0 ? decimal.Round(cogsYear / value, 1) : 0,
             // Most money stuck first: dead, then slow, by value.
-            items.OrderBy(i => i.Movement switch { "dead" => 0, "slow" => 1, "new" => 2, "fast" => 3, _ => 4 }).ThenByDescending(i => i.Value ?? 0).ToList());
+            items.OrderBy(i => i.Movement switch { "dead" => 0, "slow" => 1, "new" => 2, "fast" => 3, _ => 4 }).ThenByDescending(i => i.Value ?? 0).ToList(),
+            held.Count(i => i.Value is null));
     }
 }

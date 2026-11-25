@@ -72,6 +72,12 @@ public static class DataChecks
             .Select(p => new { p.Id, p.Name }).ToListAsync(ct);
         checks.Add(new("noCost", products.Count, noCost.Count, true, noCost.Take(MaxSamples).Select(p => new DataProblem(p.Name, "", p.Id)).ToList()));
 
+        // 6. Counted items below zero: sold more than ever came in, so a purchase or opening stock wasn't entered. Billing
+        // never stops for it; the shelf count and stock value are off until it is.
+        var negative = products.Where(p => p.Stock < 0).OrderBy(p => p.Stock).ToList();
+        checks.Add(new("negativeStock", products.Count, negative.Count, true,
+            negative.Take(MaxSamples).Select(p => new DataProblem(p.Name, $"{p.Stock:0.###}", p.Id)).ToList()));
+
         return TypedResults.Ok(new DataCheckDto(clock.GetUtcNow(), checks));
     }
 }
