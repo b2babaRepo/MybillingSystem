@@ -248,7 +248,7 @@ public static class Bookings
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: clash);
         }
 
-        booking.Number = (await db.Bookings.MaxAsync(b => (int?)b.Number, ct) ?? 0) + 1;
+        booking.Number = await db.NextNumberAsync<Booking>(ct);
         if (booking.Status == BookingStatus.Confirmed)
         {
             await AttachJobAsync(db, booking, venue!, ct);
@@ -263,7 +263,7 @@ public static class Bookings
     private static async Task AttachJobAsync(AppDbContext db, Booking booking, string venue, CancellationToken ct)
     {
         var job = NewJob(booking, venue);
-        job.Number = (await db.Jobs.MaxAsync(j => (int?)j.Number, ct) ?? 0) + 1;
+        job.Number = await db.NextNumberAsync<Job>(ct);
         db.Jobs.Add(job);
         booking.JobId = job.Id;
     }

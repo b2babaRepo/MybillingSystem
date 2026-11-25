@@ -190,7 +190,7 @@ public static class SaleOrders
             Id = request.Id, CustomerId = request.CustomerId, PartyName = string.IsNullOrWhiteSpace(request.PartyName) ? null : request.PartyName.Trim(),
             Lines = JsonSerializer.Serialize(built, Json), Total = built.Sum(l => Money.LineAmount(l.Quantity, l.UnitPrice)), DueOn = request.DueOn,
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(), CreatedByUserId = user.UserId()!.Value,
-            Number = (await db.SaleOrders.MaxAsync(o => (int?)o.Number, ct) ?? 0) + 1,
+            Number = await db.NextNumberAsync<SaleOrder>(ct),
         };
         db.SaleOrders.Add(order);
         await db.SaveChangesAsync(ct);

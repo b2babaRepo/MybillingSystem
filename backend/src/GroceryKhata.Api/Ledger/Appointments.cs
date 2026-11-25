@@ -197,7 +197,7 @@ public static class Appointments
 
         var appointment = new Appointment
         {
-            Id = request.Id, Number = (await db.Appointments.MaxAsync(a => (int?)a.Number, ct) ?? 0) + 1, Date = date, Start = start.Value, End = end,
+            Id = request.Id, Number = await db.NextNumberAsync<Appointment>(ct), Date = date, Start = start.Value, End = end,
             StylistId = request.StylistId, CustomerId = request.CustomerId, Name = name!, Phone = PhoneNumber.Normalize(request.Phone) ?? (string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim()),
             Status = request.WalkIn ? AppointmentStatus.Arrived : AppointmentStatus.Booked, Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
             Services = ids.Select(i => services.Single(p => p.Id == i))

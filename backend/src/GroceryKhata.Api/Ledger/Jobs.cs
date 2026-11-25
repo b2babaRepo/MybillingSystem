@@ -256,7 +256,7 @@ public static class Jobs
         var unit = serialNo is null ? null
             : await db.ProductSerials.AsNoTracking().Where(s => s.SerialNo == serialNo).OrderByDescending(s => s.SoldOn).FirstOrDefaultAsync(ct);
         var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToOffset(IndiaTime.Offset).DateTime);
-        var number = (await db.Jobs.MaxAsync(j => (int?)j.Number, ct) ?? 0) + 1;
+        var number = await db.NextNumberAsync<Job>(ct);
         db.Jobs.Add(new Job
         {
             SerialNo = serialNo, ProductSerialId = unit?.Id, InWarranty = unit?.WarrantyUntil is { } until && until >= today,

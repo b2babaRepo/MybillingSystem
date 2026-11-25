@@ -179,7 +179,7 @@ public static class PurchaseOrders
         var note = request.Note?.Trim();
         var order = new PurchaseOrder
         {
-            Id = request.Id, SupplierId = request.SupplierId, Number = (await db.PurchaseOrders.MaxAsync(o => (int?)o.Number, ct) ?? 0) + 1,
+            Id = request.Id, SupplierId = request.SupplierId, Number = await db.NextNumberAsync<PurchaseOrder>(ct),
             Status = request.Draft ? PurchaseOrderStatus.Draft : PurchaseOrderStatus.Open,
             Note = string.IsNullOrEmpty(note) ? null : note[..Math.Min(note.Length, 200)], ExpectedOn = request.ExpectedOn, CreatedByUserId = user.UserId()!.Value,
             Lines = lines.Select(l => new PurchaseOrderLine { ProductId = l.ProductId, Quantity = l.Quantity, Rate = l.Rate, Bags = l.Bags }).ToList(),

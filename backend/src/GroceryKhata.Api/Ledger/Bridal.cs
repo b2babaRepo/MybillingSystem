@@ -204,14 +204,14 @@ public static class Bridal
 
         var booking = new BridalBooking
         {
-            Id = request.Id, Number = (await db.BridalBookings.MaxAsync(b => (int?)b.Number, ct) ?? 0) + 1, CustomerId = request.CustomerId, Title = request.Title!.Trim(),
+            Id = request.Id, Number = await db.NextNumberAsync<BridalBooking>(ct), CustomerId = request.CustomerId, Title = request.Title!.Trim(),
             AtHome = request.AtHome, Address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim(), TravelCharge = request.TravelCharge, TrialDate = request.TrialDate,
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(), Status = BridalStatus.Booked,
             Events = events.Select(e => new BridalEvent { Name = e.Name!.Trim(), Date = e.Date, Start = e.Start, Minutes = e.Minutes, Price = e.Price, StylistId = e.StylistId }).ToList(),
         };
         var job = new Job
         {
-            Number = (await db.Jobs.MaxAsync(j => (int?)j.Number, ct) ?? 0) + 1, CustomerId = request.CustomerId, Title = $"Bridal: {booking.Title}", Status = JobStatus.Order,
+            Number = await db.NextNumberAsync<Job>(ct), CustomerId = request.CustomerId, Title = $"Bridal: {booking.Title}", Status = JobStatus.Order,
             Price = booking.Events.Sum(e => e.Price) + booking.TravelCharge, DueOn = booking.Events.Min(e => e.Date),
         };
         db.Jobs.Add(job);

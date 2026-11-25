@@ -356,7 +356,7 @@ public static class Stays
         db.Stays.Add(new Stay
         {
             RoomCharge = nightRates.Sum(), BookingId = request.BookingId,
-            Id = request.Id, Number = (await db.Stays.MaxAsync(s => (int?)s.Number, ct) ?? 0) + 1, RoomId = request.RoomId, CheckIn = request.CheckIn, CheckOut = request.CheckOut,
+            Id = request.Id, Number = await db.NextNumberAsync<Stay>(ct), RoomId = request.RoomId, CheckIn = request.CheckIn, CheckOut = request.CheckOut,
             CustomerId = request.CustomerId, GuestName = name!, Phone = PhoneNumber.Normalize(request.Phone) ?? Clean(request.Phone), Guests = request.Guests, Rate = rate,
             Source = request.Source ?? StaySource.Direct, SourceRef = Clean(request.SourceRef), Commission = request.Commission, Foreigner = request.Foreigner, Note = Clean(request.Note),
         });
@@ -667,7 +667,7 @@ public static class Stays
             var name = string.IsNullOrWhiteSpace(e.Summary) || e.Summary.Length < 2 ? $"{source} guest" : e.Summary.Trim()[..Math.Min(80, e.Summary.Trim().Length)];
             db.Stays.Add(new Stay
             {
-                Number = (await db.Stays.MaxAsync(s => (int?)s.Number, ct) ?? 0) + 1, RoomId = id, CheckIn = e.Start, CheckOut = e.End, GuestName = name, Guests = 1,
+                Number = await db.NextNumberAsync<Stay>(ct), RoomId = id, CheckIn = e.Start, CheckOut = e.End, GuestName = name, Guests = 1,
                 Rate = decimal.Round(rates.Average(), 2), RoomCharge = rates.Sum(), Source = source, SourceRef = reference, Note = "Brought in from the booking site's calendar",
             });
             await db.SaveChangesAsync(ct);

@@ -376,7 +376,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         db.Stocktakes.Add(new Stocktake
         {
-            Id = request.Id, Number = (await db.Stocktakes.MaxAsync(t => (int?)t.Number, ct) ?? 0) + 1, TakenAt = clock.GetUtcNow(), CreatedByUserId = userId,
+            Id = request.Id, Number = await db.NextNumberAsync<Catalogue.Stocktake>(ct), TakenAt = clock.GetUtcNow(), CreatedByUserId = userId,
             Lines = System.Text.Json.JsonSerializer.Serialize(lines), Items = lines.Count, Differences = lines.Count(l => l.Difference != 0),
             ValueDifference = decimal.Round(lines.Sum(l => l.Difference * (l.CostPrice ?? 0)), 2),
         });

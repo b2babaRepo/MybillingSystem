@@ -169,8 +169,8 @@ public static class Receipts
 
     /// <summary>The customer's own "I have paid", from their private link.</summary>
     private static async Task<IResult> ClaimByLinkAsync(
-        string slug, Guid customerId, string? t, PaidClaimRequest request, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct) =>
-        await KhataViewEndpoints.OpenByLinkAsync(slug, customerId, t, db, tenant, ct) is null ? TypedResults.NotFound() : await ClaimAsync(db, customerId, Guid.Empty, request, clock, ct);
+        string slug, Guid customerId, string? t, PaidClaimRequest request, AppDbContext db, TenantContext tenant, Microsoft.Extensions.Options.IOptions<Billing.BillingOptions> billing, TimeProvider clock, CancellationToken ct) =>
+        await KhataViewEndpoints.OpenByLinkAsync(slug, customerId, t, db, tenant, billing, ct) is null ? TypedResults.NotFound() : await ClaimAsync(db, customerId, Guid.Empty, request, clock, ct);
 
     /// <summary>The same from the household app, for a khata they have confirmed is theirs.</summary>
     private static async Task<IResult> ClaimMineAsync(

@@ -133,7 +133,7 @@ public static class WarrantyClaims
 
         var claim = new WarrantyClaim
         {
-            Id = request.Id, Number = (await db.WarrantyClaims.MaxAsync(c => (int?)c.Number, ct) ?? 0) + 1, SupplierId = request.SupplierId, JobId = job?.Id,
+            Id = request.Id, Number = await db.NextNumberAsync<WarrantyClaim>(ct), SupplierId = request.SupplierId, JobId = job?.Id,
             SerialNo = request.SerialNo is { } s && !string.IsNullOrWhiteSpace(s) ? Catalogue.Serials.Clean(s) : job?.SerialNo, Description = description,
             Parts = parts, Labour = request.Labour, RaisedAt = clock.GetUtcNow(), CreatedByUserId = user.UserId()!.Value,
         };
