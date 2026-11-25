@@ -56,6 +56,20 @@ public sealed class TestingFixesTests(ApiFactory api)
         Assert.Equal(40m, (await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl")).StockLoss);
     }
 
+    [Fact]
+    public async Task Credit_notes_come_off_the_years_sales_gst_and_turnover()
+    {
+        var (shop, _) = await ShopAsync("kirana", gst: true);
+        var soap = await ItemAsync(shop, "Soap", 118m, 20m, cost: 70m, gst: 18m);
+        var bill = Guid.CreateVersion7();
+        (await SellAsync(shop, soap, 10m, 118m, id: bill)).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/bills/{bill}/credit-notes", new { id = Guid.CreateVersion7(), reason = "damaged", lines = new[] { new { lineNo = 1, quantity = 2m } }, restock = true })).EnsureSuccessStatusCode();
+
+        // 8 soap stay sold: ₹944 with GST, ₹144 of it GST, ₹800 turnover (what the audit limits and 44AD read).
+        var pnl = await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl");
+        Assert.Equal((944m, 144m, 800m), (pnl.Sales, pnl.Gst, pnl.Turnover));
+    }
+
     private static async Task<Guid> ItemAsync(HttpClient shop, string name, decimal price, decimal stock, decimal? cost = null, decimal? gst = null, string? schedule = null)
     {
         var id = Guid.CreateVersion7();

@@ -62,11 +62,35 @@ Both have a regression test (`TestingFixesTests`), and the scenario checks them 
 | Selling 8 with 5 in stock is allowed and stock shows −3 | Shops often bill before entering a purchase | Warn on the bill when stock would go below zero, if not already shown |
 | Average cost is kept to 2 decimals | Undoing an average can leave a paisa or two (₹40.01, not ₹40) | Fine; no change |
 
+## GST-registered shop (added the same day)
+
+Script: `deploy/demo/gst-test.mjs` (46 checks), with a Rajasthan (08) shop:
+- **Buying:** from a supplier in Rajasthan (CGST + SGST) and one in Maharashtra (IGST).
+- **Selling:** a cash sale, a B2B sale in the state, and a B2B sale to Gujarat (IGST).
+- **Corrections:** a credit note and a cancelled bill.
+
+**Correct:**
+- **Bills:** each bill's tax split (CGST/SGST in the state, IGST to Gujarat, place of supply 24 on the Gujarat bill).
+- **Cost and dues:** cost price kept before GST, and suppliers owed the bill amount including GST.
+- **GSTR-1 totals:** cancelled bill left out, B2B ₹3,410, credit note tax ₹36.
+- **Input credit:** ₹1,082 on ₹8,900.
+- **GSTR-3B working:**
+  - output net of the credit note;
+  - IGST credit used first;
+  - nothing payable, ₹568 carried forward.
+- **HSN table:** by B2B/B2C, net of the return.
+
+**Bug found and fixed:**
+
+| # | Severity | Bug | Effect | Fix |
+|---|---|---|---|---|
+| 3 | High | **The year's P&L didn't take credit notes off sales, GST or turnover.** The GST month did; the year report didn't. | Turnover read ₹4,500 for ₹4,300 of real sales. Turnover drives the tax-audit limit alerts and the 44AD presumptive profit, so returns made the shop look bigger than it was. | Each month's credit notes (and RN return notes) now come off sales, GST and turnover in the year report and P&L. |
+
 ## Not covered yet (next tests)
 
 | Area | Why it matters | Test type |
 |---|---|---|
-| A GST-registered shop: GST on sales and purchases, input credit, GSTR-1 and 3B figures | This shop had no GSTIN, so all GST was ₹0 | Scenario script with a GSTIN |
+| Composition shop (CMP-08, bill of supply) and GST on reverse charge | Only regular GST was tested | Scenario script |
 | Medicines by batch and expiry; expired stock blocked | Batch stock is kept separately | Scenario script |
 | Loose and bag items (kg, bags opened), units bought in cartons | Unit conversions are easy to get wrong | Scenario script |
 | Godown transfers | Stock per godown must add up to the total | Integration test |
