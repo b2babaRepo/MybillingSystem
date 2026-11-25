@@ -53,6 +53,9 @@ public sealed record OtpVerifyRequest(string? Phone, string? Code, string? FullN
 
 public sealed record OtpSentResponse(int ResendAfterSeconds, int ValidMinutes);
 
+/// <summary>Forgot password: the code sent to the number, and the new password.</summary>
+public sealed record PasswordResetRequest(string? Phone, string? Code, string? NewPassword);
+
 public interface ISmsSender
 {
     /// <summary>Sends <paramref name="code"/> to <paramref name="phone"/> (E.164). Throws when the provider refuses.</summary>
@@ -140,6 +143,7 @@ public static class OtpSignIn
         var group = app.MapGroup("/api/v1/auth/otp").WithTags("Sign-in").AllowAnonymous().RequireRateLimiting(AuthSetup.AuthRateLimit);
         group.MapPost("/send", SendAsync).RequireRateLimiting(AuthSetup.OtpSendRateLimit);
         group.MapPost("/verify", VerifyAsync);
+        group.MapPost("/reset-password", ResetPasswordAsync);
         return app;
     }
 
@@ -245,6 +249,46 @@ public static class OtpSignIn
         }
 
         return otp;
+    }
+
+    /// <summary>
+    /// Forgot password: a code sent to the number proves it is theirs, so the password is replaced without the old one.
+    /// Every other sign-in ends (a password that got out stops working everywhere), and this phone is signed in.
+    /// </summary>
+    private static async Task<IResult> ResetPasswordAsync(
+        PasswordResetRequest request, AppDbContext db, AuthService auth, Microsoft.AspNetCore.Identity.IPasswordHasher<User> hasher, IOptions<OtpOptions> options, TimeProvider clock, CancellationToken ct)
+    {
+        if (request.NewPassword is not { Length: >= SignUpRequest.MinPasswordLength and <= 128 })
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["NewPassword"] = [$"Use at least {SignUpRequest.MinPasswordLength} characters."] });
+        }
+
+        var phone = PhoneNumber.Normalize(request.Phone);
+        var now = clock.GetUtcNow();
+        var otp = await MatchAsync(db, phone, request.Code, options.Value, now, ct);
+        var user = otp is null ? null : await db.Users.SingleOrDefaultAsync(u => u.Phone == phone, ct);
+        if (otp is null || user is null)
+        {
+            return WrongCode();
+        }
+
+        // Old sign-ins end first; then the number is proved (which, on a first proof, clears any password set before it),
+        // and only then is the new password set, so it is the one that stays.
+        otp.UsedAt = now;
+        await db.RefreshTokens.Where(t => t.UserId == user.Id && t.RevokedAt == null).ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+        var result = await auth.SignInWithVerifiedPhoneAsync(user, phone!, null, user.PreferredLanguage, ct);
+        if (result.Value is not null)
+        {
+            user.PasswordHash = hasher.HashPassword(user, request.NewPassword);
+            await db.SaveChangesAsync(ct);
+        }
+
+        return result switch
+        {
+            { Value: { } value } => TypedResults.Ok(value),
+            { Error: AuthError.LockedOut } => TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Account locked for a while."),
+            _ => WrongCode(),
+        };
     }
 
     private static IResult WrongCode() =>
