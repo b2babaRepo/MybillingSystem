@@ -19,7 +19,7 @@ function check(name, actual, expected) { checks.push({ name, ok: near(actual, ex
 function note(name, value) { checks.push({ name, ok: null, actual: value, expected: '' }) }
 
 // A fresh shop.
-const phone = `98998${String(Math.floor(Math.random() * 1e5)).padStart(5, '0')}`
+const phone = process.env.GK_PHONE ?? `98998${String(Math.floor(Math.random() * 1e5)).padStart(5, '0')}`
 const auth = await post('/auth/sign-up', { shopName: 'Inventory Test Kirana', fullName: 'Inv Tester', phone, password: 'secret123', language: 'en', type: 'kirana' })
 token = auth.accessToken
 if (!auth.shopId && auth.memberships?.[0]) token = (await post('/auth/select-shop', { membershipId: auth.memberships[0].membershipId })).accessToken

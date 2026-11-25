@@ -57,7 +57,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var photos = await ProductPhotoEndpoints.IdsAsync(db, list.Count == 1 ? [list[0].Id] : null, ct);
         return list.Select(p => (sold.TryGetValue(p.Id, out var q) && q > 0 ? p with { DailySales = decimal.Round(q / Cover.Days, 3) } : p) with
         {
-            Bags = bags.GetValueOrDefault(p.Id), Promised = promised.GetValueOrDefault(p.Id), ExtraPhotos = photos.GetValueOrDefault(p.Id),
+            Bags = SealedBags(bags.GetValueOrDefault(p.Id), p.Stock, p.BagSize), Promised = promised.GetValueOrDefault(p.Id), ExtraPhotos = photos.GetValueOrDefault(p.Id),
         }).ToList();
     }
 
@@ -505,7 +505,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             return null;
         }
 
-        var sealedBags = await db.StockMovements.Where(m => m.ProductId == productId && m.Bags != null).SumAsync(m => (decimal?)m.Bags, ct) ?? 0;
+        var item = await db.Products.AsNoTracking().Where(p => p.Id == productId).Select(p => new { p.Stock, p.BagSize }).SingleAsync(ct);
+        var sealedBags = SealedBags(await db.StockMovements.Where(m => m.ProductId == productId && m.Bags != null).SumAsync(m => (decimal?)m.Bags, ct) ?? 0, item.Stock, item.BagSize);
         if (sealedBags < request.Bags)
         {
             return $"Only {sealedBags:0.##} sealed bags are on hand.";
@@ -519,6 +520,13 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         await db.SaveChangesAsync(ct);
         return null;
     }
+
+    /// <summary>
+    /// Sealed bags (or cartons) on hand: the bag movements added up, but never more than the stock can fill. Selling 5
+    /// soaps loose from 2 cartons of 24 leaves 43 pieces, so one carton must have been opened even if nobody said so.
+    /// </summary>
+    internal static decimal SealedBags(decimal counted, decimal stock, decimal? bagSize) =>
+        bagSize is > 0 and var size ? Math.Max(0, Math.Min(counted, Math.Floor(stock / size))) : counted;
 
     private Task<decimal> WriteOffLimitAsync(CancellationToken ct) =>
         db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.StaffMaxWriteOff).FirstAsync(ct);

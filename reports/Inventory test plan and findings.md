@@ -86,14 +86,36 @@ Script: `deploy/demo/gst-test.mjs` (46 checks), with a Rajasthan (08) shop:
 |---|---|---|---|---|
 | 3 | High | **The year's P&L didn't take credit notes off sales, GST or turnover.** The GST month did; the year report didn't. | Turnover read ₹4,500 for ₹4,300 of real sales. Turnover drives the tax-audit limit alerts and the 44AD presumptive profit, so returns made the shop look bigger than it was. | Each month's credit notes (and RN return notes) now come off sales, GST and turnover in the year report and P&L. |
 
+## The remaining areas (added the same day)
+
+Script: `deploy/demo/gaps-test.mjs` (46 checks). Each part makes its own throwaway shop.
+
+| Area | What was checked | Result |
+|---|---|---|
+| **Medicines** | Two batches with different expiry; a 25-strip sale takes the first-expiring batch first; half a strip sold loose; a batch aged past expiry can't be sold; it shows in the expiry list; an already-expired batch can't be bought in; selling above MRP is refused | All correct |
+| **Units** | 4 bags of 25 kg bought (100 kg, 4 sealed bags); one opened and 3.75 kg sold loose; one sold whole; 2 cartons of 24 soaps bought, 5 sold loose; cost per kg and per piece; stock value | 1 bug (below), fixed |
+| **Godowns** | Bought straight into a godown; North → South → shop transfers; total stock unchanged by transfers; moving more than a godown holds is refused; a counter sale takes from the shop's own stock; cancelling a transfer whose goods were partly sold is refused | All correct |
+| **Offline and two counters** | The same bill sent twice at once saves once; a bill made offline 3 hours ago keeps its time; a phone clock 2 hours fast is corrected; 20 bills at the same moment leave stock exact and all show in the day report | All correct |
+| **Month end** | Books closed for last month: a new bill dated in it and cancelling a bill in it are refused; a credit note today for an old bill is allowed; the closed month's figures don't change; reopening needs a reason | All correct |
+| **Composition GST** | Bills are bills of supply with no tax, even to a GSTIN buyer; the GST month knows it's composition; CMP-08 = 1% of turnover (₹5 on ₹500); the P&L shows no GST collected | All correct |
+| **Report screens** | Same shop read through the screens: home, items, day report, sales report, items margin, stock statement, P&L, suppliers, cash book | 2 bugs (below), fixed; then all agree |
+
+**Bugs found and fixed:**
+
+| # | Severity | Bug | Effect | Fix |
+|---|---|---|---|---|
+| 4 | Medium | **Sealed cartons weren't reduced by loose sales.** 2 cartons of 24, 5 sold loose, and the app still showed 2 sealed cartons with only 43 pieces. | Shop thinks it has 2 unopened cartons to sell or return; "open a bag" allowed opening a carton that doesn't exist. | Sealed bags and cartons are capped at what the stock can fill (43 ÷ 24 = 1). |
+| 5 | Medium | **The stock statement and the P&L still valued stock at a cancelled supplier bill's cost.** Items screen said ₹1,140; the stock statement and P&L closing stock said ₹1,160.04. | Closing stock in the P&L and the GST stock account were overstated. | The average-cost calculation behind both now takes a cancelled bill's units out, as the item's own cost does. |
+| 6 | Medium | **The stock statement counted a cancelled bill as sold.** 2 sugar billed and cancelled showed as sold 7 (not 5), with the 2 back under "other in". | The GST stock account (sold quantity) was overstated. | A cancelled bill's goods coming back now come off "Sold". |
+
+**Not built:** GST on **reverse charge** (RCM) for purchases, for example freight from a transporter (GTA). The app only handles it for jewellery karigar work. A kirana paying GTA freight pays this GST itself; today it has to be worked out by hand.
+
+**Note for running the scripts:** sign-up is rate-limited. Running all four scripts back to back can hit it (429 or 401). Wait a minute and run again.
+
 ## Not covered yet (next tests)
 
 | Area | Why it matters | Test type |
 |---|---|---|
-| Composition shop (CMP-08, bill of supply) and GST on reverse charge | Only regular GST was tested | Scenario script |
-| Medicines by batch and expiry; expired stock blocked | Batch stock is kept separately | Scenario script |
-| Loose and bag items (kg, bags opened), units bought in cartons | Unit conversions are easy to get wrong | Scenario script |
-| Godown transfers | Stock per godown must add up to the total | Integration test |
-| Offline bills synced later, two counters selling the same item | Stock must not double-count | Integration test |
-| Month end and the books closed for a month | Changes must go to the open month | Integration test |
-| The screens showing these numbers (stock list, reports) | The API is right; the screens should show the same | Browser check |
+| Reverse-charge GST on purchases (feature not built) | Needed by shops that pay GTA freight | Build, then script |
+| Restaurant tables, salon appointments, rooms and bookings | Other trades the app serves | Scenario scripts |
+| Phone-sized screens for the reports | Shopkeepers use phones | Browser check at phone width |

@@ -54,6 +54,17 @@ public sealed class TestingFixesTests(ApiFactory api)
         // The month and the year agree on the loss: ₹40, whatever the cost did afterwards.
         Assert.Equal(40m, (await shop.GetJsonAsync<MonthReport>("/api/v1/reports/month")).StockLoss);
         Assert.Equal(40m, (await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl")).StockLoss);
+
+        // The stock statement and the P&L value the 13 left at ₹40 too, not at the cancelled bill's average.
+        Assert.Equal(520m, (await shop.GetJsonAsync<StockStatement>("/api/v1/reports/stock")).Value);
+        Assert.Equal(520m, (await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl")).ClosingStock);
+
+        // A bill sold and then cancelled doesn't count as sold in the stock statement.
+        var bill = Guid.CreateVersion7();
+        (await SellAsync(shop, sugar, 2m, 50m, id: bill)).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/bills/{bill}/cancel", new { reason = "wrong item" })).EnsureSuccessStatusCode();
+        var line = (await shop.GetJsonAsync<StockStatement>("/api/v1/reports/stock")).Items.Single(i => i.ProductId == sugar);
+        Assert.Equal((0m, 0m, 13m), (line.Sold, line.OtherIn, line.Closing));
     }
 
     [Fact]
@@ -68,6 +79,22 @@ public sealed class TestingFixesTests(ApiFactory api)
         // 8 soap stay sold: ₹944 with GST, ₹144 of it GST, ₹800 turnover (what the audit limits and 44AD read).
         var pnl = await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl");
         Assert.Equal((944m, 144m, 800m), (pnl.Sales, pnl.Gst, pnl.Turnover));
+    }
+
+    [Fact]
+    public async Task Sealed_cartons_never_exceed_what_the_stock_can_fill()
+    {
+        var (shop, _) = await ShopAsync("kirana");
+        var soap = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = soap, name = "Soap", unit = "piece", sellingPrice = 35m, bagSize = 24m, purchaseUnit = "carton" })).EnsureSuccessStatusCode();
+        var supplier = await SupplierAsync(shop);
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = Guid.CreateVersion7(), supplierId = supplier, paidAmount = 0m, lines = new[] { new { productId = soap, quantity = 48m, unitCost = 28m, bags = 2m } } })).EnsureSuccessStatusCode();
+        (await SellAsync(shop, soap, 5m, 35m)).EnsureSuccessStatusCode();
+
+        // 43 pieces fill one carton of 24: the other was opened to sell the 5.
+        var after = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Id == soap);
+        Assert.Equal((43m, 1m), (after.Stock, after.Bags));
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/products/{soap}/open-bag", new { id = Guid.CreateVersion7(), bags = 2m })).StatusCode);
     }
 
     private static async Task<Guid> ItemAsync(HttpClient shop, string name, decimal price, decimal stock, decimal? cost = null, decimal? gst = null, string? schedule = null)
