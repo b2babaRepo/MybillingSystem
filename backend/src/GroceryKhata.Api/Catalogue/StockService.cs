@@ -46,16 +46,16 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         return await WithDailySalesAsync(list, ct);
     }
 
-    /// <summary>Each item's average sold a day over the last 30 days, from its sale movements, in one query.</summary>
+    /// <summary>Each item's average sold a day over the last 30 days, per day it was in stock (<see cref="Cover"/>).</summary>
     private async Task<IReadOnlyList<ProductDto>> WithDailySalesAsync(List<ProductDto> list, CancellationToken ct)
     {
-        var sold = await Cover.SoldAsync(db, clock, ct);
+        var daily = await Cover.DailyAsync(db, clock, ct);
         var bagged = list.Where(p => p.BagSize != null).Select(p => p.Id).ToList();
         var bags = bagged.Count == 0 ? [] : await db.StockMovements.AsNoTracking().Where(m => m.Bags != null && bagged.Contains(m.ProductId))
             .GroupBy(m => m.ProductId).Select(g => new { g.Key, Bags = g.Sum(m => m.Bags!.Value) }).ToDictionaryAsync(x => x.Key, x => x.Bags, ct);
         var promised = await Ledger.SaleOrders.PromisedAsync(db, ct);
         var photos = await ProductPhotoEndpoints.IdsAsync(db, list.Count == 1 ? [list[0].Id] : null, ct);
-        return list.Select(p => (sold.TryGetValue(p.Id, out var q) && q > 0 ? p with { DailySales = decimal.Round(q / Cover.Days, 3) } : p) with
+        return list.Select(p => (daily.TryGetValue(p.Id, out var d) && d > 0 ? p with { DailySales = decimal.Round(d, 3) } : p) with
         {
             Bags = bags.GetValueOrDefault(p.Id), Promised = promised.GetValueOrDefault(p.Id), ExtraPhotos = photos.GetValueOrDefault(p.Id),
         }).ToList();

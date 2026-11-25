@@ -125,7 +125,11 @@ public static class PharmacyAssist
     /// <summary>Every item to order now (the current shop), with its days left, delivery days and reorder point.</summary>
     internal static async Task<(List<ReorderLineDto> Lines, Dictionary<Guid, (Guid SupplierId, decimal? UnitCost)> Last)> NeedsAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var sold = await Catalogue.Cover.SoldAsync(db, clock, ct);
+        var rates = await Catalogue.Cover.RatesAsync(db, clock, ct);
+        // Items that sold in the last 90 days: an empty shelf for a whole month hides their sales from the 30-day rate.
+        var since = clock.GetUtcNow().AddDays(-90);
+        var soldBefore = (await db.StockMovements.AsNoTracking().Where(m => m.Kind == Catalogue.StockMovementKind.Sale && m.OccurredAt >= since)
+            .Select(m => m.ProductId).Distinct().ToListAsync(ct)).ToHashSet();
         var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService && !p.Uncounted).Select(p => new { p.Id, p.Name, p.Stock, p.Reserved, p.ReorderLevel }).ToListAsync(ct);
         // Who to order each item from: the preferred supplier, else the best recent rate (see SupplierItems.DefaultsAsync).
         var last = await SupplierItems.DefaultsAsync(db, clock, ct);
@@ -137,8 +141,10 @@ public static class PharmacyAssist
         var lines = new List<ReorderLineDto>();
         foreach (var p in products)
         {
-            var soldMonth = sold.GetValueOrDefault(p.Id);
-            var daily = soldMonth / Catalogue.Cover.Days;
+            var rate = rates.GetValueOrDefault(p.Id);
+            var soldMonth = rate?.Sold ?? 0;
+            // Per day in stock, so a month half spent out of stock doesn't halve the order.
+            var daily = rate?.Daily ?? 0;
             var leadDays = last.TryGetValue(p.Id, out var from) && lead.TryGetValue(from.SupplierId, out var days) ? days : DefaultLeadDays;
             decimal? point = daily > 0 ? Math.Ceiling((daily * leadDays) + Math.Max(daily * 2, daily * leadDays / 2)) : null;
             var onOrder = pending.GetValueOrDefault(p.Id);
@@ -152,8 +158,11 @@ public static class PharmacyAssist
 
             // Cover a month and the wait, less the shelf and what's coming; at least the reorder level.
             var target = Math.Max((daily * (30 + leadDays)) + (point is { } r ? r - (daily * leadDays) : 0), p.ReorderLevel ?? 0);
-            // Out of stock: at least one, even with no sales yet to go by.
-            var suggested = Math.Max(free <= 0 && onOrder <= 0 ? 1 : 0, Math.Ceiling(target - Math.Max(0, free) - onOrder));
+            // Out of stock and nothing coming: at least one of an item that has sold lately, even with no rate to go by. An item
+            // that never sells isn't ordered just because it is at zero (a discontinued item, or one picked from the master list
+            // and never stocked); to keep one anyway, give it a reorder level.
+            var floor = free <= 0 && onOrder <= 0 && (soldBefore.Contains(p.Id) || p.ReorderLevel != null) ? 1 : 0;
+            var suggested = Math.Max(floor, Math.Ceiling(target - Math.Max(0, free) - onOrder));
             if (suggested <= 0)
             {
                 continue;

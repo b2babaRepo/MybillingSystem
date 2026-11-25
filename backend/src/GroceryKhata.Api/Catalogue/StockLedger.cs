@@ -254,7 +254,7 @@ public static class StockLedger
             .Select(x => new { x.Id, x.Name, x.Category, x.Unit, x.CostPrice, x.IsActive, x.BagSize, x.Stock, x.Reserved, x.Barcode, x.HsnCode }).ToListAsync(ct);
         var promised = await Ledger.SaleOrders.PromisedAsync(db, ct);
         var coming = await Ledger.PurchaseOrders.PendingAsync(db, ct);
-        var sold30 = await Cover.SoldAsync(db, clock, ct);
+        var daily = await Cover.DailyAsync(db, clock, ct);
         var today = IndiaTime.Today(clock);
         var late = (await (from l in db.PurchaseOrderLines.AsNoTracking()
                            join o in db.PurchaseOrders.AsNoTracking() on l.OrderId equals o.Id
@@ -277,7 +277,7 @@ public static class StockLedger
             var cost = costs.GetValueOrDefault(x.Id) ?? x.CostPrice;
             items.Add(new StockStatementLine(x.Id, x.Name, x.Category, x.Unit, before, t?.Purchased ?? 0, t?.Sold ?? 0, t?.OtherIn ?? 0, t?.OtherOut ?? 0, closing, cost,
                 cost is { } c && closing > 0 ? decimal.Round(closing * c, 2) : null, t?.Lost ?? 0, x.BagSize, x.BagSize is null ? null : t?.Bags ?? 0,
-                x.Stock, x.Reserved, promised.GetValueOrDefault(x.Id), coming.GetValueOrDefault(x.Id), decimal.Round(sold30.GetValueOrDefault(x.Id) / Cover.Days, 3), late.Contains(x.Id),
+                x.Stock, x.Reserved, promised.GetValueOrDefault(x.Id), coming.GetValueOrDefault(x.Id), decimal.Round(daily.GetValueOrDefault(x.Id), 3), late.Contains(x.Id),
                 x.Barcode, x.HsnCode, supplied.GetValueOrDefault(x.Id) ?? []));
         }
 

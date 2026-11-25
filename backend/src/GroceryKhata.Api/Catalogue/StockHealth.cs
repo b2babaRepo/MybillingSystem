@@ -46,7 +46,7 @@ public static class StockHealth
                            select new { Id = g.Key!.Value, Sales = g.Sum(x => x.Amount), Sold = g.Sum(x => x.Quantity), Cost = g.Sum(x => x.Cost) }).ToDictionaryAsync(x => x.Id, ct);
         var lastSale = await db.StockMovements.AsNoTracking().Where(m => m.Kind == StockMovementKind.Sale)
             .GroupBy(m => m.ProductId).Select(g => new { g.Key, At = g.Max(m => m.OccurredAt) }).ToDictionaryAsync(x => x.Key, x => x.At, ct);
-        var recent = await Cover.SoldAsync(db, clock, ct);
+        var recent = await Cover.DailyAsync(db, clock, ct);
         var lastIn = await db.StockMovements.AsNoTracking().Where(m => (m.Kind == StockMovementKind.Purchase || m.Kind == StockMovementKind.Opening) && m.Quantity > 0)
             .GroupBy(m => m.ProductId).Select(g => new { g.Key, At = g.Max(m => m.OccurredAt) }).ToDictionaryAsync(x => x.Key, x => x.At, ct);
 
@@ -68,7 +68,7 @@ public static class StockHealth
             var held = Math.Max(0, p.Stock);
             decimal? value = p.CostPrice is { } c && held > 0 ? decimal.Round(held * c, 2) : held > 0 ? null : 0;
             var sinceIn = Days(lastIn.TryGetValue(p.Id, out var i) ? i : p.CreatedAt);
-            // Days left uses the shared 30-day rate (same as the item page); slow is judged on 90 days so one quiet month isn't "slow".
+            // Days left uses the shared 30-day rate per day in stock (same as the item page); slow is judged on 90 days so one quiet month isn't "slow".
             var cover = Cover.DaysLeft(held, recent.GetValueOrDefault(p.Id));
             var slow90 = held > 0 && (s?.Sold ?? 0) > 0 && held / ((s?.Sold ?? 0) / 90m) > 90;
             var movement = held <= 0 ? "none"
