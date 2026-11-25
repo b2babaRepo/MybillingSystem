@@ -9743,6 +9743,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<decimal?>("CaseQty")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("case_qty");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -9750,6 +9755,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<bool>("IsPreferred")
                         .HasColumnType("boolean")
                         .HasColumnName("is_preferred");
+
+                    b.Property<decimal?>("MinQty")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("min_qty");
 
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid")

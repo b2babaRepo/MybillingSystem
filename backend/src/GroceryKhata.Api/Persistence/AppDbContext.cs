@@ -1072,6 +1072,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.ToTable("supplier_items");
             b.HasTenantKey();
             b.Property(s => s.SupplierCode).HasMaxLength(40);
+            b.Property(s => s.CaseQty).HasPrecision(12, 3);
+            b.Property(s => s.MinQty).HasPrecision(12, 3);
             b.HasIndex(s => new { s.ShopId, s.ProductId, s.SupplierId }).IsUnique();
         });
 

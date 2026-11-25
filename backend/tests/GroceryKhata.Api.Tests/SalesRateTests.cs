@@ -1,4 +1,6 @@
+using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Ledger;
@@ -70,6 +72,71 @@ public sealed class SalesRateTests(ApiFactory api)
         Assert.DoesNotContain(today.Items, i => i.ProductId == never);
         Assert.Equal(1m, today.Items.Single(i => i.ProductId == levelled).Suggested);
         Assert.Equal(1m, today.Items.Single(i => i.ProductId == soldOut).Suggested);
+    }
+
+    [Fact]
+    public async Task A_week_selling_faster_brings_the_order_forward_but_the_month_sizes_it()
+    {
+        var (shop, _) = await ShopAsync();
+        var dal = await ItemAsync(shop, "Moong dal", 50m);
+        await AdminAsync("UPDATE stock_movements SET occurred_at = now() - interval '40 days' WHERE product_id = @p AND kind = 'Opening'", ("p", dal));
+        // 30 sold three weeks ago, then 7 two days ago and 7 today: 2 a day this week, 44 over the month.
+        await BillOnAsync(shop, dal, 30m, 20);
+        await BillOnAsync(shop, dal, 7m, 2);
+        await BillOnAsync(shop, dal, 7m, 0);
+
+        // Days left goes by the faster rate: 6 left at 2 a day is 3 days.
+        Assert.Equal(2m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{dal}")).DailySales);
+        var line = (await shop.GetJsonAsync<List<ReorderGroupDto>>("/api/v1/pharmacy/reorder")).SelectMany(g => g.Lines).Single(l => l.ProductId == dal);
+        Assert.Equal(3m, line.DaysLeft);
+        // How much goes by the month (44 a month) plus the wait and margin at the faster rate (10), less the 6 left: 48.
+        Assert.Equal((10m, 48m), (line.ReorderPoint!.Value, line.Suggested));
+    }
+
+    [Fact]
+    public async Task One_big_sale_this_week_is_not_taken_as_a_trend()
+    {
+        var (shop, _) = await ShopAsync();
+        var rice = await ItemAsync(shop, "Rice", 100m);
+        await AdminAsync("UPDATE stock_movements SET occurred_at = now() - interval '40 days' WHERE product_id = @p AND kind = 'Opening'", ("p", rice));
+        await BillOnAsync(shop, rice, 21m, 1);
+
+        // Sold on one day only: the month's rate (21 over 30 days), not 3 a day.
+        Assert.Equal(0.7m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{rice}")).DailySales);
+    }
+
+    [Fact]
+    public async Task An_order_rounds_up_to_the_suppliers_minimum_and_whole_cases()
+    {
+        var (shop, _) = await ShopAsync();
+        var soap = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = soap, name = "Soap", unit = "piece", sellingPrice = 30m, reorderLevel = 5m })).EnsureSuccessStatusCode();
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Agarwal Agencies" })).EnsureSuccessStatusCode();
+        (await shop.PutAsJsonAsync($"/api/v1/products/{soap}/suppliers/{supplier}/preferred", new { preferred = true }, ApiFactory.Json)).EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/products/{soap}/suppliers/{supplier}/pack", new { caseQty = 0m }, ApiFactory.Json)).StatusCode);
+        (await shop.PutAsJsonAsync($"/api/v1/products/{soap}/suppliers/{supplier}/pack", new { caseQty = 12m, minQty = 18m }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        var row = (await shop.GetJsonAsync<List<ItemSupplierDto>>($"/api/v1/products/{soap}/suppliers")).Single();
+        Assert.Equal((12m, 18m), (row.CaseQty!.Value, row.MinQty!.Value));
+
+        // The reorder level calls for 5; the minimum makes it 18, and whole cases of 12 make it 24.
+        var line = (await shop.GetJsonAsync<List<ReorderGroupDto>>("/api/v1/pharmacy/reorder")).SelectMany(g => g.Lines).Single(l => l.ProductId == soap);
+        Assert.Equal((24m, 5m), (line.Suggested, line.Needed!.Value));
+
+        // Cleared: back to what the sales call for.
+        (await shop.PutAsJsonAsync($"/api/v1/products/{soap}/suppliers/{supplier}/pack", new { caseQty = (decimal?)null, minQty = (decimal?)null }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        line = (await shop.GetJsonAsync<List<ReorderGroupDto>>("/api/v1/pharmacy/reorder")).SelectMany(g => g.Lines).Single(l => l.ProductId == soap);
+        Assert.Equal((5m, (decimal?)null), (line.Suggested, line.Needed));
+    }
+
+    /// <summary>A bill for this many, dated this many days ago (with its stock movement).</summary>
+    private async Task BillOnAsync(HttpClient shop, Guid product, decimal quantity, int daysAgo)
+    {
+        var bill = await (await Bill(shop, product, quantity)).ReadAsync<BillDto>();
+        await AdminAsync(
+            "UPDATE bills SET occurred_at = now() - make_interval(days => @d) WHERE id = @b; UPDATE stock_movements SET occurred_at = now() - make_interval(days => @d) WHERE bill_id = @b",
+            ("d", daysAgo), ("b", bill.Id));
     }
 
     private async Task<(HttpClient Shop, Guid ShopId)> ShopAsync()
