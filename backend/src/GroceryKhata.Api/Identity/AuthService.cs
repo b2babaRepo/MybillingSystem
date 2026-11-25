@@ -149,10 +149,9 @@ public sealed class AuthService(
             return AuthResult<AuthResponse>.Fail(AuthError.InvalidCredentials);
         }
 
-        if (user.LockoutEndsAt > clock.GetUtcNow())
-        {
-            return AuthResult<AuthResponse>.Fail(AuthError.LockedOut);
-        }
+        // No lockout check: wrong passwords and PINs lock those out, not a code sent to the phone itself (which has its own
+        // limits on sends and tries). Otherwise anyone who knows an owner's number could keep them out of their own shop.
+        var now = clock.GetUtcNow();
 
         // The first proof this number is theirs. Anyone could have opened the account with this number and a password of
         // their own, so that password and every sign-in made with it end here.
@@ -162,8 +161,9 @@ public sealed class AuthService(
             await RevokeAllAsync(user.Id, clock.GetUtcNow(), cancellationToken);
         }
 
-        user.FailedSignInCount = 0;
-        user.PhoneVerifiedAt = clock.GetUtcNow();
+        Succeeded(user, now);
+        user.LockoutEndsAt = null; // the code lifts a lockout now in force
+        user.PhoneVerifiedAt = now;
         var memberships = await ListMembershipsAsync(user.Id, cancellationToken);
         var only = memberships.Count == 1 ? await FindUsableMembershipAsync(memberships[0].MembershipId, user.Id, cancellationToken) : null;
         return AuthResult<AuthResponse>.Ok(await IssueAsync(user, only, cancellationToken));
@@ -287,20 +287,13 @@ public sealed class AuthService(
                 return null; // an owner who also has a PIN somewhere may have typed a numeric password
             }
 
-            user.FailedSignInCount++;
-            if (user.FailedSignInCount >= Options.MaxFailedSignIns)
-            {
-                user.FailedSignInCount = 0;
-                user.LockoutEndsAt = now.AddMinutes(Options.LockoutMinutes);
-                logger.LogWarning("User {UserId} locked out after too many wrong PINs", user.Id);
-            }
+            CountFailure(user, now, "PINs");
 
             await db.SaveChangesAsync(cancellationToken);
             return AuthResult<AuthResponse>.Fail(AuthError.InvalidCredentials);
         }
 
-        user.FailedSignInCount = 0;
-        user.LockoutEndsAt = null;
+        Succeeded(user, now);
         return AuthResult<AuthResponse>.Ok(await IssueAsync(user, match, cancellationToken, pinOnly: true));
     }
 
@@ -318,13 +311,7 @@ public sealed class AuthService(
             : passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
         if (result == PasswordVerificationResult.Failed)
         {
-            user.FailedSignInCount++;
-            if (user.FailedSignInCount >= Options.MaxFailedSignIns)
-            {
-                user.FailedSignInCount = 0;
-                user.LockoutEndsAt = now.AddMinutes(Options.LockoutMinutes);
-                logger.LogWarning("User {UserId} locked out after too many wrong passwords", user.Id);
-            }
+            CountFailure(user, now, "passwords");
 
             await db.SaveChangesAsync(cancellationToken);
             return AuthError.InvalidCredentials;
@@ -335,10 +322,41 @@ public sealed class AuthService(
             user.PasswordHash = passwordHasher.HashPassword(user, password);
         }
 
-        user.FailedSignInCount = 0;
-        user.LockoutEndsAt = null;
+        Succeeded(user, now);
         return null;
     }
+
+    /// <summary>
+    /// A wrong password or PIN. After <see cref="AuthOptions.MaxFailedSignIns"/> in a row the account locks, for
+    /// <see cref="AuthOptions.LockoutMinutes"/> the first time and twice as long for each lockout after it, up to a day.
+    /// At 5 guesses a lockout that is about 40 guesses the first day and 5 a day after: years for a 4-digit PIN.
+    /// </summary>
+    private void CountFailure(User user, DateTimeOffset now, string what)
+    {
+        user.FailedSignInCount++;
+        if (user.FailedSignInCount < Options.MaxFailedSignIns)
+        {
+            return;
+        }
+
+        user.FailedSignInCount = 0;
+        user.LockoutCount = Recent(user, now) ? user.LockoutCount + 1 : 1;
+        var minutes = Math.Min(Options.MaxLockoutMinutes, Options.LockoutMinutes * Math.Pow(2, Math.Min(user.LockoutCount - 1, 16)));
+        (user.LastLockedAt, user.LockoutEndsAt) = (now, now.AddMinutes(minutes));
+        logger.LogWarning("User {UserId} locked out for {Minutes} minutes after too many wrong {What} (lockout {Count} in a row)", user.Id, minutes, what, user.LockoutCount);
+    }
+
+    /// <summary>A right password, PIN or code: the wrong tries start again. The doubling doesn't, while a lockout is recent.</summary>
+    private void Succeeded(User user, DateTimeOffset now)
+    {
+        user.FailedSignInCount = 0;
+        if (!Recent(user, now))
+        {
+            user.LockoutCount = 0;
+        }
+    }
+
+    private bool Recent(User user, DateTimeOffset now) => user.LastLockedAt is { } at && at > now.AddHours(-Options.LockoutMemoryHours);
 
     /// <summary>An active membership of this user in a shop that is still open.</summary>
     private Task<Membership?> FindUsableMembershipAsync(Guid membershipId, Guid userId, CancellationToken cancellationToken) =>

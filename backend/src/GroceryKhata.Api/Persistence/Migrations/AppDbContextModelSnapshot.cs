@@ -3179,6 +3179,14 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<DateTimeOffset?>("LastLockedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_locked_at");
+
+                    b.Property<int>("LockoutCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("lockout_count");
+
                     b.Property<DateTimeOffset?>("LockoutEndsAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("lockout_ends_at");
