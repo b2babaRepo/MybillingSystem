@@ -15,6 +15,23 @@ namespace GroceryKhata.Api.Tests;
 public sealed class HardeningTests(ApiFactory api)
 {
     [Fact]
+    public async Task Requests_over_the_limit_are_turned_away_before_any_sign_in_check()
+    {
+        // Three requests a minute from one address: the fourth gets 429 even without a token, so a flood of junk requests
+        // stops at the limiter instead of reaching the token check and the tenant step's database connection.
+        await using var tight = api.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
+            config.AddInMemoryCollection(new Dictionary<string, string?> { ["Security:RequestsPerMinutePerIp"] = "3" })));
+        var anyone = tight.CreateClient();
+        var answers = new List<HttpStatusCode>();
+        for (var i = 0; i < 5; i++)
+        {
+            answers.Add((await anyone.GetAsync("/api/v1/customers")).StatusCode);
+        }
+
+        Assert.Equal([HttpStatusCode.Unauthorized, HttpStatusCode.Unauthorized, HttpStatusCode.Unauthorized, HttpStatusCode.TooManyRequests, HttpStatusCode.TooManyRequests], answers);
+    }
+
+    [Fact]
     public async Task Every_response_carries_security_headers_and_is_never_cached()
     {
         var (shop, _) = await api.SignUpAsync();

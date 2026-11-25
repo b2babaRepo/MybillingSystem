@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { appLockMatches, clearAppLock, hasAppLock, passcodeProblem, setAppLock } from './appLock'
+import { appLockMatches, clearAppLock, hasAppLock, passcodeProblem, rightPasscode, setAppLock, wrongPasscode, wrongSoFar } from './appLock'
 
 const store = new Map<string, string>()
 beforeEach(() => {
@@ -17,6 +17,31 @@ describe('app lock', () => {
     expect(await appLockMatches('4827')).toBe(false)
     clearAppLock()
     expect(hasAppLock()).toBe(false)
+  })
+  it('keeps a slow PBKDF2 hash, and upgrades a passcode saved as a single SHA-256 when it is next entered right', async () => {
+    await setAppLock('4826')
+    expect(JSON.parse([...store.values()][0]).rounds).toBeGreaterThanOrEqual(100_000)
+
+    const salt = 'ab12'
+    const old = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${salt}:5937`))), (b) => b.toString(16).padStart(2, '0')).join('')
+    store.set('gk-app-lock', JSON.stringify({ salt, hash: old }))
+    expect(await appLockMatches('5938')).toBe(false)
+    expect(JSON.parse(store.get('gk-app-lock')!).rounds).toBeUndefined()
+    expect(await appLockMatches('5937')).toBe(true)
+    const upgraded = JSON.parse(store.get('gk-app-lock')!)
+    expect(upgraded.rounds).toBeGreaterThanOrEqual(100_000)
+    expect(upgraded.hash).not.toBe(old)
+    expect(await appLockMatches('5937')).toBe(true)
+  })
+  it('counts wrong passcodes on the phone until one is right', async () => {
+    await setAppLock('4826')
+    expect(wrongSoFar()).toBe(0)
+    expect(wrongPasscode()).toBe(1)
+    expect(wrongPasscode()).toBe(2)
+    expect(wrongSoFar()).toBe(2) // what a reload reads back
+    rightPasscode()
+    expect(wrongSoFar()).toBe(0)
+    expect(await appLockMatches('4826')).toBe(true)
   })
   it('refuses short and easy passcodes', () => {
     expect(passcodeProblem('12')).toBe('length')

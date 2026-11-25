@@ -1183,7 +1183,7 @@ export const enMore = {
   },
   passcode: {
     title: 'Passcodes', on: 'On', off: 'Off', set: 'Set passcode', change: 'Change', remove: 'Remove',
-    appTitle: 'App passcode on this phone', appHint: 'The app opens locked and locks again after 2 minutes away, so whoever picks up the phone can\'t see the khata.',
+    appTitle: 'App passcode on this phone', appHint: 'The app opens locked and locks again after 2 minutes away, so whoever picks up the phone can\'t see the khata. After 10 wrong tries it signs out.',
     billTitle: 'Bill passcode', billHint: 'Needed to cancel a bill, take goods back, cancel an exchange slip or a supplier bill, on every phone.',
     new: 'New passcode (4 to 6 digits)', again: 'Type it again', current: 'Passcode in use now',
     length: 'Use 4 to 6 digits.', easy: 'That passcode is too easy to guess (like 1234 or 0000). Choose another.', mismatch: 'The two didn\'t match. Try again.',
@@ -1191,7 +1191,7 @@ export const enMore = {
     billSet: 'Bill passcode set.', billRemoved: 'Bill passcode removed.',
     billAsk: 'Enter the bill passcode', wrong: 'Wrong passcode. Try again',
   },
-  appLock: { title: 'Enter your passcode', entered_one: '{{count}} digit entered', entered_other: '{{count}} digits entered', wrong: 'Wrong passcode', wait: 'Too many tries. Wait {{seconds}} s', back: 'Delete', open: 'Open', forgot: 'Forgot passcode? Sign out and sign in again' },
+  appLock: { wrongLeft_one: 'Wrong passcode. {{count}} more wrong try signs the app out.', wrongLeft_other: 'Wrong passcode. {{count}} more wrong tries sign the app out.', title: 'Enter your passcode', entered_one: '{{count}} digit entered', entered_other: '{{count}} digits entered', wrong: 'Wrong passcode', wait: 'Too many tries. Wait {{seconds}} s', back: 'Delete', open: 'Open', forgot: 'Forgot passcode? Sign out and sign in again' },
   profitBy: {
     title: 'Profit by', tab: { item: 'Item', party: 'Customer', bill: 'Bill', category: 'Category' },
     walkIn: 'Walk-in (no customer)', noCategory: 'No category', bills_one: '{{count}} bill', bills_other: '{{count}} bills',
