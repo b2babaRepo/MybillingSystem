@@ -306,6 +306,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<Painter> Painters => Set<Painter>();
 
+    public DbSet<PainterPayout> PainterPayouts => Set<PainterPayout>();
+
     public DbSet<Billing.Plan> Plans => Set<Billing.Plan>();
 
     public DbSet<Billing.Subscription> Subscriptions => Set<Billing.Subscription>();
@@ -748,6 +750,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Name).HasMaxLength(120);
             b.Property(p => p.Phone).HasMaxLength(16);
             b.Property(p => p.CommissionPercent).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<PainterPayout>(b =>
+        {
+            b.ToTable("painter_payouts");
+            b.HasTenantKey();
+            b.Property(p => p.Amount).HasPrecision(14, 2);
+            b.Property(p => p.Mode).HasConversion<string>().HasMaxLength(10);
+            b.Property(p => p.Note).HasMaxLength(120);
+            b.HasIndex(p => new { p.ShopId, p.PainterId });
         });
 
         modelBuilder.Entity<SaleOrder>(b =>

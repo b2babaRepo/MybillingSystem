@@ -20,6 +20,21 @@ export function RatesScreen({ shopId }: { shopId: string }) {
   const [message, setMessage] = useState<string | null>(null)
   const changed = products.filter((p) => draft[p.id] !== undefined && draft[p.id] !== '' && Number(draft[p.id]) !== p.sellingPrice)
   const groups = [...new Set(products.map((p) => p.category ?? ''))].sort()
+  const [word, setWord] = useState('')
+  const [group, setGroup] = useState('')
+  const [percent, setPercent] = useState('')
+  const matching = products.filter((p) => p.sellingPrice > 0 && (!group || (p.category ?? '') === group)
+    && (!word.trim() || p.name.toLowerCase().includes(word.trim().toLowerCase())))
+
+  // Fills the new prices in as changes (whole rupees); nothing is saved until the owner checks and taps save.
+  function applyPercent() {
+    const by = Number(percent)
+    if (!by || matching.length === 0) return
+    const next = { ...draft }
+    for (const p of matching) next[p.id] = String(Math.max(1, Math.round(p.sellingPrice * (1 + by / 100))))
+    setDraft(next)
+    setMessage(t('hwp1.rates.percentDone', { count: matching.length }))
+  }
 
   async function run(action: () => Promise<string>) {
     setBusy(true)
@@ -55,6 +70,28 @@ export function RatesScreen({ shopId }: { shopId: string }) {
         </button>
       )}
       {products.length === 0 && <p className="text-muted">{t('rates.empty')}</p>}
+      {products.length > 0 && (
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4">
+          <h2 className="font-bold">{t('hwp1.rates.percentTitle')}</h2>
+          <p className="text-xs text-muted">{t('hwp1.rates.percentHint')}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <input value={word} onChange={(e) => setWord(e.target.value)} placeholder={t('hwp1.rates.percentWord')} aria-label={t('hwp1.rates.percentWord')}
+              className="h-12 rounded-xl border border-line px-3" />
+            <select value={group} onChange={(e) => setGroup(e.target.value)} aria-label={t('hwp1.rates.percentGroup')} className="h-12 rounded-xl border border-line bg-white px-3">
+              <option value="">{t('hwp1.rates.percentAll')}</option>
+              {groups.filter(Boolean).map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <input value={percent} onChange={(e) => setPercent(e.target.value.replace(/[^\d.-]/g, ''))} inputMode="decimal" placeholder="+5 / -3" aria-label={t('hwp1.rates.percentBy')}
+              className="h-12 w-28 rounded-xl border border-line px-3 text-right text-lg font-bold" />
+            <span>%</span>
+            <button disabled={!Number(percent) || matching.length === 0} onClick={applyPercent} className={`h-12 flex-1 rounded-xl ${btn.outline}`}>
+              {t('hwp1.rates.percentApply', { count: matching.length })}
+            </button>
+          </div>
+        </section>
+      )}
 
       {groups.map((group) => (
         <section key={group} className="rounded-card bg-white">

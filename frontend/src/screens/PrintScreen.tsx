@@ -330,6 +330,32 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
   )
 }
 
+/**
+ * For the painter, electrician or plumber who brought the customer: their name and each item's value before GST, the
+ * figure brand reward apps (Astral, Havells, Asian Paints…) count points on.
+ */
+function PainterSlip({ bill }: { bill: BillView['bill'] }) {
+  const { t } = useTranslation()
+  const painters = useQuery({ queryKey: ['print', 'painters'], queryFn: () => api<{ id: string; name: string; phone: string | null }[]>('/v1/painters') }).data
+  const painter = painters?.find((p) => p.id === bill.painterId)
+  const before = (l: BillView['bill']['lines'][number]) =>
+    Math.round((l.amount - ((l.cgst ?? 0) + (l.sgst ?? 0) + (l.igst ?? 0) || (l.gstRate ? l.amount - l.amount / (1 + l.gstRate / 100) : 0))) * 100) / 100
+  const total = Math.round(bill.lines.reduce((s, l) => s + before(l), 0) * 100) / 100
+  return (
+    <section className="painter-slip mt-4 rounded-md border border-dashed border-gray-500 p-2 text-sm">
+      <p className="font-bold">{t('hwp1.trade.slipTitle', { name: painter?.name ?? '' })}</p>
+      <table className="w-full">
+        <tbody>
+          {bill.lines.map((l, i) => (
+            <tr key={i}><td>{l.printName ?? l.name} × {l.quantity}</td><td className="text-right">{formatRupees(before(l))}</td></tr>
+          ))}
+          <tr className="border-t border-gray-400 font-bold"><td>{t('hwp1.trade.slipTotal')}</td><td className="text-right">{formatRupees(total)}</td></tr>
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
 /** The bill itself, for the shop and, with no onCancel, for whoever opens its link. */
 function BillDocument({ shopName, bill, customerName, phone, link, onCancel, bare }: { shopName: string; bill: BillView['bill']; customerName: string | null; phone: string | null; link: string | null; onCancel?: () => void; bare?: boolean }) {
   const { t } = useTranslation()
@@ -463,6 +489,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel, bar
         )
       })()}
       <JewelleryBreakdown billId={bill.id} enabled={!!onCancel} />
+      {bill.painterId && onCancel && <PainterSlip bill={bill} />}
       {/* Amount in words on the left; what was paid and what is still due on the right. */}
       <div className="bill-sums mt-4 grid grid-cols-2 items-start gap-4">
         <div className="rounded-md bg-gray-100 p-2 text-sm">

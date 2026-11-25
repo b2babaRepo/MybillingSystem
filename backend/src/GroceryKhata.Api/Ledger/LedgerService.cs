@@ -697,6 +697,11 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     balance = delta != 0
                         ? await AdjustBalanceAsync(owingCustomerId, delta, cancellationToken)
                         : await BalanceAsync(owingCustomerId, cancellationToken);
+                    // A helper can't take a customer past their credit limit; the owner sees the warning and decides.
+                    if (!isOwner && delta > 0 && await db.Customers.Where(c => c.Id == owingCustomerId).Select(c => c.CreditLimit).SingleAsync(cancellationToken) is { } limit && balance > limit)
+                    {
+                        return LedgerResult<BillDto>.Invalid(nameof(request.CustomerId), $"This bill takes the customer past their ₹{limit:0.##} credit limit. Take more payment now, or ask the owner.");
+                    }
                 }
 
                 if (beforeCommit is not null && await beforeCommit() is { } refused)

@@ -52,6 +52,31 @@ public sealed class Painter : Entity, ITenantOwned
     public decimal CommissionPercent { get; set; }
 }
 
+/// <summary>Commission handed to a painter (or electrician, carpenter): what was earned less these is still owed.</summary>
+public sealed class PainterPayout : Entity, ITenantOwned
+{
+    public Guid ShopId { get; set; }
+
+    public Guid PainterId { get; set; }
+
+    public decimal Amount { get; set; }
+
+    public DateOnly PaidOn { get; set; }
+
+    public PaymentMode Mode { get; set; }
+
+    public string? Note { get; set; }
+
+    public Guid CreatedByUserId { get; set; }
+}
+
+public sealed record PainterPayoutRequest(Guid Id, decimal Amount, PaymentMode? Mode, string? Note);
+
+public sealed record PainterPayoutDto(Guid Id, decimal Amount, DateOnly PaidOn, PaymentMode Mode, string? Note);
+
+/// <summary>A tinted tin a customer bought before: the base tin, the shade code and the rate, for "repeat last shade".</summary>
+public sealed record ShadeHistoryDto(Guid ProductId, string Name, string Shade, decimal UnitPrice, decimal Quantity, DateTimeOffset BoughtAt);
+
 public sealed record ChallanRequest(Guid Id, Guid CustomerId, IReadOnlyList<BillLineRequest>? Lines, string? Site, string? VehicleNumber, DateTimeOffset? OccurredAt, string? PlaceOfSupply = null);
 
 public sealed record ChallanDto(
@@ -83,7 +108,8 @@ public sealed record PainterRequest(Guid Id, string? Name, string? Phone, decima
 public sealed record PainterDto(Guid Id, string Name, string? Phone, decimal CommissionPercent);
 
 /// <summary>One painter's month: bills tagged to them, the paint sold on them, and the commission due.</summary>
-public sealed record PainterCommission(Guid PainterId, string Name, string? Phone, decimal CommissionPercent, int Bills, decimal Sales, decimal Commission);
+public sealed record PainterCommission(Guid PainterId, string Name, string? Phone, decimal CommissionPercent, int Bills, decimal Sales, decimal Commission,
+    decimal EarnedAllTime = 0, decimal PaidAllTime = 0, decimal Due = 0, IReadOnlyList<PainterPayoutDto>? Payouts = null);
 
 /// <summary>
 /// The extra features other trades need: delivery challans, site-wise totals and credit limits for contractors
@@ -116,6 +142,8 @@ public static class TradeEndpoints
             db.Painters.AsNoTracking().OrderBy(p => p.Name).Select(p => new PainterDto(p.Id, p.Name, p.Phone, p.CommissionPercent)).ToListAsync(ct));
         shop.MapPost("/painters", AddPainterAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Trade);
         shop.MapGet("/painters/commission", CommissionAsync).RequireAuthorization(AppPolicies.ShopOwner);
+        shop.MapPost("/painters/{id:guid}/payouts", PayPainterAsync).RequireAuthorization(AppPolicies.ShopOwner).RequireFeature(Billing.Features.Trade);
+        shop.MapGet("/customers/{id:guid}/shades", ShadesAsync);
         return app;
     }
 
@@ -470,13 +498,66 @@ public static class TradeEndpoints
             .Where(b => b.PainterId != null && b.OccurredAt >= start && b.OccurredAt < end && b.CancelledAt == null)
             .GroupBy(b => b.PainterId!.Value).Select(g => new { PainterId = g.Key, Bills = g.Count(), Sales = g.Sum(b => b.Total) })
             .ToListAsync(ct);
+        var allSales = await db.Bills.AsNoTracking().Where(b => b.PainterId != null && b.CancelledAt == null)
+            .GroupBy(b => b.PainterId!.Value).Select(g => new { PainterId = g.Key, Sales = g.Sum(b => b.Total) }).ToListAsync(ct);
+        var payouts = await db.PainterPayouts.AsNoTracking().OrderByDescending(x => x.PaidOn).ThenByDescending(x => x.Id).ToListAsync(ct);
         var painters = await db.Painters.AsNoTracking().OrderBy(p => p.Name).ToListAsync(ct);
         return TypedResults.Ok(painters.Select(p =>
         {
             var s = sales.FirstOrDefault(x => x.PainterId == p.Id);
             var total = s?.Sales ?? 0;
-            return new PainterCommission(p.Id, p.Name, p.Phone, p.CommissionPercent, s?.Bills ?? 0, total, decimal.Round(total * p.CommissionPercent / 100, 2));
+            var earned = decimal.Round(allSales.Where(x => x.PainterId == p.Id).Sum(x => x.Sales) * p.CommissionPercent / 100, 2);
+            var mine = payouts.Where(x => x.PainterId == p.Id).ToList();
+            var paid = mine.Sum(x => x.Amount);
+            return new PainterCommission(p.Id, p.Name, p.Phone, p.CommissionPercent, s?.Bills ?? 0, total, decimal.Round(total * p.CommissionPercent / 100, 2),
+                earned, paid, earned - paid, mine.Take(5).Select(x => new PainterPayoutDto(x.Id, x.Amount, x.PaidOn, x.Mode, x.Note)).ToList());
         }).ToList());
+    }
+
+    /// <summary>Record commission handed over. More than is still owed is refused, so the books never show a painter in credit.</summary>
+    private static async Task<IResult> PayPainterAsync(Guid id, PainterPayoutRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        if (await db.PainterPayouts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.Id, ct) is { } again)
+        {
+            return TypedResults.Ok(new PainterPayoutDto(again.Id, again.Amount, again.PaidOn, again.Mode, again.Note));
+        }
+
+        if (await db.Painters.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, ct) is not { } painter)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var sales = await db.Bills.AsNoTracking().Where(b => b.PainterId == id && b.CancelledAt == null).SumAsync(b => (decimal?)b.Total, ct) ?? 0;
+        var paid = await db.PainterPayouts.AsNoTracking().Where(x => x.PainterId == id).SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
+        var due = decimal.Round(sales * painter.CommissionPercent / 100, 2) - paid;
+        var note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
+        if (request.Amount <= 0 || request.Amount > due || note?.Length > 120)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Amount"] = [$"Enter an amount up to the ₹{due:0.##} still owed."] });
+        }
+
+        var payout = new PainterPayout
+        {
+            Id = request.Id, PainterId = id, Amount = request.Amount, PaidOn = IndiaTime.Today(clock),
+            Mode = request.Mode ?? PaymentMode.Cash, Note = note, CreatedByUserId = user.UserId()!.Value,
+        };
+        db.PainterPayouts.Add(payout);
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(new PainterPayoutDto(payout.Id, payout.Amount, payout.PaidOn, payout.Mode, payout.Note));
+    }
+
+    /// <summary>A customer's tinted tins, newest first, one per base and shade: the lines named "base · shade CODE".</summary>
+    private static async Task<IReadOnlyList<ShadeHistoryDto>> ShadesAsync(Guid id, AppDbContext db, CancellationToken ct)
+    {
+        var lines = await (from l in db.BillLines.AsNoTracking()
+                           join b in db.Bills.AsNoTracking() on l.BillId equals b.Id
+                           where b.CustomerId == id && b.CancelledAt == null && l.ProductId != null && l.Name.Contains(" · ")
+                           orderby b.OccurredAt descending
+                           select new { ProductId = l.ProductId!.Value, l.Name, l.UnitPrice, l.Quantity, b.OccurredAt })
+            .Take(200).ToListAsync(ct);
+        return lines
+            .Select(l => new ShadeHistoryDto(l.ProductId, l.Name[..l.Name.LastIndexOf(" · ", StringComparison.Ordinal)], l.Name.Split(' ')[^1], l.UnitPrice, l.Quantity, l.OccurredAt))
+            .DistinctBy(l => (l.ProductId, l.Shade)).Take(10).ToList();
     }
 
     private static ChallanDto ToDto(Challan c) =>

@@ -5,9 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { uuidv7 } from '../lib/ids'
+import { ask } from '../components/Ask'
 import { formatPhone, formatRupees, whatsAppLink } from '../lib/format'
 
-interface Commission { painterId: string; name: string; phone: string | null; commissionPercent: number; bills: number; sales: number; commission: number }
+interface Payout { id: string; amount: number; paidOn: string; mode: string; note: string | null }
+interface Commission { painterId: string; name: string; phone: string | null; commissionPercent: number; bills: number; sales: number; commission: number; earnedAllTime: number; paidAllTime: number; due: number; payouts: Payout[] | null }
 
 /** India-time month as yyyy-mm. */
 const thisMonth = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 7)
@@ -32,6 +34,19 @@ export function PaintersScreen({ shopId, shopName }: { shopId: string; shopName:
   const [percent, setPercent] = useState('5')
   const [message, setMessage] = useState<string | null>(null)
   const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' })
+
+  async function pay(p: Commission) {
+    const raw = (await ask(t('hwp1.painters.payAsk', { name: p.name, due: formatRupees(p.due) }), String(p.due)))?.trim()
+    const amount = Number(raw)
+    if (!amount) return
+    setMessage(null)
+    try {
+      await api(`/v1/painters/${p.painterId}/payouts`, 'POST', { id: uuidv7(), amount, mode: 'cash' })
+      await queryClient.invalidateQueries({ queryKey: [shopId, 'painters'] })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   async function add() {
     setMessage(null)
@@ -62,6 +77,12 @@ export function PaintersScreen({ shopId, shopName }: { shopId: string; shopName:
               <span className="text-lg font-extrabold text-jama">{formatRupees(p.commission)}</span>
             </div>
             <span className="text-sm text-muted">{t('painters.line', { count: p.bills, sales: formatRupees(p.sales) })}</span>
+            <span className="text-sm">{t('hwp1.painters.ledger', { earned: formatRupees(p.earnedAllTime), paid: formatRupees(p.paidAllTime) })}{' '}
+              <b className={p.due > 0 ? 'text-udhaar' : 'text-jama'}>{t('hwp1.painters.due', { due: formatRupees(p.due) })}</b></span>
+            {p.payouts && p.payouts.length > 0 && (
+              <span className="text-xs text-muted">{p.payouts.map((x) => `${x.paidOn.slice(8, 10)}/${x.paidOn.slice(5, 7)} ${formatRupees(x.amount)}`).join(' · ')}</span>
+            )}
+            {p.due > 0 && <button onClick={() => void pay(p)} className="min-h-11 self-start rounded-xl border border-line px-4 text-sm font-semibold">{t('hwp1.painters.pay')}</button>}
             {p.phone && p.commission > 0 && (
               <a href={whatsAppLink(p.phone, t('painters.message', { name: p.name, month: label, sales: formatRupees(p.sales), commission: formatRupees(p.commission), shop: shopName }))}
                 target="_blank" rel="noreferrer" className="flex min-h-11 items-center self-start text-sm font-semibold text-brand underline">

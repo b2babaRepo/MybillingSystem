@@ -313,6 +313,61 @@ public sealed class TradeTests(ApiFactory api)
         Assert.Equal((1, 2500m, 125m), (commission.Bills, commission.Sales, commission.Commission));
     }
 
+    [Fact]
+    public async Task Commission_paid_is_taken_off_what_is_owed_and_cannot_go_over()
+    {
+        var shop = await SignUpAsync("paint");
+        var painter = Guid.CreateVersion7();
+        await shop.PostJsonAsync("/api/v1/painters", new { id = painter, name = "Raju Painter", commissionPercent = 10m });
+        (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Primer", quantity = 1m, unitPrice = 3000m } }, paidAmount = 3000m, painterId = painter })).EnsureSuccessStatusCode();
+
+        var payout = Guid.CreateVersion7();
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/painters/{painter}/payouts", new { id = Guid.CreateVersion7(), amount = 301m })).StatusCode);
+        (await shop.PostJsonAsync($"/api/v1/painters/{painter}/payouts", new { id = payout, amount = 200m, mode = "upi" })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync($"/api/v1/painters/{painter}/payouts", new { id = payout, amount = 200m, mode = "upi" })).EnsureSuccessStatusCode(); // sent twice: once
+        var row = Assert.Single(await shop.GetJsonAsync<List<PainterCommission>>("/api/v1/painters/commission"));
+        Assert.Equal((300m, 200m, 100m), (row.EarnedAllTime, row.PaidAllTime, row.Due));
+    }
+
+    [Fact]
+    public async Task A_customers_earlier_shades_come_back_newest_first_one_each()
+    {
+        var shop = await SignUpAsync("paint");
+        var customer = Guid.CreateVersion7();
+        await shop.PostJsonAsync("/api/v1/customers", new { id = customer, name = "Meena" });
+        await shop.PostJsonAsync("/api/v1/products/starter", new { });
+        var tin = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single(p => p.Name == "Interior emulsion 4 L");
+        foreach (var shade in new[] { "7B23", "9A01", "7B23" })
+        {
+            (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), customerId = customer, lines = new[] { new { productId = tin.Id, name = $"Interior emulsion 4 L · shade {shade}", quantity = 1m, unitPrice = 1250m } }, paidAmount = 1250m })).EnsureSuccessStatusCode();
+        }
+
+        var shades = await shop.GetJsonAsync<List<ShadeHistoryDto>>($"/api/v1/customers/{customer}/shades");
+        Assert.Equal(["7B23", "9A01"], shades.Select(x => x.Shade));
+        Assert.Equal("Interior emulsion 4 L", shades[0].Name);
+    }
+
+    [Fact]
+    public async Task A_helper_cannot_bill_past_the_credit_limit_but_the_owner_can()
+    {
+        var shop = await SignUpAsync("building_materials");
+        var contractor = Guid.CreateVersion7();
+        await shop.PostJsonAsync("/api/v1/customers", new { id = contractor, name = "Sharma Contractor" });
+        await shop.PutAsJsonAsync($"/api/v1/customers/{contractor}/credit-limit", new { creditLimit = 10000m }, ApiFactory.Json);
+        var helperPhone = ApiFactory.NewPhone();
+        await shop.PostJsonAsync("/api/v1/shop/staff", new { name = "Raju", phone = helperPhone, pin = "4826" });
+        var auth = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-in", new { phone = helperPhone, password = "4826" })).ReadAsync<AuthResponse>();
+        var helper = api.CreateClient();
+        helper.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        object Bill(decimal amount, decimal paid) => new { id = Guid.CreateVersion7(), customerId = contractor, lines = new[] { new { name = "Cement", quantity = 1m, unitPrice = amount } }, paidAmount = paid };
+
+        (await helper.PostJsonAsync("/api/v1/bills", Bill(8000m, 0m))).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.BadRequest, (await helper.PostJsonAsync("/api/v1/bills", Bill(3000m, 0m))).StatusCode);
+        (await helper.PostJsonAsync("/api/v1/bills", Bill(3000m, 1000m))).EnsureSuccessStatusCode(); // paid enough now: exactly at the limit
+        (await shop.PostJsonAsync("/api/v1/bills", Bill(5000m, 0m))).EnsureSuccessStatusCode();
+        Assert.Equal(15000m, (await shop.GetJsonAsync<StatementDto>($"/api/v1/customers/{contractor}/statement")).Customer.Balance);
+    }
+
     private static async Task<ChallanDto> Challan(HttpClient shop, Guid customer, Guid product, decimal bags, string site) =>
         await (await shop.PostJsonAsync("/api/v1/challans", new
         {
