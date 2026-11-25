@@ -54,12 +54,14 @@ Grow the db limit (and `shared_buffers`, `effective_cache_size`) when the databa
 deploy/production/deploy.sh root@SERVER
 ```
 
-It builds the images for the current commit, copies them to the server over SSH (no registry needed), backs up
-the database, starts the new release and checks `/api/health/ready`. If the check fails, it prints how to go
-back to the previous release.
+It sends the current commit's source (a few MB) to the server over SSH and builds the images there, so a slow
+upload from your PC only carries the source, not the images. Then it backs up the database, starts the new
+release and checks `/api/health/ready`. If the check fails, it prints how to go back to the previous release.
+Docker isn't needed on your PC, only Git and SSH.
 
 The Six Labors (ImageSharp) licence key is read from `deploy/demo/sixlabors.lic`, or from the file in the
-`SIXLABORS_LICENCE` environment variable. It is used only while building and never goes into an image.
+`SIXLABORS_LICENCE` environment variable. It is copied to a build folder on the server, used only while building,
+never goes into an image, and is deleted with the source when the build ends.
 
 ## Backups
 
