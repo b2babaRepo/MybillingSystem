@@ -1,3 +1,4 @@
+import { matchPrices, readPriceList } from '../lib/priceList'
 import { btn } from '../components/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -25,6 +26,18 @@ export function RatesScreen({ shopId }: { shopId: string }) {
   const [percent, setPercent] = useState('')
   const matching = products.filter((p) => p.sellingPrice > 0 && (!group || (p.category ?? '') === group)
     && (!word.trim() || p.name.toLowerCase().includes(word.trim().toLowerCase())))
+
+  const [unmatched, setUnmatched] = useState<string[]>([])
+  // A company's price list (CSV): matched items get the new price as a change to check, like the percent change.
+  async function loadList(file: File) {
+    const { rows, skipped } = readPriceList(await file.text())
+    const { matched, unmatched: missed } = matchPrices(rows, products)
+    const next = { ...draft }
+    for (const m of matched) next[m.item.id] = String(m.price)
+    setDraft(next)
+    setUnmatched(missed)
+    setMessage(t('hwp8.loaded', { matched: matched.length, missed: missed.length, skipped }))
+  }
 
   // Fills the new prices in as changes (whole rupees); nothing is saved until the owner checks and taps save.
   function applyPercent() {
@@ -71,6 +84,17 @@ export function RatesScreen({ shopId }: { shopId: string }) {
         </button>
       )}
       {products.length === 0 && <p className="text-muted">{t('rates.empty')}</p>}
+      {products.length > 0 && (
+        <section className="flex flex-col gap-2 rounded-card bg-white p-4">
+          <h2 className="font-bold">{t('hwp8.title')}</h2>
+          <p className="text-xs text-muted">{t('hwp8.hint')}</p>
+          <label className={`flex min-h-11 cursor-pointer items-center justify-center self-start rounded-xl px-4 ${btn.outline}`}>
+            📄 {t('hwp8.pick')}
+            <input type="file" accept=".csv,.txt,text/csv" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadList(f); e.target.value = '' }} />
+          </label>
+          {unmatched.length > 0 && <p className="text-xs text-due">{t('hwp8.notFound', { names: unmatched.slice(0, 8).join(', ') + (unmatched.length > 8 ? '…' : '') })}</p>}
+        </section>
+      )}
       {products.length > 0 && (
         <section className="flex flex-col gap-2 rounded-card bg-white p-4">
           <h2 className="font-bold">{t('hwp1.rates.percentTitle')}</h2>

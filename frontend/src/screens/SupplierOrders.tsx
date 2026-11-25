@@ -224,7 +224,7 @@ export function ReturnsPanel({ shopId, supplierId, products }: { shopId: string;
   return (
     <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <h2 className="font-bold">{t('supplier2.returns')}</h2>
+        <h2 className="font-bold">{t('supplier2.returns')}{open.length > 0 && <span className="ml-2 text-sm font-semibold text-due">{t('hwp3.waitingCredit', { amount: formatRupees(open.reduce((s, r) => s + r.value, 0)) })}</span>}</h2>
         {!rows && <button onClick={() => setRows([blank])} className={`min-h-11 self-start ${btn.add}`}>+ {t('supplier2.returnGoods')}</button>}
       </div>
       {open.map((r) => {

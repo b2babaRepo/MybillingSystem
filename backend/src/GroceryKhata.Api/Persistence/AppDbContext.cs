@@ -308,6 +308,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<PainterPayout> PainterPayouts => Set<PainterPayout>();
 
+    public DbSet<BrandScheme> BrandSchemes => Set<BrandScheme>();
+
     public DbSet<Billing.Plan> Plans => Set<Billing.Plan>();
 
     public DbSet<Billing.Subscription> Subscriptions => Set<Billing.Subscription>();
@@ -514,6 +516,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         {
             b.ToTable("shops");
             b.Property(s => s.JewelleryMaxOffPercent).HasPrecision(5, 2);
+            b.Property(s => s.ContractorDiscountPercent).HasPrecision(5, 2);
+            b.Property(s => s.DealerDiscountPercent).HasPrecision(5, 2);
             b.Property(s => s.State).HasMaxLength(80);
             b.Property(s => s.BillPrefix).HasMaxLength(3);
             b.Property(s => s.BillFields).HasColumnType("jsonb");
@@ -750,6 +754,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
             b.Property(p => p.Name).HasMaxLength(120);
             b.Property(p => p.Phone).HasMaxLength(16);
             b.Property(p => p.CommissionPercent).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<BrandScheme>(b =>
+        {
+            b.ToTable("brand_schemes");
+            b.HasTenantKey();
+            b.Property(x => x.Name).HasMaxLength(80);
+            b.Property(x => x.Brand).HasMaxLength(40);
+            b.Property(x => x.Basis).HasMaxLength(10);
+            b.Property(x => x.Target).HasPrecision(14, 2);
+            b.Property(x => x.RebatePercent).HasPrecision(5, 2);
+            b.Property(x => x.Received).HasPrecision(14, 2);
+            b.Property(x => x.Note).HasMaxLength(120);
         });
 
         modelBuilder.Entity<PainterPayout>(b =>
@@ -1921,6 +1938,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         {
             b.ToTable("customers");
             b.HasTenantKey();
+            b.Property(c => c.PriceGroup).HasMaxLength(12);
             b.Property(c => c.Name).HasMaxLength(120);
             b.Property(c => c.State).HasMaxLength(2);
             b.Property(c => c.Phone).HasMaxLength(16);

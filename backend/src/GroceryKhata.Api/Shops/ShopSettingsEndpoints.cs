@@ -10,7 +10,8 @@ public sealed record ShopLocationDto(double? Latitude, double? Longitude);
 
 public sealed record ShopSettingsDto(string Name, string Slug, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType Type = ShopType.Kirana, string? Gstin = null, bool GstComposition = false, IReadOnlyList<ShopType>? ExtraTypes = null, decimal StaffMaxDiscountPercent = 10m, bool? DeliversGoods = null, decimal StaffMaxWriteOff = 1000m, int ExchangeSlipDays = 90, decimal ExchangeSlipHelperMax = 5000m, string? BillPrefix = null, IReadOnlyList<string>? BillFields = null,
     decimal CashReceiptLimit = 200_000m, decimal PanFrom = 200_000m, decimal CashPayoutLimit = 10_000m,
-    string? GirviState = null, string? GirviLicence = null, decimal? GirviMaxYearlyRate = null, int GirviNoticeDays = 15);
+    string? GirviState = null, string? GirviLicence = null, decimal? GirviMaxYearlyRate = null, int GirviNoticeDays = 15,
+    decimal ContractorDiscountPercent = 0, decimal DealerDiscountPercent = 0);
 
 /// <summary><see cref="Type"/>: null keeps the shop's trade.</summary>
 public sealed record ShopSettingsUpdate(string? Name, string? Area, string? Address, string? UpiId, string? ReminderTemplate, ShopType? Type = null, string? Gstin = null, bool? GstComposition = null, IReadOnlyList<ShopType>? ExtraTypes = null, decimal? StaffMaxDiscountPercent = null, bool? DeliversGoods = null, decimal? StaffMaxWriteOff = null, int? ExchangeSlipDays = null, decimal? ExchangeSlipHelperMax = null,
@@ -18,7 +19,8 @@ public sealed record ShopSettingsUpdate(string? Name, string? Area, string? Addr
     string? BillPrefix = null, IReadOnlyList<string>? BillFields = null,
     decimal? CashReceiptLimit = null, decimal? PanFrom = null, decimal? CashPayoutLimit = null,
     // Girvi state rules: "" clears the state, licence or cap; null keeps them.
-    string? GirviState = null, string? GirviLicence = null, decimal? GirviMaxYearlyRate = null, int? GirviNoticeDays = null);
+    string? GirviState = null, string? GirviLicence = null, decimal? GirviMaxYearlyRate = null, int? GirviNoticeDays = null,
+    decimal? ContractorDiscountPercent = null, decimal? DealerDiscountPercent = null);
 
 /// <summary>The shop's own details: name, where it is, UPI ID and reminder wording. Everyone reads; the owner changes.</summary>
 public static partial class ShopSettingsEndpoints
@@ -49,7 +51,7 @@ public static partial class ShopSettingsEndpoints
     private static async Task<IResult> GetAsync(AppDbContext db, ITenantContext tenant, CancellationToken ct) =>
         await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId)
             .SingleOrDefaultAsync(ct) is { } s
-            ? TypedResults.Ok(new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate, s.Type, s.Gstin, s.GstComposition, ShopTypes.Parse(s.ExtraTypes), s.StaffMaxDiscountPercent, s.DeliversGoods, s.StaffMaxWriteOff, s.ExchangeSlipDays, s.ExchangeSlipHelperMax, s.BillPrefix, Ledger.BillFields.Labels(s.BillFields), s.CashReceiptLimit, s.PanFrom, s.CashPayoutLimit, s.GirviState, s.GirviLicence, s.GirviMaxYearlyRate, s.GirviNoticeDays))
+            ? TypedResults.Ok(new ShopSettingsDto(s.Name, s.Slug, s.Area, s.Address, s.UpiId, s.ReminderTemplate, s.Type, s.Gstin, s.GstComposition, ShopTypes.Parse(s.ExtraTypes), s.StaffMaxDiscountPercent, s.DeliversGoods, s.StaffMaxWriteOff, s.ExchangeSlipDays, s.ExchangeSlipHelperMax, s.BillPrefix, Ledger.BillFields.Labels(s.BillFields), s.CashReceiptLimit, s.PanFrom, s.CashPayoutLimit, s.GirviState, s.GirviLicence, s.GirviMaxYearlyRate, s.GirviNoticeDays, s.ContractorDiscountPercent, s.DealerDiscountPercent))
             : TypedResults.NotFound();
 
     private static async Task<IResult> UpdateAsync(ShopSettingsUpdate request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
@@ -154,6 +156,8 @@ public static partial class ShopSettingsEndpoints
         if (request.GirviLicence is not null) shop.GirviLicence = string.IsNullOrWhiteSpace(request.GirviLicence) ? null : request.GirviLicence.Trim();
         if (request.GirviMaxYearlyRate is not null) shop.GirviMaxYearlyRate = request.GirviMaxYearlyRate == 0 ? null : request.GirviMaxYearlyRate;
         shop.GirviNoticeDays = request.GirviNoticeDays ?? shop.GirviNoticeDays;
+        shop.ContractorDiscountPercent = request.ContractorDiscountPercent is { } cp ? decimal.Round(Math.Clamp(cp, 0, 50), 2) : shop.ContractorDiscountPercent;
+        shop.DealerDiscountPercent = request.DealerDiscountPercent is { } dp ? decimal.Round(Math.Clamp(dp, 0, 50), 2) : shop.DealerDiscountPercent;
         // New bills take the prefix; bills already made keep theirs.
         if (prefix is not null) shop.BillPrefix = prefix.Length == 0 ? null : prefix;
         if (fieldLabels is not null) shop.BillFields = Ledger.BillFields.LabelsJson(fieldLabels);
@@ -162,7 +166,7 @@ public static partial class ShopSettingsEndpoints
             shop.ExtraTypes = extra.Where(x => x != shop.Type).Distinct().Select(ShopTypes.Name).ToArray();
         }
         await db.SaveChangesAsync(ct);
-        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.Type, shop.Gstin, shop.GstComposition, ShopTypes.Parse(shop.ExtraTypes), shop.StaffMaxDiscountPercent, shop.DeliversGoods, shop.StaffMaxWriteOff, shop.ExchangeSlipDays, shop.ExchangeSlipHelperMax, shop.BillPrefix, Ledger.BillFields.Labels(shop.BillFields), shop.CashReceiptLimit, shop.PanFrom, shop.CashPayoutLimit, shop.GirviState, shop.GirviLicence, shop.GirviMaxYearlyRate, shop.GirviNoticeDays));
+        return TypedResults.Ok(new ShopSettingsDto(shop.Name, shop.Slug, shop.Area, shop.Address, shop.UpiId, shop.ReminderTemplate, shop.Type, shop.Gstin, shop.GstComposition, ShopTypes.Parse(shop.ExtraTypes), shop.StaffMaxDiscountPercent, shop.DeliversGoods, shop.StaffMaxWriteOff, shop.ExchangeSlipDays, shop.ExchangeSlipHelperMax, shop.BillPrefix, Ledger.BillFields.Labels(shop.BillFields), shop.CashReceiptLimit, shop.PanFrom, shop.CashPayoutLimit, shop.GirviState, shop.GirviLicence, shop.GirviMaxYearlyRate, shop.GirviNoticeDays, shop.ContractorDiscountPercent, shop.DealerDiscountPercent));
     }
 
     private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();

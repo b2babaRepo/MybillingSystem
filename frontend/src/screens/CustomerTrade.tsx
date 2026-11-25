@@ -138,6 +138,18 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
         </div>
       )}
 
+      {/* Price group: retail, contractor or dealer pay different prices off the same list. */}
+      <label className="flex items-center justify-between gap-2 rounded-2xl border border-line p-3">
+        <span className="text-sm font-semibold">{t('hwp4.group')}</span>
+        <select value={customer.priceGroup ?? 'retail'} disabled={busy} aria-label={t('hwp4.group')}
+          onChange={(e) => void run(async () => { await api(`/v1/customers/${customer.id}/price-group`, 'PUT', { priceGroup: e.target.value }); setMessage(t('hwp4.groupSaved')) })}
+          className="h-11 rounded-xl border border-line bg-white px-3">
+          <option value="retail">{t('hwp4.retail')}</option>
+          <option value="contractor">{t('hwp4.contractor')}</option>
+          <option value="dealer">{t('hwp4.dealer')}</option>
+        </select>
+      </label>
+
       {/* Bill details: what prints on this customer's GST bills */}
       <div className="flex flex-col">
         <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-muted">{t('trade.detailsTitle')}</h2>

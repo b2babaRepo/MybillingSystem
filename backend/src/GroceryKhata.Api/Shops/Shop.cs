@@ -73,6 +73,11 @@ public sealed class Shop : Entity
     /// <summary>Cash paid to one person in a day above this is not a business expense (s.40A(3): ₹10,000): warned.</summary>
     public decimal CashPayoutLimit { get; set; } = 10_000m;
 
+    /// <summary>Price groups: the percent off the list price a contractor and a dealer get (hardware, paint, building material).</summary>
+    public decimal ContractorDiscountPercent { get; set; }
+
+    public decimal DealerDiscountPercent { get; set; }
+
     /// <summary>The state whose money-lending law the shop's girvi follows ("gujarat"); null: no state rules shown.</summary>
     public string? GirviState { get; set; }
 

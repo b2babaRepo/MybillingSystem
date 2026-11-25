@@ -1,3 +1,4 @@
+import { isTrade } from '../lib/reports'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,6 +51,8 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     girviLicence: initial.girviLicence ?? '',
     girviMaxYearlyRate: initial.girviMaxYearlyRate != null ? String(initial.girviMaxYearlyRate) : '',
     girviNoticeDays: String(initial.girviNoticeDays ?? 15),
+    contractorDiscountPercent: String(initial.contractorDiscountPercent ?? 0),
+    dealerDiscountPercent: String(initial.dealerDiscountPercent ?? 0),
     billPrefix: initial.billPrefix ?? '',
     billFields: [0, 1, 2, 3].map((i) => initial.billFields?.[i] ?? ''),
   })
@@ -60,7 +63,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   async function save() {
     setMessage('')
     try {
-      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, cashReceiptLimit: Number(form.cashReceiptLimit) || 200000, panFrom: Number(form.panFrom) || 200000, cashPayoutLimit: Number(form.cashPayoutLimit) || 0, girviState: form.girviState, girviLicence: form.girviLicence, girviMaxYearlyRate: Number(form.girviMaxYearlyRate) || 0, girviNoticeDays: Number(form.girviNoticeDays) || 0, billPrefix: form.billPrefix.trim(), billFields: form.billFields.map((f) => f.trim()).filter(Boolean), extraTypes: extra.filter((x) => x !== form.type) })
+      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, cashReceiptLimit: Number(form.cashReceiptLimit) || 200000, panFrom: Number(form.panFrom) || 200000, cashPayoutLimit: Number(form.cashPayoutLimit) || 0, girviState: form.girviState, girviLicence: form.girviLicence, girviMaxYearlyRate: Number(form.girviMaxYearlyRate) || 0, girviNoticeDays: Number(form.girviNoticeDays) || 0, contractorDiscountPercent: Number(form.contractorDiscountPercent) || 0, dealerDiscountPercent: Number(form.dealerDiscountPercent) || 0, billPrefix: form.billPrefix.trim(), billFields: form.billFields.map((f) => f.trim()).filter(Boolean), extraTypes: extra.filter((x) => x !== form.type) })
       queryClient.setQueryData([shopId, 'settings'], saved)
       setMessage(t('settings.saved'))
     } catch (err) {
@@ -226,6 +229,17 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
               <span className="mt-1 block text-xs text-muted">{t('jwl7.capHint')}</span></label>
             <label className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t('jwl7.notice')}</span>
               <input value={form.girviNoticeDays} onChange={(e) => setForm({ ...form, girviNoticeDays: e.target.value })} inputMode="numeric" className="h-12 w-36 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /> {t('slip.days')}</label>
+          </fieldset>
+        )}
+        {isTrade([form.type as ShopType, ...extra]) && (
+          <fieldset className="flex flex-col gap-3 rounded-xl border border-line p-3">
+            <legend className="px-1 text-sm font-bold">{t('hwp4.groupsTitle')}</legend>
+            <p className="text-xs text-muted">{t('hwp4.groupsHint')}</p>
+            {(['contractor', 'dealer'] as const).map((g) => (
+              <label key={g} className="block"><span className="mb-1 block text-sm font-semibold text-muted">{t(`hwp4.${g}Off`)}</span>
+                <input value={form[`${g}DiscountPercent`]} onChange={(e) => setForm({ ...form, [`${g}DiscountPercent`]: e.target.value.replace(/[^\d.]/g, '') })} inputMode="decimal"
+                  className="h-12 w-36 rounded-xl border border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" /> %</label>
+            ))}
           </fieldset>
         )}
           </>}

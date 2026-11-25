@@ -1,3 +1,4 @@
+import { groupOff, groupPrice } from '../lib/priceGroup'
 import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
@@ -175,6 +176,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // A loose item, or a charge line ("Transport") with its name filled in.
   const [loose, setLoose] = useState<false | { name: string; unit: Unit }>(false)
   const settings = useShopSettings(shopId).data
+  // A contractor's or dealer's percent off the list price (0 for retail and walk-ins). Defined early: totals use it.
+  const shopSettings = settings
+  const customerOff = groupOff(customers.find((c) => c.id === customerId)?.priceGroup, shopSettings)
   const shopType = settings?.type ?? 'kirana'
   // The shop's own extra bill fields and what was typed in them for this bill.
   const billFieldLabels = settings?.billFields ?? []
@@ -207,6 +211,16 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // Another customer's bill isn't going to this one's site.
   function pickCustomer(id: string) {
     if (customerId && id !== customerId) setDelivery()
+    // Lines at the old customer's group price (or the list price) move to the new customer's group price.
+    const before = customerOff
+    const after = groupOff(customers.find((c) => c.id === id)?.priceGroup, shopSettings)
+    if (before !== after) {
+      setCart((current) => current.map((l) => {
+        const p = products.find((x) => x.id === l.productId)
+        if (!p || l.offerId || (l.unitPrice !== p.sellingPrice && l.unitPrice !== groupPrice(p.sellingPrice, before))) return l
+        return { ...l, unitPrice: groupPrice(p.sellingPrice, after) }
+      }))
+    }
     stateOffered.current = ''
     setCustomerId(id)
     // Credit was chosen first: the customer just picked takes the whole bill on khata.
@@ -278,7 +292,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // Discounts: a line sold below its item's regular price. Helpers have a limit the owner sets (the server checks it too).
   const staffLimit = useShopSettings(shopId).data?.staffMaxDiscountPercent ?? 10
   // The item's price for the line's quantity: at its wholesale quantity, the wholesale price is the regular one, not a discount.
-  const regularOf = (l: CartLine) => { const p = products.find((x) => x.id === l.productId); return p ? priceFor(p, l.quantity) : 0 }
+  const regularOf = (l: CartLine) => { const p = products.find((x) => x.id === l.productId); return p ? Math.min(priceFor(p, l.quantity), groupPrice(p.sellingPrice, customerOff)) : 0 }
   const offOf = (l: CartLine) => { const r = regularOf(l); return r > 0 && l.unitPrice > 0 && l.unitPrice < r ? { amount: round2((r - l.unitPrice) * l.quantity), percent: Math.round(((r - l.unitPrice) / r) * 1000) / 10 } : null }
   const discountTotal = round2(cart.reduce((sum, l) => sum + (offOf(l)?.amount ?? 0), 0))
   // The owner's planned offers. A line under one is the owner's price, so the helper's limit doesn't apply to it.
@@ -367,6 +381,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     const item = line.productId ? products.find((p) => p.id === line.productId) : undefined
     const offer = item && line.unitPrice === item.sellingPrice ? bestOffer(offers, item) : null
     if (offer && item) line = { ...line, unitPrice: offerPrice(offer, item.sellingPrice), offerId: offer.id, offerName: offer.name }
+    // A contractor or dealer pays their group's price, unless an offer is lower.
+    else if (item && line.unitPrice === item.sellingPrice && customerOff > 0) line = { ...line, unitPrice: groupPrice(item.sellingPrice, customerOff) }
     const qty = pendingQty ?? 1
     if (pendingQty) { line = { ...line, quantity: pendingQty, unitPrice: fitPrice(item, pendingQty, line.unitPrice) }; setSearch('') }
     setCart((current) => {
@@ -842,13 +858,27 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 <button onClick={() => sellLoose(i, per)} className={`min-h-11 text-xs ${btn.link}`}>{t('loose.button')}</button>
               ) : null })()}
               {(() => {
-                const bagSize = products.find((p) => p.id === l.productId)?.bagSize
-                if (!bagSize) return null
+                const item = products.find((p) => p.id === l.productId)
+                if (!item?.bagSize) return null
+                const bagSize = item.bagSize
+                // Cartons and strips are whole packs bought and sold by count; grain bags are sold by weight.
+                const pack = item.purchaseUnit ?? null
+                const packWord = (n: number) => (pack ? t(`units.${pack}`, { count: n }) : t('bag.inBags', { count: n }))
+                async function sellWhole() {
+                  const n = Math.round(Number(await ask(pack ? t('hwp5.wholeAsk', { size: bagSize, unit: t(`units.${l.unit}`, { count: bagSize }), pack: t(`units.${pack}`, { count: 1 }) }) : t('bag.wholeAsk', { size: bagSize, unit: t(`units.${l.unit}`) }))) || 0)
+                  if (!(n > 0)) return
+                  setCart((c) => {
+                    const line = c[i]
+                    // A line just tapped in (1 loose piece) or already in whole packs becomes the packs; otherwise the packs
+                    // go on their own line, so one bill can carry "2 cartons" and "5 pieces" of the same item.
+                    if (line.bags || line.quantity === 1 || !pack) return c.map((x, k) => (k === i ? { ...x, quantity: n * bagSize, bags: n } : x))
+                    return [...c, { ...line, name: `${item!.name} (${n} ${t(`units.${pack}`, { count: n })})`.slice(0, 120), quantity: n * bagSize, bags: n, offerId: null, offerName: null }]
+                  })
+                }
                 return (
                   <span className="flex flex-wrap items-center gap-2">
-                    {l.bags ? <span className="rounded-full bg-warn-soft px-2 text-xs font-semibold text-warn">🛍️ {t('bag.inBags', { count: l.bags })}</span> : null}
-                    <button onClick={async () => { const n = Math.round(Number(await ask(t('bag.wholeAsk', { size: bagSize, unit: t(`units.${l.unit}`) }))) || 0); if (n > 0) setCart((c) => c.map((x, k) => (k === i ? { ...x, quantity: n * bagSize, bags: n } : x))) }}
-                      className={`min-h-11 text-xs ${btn.link}`}>{t('bag.wholeBags')}</button>
+                    {l.bags ? <span className="rounded-full bg-warn-soft px-2 text-xs font-semibold text-warn">{pack ? '📦' : '🛍️'} {l.bags} {packWord(l.bags)}</span> : null}
+                    <button onClick={() => void sellWhole()} className={`min-h-11 text-xs ${btn.link}`}>{pack ? t('hwp5.wholePacks', { pack: t(`units.${pack}`, { count: 2 }) }) : t('bag.wholeBags')}</button>
                   </span>
                 )
               })()}
@@ -1016,6 +1046,17 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               {t('onKhata')}: {formatRupees(round2(due - paidAmount))}
             </p>
           )}
+          {(() => {
+            // Selling more than is in stock is allowed (the purchase may not be entered yet), but the counter should know.
+            const short = [...cart.reduce((m, l) => l.productId ? m.set(l.productId, (m.get(l.productId) ?? 0) + l.quantity) : m, new Map<string, number>())]
+              .map(([id, qty]) => ({ p: products.find((x) => x.id === id), qty }))
+              .filter(({ p, qty }) => p && !p.isService && !p.uncounted && qty > p.stock)
+            return short.length > 0 && (
+              <p role="status" className="rounded-xl bg-warn-soft p-3 text-sm font-semibold text-warn-ink">
+                {t('hwp3.belowZero')} {short.map(({ p, qty }) => t('hwp3.belowZeroItem', { name: p!.name, stock: Math.max(0, p!.stock), qty })).join(' · ')}
+              </p>
+            )
+          })()}
           {isTrade(types) && (
             <Suspense fallback={null}>
               <TradeBillPanel shopId={shopId} shopType={shopType} customer={customer} onKhata={customer ? round2(due - paidAmount) : 0}

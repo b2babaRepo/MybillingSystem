@@ -69,3 +69,24 @@ Several things remain uncertain. We have no shop-owner interviews or reviews spe
 The surprise in this research is that our weakness is not missing modules but unfinished ones. Rivals either lack the project-sale chain entirely (Vyapar, myBillBook) or bury it in desktop ERPs priced in the tens of thousands (BUSY, Marg). We already own the chain, so our fastest path to leadership is to close the loops: settling commission, retrieving shades, repricing whole brands, and blocking unsafe credit. Our goal is not BUSY's feature count but its depth, delivered at counter speed on a phone.
 
 The second insight is strategic. Brands spend heavily to own painters and plumbers directly, but none of their apps helps the dealer keep those tradespeople loyal to the shop. A shop app that makes the bill a claim document, runs the shop's own commission ledger, and remembers which painter's site used which shade turns Grocery Khata from a billing tool into the dealer's tool for keeping tradespeople. That is a position the brand apps and the generic billers have both left open.
+
+## Built since this report (25 Nov 2026)
+
+The five quick wins, then the next ten:
+
+| Item | Where in the app |
+|---|---|
+| Change prices by a percent per brand or category | Today's rates |
+| Commission paid and still owed; a cash payout leaves the day's cash count | Painters |
+| Repeat a customer's earlier shade | Bill → tinted tin |
+| Helpers can't bill past a credit limit | Bill (server check) |
+| Reward-points slip (value before GST, with the painter's name) | Printed bill |
+| Price groups: contractor and dealer % off list, set per customer | Settings → Staff limits; customer page; bill prices itself |
+| Whole cartons and loose pieces of one item on the same bill | Bill line → "Sell whole cartons" |
+| Estimate to delivery challan, in parts, with delivered/left | Estimates → "Send on challan" |
+| Paint quotation from wall area (rooms, doors and windows, coats, coverage) with the cheapest tin mix | Estimates → "Paint quotation" |
+| Company price list from a CSV file | Today's rates |
+| Company scheme (rebate) tracker: target, progress from supplier bills, rebate due, short payment | Suppliers → Company schemes |
+| "Profit lost on returns" label, "₹X waiting for credit notes", below-zero stock warning on the bill | P&L, month statement; Suppliers; Bill |
+
+Still open from the list above: e-way bill generation through the portal (the app makes the upload file), dead-stock report for hardware, colourant stock by shade.

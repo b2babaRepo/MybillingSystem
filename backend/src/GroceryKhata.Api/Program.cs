@@ -215,6 +215,7 @@ app.MapSalesInsights();
 app.MapDayReport();
 app.MapCheques();
 app.MapTrades();
+app.MapBrandSchemes();
 app.MapBilling();
 app.MapAgent();
 app.MapPlatform();

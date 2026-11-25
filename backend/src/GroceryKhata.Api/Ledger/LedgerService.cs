@@ -22,14 +22,14 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         }
 
         return await query.OrderBy(c => c.Name).Take(500)
-            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays))
+            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays, c.PriceGroup))
             .ToListAsync(cancellationToken);
     }
 
     public Task<LedgerResult<CustomerDto>> CreateCustomerAsync(CustomerRequest request, CancellationToken cancellationToken) =>
         WriteOnceAsync(
             () => db.Customers.AsNoTracking().Where(c => c.Id == request.Id)
-                .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays)).SingleOrDefaultAsync(cancellationToken),
+                .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays, c.PriceGroup)).SingleOrDefaultAsync(cancellationToken),
             async () =>
             {
                 var errors = new Dictionary<string, string[]>();
@@ -350,6 +350,13 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                 // Salespeople must have access to this shop; a line without one (or with a stranger) is the biller's.
                 var sellers = (await db.Memberships.AsNoTracking().Where(m => m.ShopId == tenant.ShopId).Select(m => m.UserId).ToListAsync(cancellationToken)).ToHashSet();
                 var staffMaxDiscount = isOwner ? 100m : await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.StaffMaxDiscountPercent).SingleAsync(cancellationToken);
+                // A contractor's or dealer's price is the owner's own price list, so a helper may bill at it.
+                var groupOff = request.CustomerId is { } groupCustomer
+                    ? await (from c in db.Customers.AsNoTracking()
+                             where c.Id == groupCustomer
+                             from sh in db.Shops.AsNoTracking().Where(sh => sh.Id == tenant.ShopId)
+                             select c.PriceGroup == "contractor" ? sh.ContractorDiscountPercent : c.PriceGroup == "dealer" ? sh.DealerDiscountPercent : 0m).FirstOrDefaultAsync(cancellationToken)
+                    : 0m;
                 if (request.Lines is not { Count: > 0 and <= 200 })
                 {
                     errors[nameof(request.Lines)] = ["Add between 1 and 200 items."];
@@ -402,6 +409,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
                     // So did a wholesale price, for a line that takes at least its quantity.
                     else if (!isOwner && !(offerPrice is { } floor && line.UnitPrice >= floor)
                         && !(product is { WholesalePrice: { } wholesale, WholesaleMinQty: { } atLeast } && line.Quantity >= atLeast && line.UnitPrice >= wholesale)
+                        && !(groupOff > 0 && product is { SellingPrice: > 0 } listed && line.UnitPrice >= decimal.Round(listed.SellingPrice * (1 - (groupOff / 100)), 2))
                         && DiscountProblem(name, product, line.UnitPrice, staffMaxDiscount) is { } tooLow)
                     {
                         errors[field] = [tooLow];
@@ -873,7 +881,7 @@ public sealed class LedgerService(AppDbContext db, TimeProvider clock, ITenantCo
         }
 
         var customer = bill.CustomerId is { } customerId
-            ? await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays)).SingleAsync(cancellationToken)
+            ? await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays, c.PriceGroup)).SingleAsync(cancellationToken)
             : null;
         // What went on the khata is due the customer's credit days after the bill.
         DateOnly? dueOn = bill.OnKhata > 0 && customer?.CreditDays is { } creditDays
