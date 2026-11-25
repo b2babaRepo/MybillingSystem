@@ -32,6 +32,30 @@ public sealed class TestingFixesTests(ApiFactory api)
         return (owner, helper);
     }
 
+    [Fact]
+    public async Task Cancelling_a_purchase_takes_its_units_out_of_the_average_cost_and_write_offs_keep_their_cost()
+    {
+        var (shop, _) = await ShopAsync("kirana");
+        var sugar = await ItemAsync(shop, "Sugar", 50m, 0m);
+        var supplier = await SupplierAsync(shop);
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = Guid.CreateVersion7(), supplierId = supplier, paidAmount = 0m, lines = new[] { new { productId = sugar, quantity = 14m, unitCost = 40m } } })).EnsureSuccessStatusCode();
+
+        // A damaged packet is written off at ₹40, the cost that day.
+        (await shop.PostJsonAsync("/api/v1/stock-movements", new { id = Guid.CreateVersion7(), productId = sugar, kind = "adjustment", quantity = -1m, reason = "damage" })).EnsureSuccessStatusCode();
+
+        // 10 more at ₹44 lift the average to (13×40 + 10×44) / 23 = 41.74; cancelling that bill takes it back to 40.
+        var second = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = second, supplierId = supplier, paidAmount = 0m, lines = new[] { new { productId = sugar, quantity = 10m, unitCost = 44m } } })).EnsureSuccessStatusCode();
+        Assert.Equal(41.74m, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{sugar}")).CostPrice);
+        Assert.Equal(HttpStatusCode.NoContent, (await shop.PostJsonAsync($"/api/v1/suppliers/purchases/{second}/cancel", new { })).StatusCode);
+        var after = await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{sugar}");
+        Assert.Equal((13m, 40m), (after.Stock, after.CostPrice));
+
+        // The month and the year agree on the loss: ₹40, whatever the cost did afterwards.
+        Assert.Equal(40m, (await shop.GetJsonAsync<MonthReport>("/api/v1/reports/month")).StockLoss);
+        Assert.Equal(40m, (await shop.GetJsonAsync<ProfitLossReport>("/api/v1/reports/pnl")).StockLoss);
+    }
+
     private static async Task<Guid> ItemAsync(HttpClient shop, string name, decimal price, decimal stock, decimal? cost = null, decimal? gst = null, string? schedule = null)
     {
         var id = Guid.CreateVersion7();

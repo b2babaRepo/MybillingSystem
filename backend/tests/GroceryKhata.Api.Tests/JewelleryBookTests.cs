@@ -130,6 +130,14 @@ public sealed class JewelleryBookTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_scheme_bonus_is_at_most_one_instalment()
+    {
+        var (shop, _) = await api.SignUpAsync("Bonus Sarafa");
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/jewellery/schemes", new { name = "Too generous", months = 2, instalment = 100m, bonus = 100_000m })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/jewellery/schemes", new { name = "Pay 11 get 1", months = 11, instalment = 5_000m, bonus = 5_000m })).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task The_price_page_lists_the_jewellery_plan_without_signing_in()
     {
         var plans = await api.CreateClient().GetJsonAsync<List<GroceryKhata.Api.Billing.PublicPlanDto>>("/api/v1/plans/public");

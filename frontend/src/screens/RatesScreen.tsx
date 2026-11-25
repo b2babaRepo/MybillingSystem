@@ -30,6 +30,7 @@ export function RatesScreen({ shopId }: { shopId: string }) {
   function applyPercent() {
     const by = Number(percent)
     if (!by || matching.length === 0) return
+    if (by < -90 || by > 200) { setMessage(t('hwp2.percentRange')); return }
     const next = { ...draft }
     for (const p of matching) next[p.id] = String(Math.max(1, Math.round(p.sellingPrice * (1 + by / 100))))
     setDraft(next)

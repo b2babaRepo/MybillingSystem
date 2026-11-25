@@ -1,3 +1,4 @@
+import { NotFound } from '../components/NotFound'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -136,7 +137,10 @@ export function KharchaMonth({ shopId, shopName }: { shopId: string; shopName: s
 /** The month's kharcha on paper (/print/kharcha/2026-10): every line, then running costs and what stays out of profit. A4 or a receipt roll. */
 export function KharchaPrint({ shopId, shopName, month }: { shopId: string; shopName: string; month: string }) {
   const { t } = useTranslation()
-  const m = useExpenseMonth(shopId, month).data
+  const query = useExpenseMonth(shopId, month)
+  const m = query.data
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return <NotFound text={t('hwp2.badMonth')} back="/expenses/month" />
+  if (query.isError) return <NotFound text={query.error instanceof Error ? query.error.message : String(query.error)} back="/expenses/month" />
   if (!m) return <p className="p-6">…</p>
   const running = m.byCategory.filter((c) => !OUTSIDE_PROFIT.includes(c.category))
   const outside = m.byCategory.filter((c) => OUTSIDE_PROFIT.includes(c.category) && c.category !== 'home')

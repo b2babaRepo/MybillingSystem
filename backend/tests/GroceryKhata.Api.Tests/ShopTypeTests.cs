@@ -64,6 +64,10 @@ public sealed class ShopTypeTests(ApiFactory api)
 
         var negative = await shop.PutAsJsonAsync("/api/v1/products/rates", new { rates = new[] { new { productId = cement.Id, sellingPrice = -1m } } }, ApiFactory.Json);
         Assert.Equal(HttpStatusCode.BadRequest, negative.StatusCode);
+        // An item this shop doesn't have (deleted, or another shop's) is refused, and nothing else changes.
+        var unknown = await shop.PutAsJsonAsync("/api/v1/products/rates", new { rates = new[] { new { productId = cement.Id, sellingPrice = 400m }, new { productId = Guid.CreateVersion7(), sellingPrice = 1m } } }, ApiFactory.Json);
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.Equal(cement.SellingPrice, (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{cement.Id}")).SellingPrice);
 
         // A kirana shop has no starter list: nothing is added.
         var (kirana, _) = await api.SignUpAsync();

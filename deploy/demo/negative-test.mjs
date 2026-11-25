@@ -60,7 +60,8 @@ await refuse('sign-in with broken JSON', 'POST', '/auth/sign-in', { rawBody: '{"
 await refuse('sign-up with a 3-digit phone', 'POST', '/auth/sign-up', { body: { shopName: 'X', fullName: 'Y', phone: '123', password: 'secret123', type: 'kirana' } })
 await refuse('sign-up with an unknown shop type', 'POST', '/auth/sign-up', { body: { shopName: 'X', fullName: 'Y', phone: phone(), password: 'secret123', type: 'spaceship' } })
 await refuse('sign-up with a 2-letter password', 'POST', '/auth/sign-up', { body: { shopName: 'X', fullName: 'Y', phone: phone(), password: 'ab', type: 'kirana' } })
-await refuse('sign-up again with a phone already used', 'POST', '/auth/sign-up', { body: { shopName: 'X', fullName: 'Y', phone: A.phone, password: 'secret123', type: 'kirana' } })
+// Signing up again with the same number and password just signs the owner in (by design); another password must fail.
+await refuse('sign-up again with a used phone and another password', 'POST', '/auth/sign-up', { body: { shopName: 'X', fullName: 'Y', phone: A.phone, password: 'not-the-owner-9', type: 'kirana' } })
 
 // --- Customers.
 await refuse('customer with empty name', 'POST', '/customers', { token: t, body: { id: randomUUID(), name: '' } })
@@ -82,7 +83,12 @@ await refuse('payment with 3 decimals', 'POST', '/khata-entries', { token: t, bo
 await refuse('payment unknown type', 'POST', '/khata-entries', { token: t, body: entry({ type: 'gift' }) })
 await refuse('payment unknown mode', 'POST', '/khata-entries', { token: t, body: entry({ paymentMode: 'bitcoin' }) })
 await refuse('payment for unknown customer', 'POST', '/khata-entries', { token: t, body: entry({ customerId: randomUUID() }) })
-await refuse('payment dated next year', 'POST', '/khata-entries', { token: t, body: entry({ occurredAt: new Date(Date.now() + 365 * 864e5).toISOString() }) })
+// A future date is taken as a wrong phone clock and saved as now (by design): check it isn't kept as next year.
+{
+  const r = await raw('POST', '/khata-entries', { token: t, body: entry({ occurredAt: new Date(Date.now() + 365 * 864e5).toISOString() }) })
+  const at = r.json?.entry?.occurredAt
+  results.push({ ok: r.status === 201 && at && new Date(at) <= new Date(Date.now() + 60_000), name: 'payment dated next year is saved as now', status: r.status, detail: r.text.slice(0, 200) })
+}
 await refuse('amount as text', 'POST', '/khata-entries', { token: t, body: entry({ amount: 'hundred' }) })
 
 // --- Bills.

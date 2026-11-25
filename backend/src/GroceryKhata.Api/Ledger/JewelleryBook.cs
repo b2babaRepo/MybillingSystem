@@ -530,6 +530,8 @@ public static class JewelleryBookEndpoints
         // (Companies deposit rules, BUDS Act 2019): so at most 11 monthly instalments, redeemed by the 12th month.
         if (r.Months is < 2 or > MaxSchemeMonths || r.Instalment is <= 0 or > 10_000_000 || r.Bonus is < 0 or > 10_000_000)
             return Invalid("Months", $"Enter 2–{MaxSchemeMonths} months, the monthly instalment and the bonus. A scheme must end within a year.");
+        if (r.Bonus > r.Instalment)
+            return Invalid("Bonus", "The bonus can be at most one instalment (the usual \"pay 11, get 1 free\").");
         var kind = r.Kind ?? "amount";
         if (kind is not ("amount" or "grams")) return Invalid("Kind", "A scheme saves rupees or grams of gold.");
         if (kind == "grams" && (r.Purity is not { } p || !JewelleryMath.ValidPurity("gold", p))) return Invalid("Purity", "Choose the gold purity the scheme saves in.");

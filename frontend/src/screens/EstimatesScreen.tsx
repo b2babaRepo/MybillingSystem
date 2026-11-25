@@ -1,3 +1,4 @@
+import { NotFound } from '../components/NotFound'
 import { btn } from '../components/ui'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -105,10 +106,12 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
 /** The estimate on paper: plainly not a tax invoice, with how long the prices hold. */
 export function EstimatePrint({ shopId, shopName, id }: { shopId: string; shopName: string; id: string }) {
   const { t } = useTranslation()
-  const e = useQuery({ queryKey: [shopId, 'estimate', id], queryFn: () => api<Estimate>(`/v1/estimates/${id}`) }).data
+  const estimate = useQuery({ queryKey: [shopId, 'estimate', id], queryFn: () => api<Estimate>(`/v1/estimates/${id}`), retry: false })
+  const e = estimate.data
   const { customers } = useCustomers(shopId)
   // The shop's logo, print style, terms and signature, as on its bills.
   const printLook = useQuery({ queryKey: ['print-look'], queryFn: () => api<BillPrint>('/v1/shop/print'), staleTime: 300_000, retry: false })
+  if (estimate.isError) return <NotFound text={t('hwp2.estimateMissing')} back="/estimates" />
   if (!e) return <p className="p-6">…</p>
   const party = customers.find((c) => c.id === e.customerId)
   const share = [

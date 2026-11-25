@@ -1,3 +1,4 @@
+import { NotFound } from '../components/NotFound'
 import { JewelleryBreakdown } from '../components/JewelleryBreakdown'
 import { btn } from '../components/ui'
 import { SendFromShop } from '../components/ShopWhatsApp'
@@ -288,7 +289,8 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
   const link = useQuery({ queryKey: ['bill-link', billId], queryFn: () => api<{ shopSlug: string; billId: string; token: string }>(`/v1/bills/${billId}/link`, 'POST'), enabled: !!query.data, staleTime: Infinity, retry: false })
   if (query.isError) {
     if (waiting.isPending) return <p className="p-6">…</p>
-    return waiting.data ? <ProvisionalPrint shopName={shopName} bill={waiting.data} /> : <Problem error={query.error} />
+    if (waiting.data) return <ProvisionalPrint shopName={shopName} bill={waiting.data} />
+    return query.error instanceof ApiError && query.error.status === 404 ? <NotFound text={t('hwp2.billMissing')} back="/find-bill" /> : <Problem error={query.error} />
   }
   const view = query.data
   if (!view) return <p className="p-6">…</p>

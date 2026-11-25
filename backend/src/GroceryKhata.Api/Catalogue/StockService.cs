@@ -527,6 +527,13 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         Guid id, Guid productId, StockMovementKind kind, decimal quantity, StockReason? reason, decimal? costPrice, string? note,
         Guid userId, CancellationToken ct)
     {
+        // A write-off or count correction keeps the cost it had that day, so later cost changes don't revalue past losses
+        // (the month report and the year's P&L then agree).
+        if (costPrice is null && kind == StockMovementKind.Adjustment)
+        {
+            costPrice = await db.Products.AsNoTracking().Where(p => p.Id == productId).Select(p => p.CostPrice).SingleOrDefaultAsync(ct);
+        }
+
         var movement = new StockMovement
         {
             Id = id,
@@ -561,6 +568,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         var ids = request.Rates.Select(r => r.ProductId).ToList();
         var products = await db.Products.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        if (ids.Distinct().Count(id => !products.ContainsKey(id)) is > 0 and var missing)
+        {
+            return (0, new() { ["Rates"] = [$"{missing} item(s) not found: they may have been deleted. Refresh and try again."] });
+        }
+
         var changed = 0;
         foreach (var rate in request.Rates)
         {

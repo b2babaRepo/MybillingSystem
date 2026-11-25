@@ -1,3 +1,4 @@
+import { phoneOk } from './phone'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { api, NetworkError } from './api'
@@ -125,6 +126,7 @@ export function installSyncHandler(queryClient: QueryClient) {
 // ---- Writes: all go through the outbox, so they work the same online and offline. ----
 
 export async function addCustomer(shopId: string, name: string, phone: string, nameLater = false) {
+  if (!phoneOk(phone)) throw new Error('Enter a valid 10-digit mobile number, or leave it empty.')
   const id = uuidv7()
   // "Name later": udhaar to someone who gave no name yet; the server numbers it ("Name later 3").
   await enqueue({ id, shopId, kind: 'customer', path: '/v1/customers', body: { id, name: nameLater ? 'Name later' : name, phone: phone || null, nameLater }, label: `+ ${nameLater ? 'Name later' : name}` })
