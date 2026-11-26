@@ -3940,6 +3940,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("bill_of_supply");
 
+                    b.Property<Guid?>("BillOfferId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_offer_id");
+
                     b.Property<string>("BuyerGstin")
                         .HasMaxLength(15)
                         .HasColumnType("character varying(15)")
@@ -9067,10 +9071,19 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int?>("BuyQty")
+                        .HasColumnType("integer")
+                        .HasColumnName("buy_qty");
+
                     b.Property<string>("Category")
                         .HasMaxLength(60)
                         .HasColumnType("character varying(60)")
                         .HasColumnName("category");
+
+                    b.Property<decimal?>("ComboPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("combo_price");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -9080,15 +9093,37 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by_user_id");
 
+                    b.Property<int?>("Days")
+                        .HasColumnType("integer")
+                        .HasColumnName("days");
+
                     b.Property<DateTimeOffset>("EndsAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ends_at");
+
+                    b.Property<int?>("FromMinute")
+                        .HasColumnType("integer")
+                        .HasColumnName("from_minute");
+
+                    b.Property<int?>("GetQty")
+                        .HasColumnType("integer")
+                        .HasColumnName("get_qty");
 
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("kind");
+
+                    b.Property<decimal?>("MinBill")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("min_bill");
+
+                    b.Property<decimal?>("MinQty")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("min_qty");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -9118,6 +9153,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateTimeOffset?>("StoppedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("stopped_at");
+
+                    b.Property<int?>("ToMinute")
+                        .HasColumnType("integer")
+                        .HasColumnName("to_minute");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

@@ -244,6 +244,9 @@ public sealed class Bill : Entity, ITenantOwned
     /// <summary>The cashier's shift it was made in (see <see cref="CashierShift"/>): its cash counts toward that drawer.</summary>
     public Guid? ShiftId { get; set; }
 
+    /// <summary>The whole-bill promotion taken on it (money off from a bill amount): kept for the offer's results.</summary>
+    public Guid? BillOfferId { get; set; }
+
     /// <summary>The painter who brought the customer (paint shops): their commission is counted from these bills.</summary>
     public Guid? PainterId { get; set; }
 

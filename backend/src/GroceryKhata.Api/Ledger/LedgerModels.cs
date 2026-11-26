@@ -65,6 +65,8 @@ public sealed record BillRequest(
     string? Counter = null,
     // The cashier's open shift on that counter: the bill's cash goes in that drawer's count.
     Guid? ShiftId = null,
+    // The whole-bill promotion taken (its money off is spread into the line prices, as a bill discount is).
+    Guid? BillOfferId = null,
     // Handed out from this godown rather than the shop shelf: the goods move out of the godown with the bill.
     Guid? GodownId = null,
     // The shop's own extra bill fields as filled in (PO no., doctor…).
