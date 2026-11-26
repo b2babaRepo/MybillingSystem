@@ -257,7 +257,10 @@ public sealed partial class LedgerService
                 bill.Prefix = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.BillPrefix).SingleAsync(cancellationToken);
 
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-                (bill.FinancialYear, bill.Number) = await NextBillNumberAsync(cancellationToken);
+                // A placeholder until the end: the real number is taken just before commit (see NextBillNumberAsync), so the
+                // shop's counter row is locked for a moment, not for the whole save, and tills don't queue on each other.
+                bill.FinancialYear = FinancialYear(clock.GetUtcNow());
+                bill.Number = -System.Security.Cryptography.RandomNumberGenerator.GetInt32(1, int.MaxValue);
                 db.Bills.Add(bill);
                 // Returned goods worth more than the new ones: the change goes back out of the drawer.
                 if (exchange is not null && exchange.Total > total)
@@ -381,6 +384,10 @@ public sealed partial class LedgerService
                     return LedgerResult<BillDto>.Conflicted(refused);
                 }
 
+                // Last of all, the bill's real number: still inside the transaction, so a bill that isn't saved uses no
+                // number and the series keeps no gaps, but the counter row is held only from here to the commit.
+                bill.Number = await NextBillNumberAsync(bill.FinancialYear, cancellationToken);
+                await db.Database.ExecuteSqlAsync($"UPDATE bills SET number = {bill.Number} WHERE id = {bill.Id}", cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
                 return LedgerResult<BillDto>.Created(new BillDto(
                     bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount - bill.ExchangeCredit, bill.PaymentMode, bill.OccurredAt,
@@ -650,18 +657,18 @@ public sealed partial class LedgerService
     }
 
     /// <summary>
-    /// The next number in this shop's current financial year, taken inside the bill's transaction: if the bill isn't
-    /// saved the number isn't used either, so the series has no gaps. Two tills at once queue on the counter row.
+    /// The next number in this shop's series for <paramref name="year"/>, taken inside the bill's transaction: if the bill
+    /// isn't saved the number isn't used either, so the series has no gaps. Tills saving at once queue on the counter
+    /// row, which is why it is the bill's last step before commit.
     /// </summary>
-    private async Task<(string Year, int Number)> NextBillNumberAsync(CancellationToken cancellationToken)
+    private async Task<int> NextBillNumberAsync(string year, CancellationToken cancellationToken)
     {
-        var year = FinancialYear(clock.GetUtcNow());
         var number = (await db.Database.SqlQuery<int>($"""
             INSERT INTO bill_counters (shop_id, financial_year, last_number)
             VALUES (NULLIF(current_setting('app.shop_id', true), '')::uuid, {year}, 1)
             ON CONFLICT (shop_id, financial_year) DO UPDATE SET last_number = bill_counters.last_number + 1
             RETURNING last_number AS "Value"
             """).ToListAsync(cancellationToken)).Single();
-        return (year, number);
+        return number;
     }
 }

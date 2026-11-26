@@ -13,6 +13,42 @@ namespace GroceryKhata.Api.Tests;
 public sealed class AccountabilityTests(ApiFactory api)
 {
     [Fact]
+    public async Task Bills_saved_at_the_same_moment_by_many_tills_get_one_number_each_with_no_gaps()
+    {
+        var (shop, _) = await api.SignUpAsync();
+        var year = LedgerService.FinancialYear(DateTimeOffset.UtcNow);
+        var saves = await Task.WhenAll(Enumerable.Range(0, 30).Select(_ => shop.PostJsonAsync("/api/v1/bills",
+            new { id = Guid.CreateVersion7(), lines = new[] { new { name = "Atta", quantity = 1m, unitPrice = 50m } }, paidAmount = 50m, paymentMode = "cash" })));
+        var numbers = new List<string?>();
+        foreach (var save in saves)
+        {
+            numbers.Add((await save.ReadAsync<BillDto>()).BillNo);
+        }
+
+        Assert.Equal(Enumerable.Range(1, 30).Select(n => $"{year}/{n:0000}"), numbers.Order());
+    }
+
+    [Fact]
+    public async Task A_bill_refused_at_the_last_step_uses_no_number()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Gupta Medical", fullName = "Suresh Gupta", phone = ApiFactory.NewPhone(), password = "secret123", language = "hi", type = "medical" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var year = LedgerService.FinancialYear(DateTimeOffset.UtcNow);
+        var med = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/products", new { id = med, name = "Cetirizine 10 mg", unit = "strip", sellingPrice = 30m })).EnsureSuccessStatusCode();
+        var expiry = DateTime.Today.AddMonths(8).ToString("yyyy-MM");
+        (await shop.PostJsonAsync($"/api/v1/products/{med}/batches", new { id = Guid.CreateVersion7(), batchNo = "B1", expiryMonth = expiry, mrp = 32m, quantity = 2m })).EnsureSuccessStatusCode();
+        object Bill(decimal quantity) => new { id = Guid.CreateVersion7(), lines = new[] { new { productId = med, quantity, unitPrice = 30m } }, paidAmount = 30m * quantity, paymentMode = "cash" };
+
+        Assert.Equal($"{year}/0001", (await (await shop.PostJsonAsync("/api/v1/bills", Bill(1m))).ReadAsync<BillDto>()).BillNo);
+        // Only 1 strip left in batches: refused when its batches are taken, after the bill row was already written.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/bills", Bill(5m))).StatusCode);
+        Assert.Equal($"{year}/0002", (await (await shop.PostJsonAsync("/api/v1/bills", Bill(1m))).ReadAsync<BillDto>()).BillNo);
+    }
+
+    [Fact]
     public async Task Bills_are_numbered_one_two_three_in_the_financial_year_and_a_retry_keeps_its_number()
     {
         var (shop, _) = await api.SignUpAsync();

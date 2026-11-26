@@ -448,7 +448,6 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var skipped = 0;
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var openings = new List<(Guid ProductId, decimal Quantity)>();
         var categoryCache = new Dictionary<string, Category?>();
         foreach (var row in request.Rows)
         {
@@ -474,20 +473,22 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             product.UnitsPerPack = product.IsService ? null : row.UnitsPerPack;
             (product.TracksSerials, product.WarrantyMonths) = product.IsService ? (false, null) : (row.TracksSerials, row.WarrantyMonths);
             db.Products.Add(product);
-            if (row.OpeningStock is > 0)
+            if (row.OpeningStock is > 0 and var opening)
             {
-                openings.Add((product.Id, row.OpeningStock.Value));
+                // The opening movement and the stock it gives, saved with the item in one go: a save per row re-checked every
+                // item added so far, and 2,000 rows took over a minute.
+                product.Stock = opening;
+                db.StockMovements.Add(new StockMovement
+                {
+                    Id = Guid.CreateVersion7(), ProductId = product.Id, Kind = StockMovementKind.Opening, Quantity = opening,
+                    OccurredAt = clock.GetUtcNow(), CreatedByUserId = userId,
+                });
             }
 
             created++;
         }
 
         await db.SaveChangesAsync(ct);
-        foreach (var (productId, quantity) in openings)
-        {
-            await RecordAsync(Guid.CreateVersion7(), productId, StockMovementKind.Opening, quantity, null, null, null, userId, ct);
-        }
-
         await transaction.CommitAsync(ct);
         return (new ImportResult(created, skipped), null);
     }
