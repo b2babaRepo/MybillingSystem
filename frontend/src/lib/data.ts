@@ -32,7 +32,8 @@ export function useOutbox(shopId: string) {
 }
 
 /** From the server when online (and saved for later); the saved copy when offline. */
-async function cachedGet<T>(shopId: string, key: string, path: string): Promise<T> {
+/** The server's copy, kept on the device; with no connection, the copy kept last time. */
+export async function cachedGet<T>(shopId: string, key: string, path: string): Promise<T> {
   const cacheKey = `${shopId}:${key}`
   try {
     const data = await api<T>(path)

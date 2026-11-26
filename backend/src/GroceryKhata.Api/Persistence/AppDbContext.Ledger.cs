@@ -103,6 +103,7 @@ public sealed partial class AppDbContext
             b.ToTable("credit_notes");
             b.HasTenantKey();
             b.Ignore(n => n.NoteNo);
+            b.HasIndex(n => n.ShiftId).HasFilter("shift_id IS NOT NULL");
             b.Property(n => n.FinancialYear).HasMaxLength(7);
             b.Property(n => n.Reason).HasMaxLength(200);
             b.Property(n => n.Total).HasPrecision(12, 2);

@@ -79,4 +79,37 @@ public sealed class CashierShiftTests(ApiFactory api)
         Assert.Equal(HttpStatusCode.Forbidden, (await two.PostJsonAsync($"/api/v1/shifts/{id}/close", new { counted = 0m })).StatusCode);
         Assert.Equal((decimal?)0m, (await (await owner.PostJsonAsync($"/api/v1/shifts/{id}/close", new { counted = 0m })).ReadAsync<CashierShiftDto>()).Difference);
     }
+
+    [Fact]
+    public async Task A_return_sent_later_keeps_its_time_and_its_cash_refund_comes_out_of_the_shift()
+    {
+        var (owner, _) = await api.SignUpAsync("Return Mart");
+        var shiftId = Guid.CreateVersion7();
+        (await owner.PostJsonAsync("/api/v1/shifts", new { id = shiftId, counter = "Counter 5", openingFloat = 1000m })).EnsureSuccessStatusCode();
+        var billId = Guid.CreateVersion7();
+        var soldAt = DateTimeOffset.UtcNow.AddHours(-3);
+        (await owner.PostJsonAsync("/api/v1/bills", new
+        {
+            id = billId, lines = new[] { new { name = "Shirt", quantity = 2m, unitPrice = 400m } }, paidAmount = 800m, paymentMode = "cash", occurredAt = soldAt, shiftId,
+        })).EnsureSuccessStatusCode();
+
+        // Made offline an hour ago, sent now: it keeps that time. The refund came out of the shift's drawer.
+        var returnedAt = DateTimeOffset.UtcNow.AddHours(-1);
+        var note = await (await owner.PostJsonAsync($"/api/v1/bills/{billId}/credit-notes", new
+        {
+            id = Guid.CreateVersion7(), reason = "Wrong size", lines = new[] { new { lineNo = 1, quantity = 1m } }, refundMode = "cash", occurredAt = returnedAt, shiftId,
+        })).ReadAsync<CreditNoteDto>();
+        Assert.InRange(note.OccurredAt, returnedAt.AddSeconds(-5), returnedAt.AddSeconds(5));
+
+        // A time before the sale or in the future is kept between the sale and now.
+        var early = await (await owner.PostJsonAsync($"/api/v1/bills/{billId}/credit-notes", new
+        {
+            id = Guid.CreateVersion7(), reason = "Torn", lines = new[] { new { lineNo = 1, quantity = 1m } }, refundMode = "upi", occurredAt = soldAt.AddDays(-2), shiftId,
+        })).ReadAsync<CreditNoteDto>();
+        Assert.InRange(early.OccurredAt, soldAt.AddSeconds(-5), soldAt.AddSeconds(5));
+
+        var shift = Assert.Single(await owner.GetJsonAsync<List<CashierShiftDto>>("/api/v1/shifts"), s => s.Id == shiftId);
+        // 1000 float + 800 cash − 400 cash refund (the UPI refund didn't come out of the drawer).
+        Assert.Equal((decimal?)1400m, shift.Expected);
+    }
 }

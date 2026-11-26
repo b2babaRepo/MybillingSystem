@@ -28,7 +28,7 @@ public sealed class CashierShift : Entity, ITenantOwned
 
     public Guid? ClosedByUserId { get; set; }
 
-    /// <summary>At close: the cash the shift's bills took (bills cancelled by then left out).</summary>
+    /// <summary>At close: the cash the shift's bills took (bills cancelled by then left out), less cash refunds for returns.</summary>
     public decimal? CashSales { get; set; }
 
     /// <summary>At close: float + cash sales. Kept as it was, so a later change can't move a closed shift's result.</summary>
@@ -180,7 +180,9 @@ public static class CashierShiftEndpoints
         var bills = await db.Bills.AsNoTracking().Where(b => b.ShiftId == shiftId && b.CancelledAt == null)
             .Select(b => new { b.Total, b.PaymentMode, b.PaidAmount, b.Payments }).ToListAsync(ct);
         var cash = bills.Sum(b => BillPayments.Parts(b.PaymentMode, b.PaidAmount, b.Payments).Where(p => p.Mode == PaymentMode.Cash).Sum(p => p.Amount));
-        return (bills.Count, bills.Sum(b => b.Total), cash);
+        // Cash handed back for goods returned during the shift came out of the same drawer.
+        var refunds = await db.CreditNotes.AsNoTracking().Where(n => n.ShiftId == shiftId && n.RefundMode == PaymentMode.Cash).SumAsync(n => n.Total, ct);
+        return (bills.Count, bills.Sum(b => b.Total), cash - refunds);
     }
 
     private static async Task<CashierShiftDto> DtoAsync(AppDbContext db, CashierShift s, bool seesExpected, CancellationToken ct)

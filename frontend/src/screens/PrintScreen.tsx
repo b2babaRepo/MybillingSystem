@@ -14,16 +14,19 @@ import { startExchange } from '../lib/exchange'
 import { useQuery } from '@tanstack/react-query'
 import { PrescriptionPhoto } from './PharmacyAssistScreens'
 import { useTranslation } from 'react-i18next'
-import { api, ApiError } from '../lib/api'
+import { api, ApiError, NetworkError } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { rupeesInWords } from '../lib/inWords'
 import { guarded } from '../lib/billPasscode'
 import { gstSummary, gstUnsetAmount, storedSummary } from '../lib/gst'
-import { listOps } from '../lib/outbox'
+import { enqueue, listOps } from '../lib/outbox'
+import { cachedGet, useOutbox } from '../lib/data'
+import { currentShift } from '../lib/shift'
+import { getSession } from '../lib/session'
 import { provisionalBill } from '../lib/provisionalBill'
 import type { ProvisionalBill } from '../lib/provisionalBill'
 import type { BillView, Statement } from '../lib/types'
-import { ask, tell } from '../components/Ask'
+import { ask, askSecret, tell } from '../components/Ask'
 
 
 /**
@@ -158,7 +161,23 @@ function StatementPrint({ shopName, customerId, month }: { shopName: string; cus
 /** Goods taken back on this bill: earlier credit notes, and a form to make one. Owner only (the server checks). */
 function CreditNotesPanel({ billId, customerId, lines }: { billId: string; customerId: string | null; lines: BillView['bill']['lines'] }) {
   const { t } = useTranslation()
-  const notes = useQuery({ queryKey: ['credit-notes', billId], queryFn: () => api<{ id: string; noteNo: string; reason: string; total: number; occurredAt: string; lines: { billLineNo: number; quantity: number }[] }[]>(`/v1/bills/${billId}/credit-notes`), retry: false })
+  const shopId = getSession()?.shopId ?? ''
+  type Note = { id: string; noteNo: string; reason: string; total: number; occurredAt: string; lines: { billLineNo: number; quantity: number }[] }
+  const saved = useQuery({ queryKey: ['credit-notes', billId], queryFn: () => cachedGet<Note[]>(shopId, `credit-notes:${billId}`, `/v1/bills/${billId}/credit-notes`), retry: false })
+  // Whether a return needs the bill passcode, known with no internet too (from the copy kept last time).
+  const passcode = useQuery({ queryKey: ['bill-passcode', shopId], queryFn: () => cachedGet<{ set: boolean }>(shopId, 'bill-passcode', '/v1/shop/bill-passcode'), retry: false })
+  // Returns made offline and still waiting to reach the server count as taken back already.
+  const { ops } = useOutbox(shopId)
+  const path = `/v1/bills/${billId}/credit-notes`
+  const waiting: Note[] = ops.filter((o) => o.kind === 'creditNote' && o.path === path).map((o) => {
+    const body = o.body as { id: string; reason: string; occurredAt: string; lines: { lineNo: number; quantity: number }[] }
+    return { id: body.id, noteNo: o.status === 'failed' ? t('creditNote.failed', { error: o.error ?? '' }) : t('creditNote.waiting'), reason: body.reason, total: lineTotal(body.lines), occurredAt: body.occurredAt, lines: body.lines.map((l) => ({ billLineNo: l.lineNo, quantity: l.quantity })) }
+  })
+  const notes = { ...saved, data: saved.data ? [...saved.data, ...waiting.filter((w) => !saved.data!.some((n) => n.id === w.id))] : saved.data }
+  /** Near enough for a return still waiting (the server works out the tax): each line's amount for the quantity back. */
+  function lineTotal(back: { lineNo: number; quantity: number }[]) {
+    return Math.round(back.reduce((sum, b) => { const l = lines[b.lineNo - 1]; return sum + (l && l.quantity > 0 ? (l.amount / l.quantity) * b.quantity : 0) }, 0) * 100) / 100
+  }
   const [open, setOpen] = useState(false)
   const [qty, setQty] = useState<Record<number, string>>({})
   const [reason, setReason] = useState('')
@@ -179,12 +198,27 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
       const body = {
         id: crypto.randomUUID(), reason: reason.trim(), restock, exchange, refundMode: !customerId && !exchange ? refundMode : undefined, serials: serials.split(/[\s,]+/).filter(Boolean),
         lines: Object.entries(qty).filter(([, q]) => Number(q) > 0).map(([lineNo, q]) => ({ lineNo: Number(lineNo), quantity: Number(q) })),
+        // When it happened (a return made offline reaches the server later) and whose drawer a cash refund came from.
+        occurredAt: new Date().toISOString(), shiftId: currentShift(shopId)?.id ?? null,
       }
-      const note = await guarded(() => api<{ id: string; noteNo: string; total: number }>(`/v1/bills/${billId}/credit-notes`, 'POST', body))
+      let note: { id: string; noteNo: string; total: number }
+      try {
+        note = await guarded(() => api<{ id: string; noteNo: string; total: number }>(path, 'POST', body))
+      } catch (e) {
+        if (!(e instanceof NetworkError)) throw e
+        // No internet: an exchange needs its slip number from the server; a plain return waits on this device.
+        if (exchange) { setMessage(t('creditNote.exchangeOnline')); return }
+        const code = passcode.data?.set === false ? '' : (await askSecret(t('passcode.billAsk')))?.trim()
+        if (code === undefined || (passcode.data?.set !== false && !code)) return
+        await enqueue({ id: body.id, shopId, kind: 'creditNote', path, body, passcode: code || undefined, label: t('creditNote.queuedLabel', { amount: formatRupees(lineTotal(body.lines)) }) })
+        setQty({}); setReason(''); setSerials(''); setOpen(false)
+        setMessage(t('creditNote.queued'))
+        return
+      }
       setQty({}); setReason(''); setSerials(''); setOpen(false)
+      void saved.refetch()
       // Exchange: bill the new goods here, or print a slip the customer takes to another counter.
-      if (exchange) { setTaken({ noteId: note.id, noteNo: note.noteNo, total: note.total, customerId }); await notes.refetch(); return }
-      await notes.refetch()
+      if (exchange) setTaken({ noteId: note.id, noteNo: note.noteNo, total: note.total, customerId })
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
     }
@@ -205,6 +239,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
           <p className="text-xs text-muted">{t('slip.otherCounter')}</p>
         </div>
       )}
+      {!open && message && <p role="status" className="rounded-xl bg-warn-soft p-2 text-sm text-warn-ink">{message}</p>}
       {lines.every((l, i) => l.quantity - back(i + 1) <= 0) ? (
         <p className="text-sm text-muted">{t('creditNote.allBack')}</p>
       ) : !open ? (
@@ -275,7 +310,8 @@ function ProvisionalPrint({ shopName, bill }: { shopName: string; bill: Provisio
 
 function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: string; billId: string }) {
   const { t } = useTranslation()
-  const query = useServer<BillView>(['print', 'bill', billId], `/v1/bills/${billId}`)
+  // Kept on the device once seen, so goods can be taken back on it with no internet.
+  const query = useQuery({ queryKey: ['print', 'bill', billId], queryFn: () => cachedGet<BillView>(shopId, `bill:${billId}`, `/v1/bills/${billId}`), retry: false })
   const [attached, setAttached] = useState(false)
   // The server doesn't have it (not sent yet, or no connection): it may still be waiting on this device.
   const waiting = useQuery({

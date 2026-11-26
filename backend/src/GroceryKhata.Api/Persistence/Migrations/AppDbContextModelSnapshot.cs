@@ -4958,6 +4958,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("restocked");
 
+                    b.Property<Guid?>("ShiftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shift_id");
+
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
@@ -4991,6 +4995,9 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShiftId")
+                        .HasFilter("shift_id IS NOT NULL");
 
                     b.HasIndex("ShopId", "BillId");
 
