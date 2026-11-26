@@ -153,7 +153,8 @@ public static class SaleOffers
             // A bill offer is on the bill, not its lines: the bills it was taken on, their sales and the money off them.
             var onBills = await (from b in db.Bills.AsNoTracking()
                                  where b.BillOfferId != null && ids.Contains(b.BillOfferId.Value) && b.CancelledAt == null
-                                 select new { OfferId = b.BillOfferId!.Value, b.Total, Saved = b.Lines.Sum(l => l.ListPrice == null ? 0 : (l.ListPrice.Value - l.UnitPrice) * l.Quantity) }).ToListAsync(ct);
+                                 // Lines an item offer priced keep that offer's saving; the bill offer's is what came off the other lines.
+                                 select new { OfferId = b.BillOfferId!.Value, b.Total, Saved = b.Lines.Where(l => l.OfferId == null).Sum(l => l.ListPrice == null ? 0 : (l.ListPrice.Value - l.UnitPrice) * l.Quantity) }).ToListAsync(ct);
             foreach (var g in onBills.GroupBy(x => x.OfferId))
             {
                 stats[g.Key] = new SaleOfferStats(g.Count(), 0, g.Sum(x => x.Total), decimal.Round(g.Sum(x => x.Saved), 2));
@@ -167,10 +168,10 @@ public static class SaleOffers
         new(o.Id, o.Name, o.Kind, o.Value, o.StartsAt, o.EndsAt, o.Scope, o.Category, o.ProductIds, o.StoppedAt, stats,
             o.BuyQty, o.GetQty, o.MinQty, o.MinBill, o.ComboPrice, o.Days, o.FromMinute, o.ToMinute);
 
-    /// <summary>The offer as the promotion engine reads it (names as in the app: percent, buyGet, billAmount…).</summary>
+    /// <summary>The offer as the promotion engine reads it (names as in the API and the app: percent, buy_get, bill_amount…).</summary>
     public static Promotions.Rule ToRule(SaleOffer o) => new(
-        o.Id.ToString(), o.Name, System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(o.Kind.ToString()), o.Value, o.StartsAt, o.EndsAt, o.StoppedAt,
-        System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(o.Scope.ToString()), o.Category, o.ProductIds,
+        o.Id.ToString(), o.Name, System.Text.Json.JsonNamingPolicy.SnakeCaseLower.ConvertName(o.Kind.ToString()), o.Value, o.StartsAt, o.EndsAt, o.StoppedAt,
+        System.Text.Json.JsonNamingPolicy.SnakeCaseLower.ConvertName(o.Scope.ToString()), o.Category, o.ProductIds,
         o.BuyQty, o.GetQty, o.MinQty, o.MinBill, o.ComboPrice, o.Days, o.FromMinute, o.ToMinute);
 
     private static async Task<IResult> CreateAsync(SaleOfferRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)

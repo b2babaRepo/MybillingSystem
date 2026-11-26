@@ -100,7 +100,7 @@
     "toMinute": null,
     "id": "b2g1",
     "name": "b2g1",
-    "kind": "buyGet",
+    "kind": "buy_get",
     "value": 0,
     "buyQty": 2,
     "getQty": 1
@@ -151,7 +151,7 @@
     "toMinute": null,
     "id": "b2g1",
     "name": "b2g1",
-    "kind": "buyGet",
+    "kind": "buy_get",
     "value": 0,
     "buyQty": 2,
     "getQty": 1
@@ -388,7 +388,7 @@
     "toMinute": null,
     "id": "b1g1",
     "name": "b1g1",
-    "kind": "buyGet",
+    "kind": "buy_get",
     "value": 0,
     "buyQty": 1,
     "getQty": 1
@@ -467,7 +467,7 @@
     "toMinute": null,
     "id": "bill5",
     "name": "bill5",
-    "kind": "billPercent",
+    "kind": "bill_percent",
     "value": 5,
     "minBill": 1000
    }
@@ -543,7 +543,7 @@
     "toMinute": null,
     "id": "bill100",
     "name": "bill100",
-    "kind": "billAmount",
+    "kind": "bill_amount",
     "value": 100,
     "minBill": 1050
    }
@@ -775,7 +775,7 @@
     "toMinute": null,
     "id": "b2g1",
     "name": "b2g1",
-    "kind": "buyGet",
+    "kind": "buy_get",
     "value": 0,
     "buyQty": 2,
     "getQty": 1

@@ -88,7 +88,7 @@ public static class Promotions
                     }
 
                     break;
-                case "buyGet" when p.BuyQty >= 1 && p.GetQty >= 1:
+                case "buy_get" when p.BuyQty >= 1 && p.GetQty >= 1:
                     foreach (var i in covered)
                     {
                         var sets = (long)Math.Floor(Math.Floor(lines[i].Quantity) / (p.BuyQty!.Value + p.GetQty!.Value));
@@ -180,14 +180,14 @@ public static class Promotions
         var subtotal = chosen.Sum(ps => ps.Sum(x => Round(Paise(x.UnitPrice) * x.Quantity)));
         BillOff? bill = null;
         long best = 0;
-        foreach (var p in running.Where(r => r.Kind is "billPercent" or "billAmount"))
+        foreach (var p in running.Where(r => r.Kind is "bill_percent" or "bill_amount"))
         {
             if (subtotal <= 0 || subtotal < Paise(p.MinBill ?? 0))
             {
                 continue;
             }
 
-            var off = Math.Min(subtotal - 1, p.Kind == "billPercent" ? Round(subtotal * p.Value / 100) : Paise(p.Value));
+            var off = Math.Min(subtotal - 1, p.Kind == "bill_percent" ? Round(subtotal * p.Value / 100) : Paise(p.Value));
             if (off > best)
             {
                 (best, bill) = (off, new BillOff(p.Id, p.Name, Rupees(off)));

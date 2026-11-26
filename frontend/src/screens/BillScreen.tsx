@@ -18,7 +18,8 @@ import { currentExchange, endExchange, startExchange, type Exchange } from '../l
 import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
 import { billTax, garmentRate } from '../lib/gst'
-import { bestOffer, isRunning, offerPrice, useOffers } from '../lib/offers'
+import { bestOffer, isRunning, offerPrice, perPiece, useOffers } from '../lib/offers'
+import { promoteCart, type Promotion } from '../lib/promotions'
 import { barcodeIndex, cameraPossible, normBarcode, readScaleLabel, sameItemCode } from '../lib/barcode'
 const UnknownBarcode = lazy(() => import('../components/UnknownBarcode').then((module) => ({ default: module.UnknownBarcode })))
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
@@ -315,29 +316,37 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const offOf = (l: CartLine) => { const r = regularOf(l); return r > 0 && l.unitPrice > 0 && l.unitPrice < r ? { amount: round2((r - l.unitPrice) * l.quantity), percent: Math.round(((r - l.unitPrice) / r) * 1000) / 10 } : null }
   const discountTotal = round2(cart.reduce((sum, l) => sum + (offOf(l)?.amount ?? 0), 0))
   // The owner's planned offers. A line under one is the owner's price, so the helper's limit doesn't apply to it.
-  const offers = useOffers(shopId).data ?? []
+  const offerData = useOffers(shopId).data
+  const offers = useMemo(() => offerData ?? [], [offerData])
   // Only while the offer still runs: a held bill picked up after the offer ended goes back under the helper's limit, as on the server.
   const underOffer = (l: CartLine) => !!l.offerId && offers.some((o) => o.id === l.offerId && isRunning(o, Date.now()))
   const overLimit = !isOwner && cart.some((l) => !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit)
-  const total = useMemo(() => round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [cart])
-  // A discount on the whole bill, if the shop wants one: spread over the lines by their share, so each line's price, its
-  // GST and the helper's limit all stay right. "remove" puts the prices back as they were.
   const [billOff, setBillOff] = useState<{ before: CartLine[]; amount: number } | null>(null)
   const [offForm, setOffForm] = useState<{ value: string; percent: boolean } | null>(null)
+  // Promotions over the whole cart (buy-get, slabs, combos, bill offers), as the server prices them: the cart stays as
+  // typed; the bill is billed as these lines. A whole-bill discount typed by hand replaces them.
+  const [clock, setClock] = useState(() => Date.now())
+  useEffect(() => { const tick = setInterval(() => setClock(Date.now()), 60_000); return () => clearInterval(tick) }, [])
+  const promotions = useMemo(() => offers.filter((o) => !perPiece(o)) as Promotion[], [offers])
+  const billed = useMemo(() => promoteCart(cart, products, billOff ? [] : promotions, new Date(clock)), [cart, products, promotions, clock, billOff])
+  const cartTotal = round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
+  const total = useMemo(() => round2(billed.lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [billed])
+  // A discount on the whole bill, if the shop wants one: spread over the lines by their share, so each line's price, its
+  // GST and the helper's limit all stay right. "remove" puts the prices back as they were.
   // A line added or taken off ends the whole-bill discount (its spread no longer fits): decided while rendering, not after.
   if (billOff && cart.length !== billOff.before.length) setBillOff(null)
   function applyBillOff() {
     if (!offForm) return
     const value = Number(offForm.value)
-    const off = round2(offForm.percent ? (total * value) / 100 : value)
-    if (!(off > 0) || off >= total) { void ask(t('billOff.tooMuch')); return }
-    const factor = (total - off) / total
+    const off = round2(offForm.percent ? (cartTotal * value) / 100 : value)
+    if (!(off > 0) || off >= cartTotal) { void ask(t('billOff.tooMuch')); return }
+    const factor = (cartTotal - off) / cartTotal
     const next = cart.map((l) => ({ ...l, unitPrice: round2(l.unitPrice * factor) }))
     // Rounding can leave a few paise: the line with the most money takes them, if that keeps its price whole.
-    const gap = round2(total - off - next.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
+    const gap = round2(cartTotal - off - next.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
     const big = next.reduce((best, l, i) => (round2(l.quantity * l.unitPrice) > round2(next[best].quantity * next[best].unitPrice) ? i : best), 0)
     if (gap !== 0 && next[big].quantity === 1) next[big] = { ...next[big], unitPrice: round2(next[big].unitPrice + gap) }
-    setBillOff({ before: cart, amount: round2(total - next.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)) })
+    setBillOff({ before: cart, amount: round2(cartTotal - next.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)) })
     setCart(next)
     setOffForm(null)
   }
@@ -464,7 +473,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     // An event handler (Save), not render: the bill is timed from its first item to now.
     // eslint-disable-next-line react/purity
     const savedAt = Date.now()
-    const result = await saveBill(shopId, cart.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
+    const result = await saveBill(shopId, billed.lines.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
+      billOfferId: billed.billOfferId,
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
       exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
@@ -518,10 +528,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [fromGodown, setFromGodown] = useState('')
   const taxInvoice = picksState && !withoutGst
   const taxState = buyerState ?? (deliveredTo || shopState)
-  const tax = useMemo(() => billTax(cart.map((l) => {
+  const tax = useMemo(() => billTax(billed.lines.map((l) => {
     const item = products.find((p) => p.id === l.productId)
     return { amount: round2(l.quantity * l.unitPrice), gstRate: item ? garmentRate(item.hsnCode, item.gstRate, l.unitPrice) : null }
-  }), taxState !== shopState), [cart, products, taxState, shopState])
+  }), taxState !== shopState), [billed, products, taxState, shopState])
   const [taxOpen, setTaxOpen] = useState(false)
   // A computer's live preview of the bill as it will print, in place of the item tiles while on. Remembered on this device.
   const [preview, setPreview] = useState(() => { try { return localStorage.getItem('gk-bill-preview') === '1' } catch { return false } })
@@ -539,7 +549,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       // What goes on khata is due the customer's credit days from today, as the saved bill will say.
       dueOn: customer?.creditDays && due - paidAmount > 0
         ? (() => { const d = new Date(previewAt); d.setDate(d.getDate() + customer.creditDays!); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })() : null,
-      lines: cart.map((l) => {
+      lines: billed.lines.map((l) => {
         const p = products.find((x) => x.id === l.productId)
         const regular = regularOf(l)
         return {
@@ -549,7 +559,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         }
       }),
     }
-  }, [cart, products, customer, total, paidAmount, due, mode, settings, withoutGst, taxState, previewLook.data, exchangeCredit, extras, billFieldLabels, fieldValues, previewAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [billed, products, customer, total, paidAmount, due, mode, settings, withoutGst, taxState, previewLook.data, exchangeCredit, extras, billFieldLabels, fieldValues, previewAt]) // eslint-disable-line react-hooks/exhaustive-deps
   // Credit with no customer yet can't be saved: whose khata would it go on?
   const canSave = total > 0 && !unpriced && !rxMissing && !serialsMissing && !overLimit && !(creditAsked && !customer)
   // Desktop keys: F2 search, F4 amount paid, Ctrl+Enter save, Esc clear search, ? the key list.
@@ -748,7 +758,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       {/* On a computer every open bill is a tab: the one being made, the held ones, and + for another customer. */}
       <div role="tablist" aria-label={t('billTabs.label')} className="hidden flex-wrap items-end gap-1 border-b-2 border-brand xl:flex">
         <span role="tab" aria-selected className="max-w-56 truncate rounded-t-xl bg-brand px-4 py-2 text-sm font-bold text-white">
-          {(customers.find((c) => c.id === customerId)?.name ?? t('billTabs.current'))}{cart.length > 0 ? ` · ${formatRupees(round2(cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}` : ''}
+          {(customers.find((c) => c.id === customerId)?.name ?? t('billTabs.current'))}{cart.length > 0 ? ` · ${formatRupees(total)}` : ''}
         </span>
         {held.map((h) => (
           <button key={h.id} role="tab" aria-selected={false} onClick={() => void resumeBill(h)} className="max-w-56 truncate rounded-t-xl border border-b-0 border-line bg-white px-4 py-2 text-sm font-semibold hover:bg-brand-soft">
@@ -958,6 +968,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>
               </div>
             </>
+          )}
+          {/* Offers the bill took by itself (buy-get, combos, slabs, bill offers): what each saved. */}
+          {billed.applied.length > 0 && (
+            <ul aria-label={t('promo.taken')} className="mt-1 flex flex-col gap-1 rounded-xl bg-amber-50 p-2 text-sm">
+              {billed.applied.map((a) => (
+                <li key={a.offerId} className="flex justify-between gap-2"><span className="font-semibold text-warn-ink">🏷 {a.offerName}</span><span className="font-semibold">−{formatRupees(a.saved)}</span></li>
+              ))}
+            </ul>
           )}
           {/* Optional: the shopkeeper's own discount on the whole bill. */}
           {billOff ? (

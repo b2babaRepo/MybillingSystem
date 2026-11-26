@@ -3,21 +3,21 @@
  * (backend Ledger/Promotions.cs) and both are tested against shared/promotions.cases.json, so a bill priced on a till
  * with no internet is priced the same when it reaches the server.
  *
- * Kinds: percent / amount (off each piece), buyGet (buy N get M free, same item), slab (a percent off once the cart has
- * at least N of the covered items), combo (a set of items together for one price), billPercent / billAmount (off the
+ * Kinds: percent / amount (off each piece), buy_get (buy N get M free, same item), slab (a percent off once the cart has
+ * at least N of the covered items), combo (a set of items together for one price), bill_percent / bill_amount (off the
  * whole bill once it reaches an amount). Time windows: dates, plus weekdays and hours of the day (India time).
  *
  * Rules: an item offer never stacks on another; the one saving the customer most is taken first, and a line it uses is
  * not used again. Then the best bill offer comes off what is left. Money is worked in whole paise.
  */
 
-export type PromotionKind = 'percent' | 'amount' | 'buyGet' | 'slab' | 'combo' | 'billPercent' | 'billAmount'
+export type PromotionKind = 'percent' | 'amount' | 'buy_get' | 'slab' | 'combo' | 'bill_percent' | 'bill_amount'
 
 export interface Promotion {
   id: string
   name: string
   kind: PromotionKind
-  /** percent / slab / billPercent: the percent; amount / billAmount: rupees. */
+  /** percent / slab / bill_percent: the percent; amount / bill_amount: rupees. */
   value: number
   startsAt: string
   endsAt: string
@@ -29,7 +29,7 @@ export interface Promotion {
   getQty?: number | null
   /** slab: from this many of the covered items. */
   minQty?: number | null
-  /** billPercent / billAmount: from this bill amount (₹). */
+  /** bill_percent / bill_amount: from this bill amount (₹). */
   minBill?: number | null
   /** combo: one of each item in productIds, together, for this price (₹). */
   comboPrice?: number | null
@@ -99,7 +99,7 @@ export function applyPromotions(lines: PromoLine[], promotions: Promotion[], at:
         const saving = Math.round((regular[i] - price) * lines[i].quantity)
         if (saving > 0) candidates.push({ saving, order, lines: [i], parts: new Map([[i, [part(p, lines[i].quantity, price)]]]) })
       }
-    } else if (p.kind === 'buyGet' && (p.buyQty ?? 0) >= 1 && (p.getQty ?? 0) >= 1) {
+    } else if (p.kind === 'buy_get' && (p.buyQty ?? 0) >= 1 && (p.getQty ?? 0) >= 1) {
       for (const i of covered) {
         const sets = Math.floor(whole(lines[i].quantity) / (p.buyQty! + p.getQty!))
         const free = sets * p.getQty!
@@ -144,12 +144,67 @@ export function applyPromotions(lines: PromoLine[], promotions: Promotion[], at:
 
   // The bill offer comes off what is left after item offers.
   const subtotal = parts.reduce((n, ps) => n + ps.reduce((m, x) => m + Math.round(paise(x.unitPrice) * x.quantity), 0), 0)
+  const billOff = bestBillOff(rupees(subtotal), running)
+  return { parts, billOff, saved: rupees(saved + paise(billOff?.amount ?? 0)) }
+}
+
+/** Of the bill offers running, the one taking most off a bill of this amount (never all of it). */
+export function bestBillOff(amount: number, running: Promotion[]): PromotionResult['billOff'] {
+  const subtotal = paise(amount)
   let billOff: PromotionResult['billOff'] = null
   let best = 0
   for (const p of running) {
-    if ((p.kind !== 'billPercent' && p.kind !== 'billAmount') || subtotal < paise(p.minBill ?? 0) || subtotal <= 0) continue
-    const off = Math.min(subtotal - 1, p.kind === 'billPercent' ? roundHalfUp((subtotal * p.value) / 100) : paise(p.value))
+    if ((p.kind !== 'bill_percent' && p.kind !== 'bill_amount') || subtotal < paise(p.minBill ?? 0) || subtotal <= 0) continue
+    const off = Math.min(subtotal - 1, p.kind === 'bill_percent' ? roundHalfUp((subtotal * p.value) / 100) : paise(p.value))
     if (off > best) { best = off; billOff = { offerId: p.id, offerName: p.name, amount: rupees(off) } }
   }
-  return { parts, billOff, saved: rupees(saved + best) }
+  return billOff
+}
+
+/** What one offer saved on the bill, for the bill screen's list of offers taken. */
+export interface Applied { offerId: string; offerName: string; saved: number }
+
+/**
+ * The cart as it will be billed: lines still at their item's regular price (no offer, no price typed) go through the
+ * engine; each comes back as its parts (free pieces their own line at ₹0). A bill offer's money off is then spread
+ * over the lines' prices, as a whole-bill discount is. Lines with a price of their own pass through unchanged.
+ */
+export function promoteCart<L extends { productId: string | null; quantity: number; unitPrice: number; offerId?: string | null; offerName?: string | null }>(
+  cart: L[], products: { id: string; category: string | null; sellingPrice: number }[], promotions: Promotion[], at: Date,
+): { lines: L[]; applied: Applied[]; billOfferId: string | null } {
+  const byId = new Map(products.map((p) => [p.id, p]))
+  const open = cart.map((l, i) => ({ l, i, p: l.productId ? byId.get(l.productId) : undefined }))
+    .filter(({ l, p }) => p && !l.offerId && p.sellingPrice > 0 && l.unitPrice === p.sellingPrice)
+  if (promotions.length === 0 || cart.length === 0) return { lines: cart, applied: [], billOfferId: null }
+  // Item offers on the lines still at their regular price; the bill offer then on the whole bill.
+  const itemOffers = promotions.filter((p) => p.kind !== 'bill_percent' && p.kind !== 'bill_amount')
+  const result = applyPromotions(open.map(({ l, p }) => ({ productId: l.productId, category: p!.category, regular: p!.sellingPrice, quantity: l.quantity })), itemOffers, at)
+  const saved = new Map<string, Applied>()
+  const partsOf = new Map(open.map(({ i }, k) => [i, result.parts[k]]))
+  let lines: L[] = cart.flatMap((l, i) => {
+    const parts = partsOf.get(i)
+    if (!parts) return [l]
+    return parts.map((part) => {
+      if (part.offerId) {
+        const s = saved.get(part.offerId) ?? { offerId: part.offerId, offerName: part.offerName ?? '', saved: 0 }
+        s.saved = Math.round((s.saved + (l.unitPrice - part.unitPrice) * part.quantity) * 100) / 100
+        saved.set(part.offerId, s)
+      }
+      return { ...l, quantity: part.quantity, unitPrice: part.unitPrice, offerId: part.offerId ?? l.offerId ?? null, offerName: part.offerName ?? l.offerName ?? null }
+    })
+  })
+  const amount = (x: L) => Math.round(x.quantity * x.unitPrice * 100) / 100
+  const total = Math.round(lines.reduce((n, x) => n + amount(x), 0) * 100) / 100
+  const billOff = bestBillOff(total, promotions.filter((p) => runsAt(p, at)))
+  if (billOff) {
+    const factor = (total - billOff.amount) / total
+    lines = lines.map((x) => ({ ...x, unitPrice: Math.round(x.unitPrice * factor * 100) / 100 }))
+    // Rounding can leave a few paise: the single-piece line with the most money takes them, so the bill is exact.
+    const gap = Math.round((total - billOff.amount - lines.reduce((n, x) => n + amount(x), 0)) * 100) / 100
+    const single = lines.map((x, k) => ({ x, k })).filter(({ x }) => x.quantity === 1 && x.unitPrice + gap >= 0)
+    const big = single.reduce<number | null>((best, { x, k }) => (best === null || amount(x) > amount(lines[best]) ? k : best), null)
+    if (gap !== 0 && big !== null) lines[big] = { ...lines[big], unitPrice: Math.round((lines[big].unitPrice + gap) * 100) / 100 }
+    saved.set(billOff.offerId, { offerId: billOff.offerId, offerName: billOff.offerName, saved: Math.round((total - lines.reduce((n, x) => n + amount(x), 0)) * 100) / 100 })
+  }
+  return { lines, applied: [...saved.values()], billOfferId: billOff?.offerId ?? null }
 }
