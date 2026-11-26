@@ -8,7 +8,7 @@ import { formatRupees } from '../lib/format'
 import { useProducts } from '../lib/data'
 import { round2 } from '../lib/local'
 import type { Order } from '../lib/planner'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 
 /** AI-read lines: Ready (sure), Check (one part unsure), Not understood (read the customer's words below it). */
 const AI_CHIP = { high: 'bg-[#e0efec] text-brand-strong', medium: 'bg-amber-100 text-warn-ink', low: 'bg-red-100 text-due' } as const

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 import { api, request } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { buildReminder, useShopSettings } from '../lib/reports'

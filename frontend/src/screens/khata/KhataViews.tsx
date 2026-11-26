@@ -1,4 +1,4 @@
-import { confirmAsk } from '../../components/Ask'
+import { confirmAsk } from '../../lib/ask'
 import { dueText, useKhataDues } from '../../lib/khataDues'
 import { MonthSelect, PrintShare, monthLabel } from '../../components/StatementTools'
 import { useQuery, useQueryClient } from '@tanstack/react-query'

@@ -18,7 +18,7 @@ import { useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import { shopTypes, useShopSettings } from '../lib/reports'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 import { guarded } from '../lib/billPasscode'
 import { OrdersPanel, ReturnsPanel, ReceiptsPanel, type GoodsReceipt, SupplierImport, type PurchaseOrder } from './SupplierOrders'
 

@@ -14,7 +14,7 @@ import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/
 import { buildReminder, useShopSettings } from '../lib/reports'
 import type { KhataEntryType, PaymentMode, StatementLine } from '../lib/types'
 import { navigate } from '../router'
-import { ask, confirmAsk, tell } from '../components/Ask'
+import { ask, confirmAsk, tell } from '../lib/ask'
 import { CashLimitNote } from '../components/CashLimitNote'
 import { CreditDays } from '../components/CreditDays'
 

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ask } from './Ask'
+import { ask } from '../lib/ask'
 import { btn } from './ui'
 import { api } from '../lib/api'
 import { formatRupees, indiaToday } from '../lib/format'

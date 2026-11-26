@@ -6,7 +6,7 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
-import { ask, confirmAsk } from '../components/Ask'
+import { ask, confirmAsk } from '../lib/ask'
 
 interface BridalEvent { id: string; name: string; date: string; start: string; end: string; price: number; stylistName: string | null }
 interface Booking {

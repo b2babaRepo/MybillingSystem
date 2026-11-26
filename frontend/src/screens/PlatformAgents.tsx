@@ -8,7 +8,7 @@ import { formatDateTime, formatPhone, formatRupees } from '../lib/format'
 import type { AdminRole } from '../lib/types'
 import { addText } from '../i18n'
 import { agentText } from '../i18n/agent'
-import { ask, confirmAsk } from '../components/Ask'
+import { ask, confirmAsk } from '../lib/ask'
 
 addText(agentText)
 

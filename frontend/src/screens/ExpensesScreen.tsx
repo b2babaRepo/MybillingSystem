@@ -13,7 +13,7 @@ type PaymentMode = 'cash' | 'upi'
 import { KharchaMonth, MissingRegular } from './KharchaMonth'
 import { MeterCard } from './MeterCard'
 import { navigate } from '../router'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 import { DataTable } from '../components/DataTable'
 
 export type ExpenseCategory = 'tea' | 'transport' | 'rent' | 'electricity' | 'salary' | 'purchase' | 'packaging' | 'repair' | 'home' | 'other'

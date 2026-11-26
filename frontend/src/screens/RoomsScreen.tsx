@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatPhone, formatRupees } from '../lib/format'
 import { navigate } from '../router'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 
 type Source = 'direct' | 'walk_in' | 'make_my_trip' | 'goibibo' | 'booking_com' | 'oyo' | 'airbnb' | 'other'
 type Status = 'booked' | 'checked_in' | 'checked_out' | 'cancelled'

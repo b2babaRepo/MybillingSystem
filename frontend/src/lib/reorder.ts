@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from './ask'
 import { navigate } from '../router'
 import { addToCart } from './customer'
 import { sendList, type Order } from './planner'

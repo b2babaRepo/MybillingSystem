@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 import { ReportShell, type ReportView } from '../components/ReportShell'
 import { btn, Card, Input, Select } from '../components/ui'
 import { shownLocale } from '../i18n'

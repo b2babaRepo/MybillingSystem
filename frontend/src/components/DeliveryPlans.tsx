@@ -6,7 +6,7 @@ import { api } from '../lib/api'
 import { EVERY_DAY, indiaDay, pausePlan, startPlan, stopPlan, useDeliveryPlans, type DeliveryPlan } from '../lib/deliveries'
 import { formatRupees } from '../lib/format'
 import type { Unit } from '../lib/types'
-import { confirmAsk } from './Ask'
+import { confirmAsk } from '../lib/ask'
 import { btn } from './ui'
 
 interface PlanItem { id: string; name: string; unit: Unit; price: number }

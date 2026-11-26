@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { shownLocale } from '../i18n'
 import { cancelVisit, hhmm, setBookAgain, useVisits } from '../lib/salon'
 import { navigate } from '../router'
-import { confirmAsk } from './Ask'
+import { confirmAsk } from '../lib/ask'
 
 /** Home: the customer's coming salon visits (with cancel), and "book again" for the last visit at each salon. */
 export function SalonVisits() {

@@ -8,7 +8,7 @@ import { uuidv7 } from '../lib/ids'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { Customer, PaymentMode } from '../lib/types'
 import { navigate } from '../router'
-import { ask } from '../components/Ask'
+import { ask } from '../lib/ask'
 
 interface SiteTotal { site: string; bills: number; billed: number; openChallans: number }
 interface Challan { id: string; occurredAt: string; total: number; site: string | null; vehicleNumber: string | null; lines: { name: string; quantity: number; unit: string }[] }

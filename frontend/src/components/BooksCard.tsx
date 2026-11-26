@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
-import { confirmAsk } from './Ask'
+import { confirmAsk } from '../lib/ask'
 
 interface Books { closedUntil: string | null; history: { at: string; by: string | null; action: 'close' | 'reopen'; month: string; reason: string | null }[] }
 

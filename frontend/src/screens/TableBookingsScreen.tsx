@@ -6,7 +6,7 @@ import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatPhone, formatRupees, whatsAppLink } from '../lib/format'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 
 type Occasion = 'none' | 'birthday' | 'anniversary' | 'other'
 type Status = 'booked' | 'seated' | 'no_show' | 'cancelled'

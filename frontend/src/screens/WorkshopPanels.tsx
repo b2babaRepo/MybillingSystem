@@ -7,7 +7,7 @@ import { api, request } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Unit } from '../lib/types'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 
 interface Machine { id: string; name: string; boughtOn: string; cost: number; ratePercent: number; disposedOn: string | null; thisYear: number; bookValue: number }
 interface Machines { financialYear: string; thisYear: number; perMonth: number; machines: Machine[] }

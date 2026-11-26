@@ -8,7 +8,7 @@ import { formatRupees, whatsAppLink } from '../lib/format'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { ExportImportPanel } from './ExportImportPanel'
 import { KarigarPanel, MachinesPanel } from './WorkshopPanels'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 
 interface SpeechRec { lang: string; start: () => void; onresult: (e: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => void; onend: () => void }
 type Status = 'quote' | 'order' | 'making' | 'ready' | 'delivered' | 'cancelled'

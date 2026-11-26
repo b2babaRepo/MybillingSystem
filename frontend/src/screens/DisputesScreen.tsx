@@ -8,7 +8,7 @@ import { formatDateTime, formatRupees } from '../lib/format'
 import type { DisputeItemView, ItemOutcome, LedgerEntryKind } from '../lib/types'
 import { navigate } from '../router'
 import { useOpenDisputes } from '../components/OpenDisputesBanner'
-import { ask, confirmAsk } from '../components/Ask'
+import { ask, confirmAsk } from '../lib/ask'
 
 export interface Dispute {
   id: string

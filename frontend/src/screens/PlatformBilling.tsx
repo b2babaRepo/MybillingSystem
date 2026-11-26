@@ -8,7 +8,7 @@ import { FEATURES, priceFor, usePlans, type Claim, type Payment, type PlanInfo, 
 import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/format'
 import type { AdminRole } from '../lib/types'
 import { planBillLink } from './PlanBillPage'
-import { ask, confirmAsk } from '../components/Ask'
+import { ask, confirmAsk } from '../lib/ask'
 
 interface Overview { byStatus: Record<SubscriptionStatus, number>; trialsEndingThisWeek: number; revenueThisMonth: number; revenueThisYear: number; pendingClaims: Claim[] }
 interface Offer { code: string; title: string; planCode: string; term: PlanTerm; price: number; newShopsOnly: boolean; validUntil: string | null; maxUses: number | null; uses: number; isActive: boolean }

@@ -39,7 +39,7 @@ import type { BillPrint, BillView, PaymentMode, Unit } from '../lib/types'
 import { useShopSettings, shopTypes, isTrade, sendsToSites, upiUri } from '../lib/reports'
 import { navigate } from '../router'
 import { useSerialsInStock } from '../lib/serials'
-import { ask, tell } from '../components/Ask'
+import { ask, tell } from '../lib/ask'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
 const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))

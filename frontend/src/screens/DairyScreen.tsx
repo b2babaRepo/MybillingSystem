@@ -7,7 +7,7 @@ import { shrinkPhoto } from '../lib/images'
 import { VoiceButton } from '../components/VoiceButton'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
-import { ask, confirmAsk } from '../components/Ask'
+import { ask, confirmAsk } from '../lib/ask'
 
 type Kind = 'cow' | 'buffalo' | 'mixed'
 type Shift = 'morning' | 'evening'

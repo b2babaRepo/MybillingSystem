@@ -27,7 +27,7 @@ import { getSession } from '../lib/session'
 import { provisionalBill } from '../lib/provisionalBill'
 import type { ProvisionalBill } from '../lib/provisionalBill'
 import type { BillView, Statement } from '../lib/types'
-import { ask, askSecret, tell } from '../components/Ask'
+import { ask, askSecret, tell } from '../lib/ask'
 
 
 /**

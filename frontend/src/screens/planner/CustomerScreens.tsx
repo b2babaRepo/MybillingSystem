@@ -18,7 +18,7 @@ import { useShopSearch, type ShopEntry } from '../../lib/planner'
 import { useSession } from '../../lib/data'
 import { CUSTOMER_LANGUAGES, setLanguage, type Language } from '../../i18n'
 import { navigate } from '../../router'
-import { confirmAsk } from '../../components/Ask'
+import { confirmAsk } from '../../lib/ask'
 
 const card = 'flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm'
 const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'

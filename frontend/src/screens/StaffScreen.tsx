@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatPhone } from '../lib/format'
-import { ask, confirmAsk, tell } from '../components/Ask'
+import { ask, confirmAsk, tell } from '../lib/ask'
 
 interface Staff {
   membershipId: string

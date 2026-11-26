@@ -8,7 +8,7 @@ import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Product } from '../lib/types'
 import { navigate } from '../router'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 
 interface StaffRow { membershipId: string; name: string; phone: string; role: string; isActive: boolean; hasPin: boolean }
 

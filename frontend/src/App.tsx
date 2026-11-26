@@ -15,7 +15,7 @@ import { requestPersistentStorage } from './lib/db'
 import { flush } from './lib/outbox'
 import { getSession, setSession } from './lib/session'
 import { navigate, usePath } from './router'
-import { confirmAsk } from './components/Ask'
+import { confirmAsk } from './lib/ask'
 import { useAccountLanguage } from './i18n'
 // Signed-in people (most opens) never need the sign-in screen, so it loads on demand.
 const AuthScreen = lazy(() => import('./screens/AuthScreen').then((module) => ({ default: module.AuthScreen })))

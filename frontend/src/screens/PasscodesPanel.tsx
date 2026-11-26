@@ -2,7 +2,7 @@ import { btn } from '../components/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { askSecret } from '../components/Ask'
+import { askSecret } from '../lib/ask'
 import { api } from '../lib/api'
 import { clearAppLock, hasAppLock, passcodeProblem, setAppLock } from '../lib/appLock'
 

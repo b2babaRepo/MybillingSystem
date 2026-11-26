@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { uuidv7 } from '../lib/ids'
-import { ask } from '../components/Ask'
+import { ask } from '../lib/ask'
 import { formatPhone, formatRupees, whatsAppLink } from '../lib/format'
 
 interface Payout { id: string; amount: number; paidOn: string; mode: string; note: string | null }

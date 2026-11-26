@@ -1,36 +1,9 @@
 import { btn } from './ui'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { setAskHost, type Question } from '../lib/ask'
 
-/**
- * The app's own question box, in place of the browser's prompt() and confirm(): some phone and in-app browsers
- * refuse those pop-ups ("prompt() is not supported"), which silently stopped whatever asked. Call
- * `await ask('Why?')` for a typed answer (null when cancelled), `await confirmAsk('Delete it?')` for yes/no, or
- * `tell('Saved')` for a message with just OK (in place of alert()).
- * One <AskHost /> at the root of the page shows them.
- */
-interface Question { message: string; value?: string; kind: 'text' | 'confirm' | 'tell' | 'secret'; done: (answer: string | null) => void }
-
-let show: ((q: Question) => void) | null = null
-
-export function ask(message: string, value?: string): Promise<string | null> {
-  return new Promise((done) => (show ? show({ message, value, kind: 'text', done }) : done(null)))
-}
-
-export function confirmAsk(message: string): Promise<boolean> {
-  return new Promise((done) => (show ? show({ message, kind: 'confirm', done: (a) => done(a !== null) }) : done(false)))
-}
-
-/** A passcode: digits only, hidden as they are typed. Null when cancelled. */
-export function askSecret(message: string): Promise<string | null> {
-  return new Promise((done) => (show ? show({ message, kind: 'secret', done }) : done(null)))
-}
-
-/** A message with just OK, in place of the browser's alert(). */
-export function tell(message: string): Promise<void> {
-  return new Promise((done) => (show ? show({ message, kind: 'tell', done: () => done() }) : done()))
-}
-
+/** Shows the questions from lib/ask (ask, confirmAsk, askSecret, tell). One at the root of the page. */
 export function AskHost() {
   const { t } = useTranslation()
   const [question, setQuestion] = useState<Question | null>(null)
@@ -38,8 +11,8 @@ export function AskHost() {
   const input = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    show = (q) => { setText(q.value ?? ''); setQuestion(q) }
-    return () => { show = null }
+    setAskHost((q) => { setText(q.value ?? ''); setQuestion(q) })
+    return () => setAskHost(null)
   }, [])
   useEffect(() => { if (question?.kind === 'text' || question?.kind === 'secret') input.current?.focus() }, [question])
 

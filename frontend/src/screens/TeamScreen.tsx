@@ -12,7 +12,7 @@ import { navigate } from '../router'
 import type { ExpenseCategory } from './ExpensesScreen'
 import { shiftMonth, thisMonth } from './KharchaMonth'
 import { teamViewLink } from './TeamViewPage'
-import { ask, confirmAsk } from '../components/Ask'
+import { ask, confirmAsk } from '../lib/ask'
 
 addText(teamText)
 

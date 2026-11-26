@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Drawer, Field, Select, btn } from '../components/ui'
 import { api, request } from '../lib/api'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
-import { ask, tell } from '../components/Ask'
+import { ask, tell } from '../lib/ask'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { GST_RATES } from '../lib/gst'
 import { formatRupees } from '../lib/format'
@@ -24,7 +24,7 @@ import { imageUrl, itemPhotos, allPhotos, extraPhotoUrl } from '../lib/images'
 /** Photos an item may have besides its main one (the server checks the same). */
 const MAX_EXTRA_PHOTOS = 5
 import { navigate } from '../router'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 import { lazy, Suspense } from 'react'
 import { cameraPossible } from '../lib/barcode'
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))

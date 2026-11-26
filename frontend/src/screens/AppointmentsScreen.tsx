@@ -6,7 +6,7 @@ import { Button, Field, btn } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 
 type Status = 'booked' | 'arrived' | 'done' | 'no_show' | 'cancelled'
 interface Appointment {

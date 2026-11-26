@@ -11,7 +11,7 @@ import { usePlans } from '../lib/billing'
 import { AgentsPanel, AgentsSummary, PerformancePanel, RegistrationsPanel } from './PlatformAgents'
 import { addText, shownLocale } from '../i18n'
 import { adminText } from '../i18n/admin'
-import { ask, confirmAsk } from '../components/Ask'
+import { ask, confirmAsk } from '../lib/ask'
 
 addText(adminText)
 import type { AdminRole } from '../lib/types'
