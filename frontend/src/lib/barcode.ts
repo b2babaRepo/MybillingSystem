@@ -88,3 +88,10 @@ export function readScaleLabel(code: string, layout: string | null | undefined):
 
 /** The same item code on the scale and in the app, with or without leading zeros (00123 is 123). */
 export const sameItemCode = (a: string | null | undefined, b: string) => !!a && /^\d{1,6}$/.test(a) && Number(a) === Number(b)
+
+/** The item a scanned code is: its main barcode or one of its extra ones. Codes shorter than 4 never match. */
+export function itemForBarcode<T extends { barcode?: string | null; extraBarcodes?: string[] | null }>(products: T[], code: string): T | undefined {
+  const clean = normBarcode(code)
+  if (clean.length < 4) return undefined
+  return products.find((p) => (!!p.barcode && normBarcode(p.barcode) === clean) || !!p.extraBarcodes?.some((c) => normBarcode(c) === clean))
+}

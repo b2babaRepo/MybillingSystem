@@ -99,6 +99,8 @@ export interface Product {
   size?: string | null
   colour?: string | null
   barcode?: string | null
+  /** More codes that scan as this item (a new pack design, a carton). */
+  extraBarcodes?: string[] | null
   imageCredit?: string | null
   photoReports?: number
   photoReportNote?: string | null

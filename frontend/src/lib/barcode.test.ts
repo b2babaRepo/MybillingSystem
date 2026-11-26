@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CODE128_PATTERNS, code128Modules, ean13Modules, normBarcode, readScaleLabel, sameItemCode } from './barcode'
+import { CODE128_PATTERNS, code128Modules, ean13Modules, normBarcode, readScaleLabel, sameItemCode, itemForBarcode } from './barcode'
 
 describe('code128', () => {
   it('has 107 distinct symbols of 11 modules (stop: 13)', () => {
@@ -52,5 +52,16 @@ describe('readScaleLabel', () => {
     expect(sameItemCode('124', '00123')).toBe(false)
     expect(sameItemCode('8901030865278', '00123')).toBe(false)
     expect(sameItemCode(null, '00123')).toBe(false)
+  })
+})
+
+describe('itemForBarcode', () => {
+  const items = [{ id: 'oil', barcode: '8901030865275', extraBarcodes: ['8901030865282'] }, { id: 'soap', barcode: null, extraBarcodes: null }]
+  it('finds an item by its main or an extra code, in either UPC spelling', () => {
+    expect(itemForBarcode(items, '8901030865275')?.id).toBe('oil')
+    expect(itemForBarcode(items, '8901030865282')?.id).toBe('oil')
+    expect(itemForBarcode([{ barcode: '0012345678905' }], '012345678905')).toBeDefined()
+    expect(itemForBarcode(items, '8901030865299')).toBeUndefined()
+    expect(itemForBarcode(items, '12')).toBeUndefined()
   })
 })

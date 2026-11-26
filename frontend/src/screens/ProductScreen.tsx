@@ -558,11 +558,60 @@ function BarcodeRow({ product }: { product: Product }) {
         {!product.barcode && <button type="button" onClick={() => void save(`/v1/products/${product.id}/barcode/new`, 'POST', {})} className={`min-h-11 px-2 text-sm rounded-xl ${btn.outline}`}>{t('barcodeBill.make')}</button>}
         <button type="button" onClick={() => navigate(`/tags/${product.id}`)} className="min-h-11 rounded-xl border border-line px-2 text-sm font-semibold">{t('tags.open')}</button>
       </div>
+      {product.barcode && <ExtraBarcodes product={product} />}
       {message && <p className="text-xs text-muted">{message}</p>}
       {/* Read the code off the pack and save it straight away. */}
       {scanning && (
         <Suspense fallback={null}>
           <ScanSheet onCode={(read) => { setScanning(false); setCode(read); void save(`/v1/products/${product.id}/barcode`, 'PUT', { barcode: read }) }} onClose={() => setScanning(false)} />
+        </Suspense>
+      )}
+    </div>
+  )
+}
+
+/** More codes that scan as the item: a new pack design, the same item from another maker, a carton's code. */
+function ExtraBarcodes({ product }: { product: Product }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [codes, setCodes] = useState(product.extraBarcodes ?? [])
+  const [code, setCode] = useState('')
+  const [message, setMessage] = useState('')
+  const [scanning, setScanning] = useState(false)
+  async function change(method: 'POST' | 'DELETE', value: string) {
+    setMessage('')
+    try {
+      const r = method === 'POST'
+        ? await api<{ extraBarcodes: string[] }>(`/v1/products/${product.id}/barcodes`, 'POST', { barcode: value })
+        : await api<{ extraBarcodes: string[] }>(`/v1/products/${product.id}/barcodes/${encodeURIComponent(value)}`, 'DELETE')
+      setCodes(r.extraBarcodes)
+      setCode('')
+      void queryClient.invalidateQueries()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-2">
+      <span className="text-sm font-semibold text-muted">{t('barcodeBill.more')}</span>
+      {codes.length > 0 && <ul className="flex flex-wrap gap-2">
+        {codes.map((c) => (
+          <li key={c} className="flex items-center gap-1 rounded-full border border-line py-0.5 pl-3 pr-1 font-mono text-sm">
+            {c}
+            <button type="button" onClick={() => void change('DELETE', c)} aria-label={t('barcodeBill.remove', { code: c })} className="h-8 w-8 rounded-full text-muted">×</button>
+          </li>
+        ))}
+      </ul>}
+      <div className={`grid gap-2 ${cameraPossible() ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-[1fr_auto]'}`}>
+        <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={30} aria-label={t('barcodeBill.more')} className="h-11 min-w-0 rounded-xl border border-line px-3" />
+        {cameraPossible() && <button type="button" onClick={() => setScanning(true)} className={`h-11 px-3 rounded-xl ${btn.outline}`}>{t('scan.scanIt')}</button>}
+        <button type="button" disabled={code.trim().length < 4} onClick={() => void change('POST', code.trim())} className="h-11 rounded-xl border border-line px-3 font-semibold disabled:opacity-40">{t('barcodeBill.add')}</button>
+      </div>
+      <p className="text-xs text-muted">{t('barcodeBill.moreHint')}</p>
+      {message && <p className="text-xs text-due">{message}</p>}
+      {scanning && (
+        <Suspense fallback={null}>
+          <ScanSheet onCode={(read) => { setScanning(false); void change('POST', read) }} onClose={() => setScanning(false)} />
         </Suspense>
       )}
     </div>

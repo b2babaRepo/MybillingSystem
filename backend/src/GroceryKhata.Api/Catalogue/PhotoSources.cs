@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
@@ -179,7 +179,10 @@ public static class PhotoSources
 
         var now = clock.GetUtcNow();
         await ProductImageEndpoints.SaveAsync(db, product, full, thumb, now, ct);
-        (product.Barcode, product.ImageCredit) = (barcode, OpenFoodFactsCredit);
+        product.ImageCredit = OpenFoodFactsCredit;
+        // The code goes on the item too, unless another item scans as it already.
+        var code = Barcodes.Normalize(barcode);
+        if (product.Barcode is null && !await Barcodes.TakenAsync(db, code, product.Id, ct)) product.Barcode = code;
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(new { imageAt = now, name = found.Name, credit = OpenFoodFactsCredit });
     }

@@ -18,6 +18,20 @@ public static class Barcodes
     /// For an all-digit EAN-8 or EAN-13 code: does its last digit match? A wrong one is a misread or a typing slip.
     /// Other codes (Code 128 shop labels, letters) have no check digit to test.
     /// </summary>
+    public const int MaxExtra = 10;
+
+    /// <summary>
+    /// Another active item already scans as this code, as its main barcode or one of its extra ones. Checked under the
+    /// shop's barcode lock (<see cref="LockAsync"/>) where two saves could race.
+    /// </summary>
+    public static Task<bool> TakenAsync(Persistence.AppDbContext db, string code, Guid exceptId, CancellationToken ct) =>
+        Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.Products,
+            p => p.Id != exceptId && p.IsActive && (p.Barcode == code || p.ExtraBarcodes.Contains(code)), ct);
+
+    /// <summary>One barcode change at a time in a shop (inside a transaction), so two items can't take one code at once.</summary>
+    public static Task LockAsync(Persistence.AppDbContext db, CancellationToken ct) =>
+        Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlAsync(db.Database, $"SELECT pg_advisory_xact_lock(hashtext('shop_barcodes'))", ct);
+
     public static bool CheckDigitOk(string code)
     {
         if (!code.All(char.IsAsciiDigit) || code.Length is not (8 or 13))

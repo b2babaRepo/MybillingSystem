@@ -2216,6 +2216,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("duration_minutes");
 
+                    b.PrimitiveCollection<string[]>("ExtraBarcodes")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("extra_barcodes");
+
                     b.Property<decimal?>("GstRate")
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)")
@@ -2371,6 +2376,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CatalogueItemId");
+
+                    b.HasIndex("ExtraBarcodes");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("ExtraBarcodes"), "gin");
 
                     b.HasIndex("MasterItemId");
 

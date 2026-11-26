@@ -109,7 +109,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         {
             errors[nameof(request.Barcode)] = ["Check the barcode: 4 to 30 letters and digits, with the right last digit."];
         }
-        else if (barcode.Length > 0 && await db.Products.AnyAsync(p => p.Barcode == barcode && p.IsActive, ct))
+        else if (barcode.Length > 0 && await Barcodes.TakenAsync(db, barcode, Guid.Empty, ct))
         {
             errors[nameof(request.Barcode)] = ["Another item already has this barcode."];
         }
@@ -661,7 +661,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn, null, p.BagSize, 0, 0, p.PurchaseUnit, p.WeightKg,
         p.MasterItem != null ? p.MasterItem.Name : p.CatalogueItem != null ? p.CatalogueItem.NameEn : null,
         p.MasterItem != null ? p.MasterItem.NameHi : p.CatalogueItem != null ? p.CatalogueItem.Name : null,
-        p.WholesalePrice, p.WholesaleMinQty);
+        p.WholesalePrice, p.WholesaleMinQty, null, p.ExtraBarcodes);
 
     /// <summary>An MRP below the selling price is a typing slip. At the price it stays: it's what stops a bill going above it.</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>
