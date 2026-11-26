@@ -8,7 +8,7 @@ import { formatRupees } from '../../lib/format'
 import { estimateAtShop, optionFor, quantityIn, sendList, useLists, useShopOptions, useShopSearch, type Fulfilment, type LineChoice, type ListKind, type OrderPayment, type ReplacePreference, type ShopEntry } from '../../lib/planner'
 import { navigate } from '../../router'
 import { confirmAsk } from '../../lib/ask'
-import { getChosenShop } from './PlanHomeScreen'
+import { getChosenShop } from '../../lib/planHome'
 import { PaymentPicker, SlotChips } from '../../components/OrderPay'
 import { noSettings, useCheckoutInfo } from '../../lib/orderFlow'
 

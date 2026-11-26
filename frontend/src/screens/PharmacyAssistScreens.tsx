@@ -7,7 +7,8 @@ import { api, request } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { shrinkPhoto } from '../lib/images'
 import { pct } from '../components/SupplierPanels'
-import { compareCells, filterBox, nextSort, SortHead, type Sort } from '../components/TableHead'
+import { SortHead } from '../components/TableHead'
+import { compareCells, filterBox, nextSort, type Sort } from '../lib/tableSort'
 
 interface Refill { customerId: string; customerName: string; phone: string | null; productId: string; medicine: string; lastQuantity: number; lastBought: string; everyDays: number; dueOn: string; daysLate: number }
 interface ReorderOption { supplierId: string; name: string; phone: string | null; lastRate: number | null; leadDays: number | null; fillRate: number | null; preferred: boolean }
