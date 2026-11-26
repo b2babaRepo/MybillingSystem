@@ -2393,6 +2393,8 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
                     b.HasIndex("ShopId", "Name");
 
+                    b.HasIndex("ShopId", "UpdatedAt");
+
                     b.ToTable("products", (string)null);
                 });
 

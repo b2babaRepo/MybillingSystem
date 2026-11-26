@@ -106,6 +106,12 @@ public sealed record ProductDto(
 
 public sealed record OutTodayRequest(bool Out);
 
+/// <summary>Items changed since a time (all of them when <see cref="Full"/>), and the ids of items removed since then.</summary>
+public sealed record ProductChanges(DateTimeOffset At, bool Full, IReadOnlyList<ProductDto> Changed, IReadOnlyList<Guid> Removed)
+{
+    public static readonly TimeSpan Overlap = TimeSpan.FromMinutes(2);
+}
+
 /// <summary>Open sealed bags to sell loose: the bag count goes down, the weight doesn't change.</summary>
 public sealed record OpenBagRequest(Guid Id, decimal Bags);
 
@@ -171,6 +177,8 @@ public static class ProductEndpoints
 
         products.MapGet("", (string? search, string? category, bool? low, string? sort, StockService stock, CancellationToken ct) =>
             stock.ListAsync(search, category, low == true, ct, popular: sort == "popular"));
+
+        products.MapGet("/changes", (DateTimeOffset? since, StockService stock, CancellationToken ct) => stock.ChangesAsync(since, ct));
 
         products.MapGet("/categories", (StockService stock, CancellationToken ct) => stock.CategoriesAsync(ct));
 

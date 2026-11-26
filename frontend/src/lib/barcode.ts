@@ -95,3 +95,15 @@ export function itemForBarcode<T extends { barcode?: string | null; extraBarcode
   if (clean.length < 4) return undefined
   return products.find((p) => (!!p.barcode && normBarcode(p.barcode) === clean) || !!p.extraBarcodes?.some((c) => normBarcode(c) === clean))
 }
+
+/** Every code (main and extra) to its item, so a scan finds it at once in a 20,000-item shop. First item wins a clash. */
+export function barcodeIndex<T extends { barcode?: string | null; extraBarcodes?: string[] | null }>(products: T[]): Map<string, T> {
+  const index = new Map<string, T>()
+  for (const p of products) {
+    for (const code of [p.barcode, ...(p.extraBarcodes ?? [])]) {
+      const clean = normBarcode(code)
+      if (clean.length >= 4 && !index.has(clean)) index.set(clean, p)
+    }
+  }
+  return index
+}

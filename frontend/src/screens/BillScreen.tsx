@@ -19,7 +19,7 @@ import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
 import { billTax, garmentRate } from '../lib/gst'
 import { bestOffer, isRunning, offerPrice, useOffers } from '../lib/offers'
-import { cameraPossible, itemForBarcode, normBarcode, readScaleLabel, sameItemCode } from '../lib/barcode'
+import { barcodeIndex, cameraPossible, normBarcode, readScaleLabel, sameItemCode } from '../lib/barcode'
 const UnknownBarcode = lazy(() => import('../components/UnknownBarcode').then((module) => ({ default: module.UnknownBarcode })))
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
 // The printed bill's own code, loaded only when a computer turns the live preview on.
@@ -82,9 +82,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const openShift = shiftKey ? currentShift(shopId) : null
   // Every phone with a camera: its own barcode reader where it has one, else the app's backup reader.
   const canScan = cameraPossible()
+  const byBarcode = useMemo(() => barcodeIndex(products), [products])
   function addByBarcode(code: string) {
     const clean = normBarcode(code)
-    const p = itemForBarcode(products, clean)
+    const p = clean.length >= 4 ? byBarcode.get(clean) : undefined
     // A weighing scale's label: the item's code with its weight (or price) in the barcode. Each label is its own line.
     const label = p ? null : readScaleLabel(clean, settings?.scaleLabel)
     const weighed = label ? products.find((x) => sameItemCode(x.barcode, label.itemCode)) : undefined

@@ -1,5 +1,6 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { currentShift } from './shift'
+import { syncProducts } from './catalogueSync'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { api, NetworkError } from './api'
 import { readCache, writeCache } from './db'
@@ -78,7 +79,8 @@ export function usePopularOrder(shopId: string) {
 export function useProducts(shopId: string) {
   const query = useQuery({
     queryKey: [shopId, 'products'],
-    queryFn: () => cachedGet<Product[]>(shopId, 'products', '/v1/products'),
+    // Kept on the device; each refresh brings only what changed (see catalogueSync).
+    queryFn: () => syncProducts(shopId),
   })
   const { ops } = useOutbox(shopId)
   const products = useMemo(() => mergeProducts(query.data ?? [], ops), [query.data, ops])

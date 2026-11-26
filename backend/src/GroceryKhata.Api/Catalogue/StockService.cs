@@ -46,6 +46,29 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         return await WithDailySalesAsync(list, ct);
     }
 
+    /// <summary>
+    /// The item list for a till that keeps it on the device: everything (no <paramref name="since"/>), or only the items
+    /// changed since then and the ids of those removed. <see cref="ProductChanges.At"/> is what to ask from next time.
+    /// The database stamps updated_at on every change to an item (a trigger), so stock moved by any route counts.
+    /// </summary>
+    public async Task<ProductChanges> ChangesAsync(DateTimeOffset? since, CancellationToken ct)
+    {
+        // A little before now: a change saved in a transaction that started earlier but commits after this read still
+        // comes next time (sending an item twice is harmless; missing one isn't).
+        var at = (await db.Database.SqlQuery<DateTimeOffset>($"SELECT clock_timestamp() AS \"Value\"").SingleAsync(ct)) - ProductChanges.Overlap;
+        var changed = db.Products.AsNoTracking().Where(p => p.IsActive);
+        IReadOnlyList<Guid> removed = [];
+        if (since is { } from)
+        {
+            from = from.ToUniversalTime();
+            changed = changed.Where(p => p.UpdatedAt > from);
+            removed = await db.Products.AsNoTracking().Where(p => !p.IsActive && p.UpdatedAt > from).Select(p => p.Id).ToListAsync(ct);
+        }
+
+        var list = (await changed.OrderBy(p => p.Category).ThenBy(p => p.Name).Select(AsDto).ToListAsync(ct)).Select(Linked).ToList();
+        return new ProductChanges(at, since is null, list.Count == 0 ? list : await WithDailySalesAsync(list, ct), removed);
+    }
+
     /// <summary>Each item's average sold a day over the last 30 days, per day it was in stock (<see cref="Cover"/>).</summary>
     private async Task<IReadOnlyList<ProductDto>> WithDailySalesAsync(List<ProductDto> list, CancellationToken ct)
     {
