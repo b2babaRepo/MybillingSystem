@@ -241,6 +241,9 @@ public sealed class Bill : Entity, ITenantOwned
     /// <summary>The counter (device) that made the bill, as the shop named it on that device ("Counter 2"); null: unnamed.</summary>
     public string? Counter { get; set; }
 
+    /// <summary>The cashier's shift it was made in (see <see cref="CashierShift"/>): its cash counts toward that drawer.</summary>
+    public Guid? ShiftId { get; set; }
+
     /// <summary>The painter who brought the customer (paint shops): their commission is counted from these bills.</summary>
     public Guid? PainterId { get; set; }
 

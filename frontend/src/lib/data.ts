@@ -1,4 +1,5 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { currentShift } from './shift'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { api, NetworkError } from './api'
 import { readCache, writeCache } from './db'
@@ -221,7 +222,7 @@ export async function saveBill(
     kind: 'bill',
     // extras.withoutGst rides along in the body: a bill the shop chose to make without GST.
     path: '/v1/bills',
-    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), counter: counterName() || null, ...extras, exchangeCredit: undefined },
+    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), counter: counterName() || null, shiftId: currentShift(shopId)?.id ?? null, ...extras, exchangeCredit: undefined },
     customerId: customer?.id,
     delta: customer ? round2(total - paidAmount - Math.min(extras.exchangeCredit ?? 0, total)) : undefined,
     customerName: customer?.name,

@@ -1,4 +1,4 @@
-﻿using GroceryKhata.Api.Catalogue;
+using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -236,6 +236,8 @@ public sealed partial class LedgerService
                     VehicleNumber = vehicle,
                     Counter = string.IsNullOrWhiteSpace(request.Counter) ? null : request.Counter.Trim()[..Math.Min(30, request.Counter.Trim().Length)],
                     PainterId = request.PainterId,
+                    // A shift this shop doesn't have is left off rather than refusing the sale.
+                    ShiftId = request.ShiftId is { } shiftId && await db.CashierShifts.AnyAsync(s => s.Id == shiftId, cancellationToken) ? shiftId : null,
                     Gstin = request.WithoutGst ? null : await BillGstinAsync(cancellationToken),
                     EntrySeconds = BillSpeed.Clean(request.EntrySeconds),
                 };

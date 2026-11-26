@@ -1,6 +1,7 @@
 import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { currentShift, subscribeShift } from '../lib/shift'
 import type { InputHTMLAttributes } from 'react'
 import { decimalText } from '../lib/decimalText'
 import { CashChange, CustomerFinder } from '../components/CustomerFinder'
@@ -75,6 +76,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [scanning, setScanning] = useState(false)
   const [scanMiss, setScanMiss] = useState<string | null>(null)
   const settings = useShopSettings(shopId).data
+  // This counter's open cashier shift: shown so the cashier knows bills are counting toward it.
+  const shiftKey = useSyncExternalStore(subscribeShift, () => { try { return localStorage.getItem(`gk-shift:${shopId}`) } catch { return null } })
+  const openShift = shiftKey ? currentShift(shopId) : null
   // Every phone with a camera: its own barcode reader where it has one, else the app's backup reader.
   const canScan = cameraPossible()
   function addByBarcode(code: string) {
@@ -582,6 +586,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       )}
       {!exchange && (
         <div className="flex flex-wrap items-center gap-2">
+          {openShift && <button type="button" onClick={() => navigate('/shifts')} className="flex min-h-10 items-center rounded-full bg-brand-soft px-3.5 text-sm font-bold text-brand-deep">{t('shift.chipOpen', { counter: openShift.counter })}</button>}
           <button type="button" onClick={() => navigate('/find-bill')} className="flex min-h-10 items-center gap-2 rounded-full bg-[#fde8ec] px-3.5 text-sm font-bold text-[#be123c] transition hover:bg-[#fbd5dd] active:scale-[0.98]"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3" /></svg>{t('findBill.link')}</button>
           <button type="button" onClick={() => { setSlipOpen(!slipOpen); setSlipError('') }} aria-pressed={slipOpen} className={`flex min-h-10 items-center gap-2 rounded-full px-3.5 text-sm font-bold transition active:scale-[0.98] ${slipOpen ? 'bg-[#6d28d9] text-white shadow-md shadow-[#6d28d9]/30' : 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]'}`}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 7h18v4a2 2 0 000 4v4H3v-4a2 2 0 000-4zM13 7v12" /></svg>{t('slip.use')}</button>
         </div>

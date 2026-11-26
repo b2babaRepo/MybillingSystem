@@ -67,6 +67,7 @@ const TagsScreen = lazy(() => import('./screens/TagsScreen').then((module) => ({
 const SizeReportScreen = lazy(() => import('./screens/SizeReportScreen').then((module) => ({ default: module.SizeReportScreen })))
 const SideGroups = lazy(() => import('./components/SideGroups').then((module) => ({ default: module.SideGroups })))
 const ChequesScreen = lazy(() => import('./screens/ChequesScreen').then((module) => ({ default: module.ChequesScreen })))
+const ShiftsScreen = lazy(() => import('./screens/ShiftsScreen').then((module) => ({ default: module.ShiftsScreen })))
 const DayReportScreen = lazy(() => import('./screens/DayReportScreen').then((module) => ({ default: module.DayReportScreen })))
 const SalesWeekScreen = lazy(() => import('./screens/SalesInsightsScreens').then((module) => ({ default: module.SalesWeekScreen })))
 const CustomerPatternsScreen = lazy(() => import('./screens/SalesInsightsScreens').then((module) => ({ default: module.CustomerPatternsScreen })))
@@ -312,6 +313,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
       { path: '/estimates', label: t('estimate.link') },
       { path: '/sale-orders', label: t('saleOrder.link') },
       { path: '/holds', label: t('holds.link') },
+      { path: '/shifts', label: t('shift.link') },
       { path: '/reports/day', label: t('menu.dayBook') },
       ...(isOwner ? [{ path: '/offers', label: t('offers.link') }] : []),
       ...(isOwner ? [{ path: '/posters', label: t('posters.link') }] : []),
@@ -471,6 +473,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
           <SizeReportScreen shopId={shopId} />
         ) : path === '/cheques' ? (
           <ChequesScreen isOwner={isOwner} />
+        ) : path === '/shifts' ? (
+          <ShiftsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/reports/day' ? (
           <DayReportScreen shopName={shopName} />
         ) : path === '/reports/week' ? (

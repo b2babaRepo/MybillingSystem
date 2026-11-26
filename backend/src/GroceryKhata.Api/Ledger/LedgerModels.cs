@@ -1,4 +1,4 @@
-﻿using GroceryKhata.Api.Catalogue;
+using GroceryKhata.Api.Catalogue;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -63,6 +63,8 @@ public sealed record BillRequest(
     IReadOnlyList<BillPaymentRequest>? Payments = null,
     // The counter (device) it was made on, as named on that device.
     string? Counter = null,
+    // The cashier's open shift on that counter: the bill's cash goes in that drawer's count.
+    Guid? ShiftId = null,
     // Handed out from this godown rather than the shop shelf: the goods move out of the godown with the bill.
     Guid? GodownId = null,
     // The shop's own extra bill fields as filled in (PO no., doctor…).

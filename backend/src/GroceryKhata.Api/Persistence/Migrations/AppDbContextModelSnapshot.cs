@@ -4036,6 +4036,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(3)")
                         .HasColumnName("prefix");
 
+                    b.Property<Guid?>("ShiftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shift_id");
+
                     b.Property<Guid>("ShopId")
                         .HasColumnType("uuid")
                         .HasColumnName("shop_id");
@@ -4060,6 +4064,9 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnName("vehicle_number");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ShiftId")
+                        .HasFilter("shift_id IS NOT NULL");
 
                     b.HasIndex("ShopId", "CustomerId");
 
@@ -4664,6 +4671,94 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ShopId", "OccurredAt");
 
                     b.ToTable("cash_moves", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.CashierShift", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal?>("CashSales")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("cash_sales");
+
+                    b.Property<Guid>("CashierUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cashier_user_id");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<Guid?>("ClosedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("closed_by_user_id");
+
+                    b.Property<decimal?>("Counted")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("counted");
+
+                    b.Property<string>("Counter")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("counter");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal?>("Difference")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("difference");
+
+                    b.Property<decimal?>("Expected")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("expected");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<DateTimeOffset>("OpenedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("opened_at");
+
+                    b.Property<decimal>("OpeningFloat")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("opening_float");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "CashierUserId")
+                        .IsUnique()
+                        .HasFilter("closed_at IS NULL");
+
+                    b.HasIndex("ShopId", "Counter")
+                        .IsUnique()
+                        .HasFilter("closed_at IS NULL");
+
+                    b.HasIndex("ShopId", "OpenedAt");
+
+                    b.ToTable("cashier_shifts", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Challan", b =>

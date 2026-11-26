@@ -35,6 +35,7 @@ const ICONS: Record<string, string> = {
     '/exchange-slips': 'M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7',
     '/sale-orders': 'M9 3h6v3H9zM6 5h3M15 5h3v16H6V5M9 12h6M9 16h4',
     '/holds': 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2',
+    '/shifts': 'M3 7h18v12H3zM3 11h18M8 3v4M16 3v4M7 15h4',
     '/wa-inbox': 'M4 4h16v12H8l-4 4zM8 9h8M8 12h5',
     '/orders-placed': 'M9 3h6v3H9zM6 5h3M15 5h3v16H6V5M9 13l2 2 4-4',
     '/goods-to-come': 'M2 6h13v11H2zM15 10h4l3 3v4h-7M6 20h.01M18 20h.01',

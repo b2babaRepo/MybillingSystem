@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
@@ -74,6 +74,18 @@ public sealed partial class AppDbContext
             b.HasTenantKey();
             b.Property(c => c.Note).HasMaxLength(200);
             b.HasIndex(c => new { c.ShopId, c.Day });
+        });
+
+        modelBuilder.Entity<CashierShift>(b =>
+        {
+            b.ToTable("cashier_shifts");
+            b.HasTenantKey();
+            b.Property(s => s.Counter).HasMaxLength(30);
+            b.Property(s => s.Note).HasMaxLength(200);
+            // One open shift per counter and per cashier.
+            b.HasIndex(s => new { s.ShopId, s.Counter }).IsUnique().HasFilter("closed_at IS NULL");
+            b.HasIndex(s => new { s.ShopId, s.CashierUserId }).IsUnique().HasFilter("closed_at IS NULL");
+            b.HasIndex(s => new { s.ShopId, s.OpenedAt });
         });
 
         modelBuilder.Entity<CreditNote>(b =>
@@ -194,6 +206,7 @@ public sealed partial class AppDbContext
             b.Property(x => x.Prefix).HasMaxLength(3);
             b.Property(x => x.Fields).HasColumnType("jsonb");
             b.HasTenantKey();
+            b.HasIndex(x => x.ShiftId).HasFilter("shift_id IS NOT NULL");
             b.HasIndex(x => new { x.ShopId, x.OccurredAt });
             b.HasTenantForeignKey<Bill, Customer>(nameof(Bill.CustomerId));
             b.Property(x => x.Site).HasMaxLength(80);
