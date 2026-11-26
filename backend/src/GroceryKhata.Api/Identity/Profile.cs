@@ -6,7 +6,8 @@ namespace GroceryKhata.Api.Identity;
 
 public sealed record ProfileDto(string FullName, string Phone, string PreferredLanguage, string? Email, string? Address, string? City, string? Pincode, bool HasPassword = false, string? Gstin = null, DateTimeOffset? PrivacyAcceptedAt = null);
 
-public sealed record PasswordChange(string? CurrentPassword, string? NewPassword);
+/// <summary><see cref="Code"/>: an SMS code just sent to the account's own number, in place of a forgotten current password.</summary>
+public sealed record PasswordChange(string? CurrentPassword, string? NewPassword, string? Code = null);
 
 /// <summary>The person read the privacy notice and says they are 18 or older.</summary>
 public sealed record PrivacyAccept(bool Adult);
@@ -32,11 +33,13 @@ public static class Profile
     }
 
     /// <summary>
-    /// Sets the password. Needs the current one if there is one; with none (SMS sign-in only), a number proved by SMS.
+    /// Sets the password. Needs the current one if there is one, or a fresh SMS code sent to the account's own number
+    /// (a forgotten password); with none (SMS sign-in only), a number proved by SMS.
     /// Every other sign-in ends, so a password that got out stops working everywhere.
     /// </summary>
     private static async Task<IResult> SetPasswordAsync(
-        PasswordChange request, ClaimsPrincipal principal, AppDbContext db, Microsoft.AspNetCore.Identity.IPasswordHasher<User> hasher, TimeProvider clock, CancellationToken ct)
+        PasswordChange request, ClaimsPrincipal principal, AppDbContext db, Microsoft.AspNetCore.Identity.IPasswordHasher<User> hasher, TimeProvider clock,
+        Microsoft.Extensions.Options.IOptions<OtpOptions> otpOptions, CancellationToken ct)
     {
         var user = await db.Users.SingleOrDefaultAsync(u => u.Id == principal.UserId(), ct);
         if (user is null)
@@ -49,12 +52,26 @@ public static class Profile
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["NewPassword"] = [$"Use at least {SignUpRequest.MinPasswordLength} characters."] });
         }
 
-        var allowed = user.PasswordHash is { } hash
-            ? request.CurrentPassword is not null && hasher.VerifyHashedPassword(user, hash, request.CurrentPassword) != Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed
-            : user.PhoneVerifiedAt is not null;
-        if (!allowed)
+        // Forgot it: a code sent by SMS to this account's own number stands in for the current password.
+        if (!string.IsNullOrWhiteSpace(request.Code))
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["CurrentPassword"] = ["That isn't your current password."] });
+            var otp = await OtpSignIn.MatchAsync(db, user.Phone, request.Code, otpOptions.Value, clock.GetUtcNow(), ct);
+            if (otp is null)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Code"] = ["The code is wrong or has expired. Ask for a new one."] });
+            }
+
+            otp.UsedAt = clock.GetUtcNow();
+        }
+        else
+        {
+            var allowed = user.PasswordHash is { } hash
+                ? request.CurrentPassword is not null && hasher.VerifyHashedPassword(user, hash, request.CurrentPassword) != Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed
+                : user.PhoneVerifiedAt is not null;
+            if (!allowed)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["CurrentPassword"] = ["That isn't your current password."] });
+            }
         }
 
         user.PasswordHash = hasher.HashPassword(user, request.NewPassword);
