@@ -7,7 +7,7 @@ import { getPaper, pageRule, setPaper, type Paper } from '../lib/paper'
 import type { ReceiptRow } from '../lib/escpos'
 
 /** A print page: back, print, WhatsApp and the paper choice (A4, 80 mm, 58 mm roll), then the shop's header and the content. */
-export function Page({ title, subtitle, shareText, phone, children, receipt, pdfName, logo, theme, corner, tools, bare }: {
+export function Page({ title, subtitle, shareText, phone, children, receipt, pdfName, logo, theme, corner, tools, bare, opensDrawer }: {
   title: string; subtitle: string; shareText: string; phone: string | null; children: ReactNode; receipt?: () => ReceiptRow[]; pdfName?: string
   /** The shop's logo (a data URL), beside its name. */
   logo?: string | null
@@ -19,6 +19,8 @@ export function Page({ title, subtitle, shareText, phone, children, receipt, pdf
   tools?: ReactNode
   /** Just the page, as a preview inside another screen: no toolbar, no full-screen height, A4 layout. */
   bare?: boolean
+  /** Asked when printing to a Bluetooth printer: open the cash drawer after it (a cash bill just made). */
+  opensDrawer?: () => boolean
 }) {
   const { t } = useTranslation()
   const [btState, setBtState] = useState<string | null>(null)
@@ -40,8 +42,8 @@ export function Page({ title, subtitle, shareText, phone, children, receipt, pdf
   async function btPrint(choose: boolean) {
     setBtState(t('btPrint.sending'))
     try {
-      const { bluetoothPrint } = await import('../lib/btPrinter')
-      const name = await bluetoothPrint(receipt!(), paper === '58' ? '58' : '80', choose)
+      const { bluetoothPrint, drawerOnCashBill } = await import('../lib/btPrinter')
+      const name = await bluetoothPrint(receipt!(), paper === '58' ? '58' : '80', choose, drawerOnCashBill() && !!opensDrawer?.())
       setBtState(t('btPrint.done', { name }))
     } catch (e) {
       // Closing the printer list isn't a problem worth showing.

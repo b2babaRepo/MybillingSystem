@@ -103,6 +103,7 @@ export function ShiftsScreen({ shopId, isOwner }: { shopId: string; isOwner: boo
         </section>
       )}
       {message && <p className="text-sm text-due">{message}</p>}
+      {'bluetooth' in navigator && <CashDrawer />}
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold">{isOwner ? t('shift.todayAll') : t('shift.todayMine')}</h2>
         {today.data?.length === 0 && <p className="text-sm text-muted">{t('shift.none')}</p>}
@@ -118,6 +119,43 @@ export function ShiftsScreen({ shopId, isOwner }: { shopId: string; isOwner: boo
         </ul>
       </section>
     </div>
+  )
+}
+
+/**
+ * The cash drawer plugged into this counter's Bluetooth receipt printer: opened after each cash bill prints, if the
+ * shop wants that on this device, or now with the button (to give change, or to test it).
+ */
+function CashDrawer() {
+  const { t } = useTranslation()
+  const [on, setOn] = useState(() => { try { return localStorage.getItem('gk-cash-drawer') === '1' } catch { return false } })
+  const [state, setState] = useState<string | null>(null)
+  function toggle(next: boolean) {
+    setOn(next)
+    void import('../lib/btPrinter').then(({ setDrawerOnCashBill }) => setDrawerOnCashBill(next))
+  }
+  async function open(choose: boolean) {
+    setState(t('btPrint.sending'))
+    try {
+      const { openDrawer } = await import('../lib/btPrinter')
+      setState(t('drawer.opened', { name: await openDrawer(choose) }))
+    } catch (e) {
+      setState(e instanceof Error && e.name === 'NotFoundError' ? null : t('btPrint.failed', { error: e instanceof Error ? e.message : String(e) }))
+    }
+  }
+  return (
+    <section className="flex flex-col gap-2 rounded-card bg-white p-4 text-sm">
+      <h2 className="font-semibold">{t('drawer.title')}</h2>
+      <label className="flex min-h-11 items-center gap-3">
+        <input type="checkbox" checked={on} onChange={(e) => toggle(e.target.checked)} className="h-5 w-5" />
+        <span>{t('drawer.onCashBill')}</span>
+      </label>
+      <p className="text-xs text-muted">{t('drawer.hint')}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => void open(false)} className={`min-h-11 rounded-xl px-4 ${btn.outline}`}>{t('drawer.open')}</button>
+        {state && <span role="status">{state} <button type="button" onClick={() => void open(true)} className="font-semibold text-brand underline">{t('btPrint.change')}</button></span>}
+      </div>
+    </section>
   )
 }
 

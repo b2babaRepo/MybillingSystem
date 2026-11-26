@@ -1176,6 +1176,11 @@ export const enMore = {
     shareText: 'Bill {{no}}: {{total}}. Still due: {{due}}.', more: 'Showing the latest 200. Pick a shorter period or search to see others.',
     colDate: 'Date', colNo: 'Bill no.', colParty: 'Customer', colItems: 'Items', colTotal: 'Total', colDue: 'Due', colStatus: 'Status',
   },
+  drawer: {
+    title: 'Cash drawer', onCashBill: 'Open the drawer when a cash bill prints on this device',
+    hint: 'For a drawer plugged into the Bluetooth receipt printer. Only bills just made open it, not reprints. A USB printer opens its drawer through its own printer settings.',
+    open: 'Open drawer', opened: 'Drawer opened through {{name}}',
+  },
   shift: {
     link: 'Cashier shifts', title: 'Cashier shift', openTitle: 'Open a shift on this counter',
     openHint: 'Put the starting cash in the drawer and enter it. Bills made on this counter count toward your shift until you close it.',

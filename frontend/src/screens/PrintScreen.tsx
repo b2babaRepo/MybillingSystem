@@ -331,6 +331,12 @@ function BillPrint({ shopId, shopName, billId }: { shopId: string; shopName: str
 }
 
 /** The bill itself, for the shop and, with no onCancel, for whoever opens its link. */
+/** A cash bill made in the last 15 minutes: printing it opens the drawer. A reprint of an older bill doesn't. */
+function opensDrawerFor(bill: BillView['bill']) {
+  const cash = (bill.payments?.length ?? 0) > 0 ? bill.payments!.some((p) => p.mode === 'cash' && p.amount > 0) : bill.paymentMode === 'cash' && bill.paidAmount > 0
+  return cash && !bill.cancelledAt && Date.now() - Date.parse(bill.occurredAt) < 15 * 60_000
+}
+
 function BillDocument({ shopName, bill, customerName, phone, link, onCancel, bare }: { shopName: string; bill: BillView['bill']; customerName: string | null; phone: string | null; link: string | null; onCancel?: () => void; bare?: boolean }) {
   const { t } = useTranslation()
   const gstin = bill.gstin
@@ -378,6 +384,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel, bar
 
   return (
     <Page title={shopName} subtitle={bill.billOfSupply ? t('print.billOfSupply') : isTaxInvoice ? t('print.taxInvoice') : t('print.bill')} shareText={share} phone={phone} receipt={() => billReceipt()} pdfName={`${shopName} ${bill.billNo ?? when}`}
+      opensDrawer={() => opensDrawerFor(bill)}
       logo={look?.logo} theme={look?.theme} corner={copy !== 'none' ? t(`print.copy.${copy}`) : null} bare={bare}
       tools={(<>
         {bill.customerId && onCancel && <SendFromShop kind="bill" billId={bill.id} />}
