@@ -1,0 +1,66 @@
+name: Deploy
+
+# A button, not automatic: Actions tab → Deploy → Run workflow. Runs deploy/production/deploy.sh on GitHub's machine:
+# builds the release, copies it to the server over SSH, takes a database backup, starts it and checks it answers.
+#
+# Secrets it needs (Settings → Secrets and variables → Actions):
+#   DEPLOY_HOST            user@server, e.g. root@203.0.113.10
+#   DEPLOY_SSH_KEY         a private key that can log in as that user (its public key in the server's authorized_keys)
+#   SIXLABORS_LICENSE_KEY  the ImageSharp licence key (the CI workflow uses it too)
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type DEPLOY to send main to the live server
+        required: true
+
+# One deploy at a time; a second waits rather than racing the first.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.inputs.confirm == 'DEPLOY' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secrets are set
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          LICENCE: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          missing=""
+          [ -n "$HOST" ] || missing="$missing DEPLOY_HOST"
+          [ -n "$KEY" ] || missing="$missing DEPLOY_SSH_KEY"
+          [ -n "$LICENCE" ] || missing="$missing SIXLABORS_LICENSE_KEY"
+          if [ -n "$missing" ]; then echo "::error::Add these in Settings → Secrets and variables → Actions:$missing"; exit 1; fi
+
+      - name: SSH key for the server
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          server="${HOST#*@}"
+          ssh-keyscan -H "$server" >> ~/.ssh/known_hosts 2>/dev/null
+          printf 'Host *\n  IdentityFile ~/.ssh/id_deploy\n  ServerAliveInterval 30\n' > ~/.ssh/config
+
+      - name: Licence file for the build
+        env:
+          LICENCE: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: printf '%s' "$LICENCE" > "$RUNNER_TEMP/sixlabors.lic"
+
+      - name: Deploy
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: SIXLABORS_LICENCE="$RUNNER_TEMP/sixlabors.lic" deploy/production/deploy.sh "$HOST"
+
+      - name: Clean up
+        if: always()
+        run: rm -f ~/.ssh/id_deploy "$RUNNER_TEMP/sixlabors.lic"
