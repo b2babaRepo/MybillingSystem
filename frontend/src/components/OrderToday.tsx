@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
+import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 
 interface Item { productId: string; name: string; stock: number; daysLeft: number | null; suggested: number; leadDays: number; nameEn?: string | null; nameHi?: string | null }
@@ -24,7 +25,7 @@ function keyBytes(base64: string) {
  */
 export function OrderToday() {
   const { t, i18n } = useTranslation()
-  const today = useQuery({ queryKey: ['order-today'], queryFn: () => api<{ count: number; items: Item[] }>('/v1/stock/order-today'), staleTime: 300_000 }).data
+  const today = useQuery({ queryKey: ['order-today'], queryFn: () => api<{ count: number; items: Item[]; total?: number | null; unpriced?: number | null }>('/v1/stock/order-today'), staleTime: 300_000 }).data
   const [on, setOn] = useState(() => { try { return localStorage.getItem(KEY) === '1' } catch { return false } })
   const [note, setNote] = useState<string | null>(null)
 
@@ -85,6 +86,13 @@ export function OrderToday() {
         <h2 className="flex items-center gap-2 font-bold"><span aria-hidden>🛒</span>{today.count > 0 ? t('orderToday.title', { count: today.count }) : t('orderToday.none')}</h2>
         {today.count > 0 && <button onClick={() => navigate('/reorder')} className="min-h-10 text-sm font-semibold text-brand underline">{t('orderToday.open')}</button>}
       </div>
+      {today.count > 0 && today.total != null && (
+        <p className="text-sm">
+          {/* No total when nothing has a rate yet: "about ₹0" would read as free. */}
+          {today.total > 0 && t('orderToday.cost', { amount: formatRupees(today.total) })}
+          {!!today.unpriced && <span className="text-muted">{today.total > 0 && ' · '}{t('orderToday.unpriced', { count: today.unpriced })}</span>}
+        </p>
+      )}
       {today.items.slice(0, 5).map((i) => (
         <button key={i.productId} onClick={() => navigate(`/p/${i.productId}`)} className="flex min-h-11 items-center justify-between gap-2 border-b border-[#edf2f1] text-left last:border-0">
           <span className="min-w-0 truncate font-semibold">{itemName(i)}</span>

@@ -116,6 +116,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     if (!raw) return
     const o = JSON.parse(raw) as { id: string; number: number; customerId: string | null; lines: { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number }[] }
     startedAt.current = 0
+    // Read once from storage another screen left (and removed here): an effect, as a state initializer runs twice in development.
+    // eslint-disable-next-line react/set-state-in-effect
     setCart(o.lines.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })))
     setCustomerId(o.customerId ?? '')
     setFromOrder({ id: o.id, number: o.number })
@@ -139,6 +141,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     if (!raw) return
     const e = JSON.parse(raw) as { id: string; number: number; customerId: string | null; lines: { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number }[] }
     startedAt.current = 0
+    // Read once from storage, as the sale order above.
+    // eslint-disable-next-line react/set-state-in-effect
     setCart(e.lines.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })))
     setCustomerId(e.customerId ?? '')
     setFromEstimate({ id: e.id, number: e.number })
@@ -158,6 +162,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }
   function holdBill() {
     if (cart.length === 0) return
+    // An event handler (Hold, or F7), not render: the time it was held.
+    // eslint-disable-next-line react/purity
     keepHeld([...held, { cart, customerId, at: Date.now(), delivery: currentDelivery() }])
     setCart([]); setCustomerId(''); setPaid(null); setSaved(null)
   }
@@ -165,6 +171,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     const pick = held[index]
     startedAt.current = 0
     const rest = held.filter((_, i) => i !== index)
+    // An event handler (picking a held bill), not render.
+    // eslint-disable-next-line react/purity
     keepHeld(cart.length > 0 ? [...rest, { cart, customerId, at: Date.now(), delivery: currentDelivery() }] : rest)
     setCart(pick.cart); setCustomerId(pick.customerId); setPaid(null); setSaved(null)
     setDelivery(pick.delivery)
@@ -198,6 +206,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     setDeliveredTo(next?.deliveredTo ?? '')
     setExtras((current) => ({ ...current, site: next?.site ?? '', vehicleNumber: next?.vehicleNumber ?? '' }))
   }
+  // The customer whose place of supply was last offered (once per customer, when their details arrive).
+  const stateOffered = useRef('')
   // A saved, held or emptied bill takes its delivery with it.
   useEffect(() => {
     if (cart.length > 0) return
@@ -229,11 +239,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }).data
   // The server follows a registered buyer's GSTIN over anything chosen here, so the screen must say the same.
   const buyerState = buyer?.gstin && buyer.gstin.length === 15 && GST_STATES[buyer.gstin.slice(0, 2)] ? buyer.gstin.slice(0, 2) : null
-  const stateOffered = useRef('')
   useEffect(() => {
     if (!buyer || stateOffered.current === customerId) return
     stateOffered.current = customerId
     if (picksState && !buyerState && buyer.state && buyer.state !== shopState && !deliveryOpen) {
+      // Responds to the customer's details arriving from the server, once per customer.
+      // eslint-disable-next-line react/set-state-in-effect
       setDeliveryOpen(true)
       setDeliveredTo(buyer.state)
     }
@@ -291,7 +302,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // GST and the helper's limit all stay right. "remove" puts the prices back as they were.
   const [billOff, setBillOff] = useState<{ before: CartLine[]; amount: number } | null>(null)
   const [offForm, setOffForm] = useState<{ value: string; percent: boolean } | null>(null)
-  useEffect(() => { if (billOff && cart.length !== billOff.before.length) setBillOff(null) }, [cart, billOff])
+  // A line added or taken off ends the whole-bill discount (its spread no longer fits): decided while rendering, not after.
+  if (billOff && cart.length !== billOff.before.length) setBillOff(null)
   function applyBillOff() {
     if (!offForm) return
     const value = Number(offForm.value)
@@ -373,7 +385,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       // A tinted tin shares its base's product but is its own line (its own shade and rate).
       const index = line.productId ? current.findIndex((l) => l.productId === line.productId && l.name === line.name) : -1
       if (index < 0) return [...current, line]
-      return current.map((l, i) => (i === index ? { ...l, quantity: round2(l.quantity + qty), unitPrice: fitPrice(item, round2(l.quantity + qty), l.unitPrice) } : l))
+      // Quantities keep three decimals, as the server does (1 kg + 0.125 kg is 1.125, not 1.13).
+      const quantity = Math.round((current[index].quantity + qty) * 1000) / 1000
+      return current.map((l, i) => (i === index ? { ...l, quantity, unitPrice: fitPrice(item, quantity, l.unitPrice) } : l))
     })
     if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
   }
@@ -419,12 +433,15 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }
 
   async function save() {
+    // An event handler (Save), not render: the bill is timed from its first item to now.
+    // eslint-disable-next-line react/purity
+    const savedAt = Date.now()
     const result = await saveBill(shopId, cart.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
       exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
       payments: split ? [{ mode: 'cash', amount: cashPaid }, { mode: splitWith, amount: upiPaid, reference: splitWith === 'upi' ? reference : null }]
-        : reference ? [{ mode: 'upi', amount: paidAmount, reference }] : undefined, placeOfSupply: (picksState && deliveredTo) || null, entrySeconds: billSeconds(startedAt.current, Date.now()), withoutGst: picksState && withoutGst, godownId: fromGodown || null,
+        : reference ? [{ mode: 'upi', amount: paidAmount, reference }] : undefined, placeOfSupply: (picksState && deliveredTo) || null, entrySeconds: billSeconds(startedAt.current, savedAt), withoutGst: picksState && withoutGst, godownId: fromGodown || null,
       prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
       fields: billFieldLabels.map((label) => ({ label, value: (fieldValues[label] ?? '').trim() })).filter((f) => f.value),
     })
@@ -516,7 +533,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   function billDiscount() { if (cart.length > 0 && !billOff) setOffForm((f) => f ?? { value: '', percent: false }) }
   function removeLast() { setCart((current) => current.slice(0, -1)) }
   const keys = useRef({ save, canSave, printSaved, canPrint: false, allOnKhata, billDiscount, removeLast, holdBill })
-  keys.current = { save, canSave, printSaved, canPrint: !!saved && cart.length === 0, allOnKhata, billDiscount, removeLast, holdBill }
+  // The latest handlers for the keyboard shortcuts, swapped in after each render (never during one).
+  useEffect(() => { keys.current = { save, canSave, printSaved, canPrint: !!saved && cart.length === 0, allOnKhata, billDiscount, removeLast, holdBill } })
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)
@@ -810,6 +828,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 const p = products.find((x) => x.id === l.productId)
                 if (!p || p.costPrice == null || !(l.unitPrice > 0)) return null
                 const net = l.unitPrice / (1 + (garmentRate(p.hsnCode, p.gstRate, l.unitPrice) ?? 0) / 100)
+                // A cost several times the price was entered for something else (a whole piece or a lot instead of one gram or
+                // one unit): say so and point at the item, not a margin like -34784%.
+                if (p.costPrice > net * 3) return (
+                  <p className="text-xs font-semibold text-due">
+                    {t('pmonth.costLooksWrong', { cost: formatRupees(p.costPrice), unit: t(`units.${p.unit}`) })}{' '}
+                    <button type="button" onClick={() => navigate(`/p/${p.id}`)} className="underline">{t('pmonth.checkCost')}</button>
+                  </p>
+                )
                 const margin = ((net - p.costPrice) / net) * 100
                 return margin < 5 ? <p className={`text-xs font-semibold ${margin <= 0 ? 'text-due' : 'text-warn'}`}>{t(margin <= 0 ? 'pmonth.belowCost' : 'pmonth.thinMargin', { percent: Math.round(margin * 10) / 10 })}</p> : null
               })()}
@@ -894,9 +920,15 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           )}
           {exchange && exchange.total > total && total > 0 && <p className="mt-1 text-sm font-semibold text-brand-deep">{t('exchange.leftOnSlip', { amount: formatRupees(round2(exchange.total - total)), note: exchange.noteNo })}</p>}
           {discountTotal > 0 && (
-            <div className="mt-2 flex justify-between text-sm font-semibold text-brand-strong">
-              <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>
-            </div>
+            <>
+              {/* What the items come to at their usual prices, so the discount below plainly adds up to the total. */}
+              <div className="mt-2 flex justify-between text-sm text-muted">
+                <span>{t('discount.before')}</span><span>{formatRupees(round2(total + discountTotal))}</span>
+              </div>
+              <div className="flex justify-between text-sm font-semibold text-brand-strong">
+                <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>
+              </div>
+            </>
           )}
           {/* Optional: the shopkeeper's own discount on the whole bill. */}
           {billOff ? (
@@ -1277,13 +1309,23 @@ function PercentInput({ percent, onChange, onEnter, label, disabled }: { percent
 /** A line's rate: its own text while typing, so "12." and "12.50" can be typed (a number would drop the point). */
 function PriceInput({ value, onChange, ...rest }: { value: number; onChange: (price: number) => void } & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
   const [text, setText] = useState(value ? String(value) : '')
-  useEffect(() => { if ((Number(text) || 0) !== value) setText(value ? String(value) : '') }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
+  // A new price from outside (a pick, a discount) replaces what is typed, unless it already says that ("12." for 12).
+  const [shown, setShown] = useState(value)
+  if (value !== shown) {
+    setShown(value)
+    if ((Number(text) || 0) !== value) setText(value ? String(value) : '')
+  }
   return <input {...rest} value={text} inputMode="decimal" onChange={(e) => { const next = decimalText(e.target.value); setText(next); onChange(Number(next) || 0) }} />
 }
 
 function QuantityInput({ value, onChange, label }: { value: number; onChange: (q: number) => void; label: string }) {
   const [text, setText] = useState(String(value))
-  useEffect(() => { if (Number(text) !== value) setText(String(value)) }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
+  // As for the price: a new quantity from outside replaces what is typed, unless it already says that.
+  const [shown, setShown] = useState(value)
+  if (value !== shown) {
+    setShown(value)
+    if (Number(text) !== value) setText(String(value))
+  }
   return (
     <input
       value={text}

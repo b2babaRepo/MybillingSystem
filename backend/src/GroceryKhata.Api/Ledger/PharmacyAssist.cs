@@ -12,7 +12,9 @@ public sealed record RefillDto(Guid CustomerId, string CustomerName, string? Pho
 /// <summary><see cref="OnOrder"/>: still to come on open orders, already taken off <see cref="Suggested"/>.</summary>
 public sealed record ReorderLineDto(Guid ProductId, string Medicine, decimal Stock, decimal SoldLast30Days, decimal Suggested, decimal? LastRate, decimal OnOrder = 0,
     // Days the stock lasts at the 30-day sale rate; the supplier's delivery days; and the level at which to order.
-    decimal? DaysLeft = null, int LeadDays = 0, decimal? ReorderPoint = null, IReadOnlyList<ReorderOption>? Options = null);
+    decimal? DaysLeft = null, int LeadDays = 0, decimal? ReorderPoint = null, IReadOnlyList<ReorderOption>? Options = null,
+    // What the sales call for, before rounding up to the supplier's case size and minimum order (null when not rounded).
+    decimal? Needed = null, decimal? CaseQty = null, decimal? MinQty = null);
 
 /// <summary>A supplier who has delivered the item: their last rate, delivery days and 90-day fill rate, to split an order.</summary>
 public sealed record ReorderOption(Guid SupplierId, string Name, string? Phone, decimal? LastRate, int? LeadDays, decimal? FillRate, bool Preferred);
@@ -125,7 +127,11 @@ public static class PharmacyAssist
     /// <summary>Every item to order now (the current shop), with its days left, delivery days and reorder point.</summary>
     internal static async Task<(List<ReorderLineDto> Lines, Dictionary<Guid, (Guid SupplierId, decimal? UnitCost)> Last)> NeedsAsync(AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
-        var sold = await Catalogue.Cover.SoldAsync(db, clock, ct);
+        var rates = await Catalogue.Cover.RatesAsync(db, clock, ct);
+        // Items that sold in the last 90 days: an empty shelf for a whole month hides their sales from the 30-day rate.
+        var since = clock.GetUtcNow().AddDays(-90);
+        var soldBefore = (await db.StockMovements.AsNoTracking().Where(m => m.Kind == Catalogue.StockMovementKind.Sale && m.OccurredAt >= since)
+            .Select(m => m.ProductId).Distinct().ToListAsync(ct)).ToHashSet();
         var products = await db.Products.AsNoTracking().Where(p => p.IsActive && !p.IsService && !p.Uncounted).Select(p => new { p.Id, p.Name, p.Stock, p.Reserved, p.ReorderLevel }).ToListAsync(ct);
         // Who to order each item from: the preferred supplier, else the best recent rate (see SupplierItems.DefaultsAsync).
         var last = await SupplierItems.DefaultsAsync(db, clock, ct);
@@ -133,14 +139,21 @@ public static class PharmacyAssist
         var pending = await PurchaseOrders.PendingAsync(db, ct);
         // Stock promised on open sale orders isn't free to sell: it counts as already gone.
         var promised = await SaleOrders.PromisedAsync(db, ct);
+        // How each item comes from each supplier: whole cases, and a least amount per order.
+        var packs = await db.SupplierItems.AsNoTracking().Where(s => s.CaseQty != null || s.MinQty != null)
+            .ToDictionaryAsync(s => (s.ProductId, s.SupplierId), s => (s.CaseQty, s.MinQty), ct);
 
         var lines = new List<ReorderLineDto>();
         foreach (var p in products)
         {
-            var soldMonth = sold.GetValueOrDefault(p.Id);
-            var daily = soldMonth / Catalogue.Cover.Days;
+            var rate = rates.GetValueOrDefault(p.Id);
+            var soldMonth = rate?.Sold ?? 0;
+            // Per day in stock, so a month half spent out of stock doesn't halve the order. When to order goes by the faster of
+            // the month's and the last week's rate (an item taking off is caught before it runs out); how much, by the month's.
+            var daily = rate?.Daily ?? 0;
+            var timing = rate?.Timing ?? 0;
             var leadDays = last.TryGetValue(p.Id, out var from) && lead.TryGetValue(from.SupplierId, out var days) ? days : DefaultLeadDays;
-            decimal? point = daily > 0 ? Math.Ceiling((daily * leadDays) + Math.Max(daily * 2, daily * leadDays / 2)) : null;
+            decimal? point = timing > 0 ? Math.Ceiling((timing * leadDays) + Math.Max(timing * 2, timing * leadDays / 2)) : null;
             var onOrder = pending.GetValueOrDefault(p.Id);
             // Held for online orders (Reserved) and promised on sale orders: neither is free to sell.
             var free = p.Stock - p.Reserved - promised.GetValueOrDefault(p.Id);
@@ -150,20 +163,35 @@ public static class PharmacyAssist
                 continue;
             }
 
-            // Cover a month and the wait, less the shelf and what's coming; at least the reorder level.
-            var target = Math.Max((daily * (30 + leadDays)) + (point is { } r ? r - (daily * leadDays) : 0), p.ReorderLevel ?? 0);
-            // Out of stock: at least one, even with no sales yet to go by.
-            var suggested = Math.Max(free <= 0 && onOrder <= 0 ? 1 : 0, Math.Ceiling(target - Math.Max(0, free) - onOrder));
+            // A month at the steady rate plus the wait and safety margin, less the shelf and what's coming; at least the reorder level.
+            var target = Math.Max((daily * 30) + (point ?? 0), p.ReorderLevel ?? 0);
+            // Out of stock and nothing coming: at least one of an item that has sold lately, even with no rate to go by. An item
+            // that never sells isn't ordered just because it is at zero (a discontinued item, or one picked from the master list
+            // and never stocked); to keep one anyway, give it a reorder level.
+            var floor = free <= 0 && onOrder <= 0 && (soldBefore.Contains(p.Id) || p.ReorderLevel != null) ? 1 : 0;
+            // Trimmed to 3 places before rounding up: a rate like 44 ÷ 30 × 30 lands a hair over 44 and would order one extra.
+            var suggested = Math.Max(floor, Math.Ceiling(decimal.Round(target - Math.Max(0, free) - onOrder, 3)));
             if (suggested <= 0)
             {
                 continue;
             }
 
-            lines.Add(new ReorderLineDto(p.Id, p.Name, p.Stock, soldMonth, suggested, last.TryGetValue(p.Id, out var l) ? l.UnitCost : null, onOrder,
-                daily > 0 ? decimal.Round(Math.Max(0, p.Stock) / daily, 1) : null, leadDays, point));
+            // Up to the supplier's minimum, then up to whole cases: never down, which would leave the shelf short.
+            var (caseQty, minQty) = from.SupplierId != Guid.Empty && packs.TryGetValue((p.Id, from.SupplierId), out var pack) ? pack : (null, null);
+            var rounded = PackRound(suggested, caseQty, minQty);
+            lines.Add(new ReorderLineDto(p.Id, p.Name, p.Stock, soldMonth, rounded, last.TryGetValue(p.Id, out var l) ? l.UnitCost : null, onOrder,
+                timing > 0 ? decimal.Round(Math.Max(0, p.Stock) / timing, 1) : null, leadDays, point,
+                Needed: rounded != suggested ? suggested : null, CaseQty: caseQty, MinQty: minQty));
         }
 
         return (lines, last);
+    }
+
+    /// <summary>A quantity raised to the supplier's minimum order and then to whole cases (as given when not set).</summary>
+    public static decimal PackRound(decimal quantity, decimal? caseQty, decimal? minQty)
+    {
+        var q = Math.Max(quantity, minQty ?? 0);
+        return caseQty is > 0 and var size ? Math.Ceiling(q / size) * size : q;
     }
 
     /// <summary>

@@ -1246,6 +1246,15 @@ public sealed class ShopDayTests(ApiFactory api)
 
         // 4.4 more strips sold this month: with 0.3 left, an order is due from Shree Pharma at the last rate.
         (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = para.Id, quantity = 4.4m, unitPrice = 20m } }, paidAmount = 88m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+        // On the shelf all month (the rate counts only days with stock): the stock came in 40 days ago.
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var back = new Npgsql.NpgsqlCommand("UPDATE stock_movements SET occurred_at = now() - interval '40 days' WHERE product_id = @p AND kind <> 'Sale'", db);
+            back.Parameters.AddWithValue("p", para.Id);
+            await back.ExecuteNonQueryAsync();
+        }
+
         var group = Assert.Single(await shop.GetJsonAsync<List<ReorderGroupDto>>("/api/v1/pharmacy/reorder"), g => g.SupplierId == supplier);
         var line = Assert.Single(group.Lines);
         // A month and the supplier's delivery days (3 until measured), with a safety margin: 6 strips.

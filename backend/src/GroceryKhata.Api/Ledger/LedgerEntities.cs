@@ -43,8 +43,10 @@ public sealed class Customer : Entity, ITenantOwned
     public DateTimeOffset? LastRemindedAt { get; set; }
 
     /// <summary>
-    /// The secret in the customer's read-only khata link (/k/{shop}/{customer}?t=...). Kept so the shop can share
-    /// the same link again; replacing it cuts off the old link. Null until the shop first shares one.
+    /// The random value the customer's read-only khata link (/k/{shop}/{customer}?t=...) is signed from
+    /// (KhataViewEndpoints.LinkToken): on its own it opens nothing. Kept so the shop can share the same link again;
+    /// replacing it cuts off the old link. "h:" and a hash for a link made before links were signed. Null until the
+    /// shop first shares one.
     /// </summary>
     public string? KhataToken { get; set; }
 

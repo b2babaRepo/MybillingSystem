@@ -96,7 +96,7 @@ public static class OldMetalVoucherEndpoints
         if (total >= JewelleryMath.PanFrom && string.IsNullOrEmpty(pan)) return Invalid("Pan", "This purchase is ₹2 lakh or more: enter the seller's PAN (or FORM 60).");
 
         var userId = user.UserId()!.Value;
-        var number = (await db.OldMetalVouchers.MaxAsync(v => (int?)v.Number, ct) ?? 0) + 1;
+        var number = await db.NextNumberAsync<OldMetalVoucher>(ct);
         var note = $"Old metal bought, voucher {number} from {name}: {string.Join(", ", olds.Select(o => $"{o.Gross:0.000} g {o.Metal} at {o.Reading:0.##}%"))}";
         var expense = new Expense { Amount = total, Category = ExpenseCategory.Purchase, Mode = mode, Note = note.Length > 200 ? note[..200] : note, CreatedByUserId = userId, OccurredAt = clock.GetUtcNow() };
         db.Expenses.Add(expense);

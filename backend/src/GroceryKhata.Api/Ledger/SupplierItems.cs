@@ -22,11 +22,17 @@ public sealed class SupplierItem : Entity, ITenantOwned
     public bool IsPreferred { get; set; }
 
     public string? SupplierCode { get; set; }
+
+    /// <summary>Units in one case from this supplier (12 soaps, 6 bottles): orders are rounded up to whole cases.</summary>
+    public decimal? CaseQty { get; set; }
+
+    /// <summary>The least this supplier takes in one order of the item.</summary>
+    public decimal? MinQty { get; set; }
 }
 
 /// <summary>One supplier of an item: what was ordered from them, what came, what is still to come, and the last rate.</summary>
 public sealed record ItemSupplierDto(Guid SupplierId, string Name, string? Phone, decimal Ordered, decimal Received, decimal Pending, decimal Damaged,
-    decimal? LastRate, DateTimeOffset? LastAt, int Deliveries, int? LeadDays, decimal? FillRate, bool Preferred, bool BestRate);
+    decimal? LastRate, DateTimeOffset? LastAt, int Deliveries, int? LeadDays, decimal? FillRate, bool Preferred, bool BestRate, decimal? CaseQty = null, decimal? MinQty = null);
 
 /// <summary>One item bought from a supplier (the supplier page's "Items from this supplier").</summary>
 public sealed record SupplierProductDto(Guid ProductId, string Name, string? Category, Catalogue.Unit Unit, decimal Received, decimal Pending, decimal? LastRate, DateTimeOffset? LastAt, int Deliveries, bool Preferred);
@@ -49,6 +55,9 @@ public sealed record ScorecardDto(Guid SupplierId, string Name, int Orders, deci
 
 public sealed record PreferredRequest(bool Preferred);
 
+/// <summary>Case size and minimum order for one item from one supplier; empty clears it.</summary>
+public sealed record PackRequest(decimal? CaseQty, decimal? MinQty);
+
 public static class SupplierItems
 {
     public static IEndpointRouteBuilder MapSupplierItems(this IEndpointRouteBuilder app)
@@ -56,6 +65,7 @@ public static class SupplierItems
         var owner = app.MapGroup("/api/v1").WithTags("Suppliers").RequireAuthorization(AppPolicies.ShopOwner);
         owner.MapGet("/products/{id:guid}/suppliers", ItemSuppliersAsync);
         owner.MapPut("/products/{id:guid}/suppliers/{supplierId:guid}/preferred", PreferAsync);
+        owner.MapPut("/products/{id:guid}/suppliers/{supplierId:guid}/pack", PackAsync);
         owner.MapGet("/suppliers/{id:guid}/items", SupplierProductsAsync);
         owner.MapGet("/reports/received-by-supplier", ReceivedAsync);
         owner.MapGet("/reports/supplier-scorecard", ScorecardAsync);
@@ -135,8 +145,9 @@ public static class SupplierItems
 
         var stats = (await StatsAsync(db, DateTimeOffset.MinValue, id, null, ct)).ToDictionary(s => s.SupplierId);
         var (ordered, pending) = await OrdersAsync(db, DateTimeOffset.MinValue, null, id, null, ct);
-        var preferred = await db.SupplierItems.AsNoTracking().Where(s => s.ProductId == id && s.IsPreferred).Select(s => s.SupplierId).ToListAsync(ct);
-        var ids = stats.Keys.Concat(ordered.Keys.Select(k => k.Item1)).Concat(pending.Keys.Select(k => k.Item1)).Concat(preferred).Distinct().ToList();
+        var settings = await db.SupplierItems.AsNoTracking().Where(s => s.ProductId == id).ToDictionaryAsync(s => s.SupplierId, ct);
+        var preferred = settings.Values.Where(s => s.IsPreferred).Select(s => s.SupplierId).ToList();
+        var ids = stats.Keys.Concat(ordered.Keys.Select(k => k.Item1)).Concat(pending.Keys.Select(k => k.Item1)).Concat(settings.Keys).Distinct().ToList();
         var suppliers = await db.Suppliers.AsNoTracking().Where(s => ids.Contains(s.Id)).ToDictionaryAsync(s => s.Id, ct);
         var lead = await PharmacyAssist.LeadDaysAsync(db, ct);
         var fill = await FillRatesAsync(db, clock, ct);
@@ -146,7 +157,8 @@ public static class SupplierItems
         {
             var st = stats.GetValueOrDefault(s);
             return new ItemSupplierDto(s, suppliers[s].Name, suppliers[s].Phone, ordered.GetValueOrDefault((s, id)), st?.Received ?? 0, pending.GetValueOrDefault((s, id)), st?.Damaged ?? 0,
-                st?.LastRate, st?.LastAt, st?.Deliveries ?? 0, lead.TryGetValue(s, out var d) ? d : null, fill.TryGetValue(s, out var f) ? f : null, preferred.Contains(s), best == s);
+                st?.LastRate, st?.LastAt, st?.Deliveries ?? 0, lead.TryGetValue(s, out var d) ? d : null, fill.TryGetValue(s, out var f) ? f : null, preferred.Contains(s), best == s,
+                settings.GetValueOrDefault(s)?.CaseQty, settings.GetValueOrDefault(s)?.MinQty);
         }).OrderByDescending(x => x.Preferred).ThenByDescending(x => x.LastAt).ToList());
     }
 
@@ -176,6 +188,32 @@ public static class SupplierItems
 
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>Sets how this item comes from this supplier: units per case and the least per order (empty clears).</summary>
+    private static async Task<IResult> PackAsync(Guid id, Guid supplierId, PackRequest request, AppDbContext db, CancellationToken ct)
+    {
+        if (!await db.Products.AnyAsync(p => p.Id == id, ct) || !await db.Suppliers.AnyAsync(s => s.Id == supplierId, ct))
+        {
+            return Invalid("SupplierId", "Pick a supplier and an item.");
+        }
+
+        static bool Bad(decimal? q) => q is { } v && (v <= 0 || v > Money.MaxQuantity || decimal.Round(v, 3) != v);
+        if (Bad(request.CaseQty) || Bad(request.MinQty))
+        {
+            return Invalid("CaseQty", "Enter a case size and minimum order above 0, or leave them empty.");
+        }
+
+        var row = await db.SupplierItems.SingleOrDefaultAsync(s => s.ProductId == id && s.SupplierId == supplierId, ct);
+        if (row is null)
+        {
+            row = new SupplierItem { ProductId = id, SupplierId = supplierId };
+            db.SupplierItems.Add(row);
+        }
+
+        (row.CaseQty, row.MinQty) = (request.CaseQty, request.MinQty);
+        await db.SaveChangesAsync(ct);
         return TypedResults.NoContent();
     }
 

@@ -104,7 +104,14 @@ public sealed class AuthOptions
     /// <summary>Wrong passwords in a row before the account locks.</summary>
     public int MaxFailedSignIns { get; set; } = 5;
 
+    /// <summary>The first lockout; each one after it in a row doubles, up to <see cref="MaxLockoutMinutes"/>.</summary>
     public int LockoutMinutes { get; set; } = 15;
+
+    /// <summary>The longest lockout: a day. 15 minutes, 30, 1 hour, 2, 4, 8, 16, then a day each time.</summary>
+    public int MaxLockoutMinutes { get; set; } = 1440;
+
+    /// <summary>How long with no lockout before the doubling starts again from <see cref="LockoutMinutes"/>.</summary>
+    public int LockoutMemoryHours { get; set; } = 24;
 
     /// <summary>Requests per minute per IP address on sign-up, sign-in and refresh.</summary>
     public int AuthRequestsPerMinutePerIp { get; set; } = 20;

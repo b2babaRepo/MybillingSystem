@@ -139,8 +139,7 @@ public static class StaffEndpoints
         // A new PIN lifts a helper's lockout. Not on an account with its own password: a shop can't be a way past that.
         if (user.PasswordHash is null)
         {
-            user.FailedSignInCount = 0;
-            user.LockoutEndsAt = null;
+            (user.FailedSignInCount, user.LockoutEndsAt, user.LockoutCount) = (0, null, 0);
         }
 
         await db.SaveChangesAsync(ct);

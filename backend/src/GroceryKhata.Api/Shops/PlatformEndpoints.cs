@@ -471,8 +471,7 @@ public static class PlatformEndpoints
             return TypedResults.NotFound();
         }
 
-        person.LockoutEndsAt = null;
-        person.FailedSignInCount = 0;
+        (person.LockoutEndsAt, person.FailedSignInCount, person.LockoutCount) = (null, 0, 0);
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Admin {AdminId} unlocked user {UserId}", admin.UserId(), userId);
         return TypedResults.NoContent();

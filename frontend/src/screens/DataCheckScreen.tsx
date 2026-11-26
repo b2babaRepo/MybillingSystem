@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 import { navigate } from '../router'
 
 interface Problem { name: string; detail: string; id: string | null }
-interface Check { code: 'khata' | 'stock' | 'billNumbers' | 'billPaid' | 'noCost'; checked: number; problems: number; warning: boolean; samples: Problem[] }
+interface Check { code: 'khata' | 'stock' | 'billNumbers' | 'billPaid' | 'noCost' | 'negativeStock'; checked: number; problems: number; warning: boolean; samples: Problem[] }
 interface DataCheck { checkedAt: string; checks: Check[] }
 
 /**
@@ -18,7 +18,11 @@ export function DataCheckScreen({ shopId }: { shopId: string }) {
   const data = q.data
   const errors = data?.checks.filter((c) => !c.warning).reduce((n, c) => n + c.problems, 0) ?? 0
   // Where each kind of problem can be looked at.
-  const open = (c: Check, p: Problem) => c.code === 'khata' && p.id ? () => navigate(`/c/${p.id}`) : c.code === 'billPaid' && p.id ? () => navigate(`/print/bill/${p.id}`) : null
+  const open = (c: Check, p: Problem) => !p.id ? null
+    : c.code === 'khata' ? () => navigate(`/c/${p.id}`)
+    : c.code === 'billPaid' ? () => navigate(`/print/bill/${p.id}`)
+    : c.code === 'stock' || c.code === 'noCost' || c.code === 'negativeStock' ? () => navigate(`/p/${p.id}`)
+    : null
   return (
     <div className="flex flex-col gap-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">

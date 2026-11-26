@@ -136,7 +136,9 @@ public sealed record ImportRow(
     string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel,
     int? CatalogueItemId = null, decimal? PackSize = null, Unit? PackUnit = null, decimal? GstRate = null, string? HsnCode = null,
     bool IsService = false, int? DurationMinutes = null, DrugSchedule? Schedule = null, int? UnitsPerPack = null, bool TracksSerials = false, int? WarrantyMonths = null,
-    int? MasterItemId = null, string? StyleName = null, string? Size = null);
+    int? MasterItemId = null, string? StyleName = null, string? Size = null,
+    // Made to order or a service the shop sells (a dish, an extra bed, DJ hire): never counted as stock.
+    bool Uncounted = false);
 
 /// <summary>One item's new rate on the "today's rates" screen.</summary>
 public sealed record RateChange(Guid ProductId, decimal SellingPrice);

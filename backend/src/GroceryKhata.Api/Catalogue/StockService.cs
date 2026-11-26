@@ -46,16 +46,16 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         return await WithDailySalesAsync(list, ct);
     }
 
-    /// <summary>Each item's average sold a day over the last 30 days, from its sale movements, in one query.</summary>
+    /// <summary>Each item's average sold a day over the last 30 days, per day it was in stock (<see cref="Cover"/>).</summary>
     private async Task<IReadOnlyList<ProductDto>> WithDailySalesAsync(List<ProductDto> list, CancellationToken ct)
     {
-        var sold = await Cover.SoldAsync(db, clock, ct);
+        var daily = await Cover.DailyAsync(db, clock, ct);
         var bagged = list.Where(p => p.BagSize != null).Select(p => p.Id).ToList();
         var bags = bagged.Count == 0 ? [] : await db.StockMovements.AsNoTracking().Where(m => m.Bags != null && bagged.Contains(m.ProductId))
             .GroupBy(m => m.ProductId).Select(g => new { g.Key, Bags = g.Sum(m => m.Bags!.Value) }).ToDictionaryAsync(x => x.Key, x => x.Bags, ct);
         var promised = await Ledger.SaleOrders.PromisedAsync(db, ct);
         var photos = await ProductPhotoEndpoints.IdsAsync(db, list.Count == 1 ? [list[0].Id] : null, ct);
-        return list.Select(p => (sold.TryGetValue(p.Id, out var q) && q > 0 ? p with { DailySales = decimal.Round(q / Cover.Days, 3) } : p) with
+        return list.Select(p => (daily.TryGetValue(p.Id, out var d) && d > 0 ? p with { DailySales = decimal.Round(d, 3) } : p) with
         {
             Bags = bags.GetValueOrDefault(p.Id), Promised = promised.GetValueOrDefault(p.Id), ExtraPhotos = photos.GetValueOrDefault(p.Id),
         }).ToList();
@@ -376,7 +376,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         db.Stocktakes.Add(new Stocktake
         {
-            Id = request.Id, Number = (await db.Stocktakes.MaxAsync(t => (int?)t.Number, ct) ?? 0) + 1, TakenAt = clock.GetUtcNow(), CreatedByUserId = userId,
+            Id = request.Id, Number = await db.NextNumberAsync<Catalogue.Stocktake>(ct), TakenAt = clock.GetUtcNow(), CreatedByUserId = userId,
             Lines = System.Text.Json.JsonSerializer.Serialize(lines), Items = lines.Count, Differences = lines.Count(l => l.Difference != 0),
             ValueDifference = decimal.Round(lines.Sum(l => l.Difference * (l.CostPrice ?? 0)), 2),
         });
@@ -469,6 +469,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             product.HsnCode = Clean(row.HsnCode);
             // A SAC code (99…) is a service's: from a master list, a haircut comes in as a service even without the flag.
             (product.IsService, product.DurationMinutes) = (row.IsService || (row.HsnCode?.Trim().StartsWith("99") ?? false), row.DurationMinutes);
+            product.Uncounted = !product.IsService && row.Uncounted;
             product.Schedule = product.IsService ? null : row.Schedule;
             product.UnitsPerPack = product.IsService ? null : row.UnitsPerPack;
             (product.TracksSerials, product.WarrantyMonths) = product.IsService ? (false, null) : (row.TracksSerials, row.WarrantyMonths);

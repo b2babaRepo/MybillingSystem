@@ -215,17 +215,14 @@ public static class WhatsAppShopMessages
                     return TypedResults.NotFound();
                 }
 
-                // The khata link: the same one "Send khata link" gives, made now if the customer has none.
-                if (customer.KhataToken is null)
-                {
-                    (customer.KhataToken, customer.KhataTokenAt) = (Secrets.NewRefreshToken(), clock.GetUtcNow());
-                    await db.SaveChangesAsync(ct);
-                }
+                // The khata link: the same one "Send khata link" gives, made now if the customer has none (or it has run out).
+                var khataToken = KhataViewEndpoints.CurrentLinkToken(customer, billing.Value.BillLinkKey, clock.GetUtcNow());
+                await db.SaveChangesAsync(ct);
 
                 parameters = def.Key == "reminder"
                     ? [customer.Name, Rupees(Math.Max(0, customer.Balance)), shop.Name, shop.UpiId ?? "ask at the shop"]
                     : [customer.Name, shop.Name, Rupees(customer.Balance)];
-                link = $"k/{shop.Slug}/{customer.Id}?t={customer.KhataToken}";
+                link = $"k/{shop.Slug}/{customer.Id}?t={khataToken}";
                 break;
             default:
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Kind"] = ["Send a bill, reminder or statement."] });

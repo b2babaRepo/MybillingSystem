@@ -31,10 +31,10 @@ public sealed class LedgerFixTests(ApiFactory api)
         return helper;
     }
 
-    private static async Task<ProductDto> ItemAsync(HttpClient shop, string name, decimal price, decimal stock, object? extra = null)
+    private static async Task<ProductDto> ItemAsync(HttpClient shop, string name, decimal price, decimal stock, decimal? reorderLevel = null)
     {
         var id = Guid.CreateVersion7();
-        (await shop.PostJsonAsync("/api/v1/products", new { id, name, unit = "piece", sellingPrice = price, openingStock = stock })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/products", new { id, name, unit = "piece", sellingPrice = price, openingStock = stock, reorderLevel })).EnsureSuccessStatusCode();
         return await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{id}");
     }
 
@@ -515,11 +515,11 @@ public sealed class LedgerFixTests(ApiFactory api)
     public async Task An_order_counts_down_as_goods_come_and_stops_them_being_ordered_twice()
     {
         var shop = await ShopAsync("hardware");
-        var pipe = await ItemAsync(shop, "Pipe", 300m, 0m);
-        var tap = await ItemAsync(shop, "Tap", 150m, 0m);
+        var pipe = await ItemAsync(shop, "Pipe", 300m, 0m, reorderLevel: 2m);
+        var tap = await ItemAsync(shop, "Tap", 150m, 0m, reorderLevel: 2m);
         var supplierId = await SupplierAsync(shop);
 
-        // Out of stock, so both are on What to order.
+        // Out of stock and kept in stock (a reorder level), so both are on What to order.
         Assert.Equal(2, (await shop.GetJsonAsync<List<ReorderGroupDto>>("/api/v1/pharmacy/reorder")).SelectMany(g => g.Lines).Count());
 
         var orderId = Guid.CreateVersion7();
@@ -1483,6 +1483,15 @@ public sealed class LedgerFixTests(ApiFactory api)
 
         // Nine sold this month: 0.3 a day, so one left won't last until a new order comes.
         (await Bill(shop, null, atta.Id, 9.001m, 400m, 3600.40m)).EnsureSuccessStatusCode();
+        // On the shelf all month (the rate counts only days with stock): the stock came in 40 days ago.
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var back = new Npgsql.NpgsqlCommand("UPDATE stock_movements SET occurred_at = now() - interval '40 days' WHERE product_id = @p AND kind <> 'Sale'", db);
+            back.Parameters.AddWithValue("p", atta.Id);
+            await back.ExecuteNonQueryAsync();
+        }
+
         var today = await shop.GetJsonAsync<OrderTodayDto>("/api/v1/stock/order-today");
         var line = Assert.Single(today.Items);
         Assert.Equal((atta.Id, 1, 3.3m), (line.ProductId, line.LeadDays, line.DaysLeft));

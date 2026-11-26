@@ -102,11 +102,13 @@ app.Use(async (http, next) =>
 app.UseHardening();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+// Limits first (by IP, after the proxy's forwarded address is read): a request over the limit is turned away before
+// its token is checked or the tenant step opens a database connection for it.
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<TenantMiddleware>();
 app.UseAuthorization();
 app.UseMiddleware<ReadOnlyAccess>();
-app.UseRateLimiter();
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous().DisableRateLimiting();
 app.MapReadiness();

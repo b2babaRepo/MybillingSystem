@@ -192,7 +192,7 @@ public static class CreditNotes
         var india = now.ToOffset(IndiaTime.Offset);
         var startYear = india.Month >= 4 ? india.Year : india.Year - 1;
         var year = $"{startYear}-{(startYear + 1) % 100:D2}";
-        var number = (await db.CreditNotes.Where(n => n.FinancialYear == year).MaxAsync(n => (int?)n.Number, ct) ?? 0) + 1;
+        var number = await db.NextNumberAsync<CreditNote>(ct, year);
         // How the money went back to a walk-in: as asked, else the way the bill was mostly paid.
         var refundMode = request.RefundMode is PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Card or PaymentMode.Bank ? request.RefundMode.Value : bill.PaymentMode ?? PaymentMode.Cash;
         var note = new CreditNote

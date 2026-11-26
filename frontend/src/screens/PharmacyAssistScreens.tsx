@@ -11,8 +11,12 @@ import { compareCells, filterBox, nextSort, SortHead, type Sort } from '../compo
 
 interface Refill { customerId: string; customerName: string; phone: string | null; productId: string; medicine: string; lastQuantity: number; lastBought: string; everyDays: number; dueOn: string; daysLate: number }
 interface ReorderOption { supplierId: string; name: string; phone: string | null; lastRate: number | null; leadDays: number | null; fillRate: number | null; preferred: boolean }
-interface ReorderGroup { supplierId: string | null; supplierName: string | null; phone: string | null; lines: { productId: string; medicine: string; stock: number; soldLast30Days: number; suggested: number; lastRate: number | null; daysLeft?: number | null; leadDays?: number; options?: ReorderOption[] }[] }
+interface ReorderGroup { supplierId: string | null; supplierName: string | null; phone: string | null; lines: { productId: string; medicine: string; stock: number; soldLast30Days: number; suggested: number; lastRate: number | null; daysLeft?: number | null; leadDays?: number; options?: ReorderOption[]; needed?: number | null; caseQty?: number | null; minQty?: number | null }[] }
 interface Part { supplierId: string | null; qty: string }
+
+/** Why the order is more than the sales call for: the supplier's case size or minimum order. */
+const packNote = (t: (key: string, o?: Record<string, unknown>) => string, l: { needed?: number | null; caseQty?: number | null; minQty?: number | null }) =>
+  [t('rs.roundedUp', { needed: l.needed }), l.caseQty != null ? t('rs.caseOf', { qty: l.caseQty }) : null, l.minQty != null ? t('rs.minOf', { qty: l.minQty }) : null].filter(Boolean).join(' · ')
 
 const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
 
@@ -71,6 +75,8 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
     if (!bySupplier.has(key)) bySupplier.set(key, { supplierId: p.supplierId, rows: [] })
     bySupplier.get(key)!.rows.push({ line: l, part: i, qty: p.qty })
   })
+  // What each line costs at its supplier's last rate.
+  const rateIn = (supplierId: string | null, l: (typeof lines)[number]) => (l.options ?? []).find((o) => o.supplierId === supplierId)?.lastRate ?? (l.home === supplierId ? l.lastRate : null)
   const shown = [...bySupplier.values()].sort((a, b) => (a.supplierId == null ? 1 : b.supplierId == null ? -1 : (people.get(a.supplierId)?.name ?? '').localeCompare(people.get(b.supplierId)?.name ?? '')))
 
   // Saved, an order counts as on its way: it leaves this list, and its goods match it when they come.
@@ -90,9 +96,22 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
       <p className="text-sm text-muted">{t(general ? 'reorder.hintAll' : 'reorder.hint')}</p>
       {Object.values(saved).map((m) => <p key={m} className="rounded-card bg-brand-soft p-3 text-sm text-brand-deep">{m}</p>)}
       {groups?.length === 0 && <p className="rounded-card bg-white p-3 text-sm text-muted">{t('reorder.none')}</p>}
+      {(() => {
+        // The whole order across suppliers, as the quantities now stand; lines with no rate yet are counted apart.
+        const all = shown.flatMap((g) => g.rows.map((r) => ({ qty: Number(r.qty) || 0, rate: rateIn(g.supplierId, r.line) }))).filter((x) => x.qty > 0)
+        if (all.length === 0) return null
+        const total = all.reduce((n, x) => n + (x.rate ?? 0) * x.qty, 0)
+        const unpriced = all.filter((x) => x.rate == null).length
+        return (
+          <p className="rounded-card bg-white p-3 text-base font-bold shadow-sm">
+            {total > 0 && t('reorder.grandTotal', { amount: formatRupees(total), count: all.length })}
+            {unpriced > 0 && <span className={total > 0 ? 'block text-xs font-normal text-muted' : 'text-sm font-normal text-muted'}>{t('orderToday.unpriced', { count: unpriced })}</span>}
+          </p>
+        )
+      })()}
       {shown.map((g) => {
         const who = g.supplierId ? people.get(g.supplierId) : undefined
-        const rateOf = (l: (typeof lines)[number]) => (l.options ?? []).find((o) => o.supplierId === g.supplierId)?.lastRate ?? (l.home === g.supplierId ? l.lastRate : null)
+        const rateOf = (l: (typeof lines)[number]) => rateIn(g.supplierId, l)
         // Other suppliers for one item: move it there, or split it half and half.
         const split = (l: (typeof lines)[number], part: number, qty: string, parts: Part[]) => (l.options?.length ?? 0) > 0 && (
 
@@ -163,7 +182,7 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
                     <Fragment key={`${l.productId}-${part}`}>
                       <tr className={l.stock <= 0 ? 'bg-due-soft/40' : ''}>
                         <td className="px-2 py-2 text-muted">{n + 1}</td>
-                        <td className="px-2 py-2 font-semibold">{l.medicine}{parts.length > 1 && <span className="ml-1 rounded-full bg-warn-soft px-1.5 text-[11px] font-semibold text-warn">{t('rs.splitOf', { total: l.suggested })}</span>}</td>
+                        <td className="px-2 py-2 font-semibold">{l.medicine}{parts.length > 1 && <span className="ml-1 rounded-full bg-warn-soft px-1.5 text-[11px] font-semibold text-warn">{t('rs.splitOf', { total: l.suggested })}</span>}{l.needed != null && <span className="ml-1 rounded-full bg-brand-soft px-1.5 text-[11px] font-semibold text-brand-deep">{packNote(t, l)}</span>}</td>
                         <td className={`px-2 py-2 text-right ${l.stock <= 0 ? 'font-semibold text-due' : ''}`}>{l.stock}</td>
                         <td className="px-2 py-2 text-right">{l.soldLast30Days}</td>
                         <td className="px-2 py-2 text-right">{l.daysLeft != null ? Math.floor(l.daysLeft) : '—'}</td>
@@ -197,7 +216,7 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
               return (
                 <div key={`${l.productId}-${part}`} className="flex flex-col gap-1 border-t border-[#edf2f1] pt-2 text-sm first-of-type:border-t-0">
                   <div className="grid grid-cols-[1fr_5rem] items-center gap-2">
-                    <span><b>{l.medicine}</b>{parts.length > 1 && <span className="ml-1 rounded-full bg-warn-soft px-1.5 text-[11px] font-semibold text-warn">{t('rs.splitOf', { total: l.suggested })}</span>}
+                    <span><b>{l.medicine}</b>{parts.length > 1 && <span className="ml-1 rounded-full bg-warn-soft px-1.5 text-[11px] font-semibold text-warn">{t('rs.splitOf', { total: l.suggested })}</span>}{l.needed != null && <span className="ml-1 rounded-full bg-brand-soft px-1.5 text-[11px] font-semibold text-brand-deep">{packNote(t, l)}</span>}
                       <span className="block text-xs text-muted">{t('reorder.line', { stock: l.stock, sold: l.soldLast30Days })}{rate != null ? ` · ${formatRupees(rate)}` : ''}{l.daysLeft != null ? ` · ${t('orderToday.daysLeft', { count: Math.floor(l.daysLeft) })}` : ''}</span>
                     </span>
                     <input aria-label={`${t('reorder.qty')}: ${l.medicine}`} value={qty} inputMode="decimal"
@@ -208,6 +227,7 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
               )
             })}
             </div>
+            {toOrder.some((l) => l.rate != null) && <p className="flex justify-between border-t border-line pt-2 text-sm font-bold lg:hidden"><span>{t('reorderTable.total', { count: toOrder.length })}</span><span>{formatRupees(toOrder.reduce((n, l) => n + (l.rate ?? 0) * l.order, 0))}</span></p>}
             {g.supplierId && toOrder.length > 0 && <button onClick={() => void saveOrder(g.supplierId!, toOrder)} className={`h-11 rounded-xl ${btn.outline}`}>{t('supplier2.saveAsOrder')}</button>}
             {(who?.phone || !g.supplierId) && toOrder.length > 0
               ? <a href={whatsAppLink(who?.phone ?? null, message)} target="_blank" rel="noreferrer" className="flex h-11 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('reorder.send')}</a>

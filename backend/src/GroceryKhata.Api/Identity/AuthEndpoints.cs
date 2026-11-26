@@ -91,7 +91,7 @@ public static class AuthEndpoints
             { Error: AuthError.LockedOut } => TypedResults.Problem(
                 statusCode: StatusCodes.Status429TooManyRequests,
                 title: "Account locked for a while.",
-                detail: "Too many wrong passwords. Please try again later."),
+                detail: "Too many wrong passwords or PINs. Sign in with a code by SMS instead, or try again later."),
             { Error: AuthError.MembershipNotFound } => TypedResults.Problem(
                 statusCode: StatusCodes.Status404NotFound,
                 title: "Shop not found for this account."),
