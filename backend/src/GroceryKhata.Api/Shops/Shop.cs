@@ -50,6 +50,12 @@ public sealed class Shop : Entity
     public string? BillFields { get; set; }
 
     /// <summary>
+    /// How the shop's weighing scale prints its label barcodes (13 characters, like 21PPPPPWWWWWC): fixed digits, x any
+    /// digit, P the item's code, W the weight in grams or R the price in paise, C the check digit. Null: no scale labels.
+    /// </summary>
+    public string? ScaleLabel { get; set; }
+
+    /// <summary>
     /// The shop's own WhatsApp reminder wording, with {name}, {amount}, {shop} and {upi} filled in per
     /// customer. Null: the app's default Hinglish text.
     /// </summary>

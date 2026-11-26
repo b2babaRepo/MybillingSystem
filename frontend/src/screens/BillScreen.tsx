@@ -18,7 +18,7 @@ import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
 import { billTax, garmentRate } from '../lib/gst'
 import { bestOffer, isRunning, offerPrice, useOffers } from '../lib/offers'
-import { cameraPossible, normBarcode } from '../lib/barcode'
+import { cameraPossible, normBarcode, readScaleLabel, sameItemCode } from '../lib/barcode'
 const UnknownBarcode = lazy(() => import('../components/UnknownBarcode').then((module) => ({ default: module.UnknownBarcode })))
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
 // The printed bill's own code, loaded only when a computer turns the live preview on.
@@ -74,11 +74,23 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // Barcodes: a scanner types the code and Enter; a typed code works the same. A camera scan where the phone can.
   const [scanning, setScanning] = useState(false)
   const [scanMiss, setScanMiss] = useState<string | null>(null)
+  const settings = useShopSettings(shopId).data
   // Every phone with a camera: its own barcode reader where it has one, else the app's backup reader.
   const canScan = cameraPossible()
   function addByBarcode(code: string) {
     const clean = normBarcode(code)
     const p = clean.length >= 4 ? products.find((x) => x.barcode && normBarcode(x.barcode) === clean) : undefined
+    // A weighing scale's label: the item's code with its weight (or price) in the barcode. Each label is its own line.
+    const label = p ? null : readScaleLabel(clean, settings?.scaleLabel)
+    const weighed = label ? products.find((x) => sameItemCode(x.barcode, label.itemCode)) : undefined
+    if (label && weighed) {
+      const quantity = label.kg ?? (weighed.sellingPrice > 0 ? Math.round(((label.price ?? 0) / weighed.sellingPrice) * 1000) / 1000 : 0)
+      if (quantity <= 0) return false
+      add({ productId: weighed.id, name: weighed.name, quantity, unit: weighed.unit, unitPrice: weighed.sellingPrice }, true)
+      setSearch('')
+      setScanMiss(null)
+      return true
+    }
     if (!p) return false
     add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })
     setSearch('')
@@ -182,7 +194,6 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [received, setReceived] = useState('')
   // A loose item, or a charge line ("Transport") with its name filled in.
   const [loose, setLoose] = useState<false | { name: string; unit: Unit }>(false)
-  const settings = useShopSettings(shopId).data
   const shopType = settings?.type ?? 'kirana'
   // The shop's own extra bill fields and what was typed in them for this bill.
   const billFieldLabels = settings?.billFields ?? []
@@ -373,12 +384,18 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const serialsMissing = serialLines.some((l) => (picked[l.productId!] ?? []).length !== l.quantity)
   const rxMissing = schedules.length > 0 && (rx.doctorName.trim().length < 2 || rx.patientName.trim().length < 2 || (needsAddress && rx.doctorAddress.trim().length < 3))
 
-  function add(line: CartLine) {
+  /** separate: a line of its own at its quantity (a weighed packet), not added onto the same item's line. */
+  function add(line: CartLine, separate = false) {
     setSaved(null)
     // At its regular price, an item a running offer covers goes in at the offer's price, with the offer's name.
     const item = line.productId ? products.find((p) => p.id === line.productId) : undefined
     const offer = item && line.unitPrice === item.sellingPrice ? bestOffer(offers, item) : null
     if (offer && item) line = { ...line, unitPrice: offerPrice(offer, item.sellingPrice), offerId: offer.id, offerName: offer.name }
+    if (separate) {
+      setCart((current) => [...current, { ...line, unitPrice: fitPrice(item, line.quantity, line.unitPrice) }])
+      if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
+      return
+    }
     const qty = pendingQty ?? 1
     if (pendingQty) { line = { ...line, quantity: pendingQty, unitPrice: fitPrice(item, pendingQty, line.unitPrice) }; setSearch('') }
     setCart((current) => {

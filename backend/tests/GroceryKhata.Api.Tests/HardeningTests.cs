@@ -128,6 +128,27 @@ public sealed class HardeningTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_weighing_scale_label_layout_is_kept_checked_and_cleared()
+    {
+        var (shop, _) = await api.SignUpAsync("Scale Store");
+        string? Layout(string json) => JsonDocument.Parse(json).RootElement.GetProperty("scaleLabel").GetString();
+        Assert.Null(Layout(await shop.GetStringAsync("/api/v1/shop")));
+
+        foreach (var bad in new[] { "21PPPPPWWWWW", "31PPPPPWWWWWC", "21PPPWWWWWWWC", "21PPPPPWWRRRC", "21PPPPPWWWWW5" })
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Scale Store", scaleLabel = bad })).StatusCode);
+        }
+
+        (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Scale Store", scaleLabel = "2xPPPPPRRRRRC" })).EnsureSuccessStatusCode();
+        Assert.Equal("2xPPPPPRRRRRC", Layout(await shop.GetStringAsync("/api/v1/shop")));
+        // An older app that doesn't send it keeps it; an empty one clears it.
+        (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Scale Store" })).EnsureSuccessStatusCode();
+        Assert.Equal("2xPPPPPRRRRRC", Layout(await shop.GetStringAsync("/api/v1/shop")));
+        (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Scale Store", scaleLabel = "" })).EnsureSuccessStatusCode();
+        Assert.Null(Layout(await shop.GetStringAsync("/api/v1/shop")));
+    }
+
+    [Fact]
     public async Task A_bill_prefix_goes_on_new_bills_only_and_the_shops_own_fields_print_on_the_bill()
     {
         var (shop, _) = await api.SignUpAsync("Prefix Store");

@@ -11739,6 +11739,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("reminder_template");
 
+                    b.Property<string>("ScaleLabel")
+                        .HasColumnType("text")
+                        .HasColumnName("scale_label");
+
                     b.Property<string>("ShopNo")
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")

@@ -1181,6 +1181,8 @@ export const enMore = {
     prefixHint: '1 to 3 letters or digits (your shop\'s initials). Bills already made keep their number; numbering goes on as before.',
     fields: 'Your own bill fields', fieldsHint: 'Up to 4, filled on the bill screen and printed on the bill. Leave empty for none.',
     example0: 'PO no.', example1: 'Doctor', example2: 'Delivery date', example3: 'Site',
+    scale: 'Weighing scale labels', scaleOff: 'Off', scaleWeight: 'Weight on label', scalePrice: 'Price on label', scaleOwn: 'Layout',
+    scaleHint: 'Set this if your scale prints barcode stickers. Give each loose item its scale code as its barcode, with the zeros the label prints (like 00123); scanning a sticker then bills that item at the weight or price on it. Layout: P item code, W grams, R paise, C check digit. Your scale\'s manual shows its layout.',
   },
   passcode: {
     title: 'Passcodes', on: 'On', off: 'Off', set: 'Set passcode', change: 'Change', remove: 'Remove',
