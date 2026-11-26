@@ -5,11 +5,11 @@ namespace GroceryKhata.Api.Tests;
 public class SlugTests
 {
     [Fact]
-    public void A_shop_link_is_its_name_and_an_eight_character_code()
+    public void A_shop_link_is_its_name_and_a_twelve_character_code()
     {
         var slug = AuthService.NewSlug("Sharma General Store");
-        Assert.Matches("^sharma-general-store-[0-9a-f]{8}$", slug);
-        Assert.Matches("^shop-[0-9a-f]{8}$", AuthService.NewSlug("॥ ॥"));
+        Assert.Matches("^sharma-general-store-[0-9a-f]{12}$", slug);
+        Assert.Matches("^shop-[0-9a-f]{12}$", AuthService.NewSlug("॥ ॥"));
     }
 
     [Fact]
