@@ -2,7 +2,7 @@
  * Prints to a Bluetooth (BLE) thermal printer straight from the browser (Chrome on Android, Windows, Mac; not iPhone).
  * The shop picks the printer once; after that the same printer is used until it fails, then they pick again.
  */
-import { dotsFor, drawReceipt, rasterBytes, type ReceiptRow } from './escpos'
+import { DRAWER_KICK, dotsFor, drawReceipt, rasterBytes, type ReceiptRow } from './escpos'
 
 // The services cheap ESC/POS printers (Goojprt, Xprinter, MTP, Rongta, Epson TM-m…) offer for writing.
 const SERVICES = [
@@ -69,9 +69,26 @@ async function send(c: Characteristic, bytes: Uint8Array) {
   }
 }
 
-/** Prints the receipt; `choose` asks for the printer again. Returns the printer's name. */
-export async function bluetoothPrint(rows: ReceiptRow[], paper: string, choose = false): Promise<string> {
-  const bytes = rasterBytes(drawReceipt(rows, dotsFor(paper)))
+/** Open the cash drawer on this device, if it opens drawers (see drawerOnCashBill). */
+const DRAWER_KEY = 'gk-cash-drawer'
+export function drawerOnCashBill(): boolean {
+  try { return localStorage.getItem(DRAWER_KEY) === '1' } catch { return false }
+}
+export function setDrawerOnCashBill(on: boolean) {
+  try { if (on) localStorage.setItem(DRAWER_KEY, '1'); else localStorage.removeItem(DRAWER_KEY) } catch { /* no storage */ }
+}
+
+/** Open the cash drawer through the Bluetooth printer it plugs into, with nothing printed. Returns the printer's name. */
+export async function openDrawer(choose = false): Promise<string> {
+  return sendBytes(new Uint8Array(DRAWER_KICK), choose)
+}
+
+/** Prints the receipt (and opens the cash drawer after it, if asked); `choose` asks for the printer again. Returns the printer's name. */
+export async function bluetoothPrint(rows: ReceiptRow[], paper: string, choose = false, withDrawer = false): Promise<string> {
+  return sendBytes(rasterBytes(drawReceipt(rows, dotsFor(paper)), 96, withDrawer), choose)
+}
+
+async function sendBytes(bytes: Uint8Array, choose: boolean): Promise<string> {
   try {
     await send(await connect(choose), bytes)
   } catch (e) {

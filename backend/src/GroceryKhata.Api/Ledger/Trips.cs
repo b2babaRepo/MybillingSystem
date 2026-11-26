@@ -183,7 +183,7 @@ public static class Trips
 
         db.Trips.Add(new Trip
         {
-            Id = request.Id, Number = (await db.Trips.MaxAsync(t => (int?)t.Number, ct) ?? 0) + 1, Technician = technician, Place = place,
+            Id = request.Id, Number = await db.NextNumberAsync<Trip>(ct), Technician = technician, Place = place,
             StartedAt = clock.GetUtcNow(), CreatedByUserId = user.UserId()!.Value,
         });
         await db.SaveChangesAsync(ct);

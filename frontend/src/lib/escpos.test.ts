@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dotsFor, rasterBytes } from './escpos'
+import { DRAWER_KICK, dotsFor, rasterBytes } from './escpos'
 
 describe('rasterBytes', () => {
   it('sends a reset, the picture in bands, then feed and cut', () => {
@@ -23,5 +23,15 @@ describe('rasterBytes', () => {
   it('knows the roll widths', () => {
     expect(dotsFor('58')).toBe(384)
     expect(dotsFor('80')).toBe(576)
+  })
+})
+
+describe('cash drawer kick', () => {
+  const image = { width: 8, height: 1, black: () => false }
+  it('pulses the drawer after the receipt only when asked', () => {
+    const tail = (bytes: Uint8Array) => [...bytes.slice(-5)]
+    expect(tail(rasterBytes(image, 96, true))).toEqual(DRAWER_KICK)
+    expect(tail(rasterBytes(image))).not.toEqual(DRAWER_KICK)
+    expect(DRAWER_KICK).toEqual([0x1b, 0x70, 0x00, 0x19, 0xfa])
   })
 })

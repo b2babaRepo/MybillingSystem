@@ -55,6 +55,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     dealerDiscountPercent: String(initial.dealerDiscountPercent ?? 0),
     billPrefix: initial.billPrefix ?? '',
     billFields: [0, 1, 2, 3].map((i) => initial.billFields?.[i] ?? ''),
+    scaleLabel: initial.scaleLabel ?? '',
   })
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
@@ -63,7 +64,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   async function save() {
     setMessage('')
     try {
-      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, cashReceiptLimit: Number(form.cashReceiptLimit) || 200000, panFrom: Number(form.panFrom) || 200000, cashPayoutLimit: Number(form.cashPayoutLimit) || 0, girviState: form.girviState, girviLicence: form.girviLicence, girviMaxYearlyRate: Number(form.girviMaxYearlyRate) || 0, girviNoticeDays: Number(form.girviNoticeDays) || 0, contractorDiscountPercent: Number(form.contractorDiscountPercent) || 0, dealerDiscountPercent: Number(form.dealerDiscountPercent) || 0, billPrefix: form.billPrefix.trim(), billFields: form.billFields.map((f) => f.trim()).filter(Boolean), extraTypes: extra.filter((x) => x !== form.type) })
+      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, cashReceiptLimit: Number(form.cashReceiptLimit) || 200000, panFrom: Number(form.panFrom) || 200000, cashPayoutLimit: Number(form.cashPayoutLimit) || 0, girviState: form.girviState, girviLicence: form.girviLicence, girviMaxYearlyRate: Number(form.girviMaxYearlyRate) || 0, girviNoticeDays: Number(form.girviNoticeDays) || 0, contractorDiscountPercent: Number(form.contractorDiscountPercent) || 0, dealerDiscountPercent: Number(form.dealerDiscountPercent) || 0, scaleLabel: form.scaleLabel.trim(), billPrefix: form.billPrefix.trim(), billFields: form.billFields.map((f) => f.trim()).filter(Boolean), extraTypes: extra.filter((x) => x !== form.type) })
       queryClient.setQueryData([shopId, 'settings'], saved)
       setMessage(t('settings.saved'))
     } catch (err) {
@@ -179,6 +180,21 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
             ))}
           </div>
           <p className="text-xs text-muted">{t('billSetup.fieldsHint')}</p>
+        </div>
+        <div className="flex flex-col gap-2 rounded-2xl border border-line p-3">
+          <span className="text-sm font-semibold text-muted">{t('billSetup.scale')}</span>
+          <div className="flex flex-wrap gap-2">
+            {([['', 'scaleOff'], ['21PPPPPWWWWWC', 'scaleWeight'], ['21PPPPPRRRRRC', 'scalePrice']] as const).map(([layout, key]) => (
+              <button key={key} type="button" onClick={() => setForm({ ...form, scaleLabel: layout })} aria-pressed={form.scaleLabel === layout}
+                className={`min-h-11 rounded-xl border-2 px-3 text-sm font-semibold ${form.scaleLabel === layout ? 'border-brand bg-brand-soft text-brand-strong' : 'border-line'}`}>{t(`billSetup.${key}`)}</button>
+            ))}
+          </div>
+          {form.scaleLabel && <label className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted">{t('billSetup.scaleOwn')}</span>
+            <input value={form.scaleLabel} onChange={(e) => setForm({ ...form, scaleLabel: e.target.value.replace(/[^0-9xPWRC]/g, '').slice(0, 13) })} maxLength={13}
+              className="h-11 w-48 rounded-xl border border-line bg-white px-3 font-mono outline-none focus:border-brand-line" />
+          </label>}
+          <p className="text-xs text-muted">{t('billSetup.scaleHint')}</p>
         </div>
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-muted">{t('slip.daysLabel')}</span>

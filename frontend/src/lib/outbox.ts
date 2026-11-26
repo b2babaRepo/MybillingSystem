@@ -2,7 +2,7 @@ import { NetworkError, problemMessage, readProblem, request } from './api'
 import { getSession } from './session'
 import { db } from './db'
 
-export type OutboxKind = 'customer' | 'product' | 'khata' | 'bill' | 'reverse' | 'listItem' | 'listItemDelete' | 'order' | 'stock' | 'expense' | 'expenseStrike' | 'orderAction' | 'supplier' | 'estimateBilled' | 'saleOrderDelivered'
+export type OutboxKind = 'customer' | 'product' | 'khata' | 'bill' | 'reverse' | 'listItem' | 'listItemDelete' | 'order' | 'stock' | 'expense' | 'expenseStrike' | 'orderAction' | 'supplier' | 'estimateBilled' | 'saleOrderDelivered' | 'creditNote'
 
 /**
  * One write waiting to reach the server. Every write in the app goes through here, online or not:
@@ -28,6 +28,8 @@ export interface OutboxOp {
   method?: 'POST' | 'PUT' | 'DELETE'
   /** For household list ops: which list. */
   listKind?: 'monthly' | 'weekly'
+  /** A return made offline: the bill passcode typed then, sent with it (the server checks it). Gone once sent. */
+  passcode?: string
   /** Short text for the sync screen, e.g. "Ramesh ₹340 udhaar". */
   label: string
   createdAt: string
@@ -136,7 +138,7 @@ async function flushShop(shopId: string): Promise<void> {
 
         let response: Response
         try {
-          response = await request(op.path, op.method ?? 'POST', op.method === 'DELETE' ? undefined : op.body)
+          response = await request(op.path, op.method ?? 'POST', op.method === 'DELETE' ? undefined : op.body, op.passcode ? { 'X-Bill-Passcode': op.passcode } : undefined)
         } catch (error) {
           if (error instanceof NetworkError) {
             syncState = 'offline'

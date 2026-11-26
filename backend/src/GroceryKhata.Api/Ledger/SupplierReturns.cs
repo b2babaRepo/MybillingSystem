@@ -126,7 +126,7 @@ public static class SupplierReturns
         var batched = (await db.ProductBatches.AsNoTracking().Where(b => involved.Contains(b.ProductId)).Select(b => b.ProductId).Distinct().ToListAsync(ct)).ToHashSet();
         var record = new SupplierReturn
         {
-            Id = request.Id, Number = (await db.SupplierReturns.MaxAsync(r => (int?)r.Number, ct) ?? 0) + 1, SupplierId = request.SupplierId, OccurredAt = now, CreatedByUserId = userId,
+            Id = request.Id, Number = await db.NextNumberAsync<SupplierReturn>(ct), SupplierId = request.SupplierId, OccurredAt = now, CreatedByUserId = userId,
         };
         foreach (var line in lines)
         {

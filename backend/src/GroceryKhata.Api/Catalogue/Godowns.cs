@@ -257,7 +257,7 @@ public static class Godowns
         var note = request.Note?.Trim();
         var transfer = new StockTransfer
         {
-            Id = request.Id, Number = (await db.StockTransfers.MaxAsync(t => (int?)t.Number, ct) ?? 0) + 1, FromGodownId = request.FromGodownId, ToGodownId = request.ToGodownId,
+            Id = request.Id, Number = await db.NextNumberAsync<StockTransfer>(ct), FromGodownId = request.FromGodownId, ToGodownId = request.ToGodownId,
             Note = string.IsNullOrEmpty(note) ? null : note[..Math.Min(200, note.Length)], OccurredAt = clock.GetUtcNow(), CreatedByUserId = user.UserId()!.Value,
             Lines = lines.Select(l => new StockTransferLine { ProductId = l.ProductId, Quantity = l.Quantity, Bags = l.Bags is > 0 ? l.Bags : null }).ToList(),
         };
@@ -292,7 +292,7 @@ public static class Godowns
 
         db.StockTransfers.Add(new StockTransfer
         {
-            Id = id, Number = (await db.StockTransfers.MaxAsync(t => (int?)t.Number, ct) ?? 0) + 1, FromGodownId = from, ToGodownId = to, Note = note[..Math.Min(200, note.Length)],
+            Id = id, Number = await db.NextNumberAsync<StockTransfer>(ct), FromGodownId = from, ToGodownId = to, Note = note[..Math.Min(200, note.Length)],
             OccurredAt = now, CreatedByUserId = userId,
             Lines = lines.Select(l => new StockTransferLine { ProductId = l.ProductId, Quantity = l.Quantity }).ToList(),
         });

@@ -1,9 +1,12 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Persistence;
 using GroceryKhata.Api.Planner;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace GroceryKhata.Api.Ledger;
 
@@ -127,7 +130,8 @@ public static class KhataViewEndpoints
     private static readonly TimeSpan RenewWithin = TimeSpan.FromDays(7);
 
     /// <summary>The customer's link: the same one while it works, so links already sent keep working.</summary>
-    private static async Task<IResult> GetOrCreateLinkAsync(Guid id, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    private static async Task<IResult> GetOrCreateLinkAsync(
+        Guid id, AppDbContext db, ITenantContext tenant, IOptions<Billing.BillingOptions> billing, TimeProvider clock, CancellationToken ct)
     {
         var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
         if (customer is null)
@@ -135,18 +139,15 @@ public static class KhataViewEndpoints
             return TypedResults.NotFound();
         }
 
-        if (customer.KhataToken is null || customer.KhataTokenAt is not { } made || made + LinkLife - RenewWithin <= DateTimeOffset.UtcNow)
-        {
-            (customer.KhataToken, customer.KhataTokenAt) = (Secrets.NewRefreshToken(), DateTimeOffset.UtcNow);
-            await db.SaveChangesAsync(ct);
-        }
-
+        var token = CurrentLinkToken(customer, billing.Value.BillLinkKey, clock.GetUtcNow());
+        await db.SaveChangesAsync(ct);
         var slug = await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.Slug).SingleAsync(ct);
-        return TypedResults.Ok(new KhataLinkDto(slug, customer.Id, customer.KhataToken));
+        return TypedResults.Ok(new KhataLinkDto(slug, customer.Id, token));
     }
 
     /// <summary>A new link for a lost or forwarded one: the old link stops working at once.</summary>
-    private static async Task<IResult> ResetLinkAsync(Guid id, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    private static async Task<IResult> ResetLinkAsync(
+        Guid id, AppDbContext db, ITenantContext tenant, IOptions<Billing.BillingOptions> billing, TimeProvider clock, CancellationToken ct)
     {
         var customer = await db.Customers.SingleOrDefaultAsync(c => c.Id == id, ct);
         if (customer is null)
@@ -154,17 +155,56 @@ public static class KhataViewEndpoints
             return TypedResults.NotFound();
         }
 
-        (customer.KhataToken, customer.KhataTokenAt) = (Secrets.NewRefreshToken(), DateTimeOffset.UtcNow);
+        var token = NewLinkToken(customer, billing.Value.BillLinkKey, clock.GetUtcNow());
         await db.SaveChangesAsync(ct);
         var slug = await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.Slug).SingleAsync(ct);
-        return TypedResults.Ok(new KhataLinkDto(slug, customer.Id, customer.KhataToken));
+        return TypedResults.Ok(new KhataLinkDto(slug, customer.Id, token));
     }
+
+    /// <summary>
+    /// What <see cref="Customer.KhataToken"/> holds for a link made before links were signed: a hash of its token, put
+    /// there by the KhataLinksSigned migration. Such a link still opens until it expires, but its token can't be sent again.
+    /// </summary>
+    private const string LegacyPrefix = "h:";
+
+    /// <summary>
+    /// The token in a khata link: signed with Billing:BillLinkKey from the customer and the random value kept in
+    /// <see cref="Customer.KhataToken"/>. The database alone can't open anyone's khata, and a new random value
+    /// (a reset, or a new phone number) stops the old link.
+    /// </summary>
+    internal static string LinkToken(string key, Guid customerId, string nonce) =>
+        System.Buffers.Text.Base64Url.EncodeToString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(key), Encoding.UTF8.GetBytes($"khata:{customerId:N}:{nonce}")));
+
+    /// <summary>The hash a pre-signing token was stored as (matches the migration's SQL).</summary>
+    internal static string LegacyHash(string token) => LegacyPrefix + Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+    /// <summary>A fresh link for this customer, ending the one before. Save the customer after.</summary>
+    internal static string NewLinkToken(Customer customer, string key, DateTimeOffset now)
+    {
+        (customer.KhataToken, customer.KhataTokenAt) = (Secrets.NewRefreshToken(), now);
+        return LinkToken(key, customer.Id, customer.KhataToken);
+    }
+
+    /// <summary>
+    /// The customer's link token: the same one while it works; a fresh one when there is none, it is in its last week
+    /// or over, or it was made before links were signed. Save the customer after.
+    /// </summary>
+    internal static string CurrentLinkToken(Customer customer, string key, DateTimeOffset now) =>
+        customer.KhataToken is { } nonce && !nonce.StartsWith(LegacyPrefix, StringComparison.Ordinal)
+            && customer.KhataTokenAt is { } made && made + LinkLife - RenewWithin > now
+            ? LinkToken(key, customer.Id, nonce)
+            : NewLinkToken(customer, key, now);
+
+    private static bool LinkMatches(string key, Guid customerId, string stored, string t) =>
+        stored.StartsWith(LegacyPrefix, StringComparison.Ordinal)
+            ? CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(stored), Encoding.UTF8.GetBytes(LegacyHash(t)))
+            : CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(LinkToken(key, customerId, stored)), Encoding.UTF8.GetBytes(t));
 
     /// <summary>The page behind the link. A wrong or missing token looks exactly like no such khata.</summary>
     private static async Task<IResult> GetByLinkAsync(
-        string slug, Guid customerId, string? t, AppDbContext db, TenantContext tenant, LedgerService ledger, TimeProvider clock, CancellationToken ct)
+        string slug, Guid customerId, string? t, AppDbContext db, TenantContext tenant, IOptions<Billing.BillingOptions> billing, LedgerService ledger, TimeProvider clock, CancellationToken ct)
     {
-        if (await OpenByLinkAsync(slug, customerId, t, db, tenant, ct) is not { } shop)
+        if (await OpenByLinkAsync(slug, customerId, t, db, tenant, billing, ct) is not { } shop)
         {
             return TypedResults.NotFound();
         }
@@ -178,7 +218,7 @@ public static class KhataViewEndpoints
     /// an unknown customer or a closed shop: all look the same from outside.
     /// </summary>
     internal static async Task<StoreEndpoints.OpenShop?> OpenByLinkAsync(
-        string slug, Guid customerId, string? t, AppDbContext db, TenantContext tenant, CancellationToken ct)
+        string slug, Guid customerId, string? t, AppDbContext db, TenantContext tenant, IOptions<Billing.BillingOptions> billing, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(t) || await StoreEndpoints.OpenShopAsync(db, tenant, slug, ct) is not { } shop)
         {
@@ -186,9 +226,8 @@ public static class KhataViewEndpoints
         }
 
         var link = await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new { c.KhataToken, c.KhataTokenAt }).SingleOrDefaultAsync(ct);
-        var token = link is { KhataTokenAt: { } made } && made + LinkLife > DateTimeOffset.UtcNow ? link.KhataToken : null;
-        return token is not null && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
-            System.Text.Encoding.UTF8.GetBytes(token), System.Text.Encoding.UTF8.GetBytes(t)) ? shop : null;
+        var stored = link is { KhataTokenAt: { } made } && made + LinkLife > DateTimeOffset.UtcNow ? link.KhataToken : null;
+        return stored is not null && LinkMatches(billing.Value.BillLinkKey, customerId, stored, t) ? shop : null;
     }
 
     /// <summary>

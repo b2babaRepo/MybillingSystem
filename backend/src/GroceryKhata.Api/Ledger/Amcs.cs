@@ -120,7 +120,7 @@ public static class Amcs
 
     private static async Task<IResult> SignAsync(AppDbContext db, LedgerService ledger, ClaimsPrincipal user, Amc amc, decimal paid, PaymentMode? mode, Amc? renewing, CancellationToken ct)
     {
-        amc.Number = (await db.Amcs.MaxAsync(a => (int?)a.Number, ct) ?? 0) + 1;
+        amc.Number = await db.NextNumberAsync<Amc>(ct);
         var bill = await ledger.CreateBillAsync(
             new BillRequest(Guid.CreateVersion7(), amc.CustomerId, [new BillLineRequest(null, $"AMC #{amc.Number}: {amc.Title} ({amc.StartOn:dd MMM yyyy} to {EndsOn(amc):dd MMM yyyy})", 1, Unit.Piece, amc.Fee)],
                 paid, mode, null),
@@ -152,7 +152,7 @@ public static class Amcs
 
         db.Jobs.Add(new Job
         {
-            Id = request.JobId, Number = (await db.Jobs.MaxAsync(j => (int?)j.Number, ct) ?? 0) + 1, CustomerId = amc.CustomerId, Status = JobStatus.Order,
+            Id = request.JobId, Number = await db.NextNumberAsync<Job>(ct), CustomerId = amc.CustomerId, Status = JobStatus.Order,
             Title = $"AMC #{amc.Number} visit {done + 1} of {amc.Visits}: {amc.Title}", SerialNo = amc.SerialNo, AmcId = amc.Id,
         });
         await db.SaveChangesAsync(ct);

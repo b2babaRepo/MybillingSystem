@@ -64,3 +64,46 @@ export function normBarcode(code: string | null | undefined) {
 
 /** A camera can be used here (a phone or laptop with a camera API). On a page that isn't https the scanner says so. */
 export const cameraPossible = () => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
+
+/**
+ * A weighing scale's label barcode, read with the shop's label layout (13 characters, like 21PPPPPWWWWWC): fixed digits
+ * and x (any digit), P the item's code on the scale, W the weight in grams or R the price in paise, C the EAN check digit.
+ * Null when the code isn't a label of that layout or its check digit is wrong (a misread).
+ */
+export function readScaleLabel(code: string, layout: string | null | undefined): { itemCode: string; kg?: number; price?: number } | null {
+  if (!layout || layout.length !== 13 || !/^\d{13}$/.test(code)) return null
+  let itemCode = ''
+  let value = ''
+  for (let i = 0; i < 13; i++) {
+    const want = layout[i]
+    const got = code[i]
+    if (want === 'P') itemCode += got
+    else if (want === 'W' || want === 'R') value += got
+    else if (/\d/.test(want) && want !== got) return null
+  }
+  const sum = [...code.slice(0, 12)].reduce((s, d, i) => s + Number(d) * (i % 2 ? 3 : 1), 0)
+  if ((10 - (sum % 10)) % 10 !== Number(code[12]) || !itemCode || !value) return null
+  return layout.includes('W') ? { itemCode, kg: Number(value) / 1000 } : { itemCode, price: Number(value) / 100 }
+}
+
+/** The same item code on the scale and in the app, with or without leading zeros (00123 is 123). */
+export const sameItemCode = (a: string | null | undefined, b: string) => !!a && /^\d{1,6}$/.test(a) && Number(a) === Number(b)
+
+/** The item a scanned code is: its main barcode or one of its extra ones. Codes shorter than 4 never match. */
+export function itemForBarcode<T extends { barcode?: string | null; extraBarcodes?: string[] | null }>(products: T[], code: string): T | undefined {
+  const clean = normBarcode(code)
+  if (clean.length < 4) return undefined
+  return products.find((p) => (!!p.barcode && normBarcode(p.barcode) === clean) || !!p.extraBarcodes?.some((c) => normBarcode(c) === clean))
+}
+
+/** Every code (main and extra) to its item, so a scan finds it at once in a 20,000-item shop. First item wins a clash. */
+export function barcodeIndex<T extends { barcode?: string | null; extraBarcodes?: string[] | null }>(products: T[]): Map<string, T> {
+  const index = new Map<string, T>()
+  for (const p of products) {
+    for (const code of [p.barcode, ...(p.extraBarcodes ?? [])]) {
+      const clean = normBarcode(code)
+      if (clean.length >= 4 && !index.has(clean)) index.set(clean, p)
+    }
+  }
+  return index
+}

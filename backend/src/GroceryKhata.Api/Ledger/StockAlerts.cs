@@ -42,7 +42,11 @@ public sealed record PushSubscribeRequest(string? Endpoint, string? P256dh, stri
 /// <summary><see cref="NameEn"/>, <see cref="NameHi"/>: the item's list names, so the app shows the one for its language.</summary>
 public sealed record OrderTodayItem(Guid ProductId, string Name, decimal Stock, decimal? DaysLeft, decimal Suggested, int LeadDays, string? NameEn = null, string? NameHi = null);
 
-public sealed record OrderTodayDto(int Count, IReadOnlyList<OrderTodayItem> Items);
+/// <summary>
+/// <see cref="Total"/>: what the whole list costs at each item's last purchase rate (all of it, not only the items shown);
+/// <see cref="Unpriced"/>: items with no rate yet, left out of the total. Both for the owner only (what goods cost is theirs).
+/// </summary>
+public sealed record OrderTodayDto(int Count, IReadOnlyList<OrderTodayItem> Items, decimal? Total = null, int? Unpriced = null);
 
 /// <summary>
 /// Reminders before stock runs out: the "order today" list (from sales and each supplier's delivery time, see
@@ -58,7 +62,8 @@ public static class StockAlerts
 
     public static IEndpointRouteBuilder MapStockAlerts(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/stock/order-today", async (AppDbContext db, TimeProvider clock, CancellationToken ct) => await OrderTodayAsync(db, clock, ct))
+        app.MapGet("/api/v1/stock/order-today", async (System.Security.Claims.ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+                await OrderTodayAsync(db, clock, ct) is var today && LedgerEndpoints.IsOwner(user) ? today : today with { Total = null, Unpriced = null })
             .WithTags("Stock").RequireAuthorization(AppPolicies.ShopMember);
         var push = app.MapGroup("/api/v1/push").WithTags("Stock").RequireAuthorization(AppPolicies.ShopMember);
         push.MapGet("/key", async (AppDbContext db, CancellationToken ct) => Results.Ok(new { key = (await KeysAsync(db, ct)).PublicKey }));
@@ -93,7 +98,8 @@ public static class StockAlerts
                 En = p.MasterItem != null ? p.MasterItem.Name : p.CatalogueItem != null ? p.CatalogueItem.NameEn : null,
                 Hi = p.MasterItem != null ? p.MasterItem.NameHi : p.CatalogueItem != null ? p.CatalogueItem.Name : null,
             }).ToDictionaryAsync(p => p.Id, ct);
-        return new OrderTodayDto(items.Count, shown.Select(i => names.TryGetValue(i.ProductId, out var n) ? i with { NameEn = n.En, NameHi = n.Hi } : i).ToList());
+        return new OrderTodayDto(items.Count, shown.Select(i => names.TryGetValue(i.ProductId, out var n) ? i with { NameEn = n.En, NameHi = n.Hi } : i).ToList(),
+            decimal.Round(lines.Sum(l => l.Suggested * (l.LastRate ?? 0)), 2), lines.Count(l => l.LastRate is null));
     }
 
     private static async Task<IResult> SubscribeAsync(PushSubscribeRequest request, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, CancellationToken ct)

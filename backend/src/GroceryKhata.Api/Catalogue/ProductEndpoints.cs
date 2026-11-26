@@ -100,9 +100,17 @@ public sealed record ProductDto(
     decimal? WholesalePrice = null,
     decimal? WholesaleMinQty = null,
     // More photos beyond the main one, oldest first (see ProductExtraPhoto).
-    IReadOnlyList<Guid>? ExtraPhotos = null);
+    IReadOnlyList<Guid>? ExtraPhotos = null,
+    // More codes that scan as this item, beside Barcode.
+    IReadOnlyList<string>? ExtraBarcodes = null);
 
 public sealed record OutTodayRequest(bool Out);
+
+/// <summary>Items changed since a time (all of them when <see cref="Full"/>), and the ids of items removed since then.</summary>
+public sealed record ProductChanges(DateTimeOffset At, bool Full, IReadOnlyList<ProductDto> Changed, IReadOnlyList<Guid> Removed)
+{
+    public static readonly TimeSpan Overlap = TimeSpan.FromMinutes(2);
+}
 
 /// <summary>Open sealed bags to sell loose: the bag count goes down, the weight doesn't change.</summary>
 public sealed record OpenBagRequest(Guid Id, decimal Bags);
@@ -136,7 +144,9 @@ public sealed record ImportRow(
     string? Name, Unit? Unit, decimal? SellingPrice, decimal? CostPrice, string? Category, decimal? OpeningStock, decimal? ReorderLevel,
     int? CatalogueItemId = null, decimal? PackSize = null, Unit? PackUnit = null, decimal? GstRate = null, string? HsnCode = null,
     bool IsService = false, int? DurationMinutes = null, DrugSchedule? Schedule = null, int? UnitsPerPack = null, bool TracksSerials = false, int? WarrantyMonths = null,
-    int? MasterItemId = null, string? StyleName = null, string? Size = null);
+    int? MasterItemId = null, string? StyleName = null, string? Size = null,
+    // Made to order or a service the shop sells (a dish, an extra bed, DJ hire): never counted as stock.
+    bool Uncounted = false);
 
 /// <summary>One item's new rate on the "today's rates" screen.</summary>
 public sealed record RateChange(Guid ProductId, decimal SellingPrice);
@@ -167,6 +177,8 @@ public static class ProductEndpoints
 
         products.MapGet("", (string? search, string? category, bool? low, string? sort, StockService stock, CancellationToken ct) =>
             stock.ListAsync(search, category, low == true, ct, popular: sort == "popular"));
+
+        products.MapGet("/changes", (DateTimeOffset? since, StockService stock, CancellationToken ct) => stock.ChangesAsync(since, ct));
 
         products.MapGet("/categories", (StockService stock, CancellationToken ct) => stock.CategoriesAsync(ct));
 
@@ -315,15 +327,20 @@ public static class ProductEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["The last digit of this barcode doesn't match the rest: check the number on the pack, or scan it again."] });
             }
 
-            if (code.Length > 0 && await db.Products.AnyAsync(p => p.Id != id && p.Barcode == code && p.IsActive, ct))
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await Barcodes.LockAsync(db, ct);
+            if (code.Length > 0 && await Barcodes.TakenAsync(db, code, id, ct))
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["Another item already has this barcode."] });
             }
 
             product.Barcode = code.Length > 0 ? code : null;
+            // Made its main code: no longer listed among its extra ones.
+            product.ExtraBarcodes = product.ExtraBarcodes.Where(c => c != code).ToArray();
             try
             {
                 await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
             }
             catch (DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: "23505" })
             {
@@ -331,7 +348,67 @@ public static class ProductEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["Another item already has this barcode."] });
             }
 
-            return Results.Ok(new { product.Barcode });
+            return Results.Ok(new { product.Barcode, product.ExtraBarcodes });
+        });
+
+        // Another code that scans as this item (a new pack design, the same item from another maker, a carton's code).
+        products.MapPost("/{id:guid}/barcodes", async (Guid id, BarcodeRequest request, AppDbContext db, CancellationToken ct) =>
+        {
+            var code = Barcodes.Normalize(request.Barcode);
+            if (code.Length is < 4 or > 30)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["A barcode is 4 to 30 letters and digits."] });
+            }
+
+            if (!Barcodes.CheckDigitOk(code))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["The last digit of this barcode doesn't match the rest: check the number on the pack, or scan it again."] });
+            }
+
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await Barcodes.LockAsync(db, ct);
+            var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id, ct);
+            if (product is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (await Barcodes.TakenAsync(db, code, id, ct))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = ["Another item already has this barcode."] });
+            }
+
+            if (product.Barcode is null)
+            {
+                product.Barcode = code;
+            }
+            else if (product.Barcode != code && !product.ExtraBarcodes.Contains(code))
+            {
+                if (product.ExtraBarcodes.Length >= Barcodes.MaxExtra)
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["Barcode"] = [$"An item can have up to {Barcodes.MaxExtra} more barcodes. Remove one first."] });
+                }
+
+                product.ExtraBarcodes = [.. product.ExtraBarcodes, code];
+            }
+
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return Results.Ok(new { product.Barcode, product.ExtraBarcodes });
+        });
+
+        products.MapDelete("/{id:guid}/barcodes/{code}", async (Guid id, string code, AppDbContext db, CancellationToken ct) =>
+        {
+            var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id, ct);
+            if (product is null)
+            {
+                return Results.NotFound();
+            }
+
+            var clean = Barcodes.Normalize(code);
+            product.ExtraBarcodes = product.ExtraBarcodes.Where(c => c != clean).ToArray();
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { product.Barcode, product.ExtraBarcodes });
         });
 
         // A shop code for an item with no barcode of its own (loose clothes): EAN-13 in the in-store range (starts with 2),
@@ -348,7 +425,7 @@ public static class ProductEndpoints
             {
                 // One shop code at a time, so two items made at once never get the same number.
                 await using var transaction = await db.Database.BeginTransactionAsync(ct);
-                await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext('shop_barcodes'))", ct);
+                await Barcodes.LockAsync(db, ct);
                 var used = await db.Products.Where(p => p.Barcode != null && p.Barcode.Length == 13 && p.Barcode.StartsWith("2")).Select(p => p.Barcode!).ToListAsync(ct);
                 var next = used.Select(c => long.TryParse(c[1..12], out var n) ? n : 0).DefaultIfEmpty(0).Max() + 1;
                 var body = "2" + next.ToString("D11");

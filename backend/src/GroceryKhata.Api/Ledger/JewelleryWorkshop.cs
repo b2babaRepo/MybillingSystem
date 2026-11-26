@@ -379,7 +379,7 @@ public static class JewelleryWorkshopEndpoints
         }
 
         if (move.Mode is { } mode && mode is not (PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Bank)) return Invalid("Mode", "Pay by cash, UPI or bank.");
-        move.Number = (await db.MetalMoves.MaxAsync(m => (int?)m.Number, ct) ?? 0) + 1;
+        move.Number = await db.NextNumberAsync<MetalMove>(ct);
         db.MetalMoves.Add(move);
         await db.SaveChangesAsync(ct);
         var names = party is null ? new Dictionary<Guid, string>() : new Dictionary<Guid, string> { [party.Id] = party.Name };

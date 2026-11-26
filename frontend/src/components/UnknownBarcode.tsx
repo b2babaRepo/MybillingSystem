@@ -10,7 +10,8 @@ import { ItemPicker } from './ItemPicker'
 const input = controlSm
 
 /**
- * A scanned code no item has yet: put it on an item the shop already has (a pack whose code was never saved), or
+ * A scanned code no item has yet: put it on an item the shop already has (a pack whose code was never saved, or a
+ * new pack design of an item that has a code: it scans as either), or
  * make a new item with it. Either way the item goes on the bill, and next time the scan finds it.
  */
 export function UnknownBarcode({ shopId, code, products, onItem, onClose }: {
@@ -37,14 +38,15 @@ export function UnknownBarcode({ shopId, code, products, onItem, onClose }: {
   useEffect(() => {
     if (lookup.data?.name && !name) { setName(lookup.data.name); setFilled(true) }
   }, [lookup.data]) // eslint-disable-line react-hooks/exhaustive-deps
-  const without = products.filter((p) => !p.barcode && !p.isService)
-  const picked = without.find((p) => p.name.toLowerCase() === text.trim().toLowerCase())
+  const goods = products.filter((p) => !p.isService)
+  const picked = goods.find((p) => p.name.toLowerCase() === text.trim().toLowerCase())
 
   async function attach() {
     if (!picked) return
     setMessage('')
     try {
-      await api(`/v1/products/${picked.id}/barcode`, 'PUT', { barcode: code })
+      // An item with no code gets this as its code; one that has a code gets it as another (a new pack design).
+      await api(`/v1/products/${picked.id}/barcodes`, 'POST', { barcode: code })
       await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
       onItem(picked)
     } catch (e) {
@@ -80,7 +82,7 @@ export function UnknownBarcode({ shopId, code, products, onItem, onClose }: {
       )}
       {mode === 'attach' && (
         <div className="flex flex-col gap-2">
-          <ItemPicker products={without} text={text} onText={setText} onPick={(p) => setText(p.name)} placeholder={t('scan.whichItem')} />
+          <ItemPicker products={goods} text={text} onText={setText} onPick={(p) => setText(p.name)} placeholder={t('scan.whichItem')} />
           <button type="button" disabled={!picked} onClick={() => void attach()} className={`min-h-11 rounded-xl ${btn.solid}`}>{t('scan.attachSave')}</button>
         </div>
       )}

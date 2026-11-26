@@ -148,9 +148,9 @@ public static class DisputeEndpoints
     }
 
     private static async Task<IResult> RaiseByLinkAsync(
-        string slug, Guid customerId, string? t, RaiseDisputeRequest request, AppDbContext db, TenantContext tenant, TimeProvider clock, CancellationToken ct)
+        string slug, Guid customerId, string? t, RaiseDisputeRequest request, AppDbContext db, TenantContext tenant, Microsoft.Extensions.Options.IOptions<Billing.BillingOptions> billing, TimeProvider clock, CancellationToken ct)
     {
-        if (await KhataViewEndpoints.OpenByLinkAsync(slug, customerId, t, db, tenant, ct) is null)
+        if (await KhataViewEndpoints.OpenByLinkAsync(slug, customerId, t, db, tenant, billing, ct) is null)
         {
             return TypedResults.NotFound();
         }

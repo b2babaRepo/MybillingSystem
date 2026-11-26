@@ -15,6 +15,21 @@ public enum SaleOfferKind
 
     /// <summary>Rupees off each piece.</summary>
     Amount,
+
+    /// <summary>Buy <see cref="SaleOffer.BuyQty"/>, get <see cref="SaleOffer.GetQty"/> more of the same item free.</summary>
+    BuyGet,
+
+    /// <summary>A percent off the covered items once the bill has at least <see cref="SaleOffer.MinQty"/> of them.</summary>
+    Slab,
+
+    /// <summary>One of each item in <see cref="SaleOffer.ProductIds"/> together for <see cref="SaleOffer.ComboPrice"/>.</summary>
+    Combo,
+
+    /// <summary>A percent off the whole bill from <see cref="SaleOffer.MinBill"/>.</summary>
+    BillPercent,
+
+    /// <summary>Rupees off the whole bill from <see cref="SaleOffer.MinBill"/>.</summary>
+    BillAmount,
 }
 
 public enum SaleOfferScope
@@ -52,18 +67,38 @@ public sealed class SaleOffer : Entity, ITenantOwned
     /// <summary>Ended early by the owner.</summary>
     public DateTimeOffset? StoppedAt { get; set; }
 
+    public int? BuyQty { get; set; }
+
+    public int? GetQty { get; set; }
+
+    public decimal? MinQty { get; set; }
+
+    public decimal? MinBill { get; set; }
+
+    public decimal? ComboPrice { get; set; }
+
+    /// <summary>Weekdays it runs (bit 0 Sunday … bit 6 Saturday); null: every day.</summary>
+    public int? Days { get; set; }
+
+    /// <summary>Hours of the day it runs, as minutes after midnight India time (until is exclusive); null: all day.</summary>
+    public int? FromMinute { get; set; }
+
+    public int? ToMinute { get; set; }
+
     public Guid CreatedByUserId { get; set; }
 }
 
 /// <summary><see cref="StartsOn"/> and <see cref="EndsOn"/> are whole days, India time; the offer runs to the end of its last day.</summary>
-public sealed record SaleOfferRequest(Guid Id, string? Name, SaleOfferKind Kind, decimal Value, DateOnly StartsOn, DateOnly EndsOn, SaleOfferScope Scope, string? Category = null, IReadOnlyList<Guid>? ProductIds = null);
+public sealed record SaleOfferRequest(Guid Id, string? Name, SaleOfferKind Kind, decimal Value, DateOnly StartsOn, DateOnly EndsOn, SaleOfferScope Scope, string? Category = null, IReadOnlyList<Guid>? ProductIds = null,
+    int? BuyQty = null, int? GetQty = null, decimal? MinQty = null, decimal? MinBill = null, decimal? ComboPrice = null, int? Days = null, int? FromMinute = null, int? ToMinute = null);
 
 /// <summary>How an offer did: on bills not cancelled. Owners only; null for helpers.</summary>
 public sealed record SaleOfferStats(int Bills, decimal Quantity, decimal Sales, decimal Saved);
 
 public sealed record SaleOfferDto(
     Guid Id, string Name, SaleOfferKind Kind, decimal Value, DateTimeOffset StartsAt, DateTimeOffset EndsAt, SaleOfferScope Scope, string? Category,
-    IReadOnlyList<Guid> ProductIds, DateTimeOffset? StoppedAt, SaleOfferStats? Stats);
+    IReadOnlyList<Guid> ProductIds, DateTimeOffset? StoppedAt, SaleOfferStats? Stats,
+    int? BuyQty = null, int? GetQty = null, decimal? MinQty = null, decimal? MinBill = null, decimal? ComboPrice = null, int? Days = null, int? FromMinute = null, int? ToMinute = null);
 
 public static class SaleOffers
 {
@@ -87,11 +122,12 @@ public static class SaleOffers
 
     /// <summary>Of the running offers on this item, the one with the lowest price for the customer, and that price.</summary>
     public static (SaleOffer Offer, decimal Price)? Best(IEnumerable<SaleOffer> running, Product product, DateTimeOffset at) =>
-        running.Where(o => Covers(o, product, at)).Select(o => (Offer: o, Price: PriceFor(o, product.SellingPrice)))
+        // Only a price per piece is a price the shelf and the online store can show; the other kinds need the whole bill.
+        running.Where(o => o.Kind is SaleOfferKind.Percent or SaleOfferKind.Amount && Covers(o, product, at)).Select(o => (Offer: o, Price: PriceFor(o, product.SellingPrice)))
             .OrderBy(x => x.Price).Cast<(SaleOffer, decimal)?>().FirstOrDefault();
 
     public static bool Covers(SaleOffer offer, Product product, DateTimeOffset at) =>
-        at >= offer.StartsAt && at < (offer.StoppedAt is { } stopped && stopped < offer.EndsAt ? stopped : offer.EndsAt)
+        Promotions.RunsAt(ToRule(offer), at)
         && offer.Scope switch
         {
             SaleOfferScope.Category => product.Category is { } c && string.Equals(c, offer.Category, StringComparison.OrdinalIgnoreCase),
@@ -114,13 +150,29 @@ public static class SaleOffers
                             select new { OfferId = l.OfferId!.Value, l.BillId, l.Quantity, l.Amount, Saved = l.ListPrice == null ? 0 : (l.ListPrice.Value - l.UnitPrice) * l.Quantity }).ToListAsync(ct))
                 .GroupBy(x => x.OfferId)
                 .ToDictionary(g => g.Key, g => new SaleOfferStats(g.Select(x => x.BillId).Distinct().Count(), g.Sum(x => x.Quantity), g.Sum(x => x.Amount), decimal.Round(g.Sum(x => x.Saved), 2)));
+            // A bill offer is on the bill, not its lines: the bills it was taken on, their sales and the money off them.
+            var onBills = await (from b in db.Bills.AsNoTracking()
+                                 where b.BillOfferId != null && ids.Contains(b.BillOfferId.Value) && b.CancelledAt == null
+                                 // Lines an item offer priced keep that offer's saving; the bill offer's is what came off the other lines.
+                                 select new { OfferId = b.BillOfferId!.Value, b.Total, Saved = b.Lines.Where(l => l.OfferId == null).Sum(l => l.ListPrice == null ? 0 : (l.ListPrice.Value - l.UnitPrice) * l.Quantity) }).ToListAsync(ct);
+            foreach (var g in onBills.GroupBy(x => x.OfferId))
+            {
+                stats[g.Key] = new SaleOfferStats(g.Count(), 0, g.Sum(x => x.Total), decimal.Round(g.Sum(x => x.Saved), 2));
+            }
         }
 
         return offers.Select(o => ToDto(o, LedgerEndpoints.IsOwner(user) ? stats.GetValueOrDefault(o.Id) ?? new SaleOfferStats(0, 0, 0, 0) : null)).ToList();
     }
 
     private static SaleOfferDto ToDto(SaleOffer o, SaleOfferStats? stats) =>
-        new(o.Id, o.Name, o.Kind, o.Value, o.StartsAt, o.EndsAt, o.Scope, o.Category, o.ProductIds, o.StoppedAt, stats);
+        new(o.Id, o.Name, o.Kind, o.Value, o.StartsAt, o.EndsAt, o.Scope, o.Category, o.ProductIds, o.StoppedAt, stats,
+            o.BuyQty, o.GetQty, o.MinQty, o.MinBill, o.ComboPrice, o.Days, o.FromMinute, o.ToMinute);
+
+    /// <summary>The offer as the promotion engine reads it (names as in the API and the app: percent, buy_get, bill_amount…).</summary>
+    public static Promotions.Rule ToRule(SaleOffer o) => new(
+        o.Id.ToString(), o.Name, System.Text.Json.JsonNamingPolicy.SnakeCaseLower.ConvertName(o.Kind.ToString()), o.Value, o.StartsAt, o.EndsAt, o.StoppedAt,
+        System.Text.Json.JsonNamingPolicy.SnakeCaseLower.ConvertName(o.Scope.ToString()), o.Category, o.ProductIds,
+        o.BuyQty, o.GetQty, o.MinQty, o.MinBill, o.ComboPrice, o.Days, o.FromMinute, o.ToMinute);
 
     private static async Task<IResult> CreateAsync(SaleOfferRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {
@@ -135,9 +187,15 @@ public static class SaleOffers
             return Invalid("Name", "Give the offer a name, like Summer sale.");
         }
 
-        if (request.Kind == SaleOfferKind.Percent ? request.Value is <= 0 or > 90 || decimal.Round(request.Value, 2) != request.Value : !Money.IsValidAmount(request.Value))
+        if (KindProblem(request) is { } problem)
         {
-            return Invalid("Value", "Enter the discount: 1 to 90 percent, or rupees off each piece.");
+            return Invalid(problem.Field, problem.Message);
+        }
+
+        if (request.Days is < 1 or > 127 || request.FromMinute is < 0 or >= 1440 || request.ToMinute is < 0 or >= 1440
+            || request.FromMinute is null != request.ToMinute is null || (request.FromMinute is { } from && from == request.ToMinute))
+        {
+            return Invalid("Days", "Choose at least one day, and hours with a start and an end.");
         }
 
         if (request.EndsOn < request.StartsOn || request.EndsOn < IndiaTime.Today(clock) || request.EndsOn > request.StartsOn.AddDays(366))
@@ -152,7 +210,12 @@ public static class SaleOffers
             return Invalid("Category", "Choose the category the offer is on.");
         }
 
-        if (request.Scope == SaleOfferScope.Items && (products.Count is 0 or > 500 || await db.Products.CountAsync(p => products.Contains(p.Id), ct) != products.Count))
+        if (request.Kind == SaleOfferKind.Combo && (products.Count is < 2 or > 10 || await db.Products.CountAsync(p => products.Contains(p.Id), ct) != products.Count))
+        {
+            return Invalid("ProductIds", "A combo is 2 to 10 items.");
+        }
+
+        if (request.Kind != SaleOfferKind.Combo && request.Scope == SaleOfferScope.Items && (products.Count is 0 or > 500 || await db.Products.CountAsync(p => products.Contains(p.Id), ct) != products.Count))
         {
             return Invalid("ProductIds", "Choose the items the offer is on.");
         }
@@ -162,12 +225,37 @@ public static class SaleOffers
             Id = request.Id, Name = name, Kind = request.Kind, Value = request.Value, Scope = request.Scope,
             StartsAt = new DateTimeOffset(request.StartsOn.ToDateTime(TimeOnly.MinValue), IndiaTime.Offset).ToUniversalTime(),
             EndsAt = new DateTimeOffset(request.EndsOn.AddDays(1).ToDateTime(TimeOnly.MinValue), IndiaTime.Offset).ToUniversalTime(),
-            Category = request.Scope == SaleOfferScope.Category ? category : null, ProductIds = request.Scope == SaleOfferScope.Items ? products : [],
+            Category = request.Scope == SaleOfferScope.Category ? category : null, ProductIds = request.Scope == SaleOfferScope.Items || request.Kind == SaleOfferKind.Combo ? products : [],
             CreatedByUserId = user.UserId()!.Value,
+            BuyQty = request.Kind == SaleOfferKind.BuyGet ? request.BuyQty : null, GetQty = request.Kind == SaleOfferKind.BuyGet ? request.GetQty : null,
+            MinQty = request.Kind == SaleOfferKind.Slab ? request.MinQty : null,
+            MinBill = request.Kind is SaleOfferKind.BillPercent or SaleOfferKind.BillAmount ? request.MinBill : null,
+            ComboPrice = request.Kind == SaleOfferKind.Combo ? request.ComboPrice : null,
+            Days = request.Days is 127 ? null : request.Days, FromMinute = request.FromMinute, ToMinute = request.ToMinute,
         };
+        if (offer.Kind == SaleOfferKind.Combo)
+        {
+            offer.Scope = SaleOfferScope.Items;
+        }
         db.SaleOffers.Add(offer);
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(ToDto(offer, new SaleOfferStats(0, 0, 0, 0)));
+    }
+
+    /// <summary>What each kind needs: a sensible discount, and its own numbers.</summary>
+    private static (string Field, string Message)? KindProblem(SaleOfferRequest r)
+    {
+        static bool Percent(decimal v) => v is > 0 and <= 90 && decimal.Round(v, 2) == v;
+        return r.Kind switch
+        {
+            SaleOfferKind.Percent or SaleOfferKind.Slab or SaleOfferKind.BillPercent when !Percent(r.Value) => ("Value", "Enter the discount: 1 to 90 percent."),
+            SaleOfferKind.Amount or SaleOfferKind.BillAmount when !Money.IsValidAmount(r.Value) => ("Value", "Enter the rupees off."),
+            SaleOfferKind.BuyGet when r.BuyQty is not (>= 1 and <= 100) || r.GetQty is not (>= 1 and <= 100) => ("BuyQty", "Say how many to buy and how many come free, like buy 2 get 1."),
+            SaleOfferKind.Slab when r.MinQty is not { } q || !Money.IsValidQuantity(q) || q < 2 => ("MinQty", "Say from how many pieces the discount starts (2 or more)."),
+            SaleOfferKind.Combo when r.ComboPrice is not { } c || !Money.IsValidAmount(c) => ("ComboPrice", "Enter the price of the combo."),
+            SaleOfferKind.BillPercent or SaleOfferKind.BillAmount when r.MinBill is not { } b || !Money.IsValidAmount(b) || (r.Kind == SaleOfferKind.BillAmount && r.Value >= b) => ("MinBill", "Enter the bill amount the offer starts from (more than the rupees off)."),
+            _ => null,
+        };
     }
 
     /// <summary>Ends an offer now. Bills already made keep it.</summary>

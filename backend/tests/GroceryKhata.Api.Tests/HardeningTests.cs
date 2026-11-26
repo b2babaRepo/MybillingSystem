@@ -15,6 +15,23 @@ namespace GroceryKhata.Api.Tests;
 public sealed class HardeningTests(ApiFactory api)
 {
     [Fact]
+    public async Task Requests_over_the_limit_are_turned_away_before_any_sign_in_check()
+    {
+        // Three requests a minute from one address: the fourth gets 429 even without a token, so a flood of junk requests
+        // stops at the limiter instead of reaching the token check and the tenant step's database connection.
+        await using var tight = api.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
+            config.AddInMemoryCollection(new Dictionary<string, string?> { ["Security:RequestsPerMinutePerIp"] = "3" })));
+        var anyone = tight.CreateClient();
+        var answers = new List<HttpStatusCode>();
+        for (var i = 0; i < 5; i++)
+        {
+            answers.Add((await anyone.GetAsync("/api/v1/customers")).StatusCode);
+        }
+
+        Assert.Equal([HttpStatusCode.Unauthorized, HttpStatusCode.Unauthorized, HttpStatusCode.Unauthorized, HttpStatusCode.TooManyRequests, HttpStatusCode.TooManyRequests], answers);
+    }
+
+    [Fact]
     public async Task Every_response_carries_security_headers_and_is_never_cached()
     {
         var (shop, _) = await api.SignUpAsync();
@@ -108,6 +125,27 @@ public sealed class HardeningTests(ApiFactory api)
 
         var partial = JsonDocument.Parse(await shop.GetStringAsync("/api/v1/bills/list?status=partial")).RootElement.GetProperty("bills");
         Assert.Equal(newer, Assert.Single(partial.EnumerateArray()).GetProperty("id").GetGuid());
+    }
+
+    [Fact]
+    public async Task A_weighing_scale_label_layout_is_kept_checked_and_cleared()
+    {
+        var (shop, _) = await api.SignUpAsync("Scale Store");
+        string? Layout(string json) => JsonDocument.Parse(json).RootElement.GetProperty("scaleLabel").GetString();
+        Assert.Null(Layout(await shop.GetStringAsync("/api/v1/shop")));
+
+        foreach (var bad in new[] { "21PPPPPWWWWW", "31PPPPPWWWWWC", "21PPPWWWWWWWC", "21PPPPPWWRRRC", "21PPPPPWWWWW5" })
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Scale Store", scaleLabel = bad })).StatusCode);
+        }
+
+        (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Scale Store", scaleLabel = "2xPPPPPRRRRRC" })).EnsureSuccessStatusCode();
+        Assert.Equal("2xPPPPPRRRRRC", Layout(await shop.GetStringAsync("/api/v1/shop")));
+        // An older app that doesn't send it keeps it; an empty one clears it.
+        (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Scale Store" })).EnsureSuccessStatusCode();
+        Assert.Equal("2xPPPPPRRRRRC", Layout(await shop.GetStringAsync("/api/v1/shop")));
+        (await shop.PutAsJsonAsync("/api/v1/shop", new { name = "Scale Store", scaleLabel = "" })).EnsureSuccessStatusCode();
+        Assert.Null(Layout(await shop.GetStringAsync("/api/v1/shop")));
     }
 
     [Fact]

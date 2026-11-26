@@ -158,7 +158,7 @@ public static class Estimates
             Id = request.Id, CustomerId = request.CustomerId, PartyName = string.IsNullOrWhiteSpace(request.PartyName) ? null : request.PartyName.Trim(),
             Lines = JsonSerializer.Serialize(built, Json), Total = built.Sum(l => l.Amount), ValidUntil = IndiaTime.Today(clock).AddDays(request.ValidDays ?? 15),
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(), CreatedByUserId = user.UserId()!.Value,
-            Number = (await db.Estimates.MaxAsync(e => (int?)e.Number, ct) ?? 0) + 1,
+            Number = await db.NextNumberAsync<Estimate>(ct),
         };
         db.Estimates.Add(estimate);
         await db.SaveChangesAsync(ct);

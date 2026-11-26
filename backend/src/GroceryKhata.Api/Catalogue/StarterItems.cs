@@ -96,6 +96,11 @@ public static class StarterItems
     private static ImportRow Item(string name, string category, Unit unit, decimal? gst, string? hsn) =>
         new(name, unit, 0, null, category, null, null, GstRate: gst, HsnCode: hsn);
 
+    /// <summary>Made to order, or a service the shop sells by the piece (a dish, an extra bed, DJ hire): not counted as stock, so a
+    /// sale never takes it below zero or puts it on the order list.</summary>
+    private static ImportRow Made(string name, string category, Unit unit) =>
+        new(name, unit, 0, null, category, null, null, Uncounted: true);
+
     private static ImportRow Medicine(string name, string category, DrugSchedule? schedule) =>
         new(name, Unit.Piece, 0, null, category, null, null, GstRate: 5, HsnCode: "3004", Schedule: schedule, UnitsPerPack: PerStrip(name));
 
@@ -270,48 +275,48 @@ public static class StarterItems
     // Extras a hall adds to a function's final bill. GST on hall packages is unsettled (5% or 18%): left for the shop and its CA to set.
     private static readonly ImportRow[] Banquet =
     [
-        Item("Decoration package", "Decoration", Unit.Piece, null, null),
-        Item("Stage and flower decoration", "Decoration", Unit.Piece, null, null),
-        Item("DJ and sound", "Music", Unit.Piece, null, null),
-        Item("Generator (per hour)", "Power", Unit.Piece, null, null),
-        Item("Room for baraat (per night)", "Rooms", Unit.Piece, null, null),
-        Item("Extra plate", "Food", Unit.Piece, null, null),
-        Item("Birthday cake (per kg)", "Food", Unit.Kg, null, null),
-        Item("Balloon decoration", "Decoration", Unit.Piece, null, null),
-        Item("Valet parking", "Services", Unit.Piece, null, null),
+        Made("Decoration package", "Decoration", Unit.Piece),
+        Made("Stage and flower decoration", "Decoration", Unit.Piece),
+        Made("DJ and sound", "Music", Unit.Piece),
+        Made("Generator (per hour)", "Power", Unit.Piece),
+        Made("Room for baraat (per night)", "Rooms", Unit.Piece),
+        Made("Extra plate", "Food", Unit.Piece),
+        Made("Birthday cake (per kg)", "Food", Unit.Kg),
+        Made("Balloon decoration", "Decoration", Unit.Piece),
+        Made("Valet parking", "Services", Unit.Piece),
         Item("Mineral water 1 L", "Food", Unit.Piece, null, null),
     ];
 
     // A starting menu. Restaurant GST (usually 5% without input credit) is set by the shop with its CA, so it is left empty here.
     private static readonly ImportRow[] Restaurant =
     [
-        Item("Paneer butter masala", "Main course", Unit.Piece, null, null),
-        Item("Dal makhani", "Main course", Unit.Piece, null, null),
-        Item("Veg biryani", "Rice", Unit.Piece, null, null),
-        Item("Jeera rice", "Rice", Unit.Piece, null, null),
-        Item("Tandoori roti", "Breads", Unit.Piece, null, null),
-        Item("Butter naan", "Breads", Unit.Piece, null, null),
-        Item("Masala dosa", "South Indian", Unit.Piece, null, null),
-        Item("Veg thali", "Thali", Unit.Piece, null, null),
-        Item("Masala chai", "Drinks", Unit.Piece, null, null),
+        Made("Paneer butter masala", "Main course", Unit.Piece),
+        Made("Dal makhani", "Main course", Unit.Piece),
+        Made("Veg biryani", "Rice", Unit.Piece),
+        Made("Jeera rice", "Rice", Unit.Piece),
+        Made("Tandoori roti", "Breads", Unit.Piece),
+        Made("Butter naan", "Breads", Unit.Piece),
+        Made("Masala dosa", "South Indian", Unit.Piece),
+        Made("Veg thali", "Thali", Unit.Piece),
+        Made("Masala chai", "Drinks", Unit.Piece),
         Item("Cold drink", "Drinks", Unit.Piece, null, null),
-        Item("Gulab jamun (2 pc)", "Sweets", Unit.Piece, null, null),
-        Item("Birthday cake (per kg)", "Party", Unit.Kg, null, null),
-        Item("Party decoration", "Party", Unit.Piece, null, null),
+        Made("Gulab jamun (2 pc)", "Sweets", Unit.Piece),
+        Made("Birthday cake (per kg)", "Party", Unit.Kg),
+        Made("Party decoration", "Party", Unit.Piece),
     ];
 
     // Extras a lodge adds to a room bill. Room GST depends on the night's rate (a CA sets it), so rates are left empty.
     private static readonly ImportRow[] Lodge =
     [
-        Item("Extra bed (per night)", "Room extras", Unit.Piece, null, null),
-        Item("Early check-in", "Room extras", Unit.Piece, null, null),
-        Item("Late check-out", "Room extras", Unit.Piece, null, null),
-        Item("Laundry (per piece)", "Services", Unit.Piece, null, null),
-        Item("Breakfast", "Food", Unit.Piece, null, null),
-        Item("Lunch / dinner thali", "Food", Unit.Piece, null, null),
-        Item("Tea / coffee", "Food", Unit.Piece, null, null),
+        Made("Extra bed (per night)", "Room extras", Unit.Piece),
+        Made("Early check-in", "Room extras", Unit.Piece),
+        Made("Late check-out", "Room extras", Unit.Piece),
+        Made("Laundry (per piece)", "Services", Unit.Piece),
+        Made("Breakfast", "Food", Unit.Piece),
+        Made("Lunch / dinner thali", "Food", Unit.Piece),
+        Made("Tea / coffee", "Food", Unit.Piece),
         Item("Mineral water 1 L", "Food", Unit.Piece, null, null),
-        Item("Airport / station pickup", "Services", Unit.Piece, null, null),
+        Made("Airport / station pickup", "Services", Unit.Piece),
     ];
 
     private static readonly ImportRow[] Electrical =

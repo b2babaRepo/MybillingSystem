@@ -41,6 +41,16 @@ public sealed class User : Entity
     public DateTimeOffset? LockoutEndsAt { get; set; }
 
     /// <summary>
+    /// Lockouts in a row: each one lasts twice as long as the one before (see AuthService.CountFailure), so a short PIN
+    /// can't be worked through a few guesses at a time. Back to 0 only after a day with no lockout, so signing in now and
+    /// then doesn't reset someone else's guessing.
+    /// </summary>
+    public int LockoutCount { get; set; }
+
+    /// <summary>When the last lockout began.</summary>
+    public DateTimeOffset? LastLockedAt { get; set; }
+
+    /// <summary>
     /// When the person agreed to their notes, photos and voice being read by AI services (India's DPDP Act: a
     /// recorded, specific consent). Null: not agreed, or withdrawn, which also erases their AI records.
     /// </summary>

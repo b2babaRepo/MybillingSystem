@@ -51,6 +51,9 @@ public sealed class CreditNote : Entity, ITenantOwned
     /// <summary>How a walk-in's refund went back: cash, UPI, card or bank. Null for a khata customer or an exchange.</summary>
     public PaymentMode? RefundMode { get; set; }
 
+    /// <summary>The cashier's shift it was made in: a cash refund comes out of that drawer (see <see cref="CashierShift"/>).</summary>
+    public Guid? ShiftId { get; set; }
+
     /// <summary>The last bill this exchange credit paid for.</summary>
     public Guid? ExchangeBillId { get; set; }
 
@@ -96,8 +99,12 @@ public sealed record CreditNoteLineRequest(int LineNo, decimal Quantity);
 
 /// <summary><see cref="Restock"/>: the goods go back on the shelf (not damaged).</summary>
 /// <summary><see cref="RefundMode"/>: how a walk-in's money went back (cash, UPI, card or bank); default the bill's main mode.</summary>
+/// <summary>
+/// <see cref="OccurredAt"/>: when the goods came back, for a return saved offline and sent later (the phone's clock, put
+/// right like a bill's). <see cref="ShiftId"/>: the cashier's shift whose drawer a cash refund came out of.
+/// </summary>
 public sealed record CreditNoteRequest(Guid Id, string? Reason, IReadOnlyList<CreditNoteLineRequest>? Lines, bool Restock = true, bool Exchange = false, IReadOnlyList<string>? Serials = null,
-    PaymentMode? RefundMode = null);
+    PaymentMode? RefundMode = null, DateTimeOffset? OccurredAt = null, Guid? ShiftId = null);
 
 public sealed record CreditNoteLineDto(int BillLineNo, string Name, decimal Quantity, decimal Amount, decimal TaxableValue, decimal Cgst, decimal Sgst, decimal Igst);
 
@@ -119,7 +126,30 @@ public static class CreditNotes
     private static async Task<IReadOnlyList<CreditNoteDto>> ListAsync(Guid billId, AppDbContext db, CancellationToken ct) =>
         (await db.CreditNotes.AsNoTracking().Include(n => n.Lines).Where(n => n.BillId == billId).OrderBy(n => n.OccurredAt).ToListAsync(ct)).Select(ToDto).ToList();
 
-    private static async Task<IResult> AddAsync(Guid billId, CreditNoteRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
+    /// <summary>
+    /// The time the app gave (corrected by how far the phone's clock is off, from X-Client-Time), kept between the sale
+    /// and now; none given: now.
+    /// </summary>
+    private static DateTimeOffset When(DateTimeOffset? requested, HttpContext http, TimeProvider clock, DateTimeOffset sold)
+    {
+        var now = clock.GetUtcNow();
+        if (requested is not { } at)
+        {
+            return now;
+        }
+
+        if (http.Request.Headers["X-Client-Time"].ToString() is { Length: > 0 } header
+            && DateTimeOffset.TryParse(header, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var phoneNow)
+            && (now - phoneNow).Duration() > LedgerService.ClockTolerance)
+        {
+            at += now - phoneNow;
+        }
+
+        at = at.ToUniversalTime();
+        return at > now ? now : at < sold ? sold : at;
+    }
+
+    private static async Task<IResult> AddAsync(Guid billId, CreditNoteRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, HttpContext http, CancellationToken ct)
     {
         if (await db.CreditNotes.AsNoTracking().Include(n => n.Lines).SingleOrDefaultAsync(n => n.Id == request.Id, ct) is { } saved)
         {
@@ -169,7 +199,9 @@ public static class CreditNotes
             }
         }
 
-        var (now, userId) = (clock.GetUtcNow(), user.UserId()!.Value);
+        var userId = user.UserId()!.Value;
+        // When it happened: the phone's time for a return made offline, never before the sale nor in the future.
+        var now = When(request.OccurredAt, http, clock, bill.OccurredAt);
         var lines = asked.Select(a =>
         {
             var line = bill.Lines.Single(l => l.LineNo == a.LineNo);
@@ -192,7 +224,7 @@ public static class CreditNotes
         var india = now.ToOffset(IndiaTime.Offset);
         var startYear = india.Month >= 4 ? india.Year : india.Year - 1;
         var year = $"{startYear}-{(startYear + 1) % 100:D2}";
-        var number = (await db.CreditNotes.Where(n => n.FinancialYear == year).MaxAsync(n => (int?)n.Number, ct) ?? 0) + 1;
+        var number = await db.NextNumberAsync<CreditNote>(ct, year);
         // How the money went back to a walk-in: as asked, else the way the bill was mostly paid.
         var refundMode = request.RefundMode is PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Card or PaymentMode.Bank ? request.RefundMode.Value : bill.PaymentMode ?? PaymentMode.Cash;
         var note = new CreditNote
@@ -200,6 +232,7 @@ public static class CreditNotes
             Id = request.Id, BillId = billId, CustomerId = bill.CustomerId, FinancialYear = year, Number = number, Reason = reason!,
             Total = total, Restocked = request.Restock, OccurredAt = now, CreatedByUserId = userId, Lines = lines, ForExchange = request.Exchange,
             RefundMode = request.Exchange || bill.CustomerId is not null ? null : refundMode,
+            ShiftId = request.ShiftId is { } shiftId && await db.CashierShifts.AnyAsync(s => s.Id == shiftId, ct) ? shiftId : null,
             TaxFree = bill.Gstin is null || bill.BillOfSupply,
             SlipCode = request.Exchange ? ExchangeSlips.NewCode() : null,
         };

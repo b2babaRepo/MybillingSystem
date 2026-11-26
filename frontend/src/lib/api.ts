@@ -32,13 +32,13 @@ export function problemMessage(problem: ProblemDetails | null): string | undefin
  */
 const GATEWAY_DOWN = new Set([502, 503, 504])
 
-async function send(path: string, method: string, body: unknown, token?: string): Promise<Response> {
-  const response = await fetchOrThrow(path, method, body, token)
+async function send(path: string, method: string, body: unknown, token?: string, extra?: Record<string, string>): Promise<Response> {
+  const response = await fetchOrThrow(path, method, body, token, extra)
   if (GATEWAY_DOWN.has(response.status)) throw new NetworkError()
   return response
 }
 
-async function fetchOrThrow(path: string, method: string, body: unknown, token?: string): Promise<Response> {
+async function fetchOrThrow(path: string, method: string, body: unknown, token?: string, extra?: Record<string, string>): Promise<Response> {
   try {
     return await fetch(`/api${path}`, {
       method,
@@ -49,6 +49,7 @@ async function fetchOrThrow(path: string, method: string, body: unknown, token?:
         // The phone's clock: the server puts entry times right when it is wrong.
         'X-Client-Time': new Date().toISOString(),
         ...(billPasscode ? { 'X-Bill-Passcode': billPasscode } : {}),
+        ...extra,
       },
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     })
@@ -103,16 +104,17 @@ function expiresSoon(session: AuthResponse) {
  * Calls the API as the signed-in user: refreshes the access token when it is about to expire, and once
  * more on a 401. Returns the raw response; throws {@link NetworkError} when there is no connection.
  */
-export async function request(path: string, method = 'GET', body?: unknown): Promise<Response> {
+/** `headers`: more to send (an outbox entry's bill passcode, typed when it was made offline). */
+export async function request(path: string, method = 'GET', body?: unknown, headers?: Record<string, string>): Promise<Response> {
   let session = getSession()
   if (session && expiresSoon(session)) {
     await refreshSession()
     session = getSession()
   }
 
-  let response = await send(path, method, body, session?.accessToken)
+  let response = await send(path, method, body, session?.accessToken, headers)
   if (response.status === 401 && session && (await refreshSession())) {
-    response = await send(path, method, body, getSession()?.accessToken)
+    response = await send(path, method, body, getSession()?.accessToken, headers)
   }
   return response
 }

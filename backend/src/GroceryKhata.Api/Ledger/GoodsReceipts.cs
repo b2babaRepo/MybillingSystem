@@ -285,7 +285,7 @@ public static class GoodsReceipts
         var receipt = new GoodsReceipt
         {
             Id = request.Id, SupplierId = request.SupplierId, PurchaseOrderId = request.OrderId, ReceivedAt = now, CreatedByUserId = userId,
-            Number = (await db.GoodsReceipts.MaxAsync(r => (int?)r.Number, ct) ?? 0) + 1,
+            Number = await db.NextNumberAsync<GoodsReceipt>(ct),
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
             VehicleNo = Short(request.VehicleNo, 20)?.ToUpperInvariant(), Bilty = Short(request.Bilty, 40), Transporter = Short(request.Transporter, 80),
             GrossWeight = request.GrossWeight, TareWeight = request.GrossWeight is null ? null : request.TareWeight,

@@ -31,10 +31,10 @@ public sealed class LedgerFixTests(ApiFactory api)
         return helper;
     }
 
-    private static async Task<ProductDto> ItemAsync(HttpClient shop, string name, decimal price, decimal stock, object? extra = null)
+    private static async Task<ProductDto> ItemAsync(HttpClient shop, string name, decimal price, decimal stock, decimal? reorderLevel = null)
     {
         var id = Guid.CreateVersion7();
-        (await shop.PostJsonAsync("/api/v1/products", new { id, name, unit = "piece", sellingPrice = price, openingStock = stock })).EnsureSuccessStatusCode();
+        (await shop.PostJsonAsync("/api/v1/products", new { id, name, unit = "piece", sellingPrice = price, openingStock = stock, reorderLevel })).EnsureSuccessStatusCode();
         return await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{id}");
     }
 
@@ -515,11 +515,11 @@ public sealed class LedgerFixTests(ApiFactory api)
     public async Task An_order_counts_down_as_goods_come_and_stops_them_being_ordered_twice()
     {
         var shop = await ShopAsync("hardware");
-        var pipe = await ItemAsync(shop, "Pipe", 300m, 0m);
-        var tap = await ItemAsync(shop, "Tap", 150m, 0m);
+        var pipe = await ItemAsync(shop, "Pipe", 300m, 0m, reorderLevel: 2m);
+        var tap = await ItemAsync(shop, "Tap", 150m, 0m, reorderLevel: 2m);
         var supplierId = await SupplierAsync(shop);
 
-        // Out of stock, so both are on What to order.
+        // Out of stock and kept in stock (a reorder level), so both are on What to order.
         Assert.Equal(2, (await shop.GetJsonAsync<List<ReorderGroupDto>>("/api/v1/pharmacy/reorder")).SelectMany(g => g.Lines).Count());
 
         var orderId = Guid.CreateVersion7();
@@ -1030,6 +1030,39 @@ public sealed class LedgerFixTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task An_item_can_scan_as_several_barcodes_and_no_code_is_on_two_items()
+    {
+        var shop = await ShopAsync("kirana");
+        var oil = await ItemAsync(shop, "Mustard oil 1 L", 180m, 5m);
+        var soap = await ItemAsync(shop, "Soap", 40m, 5m);
+        async Task<System.Text.Json.JsonElement> AddAsync(Guid id, string code, HttpStatusCode expected = HttpStatusCode.OK)
+        {
+            var response = await shop.PostJsonAsync($"/api/v1/products/{id}/barcodes", new { barcode = code });
+            Assert.Equal(expected, response.StatusCode);
+            return expected == HttpStatusCode.OK ? await response.ReadAsync<System.Text.Json.JsonElement>() : default;
+        }
+
+        // The first code an item gets is its main one; then more codes are added beside it (no repeats).
+        Assert.Equal("8901030865275", (await AddAsync(oil.Id, "8901030865275")).GetProperty("barcode").GetString());
+        await AddAsync(oil.Id, "8901030865282");
+        var both = await AddAsync(oil.Id, "8901030865282");
+        Assert.Equal(["8901030865282"], both.GetProperty("extraBarcodes").EnumerateArray().Select(c => c.GetString()));
+        Assert.Equal(["8901030865282"], (await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{oil.Id}")).ExtraBarcodes);
+        Assert.Contains((await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")), p => p.Id == oil.Id && p.ExtraBarcodes!.Contains("8901030865282"));
+
+        // Neither code can go on another item, as its main code, an extra one, or a new item's.
+        await AddAsync(soap.Id, "8901030865282", HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutAsJsonAsync($"/api/v1/products/{soap.Id}/barcode", new { barcode = "8901030865282" }, ApiFactory.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/products", new { id = Guid.CreateVersion7(), name = "Copy", unit = "piece", sellingPrice = 1m, barcode = "8901030865282" })).StatusCode);
+        await AddAsync(soap.Id, "8901030865281", HttpStatusCode.BadRequest); // wrong check digit
+
+        // Removed from the oil, it is free for the soap.
+        (await shop.DeleteAsync($"/api/v1/products/{oil.Id}/barcodes/8901030865282")).EnsureSuccessStatusCode();
+        Assert.Empty((await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{oil.Id}")).ExtraBarcodes!);
+        Assert.Equal("8901030865282", (await AddAsync(soap.Id, "8901030865282")).GetProperty("barcode").GetString());
+    }
+
+    [Fact]
     public async Task A_registered_shop_can_choose_a_bill_without_gst()
     {
         var (shop, _) = await api.SignUpAsync("Choice Store");
@@ -1483,6 +1516,15 @@ public sealed class LedgerFixTests(ApiFactory api)
 
         // Nine sold this month: 0.3 a day, so one left won't last until a new order comes.
         (await Bill(shop, null, atta.Id, 9.001m, 400m, 3600.40m)).EnsureSuccessStatusCode();
+        // On the shelf all month (the rate counts only days with stock): the stock came in 40 days ago.
+        await using (var db = new Npgsql.NpgsqlConnection(api.AdminConnectionString + ";Database=grocery_khata"))
+        {
+            await db.OpenAsync();
+            await using var back = new Npgsql.NpgsqlCommand("UPDATE stock_movements SET occurred_at = now() - interval '40 days' WHERE product_id = @p AND kind <> 'Sale'", db);
+            back.Parameters.AddWithValue("p", atta.Id);
+            await back.ExecuteNonQueryAsync();
+        }
+
         var today = await shop.GetJsonAsync<OrderTodayDto>("/api/v1/stock/order-today");
         var line = Assert.Single(today.Items);
         Assert.Equal((atta.Id, 1, 3.3m), (line.ProductId, line.LeadDays, line.DaysLeft));

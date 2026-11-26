@@ -131,7 +131,7 @@ public static class TableBookings
         static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
         var booking = new TableBooking
         {
-            Id = request.Id, Number = (await db.TableBookings.MaxAsync(b => (int?)b.Number, ct) ?? 0) + 1, Date = request.Date, Time = request.Time,
+            Id = request.Id, Number = await db.NextNumberAsync<TableBooking>(ct), Date = request.Date, Time = request.Time,
             People = request.People, CustomerId = request.CustomerId, Name = name!, Phone = PhoneNumber.Normalize(request.Phone) ?? Clean(request.Phone),
             Occasion = request.Occasion ?? PartyOccasion.None, Cake = Clean(request.Cake), Decoration = request.Decoration, Table = Clean(request.Table), Note = Clean(request.Note),
         };

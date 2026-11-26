@@ -1,11 +1,12 @@
 import { shownLocale } from '../i18n'
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 
-interface ItemSupplier { supplierId: string; name: string; phone: string | null; ordered: number; received: number; pending: number; damaged: number; lastRate: number | null; lastAt: string | null; deliveries: number; leadDays: number | null; fillRate: number | null; preferred: boolean; bestRate: boolean }
+interface ItemSupplier { supplierId: string; name: string; phone: string | null; ordered: number; received: number; pending: number; damaged: number; lastRate: number | null; lastAt: string | null; deliveries: number; leadDays: number | null; fillRate: number | null; preferred: boolean; bestRate: boolean; caseQty?: number | null; minQty?: number | null }
 interface SupplierProduct { productId: string; name: string; category: string | null; unit: string; received: number; pending: number; lastRate: number | null; lastAt: string | null; deliveries: number; preferred: boolean }
 
 const short = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: '2-digit' })
@@ -48,9 +49,43 @@ export function ItemSuppliersCard({ shopId, productId, unit }: { shopId: string;
             {s.leadDays != null && ` · ${t('orderToday.lead', { count: s.leadDays })}`}{s.fillRate != null && ` · ${t('rs.fill')} ${pct(s.fillRate)}`}
             {s.damaged > 0 && ` · ${t('rs.damaged', { qty: s.damaged })}`}
           </span>
+          <PackEditor productId={productId} supplier={s} onSaved={() => { void queryClient.invalidateQueries({ queryKey: key }); void queryClient.invalidateQueries({ queryKey: [shopId, 'reorder'] }) }} />
         </div>
       ))}
     </section>
+  )
+}
+
+/** How the item comes from this supplier: units per case and the least per order. Orders round up to both. */
+function PackEditor({ productId, supplier, onSaved }: { productId: string; supplier: ItemSupplier; onSaved: () => void }) {
+  const { t } = useTranslation()
+  const [caseQty, setCaseQty] = useState(supplier.caseQty != null ? String(supplier.caseQty) : '')
+  const [minQty, setMinQty] = useState(supplier.minQty != null ? String(supplier.minQty) : '')
+  const [note, setNote] = useState<string | null>(null)
+  const changed = caseQty !== (supplier.caseQty != null ? String(supplier.caseQty) : '') || minQty !== (supplier.minQty != null ? String(supplier.minQty) : '')
+
+  async function save() {
+    setNote(null)
+    try {
+      await api(`/v1/products/${productId}/suppliers/${supplier.supplierId}/pack`, 'PUT', { caseQty: caseQty.trim() ? Number(caseQty) : null, minQty: minQty.trim() ? Number(minQty) : null })
+      setNote(t('rs.packSaved'))
+      onSaved()
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : t('error'))
+    }
+  }
+
+  return (
+    <div className="mt-1 flex flex-wrap items-end gap-2 text-xs" title={t('rs.packHint')}>
+      <label className="flex flex-col gap-0.5 text-muted">{t('rs.caseQty')}
+        <input value={caseQty} onChange={(e) => setCaseQty(e.target.value)} inputMode="decimal" className="h-9 w-20 rounded-lg border border-line px-2 text-ink" />
+      </label>
+      <label className="flex flex-col gap-0.5 text-muted">{t('rs.minQty')}
+        <input value={minQty} onChange={(e) => setMinQty(e.target.value)} inputMode="decimal" className="h-9 w-20 rounded-lg border border-line px-2 text-ink" />
+      </label>
+      {changed && <button onClick={() => void save()} className="h-9 rounded-lg bg-brand px-3 font-semibold text-white">{t('rs.packSave')}</button>}
+      {note && <span className="text-muted">{note}</span>}
+    </div>
   )
 }
 

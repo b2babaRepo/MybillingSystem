@@ -9,7 +9,7 @@ import { DataTable } from '../components/DataTable'
 
 type Movement = 'dead' | 'slow' | 'new' | 'fast' | 'none'
 interface Item { productId: string; name: string; category: string | null; unit: string; stock: number; value: number | null; sales90: number; sold90: number; daysSinceSale: number | null; daysSinceIn: number | null; movement: Movement; rank: 'A' | 'B' | 'C'; daysOfCover: number | null }
-interface Health { value: number; deadValue: number; deadItems: number; slowValue: number; slowItems: number; ageing: { label: string; value: number; items: number }[]; rankA: number; rankB: number; rankC: number; turnover: number; items: Item[] }
+interface Health { value: number; deadValue: number; deadItems: number; slowValue: number; slowItems: number; ageing: { label: string; value: number; items: number }[]; rankA: number; rankB: number; rankC: number; turnover: number; items: Item[]; unvalued?: number }
 
 const TONE: Record<Movement, string> = { dead: 'bg-due-soft text-due', slow: 'bg-warn-soft text-warn', new: 'bg-sky-50 text-sky-800', fast: 'bg-emerald-50 text-emerald-800', none: 'bg-slate-100 text-muted' }
 
@@ -36,6 +36,12 @@ export function StockHealthScreen({ shopId }: { shopId: string }) {
             <Tile label={t('sh.slow', { count: h.slowItems })} value={formatRupees(h.slowValue)} tone="text-amber-700" />
             <Tile label={t('sh.turnover')} value={t('sh.times', { n: h.turnover })} />
           </div>
+        )}
+        {!!h?.unvalued && (
+          <p className="flex flex-wrap items-center gap-x-2 rounded-xl bg-warn-soft px-3 py-2 text-sm font-semibold text-warn">
+            {t('sh.unvalued', { count: h.unvalued })}
+            <button onClick={() => navigate('/verify-data')} className="min-h-9 underline">{t('sh.addCosts')}</button>
+          </p>
         )}
       </section>
       {h && (

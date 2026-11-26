@@ -114,6 +114,8 @@ export interface ShopSettings {
   billPrefix?: string | null
   /** The shop's own extra bill fields ("PO no.", "Doctor"): up to 4 labels. */
   billFields?: string[]
+  /** The weighing scale's label barcode layout (21PPPPPWWWWWC); null: no scale labels. See readScaleLabel. */
+  scaleLabel?: string | null
   /** Bills offer delivery. Null: not chosen yet, the trade decides. */
   deliversGoods?: boolean | null
   extraTypes?: ShopType[] | null

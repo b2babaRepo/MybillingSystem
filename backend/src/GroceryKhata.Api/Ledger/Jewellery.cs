@@ -629,6 +629,8 @@ public static class JewelleryEndpoints
                 (name, metal, purity, gross, stone) = (l.Name.Trim(), l.Metal, l.Purity.Value, l.Gross.Value, l.Stone ?? 0);
                 (wastage, makingType, making, stoneValue, hallmark, fixedPrice) = (l.WastagePercent ?? 0, l.MakingType ?? "per_gram", l.MakingValue ?? 0, l.StoneValue ?? 0, l.HallmarkCharge ?? 0, l.FixedPrice);
                 huid = string.IsNullOrWhiteSpace(l.Huid) ? null : l.Huid.Trim().ToUpperInvariant();
+                // The same check as a tagged piece: the bill prints the HUID and its QR for BIS CARE, so a wrong one must not get there.
+                if (huid is not null && !HuidPattern.IsMatch(huid)) return (null, $"{name}: HUID is 6 letters and numbers.");
                 if (!JewelleryMath.ValidPurity(metal, purity)) return (null, $"{name}: choose gold or silver and its purity.");
                 if (stone < 0 || stone >= gross) return (null, $"{name}: stone weight must be less than gross.");
             }
@@ -783,6 +785,10 @@ public static class JewelleryEndpoints
         // Old metal covers part of the bill; more old metal than the bill means the shop pays the difference.
         var covered = Math.Min(q.Total, request.MoneyPaid + q.OldMetalValue);
         if (q.OldMetalValue > q.Total && request.MoneyPaid > 0) return Invalid("MoneyPaid", "The old metal is worth more than the bill: the shop pays the customer the difference.");
+        // Money received is what the bill takes, never the note handed over: it counts toward the day's cash limit and the
+        // cash report, so change given back must not.
+        if (request.MoneyPaid > Math.Max(0, q.Total - q.OldMetalValue))
+            return Invalid("MoneyPaid", $"At most ₹{Math.Max(0, q.Total - q.OldMetalValue):N0} is left to pay. Enter what the bill takes, not the note given (give the rest back as change).");
         if (request.CustomerId is null && covered < q.Total) return Invalid("MoneyPaid", "Choose the customer to leave part of the bill on their khata.");
 
         // The bill: one line per piece at its GST-inclusive value; the rupee round-off rides on the last line.

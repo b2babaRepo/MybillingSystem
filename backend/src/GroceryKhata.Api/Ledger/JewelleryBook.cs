@@ -453,7 +453,7 @@ public static class JewelleryBookEndpoints
         // Lending more than the metal is worth today is a loss from the first day.
         if (value > 0 && r.Principal > value)
             return Invalid("Principal", $"The pledge is worth ₹{value:N0} at today's rate: lend at most that.");
-        var number = (await db.GirviLoans.MaxAsync(l => (int?)l.Number, ct) ?? 0) + 1;
+        var number = await db.NextNumberAsync<GirviLoan>(ct);
         var loan = new GirviLoan
         {
             Number = number, CustomerId = r.CustomerId, Items = r.Items.Trim(), Metal = r.Metal, Gross = JewelleryMath.Grams(r.Gross), Reading = r.Reading, Fine = fine, PledgeValue = value,
@@ -579,7 +579,7 @@ public static class JewelleryBookEndpoints
     {
         if (!await db.SchemePlans.AnyAsync(p => p.Id == r.PlanId && p.IsActive, ct)) return Invalid("PlanId", "Choose a running scheme.");
         if (!await db.Customers.AnyAsync(c => c.Id == r.CustomerId, ct)) return Invalid("CustomerId", "Choose the customer.");
-        var member = new SchemeMember { PlanId = r.PlanId, CustomerId = r.CustomerId, StartedOn = IndiaTime.Today(clock), Number = (await db.SchemeMembers.MaxAsync(m => (int?)m.Number, ct) ?? 0) + 1 };
+        var member = new SchemeMember { PlanId = r.PlanId, CustomerId = r.CustomerId, StartedOn = IndiaTime.Today(clock), Number = await db.NextNumberAsync<SchemeMember>(ct) };
         db.SchemeMembers.Add(member);
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok((await MemberViewsAsync(db, q => q.Where(m => m.Id == member.Id), ct)).Single());
@@ -641,7 +641,7 @@ public static class JewelleryBookEndpoints
         if (Day(r.DueOn, clock) is not { } due || due < IndiaTime.Today(clock)) return Invalid("DueOn", "Enter the delivery date.");
         var order = new JewelleryOrder
         {
-            Number = (await db.JewelleryOrders.MaxAsync(o => (int?)o.Number, ct) ?? 0) + 1, Kind = r.Kind, CustomerId = r.CustomerId, Description = r.Description.Trim(), Metal = r.Metal,
+            Number = await db.NextNumberAsync<JewelleryOrder>(ct), Kind = r.Kind, CustomerId = r.CustomerId, Description = r.Description.Trim(), Metal = r.Metal,
             Purity = r.Purity, Weight = r.Weight is { } w ? JewelleryMath.Grams(w) : null, FixedRate = r.FixedRate, Charge = r.Charge, DueOn = due, Status = "booked",
             Note = string.IsNullOrWhiteSpace(r.Note) ? null : r.Note.Trim()[..Math.Min(200, r.Note.Trim().Length)],
         };
@@ -727,7 +727,7 @@ public static class JewelleryBookEndpoints
         if (pieces.Count != r.PieceIds.Distinct().Count()) return Invalid("PieceIds", "A piece is not in stock.");
         var busy = await db.ApprovalItems.Where(i => r.PieceIds.Contains(i.PieceId) && i.ReturnedAt == null && i.SoldBillId == null).Select(i => i.PieceId).ToListAsync(ct);
         if (pieces.Any(p => p.SoldBillId is not null) || busy.Count > 0) return Invalid("PieceIds", "A piece is sold or already out on approval.");
-        var memo = new ApprovalMemo { Number = (await db.ApprovalMemos.MaxAsync(m => (int?)m.Number, ct) ?? 0) + 1, CustomerId = r.CustomerId, Party = party, DueBack = IndiaTime.Today(clock).AddDays(Math.Clamp(r.Days ?? 3, 1, 60)) };
+        var memo = new ApprovalMemo { Number = await db.NextNumberAsync<ApprovalMemo>(ct), CustomerId = r.CustomerId, Party = party, DueBack = IndiaTime.Today(clock).AddDays(Math.Clamp(r.Days ?? 3, 1, 60)) };
         db.ApprovalMemos.Add(memo);
         foreach (var p in pieces) db.ApprovalItems.Add(new ApprovalItem { MemoId = memo.Id, PieceId = p.Id, GrossOut = p.Gross });
         await db.SaveChangesAsync(ct);

@@ -46,8 +46,10 @@ public sealed class Customer : Entity, ITenantOwned
     public DateTimeOffset? LastRemindedAt { get; set; }
 
     /// <summary>
-    /// The secret in the customer's read-only khata link (/k/{shop}/{customer}?t=...). Kept so the shop can share
-    /// the same link again; replacing it cuts off the old link. Null until the shop first shares one.
+    /// The random value the customer's read-only khata link (/k/{shop}/{customer}?t=...) is signed from
+    /// (KhataViewEndpoints.LinkToken): on its own it opens nothing. Kept so the shop can share the same link again;
+    /// replacing it cuts off the old link. "h:" and a hash for a link made before links were signed. Null until the
+    /// shop first shares one.
     /// </summary>
     public string? KhataToken { get; set; }
 
@@ -241,6 +243,12 @@ public sealed class Bill : Entity, ITenantOwned
 
     /// <summary>The counter (device) that made the bill, as the shop named it on that device ("Counter 2"); null: unnamed.</summary>
     public string? Counter { get; set; }
+
+    /// <summary>The cashier's shift it was made in (see <see cref="CashierShift"/>): its cash counts toward that drawer.</summary>
+    public Guid? ShiftId { get; set; }
+
+    /// <summary>The whole-bill promotion taken on it (money off from a bill amount): kept for the offer's results.</summary>
+    public Guid? BillOfferId { get; set; }
 
     /// <summary>The painter who brought the customer (paint shops): their commission is counted from these bills.</summary>
     public Guid? PainterId { get; set; }

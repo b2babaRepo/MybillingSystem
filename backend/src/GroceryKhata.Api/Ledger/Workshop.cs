@@ -230,8 +230,8 @@ public static class Workshop
             }
 
             var now = clock.GetUtcNow();
-            var number = (await db.KarigarChallans.MaxAsync(c => (int?)c.Number, ct) ?? 0) + 1;
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var number = await db.NextNumberAsync<KarigarChallan>(ct);
             db.KarigarChallans.Add(new KarigarChallan
             {
                 Id = request.Id, Number = number, Karigar = request.Karigar!.Trim(), KarigarGstin = string.IsNullOrWhiteSpace(request.KarigarGstin) ? null : request.KarigarGstin.Trim().ToUpperInvariant(),
