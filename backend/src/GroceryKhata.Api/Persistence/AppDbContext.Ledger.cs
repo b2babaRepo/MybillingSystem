@@ -88,6 +88,16 @@ public sealed partial class AppDbContext
             b.HasIndex(s => new { s.ShopId, s.OpenedAt });
         });
 
+        modelBuilder.Entity<HeldBill>(b =>
+        {
+            b.ToTable("held_bills");
+            b.HasTenantKey();
+            b.Property(h => h.Counter).HasMaxLength(30);
+            b.Property(h => h.Label).HasMaxLength(120);
+            b.Property(h => h.Payload).HasColumnType("jsonb");
+            b.HasIndex(h => new { h.ShopId, h.HeldAt });
+        });
+
         modelBuilder.Entity<CreditNote>(b =>
         {
             b.ToTable("credit_notes");

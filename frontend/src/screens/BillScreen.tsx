@@ -29,7 +29,8 @@ import { useTranslation } from 'react-i18next'
 import { ItemCard } from '../components/ItemCard'
 import { imageUrl } from '../lib/images'
 import { Button, Field, Input, Sheet, btn } from '../components/ui'
-import { addCustomer, saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
+import { addCustomer, counterName, saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
+import { HeldBillGone, useHeldBills } from '../lib/heldBills'
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { BillPrint, BillView, PaymentMode, Unit } from '../lib/types'
@@ -111,15 +112,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [stylePick, setStylePick] = useState<string | null>(null)
   // An exchange's credit is that customer's, so the new bill starts on their name.
   const [customerId, setCustomerId] = useState(() => currentExchange()?.customerId ?? '')
-  // Held bills: park this customer's bill, serve the next one, pick it up again. Kept on this device only.
-  const heldKey = `held-bills:${shopId}`
-  const [held, setHeld] = useState<{ cart: CartLine[]; customerId: string; at: number; delivery?: Delivery }[]>(() => {
-    try { return JSON.parse(localStorage.getItem(heldKey) ?? '[]') } catch { return [] }
-  })
-  function keepHeld(next: typeof held) {
-    setHeld(next)
-    try { localStorage.setItem(heldKey, JSON.stringify(next)) } catch { /* private window: held bills last until reload */ }
-  }
+  // Held bills: park this customer's bill, serve the next one, pick it up again, on this till or any other.
+  const { held, hold, take } = useHeldBills<{ cart: CartLine[]; customerId: string; delivery?: Delivery }>(shopId)
+  const heldName = (h: (typeof held)[number]) => h.label ?? customers.find((c) => c.id === h.payload.customerId)?.name ?? t('hold.walkIn')
+  const heldTotal = (h: (typeof held)[number]) => h.total || round2(h.payload.cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0))
+  // Another till's bill says which till.
+  const heldWhere = (h: (typeof held)[number]) => (h.counter && h.counter !== counterName() ? ` (${h.counter})` : '')
   // An estimate the customer agreed to: its lines come into this bill (read once), and saving the bill marks it billed.
   const [fromEstimate, setFromEstimate] = useState<{ id: string; number: number } | null>(null)
   const [estimateSaved, setEstimateSaved] = useState<{ id: string; number: number } | null>(null)
@@ -176,20 +174,28 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       await ask(err instanceof Error ? err.message : String(err))
     }
   }
+  /** Park the bill being made (with its customer and delivery); nothing to park: nothing happens. */
+  function parkCurrent() {
+    if (cart.length === 0) return
+    const name = customers.find((c) => c.id === customerId)?.name ?? null
+    void hold({ cart, customerId, delivery: currentDelivery() }, { label: name, total: round2(cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)), lines: cart.length })
+  }
   function holdBill() {
     if (cart.length === 0) return
-    // An event handler (Hold, or F7), not render: the time it was held.
-    // eslint-disable-next-line react/purity
-    keepHeld([...held, { cart, customerId, at: Date.now(), delivery: currentDelivery() }])
+    parkCurrent()
     setCart([]); setCustomerId(''); setPaid(null); setSaved(null)
   }
-  function resumeBill(index: number) {
-    const pick = held[index]
+  async function resumeBill(bill: (typeof held)[number]) {
+    let pick: Awaited<ReturnType<typeof take>>
+    try {
+      pick = await take(bill)
+    } catch (err) {
+      await ask(err instanceof HeldBillGone ? t('hold.gone') : err instanceof Error ? err.message : String(err))
+      return
+    }
     startedAt.current = 0
-    const rest = held.filter((_, i) => i !== index)
-    // An event handler (picking a held bill), not render.
-    // eslint-disable-next-line react/purity
-    keepHeld(cart.length > 0 ? [...rest, { cart, customerId, at: Date.now(), delivery: currentDelivery() }] : rest)
+    // The bill being made is parked in its place.
+    parkCurrent()
     setCart(pick.cart); setCustomerId(pick.customerId); setPaid(null); setSaved(null)
     setDelivery(pick.delivery)
   }
@@ -743,9 +749,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         <span role="tab" aria-selected className="max-w-56 truncate rounded-t-xl bg-brand px-4 py-2 text-sm font-bold text-white">
           {(customers.find((c) => c.id === customerId)?.name ?? t('billTabs.current'))}{cart.length > 0 ? ` · ${formatRupees(round2(cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}` : ''}
         </span>
-        {held.map((h, i) => (
-          <button key={h.at} role="tab" aria-selected={false} onClick={() => resumeBill(i)} className="max-w-56 truncate rounded-t-xl border border-b-0 border-line bg-white px-4 py-2 text-sm font-semibold hover:bg-brand-soft">
-            {(customers.find((c) => c.id === h.customerId)?.name ?? t('hold.walkIn'))} · {formatRupees(round2(h.cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}
+        {held.map((h) => (
+          <button key={h.id} role="tab" aria-selected={false} onClick={() => void resumeBill(h)} className="max-w-56 truncate rounded-t-xl border border-b-0 border-line bg-white px-4 py-2 text-sm font-semibold hover:bg-brand-soft">
+            {heldName(h)} · {formatRupees(heldTotal(h))}{heldWhere(h)}
           </button>
         ))}
         <button type="button" onClick={holdBill} disabled={cart.length === 0} title={t('billTabs.newHint')} aria-label={t('billTabs.new')} className="rounded-t-xl px-3 py-2 text-lg font-bold text-brand hover:bg-brand-soft disabled:opacity-40">+</button>
@@ -753,9 +759,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       {held.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-[14px] bg-warn-soft p-2 text-sm xl:hidden">
           <span className="font-semibold text-warn-ink">{t('hold.held', { count: held.length })}</span>
-          {held.map((h, i) => (
-            <button key={h.at} onClick={() => resumeBill(i)} className="min-h-9 rounded-full border border-amber-300 bg-white px-3 font-semibold">
-              {(customers.find((c) => c.id === h.customerId)?.name ?? t('hold.walkIn'))} · {formatRupees(round2(h.cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}
+          {held.map((h) => (
+            <button key={h.id} onClick={() => void resumeBill(h)} className="min-h-9 rounded-full border border-amber-300 bg-white px-3 font-semibold">
+              {heldName(h)} · {formatRupees(heldTotal(h))}{heldWhere(h)}
             </button>
           ))}
         </div>

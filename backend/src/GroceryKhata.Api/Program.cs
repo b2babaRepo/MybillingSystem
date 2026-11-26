@@ -210,6 +210,7 @@ app.MapStylistPay();
 app.MapPrepaid();
 app.MapCashCounts();
 app.MapCashierShifts();
+app.MapHeldBills();
 app.MapMeterReadings();
 app.MapGoodsReceipts();
 app.MapEstimates();

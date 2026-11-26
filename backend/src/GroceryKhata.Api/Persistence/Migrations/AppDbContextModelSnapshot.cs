@@ -6214,6 +6214,66 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("goods_receipts", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.HeldBill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Counter")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("counter");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("HeldAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("held_at");
+
+                    b.Property<Guid>("HeldByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("held_by_user_id");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("label");
+
+                    b.Property<int>("Lines")
+                        .HasColumnType("integer")
+                        .HasColumnName("lines");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("total");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "HeldAt");
+
+                    b.ToTable("held_bills", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.IncomingReceipt", b =>
                 {
                     b.Property<Guid>("Id")
