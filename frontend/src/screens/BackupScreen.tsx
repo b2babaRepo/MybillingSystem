@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { shownLocale } from '../i18n'
@@ -6,11 +6,9 @@ import { Button } from '../components/ui'
 import { api } from '../lib/api'
 import { chunks, daysSince, parseBackup, type Backup } from '../lib/backup'
 import { formatRupees } from '../lib/format'
+import { useBackupStatus } from '../lib/backupStatus'
 
 export interface BackupStatus { lastBackupAt: string | null; empty: boolean }
-
-export const useBackupStatus = (shopId: string) =>
-  useQuery({ queryKey: [shopId, 'backup-status'], queryFn: () => api<BackupStatus>('/v1/shop/backup-status'), staleTime: 60_000, retry: false })
 
 /**
  * Backup and restore. Everything is already kept on our server, so a backup is the shop's own copy: one file with all

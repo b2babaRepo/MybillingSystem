@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, btn } from '../components/ui'
+import { Button } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import type { BillPrint, PrintTheme } from '../lib/types'
 

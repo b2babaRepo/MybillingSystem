@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { kgOf } from '../screens/SupplierOrders'
+import { kgOf } from './supplierOrders'
 import type { Product } from './types'
 
 const item = (unit: string, weightKg?: number) => ({ id: 'x', name: 'x', unit, weightKg }) as unknown as Product

@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { shownLocale } from '../i18n'
 import { lazy, Suspense } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -15,6 +15,7 @@ import { formatRupees } from '../lib/format'
 import { useSubscription } from '../lib/billing'
 import { useShopSettings, shopTypes, isTrade, COMMISSION_TYPES } from '../lib/reports'
 import { navigate } from '../router'
+import { useNow } from '../lib/useNow'
 // Last week's summary, on Mondays and Tuesdays only: loaded then, not with the app.
 const WeekSummaryCard = lazy(() => import('./SalesInsightsScreens').then((module) => ({ default: module.WeekSummaryCard })))
 // Each trade's card comes with its whole screen, so only the shops of that trade fetch it.
@@ -50,6 +51,7 @@ function Digest() {
 }
 
 export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
+  const nowMs = useNow()
   const settings = useShopSettings(shopId).data
   const types = shopTypes(settings)
   const { t } = useTranslation()
@@ -94,7 +96,7 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
       {isOwner && <Suspense fallback={null}><FestivalCard shopId={shopId} /></Suspense>}
       {isOwner && <Suspense fallback={null}><OrderToday /></Suspense>}
       {isOwner && <Digest />}
-      {isOwner && [1, 2].includes(new Date(Date.now() + 5.5 * 3_600_000).getUTCDay()) && <Suspense fallback={null}><WeekSummaryCard shopId={shopId} shopName={settings?.name ?? ''} /></Suspense>}
+      {isOwner && [1, 2].includes(new Date(nowMs + 5.5 * 3_600_000).getUTCDay()) && <Suspense fallback={null}><WeekSummaryCard shopId={shopId} shopName={settings?.name ?? ''} /></Suspense>}
 
       {/* What needs a look first: master-list updates, getting started, low stock. */}
       {isOwner && (masterUpdates?.changes.length ?? 0) > 0 && (
@@ -266,8 +268,9 @@ function PlanBanner({ shopId }: { shopId: string }) {
 
 /** "Today's kharcha" with this month's total under it; in a month's first week, last month's closed kharcha too. */
 function KharchaRow({ shopId }: { shopId: string }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
-  const now = new Date(Date.now() + 5.5 * 3600_000)
+  const now = new Date(nowMs + 5.5 * 3600_000)
   const month = now.toISOString().slice(0, 7)
   const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)).toISOString().slice(0, 7)
   const firstWeek = now.getUTCDate() <= 7

@@ -1,4 +1,4 @@
-import { btn } from '../../components/ui'
+import { btn } from '../../lib/buttonStyles'
 import { SHOP_TYPES } from '../../lib/reports'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'

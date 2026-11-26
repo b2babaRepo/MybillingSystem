@@ -1,4 +1,4 @@
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { setAskHost, type Question } from '../lib/ask'

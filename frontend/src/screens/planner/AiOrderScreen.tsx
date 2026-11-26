@@ -1,4 +1,4 @@
-import { btn } from '../../components/ui'
+import { btn } from '../../lib/buttonStyles'
 import { CustIcon } from '../../components/CustIcons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'

@@ -38,7 +38,9 @@ export function PostersScreen({ shopId, shopName }: { shopId: string; shopName: 
   const look = offer ? OFFER_LOOK : template ?? POSTER_TEMPLATES[0]
 
   // A new poster or language fills in its own words; the owner can then change them.
-  useEffect(() => {
+  const [filledFor, setFilledFor] = useState<{ picked: string; pt: typeof pt } | null>(null)
+  if (filledFor?.picked !== picked || filledFor.pt !== pt) {
+    setFilledFor({ picked, pt })
     if (offer) {
       setTitle(offer.kind === 'percent' ? pt('posters.offerPercent', { value: offer.value }) : pt('posters.offerAmount', { amount: formatRupees(offer.value) }))
       setSub(`${offer.name}\n${pt('posters.offerTill', { date: new Date(offer.endsAt).toLocaleDateString(lang === 'en' ? 'en-IN' : `${lang}-IN`, { day: 'numeric', month: 'short' }) })}`)
@@ -46,7 +48,7 @@ export function PostersScreen({ shopId, shopName }: { shopId: string; shopName: 
       setTitle(pt(`posters.t.${template.id}.title`))
       setSub(pt(`posters.t.${template.id}.sub`))
     }
-  }, [picked, pt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   useEffect(() => {
     if (!canvas.current) return

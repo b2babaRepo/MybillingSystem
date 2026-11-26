@@ -1,6 +1,7 @@
 import { currentPoint } from '../../lib/location'
 import { dueText, useKhataDues } from '../../lib/khataDues'
-import { CustIcon, shopTint, type CustIconName } from '../../components/CustIcons'
+import { CustIcon, type CustIconName } from '../../components/CustIcons'
+import { shopTint } from '../../lib/shopTint'
 import { useEffect, useState } from 'react'
 import { BillSummary } from '../../components/OrderPay'
 import { canListen, clearSearches, dataSaver, listen, rank, recentSearches, rememberSearch, setDataSaver } from '../../lib/search'

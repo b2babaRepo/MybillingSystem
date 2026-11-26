@@ -8,7 +8,7 @@ import { itemArt } from '../lib/itemArt'
 import type { Order } from '../lib/planner'
 import { useSavedItems } from '../lib/savedItems'
 import { navigate } from '../router'
-import { shopTint } from './CustIcons'
+import { shopTint } from '../lib/shopTint'
 import { MetalRates, type StoreRate } from './MetalRates'
 
 interface ShelfItem { id: string; name: string; price: number; regularPrice?: number | null; available: number; imageAt?: string | null; catalogueItemId?: number | null; addedAt?: string | null }

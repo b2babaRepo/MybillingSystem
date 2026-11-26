@@ -9,8 +9,6 @@ addText(teamText)
 interface NameTotal { memberId: string; name: string; total: number; count: number }
 interface PublicView { name: string; month: string; monthTotal: number; monthByName: NameTotal[]; monthByCategory: { category: string; total: number; count: number }[]; todayTotal: number; todayByName: NameTotal[] }
 
-export const teamViewLink = (teamId: string, token: string) => `${location.origin}/#/tv/${teamId}?t=${token}`
-
 /**
  * A team's view link (/tv/{team}?t=…), for people who haven't installed the app: this month's and today's totals by
  * name and heading. No notes; nothing to change. The owner can turn the link off at any time.

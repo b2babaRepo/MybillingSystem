@@ -8,11 +8,11 @@ import { StorePieces, type StorePiece } from '../../components/StorePieces'
 import { putCart, useCarts, useSavedShops, useSaveShop } from '../../lib/customer'
 import { api } from '../../lib/api'
 import { aisleName } from '../../lib/aisleNames'
-import { btn } from '../../components/ui'
+import { btn } from '../../lib/buttonStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAisles } from '../../components/AisleTiles'
+import { useAisles } from '../../lib/aisles'
 import { ItemCard } from '../../components/ItemCard'
 import { allPhotos, imageUrl } from '../../lib/images'
 import { PhotoGallery } from '../../components/PhotoGallery'
@@ -27,13 +27,15 @@ import { navigate } from '../../router'
 import { getSession } from '../../lib/session'
 import { AlertsPrompt, BillSummary, OrderSteps, PaymentPicker, SlotChips, UpiPay } from '../../components/OrderPay'
 import { billOf, isOpen, noSettings, useCheckoutInfo, type KhataAtCheckout, type StoreSettings } from '../../lib/orderFlow'
-import { ProductSheet, fullPageTrades } from '../../components/ProductSheet'
+import { ProductSheet } from '../../components/ProductSheet'
+import { fullPageTrades } from '../../lib/productSheet'
 import { Drawer } from '../../components/ui'
 import { rank, rememberSearch } from '../../lib/search'
 import { useHeart, useSavedItems } from '../../lib/savedItems'
 import { api as apiCall } from '../../lib/api'
 import { festive } from '../../lib/festive'
 import type { Fulfilment, OrderPayment } from '../../lib/planner'
+import { useNow } from '../../lib/useNow'
 
 // The shop's public online store at #/s/{slug}: no account, no app install. Guests browse, fill a cart, check
 // out with name, phone and (for delivery) an address, then follow the order by its private link.
@@ -180,6 +182,7 @@ function Header({ title, subtitle, shopId, theme }: { title: string; subtitle?: 
 }
 
 function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?: boolean }) {
+  const nowMs = useNow()
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const store = useQuery({ queryKey: ['store', slug], queryFn: () => storeApi<Store>(slug), retry: false })
@@ -211,6 +214,8 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
     const local = remembered<Cart>(`store.${slug}.cart`, {})
     const joined: Cart = { ...server }
     for (const [id, q] of Object.entries(local)) joined[id] = Math.max(joined[id] ?? 0, q)
+    // Syncs with the server and this phone's storage (below), which is what effects are for.
+    // oxlint-disable-next-line react/set-state-in-effect
     setCartState(joined)
     setMerged(true)
     if (Object.keys(local).length > 0) { void putCart(shopId, joined).catch(() => {}); remember(`store.${slug}.cart`, {}) }
@@ -285,7 +290,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   for (const o of pastOrders.filter((o) => o.shopId === data.shopId)) for (const l of o.lines) if (l.productId) counts.set(l.productId, (counts.get(l.productId) ?? 0) + 1)
   const usual = data.items.filter((i) => counts.has(i.id) && i.available > 0).sort((a, b) => counts.get(b.id)! - counts.get(a.id)!).slice(0, 12)
   const offers = data.items.filter((i) => i.regularPrice && i.regularPrice > i.price && i.available > 0).slice(0, 12)
-  const fresh = data.items.filter((i) => i.addedAt && Date.now() - Date.parse(i.addedAt) < 21 * 86_400_000 && i.available > 0)
+  const fresh = data.items.filter((i) => i.addedAt && nowMs - Date.parse(i.addedAt) < 21 * 86_400_000 && i.available > 0)
     .sort((a, b) => Date.parse(b.addedAt!) - Date.parse(a.addedAt!)).slice(0, 12)
   const front = category === 'all' && !q
   const rail = (title: string, items: StoreItem[]) => items.length > 0 && (

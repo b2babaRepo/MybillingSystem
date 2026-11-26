@@ -2,7 +2,8 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, btn } from '../components/ui'
+import { Button, Field } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
@@ -29,7 +30,7 @@ const STATUS_TONE: Record<Booking['status'], string> = {
 /** Hall and lawn bookings for weddings, receptions, birthdays and anniversaries: a month at a time, each date and slot booked once. */
 export function BookingsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const { t } = useTranslation()
-  const [month, setMonth] = useState(monthOf(new Date()))
+  const [month, setMonth] = useState(() => monthOf(new Date()))
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const venues = useQuery({ queryKey: [shopId, 'venues'], queryFn: () => api<Venue[]>('/v1/venues') }).data ?? []

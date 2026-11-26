@@ -1,5 +1,5 @@
 import { phoneOk } from '../lib/phone'
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { changeDue, findCustomers } from '../lib/customerFind'

@@ -2,7 +2,8 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, btn } from '../components/ui'
+import { Button, Field } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatPhone, formatRupees, whatsAppLink } from '../lib/format'
@@ -25,7 +26,7 @@ const ICON: Record<Occasion, string> = { none: '', birthday: '🎂 ', anniversar
 export function TableBookingsScreen({ shopId, shopName }: { shopId: string; shopName: string }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [date, setDate] = useState(isoDay(new Date()))
+  const [date, setDate] = useState(() => isoDay(new Date()))
   const [adding, setAdding] = useState(false)
   const [depositFor, setDepositFor] = useState<string | null>(null)
   const [deposit, setDeposit] = useState({ amount: '', mode: 'upi' })

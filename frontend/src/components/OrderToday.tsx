@@ -1,4 +1,4 @@
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
 import { itemName } from '../lib/itemName'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'

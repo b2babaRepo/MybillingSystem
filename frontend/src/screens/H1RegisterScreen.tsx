@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
+import { useNow } from '../lib/useNow'
 
 interface Row {
   soldAt: string; billNo: string | null; patientName: string; patientAddress: string | null; doctorName: string; doctorAddress: string | null; doctorRegNo: string | null
@@ -14,8 +15,9 @@ const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 
 /** The Schedule H1 register: every H1 sale, with its doctor and patient, for a period. Printable for the drug inspector. */
 export function H1RegisterScreen({ shopId, shopName }: { shopId: string; shopName: string }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
-  const today = new Date()
+  const today = new Date(nowMs)
   const [from, setFrom] = useState(iso(new Date(today.getFullYear(), today.getMonth(), 1)))
   const [to, setTo] = useState(iso(today))
   const rows = useQuery({ queryKey: [shopId, 'h1-register', from, to], queryFn: () => api<Row[]>(`/v1/pharmacy/h1-register?from=${from}&to=${to}`) }).data ?? []

@@ -1,7 +1,7 @@
 import { addToCart } from '../../lib/customer'
 import { aisleName } from '../../lib/aisleNames'
 import { ConnectShop } from '../../components/ConnectShop'
-import { btn } from '../../components/ui'
+import { btn } from '../../lib/buttonStyles'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AisleTiles, type Aisle } from '../../components/AisleTiles'

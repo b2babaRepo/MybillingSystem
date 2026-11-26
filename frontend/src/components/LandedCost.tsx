@@ -1,25 +1,20 @@
-import { controlSm, btn } from './ui'
+import { controlSm } from './ui'
+import { btn } from '../lib/buttonStyles'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
+import { noCharges, rows } from '../lib/landedCost'
 
 export type Split = 'value' | 'quantity' | 'bags' | 'weight'
 export interface Charge { label: string; amount: string; paidBy: '' | 'cash' | 'upi' }
 export interface Charges { rows: Charge[]; split: Split; extraInCost: boolean }
-export const noCharges: Charges = { rows: [], split: 'value', extraInCost: false }
-
 export interface LotLine { productId: string; name: string; units: number; billRate: number; chargePerUnit: number; landedCost: number; sellingPrice: number | null; marginPerUnit: number | null; marginPercent: number | null; lotMargin: number | null; sold: number; revenue: number; profit: number; left: number }
 export interface Lot { id: string; billNo: string | null; supplier: string; occurredAt: string; charges: number; chargeLines: { label: string; amount: number; paid: boolean }[]; landedTotal: number; expectedMargin: number | null; revenue: number; profit: number; lines: LotLine[] }
 
 const input = controlSm
 const PRESETS = ['freight', 'hamali', 'commission']
-const rows = (c: Charge[]) => c.filter((r) => r.label.trim() && Number(r.amount) > 0).map((r) => ({ label: r.label.trim(), amount: Number(r.amount), paidBy: r.paidBy || null }))
-
-/** The body a bill sends: only the charges filled in, and how to spread them. */
-export const chargesBody = (c: Charges) => ({ charges: rows(c.rows), split: c.split, extraInCost: c.extraInCost })
-
 /**
  * Charges to bring the goods in that aren't on the supplier's bill (lorry freight, hamali, commission): they go into the
  * items' cost, spread by value, units or bags. One paid now in cash or UPI is also written in the kharcha.

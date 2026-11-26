@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { lazy, Suspense, useState } from 'react'

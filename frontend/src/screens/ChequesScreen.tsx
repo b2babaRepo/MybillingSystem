@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import { DataTable } from '../components/DataTable'
+import { useNow } from '../lib/useNow'
 
 interface Cheque {
   id: string; customerId: string; customer: string; amount: number; chequeNo: string | null; bank: string | null; chequeDate: string | null
@@ -21,12 +22,13 @@ const day = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { d
  * the last 90 days' settled ones. A bounce puts the amount back on the customer's khata with the bank's reason.
  */
 export function ChequesScreen({ isOwner }: { isOwner: boolean }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
   const client = useQueryClient()
   const { data } = useQuery({ queryKey: ['cheques'], queryFn: () => api<ChequeList>('/v1/cheques') })
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Date(nowMs).toISOString().slice(0, 10)
 
   async function settle(c: Cheque, cleared: boolean) {
     let reason: string | undefined

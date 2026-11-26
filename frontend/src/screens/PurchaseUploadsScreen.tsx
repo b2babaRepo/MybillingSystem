@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
@@ -10,6 +10,7 @@ import { billFile } from '../lib/billFile'
 import { whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import { UPLOAD_DRAFT_KEY, type InvoiceDraft } from './SuppliersScreen'
+import { useNow } from '../lib/useNow'
 
 interface Upload { id: string; source: 'computer' | 'phone'; createdAt: string; usedAt: string | null }
 interface Link { slug: string; expires: number; token: string; sentTo: string | null }
@@ -239,12 +240,13 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
 
 /** #/up/{shop}?e=…&t=…: the page a phone opens from the QR code. Take or pick bill photos and send them; no sign-in. */
 export function PhoneUploadPage({ path }: { path: string }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
   const match = path.match(/^\/up\/([^/?]+)\?e=(\d+)&t=([0-9a-f]+)/)
   const [sent, setSent] = useState(0)
   const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle')
   const [problem, setProblem] = useState<string | null>(null)
-  const expired = !match || Number(match[2]) * 1000 < Date.now()
+  const expired = !match || Number(match[2]) * 1000 < nowMs
 
   async function send(files: FileList) {
     setState('busy')

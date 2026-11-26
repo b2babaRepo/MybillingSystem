@@ -5,13 +5,12 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
+import { pct } from '../lib/supplierStats'
 
 interface ItemSupplier { supplierId: string; name: string; phone: string | null; ordered: number; received: number; pending: number; damaged: number; lastRate: number | null; lastAt: string | null; deliveries: number; leadDays: number | null; fillRate: number | null; preferred: boolean; bestRate: boolean; caseQty?: number | null; minQty?: number | null }
 interface SupplierProduct { productId: string; name: string; category: string | null; unit: string; received: number; pending: number; lastRate: number | null; lastAt: string | null; deliveries: number; preferred: boolean }
 
 const short = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: '2-digit' })
-export const pct = (n: number | null | undefined) => (n == null ? '—' : `${Math.round(n * 100)}%`)
-
 /**
  * "Suppliers of this item", on the item page (owner only: it shows rates). Who it came from, how much, at what rate,
  * how fast; the best recent rate is marked, and the owner picks the supplier to order it from.

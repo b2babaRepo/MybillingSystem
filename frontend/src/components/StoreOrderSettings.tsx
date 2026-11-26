@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import type { StoreSettings } from '../lib/orderFlow'
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
 import { FESTIVE } from '../lib/festive'
 
 const input = 'h-12 w-full rounded-xl border border-line bg-white px-3 text-lg outline-none focus:border-brand-line'

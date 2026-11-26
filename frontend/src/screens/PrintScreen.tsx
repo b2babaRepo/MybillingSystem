@@ -1,6 +1,6 @@
 import { NotFound } from '../components/NotFound'
 import { JewelleryBreakdown } from '../components/JewelleryBreakdown'
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { SendFromShop } from '../components/ShopWhatsApp'
 import { shownLocale } from '../i18n'
 import { lazy, Suspense, useEffect, useState } from 'react'

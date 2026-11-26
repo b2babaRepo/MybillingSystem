@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 import { FEATURES, priceFor, usePlans, type Claim, type Payment, type PlanInfo, type PlanTerm, type SubscriptionStatus } from '../lib/billing'
 import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/format'
 import type { AdminRole } from '../lib/types'
-import { planBillLink } from './PlanBillPage'
+import { planBillLink } from '../lib/planBill'
 import { ask, confirmAsk } from '../lib/ask'
 
 interface Overview { byStatus: Record<SubscriptionStatus, number>; trialsEndingThisWeek: number; revenueThisMonth: number; revenueThisYear: number; pendingClaims: Claim[] }

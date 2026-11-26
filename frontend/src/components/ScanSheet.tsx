@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Sheet, btn } from './ui'
+import { Sheet } from './ui'
+import { btn } from '../lib/buttonStyles'
 
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
 
@@ -49,7 +50,7 @@ export function ScanSheet({ onCode, onClose, continuous = false }: { onCode: (co
   const { t } = useTranslation()
   const video = useRef<HTMLVideoElement>(null)
   const handler = useRef(onCode)
-  handler.current = onCode
+  useEffect(() => { handler.current = onCode })
   const [error, setError] = useState('')
   const [last, setLast] = useState<{ code: string; ok: boolean } | null>(null)
   const [torch, setTorch] = useState<{ on: boolean; track: MediaStreamTrack } | null>(null)

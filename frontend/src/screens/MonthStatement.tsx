@@ -2,18 +2,22 @@ import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../lib/format'
 import type { MonthStatement } from '../lib/reports'
 
+/** One line of the statement: a label, and the amount (shown with − when it is taken off). */
+function Row({ label, amount, minus = false, strong = false, note }: { label: string; amount: number; minus?: boolean; strong?: boolean; note?: string }) {
+  return (
+    <div className={`flex justify-between gap-2 py-1 ${strong ? 'border-t border-[#d8e2df] font-extrabold' : ''}`}>
+      <span className={strong ? '' : 'text-muted'}>{label}{note && <span className="block text-xs font-normal text-warn">{note}</span>}</span>
+      <span className="shrink-0">{minus && amount !== 0 ? '−' : ''}{formatRupees(Math.abs(amount))}</span>
+    </div>
+  )
+}
+
 /**
  * The month on one page, the way an accountant reads it: sales less GST and the goods' cost gives gross profit; less
  * each running cost gives net profit. Money out that is not a cost comes after, apart, so it never looks like a loss.
  */
 export function MonthStatementCard({ st }: { st: MonthStatement }) {
   const { t } = useTranslation()
-  const Row = ({ label, amount, minus = false, strong = false, note }: { label: string; amount: number; minus?: boolean; strong?: boolean; note?: string }) => (
-    <div className={`flex justify-between gap-2 py-1 ${strong ? 'border-t border-[#d8e2df] font-extrabold' : ''}`}>
-      <span className={strong ? '' : 'text-muted'}>{label}{note && <span className="block text-xs font-normal text-warn">{note}</span>}</span>
-      <span className="shrink-0">{minus && amount !== 0 ? '−' : ''}{formatRupees(Math.abs(amount))}</span>
-    </div>
-  )
   return (
     <div className="flex flex-col text-sm">
       <span className="text-sm font-semibold text-muted">{t('statement.title')}</span>

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { karat, type Metal } from '../lib/jewellery'
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
+import { useNow } from '../lib/useNow'
 
 interface Rate { metal: Metal; purity: number; sellPerGram: number }
 
@@ -15,14 +16,15 @@ const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
  * status); where a browser can't share pictures it is saved instead.
  */
 export function RateCardImage({ rates, shopName, link }: { rates: Rate[]; shopName: string; link: string | null }) {
+  const nowMs = useNow()
   const { t, i18n } = useTranslation()
   const canvas = useRef<HTMLCanvasElement>(null)
   const [note, setNote] = useState('')
-  const date = new Date().toLocaleDateString(i18n.language === 'en' ? 'en-IN' : `${i18n.language}-IN`, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  const rows: [string, string][] = [
+  const date = new Date(nowMs).toLocaleDateString(i18n.language === 'en' ? 'en-IN' : `${i18n.language}-IN`, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const rows = useMemo((): [string, string][] => [
     ...[999, 916, 750].flatMap((p): [string, string][] => { const r = rates.find((x) => x.metal === 'gold' && x.purity === p); return r ? [[`${karat('gold', p)} · ${p}`, `${inr(r.sellPerGram * 10)} ${t('jwl6.rateCardPer10')}`]] : [] }),
     ...[999, 925].flatMap((p): [string, string][] => { const r = rates.find((x) => x.metal === 'silver' && x.purity === p); return r ? [[`${t('jwl.silver')} · ${p}`, `${inr(r.sellPerGram * 1000)} ${t('jwl6.rateCardPerKg')}`]] : [] }),
-  ]
+  ], [rates, t])
 
   useEffect(() => {
     const c = canvas.current
@@ -75,7 +77,7 @@ export function RateCardImage({ rates, shopName, link }: { rates: Rate[]; shopNa
       ctx.font = 'bold 40px system-ui, sans-serif'
       ctx.fillText(link.replace(/^https?:\/\//, ''), W / 2, H - 150, W - 120)
     }
-  }, [rows.map((r) => r.join()).join('|'), shopName, date, link, t])
+  }, [rows, shopName, date, link, t])
 
   async function share() {
     setNote('')

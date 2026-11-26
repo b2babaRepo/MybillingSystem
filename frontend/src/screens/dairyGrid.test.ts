@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseGrid } from './DairyScreen'
+import { parseGrid } from '../lib/dairyGrid'
 
 describe('parseGrid', () => {
   it('reads a chart copied from Excel: SNF across the top, fat down the side', () => {

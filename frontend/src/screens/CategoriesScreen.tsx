@@ -1,4 +1,5 @@
-import { controlSm, btn } from '../components/ui'
+import { controlSm } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'

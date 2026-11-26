@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { JewelleryPiece } from '../lib/jewellery'
 import type { Member } from './JewelleryBookPanels'
-import { schemeOwed, slowStock } from './JewelleryBookReport'
+import { schemeOwed, slowStock } from '../lib/jewelleryBook'
 
 const piece = (tagNo: number, createdAt: string, sold = false) => ({ id: `p${tagNo}`, tagNo, createdAt, sold }) as JewelleryPiece
 const member = (paidTotal: number, bonus: number, closedOn: string | null = null) => ({ paidTotal, bonus, closedOn, redeemedBillId: null }) as Member

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { navigate } from '../router'
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
 
 /** A link to something that isn't there (a wrong id, a bad month): say so and offer the way back. */
 export function NotFound({ text, back }: { text: string; back: string }) {

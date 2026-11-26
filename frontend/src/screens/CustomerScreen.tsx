@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { Keypad } from '../components/Keypad'
 import { KhataHistory } from '../components/KhataHistory'
 import { KhataTable } from '../components/KhataTable'
-import { Balance, Button, Drawer, btn } from '../components/ui'
+import { Balance, Button, Drawer } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { addKhataEntry, reverseEntry, undoEntry, useCustomers, useStatement } from '../lib/data'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, request } from '../lib/api'
@@ -26,6 +27,9 @@ const UNDO_SECONDS = 30
 const REMOVAL_WINDOW_MS = 15 * 60_000
 
 type Saved = { id: string; amount: number; dueAfter: number; mode: PaymentMode; at: string; proof?: string }
+
+/** The moment an entry is saved (called from the save handlers, not while drawing). */
+const isoNow = () => new Date().toISOString()
 
 /**
  * One customer's khata. History first: every udhaar with the items behind it (date, quantity, price), every
@@ -101,7 +105,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
     const proof = delta < 0 && mode === 'upi' && upiRef.trim() ? `UTR ${upiRef.trim()}` : delta < 0 && mode === 'cheque' && cheque.no ? t('cheques.receiptProof', { no: cheque.no }) : undefined
     setUpiRef('')
     setCheque({ no: '', bank: '', date: '' })
-    setLastSaved({ id, amount: delta, dueAfter: round2(customer.balance + delta), mode, at: new Date().toISOString(), proof })
+    setLastSaved({ id, amount: delta, dueAfter: round2(customer.balance + delta), mode, at: isoNow(), proof })
   }
 
   /** Inside the window anyone may remove with a tap; later the owner must give a reason the customer will see. */

@@ -1,11 +1,11 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { shownLocale } from '../i18n'
 import { api } from '../lib/api'
 import { navigate } from '../router'
-import { useShopWhatsApp } from '../components/ShopWhatsApp'
+import { useShopWhatsApp } from '../lib/shopWhatsApp'
 
 interface Conversation { phone: string; customerId: string | null; name: string | null; lastBody: string; lastDirection: 'In' | 'Out'; lastAt: string; waiting: number; canReplyFreely: boolean }
 interface Message { id: string; direction: 'In' | 'Out'; kind: string; body: string; status: string; error: string | null; at: string }

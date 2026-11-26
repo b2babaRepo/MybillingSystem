@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { GST_STATES } from '../lib/states'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'

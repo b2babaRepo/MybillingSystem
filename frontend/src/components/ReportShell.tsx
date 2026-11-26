@@ -1,5 +1,5 @@
 import { shownLocale } from '../i18n'
-import { useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
@@ -9,20 +9,6 @@ export type ReportPage = 'reports' | 'pnl' | 'gst' | 'balance'
 
 /** One figure in the ticker strip: its label, value and, when known, the change on the period before. */
 export interface Tick { label: string; value: string; change?: number | null; note?: string }
-
-const KEY = 'gk-report-view'
-
-/** Chart or ledger, remembered on this phone: the owner keeps charts, the CA's login keeps tables. */
-export function useReportView(): [ReportView, (v: ReportView) => void] {
-  const [view, setView] = useState<ReportView>(() => {
-    try { return localStorage.getItem(KEY) === 'ledger' ? 'ledger' : 'chart' } catch { return 'chart' }
-  })
-  return [view, (v) => { setView(v); try { localStorage.setItem(KEY, v) } catch { /* private window */ } }]
-}
-
-/** Percent change from the period before; null when there is nothing to compare with. */
-export const change = (now: number, before: number | undefined | null) =>
-  before ? Math.round(((now - before) / Math.abs(before)) * 1000) / 10 : null
 
 /** ▲ 12.4% in teal or ▼ 6.1% in orange (colour-blind safe, and the arrow carries it too). */
 export function Delta({ value, invert = false, className = '' }: { value: number | null | undefined; invert?: boolean; className?: string }) {
@@ -120,13 +106,13 @@ export function UpDownBars({ days, average, label }: { days: { date: string; sal
 export function Waterfall({ steps, label }: { steps: { label: string; amount: number; total?: boolean }[]; label: string }) {
   const top = Math.max(1, ...steps.map((s) => Math.abs(s.amount)))
   const h = (v: number) => (Math.abs(v) / top) * 200
+  const bars: (typeof steps[number] & { from: number; to: number })[] = []
   let level = 0
-  const bars = steps.map((s) => {
-    if (s.total) { const bar = { ...s, from: 0, to: s.amount }; level = s.amount; return bar }
-    const bar = { ...s, from: level + s.amount, to: level }
+  for (const s of steps) {
+    if (s.total) { bars.push({ ...s, from: 0, to: s.amount }); level = s.amount; continue }
+    bars.push({ ...s, from: level + s.amount, to: level })
     level += s.amount
-    return bar
-  })
+  }
   const w = 1000 / steps.length
   return (
     <svg viewBox="0 0 1000 270" className="h-auto w-full" role="img" aria-label={label}>
@@ -144,6 +130,3 @@ export function Waterfall({ steps, label }: { steps: { label: string; amount: nu
     </svg>
   )
 }
-
-/** Days left until a date (negative once past). */
-export const daysUntil = (iso: string) => Math.ceil((Date.parse(`${iso}T23:59:59+05:30`) - Date.now()) / 86_400_000)

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 
 interface PublicPlan {
   code: string; name: string; priceMonthly: number | null; priceYear1: number | null; priceYear3: number | null; priceYear5: number | null

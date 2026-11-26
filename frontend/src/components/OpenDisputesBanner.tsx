@@ -1,12 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api } from '../lib/api'
 import { navigate } from '../router'
-import type { Dispute } from '../screens/DisputesScreen'
+import { useOpenDisputes } from '../lib/openDisputes'
+
 
 // Kept apart from DisputesScreen so the khata list can show the banner without loading the whole screen.
-
-export const useOpenDisputes = () => useQuery({ queryKey: ['disputes'], queryFn: () => api<Dispute[]>('/v1/disputes'), staleTime: 60_000 })
 
 /** On the khata list: customers have questioned entries and are waiting for an answer. */
 export function OpenDisputesBanner() {
@@ -20,4 +17,3 @@ export function OpenDisputesBanner() {
     </button>
   )
 }
-

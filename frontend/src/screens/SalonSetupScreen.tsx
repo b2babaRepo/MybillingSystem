@@ -2,13 +2,15 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, btn } from '../components/ui'
+import { Button, Field } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Product } from '../lib/types'
 import { navigate } from '../router'
 import { confirmAsk } from '../lib/ask'
+import { useNow } from '../lib/useNow'
 
 interface StaffRow { membershipId: string; name: string; phone: string; role: string; isActive: boolean; hasPin: boolean }
 
@@ -197,9 +199,10 @@ export function CommissionRates({ shopId }: { shopId: string }) {
 
 /** A month of each stylist's work: services, sales, commission and tips, what is owed, and paying it out. */
 export function StylistEarningsScreen({ shopId }: { shopId: string }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const now = new Date()
+  const now = new Date(nowMs)
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
   const data = useQuery({ queryKey: [shopId, 'stylist-earnings', month], queryFn: () => api<Earnings>(`/v1/stylists/earnings?month=${month}`) }).data
   const [message, setMessage] = useState('')

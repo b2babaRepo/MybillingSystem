@@ -4,12 +4,14 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { confirmAsk } from '../lib/ask'
-import { Button, Field, control, btn } from '../components/ui'
+import { Button, Field, control } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { ItemPicker } from '../components/ItemPicker'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees, indiaToday as today } from '../lib/format'
 import { isRunning, useOffers, type SaleOffer } from '../lib/offers'
+import { useNow } from '../lib/useNow'
 
 const input = control
 const day = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
@@ -23,6 +25,7 @@ const billWide = (k: SaleOffer['kind']) => k === 'bill_percent' || k === 'bill_a
 const needsValue = (k: SaleOffer['kind']) => k !== 'buy_get' && k !== 'combo'
 
 export function OffersScreen({ shopId }: { shopId: string }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const offers = useOffers(shopId).data ?? []
@@ -34,7 +37,7 @@ export function OffersScreen({ shopId }: { shopId: string }) {
   }
   const [draft, setDraft] = useState<typeof blank | null>(null)
   const [message, setMessage] = useState('')
-  const now = Date.now()
+  const now = nowMs
   // Within its dates but not on this weekday or at this hour: it comes back on by itself.
   const ends = (o: SaleOffer) => Math.min(Date.parse(o.endsAt), o.stoppedAt ? Date.parse(o.stoppedAt) : Infinity)
   const state = (o: SaleOffer) => (isRunning(o, now) ? 'running' : Date.parse(o.startsAt) > now ? 'coming' : now < ends(o) ? 'later' : 'ended')

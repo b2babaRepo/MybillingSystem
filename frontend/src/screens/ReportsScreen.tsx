@@ -5,12 +5,15 @@ import { navigate } from '../router'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, btn } from '../components/ui'
+import { Button } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { downloadCsv, type MonthReport } from '../lib/reports'
 import { MonthStatementCard } from './MonthStatement'
-import { change, Delta, ReportShell, Sparkline, UpDownBars, useReportView } from '../components/ReportShell'
+import { Delta, ReportShell, Sparkline, UpDownBars } from '../components/ReportShell'
+import { change, useReportView } from '../lib/reportShell'
+import { useNow } from '../lib/useNow'
 
 function shiftMonth(month: string, by: number) {
   const [year, m] = month.split('-').map(Number)
@@ -22,6 +25,7 @@ const thisMonth = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slic
 
 /** One month: sales, money in, udhaar out and back, estimated profit, the best sellers, and downloads. */
 export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
   const nm = useItemName(shopId)
   const current = thisMonth()
@@ -34,7 +38,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
   // The month before, for the moves (▲▼) and the dashed average line.
   const before = useQuery({ queryKey: [shopId, 'report', shiftMonth(month, -1)], queryFn: () => api<MonthReport>(`/v1/reports/month?month=${shiftMonth(month, -1)}`), retry: false }).data
   const [view, setView] = useReportView()
-  const today = new Date()
+  const today = new Date(nowMs)
   const fy = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1
   const year = useQuery({
     queryKey: [shopId, 'report-year', fy], enabled: isOwner, retry: false,

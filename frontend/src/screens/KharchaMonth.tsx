@@ -1,14 +1,14 @@
 import { NotFound } from '../components/NotFound'
-import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from '../lib/api'
 import { formatRupees, indiaToday, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
-import { OUTSIDE_PROFIT, type ExpenseCategory } from './ExpensesScreen'
+import { type ExpenseCategory } from './ExpensesScreen'
+import { OUTSIDE_PROFIT } from '../lib/expenses'
 import { Page } from '../components/PrintPage'
 import { addText, shownLocale } from '../i18n'
 import { kharchaText } from '../i18n/kharcha'
+import { shiftMonth, thisMonth, useExpenseMonth } from '../lib/kharchaMonth'
 
 addText(kharchaText)
 
@@ -31,21 +31,7 @@ export interface ExpenseMonth {
   refunds: number
 }
 
-/** "2026-10" ± months. */
-export function shiftMonth(month: string, by: number) {
-  const [y, m] = month.split('-').map(Number)
-  const d = new Date(Date.UTC(y, m - 1 + by, 1))
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-/** The India-time month now, "2026-10". */
-export const thisMonth = () => indiaToday().slice(0, 7)
-
 const monthLabel = (month: string) => new Date(`${month}-01T00:00:00`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric' })
-
-export function useExpenseMonth(shopId: string, month: string) {
-  return useQuery({ queryKey: [shopId, 'expenses', 'month', month], queryFn: () => api<ExpenseMonth>(`/v1/expenses/month?month=${month}`) })
-}
 
 /** Paid by bank or cheque this month, added to the cash and UPI line when there is any. */
 function withBank(m: ExpenseMonth, text: string, t: (k: string) => string) {

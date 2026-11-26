@@ -4,6 +4,7 @@ import { api } from '../lib/api'
 import { addCustomer, useCustomers } from '../lib/data'
 import { CustomerFinder } from './CustomerFinder'
 import { CashLimitNote } from './CashLimitNote'
+import { useNow } from '../lib/useNow'
 
 /**
  * On a paid walk-in bill: put it on a customer's khata now that we know who it was. The bill itself (number, GST,
@@ -17,7 +18,8 @@ export function AttachCustomer({ shopId, billId, occurredAt, cash, onDone }: { s
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const old = Date.now() - Date.parse(occurredAt) > 7 * 86_400_000
+  const now = useNow()
+  const old = now - Date.parse(occurredAt) > 7 * 86_400_000
   const customer = customers.find((c) => c.id === picked) ?? null
 
   async function save() {

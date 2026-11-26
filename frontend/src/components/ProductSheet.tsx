@@ -5,7 +5,7 @@ import { allPhotos } from '../lib/images'
 import { itemArt } from '../lib/itemArt'
 import { dataSaver } from '../lib/search'
 import type { Unit } from '../lib/types'
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
 
 // Customer app phase 3: the product page. A half-sheet for groceries, a full page for clothes and jewellery (where
 // the photo matters most). Swipeable, zoomable photos with a 1/5 counter and no auto-slide; each option with its own
@@ -27,9 +27,6 @@ export interface SheetItem {
   packUnit?: Unit | null
   extraPhotos?: string[] | null
 }
-
-/** Clothes, jewellery and similar trades get the full page; groceries the half-sheet. */
-export const fullPageTrades = ['clothes', 'jewellery', 'fashion', 'footwear', 'furniture']
 
 export function ProductSheet({ shopId, shopName, shopPhone, item, all, inCart, full, hearted, onHeart, onChange, onPick, onClose, deliveryText }: {
   shopId: string
@@ -57,7 +54,9 @@ export function ProductSheet({ shopId, shopName, shopPhone, item, all, inCart, f
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
-  useEffect(() => { setAt(0); setZoom(false); strip.current?.scrollTo({ left: 0 }) }, [item.id])
+  const [shownId, setShownId] = useState(item.id)
+  if (shownId !== item.id) { setShownId(item.id); setAt(0); setZoom(false) }
+  useEffect(() => { strip.current?.scrollTo({ left: 0 }) }, [item.id])
 
   // Options: the shop's other items for the same everyday thing (another brand or pack size), each with its price.
   const options = item.catalogueItemId ? all.filter((x) => x.catalogueItemId === item.catalogueItemId) : [item]

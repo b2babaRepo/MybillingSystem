@@ -2,7 +2,8 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, btn } from '../components/ui'
+import { Button, Field } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
@@ -23,7 +24,7 @@ const TONE: Record<Status, string> = { booked: 'border-teal-200 bg-white', arriv
 export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopName: string }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [date, setDate] = useState(isoDay(new Date()))
+  const [date, setDate] = useState(() => isoDay(new Date()))
   const [form, setForm] = useState<false | 'book' | 'walk-in'>(false)
   const [paying, setPaying] = useState<string | null>(null)
   const [pay, setPay] = useState({ amount: '', mode: 'upi', stylistId: '', tip: '' })

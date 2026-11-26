@@ -1,8 +1,7 @@
 import { aisleName, sectionName } from '../lib/aisleNames'
-import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api } from '../lib/api'
 import { AISLE_ART } from '../lib/itemArt'
+import { useAisles } from '../lib/aisles'
 
 export interface Aisle {
   code: string
@@ -11,10 +10,6 @@ export interface Aisle {
   section: string
   sectionEn: string
 }
-
-/** The category tree (sections of aisles), the same for every shop. Open to guests too, for the online store. */
-export const useAisles = () =>
-  useQuery({ queryKey: ['aisles'], queryFn: () => api<Aisle[]>('/v1/catalogue/aisles'), staleTime: Infinity })
 
 /**
  * Browse by aisle: bold section headers ("रोज़ का राशन"), each with a grid of soft-tinted rounded tiles holding

@@ -1,6 +1,6 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, request } from '../lib/api'
 import { BADGE_ICON, isValidAadhaar, type AgentPerformanceRow, type FieldAgent, type FieldAgentStatus, type Registration } from '../lib/agents'
@@ -50,7 +50,11 @@ export function AgentsPanel({ addRequest = 0 }: { addRequest?: number }) {
   const [message, setMessage] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   // The page header's "Add an agent" opens the form here.
-  useEffect(() => { if (addRequest > 0) setAdding(true) }, [addRequest])
+  const [seenRequest, setSeenRequest] = useState(0)
+  if (addRequest !== seenRequest) {
+    setSeenRequest(addRequest)
+    if (addRequest > 0) setAdding(true)
+  }
   const empty = { fullName: '', phone: '', address: '', market: '', aadhaar: '', upiId: '' }
   const [form, setForm] = useState(empty)
 

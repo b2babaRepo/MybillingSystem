@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Drawer, btn } from '../components/ui'
+import { Drawer } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { formatRupees } from '../lib/format'
 import { grams } from '../lib/jewellery'
 import type { Girvi } from './JewelleryBookPanels'
