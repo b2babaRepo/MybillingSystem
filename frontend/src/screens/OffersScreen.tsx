@@ -35,7 +35,9 @@ export function OffersScreen({ shopId }: { shopId: string }) {
   const [draft, setDraft] = useState<typeof blank | null>(null)
   const [message, setMessage] = useState('')
   const now = Date.now()
-  const state = (o: SaleOffer) => (isRunning(o, now) ? 'running' : Date.parse(o.startsAt) > now ? 'coming' : 'ended')
+  // Within its dates but not on this weekday or at this hour: it comes back on by itself.
+  const ends = (o: SaleOffer) => Math.min(Date.parse(o.endsAt), o.stoppedAt ? Date.parse(o.stoppedAt) : Infinity)
+  const state = (o: SaleOffer) => (isRunning(o, now) ? 'running' : Date.parse(o.startsAt) > now ? 'coming' : now < ends(o) ? 'later' : 'ended')
 
   async function run(action: () => Promise<unknown>) {
     setMessage('')
