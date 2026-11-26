@@ -14,7 +14,7 @@ tag="$(git -C "$root" rev-parse --short HEAD)"
 remote=/opt/grocery-khata
 build="/opt/grocery-khata-build/$tag"
 
-if [ -n "$(git -C "$root" status --porcelain --untracked-files=no -- backend frontend deploy/production ':!**/appsettings.Development.json')" ]; then
+if [ -n "$(git -C "$root" status --porcelain --untracked-files=no -- backend frontend shared deploy/production ':!**/appsettings.Development.json')" ]; then
   echo "backend/, frontend/ or deploy/production/ has uncommitted changes: commit first, so the release matches a commit." >&2
   exit 1
 fi
@@ -22,7 +22,7 @@ fi
 
 echo "== Sending the source of $tag to $server"
 ssh "$server" "rm -rf '$build' && mkdir -p '$build'"
-git -C "$root" archive --format=tar.gz HEAD backend frontend deploy/production | ssh "$server" "tar -xzf - -C '$build'"
+git -C "$root" archive --format=tar.gz HEAD backend frontend shared deploy/production | ssh "$server" "tar -xzf - -C '$build'"
 scp -q "$licence" "$server:$build/sixlabors.lic"
 
 ssh "$server" bash -s -- "$tag" "$remote" "$build" <<'REMOTE'
@@ -33,7 +33,7 @@ trap 'rm -rf "$build"' EXIT  # the key and the source never stay on the server
 echo "== Building release $tag on the server"
 cd "$build"
 DOCKER_BUILDKIT=1 docker build -q -f deploy/production/Dockerfile.api --secret id=sixlabors,src=sixlabors.lic -t "grocery-khata-api:$tag" backend
-DOCKER_BUILDKIT=1 docker build -q -f deploy/production/Dockerfile.web -t "grocery-khata-web:$tag" frontend
+DOCKER_BUILDKIT=1 docker build -q -f deploy/production/Dockerfile.web -t "grocery-khata-web:$tag" .
 
 echo "== Updating the stack's files"
 cp deploy/production/grocery-khata/{docker-compose.yml,nginx.conf,init-db.sh,backup.sh} "$remote/"

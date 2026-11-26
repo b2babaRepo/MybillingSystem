@@ -1,2 +1,6 @@
-node_modules
-dist
+# The build context is the repository root: only frontend/ and shared/ are needed.
+*
+!frontend
+!shared
+frontend/node_modules
+frontend/dist
