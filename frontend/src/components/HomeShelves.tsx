@@ -58,7 +58,7 @@ export function HomeShelves({ saved, orders }: { saved: SavedShop[]; orders: Ord
     const src = imageUrl(shopId, item.id, item.imageAt, 'thumb')
     if (src) return <img src={src} alt="" loading="lazy" className="h-full w-full object-contain" />
     const art = itemArt({ catalogueItemId: item.catalogueItemId, name: item.name })
-    return <span aria-hidden className="flex h-full w-full items-center justify-center text-3xl" style={{ background: art.tint }}>{art.emoji}</span>
+    return <span aria-hidden className="art-tint flex h-full w-full items-center justify-center text-3xl" style={{ background: art.tint }}>{art.emoji}</span>
   }
   const tile = (key: string, shopId: string, item: ShelfItem | { id: string; name: string; price: number; imageAt?: string | null }, under: string | null, action: React.ReactNode, onOpen: () => void) => (
     <div key={key} className="flex w-32 shrink-0 flex-col gap-1 rounded-2xl bg-white p-2 shadow-[0_1px_4px_rgba(16,32,29,0.06)]">

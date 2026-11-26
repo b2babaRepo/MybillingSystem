@@ -9,6 +9,7 @@ import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { addCustomer, useCustomers } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
+import { confirmAsk } from '../lib/ask'
 import { GOLD_PURITIES, SILVER_PURITIES, grams, karat, rateMessage, type JewelleryBill, type JewelleryPiece, type JewelleryQuote, type MakingType, type Metal, type MetalRates } from '../lib/jewellery'
 import { navigate } from '../router'
 import { ApprovalsPanel, GirviPanel, OrdersPanel, SchemesPanel, type Member } from './JewelleryBookPanels'
@@ -110,6 +111,17 @@ function RatesPanel({ shopId, shopName, isOwner, rates }: { shopId: string; shop
       return [{ metal, purity, sellPerGram: Number(d.sell) / per(metal), buyPerGram: Number(d.buy) ? Number(d.buy) / per(metal) : null }]
     })
     if (list.length === 0) return
+    // A typo (₹1 for silver, a missing zero) would price every bill wrong: ask when a rate is far from the last one,
+    // or too low to be a real per-gram price.
+    const odd = list.flatMap((r) => {
+      const was = current(r.metal as Metal, r.purity)?.sellPerGram
+      const far = was != null && was > 0 && (r.sellPerGram > was * 1.5 || r.sellPerGram < was / 1.5)
+      if (!far && r.sellPerGram >= 10) return []
+      const name = r.metal === 'gold' ? `${karat(r.metal, r.purity)} · ${r.purity}` : `${t('jwl.silver')} ${r.purity}`
+      const shown = (perGram: number) => `${formatRupees(perGram * per(r.metal as Metal))}/${r.metal === 'gold' ? '10g' : 'kg'}`
+      return [`${name}: ${shown(r.sellPerGram)}${was != null ? ` (${t('jwl.rateWas', { rate: shown(was) })})` : ''}`]
+    })
+    if (odd.length > 0 && !(await confirmAsk(t('jwl.rateCheck', { list: odd.join('\n') })))) return
     setBusy(true)
     setMessage('')
     try {

@@ -68,8 +68,8 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
     ...data.topItems.slice(0, 4).map((i) => ({ label: i.name, value: formatRupees(i.amount) })),
   ] : []
   const mix = data ? [
-    { key: 'cash', amount: data.cash, color: '#0f766e' }, { key: 'upi', amount: data.upi, color: '#2563eb' },
-    { key: 'card', amount: data.card ?? 0, color: '#f59e0b' }, { key: 'cheque', amount: data.cheque ?? 0, color: '#7c3aed' },
+    { key: 'cash', amount: data.cash, color: '#0d9488' }, { key: 'upi', amount: data.upi, color: '#2563eb' },
+    { key: 'card', amount: data.card ?? 0, color: '#f59e0b' }, { key: 'cheque', amount: data.cheque ?? 0, color: '#8b5cf6' },
   ].filter((m) => m.amount > 0) : []
   const mixTotal = mix.reduce((a, m) => a + m.amount, 0)
 

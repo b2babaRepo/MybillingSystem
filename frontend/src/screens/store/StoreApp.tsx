@@ -181,6 +181,20 @@ function Header({ title, subtitle, shopId, theme }: { title: string; subtitle?: 
   )
 }
 
+/** Who is signed in on a shop's page: a customer, or the shop's own people looking at it as customers do. */
+function SignedInAs({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const session = getSession()
+  if (!session) return null
+  const own = session.memberships?.some((m) => m.shopId === shopId)
+  return (
+    <p className="mx-4 mt-2 flex min-h-9 items-center justify-between gap-2 rounded-xl bg-brand-soft px-3 text-sm">
+      <span className="min-w-0 truncate">{own ? t('storeWho.yourShop') : t('storeWho.customer', { name: session.user.fullName })}</span>
+      {own && <button onClick={() => navigate('/')} className="shrink-0 font-semibold text-brand underline">{t('storeWho.openShop')}</button>}
+    </p>
+  )
+}
+
 function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?: boolean }) {
   const nowMs = useNow()
   const { t, i18n } = useTranslation()
@@ -247,6 +261,13 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
     // A moment after the last tap, the account's cart is updated.
     window.clearTimeout(pushTimer.current)
     pushTimer.current = window.setTimeout(() => void putCart(data.shopId, next).then(() => queryClient.invalidateQueries({ queryKey: ['me', 'carts'] })).catch(() => {}), 600)
+  }
+  /** A typed quantity, capped at what the shop has. */
+  const setQuantity = (item: StoreItem, quantity: number) => {
+    const updated = { ...cart }
+    if (quantity <= 0) delete updated[item.id]
+    else updated[item.id] = Math.min(round2(quantity), Math.max(item.available, 0))
+    setCart(updated)
   }
   const change = (item: StoreItem, direction: 1 | -1) => {
     const next = round2((cart[item.id] ?? 0) + direction * STEP[item.unit])
@@ -322,6 +343,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-28 lg:max-w-6xl lg:px-4">
       <Header title={data.name} subtitle={[data.area, data.address].filter(Boolean).join(' · ') || t('store.title')} shopId={data.shopId} theme={settings.theme} />
+      <SignedInAs shopId={data.shopId} />
       {festive(settings.theme) && <p className={`mx-4 mt-3 rounded-2xl p-3 text-center font-bold text-white ${festive(settings.theme)!.header}`}>{festive(settings.theme)!.emoji} {t(`cust4.festive.${settings.theme}`)}</p>}
 
       {data.rates && <MetalRates rates={data.rates} />}
@@ -475,7 +497,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
 
       {checkingOut && (!signedIn || merged) && (
         <Checkout store={data} lines={lines} onClose={() => setCheckingOut(false)}
-          onStep={change} onRemove={(item) => { const rest = { ...cart }; delete rest[item.id]; setCart(rest); if (lines.length <= 1) setCheckingOut(false) }}
+          onStep={change} onSet={setQuantity} onRemove={(item) => { const rest = { ...cart }; delete rest[item.id]; setCart(rest); if (lines.length <= 1) setCheckingOut(false) }}
           onPlaced={(placed) => {
             setCart({})
             remember(`store.${slug}.orders`, [{ id: placed.order.id, token: placed.statusToken, at: placed.order.createdAt }, ...myOrders].slice(0, 10))
@@ -486,12 +508,40 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   )
 }
 
-function Checkout({ store, lines, onClose, onPlaced, onStep, onRemove }: {
+/** Units sold in any amount (typed as 250 g or 1.5 kg); the rest count whole pieces, packets, boxes. */
+const LOOSE = new Set<Unit>(['kg', 'g', 'litre', 'ml', 'tonne', 'brass', 'cft', 'metre', 'sq_ft', 'running_ft', 'quintal'])
+
+/** The quantity in checkout: typed (a payal's weight, 250 g of dal), or nudged with − and +. */
+function QuantityBox({ value, unit, max, onSet }: { value: number; unit: Unit; max: number; onSet: (quantity: number) => void }) {
+  const { t } = useTranslation()
+  const [text, setText] = useState(String(value))
+  const [shown, setShown] = useState(value)
+  if (shown !== value) { setShown(value); setText(String(value)) }
+  const commit = () => {
+    const typed = Number(text)
+    if (!text.trim() || !Number.isFinite(typed) || typed <= 0) { setText(String(value)); return }
+    const quantity = Math.min(LOOSE.has(unit) ? round2(typed) : Math.max(1, Math.round(typed)), Math.max(max, 0))
+    setText(String(quantity))
+    if (quantity !== value) onSet(quantity)
+  }
+  return (
+    <label className="flex min-w-14 items-center justify-center gap-1 text-xs font-bold">
+      <input value={text} inputMode={LOOSE.has(unit) ? 'decimal' : 'numeric'} aria-label={t('a11y.quantity')}
+        onChange={(e) => setText(e.target.value.replace(LOOSE.has(unit) ? /[^0-9.]/g : /[^0-9]/g, ''))}
+        onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit() } }} onFocus={(e) => e.target.select()}
+        className="w-12 rounded-md bg-transparent py-1 text-center text-sm font-bold outline-none focus:bg-brand-soft" />
+      <span>{t(`units.${unit}`, { count: value })}</span>
+    </label>
+  )
+}
+
+function Checkout({ store, lines, onClose, onPlaced, onStep, onSet, onRemove }: {
   store: Store
   lines: { item: StoreItem; quantity: number }[]
   onClose: () => void
   /** Change a line by one step (−1 or +1), or remove it, from the checkout itself. */
   onStep: (item: StoreItem, direction: 1 | -1) => void
+  onSet: (item: StoreItem, quantity: number) => void
   onRemove: (item: StoreItem) => void
   onPlaced: (placed: Placed) => void
 }) {
@@ -546,7 +596,7 @@ function Checkout({ store, lines, onClose, onPlaced, onStep, onRemove }: {
               <span className="min-w-0 flex-1">{l.item.name}<span className="block text-xs text-muted">{formatRupees(round2(l.quantity * l.item.price))}</span></span>
               <span className="flex h-9 shrink-0 items-center rounded-lg border border-line">
                 <button type="button" onClick={() => onStep(l.item, -1)} aria-label={t('a11y.less')} className="h-full w-8 text-lg font-bold">−</button>
-                <b className="min-w-10 text-center text-xs">{l.quantity} {t(`units.${l.item.unit}`, { count: l.quantity })}</b>
+                <QuantityBox value={l.quantity} unit={l.item.unit} max={l.item.available} onSet={(q) => onSet(l.item, q)} />
                 <button type="button" onClick={() => onStep(l.item, 1)} disabled={l.quantity >= l.item.available} aria-label={t('a11y.more')} className="h-full w-8 text-lg font-bold disabled:opacity-40">+</button>
               </span>
               <button type="button" onClick={() => onRemove(l.item)} aria-label={`${t('remove')} ${l.item.name}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-due hover:bg-due-soft">

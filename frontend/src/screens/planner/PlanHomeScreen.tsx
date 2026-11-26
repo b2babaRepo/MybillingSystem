@@ -201,7 +201,7 @@ function ListCard({ list, title, catalogue }: { list: ShoppingList; title: strin
           const art = itemArt({ catalogueItemId: i.catalogueItemId, name: i.name })
           const photo = listItemPhoto(i, catalogue)
           if (photo) return <img key={i.id} src={photo} alt="" className="h-8 w-8 rounded-lg border-2 border-white bg-white object-contain" style={{ marginLeft: n ? -8 : 0 }} />
-          return <span key={i.id} aria-hidden className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-white text-base" style={{ background: art.tint, marginLeft: n ? -8 : 0 }}>{art.emoji}</span>
+          return <span key={i.id} aria-hidden className="art-tint flex h-8 w-8 items-center justify-center rounded-lg border-2 border-white text-base" style={{ background: art.tint, marginLeft: n ? -8 : 0 }}>{art.emoji}</span>
         })}
         {count === 0 && <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#edf2f1] text-base">🛒</span>}
       </span>

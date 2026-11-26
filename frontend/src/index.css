@@ -216,7 +216,50 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-brand); 
   .text-blue-700:not([data-light], [data-light] *), .text-blue-800:not([data-light], [data-light] *), .text-blue-900:not([data-light], [data-light] *) { color: #93c5fd; }
   .text-violet-700:not([data-light], [data-light] *), .text-violet-800:not([data-light], [data-light] *), .text-violet-900:not([data-light], [data-light] *) { color: #c4b5fd; }
   .text-black:not([data-light], [data-light] *) { color: var(--color-ink); }
+  /* bg-ink is a dark bar with white text (cart, totals); ink turns light in dark mode, so the bar keeps a dark teal. */
+  .bg-ink:not([data-light], [data-light] *) { background-color: #115e59; }
+  /* The gold-rate card: a dark amber card with light amber text, like the warning cards. */
+  .bg-\[\#fff8e8\]:not([data-light], [data-light] *) { background-color: rgb(245 158 11 / 0.12); }
+  .border-amber-200:not([data-light], [data-light] *), .border-amber-300:not([data-light], [data-light] *) { border-color: rgb(245 158 11 / 0.35); }
+  .text-amber-950:not([data-light], [data-light] *) { color: #fde68a; }
+  /* On a bright yellow badge (sync state, avatar) the text stays dark. */
+  .bg-amber-400.text-amber-950:not([data-light], [data-light] *), .bg-amber-400 .text-amber-950:not([data-light], [data-light] *) { color: #451a03; }
   .bg-\[\#dcf8c6\]:not([data-light], [data-light] *), .bg-\[\#e7f8ee\]:not([data-light], [data-light] *) { background-color: rgb(34 197 94 / 0.15); }
+  /* Fixed light tints, dark text and light lines used across the screens, mapped like the palette classes above. */
+  .bg-\[\#e3f2ee\]:not([data-light], [data-light] *), .bg-\[\#eef7f4\]:not([data-light], [data-light] *), .bg-\[\#e6f2f0\]:not([data-light], [data-light] *), .bg-\[\#f0faf7\]:not([data-light], [data-light] *), .bg-\[\#e3ebe9\]:not([data-light], [data-light] *) { background-color: rgb(20 184 166 / 0.12); }
+  .hover\:bg-\[\#d2ebe4\]:not([data-light], [data-light] *):hover, .hover\:bg-\[\#d3f2e0\]:not([data-light], [data-light] *):hover { background-color: rgb(20 184 166 / 0.22); }
+  .bg-\[\#e8effd\]:not([data-light], [data-light] *), .bg-\[\#e0f2fe\]:not([data-light], [data-light] *), .bg-\[\#f2f7ff\]:not([data-light], [data-light] *), .bg-indigo-50:not([data-light], [data-light] *) { background-color: rgb(59 130 246 / 0.12); }
+  .hover\:bg-\[\#dbe5fc\]:not([data-light], [data-light] *):hover, .hover\:bg-\[\#dbe6fc\]:not([data-light], [data-light] *):hover { background-color: rgb(59 130 246 / 0.22); }
+  .bg-\[\#fdf1e3\]:not([data-light], [data-light] *), .bg-\[\#fdf1e3\]\/60:not([data-light], [data-light] *), .bg-\[\#fdf6ec\]:not([data-light], [data-light] *), .bg-\[\#fff7e6\]:not([data-light], [data-light] *) { background-color: rgb(249 115 22 / 0.12); }
+  .hover\:bg-\[\#fbe6cc\]:not([data-light], [data-light] *):hover { background-color: rgb(249 115 22 / 0.22); }
+  .bg-\[\#f1eafd\]:not([data-light], [data-light] *), .bg-\[\#faf5ff\]:not([data-light], [data-light] *) { background-color: rgb(139 92 246 / 0.12); }
+  .hover\:bg-\[\#e7dcfb\]:not([data-light], [data-light] *):hover { background-color: rgb(139 92 246 / 0.22); }
+  .bg-\[\#fde8ec\]:not([data-light], [data-light] *), .bg-\[\#fff4f2\]:not([data-light], [data-light] *) { background-color: rgb(244 63 94 / 0.12); }
+  .hover\:bg-\[\#fbd5dd\]:not([data-light], [data-light] *):hover { background-color: rgb(244 63 94 / 0.22); }
+  .bg-\[\#f6f8f7\]:not([data-light], [data-light] *), .bg-gray-100:not([data-light], [data-light] *), .bg-\[\#ffffff\]:not([data-light], [data-light] *) { background-color: #1c2a27; }
+  .hover\:bg-\[\#f1f5f4\]:not([data-light], [data-light] *):hover, .lg\:hover\:bg-\[\#f1f5f4\]:not([data-light], [data-light] *):hover, .hover\:bg-\[\#edf2f1\]:not([data-light], [data-light] *):hover, .hover\:bg-\[\#e1e8e5\]:not([data-light], [data-light] *):hover, .hover\:bg-\[\#e2eae8\]:not([data-light], [data-light] *):hover, .enabled\:hover\:bg-\[\#f6faf9\]:not([data-light], [data-light] *):hover { background-color: #243633; }
+  .divide-\[\#edf2f1\]:not([data-light], [data-light] *) > :not(:last-child), .divide-\[\#e2efeb\]:not([data-light], [data-light] *) > :not(:last-child) { border-color: var(--color-line); }
+  .border-\[\#edf2f1\]:not([data-light], [data-light] *), .border-\[\#d8e2df\]:not([data-light], [data-light] *), .border-\[\#cde9e1\]:not([data-light], [data-light] *), .border-\[\#cfe0f7\]:not([data-light], [data-light] *), .border-\[\#e8dfc8\]:not([data-light], [data-light] *), .border-\[\#ead9f5\]:not([data-light], [data-light] *) { border-color: var(--color-line); }
+  .border-red-200:not([data-light], [data-light] *), .border-teal-200:not([data-light], [data-light] *) { border-color: rgb(148 163 184 / 0.3); }
+  .ring-red-200:not([data-light], [data-light] *), .ring-amber-200:not([data-light], [data-light] *), .ring-amber-100:not([data-light], [data-light] *), .ring-orange-200:not([data-light], [data-light] *), .ring-blue-200:not([data-light], [data-light] *), .ring-teal-100:not([data-light], [data-light] *) { --tw-ring-color: rgb(148 163 184 / 0.3); }
+  .text-\[\#0b5e4f\]:not([data-light], [data-light] *), .text-\[\#085041\]:not([data-light], [data-light] *) { color: #5eead4; }
+  .text-\[\#0f6a3d\]:not([data-light], [data-light] *), .text-green-950:not([data-light], [data-light] *) { color: #86efac; }
+  .text-\[\#1d4ed8\]:not([data-light], [data-light] *), .text-\[\#0369a1\]:not([data-light], [data-light] *), .text-\[\#1e3a8a\]:not([data-light], [data-light] *), .text-\[\#33415f\]:not([data-light], [data-light] *), .text-sky-800:not([data-light], [data-light] *), .text-indigo-800:not([data-light], [data-light] *) { color: #93c5fd; }
+  .text-\[\#a1460a\]:not([data-light], [data-light] *) { color: #fdba74; }
+  .text-\[\#6d28d9\]:not([data-light], [data-light] *), .text-\[\#5b21b6\]:not([data-light], [data-light] *) { color: #c4b5fd; }
+  .text-\[\#be123c\]:not([data-light], [data-light] *) { color: #fda4af; }
+  .text-\[\#33423d\]:not([data-light], [data-light] *), .text-\[\#3d4c48\]:not([data-light], [data-light] *), .text-\[\#1c1917\]:not([data-light], [data-light] *) { color: var(--color-ink); }
+  /* Count badges and solid chips: white text keeps the deeper light-mode colour behind it. */
+  .bg-udhaar.text-white:not([data-light], [data-light] *) { background-color: #c2410c; }
+  .bg-due.text-white:not([data-light], [data-light] *) { background-color: #b91c1c; }
+  .bg-jama.text-white:not([data-light], [data-light] *) { background-color: #047857; }
+  /* Report tabs: the chosen tab's dark teal text on what is now a dark tab. */
+  .bg-\[\#ffffff\].text-\[\#0f3d38\]:not([data-light], [data-light] *) { color: #5eead4; }
+  /* WhatsApp chat: its own dark colours. */
+  .bg-\[\#efeae2\]:not([data-light], [data-light] *) { background-color: #0b141a; }
+  .bg-\[\#d9fdd3\]:not([data-light], [data-light] *) { background-color: #005c4b; }
+  /* Item icon tiles (no photo): a soft tint set inline; a quiet dark tile instead. */
+  .art-tint:not([data-light], [data-light] *) { background: rgb(255 255 255 / 0.07) !important; }
   input:not([data-light] *)::placeholder, textarea:not([data-light] *)::placeholder { color: #6f8580; }
   img:not([data-light], [data-light] *) { filter: brightness(0.92); }
 }
