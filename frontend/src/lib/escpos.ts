@@ -77,8 +77,14 @@ export function drawReceipt(rows: ReceiptRow[], width: number): { width: number;
   return { width, height, canvas, black: (x, yy) => { const i = (yy * width + x) * 4; return pixels[i] * 0.3 + pixels[i + 1] * 0.59 + pixels[i + 2] * 0.11 < 140 } }
 }
 
+/**
+ * ESC p 0 25 250: pulse the cash drawer socket (pin 2) for 50 ms. The drawer plugs into the printer's RJ11 port; a
+ * printer with no drawer ignores it.
+ */
+export const DRAWER_KICK = [0x1b, 0x70, 0x00, 0x19, 0xfa]
+
 /** ESC/POS bytes for a 1-bit picture: reset, the picture in bands (small printers have small buffers), feed and cut. */
-export function rasterBytes(image: { width: number; height: number; black: (x: number, y: number) => boolean }, band = 96): Uint8Array {
+export function rasterBytes(image: { width: number; height: number; black: (x: number, y: number) => boolean }, band = 96, openDrawer = false): Uint8Array {
   const bytesPerRow = Math.ceil(image.width / 8)
   const out: number[] = [0x1b, 0x40] // ESC @: reset
   for (let top = 0; top < image.height; top += band) {
@@ -98,5 +104,7 @@ export function rasterBytes(image: { width: number; height: number; black: (x: n
   }
   out.push(0x1b, 0x64, 0x04) // ESC d 4: feed four lines to clear the tear bar
   out.push(0x1d, 0x56, 0x42, 0x00) // GS V B 0: cut, where the printer has a cutter (others ignore it)
+  // The drawer opens once the receipt is out, so the cashier hands over change with the bill.
+  if (openDrawer) out.push(...DRAWER_KICK)
   return new Uint8Array(out)
 }

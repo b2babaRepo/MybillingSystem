@@ -46,6 +46,29 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         return await WithDailySalesAsync(list, ct);
     }
 
+    /// <summary>
+    /// The item list for a till that keeps it on the device: everything (no <paramref name="since"/>), or only the items
+    /// changed since then and the ids of those removed. <see cref="ProductChanges.At"/> is what to ask from next time.
+    /// The database stamps updated_at on every change to an item (a trigger), so stock moved by any route counts.
+    /// </summary>
+    public async Task<ProductChanges> ChangesAsync(DateTimeOffset? since, CancellationToken ct)
+    {
+        // A little before now: a change saved in a transaction that started earlier but commits after this read still
+        // comes next time (sending an item twice is harmless; missing one isn't).
+        var at = (await db.Database.SqlQuery<DateTimeOffset>($"SELECT clock_timestamp() AS \"Value\"").SingleAsync(ct)) - ProductChanges.Overlap;
+        var changed = db.Products.AsNoTracking().Where(p => p.IsActive);
+        IReadOnlyList<Guid> removed = [];
+        if (since is { } from)
+        {
+            from = from.ToUniversalTime();
+            changed = changed.Where(p => p.UpdatedAt > from);
+            removed = await db.Products.AsNoTracking().Where(p => !p.IsActive && p.UpdatedAt > from).Select(p => p.Id).ToListAsync(ct);
+        }
+
+        var list = (await changed.OrderBy(p => p.Category).ThenBy(p => p.Name).Select(AsDto).ToListAsync(ct)).Select(Linked).ToList();
+        return new ProductChanges(at, since is null, list.Count == 0 ? list : await WithDailySalesAsync(list, ct), removed);
+    }
+
     /// <summary>Each item's average sold a day over the last 30 days, per day it was in stock (<see cref="Cover"/>).</summary>
     private async Task<IReadOnlyList<ProductDto>> WithDailySalesAsync(List<ProductDto> list, CancellationToken ct)
     {
@@ -109,7 +132,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         {
             errors[nameof(request.Barcode)] = ["Check the barcode: 4 to 30 letters and digits, with the right last digit."];
         }
-        else if (barcode.Length > 0 && await db.Products.AnyAsync(p => p.Barcode == barcode && p.IsActive, ct))
+        else if (barcode.Length > 0 && await Barcodes.TakenAsync(db, barcode, Guid.Empty, ct))
         {
             errors[nameof(request.Barcode)] = ["Another item already has this barcode."];
         }
@@ -448,7 +471,6 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var skipped = 0;
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var openings = new List<(Guid ProductId, decimal Quantity)>();
         var categoryCache = new Dictionary<string, Category?>();
         foreach (var row in request.Rows)
         {
@@ -474,20 +496,22 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             product.UnitsPerPack = product.IsService ? null : row.UnitsPerPack;
             (product.TracksSerials, product.WarrantyMonths) = product.IsService ? (false, null) : (row.TracksSerials, row.WarrantyMonths);
             db.Products.Add(product);
-            if (row.OpeningStock is > 0)
+            if (row.OpeningStock is > 0 and var opening)
             {
-                openings.Add((product.Id, row.OpeningStock.Value));
+                // The opening movement and the stock it gives, saved with the item in one go: a save per row re-checked every
+                // item added so far, and 2,000 rows took over a minute.
+                product.Stock = opening;
+                db.StockMovements.Add(new StockMovement
+                {
+                    Id = Guid.CreateVersion7(), ProductId = product.Id, Kind = StockMovementKind.Opening, Quantity = opening,
+                    OccurredAt = clock.GetUtcNow(), CreatedByUserId = userId,
+                });
             }
 
             created++;
         }
 
         await db.SaveChangesAsync(ct);
-        foreach (var (productId, quantity) in openings)
-        {
-            await RecordAsync(Guid.CreateVersion7(), productId, StockMovementKind.Opening, quantity, null, null, null, userId, ct);
-        }
-
         await transaction.CommitAsync(ct);
         return (new ImportResult(created, skipped), null);
     }
@@ -660,7 +684,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn, null, p.BagSize, 0, 0, p.PurchaseUnit, p.WeightKg,
         p.MasterItem != null ? p.MasterItem.Name : p.CatalogueItem != null ? p.CatalogueItem.NameEn : null,
         p.MasterItem != null ? p.MasterItem.NameHi : p.CatalogueItem != null ? p.CatalogueItem.Name : null,
-        p.WholesalePrice, p.WholesaleMinQty);
+        p.WholesalePrice, p.WholesaleMinQty, null, p.ExtraBarcodes);
 
     /// <summary>An MRP below the selling price is a typing slip. At the price it stays: it's what stops a bill going above it.</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>

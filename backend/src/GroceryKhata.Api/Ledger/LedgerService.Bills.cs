@@ -1,4 +1,4 @@
-﻿using GroceryKhata.Api.Catalogue;
+using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -43,6 +43,12 @@ public sealed partial class LedgerService
                 var offerIds = request.Lines.Where(l => l.OfferId is not null).Select(l => l.OfferId!.Value).Distinct().ToList();
                 var offers = offerIds.Count == 0 ? [] : await db.SaleOffers.AsNoTracking().Where(o => offerIds.Contains(o.Id)).ToDictionaryAsync(o => o.Id, cancellationToken);
 
+                // Promotions over the whole bill (buy-get, slabs, combos, bill offers) priced by the same engine as the app:
+                // a helper may sell at what it gives, but no lower.
+                var billOffer = request.BillOfferId is { } billOfferId ? await db.SaleOffers.AsNoTracking().SingleOrDefaultAsync(o => o.Id == billOfferId, cancellationToken) : null;
+                var promotionsAllow = !isOwner && (billOffer is not null || offers.Values.Any(o => o.Kind is not (SaleOfferKind.Percent or SaleOfferKind.Amount)))
+                    && await PromotionsAllowAsync(request.Lines, products, billAt, cancellationToken);
+
                 var lines = new List<BillLine>();
                 for (var i = 0; i < request.Lines.Count; i++)
                 {
@@ -57,7 +63,7 @@ public sealed partial class LedgerService
 
                     var name = string.IsNullOrWhiteSpace(line.Name) ? product?.Name : line.Name.Trim();
                     var offer = line.OfferId is { } offerId && product is not null && offers.GetValueOrDefault(offerId) is { } named && SaleOffers.Covers(named, product, billAt) ? named : null;
-                    var offerPrice = offer is null ? (decimal?)null : SaleOffers.PriceFor(offer, product!.SellingPrice);
+                    var offerPrice = offer is { Kind: SaleOfferKind.Percent or SaleOfferKind.Amount } ? SaleOffers.PriceFor(offer, product!.SellingPrice) : (decimal?)null;
                     if (string.IsNullOrEmpty(name) || name.Length > 120)
                     {
                         errors[field] = ["Each item needs a name."];
@@ -77,7 +83,7 @@ public sealed partial class LedgerService
                     }
                     // The owner set the offer's price before billing, so a helper may sell at it, past their own limit.
                     // So did a wholesale price, for a line that takes at least its quantity.
-                    else if (!isOwner && !(offerPrice is { } floor && line.UnitPrice >= floor)
+                    else if (!isOwner && !promotionsAllow && !(offerPrice is { } floor && line.UnitPrice >= floor)
                         && !(product is { WholesalePrice: { } wholesale, WholesaleMinQty: { } atLeast } && line.Quantity >= atLeast && line.UnitPrice >= wholesale)
                         && DiscountProblem(name, product, line.UnitPrice, staffMaxDiscount) is { } tooLow)
                     {
@@ -236,6 +242,9 @@ public sealed partial class LedgerService
                     VehicleNumber = vehicle,
                     Counter = string.IsNullOrWhiteSpace(request.Counter) ? null : request.Counter.Trim()[..Math.Min(30, request.Counter.Trim().Length)],
                     PainterId = request.PainterId,
+                    // A shift this shop doesn't have is left off rather than refusing the sale.
+                    BillOfferId = billOffer?.Id,
+                    ShiftId = request.ShiftId is { } shiftId && await db.CashierShifts.AnyAsync(s => s.Id == shiftId, cancellationToken) ? shiftId : null,
                     Gstin = request.WithoutGst ? null : await BillGstinAsync(cancellationToken),
                     EntrySeconds = BillSpeed.Clean(request.EntrySeconds),
                 };
@@ -257,7 +266,10 @@ public sealed partial class LedgerService
                 bill.Prefix = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.BillPrefix).SingleAsync(cancellationToken);
 
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-                (bill.FinancialYear, bill.Number) = await NextBillNumberAsync(cancellationToken);
+                // A placeholder until the end: the real number is taken just before commit (see NextBillNumberAsync), so the
+                // shop's counter row is locked for a moment, not for the whole save, and tills don't queue on each other.
+                bill.FinancialYear = FinancialYear(clock.GetUtcNow());
+                bill.Number = -System.Security.Cryptography.RandomNumberGenerator.GetInt32(1, int.MaxValue);
                 db.Bills.Add(bill);
                 // Returned goods worth more than the new ones: the change goes back out of the drawer.
                 if (exchange is not null && exchange.Total > total)
@@ -381,6 +393,10 @@ public sealed partial class LedgerService
                     return LedgerResult<BillDto>.Conflicted(refused);
                 }
 
+                // Last of all, the bill's real number: still inside the transaction, so a bill that isn't saved uses no
+                // number and the series keeps no gaps, but the counter row is held only from here to the commit.
+                bill.Number = await NextBillNumberAsync(bill.FinancialYear, cancellationToken);
+                await db.Database.ExecuteSqlAsync($"UPDATE bills SET number = {bill.Number} WHERE id = {bill.Id}", cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
                 return LedgerResult<BillDto>.Created(new BillDto(
                     bill.Id, bill.CustomerId, bill.Total, bill.PaidAmount, bill.Total - bill.PaidAmount - bill.ExchangeCredit, bill.PaymentMode, bill.OccurredAt,
@@ -650,18 +666,33 @@ public sealed partial class LedgerService
     }
 
     /// <summary>
-    /// The next number in this shop's current financial year, taken inside the bill's transaction: if the bill isn't
-    /// saved the number isn't used either, so the series has no gaps. Two tills at once queue on the counter row.
+    /// The next number in this shop's series for <paramref name="year"/>, taken inside the bill's transaction: if the bill
+    /// isn't saved the number isn't used either, so the series has no gaps. Tills saving at once queue on the counter
+    /// row, which is why it is the bill's last step before commit.
     /// </summary>
-    private async Task<(string Year, int Number)> NextBillNumberAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// The bill is priced no lower than the running promotions give its items (worked out from the items' own prices,
+    /// whatever the lines say): then the lines' prices may stand for a helper. A paisa a line is allowed for rounding.
+    /// </summary>
+    private async Task<bool> PromotionsAllowAsync(IReadOnlyList<BillLineRequest> requested, IReadOnlyDictionary<Guid, Catalogue.Product> products, DateTimeOffset at, CancellationToken ct)
     {
-        var year = FinancialYear(clock.GetUtcNow());
+        var rules = (await SaleOffers.RunningAsync(db, at, ct)).Select(SaleOffers.ToRule).ToList();
+        var cart = requested.Where(l => l.ProductId is not null).GroupBy(l => l.ProductId!.Value)
+            .Select(g => new Promotions.Line(g.Key, products.GetValueOrDefault(g.Key)?.Category, products.GetValueOrDefault(g.Key)?.SellingPrice ?? 0, g.Sum(l => l.Quantity))).ToList();
+        var priced = Promotions.Apply(cart, rules, at);
+        var floor = priced.Parts.Sum(ps => ps.Sum(p => Money.LineAmount(p.Quantity, p.UnitPrice))) - (priced.Bill?.Amount ?? 0);
+        var asked = requested.Where(l => l.ProductId is not null).Sum(l => Money.LineAmount(l.Quantity, l.UnitPrice));
+        return asked >= floor - (0.01m * requested.Count);
+    }
+
+    private async Task<int> NextBillNumberAsync(string year, CancellationToken cancellationToken)
+    {
         var number = (await db.Database.SqlQuery<int>($"""
             INSERT INTO bill_counters (shop_id, financial_year, last_number)
             VALUES (NULLIF(current_setting('app.shop_id', true), '')::uuid, {year}, 1)
             ON CONFLICT (shop_id, financial_year) DO UPDATE SET last_number = bill_counters.last_number + 1
             RETURNING last_number AS "Value"
             """).ToListAsync(cancellationToken)).Single();
-        return (year, number);
+        return number;
     }
 }

@@ -30,12 +30,25 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
 
   const [current, setCurrent] = useState('')
   const [fresh, setFresh] = useState('')
+  // Forgot the current password: an SMS code to this account's own number stands in for it.
+  const [code, setCode] = useState<string | null>(null)
+  async function sendCode() {
+    setMessage('')
+    try {
+      await api('/v1/auth/otp/send', 'POST', { phone: initial.phone })
+      setCode('')
+      setMessage(t('profile.codeSent'))
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'))
+    }
+  }
   async function savePassword() {
     setMessage('')
     try {
-      await api('/v1/profile/password', 'PUT', { currentPassword: current || null, newPassword: fresh })
+      await api('/v1/profile/password', 'PUT', code !== null ? { newPassword: fresh, code } : { currentPassword: current || null, newPassword: fresh })
       setCurrent('')
       setFresh('')
+      setCode(null)
       setMessage(t('profile.passwordSaved'))
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
@@ -86,7 +99,12 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
       {message && <p className="text-sm text-muted">{message}</p>}
       <div className="flex flex-col gap-2 border-t border-line pt-3">
         <h2 className="font-bold">{t('profile.passwordTitle')}</h2>
-        {initial.hasPassword ? <Field label={t('profile.passwordCurrent')} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" /> : <p className="text-sm text-muted">{t('profile.passwordNone')}</p>}
+        {initial.hasPassword && code === null && <>
+          <Field label={t('profile.passwordCurrent')} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
+          <button type="button" onClick={() => void sendCode()} className="min-h-11 self-start text-sm font-semibold text-brand underline">{t('profile.forgot')}</button>
+        </>}
+        {code !== null && <Field label={t('profile.smsCode')} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" />}
+        {!initial.hasPassword && <p className="text-sm text-muted">{t('profile.passwordNone')}</p>}
         <Field label={t('profile.passwordNew')} type="password" value={fresh} onChange={(e) => setFresh(e.target.value)} autoComplete="new-password" />
         <Button disabled={fresh.length < 6} onClick={() => void savePassword()}>{t('profile.passwordSave')}</Button>
       </div>

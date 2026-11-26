@@ -1,6 +1,7 @@
 import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { currentShift, subscribeShift } from '../lib/shift'
 import type { InputHTMLAttributes } from 'react'
 import { decimalText } from '../lib/decimalText'
 import { CashChange, CustomerFinder } from '../components/CustomerFinder'
@@ -17,8 +18,9 @@ import { currentExchange, endExchange, startExchange, type Exchange } from '../l
 import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
 import { billTax, garmentRate } from '../lib/gst'
-import { bestOffer, isRunning, offerPrice, useOffers } from '../lib/offers'
-import { cameraPossible, normBarcode } from '../lib/barcode'
+import { bestOffer, isRunning, offerPrice, perPiece, useOffers } from '../lib/offers'
+import { promoteCart, type Promotion } from '../lib/promotions'
+import { barcodeIndex, cameraPossible, normBarcode, readScaleLabel, sameItemCode } from '../lib/barcode'
 const UnknownBarcode = lazy(() => import('../components/UnknownBarcode').then((module) => ({ default: module.UnknownBarcode })))
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
 // The printed bill's own code, loaded only when a computer turns the live preview on.
@@ -28,7 +30,8 @@ import { useTranslation } from 'react-i18next'
 import { ItemCard } from '../components/ItemCard'
 import { imageUrl } from '../lib/images'
 import { Button, Field, Input, Sheet, btn } from '../components/ui'
-import { addCustomer, saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
+import { addCustomer, counterName, saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
+import { HeldBillGone, useHeldBills } from '../lib/heldBills'
 import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { BillPrint, BillView, PaymentMode, Unit } from '../lib/types'
@@ -74,11 +77,27 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // Barcodes: a scanner types the code and Enter; a typed code works the same. A camera scan where the phone can.
   const [scanning, setScanning] = useState(false)
   const [scanMiss, setScanMiss] = useState<string | null>(null)
+  const settings = useShopSettings(shopId).data
+  // This counter's open cashier shift: shown so the cashier knows bills are counting toward it.
+  const shiftKey = useSyncExternalStore(subscribeShift, () => { try { return localStorage.getItem(`gk-shift:${shopId}`) } catch { return null } })
+  const openShift = shiftKey ? currentShift(shopId) : null
   // Every phone with a camera: its own barcode reader where it has one, else the app's backup reader.
   const canScan = cameraPossible()
+  const byBarcode = useMemo(() => barcodeIndex(products), [products])
   function addByBarcode(code: string) {
     const clean = normBarcode(code)
-    const p = clean.length >= 4 ? products.find((x) => x.barcode && normBarcode(x.barcode) === clean) : undefined
+    const p = clean.length >= 4 ? byBarcode.get(clean) : undefined
+    // A weighing scale's label: the item's code with its weight (or price) in the barcode. Each label is its own line.
+    const label = p ? null : readScaleLabel(clean, settings?.scaleLabel)
+    const weighed = label ? products.find((x) => sameItemCode(x.barcode, label.itemCode)) : undefined
+    if (label && weighed) {
+      const quantity = label.kg ?? (weighed.sellingPrice > 0 ? Math.round(((label.price ?? 0) / weighed.sellingPrice) * 1000) / 1000 : 0)
+      if (quantity <= 0) return false
+      add({ productId: weighed.id, name: weighed.name, quantity, unit: weighed.unit, unitPrice: weighed.sellingPrice }, true)
+      setSearch('')
+      setScanMiss(null)
+      return true
+    }
     if (!p) return false
     add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })
     setSearch('')
@@ -95,15 +114,12 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [stylePick, setStylePick] = useState<string | null>(null)
   // An exchange's credit is that customer's, so the new bill starts on their name.
   const [customerId, setCustomerId] = useState(() => currentExchange()?.customerId ?? '')
-  // Held bills: park this customer's bill, serve the next one, pick it up again. Kept on this device only.
-  const heldKey = `held-bills:${shopId}`
-  const [held, setHeld] = useState<{ cart: CartLine[]; customerId: string; at: number; delivery?: Delivery }[]>(() => {
-    try { return JSON.parse(localStorage.getItem(heldKey) ?? '[]') } catch { return [] }
-  })
-  function keepHeld(next: typeof held) {
-    setHeld(next)
-    try { localStorage.setItem(heldKey, JSON.stringify(next)) } catch { /* private window: held bills last until reload */ }
-  }
+  // Held bills: park this customer's bill, serve the next one, pick it up again, on this till or any other.
+  const { held, hold, take } = useHeldBills<{ cart: CartLine[]; customerId: string; delivery?: Delivery }>(shopId)
+  const heldName = (h: (typeof held)[number]) => h.label ?? customers.find((c) => c.id === h.payload.customerId)?.name ?? t('hold.walkIn')
+  const heldTotal = (h: (typeof held)[number]) => h.total || round2(h.payload.cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0))
+  // Another till's bill says which till.
+  const heldWhere = (h: (typeof held)[number]) => (h.counter && h.counter !== counterName() ? ` (${h.counter})` : '')
   // An estimate the customer agreed to: its lines come into this bill (read once), and saving the bill marks it billed.
   const [fromEstimate, setFromEstimate] = useState<{ id: string; number: number } | null>(null)
   const [estimateSaved, setEstimateSaved] = useState<{ id: string; number: number } | null>(null)
@@ -160,20 +176,28 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       await ask(err instanceof Error ? err.message : String(err))
     }
   }
+  /** Park the bill being made (with its customer and delivery); nothing to park: nothing happens. */
+  function parkCurrent() {
+    if (cart.length === 0) return
+    const name = customers.find((c) => c.id === customerId)?.name ?? null
+    void hold({ cart, customerId, delivery: currentDelivery() }, { label: name, total: round2(cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)), lines: cart.length })
+  }
   function holdBill() {
     if (cart.length === 0) return
-    // An event handler (Hold, or F7), not render: the time it was held.
-    // eslint-disable-next-line react/purity
-    keepHeld([...held, { cart, customerId, at: Date.now(), delivery: currentDelivery() }])
+    parkCurrent()
     setCart([]); setCustomerId(''); setPaid(null); setSaved(null)
   }
-  function resumeBill(index: number) {
-    const pick = held[index]
+  async function resumeBill(bill: (typeof held)[number]) {
+    let pick: Awaited<ReturnType<typeof take>>
+    try {
+      pick = await take(bill)
+    } catch (err) {
+      await ask(err instanceof HeldBillGone ? t('hold.gone') : err instanceof Error ? err.message : String(err))
+      return
+    }
     startedAt.current = 0
-    const rest = held.filter((_, i) => i !== index)
-    // An event handler (picking a held bill), not render.
-    // eslint-disable-next-line react/purity
-    keepHeld(cart.length > 0 ? [...rest, { cart, customerId, at: Date.now(), delivery: currentDelivery() }] : rest)
+    // The bill being made is parked in its place.
+    parkCurrent()
     setCart(pick.cart); setCustomerId(pick.customerId); setPaid(null); setSaved(null)
     setDelivery(pick.delivery)
   }
@@ -182,7 +206,6 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [received, setReceived] = useState('')
   // A loose item, or a charge line ("Transport") with its name filled in.
   const [loose, setLoose] = useState<false | { name: string; unit: Unit }>(false)
-  const settings = useShopSettings(shopId).data
   const shopType = settings?.type ?? 'kirana'
   // The shop's own extra bill fields and what was typed in them for this bill.
   const billFieldLabels = settings?.billFields ?? []
@@ -293,29 +316,37 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const offOf = (l: CartLine) => { const r = regularOf(l); return r > 0 && l.unitPrice > 0 && l.unitPrice < r ? { amount: round2((r - l.unitPrice) * l.quantity), percent: Math.round(((r - l.unitPrice) / r) * 1000) / 10 } : null }
   const discountTotal = round2(cart.reduce((sum, l) => sum + (offOf(l)?.amount ?? 0), 0))
   // The owner's planned offers. A line under one is the owner's price, so the helper's limit doesn't apply to it.
-  const offers = useOffers(shopId).data ?? []
+  const offerData = useOffers(shopId).data
+  const offers = useMemo(() => offerData ?? [], [offerData])
   // Only while the offer still runs: a held bill picked up after the offer ended goes back under the helper's limit, as on the server.
   const underOffer = (l: CartLine) => !!l.offerId && offers.some((o) => o.id === l.offerId && isRunning(o, Date.now()))
   const overLimit = !isOwner && cart.some((l) => !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit)
-  const total = useMemo(() => round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [cart])
-  // A discount on the whole bill, if the shop wants one: spread over the lines by their share, so each line's price, its
-  // GST and the helper's limit all stay right. "remove" puts the prices back as they were.
   const [billOff, setBillOff] = useState<{ before: CartLine[]; amount: number } | null>(null)
   const [offForm, setOffForm] = useState<{ value: string; percent: boolean } | null>(null)
+  // Promotions over the whole cart (buy-get, slabs, combos, bill offers), as the server prices them: the cart stays as
+  // typed; the bill is billed as these lines. A whole-bill discount typed by hand replaces them.
+  const [clock, setClock] = useState(() => Date.now())
+  useEffect(() => { const tick = setInterval(() => setClock(Date.now()), 60_000); return () => clearInterval(tick) }, [])
+  const promotions = useMemo(() => offers.filter((o) => !perPiece(o)) as Promotion[], [offers])
+  const billed = useMemo(() => promoteCart(cart, products, billOff ? [] : promotions, new Date(clock)), [cart, products, promotions, clock, billOff])
+  const cartTotal = round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
+  const total = useMemo(() => round2(billed.lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [billed])
+  // A discount on the whole bill, if the shop wants one: spread over the lines by their share, so each line's price, its
+  // GST and the helper's limit all stay right. "remove" puts the prices back as they were.
   // A line added or taken off ends the whole-bill discount (its spread no longer fits): decided while rendering, not after.
   if (billOff && cart.length !== billOff.before.length) setBillOff(null)
   function applyBillOff() {
     if (!offForm) return
     const value = Number(offForm.value)
-    const off = round2(offForm.percent ? (total * value) / 100 : value)
-    if (!(off > 0) || off >= total) { void ask(t('billOff.tooMuch')); return }
-    const factor = (total - off) / total
+    const off = round2(offForm.percent ? (cartTotal * value) / 100 : value)
+    if (!(off > 0) || off >= cartTotal) { void ask(t('billOff.tooMuch')); return }
+    const factor = (cartTotal - off) / cartTotal
     const next = cart.map((l) => ({ ...l, unitPrice: round2(l.unitPrice * factor) }))
     // Rounding can leave a few paise: the line with the most money takes them, if that keeps its price whole.
-    const gap = round2(total - off - next.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
+    const gap = round2(cartTotal - off - next.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
     const big = next.reduce((best, l, i) => (round2(l.quantity * l.unitPrice) > round2(next[best].quantity * next[best].unitPrice) ? i : best), 0)
     if (gap !== 0 && next[big].quantity === 1) next[big] = { ...next[big], unitPrice: round2(next[big].unitPrice + gap) }
-    setBillOff({ before: cart, amount: round2(total - next.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)) })
+    setBillOff({ before: cart, amount: round2(cartTotal - next.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)) })
     setCart(next)
     setOffForm(null)
   }
@@ -373,12 +404,18 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const serialsMissing = serialLines.some((l) => (picked[l.productId!] ?? []).length !== l.quantity)
   const rxMissing = schedules.length > 0 && (rx.doctorName.trim().length < 2 || rx.patientName.trim().length < 2 || (needsAddress && rx.doctorAddress.trim().length < 3))
 
-  function add(line: CartLine) {
+  /** separate: a line of its own at its quantity (a weighed packet), not added onto the same item's line. */
+  function add(line: CartLine, separate = false) {
     setSaved(null)
     // At its regular price, an item a running offer covers goes in at the offer's price, with the offer's name.
     const item = line.productId ? products.find((p) => p.id === line.productId) : undefined
     const offer = item && line.unitPrice === item.sellingPrice ? bestOffer(offers, item) : null
     if (offer && item) line = { ...line, unitPrice: offerPrice(offer, item.sellingPrice), offerId: offer.id, offerName: offer.name }
+    if (separate) {
+      setCart((current) => [...current, { ...line, unitPrice: fitPrice(item, line.quantity, line.unitPrice) }])
+      if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
+      return
+    }
     const qty = pendingQty ?? 1
     if (pendingQty) { line = { ...line, quantity: pendingQty, unitPrice: fitPrice(item, pendingQty, line.unitPrice) }; setSearch('') }
     setCart((current) => {
@@ -436,7 +473,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     // An event handler (Save), not render: the bill is timed from its first item to now.
     // eslint-disable-next-line react/purity
     const savedAt = Date.now()
-    const result = await saveBill(shopId, cart.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
+    const result = await saveBill(shopId, billed.lines.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
+      billOfferId: billed.billOfferId,
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
       exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
@@ -490,10 +528,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [fromGodown, setFromGodown] = useState('')
   const taxInvoice = picksState && !withoutGst
   const taxState = buyerState ?? (deliveredTo || shopState)
-  const tax = useMemo(() => billTax(cart.map((l) => {
+  const tax = useMemo(() => billTax(billed.lines.map((l) => {
     const item = products.find((p) => p.id === l.productId)
     return { amount: round2(l.quantity * l.unitPrice), gstRate: item ? garmentRate(item.hsnCode, item.gstRate, l.unitPrice) : null }
-  }), taxState !== shopState), [cart, products, taxState, shopState])
+  }), taxState !== shopState), [billed, products, taxState, shopState])
   const [taxOpen, setTaxOpen] = useState(false)
   // A computer's live preview of the bill as it will print, in place of the item tiles while on. Remembered on this device.
   const [preview, setPreview] = useState(() => { try { return localStorage.getItem('gk-bill-preview') === '1' } catch { return false } })
@@ -511,7 +549,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       // What goes on khata is due the customer's credit days from today, as the saved bill will say.
       dueOn: customer?.creditDays && due - paidAmount > 0
         ? (() => { const d = new Date(previewAt); d.setDate(d.getDate() + customer.creditDays!); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })() : null,
-      lines: cart.map((l) => {
+      lines: billed.lines.map((l) => {
         const p = products.find((x) => x.id === l.productId)
         const regular = regularOf(l)
         return {
@@ -521,7 +559,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         }
       }),
     }
-  }, [cart, products, customer, total, paidAmount, due, mode, settings, withoutGst, taxState, previewLook.data, exchangeCredit, extras, billFieldLabels, fieldValues, previewAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [billed, products, customer, total, paidAmount, due, mode, settings, withoutGst, taxState, previewLook.data, exchangeCredit, extras, billFieldLabels, fieldValues, previewAt]) // eslint-disable-line react-hooks/exhaustive-deps
   // Credit with no customer yet can't be saved: whose khata would it go on?
   const canSave = total > 0 && !unpriced && !rxMissing && !serialsMissing && !overLimit && !(creditAsked && !customer)
   // Desktop keys: F2 search, F4 amount paid, Ctrl+Enter save, Esc clear search, ? the key list.
@@ -565,6 +603,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       )}
       {!exchange && (
         <div className="flex flex-wrap items-center gap-2">
+          {openShift && <button type="button" onClick={() => navigate('/shifts')} className="flex min-h-10 items-center rounded-full bg-brand-soft px-3.5 text-sm font-bold text-brand-deep">{t('shift.chipOpen', { counter: openShift.counter })}</button>}
           <button type="button" onClick={() => navigate('/find-bill')} className="flex min-h-10 items-center gap-2 rounded-full bg-[#fde8ec] px-3.5 text-sm font-bold text-[#be123c] transition hover:bg-[#fbd5dd] active:scale-[0.98]"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3" /></svg>{t('findBill.link')}</button>
           <button type="button" onClick={() => { setSlipOpen(!slipOpen); setSlipError('') }} aria-pressed={slipOpen} className={`flex min-h-10 items-center gap-2 rounded-full px-3.5 text-sm font-bold transition active:scale-[0.98] ${slipOpen ? 'bg-[#6d28d9] text-white shadow-md shadow-[#6d28d9]/30' : 'bg-[#f1eafd] text-[#6d28d9] hover:bg-[#e7dcfb]'}`}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 7h18v4a2 2 0 000 4v4H3v-4a2 2 0 000-4zM13 7v12" /></svg>{t('slip.use')}</button>
         </div>
@@ -719,11 +758,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       {/* On a computer every open bill is a tab: the one being made, the held ones, and + for another customer. */}
       <div role="tablist" aria-label={t('billTabs.label')} className="hidden flex-wrap items-end gap-1 border-b-2 border-brand xl:flex">
         <span role="tab" aria-selected className="max-w-56 truncate rounded-t-xl bg-brand px-4 py-2 text-sm font-bold text-white">
-          {(customers.find((c) => c.id === customerId)?.name ?? t('billTabs.current'))}{cart.length > 0 ? ` · ${formatRupees(round2(cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}` : ''}
+          {(customers.find((c) => c.id === customerId)?.name ?? t('billTabs.current'))}{cart.length > 0 ? ` · ${formatRupees(total)}` : ''}
         </span>
-        {held.map((h, i) => (
-          <button key={h.at} role="tab" aria-selected={false} onClick={() => resumeBill(i)} className="max-w-56 truncate rounded-t-xl border border-b-0 border-line bg-white px-4 py-2 text-sm font-semibold hover:bg-brand-soft">
-            {(customers.find((c) => c.id === h.customerId)?.name ?? t('hold.walkIn'))} · {formatRupees(round2(h.cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}
+        {held.map((h) => (
+          <button key={h.id} role="tab" aria-selected={false} onClick={() => void resumeBill(h)} className="max-w-56 truncate rounded-t-xl border border-b-0 border-line bg-white px-4 py-2 text-sm font-semibold hover:bg-brand-soft">
+            {heldName(h)} · {formatRupees(heldTotal(h))}{heldWhere(h)}
           </button>
         ))}
         <button type="button" onClick={holdBill} disabled={cart.length === 0} title={t('billTabs.newHint')} aria-label={t('billTabs.new')} className="rounded-t-xl px-3 py-2 text-lg font-bold text-brand hover:bg-brand-soft disabled:opacity-40">+</button>
@@ -731,9 +770,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       {held.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-[14px] bg-warn-soft p-2 text-sm xl:hidden">
           <span className="font-semibold text-warn-ink">{t('hold.held', { count: held.length })}</span>
-          {held.map((h, i) => (
-            <button key={h.at} onClick={() => resumeBill(i)} className="min-h-9 rounded-full border border-amber-300 bg-white px-3 font-semibold">
-              {(customers.find((c) => c.id === h.customerId)?.name ?? t('hold.walkIn'))} · {formatRupees(round2(h.cart.reduce((n, l) => n + round2(l.quantity * l.unitPrice), 0)))}
+          {held.map((h) => (
+            <button key={h.id} onClick={() => void resumeBill(h)} className="min-h-9 rounded-full border border-amber-300 bg-white px-3 font-semibold">
+              {heldName(h)} · {formatRupees(heldTotal(h))}{heldWhere(h)}
             </button>
           ))}
         </div>
@@ -929,6 +968,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>
               </div>
             </>
+          )}
+          {/* Offers the bill took by itself (buy-get, combos, slabs, bill offers): what each saved. */}
+          {billed.applied.length > 0 && (
+            <ul aria-label={t('promo.taken')} className="mt-1 flex flex-col gap-1 rounded-xl bg-amber-50 p-2 text-sm">
+              {billed.applied.map((a) => (
+                <li key={a.offerId} className="flex justify-between gap-2"><span className="font-semibold text-warn-ink">🏷 {a.offerName}</span><span className="font-semibold">−{formatRupees(a.saved)}</span></li>
+              ))}
+            </ul>
           )}
           {/* Optional: the shopkeeper's own discount on the whole bill. */}
           {billOff ? (

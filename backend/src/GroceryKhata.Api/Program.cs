@@ -1,4 +1,4 @@
-﻿using GroceryKhata.Api.Teams;
+using GroceryKhata.Api.Teams;
 using GroceryKhata.Api.Agents;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -209,6 +209,8 @@ app.MapDairyAssistant();
 app.MapStylistPay();
 app.MapPrepaid();
 app.MapCashCounts();
+app.MapCashierShifts();
+app.MapHeldBills();
 app.MapMeterReadings();
 app.MapGoodsReceipts();
 app.MapEstimates();

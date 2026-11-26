@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
@@ -86,6 +86,9 @@ public sealed partial class AppDbContext
             b.HasIndex(p => new { p.ShopId, p.CatalogueItemId });
             // One active item per barcode in a shop: scanning it must find exactly one item.
             b.HasIndex(p => new { p.ShopId, p.Barcode }).IsUnique().HasFilter("barcode IS NOT NULL AND is_active");
+            b.HasIndex(p => p.ExtraBarcodes).HasMethod("gin");
+            // A till asks for the items changed since its last look.
+            b.HasIndex(p => new { p.ShopId, p.UpdatedAt });
             b.HasOne(p => p.CatalogueItem).WithMany().HasForeignKey(p => p.CatalogueItemId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Shop>().WithMany().HasForeignKey(p => p.ShopId).OnDelete(DeleteBehavior.Restrict);
         });

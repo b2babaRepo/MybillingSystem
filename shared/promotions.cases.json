@@ -1,0 +1,806 @@
+[
+ {
+  "name": "no offers: every line at its regular price",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [],
+  "lines": [
+   {
+    "productId": "rice",
+    "category": null,
+    "regular": 70,
+    "quantity": 2
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 2,
+      "unitPrice": 70,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 0
+  }
+ },
+ {
+  "name": "percent off each piece",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "rice"
+    ],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "p10",
+    "name": "p10",
+    "kind": "percent",
+    "value": 10
+   }
+  ],
+  "lines": [
+   {
+    "productId": "rice",
+    "category": null,
+    "regular": 70,
+    "quantity": 2
+   },
+   {
+    "productId": "dal",
+    "category": null,
+    "regular": 120,
+    "quantity": 1
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 2,
+      "unitPrice": 63,
+      "offerId": "p10"
+     }
+    ],
+    [
+     {
+      "quantity": 1,
+      "unitPrice": 120,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 14
+  }
+ },
+ {
+  "name": "buy 2 get 1 free: 7 pieces give 2 free",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "maggi"
+    ],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "b2g1",
+    "name": "b2g1",
+    "kind": "buy_get",
+    "value": 0,
+    "buyQty": 2,
+    "getQty": 1
+   }
+  ],
+  "lines": [
+   {
+    "productId": "maggi",
+    "category": null,
+    "regular": 14,
+    "quantity": 7
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 5,
+      "unitPrice": 14,
+      "offerId": null
+     },
+     {
+      "quantity": 2,
+      "unitPrice": 0,
+      "offerId": "b2g1"
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 28
+  }
+ },
+ {
+  "name": "buy 2 get 1 needs 3 in the cart",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "maggi"
+    ],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "b2g1",
+    "name": "b2g1",
+    "kind": "buy_get",
+    "value": 0,
+    "buyQty": 2,
+    "getQty": 1
+   }
+  ],
+  "lines": [
+   {
+    "productId": "maggi",
+    "category": null,
+    "regular": 14,
+    "quantity": 2
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 2,
+      "unitPrice": 14,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 0
+  }
+ },
+ {
+  "name": "slab: 10% off biscuits from 5 packets across items",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "category",
+    "category": "Biscuits",
+    "productIds": [],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "slab",
+    "name": "slab",
+    "kind": "slab",
+    "value": 10,
+    "minQty": 5
+   }
+  ],
+  "lines": [
+   {
+    "productId": "parle",
+    "category": "Biscuits",
+    "regular": 10,
+    "quantity": 3
+   },
+   {
+    "productId": "oreo",
+    "category": "biscuits",
+    "regular": 35,
+    "quantity": 2
+   },
+   {
+    "productId": "milk",
+    "category": "Dairy",
+    "regular": 30,
+    "quantity": 1
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 3,
+      "unitPrice": 9,
+      "offerId": "slab"
+     }
+    ],
+    [
+     {
+      "quantity": 2,
+      "unitPrice": 31.5,
+      "offerId": "slab"
+     }
+    ],
+    [
+     {
+      "quantity": 1,
+      "unitPrice": 30,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 10
+  }
+ },
+ {
+  "name": "slab below its quantity gives nothing",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "category",
+    "category": "Biscuits",
+    "productIds": [],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "slab",
+    "name": "slab",
+    "kind": "slab",
+    "value": 10,
+    "minQty": 5
+   }
+  ],
+  "lines": [
+   {
+    "productId": "parle",
+    "category": "Biscuits",
+    "regular": 10,
+    "quantity": 4
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 4,
+      "unitPrice": 10,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 0
+  }
+ },
+ {
+  "name": "combo: burger and cola for 99, one extra cola at its price",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "burger",
+     "cola"
+    ],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "combo",
+    "name": "combo",
+    "kind": "combo",
+    "value": 0,
+    "comboPrice": 99
+   }
+  ],
+  "lines": [
+   {
+    "productId": "burger",
+    "category": null,
+    "regular": 80,
+    "quantity": 1
+   },
+   {
+    "productId": "cola",
+    "category": null,
+    "regular": 40,
+    "quantity": 2
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 1,
+      "unitPrice": 66,
+      "offerId": "combo"
+     }
+    ],
+    [
+     {
+      "quantity": 1,
+      "unitPrice": 33,
+      "offerId": "combo"
+     },
+     {
+      "quantity": 1,
+      "unitPrice": 40,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 21
+  }
+ },
+ {
+  "name": "the bigger saving wins a line; offers never stack",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "all",
+    "category": null,
+    "productIds": [],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "p5",
+    "name": "p5",
+    "kind": "percent",
+    "value": 5
+   },
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "soap"
+    ],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "b1g1",
+    "name": "b1g1",
+    "kind": "buy_get",
+    "value": 0,
+    "buyQty": 1,
+    "getQty": 1
+   }
+  ],
+  "lines": [
+   {
+    "productId": "soap",
+    "category": null,
+    "regular": 40,
+    "quantity": 2
+   },
+   {
+    "productId": "oil",
+    "category": null,
+    "regular": 180,
+    "quantity": 1
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 1,
+      "unitPrice": 40,
+      "offerId": null
+     },
+     {
+      "quantity": 1,
+      "unitPrice": 0,
+      "offerId": "b1g1"
+     }
+    ],
+    [
+     {
+      "quantity": 1,
+      "unitPrice": 171,
+      "offerId": "p5"
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 49
+  }
+ },
+ {
+  "name": "bill offer: 5% off from 1000, after item offers",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "rice"
+    ],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "p10",
+    "name": "p10",
+    "kind": "percent",
+    "value": 10
+   },
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "bill5",
+    "name": "bill5",
+    "kind": "bill_percent",
+    "value": 5,
+    "minBill": 1000
+   }
+  ],
+  "lines": [
+   {
+    "productId": "rice",
+    "category": null,
+    "regular": 500,
+    "quantity": 2
+   },
+   {
+    "productId": "dal",
+    "category": null,
+    "regular": 100,
+    "quantity": 1
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 2,
+      "unitPrice": 450,
+      "offerId": "p10"
+     }
+    ],
+    [
+     {
+      "quantity": 1,
+      "unitPrice": 100,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": {
+    "offerId": "bill5",
+    "amount": 50
+   },
+   "saved": 150
+  }
+ },
+ {
+  "name": "bill offer not reached after item offers",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "rice"
+    ],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "p10",
+    "name": "p10",
+    "kind": "percent",
+    "value": 10
+   },
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "bill100",
+    "name": "bill100",
+    "kind": "bill_amount",
+    "value": 100,
+    "minBill": 1050
+   }
+  ],
+  "lines": [
+   {
+    "productId": "rice",
+    "category": null,
+    "regular": 500,
+    "quantity": 2
+   },
+   {
+    "productId": "dal",
+    "category": null,
+    "regular": 100,
+    "quantity": 1
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 2,
+      "unitPrice": 450,
+      "offerId": "p10"
+     }
+    ],
+    [
+     {
+      "quantity": 1,
+      "unitPrice": 100,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 100
+  }
+ },
+ {
+  "name": "happy hours: 5 to 7 pm only (noon: nothing)",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "samosa"
+    ],
+    "days": null,
+    "fromMinute": 1020,
+    "toMinute": 1140,
+    "id": "hh",
+    "name": "hh",
+    "kind": "percent",
+    "value": 20
+   }
+  ],
+  "lines": [
+   {
+    "productId": "samosa",
+    "category": null,
+    "regular": 15,
+    "quantity": 4
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 4,
+      "unitPrice": 15,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 0
+  }
+ },
+ {
+  "name": "happy hours: 6 pm counts",
+  "at": "2026-11-26T12:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "samosa"
+    ],
+    "days": null,
+    "fromMinute": 1020,
+    "toMinute": 1140,
+    "id": "hh",
+    "name": "hh",
+    "kind": "percent",
+    "value": 20
+   }
+  ],
+  "lines": [
+   {
+    "productId": "samosa",
+    "category": null,
+    "regular": 15,
+    "quantity": 4
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 4,
+      "unitPrice": 12,
+      "offerId": "hh"
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 12
+  }
+ },
+ {
+  "name": "weekday offer: Sundays only (Thursday: nothing)",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "rice"
+    ],
+    "days": 1,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "sun",
+    "name": "sun",
+    "kind": "amount",
+    "value": 5
+   }
+  ],
+  "lines": [
+   {
+    "productId": "rice",
+    "category": null,
+    "regular": 70,
+    "quantity": 1
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 1,
+      "unitPrice": 70,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 0
+  }
+ },
+ {
+  "name": "stopped offer does nothing",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": "2026-11-20T00:00:00Z",
+    "scope": "items",
+    "category": null,
+    "productIds": [
+     "rice"
+    ],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "p10",
+    "name": "p10",
+    "kind": "percent",
+    "value": 10
+   }
+  ],
+  "lines": [
+   {
+    "productId": "rice",
+    "category": null,
+    "regular": 70,
+    "quantity": 1
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 1,
+      "unitPrice": 70,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 0
+  }
+ },
+ {
+  "name": "loose items: buy-get counts whole pieces only",
+  "at": "2026-11-26T06:30:00Z",
+  "promotions": [
+   {
+    "startsAt": "2026-11-01T00:00:00Z",
+    "endsAt": "2026-12-31T00:00:00Z",
+    "stoppedAt": null,
+    "scope": "all",
+    "category": null,
+    "productIds": [],
+    "days": null,
+    "fromMinute": null,
+    "toMinute": null,
+    "id": "b2g1",
+    "name": "b2g1",
+    "kind": "buy_get",
+    "value": 0,
+    "buyQty": 2,
+    "getQty": 1
+   }
+  ],
+  "lines": [
+   {
+    "productId": "onion",
+    "category": null,
+    "regular": 40,
+    "quantity": 2.5
+   }
+  ],
+  "expect": {
+   "parts": [
+    [
+     {
+      "quantity": 2.5,
+      "unitPrice": 40,
+      "offerId": null
+     }
+    ]
+   ],
+   "billOff": null,
+   "saved": 0
+  }
+ }
+]

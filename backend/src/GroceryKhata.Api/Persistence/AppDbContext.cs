@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using GroceryKhata.Api.Catalogue;
 using GroceryKhata.Api.Common;
 using GroceryKhata.Api.Identity;
@@ -296,6 +296,10 @@ public sealed partial class AppDbContext(DbContextOptions<AppDbContext> options,
     public DbSet<KarigarChallan> KarigarChallans => Set<KarigarChallan>();
 
     public DbSet<CashCount> CashCounts => Set<CashCount>();
+
+    public DbSet<CashierShift> CashierShifts => Set<CashierShift>();
+
+    public DbSet<HeldBill> HeldBills => Set<HeldBill>();
 
     public DbSet<Ledger.CashMove> CashMoves => Set<Ledger.CashMove>();
     public DbSet<Catalogue.Stocktake> Stocktakes => Set<Catalogue.Stocktake>();
