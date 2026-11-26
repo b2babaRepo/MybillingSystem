@@ -874,7 +874,7 @@ export const hiMore: TextsMore = {
     expiryLoss: 'एक्सपायरी नुकसान (निपटी वापसी)', afterExpiry: 'एक्सपायरी के बाद मुनाफ़ा', expiredOnShelf: 'शेल्फ़ पर एक्सपायर स्टॉक: लागत पर {{value}}। डिस्ट्रीब्यूटर को लौटाएँ।',
     noCost_one: '{{count}} लाइन बिना लागत के बिकी; मुनाफ़ा ज़्यादा दिख रहा है।', noCost_other: '{{count}} लाइनें बिना लागत के बिकीं; मुनाफ़ा ज़्यादा दिख रहा है।', purchases: 'डिस्ट्रीब्यूटर बिल',
     receipts: 'मिला पैसा', digital: 'डिजिटल (UPI)', receiptsHint: 'अनुमानित आयकर (धारा 44AD) में डिजिटल का 6% और नकद का 8% मुनाफ़ा माना जाता है। CA से पूछें।',
-    purchaseGst: 'GST %', belowCost: 'लागत से कम: {{percent}}% मार्जिन', thinMargin: 'कम मार्जिन: {{percent}}%',
+    purchaseGst: 'GST %', costLooksWrong: 'ख़रीद दाम {{cost}}/{{unit}} इस दाम के लिए गलत लगता है (पूरे पीस या पूरे माल का तो नहीं डाला?)।', checkCost: 'सामान का ख़रीद दाम देखें', belowCost: 'लागत से कम: {{percent}}% मार्जिन', thinMargin: 'कम मार्जिन: {{percent}}%',
   },
   rx: {
     badge: 'शेड्यूल {{schedule}}', needed: 'पर्चे वाली दवाई: डॉक्टर और मरीज़ का नाम डालें।', neededH1: 'शेड्यूल H1/X: डॉक्टर (पते के साथ) और मरीज़ डालें। यह H1 रजिस्टर में जाएगा।',
@@ -893,7 +893,7 @@ export const hiMore: TextsMore = {
     addCommon: 'आम दवाइयाँ जोड़ें', added: 'आम दवाइयाँ जुड़ गईं।', openItems: 'आइटम खोलें',
   },
   garmentGst: { high: 'GST 18%: ₹2,500 से ऊपर के कपड़े पर (इससे कम पर 5%)' },
-  discount: { chip: '{{percent}}% छूट', off: '{{amount}} छूट ({{percent}}%)', undo: 'हटाएँ', total: 'छूट', overLimit: 'साथी ज़्यादा से ज़्यादा {{percent}}% छूट दे सकते हैं। मालिक से पूछें।', limitLabel: 'साथी किसी सामान पर कितनी छूट दे सकते हैं (%)', saved: 'आपकी बचत' },
+  discount: { before: 'छूट से पहले', chip: '{{percent}}% छूट', off: '{{amount}} छूट ({{percent}}%)', undo: 'हटाएँ', total: 'छूट', overLimit: 'साथी ज़्यादा से ज़्यादा {{percent}}% छूट दे सकते हैं। मालिक से पूछें।', limitLabel: 'साथी किसी सामान पर कितनी छूट दे सकते हैं (%)', saved: 'आपकी बचत' },
   styles: { setPrice: 'दाम लिखें', priceAll: 'बिक्री दाम, हर साइज़', savePrice: 'दाम सेव करें', receive: '+ स्टॉक आया', receiveTitle: 'नया स्टॉक · {{name}}', receiveHint: 'हर साइज़ के कितने आए, लिखें।', costEach: 'एक पीस का ख़रीद दाम (ज़रूरी नहीं)', receiveSave: '{{count}} पीस जोड़ें', count_one: '1 साइज़', count_other: '{{count}} साइज़', pick: 'साइज़ और रंग चुनें', left: '{{count}} बचे', total: '{{count}} स्टॉक में', style: 'स्टाइल (एक डिज़ाइन, कई साइज़)', size: 'साइज़', colour: 'रंग', addVariant: '+ दूसरा साइज़ या रंग जोड़ें', askSize: 'साइज़ (जैसे 34, M, 32B)', askColour: 'रंग (एक ही रंग हो तो खाली छोड़ें)', added: '{{name}} जुड़ गया' },
   barcodeBill: { search: 'खोजें, या बारकोड स्कैन करें', scan: 'स्कैन', notFound: 'बारकोड {{code}} किसी सामान पर नहीं है। सामान के पेज पर जोड़ें।', noCamera: 'कैमरा नहीं खुला। कोड लिख दें।', label: 'बारकोड (पैक का, या दुकान का कोड)', make: 'दुकान का कोड बनाएँ' },
   exchange: { leftOnSlip: '{{amount}} पर्ची {{note}} पर अगली खरीद के लिए बचा रहेगा (नकद वापस नहीं)। ग्राहक पर्ची रखे।', toPay: 'अभी देना है', start: 'सामान बदलें (एक्सचेंज)', reason: 'एक्सचेंज', next: 'वापस लें और नया सामान चुनें', banner: 'एक्सचेंज: {{note}} से इस बिल के लिए {{amount}} का क्रेडिट।', cancel: 'हटाएँ', credit: 'एक्सचेंज क्रेडिट ({{note}})', change: '{{amount}} वापस दें' },

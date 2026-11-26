@@ -826,6 +826,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 const p = products.find((x) => x.id === l.productId)
                 if (!p || p.costPrice == null || !(l.unitPrice > 0)) return null
                 const net = l.unitPrice / (1 + (garmentRate(p.hsnCode, p.gstRate, l.unitPrice) ?? 0) / 100)
+                // A cost several times the price was entered for something else (a whole piece or a lot instead of one gram or
+                // one unit): say so and point at the item, not a margin like -34784%.
+                if (p.costPrice > net * 3) return (
+                  <p className="text-xs font-semibold text-due">
+                    {t('pmonth.costLooksWrong', { cost: formatRupees(p.costPrice), unit: t(`units.${p.unit}`) })}{' '}
+                    <button type="button" onClick={() => navigate(`/p/${p.id}`)} className="underline">{t('pmonth.checkCost')}</button>
+                  </p>
+                )
                 const margin = ((net - p.costPrice) / net) * 100
                 return margin < 5 ? <p className={`text-xs font-semibold ${margin <= 0 ? 'text-due' : 'text-warn'}`}>{t(margin <= 0 ? 'pmonth.belowCost' : 'pmonth.thinMargin', { percent: Math.round(margin * 10) / 10 })}</p> : null
               })()}
@@ -910,9 +918,15 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           )}
           {exchange && exchange.total > total && total > 0 && <p className="mt-1 text-sm font-semibold text-brand-deep">{t('exchange.leftOnSlip', { amount: formatRupees(round2(exchange.total - total)), note: exchange.noteNo })}</p>}
           {discountTotal > 0 && (
-            <div className="mt-2 flex justify-between text-sm font-semibold text-brand-strong">
-              <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>
-            </div>
+            <>
+              {/* What the items come to at their usual prices, so the discount below plainly adds up to the total. */}
+              <div className="mt-2 flex justify-between text-sm text-muted">
+                <span>{t('discount.before')}</span><span>{formatRupees(round2(total + discountTotal))}</span>
+              </div>
+              <div className="flex justify-between text-sm font-semibold text-brand-strong">
+                <span>{t('discount.total')}</span><span>− {formatRupees(discountTotal)}</span>
+              </div>
+            </>
           )}
           {/* Optional: the shopkeeper's own discount on the whole bill. */}
           {billOff ? (

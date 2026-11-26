@@ -872,7 +872,7 @@ export const enMore = {
     expiryLoss: 'Expiry loss (returns settled)', afterExpiry: 'Profit after expiry', expiredOnShelf: 'Expired stock still on the shelf: {{value}} at cost. Return it to the distributor.',
     noCost_one: '{{count}} line sold without a cost price; profit is overstated.', noCost_other: '{{count}} lines sold without a cost price; profit is overstated.', purchases: 'Distributor bills',
     receipts: 'Money received', digital: 'Digital (UPI)', receiptsHint: 'Presumptive income tax (s.44AD) counts 6% of digital and 8% of cash receipts as profit. Ask your CA.',
-    purchaseGst: 'GST %', belowCost: 'Below cost: {{percent}}% margin', thinMargin: 'Thin margin: {{percent}}%',
+    purchaseGst: 'GST %', costLooksWrong: 'Cost price {{cost}}/{{unit}} looks wrong for this price (entered for a whole piece or lot?).', checkCost: 'Check the item\'s cost', belowCost: 'Below cost: {{percent}}% margin', thinMargin: 'Thin margin: {{percent}}%',
   },
   rx: {
     badge: 'Sch {{schedule}}', needed: 'Prescription medicine: enter the doctor and patient.', neededH1: 'Schedule H1/X: enter the doctor (with address) and patient. It goes in the H1 register.',
@@ -891,7 +891,7 @@ export const enMore = {
     addCommon: 'Add common medicines', added: 'Common medicines added.', openItems: 'Open items',
   },
   garmentGst: { high: 'GST 18%: clothes above ₹2,500 a piece (5% at or below)' },
-  discount: { chip: '{{percent}}% off', off: '{{amount}} off ({{percent}}%)', undo: 'undo', total: 'Discount', overLimit: 'Helpers can give up to {{percent}}% off. Ask the owner.', limitLabel: 'Most a helper can take off an item (%)', saved: 'You saved' },
+  discount: { before: 'Before discount', chip: '{{percent}}% off', off: '{{amount}} off ({{percent}}%)', undo: 'undo', total: 'Discount', overLimit: 'Helpers can give up to {{percent}}% off. Ask the owner.', limitLabel: 'Most a helper can take off an item (%)', saved: 'You saved' },
   styles: { setPrice: 'Set price', priceAll: 'Selling price, every size', savePrice: 'Save price', receive: '+ Stock in', receiveTitle: 'New stock · {{name}}', receiveHint: 'Type how many of each size came in.', costEach: 'Buying price per piece (optional)', receiveSave: 'Add {{count}} pieces', count_one: '1 size', count_other: '{{count}} sizes', pick: 'Pick the size and colour', left: '{{count}} left', total: '{{count}} in stock', style: 'Style (one design in many sizes)', size: 'Size', colour: 'Colour', addVariant: '+ Add another size or colour', askSize: 'Size (e.g. 34, M, 32B)', askColour: 'Colour (leave empty if one colour)', added: 'Added {{name}}' },
   barcodeBill: { search: 'Search, or scan a barcode', scan: 'Scan', notFound: 'No item has barcode {{code}}. Add it on the item page.', noCamera: 'The camera could not be opened. Type the code instead.', label: 'Barcode (from the pack, or a shop code)', make: 'Make a shop code' },
   exchange: { leftOnSlip: '{{amount}} stays on slip {{note}} for the next purchase (no cash back). The customer keeps the slip.', toPay: 'To pay now', start: 'Exchange items', reason: 'Exchange', next: 'Take back and choose new items', banner: 'Exchange: {{note}} gives {{amount}} credit for this bill.', cancel: 'Cancel', credit: 'Exchange credit ({{note}})', change: 'Give back {{amount}} change' },

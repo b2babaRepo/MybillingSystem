@@ -533,7 +533,7 @@ const guMoreB = {
     expiryLoss: 'એક્સપાયરી નુકસાન (ચૂકતે પરત)', afterExpiry: 'એક્સપાયરી પછીનો નફો', expiredOnShelf: 'હજી છાજલી પર એક્સપાયર સ્ટોક: ખર્ચ ભાવે {{value}}. ડિસ્ટ્રિબ્યુટરને પાછો આપો.',
     noCost_one: '{{count}} લીટી ખરીદ ભાવ વગર વેચાઈ; નફો વધારે બતાવે છે.', noCost_other: '{{count}} લીટી ખરીદ ભાવ વગર વેચાઈ; નફો વધારે બતાવે છે.', purchases: 'ડિસ્ટ્રિબ્યુટરનાં બિલ',
     receipts: 'મળેલા પૈસા', digital: 'ડિજિટલ (UPI)', receiptsHint: 'અનુમાનિત આવકવેરો (કલમ 44AD) ડિજિટલ આવકના 6% અને રોકડ આવકના 8% નફા તરીકે ગણે છે. તમારા CA ને પૂછો.',
-    purchaseGst: 'GST %', belowCost: 'ખર્ચથી નીચે: {{percent}}% માર્જિન', thinMargin: 'ઓછું માર્જિન: {{percent}}%',
+    purchaseGst: 'GST %', costLooksWrong: 'ખરીદ ભાવ {{cost}}/{{unit}} આ ભાવ માટે ખોટો લાગે છે (આખા પીસ કે આખા માલનો તો નથી નાખ્યો?).', checkCost: 'સામાનનો ખરીદ ભાવ જુઓ', belowCost: 'ખર્ચથી નીચે: {{percent}}% માર્જિન', thinMargin: 'ઓછું માર્જિન: {{percent}}%',
   },
   rx: {
     badge: 'શિડ્યૂલ {{schedule}}', needed: 'પ્રિસ્ક્રિપ્શનની દવા: ડૉક્ટર અને દર્દીની વિગત લખો.', neededH1: 'શિડ્યૂલ H1/X: ડૉક્ટર (સરનામા સાથે) અને દર્દીની વિગત લખો. તે H1 રજિસ્ટરમાં જાય છે.',
@@ -552,7 +552,7 @@ const guMoreB = {
     addCommon: 'સામાન્ય દવાઓ ઉમેરો', added: 'સામાન્ય દવાઓ ઉમેરી.', openItems: 'માલ ખોલો',
   },
   garmentGst: { high: 'GST 18%: એક નંગ ₹2,500 થી વધુનાં કપડાં (તેટલા કે ઓછા પર 5%)' },
-  discount: { chip: '{{percent}}% ઓછા', off: '{{amount}} ઓછા ({{percent}}%)', undo: 'પાછું લો', total: 'ડિસ્કાઉન્ટ', overLimit: 'સહાયક {{percent}}% સુધી ઓછા કરી શકે છે. માલિકને પૂછો.', limitLabel: 'સહાયક વસ્તુ પર વધુમાં વધુ કેટલા ઓછા કરી શકે (%)', saved: 'તમે બચાવ્યા' },
+  discount: { before: 'છૂટ પહેલાં', chip: '{{percent}}% ઓછા', off: '{{amount}} ઓછા ({{percent}}%)', undo: 'પાછું લો', total: 'ડિસ્કાઉન્ટ', overLimit: 'સહાયક {{percent}}% સુધી ઓછા કરી શકે છે. માલિકને પૂછો.', limitLabel: 'સહાયક વસ્તુ પર વધુમાં વધુ કેટલા ઓછા કરી શકે (%)', saved: 'તમે બચાવ્યા' },
   styles: { setPrice: 'ભાવ લખો', priceAll: 'વેચાણ ભાવ, દરેક સાઇઝ', savePrice: 'ભાવ સેવ કરો', receive: '+ સ્ટોક આવ્યો', receiveTitle: 'નવો સ્ટોક · {{name}}', receiveHint: 'દરેક સાઇઝના કેટલા આવ્યા તે લખો.', costEach: 'દર નંગ ખરીદ ભાવ (વૈકલ્પિક)', receiveSave: '{{count}} નંગ ઉમેરો', count_one: '1 સાઇઝ', count_other: '{{count}} સાઇઝ', pick: 'સાઇઝ અને રંગ પસંદ કરો', left: '{{count}} બાકી', total: '{{count}} સ્ટોકમાં', style: 'સ્ટાઇલ (ઘણી સાઇઝમાં એક ડિઝાઇન)', size: 'સાઇઝ', colour: 'રંગ', addVariant: '+ બીજી સાઇઝ કે રંગ ઉમેરો', askSize: 'સાઇઝ (જેમ કે 34, M, 32B)', askColour: 'રંગ (એક જ રંગ હોય તો ખાલી રાખો)', added: '{{name}} ઉમેર્યું' },
   barcodeBill: { search: 'શોધો, અથવા બારકોડ સ્કેન કરો', scan: 'સ્કેન', notFound: 'કોઈ વસ્તુનો બારકોડ {{code}} નથી. વસ્તુના પાના પર ઉમેરો.', noCamera: 'કૅમેરા ખૂલી ન શક્યો. તેના બદલે કોડ લખો.', label: 'બારકોડ (પેક પરથી, અથવા દુકાનનો કોડ)', make: 'દુકાનનો કોડ બનાવો' },
   exchange: { leftOnSlip: '{{amount}} સ્લિપ {{note}} પર આગલી ખરીદી માટે રહેશે (રોકડ પાછા નહીં). ગ્રાહક સ્લિપ રાખે.', toPay: 'હમણાં ચૂકવવાના', start: 'વસ્તુ બદલો', reason: 'બદલો', next: 'પાછું લો અને નવી વસ્તુઓ પસંદ કરો', banner: 'બદલો: {{note}} આ બિલ માટે {{amount}} ક્રેડિટ આપે છે.', cancel: 'રદ કરો', credit: 'બદલાની ક્રેડિટ ({{note}})', change: '{{amount}} છૂટા પાછા આપો' },
