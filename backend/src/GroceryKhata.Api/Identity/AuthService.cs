@@ -464,7 +464,9 @@ public sealed class AuthService(
             stem = stem[..60].TrimEnd('-');
         }
 
-        var suffix = Guid.NewGuid().ToString("N")[..8];
+        // 12 hex characters (48 bits): with 8, 20,000 shops of one name had about a 1-in-20 chance that two got the same
+        // link, and the second sign-up then failed on the unique key. 60 + 1 + 12 stays inside the column's 80.
+        var suffix = Guid.NewGuid().ToString("N")[..12];
         return stem.Length == 0 ? $"shop-{suffix}" : $"{stem}-{suffix}";
     }
 }

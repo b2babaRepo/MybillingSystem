@@ -75,7 +75,28 @@ public sealed class Msg91SmsSender(HttpClient http, IOptions<SmsOptions> options
         };
         request.Headers.Add("authkey", sms.Msg91AuthKey);
         using var response = await http.SendAsync(request, ct);
-        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(ct);
+        // MSG91 answers 200 even when it sends nothing (a wrong template, a template not approved on DLT, a variable that
+        // doesn't match, no balance), saying so in the body: {"type":"error","message":"..."}. Only "success" means sent.
+        string? type = null, message = null;
+        try
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(body);
+            if (json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                type = json.RootElement.TryGetProperty("type", out var t) ? t.GetString() : null;
+                message = json.RootElement.TryGetProperty("message", out var m) ? m.ToString() : null;
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // Not JSON (an error page): the status code below says what happened.
+        }
+
+        if (!response.IsSuccessStatusCode || !string.Equals(type, "success", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new HttpRequestException($"MSG91 did not send the code: {(int)response.StatusCode} {type ?? "?"} {message ?? body[..Math.Min(body.Length, 200)]}");
+        }
     }
 }
 
@@ -186,7 +207,8 @@ public static class OtpSignIn
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
-            logger.LogWarning(exception, "SMS provider refused a sign-in code");
+            // Says why (MSG91's own words), so a wrong template or key shows in the log instead of codes that never arrive.
+            logger.LogError(exception, "SMS provider refused a sign-in code: {Reason}", exception.Message);
             return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway, title: "The SMS couldn't be sent.", detail: "Please try again in a minute, or sign in with your password.");
         }
 
