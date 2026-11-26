@@ -469,6 +469,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             product.HsnCode = Clean(row.HsnCode);
             // A SAC code (99…) is a service's: from a master list, a haircut comes in as a service even without the flag.
             (product.IsService, product.DurationMinutes) = (row.IsService || (row.HsnCode?.Trim().StartsWith("99") ?? false), row.DurationMinutes);
+            product.Uncounted = !product.IsService && row.Uncounted;
             product.Schedule = product.IsService ? null : row.Schedule;
             product.UnitsPerPack = product.IsService ? null : row.UnitsPerPack;
             (product.TracksSerials, product.WarrantyMonths) = product.IsService ? (false, null) : (row.TracksSerials, row.WarrantyMonths);

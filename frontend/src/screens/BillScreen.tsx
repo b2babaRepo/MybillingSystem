@@ -385,7 +385,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       // A tinted tin shares its base's product but is its own line (its own shade and rate).
       const index = line.productId ? current.findIndex((l) => l.productId === line.productId && l.name === line.name) : -1
       if (index < 0) return [...current, line]
-      return current.map((l, i) => (i === index ? { ...l, quantity: round2(l.quantity + qty), unitPrice: fitPrice(item, round2(l.quantity + qty), l.unitPrice) } : l))
+      // Quantities keep three decimals, as the server does (1 kg + 0.125 kg is 1.125, not 1.13).
+      const quantity = Math.round((current[index].quantity + qty) * 1000) / 1000
+      return current.map((l, i) => (i === index ? { ...l, quantity, unitPrice: fitPrice(item, quantity, l.unitPrice) } : l))
     })
     if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
   }

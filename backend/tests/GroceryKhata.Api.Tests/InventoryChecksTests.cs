@@ -53,6 +53,25 @@ public sealed class InventoryChecksTests(ApiFactory api)
         Assert.Equal((true, 1, "Milk", "-5", milk), (check.Warning, check.Problems, row.Name, row.Detail, row.Id!.Value));
     }
 
+    [Fact]
+    public async Task A_restaurants_dishes_are_not_counted_so_selling_them_never_puts_them_on_the_order_list()
+    {
+        var shop = api.CreateClient();
+        var auth = await (await shop.PostJsonAsync("/api/v1/auth/sign-up",
+            new { shopName = "Sharma Dhaba", fullName = "Suresh Sharma", phone = ApiFactory.NewPhone(), password = "secret123", language = "hi", type = "restaurant" })).ReadAsync<AuthResponse>();
+        shop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        (await shop.PostJsonAsync("/api/v1/products/starter", new { })).EnsureSuccessStatusCode();
+        var menu = await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products");
+        var naan = menu.Single(p => p.Name == "Butter naan");
+        Assert.True(naan.Uncounted);
+        Assert.False(menu.Single(p => p.Name == "Cold drink").Uncounted); // bought in and resold: counted
+
+        (await shop.PostJsonAsync("/api/v1/bills", new { id = Guid.CreateVersion7(), lines = new[] { new { productId = naan.Id, quantity = 4m, unitPrice = 60m } }, paidAmount = 240m, paymentMode = "cash" })).EnsureSuccessStatusCode();
+
+        Assert.DoesNotContain((await shop.GetJsonAsync<OrderTodayDto>("/api/v1/stock/order-today")).Items, i => i.ProductId == naan.Id);
+        Assert.Empty((await shop.GetJsonAsync<DataCheckDto>("/api/v1/data-check")).Checks.Single(c => c.Code == "negativeStock").Samples);
+    }
+
     private static async Task<Guid> ItemAsync(HttpClient shop, string name, decimal? stock = null, decimal? cost = null, decimal? reorderLevel = null)
     {
         var id = Guid.CreateVersion7();

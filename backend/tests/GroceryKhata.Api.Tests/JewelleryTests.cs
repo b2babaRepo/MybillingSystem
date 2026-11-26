@@ -85,6 +85,32 @@ public sealed class JewelleryTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Money_paid_is_what_the_bill_takes_never_the_note_handed_over()
+    {
+        var (shop, _) = await api.SignUpAsync("Change Jewellers");
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m } } });
+        // 2 g of 22K at 9,160 + ₹500 making = 18,820, with 3% GST 19,384.60: ₹19,385 to pay.
+        var ring = new { name = "Ring", metal = "gold", purity = 916, gross = 2m, makingType = "per_piece", makingValue = 500m };
+
+        var overpaid = await shop.PostJsonAsync("/api/v1/jewellery/bills", new { billId = Guid.CreateVersion7(), lines = new[] { ring }, moneyPaid = 20_000m, mode = "cash" });
+        Assert.Equal(HttpStatusCode.BadRequest, overpaid.StatusCode);
+        Assert.Contains("19,385", await overpaid.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, (await shop.PostJsonAsync("/api/v1/jewellery/bills", new { billId = Guid.CreateVersion7(), lines = new[] { ring }, moneyPaid = 19_385m, mode = "cash" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_typed_line_on_a_bill_needs_a_proper_HUID_like_a_tagged_piece()
+    {
+        var (shop, _) = await api.SignUpAsync("Huid Jewellers");
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m } } });
+        object Ring(string huid) => new { name = "Ring", metal = "gold", purity = 916, gross = 2m, makingType = "per_piece", makingValue = 500m, huid };
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/jewellery/quote", new { lines = new[] { Ring("abc") } })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/jewellery/bills", new { billId = Guid.CreateVersion7(), lines = new[] { Ring("abc") }, moneyPaid = 19_385m, mode = "upi" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await shop.PostJsonAsync("/api/v1/jewellery/bills", new { billId = Guid.CreateVersion7(), lines = new[] { Ring("ab12cd") }, moneyPaid = 19_385m, mode = "upi" })).StatusCode);
+    }
+
+    [Fact]
     public async Task A_tagged_piece_sells_once_and_old_gold_pays_part_of_the_bill()
     {
         var (shop, _) = await api.SignUpAsync("Soni Jewellers");
