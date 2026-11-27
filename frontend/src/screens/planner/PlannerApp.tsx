@@ -20,7 +20,7 @@ import { AiOrderScreen } from './AiOrderScreen'
 import { MyKhataDetail, MyKhataScreen } from '../khata/KhataViews'
 import { ProfileScreen } from '../ProfileScreen'
 import { PassbookScreen } from './PassbookScreen'
-import { confirmAsk } from '../../components/Ask'
+import { confirmAsk } from '../../lib/ask'
 import { AccountScreen, AddressesScreen, CartScreen, LanguageScreen, PrivacyScreen, SavedItemsScreen, SavedShopsScreen, SearchScreen } from './CustomerScreens'
 
 const StoreApp = lazy(() => import('../store/StoreApp').then((m) => ({ default: m.StoreApp })))

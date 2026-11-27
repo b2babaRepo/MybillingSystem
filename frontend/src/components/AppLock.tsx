@@ -50,8 +50,6 @@ export function AppLockGate({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [signedIn, locked])
 
-  if (!signedIn || !locked) return <>{children}</>
-
   /** Signs out on this phone and on the server, and removes the passcode. */
   function signOut() {
     void request('/v1/auth/sign-out', 'POST', { refreshToken: getSession()?.refreshToken }).catch(() => {})
@@ -76,7 +74,12 @@ export function AppLockGate({ children }: { children: ReactNode }) {
     setPin(next)
     if (next.length >= 4) void appLockMatches(next).then((ok) => { if (ok || next.length === 6) void check(next) })
   }
-  keys.current = { press, back: () => setPin(pin.slice(0, -1)), open: () => { if (pin.length >= 4 && !waiting) void check(pin) } }
+  // The keyboard listener calls the latest handlers; updated after each render, never during it.
+  useEffect(() => {
+    keys.current = { press, back: () => setPin(pin.slice(0, -1)), open: () => { if (pin.length >= 4 && !waiting) void check(pin) } }
+  })
+
+  if (!signedIn || !locked) return <>{children}</>
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-5 bg-brand p-6 text-white">

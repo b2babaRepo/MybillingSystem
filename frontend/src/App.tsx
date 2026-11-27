@@ -15,7 +15,7 @@ import { requestPersistentStorage } from './lib/db'
 import { flush } from './lib/outbox'
 import { getSession, setSession } from './lib/session'
 import { navigate, usePath } from './router'
-import { confirmAsk } from './components/Ask'
+import { confirmAsk } from './lib/ask'
 import { useAccountLanguage } from './i18n'
 // Signed-in people (most opens) never need the sign-in screen, so it loads on demand.
 const AuthScreen = lazy(() => import('./screens/AuthScreen').then((module) => ({ default: module.AuthScreen })))
@@ -115,6 +115,7 @@ const BookingsScreen = lazy(() => import('./screens/BookingsScreen').then((modul
 const JobsScreen = lazy(() => import('./screens/JobsScreen').then((module) => ({ default: module.JobsScreen })))
 const SaleOrdersScreen = lazy(() => import('./screens/SaleOrdersScreen').then((module) => ({ default: module.SaleOrdersScreen })))
 const ExchangeSlipsScreen = lazy(() => import('./screens/ExchangeSlipsScreen').then((module) => ({ default: module.ExchangeSlipsScreen })))
+const PricingPage = lazy(() => import('./screens/PricingPage').then((module) => ({ default: module.PricingPage })))
 const FindBillScreen = lazy(() => import('./screens/FindBillScreen').then((module) => ({ default: module.FindBillScreen })))
 const EstimatesScreen = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatesScreen })))
 const EstimatePrint = lazy(() => import('./screens/EstimatesScreen').then((module) => ({ default: module.EstimatePrint })))
@@ -151,6 +152,14 @@ export default function App() {
     return (
       <Suspense fallback={<Loading />}>
         <StoreApp path={path} />
+      </Suspense>
+    )
+  }
+  // The public price page: open to anyone.
+  if (path === '/pricing') {
+    return (
+      <Suspense fallback={<Loading />}>
+        <PricingPage />
       </Suspense>
     )
   }
@@ -442,6 +451,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
             ...(isOwner ? [{ label: t('settings.link'), onClick: () => navigate('/settings') }] : []),
             ...(isOwner ? [{ label: t('suppliers.title'), onClick: () => navigate('/suppliers') }] : []),
             { label: t('profile.title'), onClick: () => navigate('/profile') },
+            { label: `🔑 ${t('forgot.change')}`, onClick: () => { navigate('/profile'); setTimeout(() => document.getElementById('password')?.scrollIntoView({ block: 'center' }), 400) } },
             ...(isOwner ? [{ label: t('plan2.myPlan'), onClick: () => navigate('/plan') }] : []),
             { label: t('teamLink'), onClick: () => navigate('/team') },
             { label: t('plan.householdLists'), onClick: onHousehold },

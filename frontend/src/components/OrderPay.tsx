@@ -4,7 +4,7 @@ import { formatRupees } from '../lib/format'
 import { reachedStep, shouldAskAlerts, markAlertsAsked, stepsOf, turnOnAlerts, type KhataAtCheckout } from '../lib/orderFlow'
 import type { Order, OrderPayment } from '../lib/planner'
 import { upiUri } from '../lib/reports'
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
 import { CustIcon } from './CustIcons'
 
 // Customer app phase 2, the pieces every checkout and order screen shares: the order's steps, the payment choice,
@@ -130,7 +130,11 @@ export function UpiPay({ upiId, shopName, amount, note }: { upiId: string; shopN
 export function AlertsPrompt({ show }: { show: boolean }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  useEffect(() => { if (show && shouldAskAlerts()) setOpen(true) }, [show])
+  const [wasShown, setWasShown] = useState(false)
+  if (show !== wasShown) {
+    setWasShown(show)
+    if (show && shouldAskAlerts()) setOpen(true)
+  }
   if (!open) return null
   return (
     <div role="dialog" aria-label={t('cust2.alertsOn')} className="flex flex-col gap-2 rounded-card bg-brand-soft p-4 ring-1 ring-brand-line">

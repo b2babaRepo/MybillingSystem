@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { saveCsv } from '../lib/csv'
 import { formatRupees } from '../lib/format'
 import { grams, karat, type Metal } from '../lib/jewellery'
 import { JewelleryBookReport } from './JewelleryBookReport'
+import { useNow } from '../lib/useNow'
 
 // Phase 4 of the jewellery counter: stock and sales by karat with fine weight, and cash per customer for PMLA (₹10 lakh)
 // and the SFT return (more than ₹2 lakh), by financial year.
@@ -27,8 +28,9 @@ function Card({ tone, label, value, sub }: { tone: string; label: string; value:
 }
 
 export function JewelleryReportsPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
-  const now = new Date()
+  const now = new Date(nowMs)
   const thisFy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1
   const [fy, setFy] = useState(thisFy)
   const [view, setView] = useState<'stock' | 'sales' | 'cash' | 'book'>('stock')

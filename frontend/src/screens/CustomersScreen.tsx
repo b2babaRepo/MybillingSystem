@@ -1,3 +1,4 @@
+import { phoneOk } from '../lib/phone'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Balance, Button, Field, PendingDot, Sheet } from '../components/ui'
@@ -158,6 +159,7 @@ export function AddCustomerSheet({ shopId, onClose, onAdded }: { shopId: string;
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    if (!name.trim() || !phoneOk(phone)) return
     const id = await addCustomer(shopId, name.trim(), phone.trim())
     onClose()
     onAdded(id)
@@ -168,7 +170,8 @@ export function AddCustomerSheet({ shopId, onClose, onAdded }: { shopId: string;
       <form onSubmit={submit} className="space-y-3">
         <Field label={t('customerName')} value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         <Field label={t('phoneOptional')} value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
-        <Button type="submit" className="w-full" disabled={!name.trim()}>
+        {!phoneOk(phone) && <p role="alert" className="text-sm font-semibold text-due">{t('hwp2.badPhone')}</p>}
+        <Button type="submit" className="w-full" disabled={!name.trim() || !phoneOk(phone)}>
           {t('save')}
         </Button>
       </form>

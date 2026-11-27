@@ -1,5 +1,5 @@
 import { getSession, setSession } from './lib/session'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
@@ -116,7 +116,10 @@ function saveToAccount(language: Language) {
 
 /** At sign-in (or a new person on this phone): show the language their account was set to. */
 export function useAccountLanguage(preferred: string | undefined, userId: string | undefined) {
+  const latest = useRef(preferred)
+  useEffect(() => { latest.current = preferred })
   useEffect(() => {
+    const preferred = latest.current
     if ((preferred === 'en' || preferred === 'hi' || preferred === 'gu' || preferred === 'hn') && preferred !== i18n.language) void setLanguage(preferred, { toAccount: false })
     // Only when the person changes: a later change on this phone is theirs and already saved to the account.
   }, [userId])

@@ -1,4 +1,4 @@
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'

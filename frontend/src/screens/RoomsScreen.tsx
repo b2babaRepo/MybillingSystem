@@ -2,12 +2,14 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, btn } from '../components/ui'
+import { Button, Field } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatPhone, formatRupees } from '../lib/format'
 import { navigate } from '../router'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
+import { useNow } from '../lib/useNow'
 
 type Source = 'direct' | 'walk_in' | 'make_my_trip' | 'goibibo' | 'booking_com' | 'oyo' | 'airbnb' | 'other'
 type Status = 'booked' | 'checked_in' | 'checked_out' | 'cancelled'
@@ -109,10 +111,11 @@ function AddRoom({ shopId, first = false }: { shopId: string; first?: boolean })
 }
 
 function NewStay({ shopId, rooms, roomId, onDone, bookingId, startDate }: { shopId: string; rooms: Room[]; roomId: string | null; onDone: (id?: string) => void; bookingId?: string; startDate?: string }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { customers } = useCustomers(shopId)
-  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })()
+  const tomorrow = (() => { const d = new Date(nowMs); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })()
   const firstRoom = rooms.find((r) => r.id === roomId) ?? rooms[0]
   const next = (iso: string) => { const x = new Date(`${iso}T00:00`); x.setDate(x.getDate() + 1); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` }
   const [d, setD] = useState({ roomId: firstRoom?.id ?? '', checkIn: startDate ?? todayIso(), checkOut: startDate ? next(startDate) : tomorrow, customerId: '', guestName: '', phone: '', guests: '2', rate: '', source: 'direct' as Source, sourceRef: '', commission: '', foreigner: false, note: '' })

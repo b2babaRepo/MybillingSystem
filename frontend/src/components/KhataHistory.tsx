@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { DisputeItemView, ItemOutcome, StatementLine } from '../lib/types'
-import { PendingDot, btn } from './ui'
+import { PendingDot } from './ui'
+import { btn } from '../lib/buttonStyles'
 
 type Line = StatementLine & { pending?: boolean }
 
@@ -24,11 +25,15 @@ export function KhataHistory({ entries, canRemove, onRemove, onDispute, focusEnt
   const [open, setOpen] = useState<string | null>(focusEntryId ?? null)
   const focused = useRef<HTMLLIElement>(null)
   const loaded = entries.some((e) => e.id === focusEntryId)
+  const [openedFor, setOpenedFor] = useState<string | null>(null)
+  const focusKey = focusEntryId && loaded ? focusEntryId : null
+  if (focusKey !== openedFor) {
+    setOpenedFor(focusKey)
+    if (focusKey) setOpen(focusKey)
+  }
   useEffect(() => {
-    if (!focusEntryId || !loaded) return
-    setOpen(focusEntryId)
-    focused.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [focusEntryId, loaded])
+    if (focusKey) focused.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [focusKey])
   return (
     <ul className="divide-y divide-[#edf2f1] rounded-card bg-white px-1 shadow-sm">
       {entries.length === 0 && <li className="p-4 text-muted">{t('noEntries')}</li>}

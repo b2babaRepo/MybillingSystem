@@ -1,7 +1,9 @@
+import { BrandSchemes } from '../components/BrandSchemes'
 import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { SupplierItemsCard } from '../components/SupplierPanels'
-import { ChargesEditor, LotView, chargesBody, noCharges, type Charges } from '../components/LandedCost'
+import { ChargesEditor, LotView, type Charges } from '../components/LandedCost'
+import { chargesBody, noCharges } from '../lib/landedCost'
 import { BagCheck } from './ProductScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ItemPicker } from '../components/ItemPicker'
@@ -9,7 +11,8 @@ import { ListDetail } from '../components/ListDetail'
 import { enqueue } from '../lib/outbox'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Drawer, Field, btn } from '../components/ui'
+import { Button, Drawer, Field } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { NetworkError, api, request } from '../lib/api'
 import { billFile } from '../lib/billFile'
 import { DataTable } from '../components/DataTable'
@@ -17,7 +20,7 @@ import { useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import { shopTypes, useShopSettings } from '../lib/reports'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 import { guarded } from '../lib/billPasscode'
 import { OrdersPanel, ReturnsPanel, ReceiptsPanel, type GoodsReceipt, SupplierImport, type PurchaseOrder } from './SupplierOrders'
 
@@ -68,6 +71,9 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
   }
 
   const due = (suppliers.data ?? []).reduce((sum, s) => sum + Math.max(0, s.due), 0)
+  // Goods sent back whose credit note hasn't come: the due comes down by this once it does.
+  const openReturns = useQuery({ queryKey: [shopId, 'suppliers', 'returns', 'open'], queryFn: () => api<{ value: number; settledAt: string | null }[]>('/v1/suppliers/returns') }).data ?? []
+  const waiting = openReturns.filter((r) => !r.settledAt).reduce((sum, r) => sum + r.value, 0)
   const theyOwe = (suppliers.data ?? []).reduce((sum, s) => sum + Math.max(0, -s.due), 0)
   const sum = (key: 'days0To15' | 'days16To30' | 'over30') => (suppliers.data ?? []).reduce((total, s) => total + (s[key] ?? 0), 0)
   // Who to pay first: the oldest unpaid bills at the top, then the biggest dues.
@@ -97,6 +103,7 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
         <section className="flex min-h-[80px] flex-col justify-between rounded-card bg-due-soft p-3 shadow-sm ring-1 ring-black/5">
           <span className="text-xs font-semibold text-due">{t('suppliers.totalDue')}</span>
           <b className="text-xl text-due">{formatRupees(due)}</b>
+          {waiting > 0 && <span className="text-xs text-due">{t('hwp3.waitingCredit', { amount: formatRupees(waiting) })}</span>}
         </section>
         <section className="flex min-h-[80px] flex-col justify-between rounded-card bg-green-50 p-3 shadow-sm ring-1 ring-black/5">
           <span className="text-xs font-semibold text-emerald-800">{t('sup3.theyOwe')}</span>
@@ -112,6 +119,7 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
           <b className="text-2xl">{(suppliers.data ?? []).filter((x) => x.isActive !== false).length}</b>
         </section>
       </div>
+      <BrandSchemes shopId={shopId} />
       {/* The buying jobs, each in its own colour with a line icon on a white dot. */}
       <div className="grid grid-cols-2 gap-2">
         {[

@@ -4433,6 +4433,86 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("bookings", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.BrandScheme", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Basis")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("basis");
+
+                    b.Property<string>("Brand")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("brand");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateOnly>("From")
+                        .HasColumnType("date")
+                        .HasColumnName("from");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("note");
+
+                    b.Property<decimal>("RebatePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("rebate_percent");
+
+                    b.Property<decimal?>("Received")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("received");
+
+                    b.Property<DateOnly?>("ReceivedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("received_on");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<decimal>("Target")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("target");
+
+                    b.Property<DateOnly>("To")
+                        .HasColumnType("date")
+                        .HasColumnName("to");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.ToTable("brand_schemes", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Ledger.BridalBooking", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4814,6 +4894,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
+
+                    b.Property<Guid?>("EstimateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("estimate_id");
 
                     b.Property<Guid?>("InvoiceId")
                         .HasColumnType("uuid")
@@ -5213,6 +5297,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<DateTimeOffset?>("PhoneConfirmedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("phone_confirmed_at");
+
+                    b.Property<string>("PriceGroup")
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("price_group");
 
                     b.Property<DateTimeOffset?>("ReminderConsentAt")
                         .HasColumnType("timestamp with time zone")
@@ -8407,6 +8496,62 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasAlternateKey("ShopId", "Id");
 
                     b.ToTable("painters", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.PainterPayout", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("mode");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("note");
+
+                    b.Property<DateOnly>("PaidOn")
+                        .HasColumnType("date")
+                        .HasColumnName("paid_on");
+
+                    b.Property<Guid>("PainterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("painter_id");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("ShopId", "PainterId");
+
+                    b.ToTable("painter_payouts", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.PieceStone", b =>
@@ -12098,14 +12243,34 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("books_closed_until");
 
+                    b.Property<decimal>("CashPayoutLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("cash_payout_limit");
+
+                    b.Property<decimal>("CashReceiptLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("cash_receipt_limit");
+
                     b.Property<string>("City")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
                         .HasColumnName("city");
 
+                    b.Property<decimal>("ContractorDiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("contractor_discount_percent");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<decimal>("DealerDiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("dealer_discount_percent");
 
                     b.Property<bool?>("DeliversGoods")
                         .HasColumnType("boolean")
@@ -12129,6 +12294,23 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text[]")
                         .HasColumnName("extra_types");
+
+                    b.Property<string>("GirviLicence")
+                        .HasColumnType("text")
+                        .HasColumnName("girvi_licence");
+
+                    b.Property<decimal?>("GirviMaxYearlyRate")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("girvi_max_yearly_rate");
+
+                    b.Property<int>("GirviNoticeDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("girvi_notice_days");
+
+                    b.Property<string>("GirviState")
+                        .HasColumnType("text")
+                        .HasColumnName("girvi_state");
 
                     b.Property<bool>("GstComposition")
                         .HasColumnType("boolean")
@@ -12184,6 +12366,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("number")
                         .HasDefaultValueSql("nextval('shop_number_seq')");
+
+                    b.Property<decimal>("PanFrom")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("pan_from");
 
                     b.Property<string>("ReminderTemplate")
                         .HasMaxLength(500)

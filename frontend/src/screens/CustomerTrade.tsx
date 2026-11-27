@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { GST_STATES } from '../lib/states'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -8,7 +8,7 @@ import { uuidv7 } from '../lib/ids'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { Customer, PaymentMode } from '../lib/types'
 import { navigate } from '../router'
-import { ask } from '../components/Ask'
+import { ask } from '../lib/ask'
 
 interface SiteTotal { site: string; bills: number; billed: number; openChallans: number }
 interface Challan { id: string; occurredAt: string; total: number; site: string | null; vehicleNumber: string | null; lines: { name: string; quantity: number; unit: string }[] }
@@ -137,6 +137,18 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
           <button disabled={busy} onClick={() => void saveLimit()} className={`h-12 px-4 rounded-xl ${btn.solid}`}>{t('trade.save')}</button>
         </div>
       )}
+
+      {/* Price group: retail, contractor or dealer pay different prices off the same list. */}
+      <label className="flex items-center justify-between gap-2 rounded-2xl border border-line p-3">
+        <span className="text-sm font-semibold">{t('hwp4.group')}</span>
+        <select value={customer.priceGroup ?? 'retail'} disabled={busy} aria-label={t('hwp4.group')}
+          onChange={(e) => void run(async () => { await api(`/v1/customers/${customer.id}/price-group`, 'PUT', { priceGroup: e.target.value }); setMessage(t('hwp4.groupSaved')) })}
+          className="h-11 rounded-xl border border-line bg-white px-3">
+          <option value="retail">{t('hwp4.retail')}</option>
+          <option value="contractor">{t('hwp4.contractor')}</option>
+          <option value="dealer">{t('hwp4.dealer')}</option>
+        </select>
+      </label>
 
       {/* Bill details: what prints on this customer's GST bills */}
       <div className="flex flex-col">

@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { shownLocale } from '../i18n'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -7,7 +7,8 @@ import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import { DataTable } from '../components/DataTable'
-import { isLate, type PurchaseOrder } from './SupplierOrders'
+import { type PurchaseOrder } from './SupplierOrders'
+import { isLate } from '../lib/supplierOrders'
 
 /** The suppliers screen opens this supplier once, when it is set. */
 export const OPEN_SUPPLIER_KEY = 'gk-open-supplier'

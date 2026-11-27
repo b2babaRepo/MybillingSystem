@@ -27,6 +27,13 @@ public sealed partial class LedgerService
                 // Salespeople must have access to this shop; a line without one (or with a stranger) is the biller's.
                 var sellers = (await db.Memberships.AsNoTracking().Where(m => m.ShopId == tenant.ShopId).Select(m => m.UserId).ToListAsync(cancellationToken)).ToHashSet();
                 var staffMaxDiscount = isOwner || approvedBy is not null ? 100m : await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.StaffMaxDiscountPercent).SingleAsync(cancellationToken);
+                // A contractor's or dealer's price is the owner's own price list, so a helper may bill at it.
+                var groupOff = request.CustomerId is { } groupCustomer
+                    ? await (from c in db.Customers.AsNoTracking()
+                             where c.Id == groupCustomer
+                             from sh in db.Shops.AsNoTracking().Where(sh => sh.Id == tenant.ShopId)
+                             select c.PriceGroup == "contractor" ? sh.ContractorDiscountPercent : c.PriceGroup == "dealer" ? sh.DealerDiscountPercent : 0m).FirstOrDefaultAsync(cancellationToken)
+                    : 0m;
                 if (request.Lines is not { Count: > 0 and <= 200 })
                 {
                     errors[nameof(request.Lines)] = ["Add between 1 and 200 items."];
@@ -111,6 +118,7 @@ public sealed partial class LedgerService
                     // So did a wholesale price, for a line that takes at least its quantity.
                     else if (!isOwner && approvedBy is null && !promotionsAllow && !(offerPrice is { } floor && line.UnitPrice >= floor)
                         && !(product is { WholesalePrice: { } wholesale, WholesaleMinQty: { } atLeast } && line.Quantity >= atLeast && line.UnitPrice >= wholesale)
+                        && !(groupOff > 0 && product is { SellingPrice: > 0 } listed && line.UnitPrice >= decimal.Round(listed.SellingPrice * (1 - (groupOff / 100)), 2))
                         && DiscountProblem(name, product, line.UnitPrice, staffMaxDiscount) is { } tooLow)
                     {
                         errors[field] = [tooLow];
@@ -458,6 +466,11 @@ public sealed partial class LedgerService
                     balance = delta != 0
                         ? await AdjustBalanceAsync(owingCustomerId, delta, cancellationToken)
                         : await BalanceAsync(owingCustomerId, cancellationToken);
+                    // A helper can't take a customer past their credit limit; the owner sees the warning and decides.
+                    if (!isOwner && delta > 0 && await db.Customers.Where(c => c.Id == owingCustomerId).Select(c => c.CreditLimit).SingleAsync(cancellationToken) is { } limit && balance > limit)
+                    {
+                        return LedgerResult<BillDto>.Invalid(nameof(request.CustomerId), $"This bill takes the customer past their ₹{limit:0.##} credit limit. Take more payment now, or ask the owner.");
+                    }
                 }
 
                 if (beforeCommit is not null && await beforeCommit() is { } refused)
@@ -578,7 +591,7 @@ public sealed partial class LedgerService
         }
 
         var customer = bill.CustomerId is { } customerId
-            ? await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays)).SingleAsync(cancellationToken)
+            ? await db.Customers.AsNoTracking().Where(c => c.Id == customerId).Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays, c.PriceGroup)).SingleAsync(cancellationToken)
             : null;
         // What went on the khata is due the customer's credit days after the bill.
         DateOnly? dueOn = bill.OnKhata > 0 && customer?.CreditDays is { } creditDays

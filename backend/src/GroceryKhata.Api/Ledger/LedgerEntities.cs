@@ -37,6 +37,9 @@ public sealed class Customer : Entity, ITenantOwned
     /// <summary>The state an unregistered customer lives in (GST code, "24"): a bill to them is offered there.</summary>
     public string? State { get; set; }
 
+    /// <summary>The customer's price group: "contractor" or "dealer" get the shop's discount off list; null is retail.</summary>
+    public string? PriceGroup { get; set; }
+
     public decimal Balance { get; set; }
 
     /// <summary>When the shop last sent this customer a payment reminder (shown on the dues list).</summary>

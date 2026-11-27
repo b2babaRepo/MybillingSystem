@@ -1,13 +1,16 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, btn } from '../components/ui'
+import { Button, Field } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api, request } from '../lib/api'
 import { shrinkPhoto } from '../lib/images'
 import { VoiceButton } from '../components/VoiceButton'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
-import { ask, confirmAsk } from '../components/Ask'
+import { ask, confirmAsk } from '../lib/ask'
+import { parseGrid } from '../lib/dairyGrid'
+import { useNow } from '../lib/useNow'
 
 type Kind = 'cow' | 'buffalo' | 'mixed'
 type Shift = 'morning' | 'evening'
@@ -51,20 +54,6 @@ function PhotoButton({ label, busy, onFile }: { label: string; busy: boolean; on
       <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f) }} />
     </label>
   )
-}
-
-/** Turns a rate chart copied from Excel (fat down the first column, SNF across the first row) into cells. */
-export function parseGrid(text: string): { fat: number; snf: number; ratePerLitre: number }[] {
-  const rows = text.trim().split(/\r?\n/).map((r) => r.split(/\t|,|;/).map((c) => c.trim()))
-  if (rows.length < 2) return []
-  const snfs = rows[0].slice(1).map(Number)
-  const cells: { fat: number; snf: number; ratePerLitre: number }[] = []
-  for (const row of rows.slice(1)) {
-    const fat = Number(row[0])
-    if (!(fat > 0)) continue
-    row.slice(1).forEach((v, i) => { const rate = Number(v); if (rate > 0 && snfs[i] > 0) cells.push({ fat: Math.round(fat * 10) / 10, snf: Math.round(snfs[i] * 10) / 10, ratePerLitre: Math.round(rate * 100) / 100 }) })
-  }
-  return cells
 }
 
 /** On a dairy centre's home: the shift so far, and the way in. */
@@ -121,7 +110,7 @@ function useRun(shopId: string) {
 /** The counter: farmer code, milk, litres, fat and SNF (or the lactometer reading). The amount shows before saving; then a WhatsApp slip. */
 function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: string; isOwner: boolean }) {
   const { t } = useTranslation()
-  const [date, setDate] = useState(iso(new Date()))
+  const [date, setDate] = useState(() => iso(new Date()))
   const [shift, setShift] = useState<Shift>(nowShift())
   const farmers = useQuery({ queryKey: [shopId, 'dairy', 'farmers'], queryFn: () => api<Farmer[]>('/v1/dairy/farmers') }).data ?? []
   const day = useQuery({ queryKey: [shopId, 'dairy', 'shift', date, shift], queryFn: () => api<ShiftDay>(`/v1/dairy/collections?date=${date}&shift=${shift}`) }).data
@@ -134,9 +123,14 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
   const { message, run } = useRun(shopId)
   const [last, setLast] = useState<Collection | null>(null)
 
-  useEffect(() => {
+  const quoteFor = [date, kind, d.litres, d.fat, d.snf, d.clr].join('|')
+  const [quotedFor, setQuotedFor] = useState(quoteFor)
+  if (quotedFor !== quoteFor) {
+    setQuotedFor(quoteFor)
     setQuote(null)
     setQuoteError('')
+  }
+  useEffect(() => {
     if (!(Number(d.litres) > 0 && Number(d.fat) > 0)) return
     const q = new URLSearchParams({ date, kind, litres: d.litres, fat: d.fat, ...(d.snf ? { snf: d.snf } : d.clr ? { clr: d.clr } : {}) })
     const timer = setTimeout(() => { api<typeof quote>(`/v1/dairy/quote?${q}`).then(setQuote).catch((e: Error) => setQuoteError(e.message)) }, 300)
@@ -299,8 +293,9 @@ function Farmers({ shopId }: { shopId: string }) {
 
 /** Bills for a cycle (10 days by default): each farmer's milk, deductions and what's due, with a WhatsApp statement and the payout. */
 function Bills({ shopId, shopName }: { shopId: string; shopName: string }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
-  const today = new Date()
+  const today = new Date(nowMs)
   const [from, setFrom] = useState(iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() <= 10 ? 1 : today.getDate() <= 20 ? 11 : 21)))
   const [to, setTo] = useState(iso(today))
   const bills = useQuery({ queryKey: [shopId, 'dairy', 'bills', from, to], queryFn: () => api<Bill[]>(`/v1/dairy/bills?from=${from}&to=${to}`) }).data ?? []
@@ -439,7 +434,7 @@ function Rates({ shopId }: { shopId: string }) {
   const { t } = useTranslation()
   const plans = useQuery({ queryKey: [shopId, 'dairy', 'plans'], queryFn: () => api<Plan[]>('/v1/dairy/rate-plans') }).data ?? []
   const empty = { fatRate: '', snfRate: '', flatRate: '', minFat: '', minSnf: '' }
-  const [d, setD] = useState({ for: 'farmers' as Plan['for'], from: iso(new Date()), method: 'fat_snf' as Plan['method'], rates: { buffalo: { ...empty, minFat: '5', minSnf: '9' }, cow: { ...empty, minFat: '3.2', minSnf: '8.3' }, mixed: { ...empty, minFat: '4.5', minSnf: '8.5' } } })
+  const [d, setD] = useState(() => ({ for: 'farmers' as Plan['for'], from: iso(new Date()), method: 'fat_snf' as Plan['method'], rates: { buffalo: { ...empty, minFat: '5', minSnf: '9' }, cow: { ...empty, minFat: '3.2', minSnf: '8.3' }, mixed: { ...empty, minFat: '4.5', minSnf: '8.5' } } }))
   const { message, run } = useRun(shopId)
   const setRate = (k: Kind, key: keyof typeof empty, v: string) => setD({ ...d, rates: { ...d.rates, [k]: { ...d.rates[k], [key]: v } } })
   const [gridKind, setGridKind] = useState<Kind>('buffalo')

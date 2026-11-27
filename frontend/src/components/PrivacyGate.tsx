@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
 
 /**
  * The shopping app's privacy notice, once, on first use: what is kept, who sees it, the person's rights, and the

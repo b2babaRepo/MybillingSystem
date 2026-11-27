@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { shownLocale } from '../i18n'
 import { formatRupees } from '../lib/format'
 import { bookVisit } from '../lib/salon'
-import { btn } from './ui'
+import { btn } from '../lib/buttonStyles'
 
 export interface SalonService { id: string; name: string; price: number; minutes: number }
 

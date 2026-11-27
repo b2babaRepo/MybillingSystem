@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatRupees } from '../lib/format'
-import { change, Delta, ReportShell, useReportView, Waterfall } from '../components/ReportShell'
+import { Delta, ReportShell, Waterfall } from '../components/ReportShell'
+import { change, useReportView } from '../lib/reportShell'
+import { useNow } from '../lib/useNow'
 
 interface ProfitLoss {
   financialYear: string; sales: number; turnover: number; gst: number; goodsProfit: number; returns: number; stockLoss: number; expenses: number; netProfit: number; bagsSold?: number; bagsBought?: number
@@ -16,8 +18,9 @@ interface ProfitLoss {
 
 /** A financial year's statement for the owner and their CA, with 31 March stock read back from the movements. */
 export function ProfitLossScreen() {
+  const nowMs = useNow()
   const { t } = useTranslation()
-  const today = new Date()
+  const today = new Date(nowMs)
   const current = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1
   const [fy, setFy] = useState(current)
   const [error, setError] = useState('')

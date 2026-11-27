@@ -6,14 +6,15 @@ import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { GST_RATES } from '../lib/gst'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, PendingDot, Select, Sheet, btn } from '../components/ui'
+import { Button, Field, PendingDot, Select, Sheet } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Product, Unit } from '../lib/types'
 import { navigate } from '../router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 import { isOutToday } from '../lib/local'
 import { imageUrl } from '../lib/images'
 import { itemArt } from '../lib/itemArt'
@@ -162,7 +163,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
                 <li key={m.id} className="flex items-center gap-3 px-3 py-2.5">
                   {photo
                     ? <img src={photo} alt="" loading="lazy" width={52} height={52} className="h-[52px] w-[52px] shrink-0 rounded-xl border border-line bg-white object-contain" />
-                    : <span aria-hidden className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl text-[26px]" style={{ background: art.tint }}>{art.emoji}</span>}
+                    : <span aria-hidden className="art-tint flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl text-[26px]" style={{ background: art.tint }}>{art.emoji}</span>}
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-[16px] font-semibold">{m.name}</span>
                     <span className="truncate text-[13px] text-muted">{m.nameHi ?? m.category}</span>
@@ -193,7 +194,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
               columns={[
                 { key: 'pic', header: '', width: 'w-12', render: (p) => { const th = imageUrl(shopId, p.id, p.imageAt, 'thumb'); const art = itemArt({ name: p.name })
                   return th ? <img src={th} alt="" loading="lazy" width={36} height={36} className="h-9 w-9 rounded-lg border border-line bg-white object-contain" />
-                    : <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-lg text-lg" style={{ background: art.tint }}>{art.emoji}</span> } },
+                    : <span aria-hidden className="art-tint flex h-9 w-9 items-center justify-center rounded-lg text-lg" style={{ background: art.tint }}>{art.emoji}</span> } },
                 { key: 'name', header: t('items2.colName'), sortValue: (p) => itemName(p), filter: { kind: 'text', value: (p) => `${itemName(p)} ${p.barcode ?? ''}` },
                   render: (p) => <span className="flex items-center gap-2 font-semibold">{itemName(p)}{p.pending && <PendingDot />}</span>, csv: (p) => itemName(p) },
                 { key: 'cat', header: t('items2.colCategory'), width: 'w-40', sortValue: (p) => p.category ?? '',
@@ -228,7 +229,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
           <li key={`style-${entry.name}`} className="flex items-start gap-3 px-3 py-2.5">
             {(() => { const first = entry.items.find((x) => x.imageAt) ?? entry.items[0]; const th = imageUrl(shopId, first.id, first.imageAt, 'thumb'); const art = itemArt({ name: entry.name })
               return th ? <img src={th} alt="" loading="lazy" width={52} height={52} className="h-[52px] w-[52px] shrink-0 rounded-xl border border-line bg-white object-contain" />
-                : <span aria-hidden className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl text-[26px]" style={{ background: art.tint }}>{art.emoji}</span> })()}
+                : <span aria-hidden className="art-tint flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl text-[26px]" style={{ background: art.tint }}>{art.emoji}</span> })()}
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <span className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-[16px] font-semibold">{entry.name}</span>
@@ -257,7 +258,7 @@ export function ItemsScreen({ shopId, isOwner = false }: { shopId: string; isOwn
                   <img src={thumb} alt="" loading="lazy" width={52} height={52} className="h-[52px] w-[52px] rounded-xl border border-line bg-white object-contain" />
                 </button>
               ) : (
-                <span aria-hidden className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl text-[26px]" style={{ background: art.tint }}>{art.emoji}</span>
+                <span aria-hidden className="art-tint flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl text-[26px]" style={{ background: art.tint }}>{art.emoji}</span>
               )}
               <button onClick={() => navigate(`/p/${p.id}`)} className="flex min-h-14 min-w-0 flex-1 items-center gap-2 text-left">
                 <span className="flex min-w-0 flex-1 flex-col">

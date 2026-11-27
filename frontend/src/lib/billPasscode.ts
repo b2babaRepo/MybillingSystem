@@ -1,5 +1,5 @@
 import i18n from '../i18n'
-import { askSecret } from '../components/Ask'
+import { askSecret } from './ask'
 import { withBillPasscode } from './api'
 
 /**

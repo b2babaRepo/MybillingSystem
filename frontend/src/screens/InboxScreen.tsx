@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { DeliveryRound } from '../components/DeliveryRound'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'

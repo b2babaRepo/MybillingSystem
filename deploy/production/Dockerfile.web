@@ -1,10 +1,12 @@
-# Grocery Khata website (the PWA) for production, served by nginx. Build from the frontend folder:
-#   docker build -f deploy/production/Dockerfile.web -t grocery-khata-web frontend
+# Grocery Khata website (the PWA) for production, served by nginx. Build from the repository root, so the app can reach
+# shared/ (the promotion cases the app and the server are both tested against):
+#   docker build -f deploy/production/Dockerfile.web -t grocery-khata-web .
 FROM node:24-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
-COPY . .
+COPY frontend/ .
+COPY shared/ /shared/
 RUN npm run build && npm run budget
 
 FROM nginx:1.29-alpine

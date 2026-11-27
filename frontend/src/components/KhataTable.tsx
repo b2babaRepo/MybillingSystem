@@ -1,41 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDateTime, formatRupees } from '../lib/format'
-import type { StatementLine } from '../lib/types'
 import { navigate } from '../router'
 import { PendingDot } from './ui'
+import { dueByLine, type Line } from '../lib/khataTable'
 
-type Line = StatementLine & { pending?: boolean }
 type Status = 'paid' | 'partial' | 'due'
-
-/**
- * What is still unpaid on each udhaar line today: payments clear the oldest udhaar first (the same rule as the dues by
- * age and the Sale bills list). Removed lines and their removals count for nothing.
- */
-export function dueByLine(entries: Line[]): Map<string, number> {
-  const open: { id: string; left: number }[] = []
-  let credit = 0
-  for (const e of entries) {
-    if (e.isReversed || e.kind === 'reversal') continue
-    if (e.amount > 0) {
-      let left = e.amount
-      const used = Math.min(credit, left)
-      credit -= used
-      left -= used
-      open.push({ id: e.id, left })
-    } else {
-      let pay = -e.amount
-      for (const o of open) {
-        if (pay <= 0) break
-        const take = Math.min(o.left, pay)
-        o.left -= take
-        pay -= take
-      }
-      credit += pay
-    }
-  }
-  return new Map(open.map((o) => [o.id, Math.round(o.left * 100) / 100]))
-}
 
 const tone: Record<Status, string> = { paid: 'bg-green-50 text-green-800', partial: 'bg-orange-50 text-orange-800', due: 'bg-due-soft text-due' }
 

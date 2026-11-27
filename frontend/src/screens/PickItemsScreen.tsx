@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Sheet, btn } from '../components/ui'
+import { Button, Sheet } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { itemArt } from '../lib/itemArt'
@@ -86,12 +87,12 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
   const inShop = (i: MasterItem) => [i.nameHi ?? i.name, i.name].some((n) => owned.has(n.toLowerCase()) || (i.packSizes.length > 0 && owned.has(`${n} ${i.packSizes[0]}`.toLowerCase())))
   const allShown = shown.length > 0 && shown.every((i) => chosen.has(i.id))
   const narrowed = shown.length <= SELECT_ALL_LIMIT
-  const groups = useMemo(() => {
+  const groups = ((): [string, MasterItem[]][] => {
     const map = new Map<string, MasterItem[]>()
-    if (category === POPULAR) return [[t('pick.popularGroup', { count: shown.length }), shown] as [string, MasterItem[]]]
+    if (category === POPULAR) return [[t('pick.popularGroup', { count: shown.length }), shown]]
     for (const i of shown) map.set(i.category, [...(map.get(i.category) ?? []), i])
     return [...map.entries()]
-  }, [shown, category, t])
+  })()
 
   const toggle = (id: number) => setChosen((c) => { const next = new Set(c); if (next.has(id)) { next.delete(id); setSizes((s) => { const { [id]: _, ...rest } = s; return rest }) } else next.add(id); return next })
   // Tapping a size chooses the item with that size; taking off its last size takes the item off too.

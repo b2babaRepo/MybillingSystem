@@ -8,7 +8,7 @@ public sealed record CustomerRequest(Guid Id, string? Name, string? Phone, bool 
 /// <summary>Puts a paid walk-in bill on a customer's khata after the fact; older than a week needs the owner and a reason.</summary>
 public sealed record AttachCustomerRequest(Guid CustomerId, string? Reason);
 
-public sealed record CustomerDto(Guid Id, string Name, string? Phone, decimal Balance, decimal? CreditLimit = null, bool NameLater = false, int? CreditDays = null);
+public sealed record CustomerDto(Guid Id, string Name, string? Phone, decimal Balance, decimal? CreditLimit = null, bool NameLater = false, int? CreditDays = null, string? PriceGroup = null);
 
 /// <summary>
 /// The fast path: "Ramesh, ₹340, udhaar" with no items. <see cref="Amount"/> is always positive;

@@ -1,6 +1,6 @@
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
@@ -42,12 +42,14 @@ export function MedicalSetupScreen({ shopId, isOwner }: { shopId: string; isOwne
   const profile = useProfile(shopId).data
   const [d, setD] = useState({ licenceForm20: '', licenceForm21: '', licenceIssuedOn: '', pharmacistName: '', pharmacistRegNo: '', gstin: '', fssaiNo: '' })
   const [message, setMessage] = useState('')
-  useEffect(() => {
+  const [filledFrom, setFilledFrom] = useState<typeof profile>(undefined)
+  if (profile !== filledFrom) {
+    setFilledFrom(profile)
     if (profile) setD({
       licenceForm20: profile.licenceForm20 ?? '', licenceForm21: profile.licenceForm21 ?? '', licenceIssuedOn: profile.licenceIssuedOn ?? '', pharmacistName: profile.pharmacistName ?? '',
       pharmacistRegNo: profile.pharmacistRegNo ?? '', gstin: profile.gstin ?? '', fssaiNo: profile.fssaiNo ?? '',
     })
-  }, [profile])
+  }
   const set = (key: keyof typeof d) => (e: { target: { value: string } }) => setD({ ...d, [key]: e.target.value })
 
   async function run(work: () => Promise<unknown>, done: string) {

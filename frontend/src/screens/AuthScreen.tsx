@@ -2,7 +2,8 @@ import { SHOP_TYPES } from '../lib/reports'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { navigate, usePath } from '../router'
-import { Button, Field, btn } from '../components/ui'
+import { Button, Field } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { ApiError, authenticate, readProblem, request } from '../lib/api'
 import type { AuthResponse } from '../lib/types'
 
@@ -17,11 +18,14 @@ export function AuthScreen() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   // Signing in: a code by SMS (default; no password to remember) or a password / counter PIN.
-  const [method, setMethod] = useState<'otp' | 'password'>('otp')
+  const [method, setMethod] = useState<'otp' | 'password' | 'reset'>('otp')
   const [otpStep, setOtpStep] = useState<'phone' | 'code' | 'name'>('phone')
   const [code, setCode] = useState('')
   const [info, setInfo] = useState('')
   const useOtp = mode === 'sign-in' && method === 'otp'
+  // Forgot password: a code to the mobile, then the code and a new password (signs in at once).
+  const resetting = mode === 'sign-in' && method === 'reset'
+  const [newPassword, setNewPassword] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
 
   async function submit(e: FormEvent) {
@@ -29,7 +33,11 @@ export function AuthScreen() {
     setBusy(true)
     setError('')
     try {
-      if (useOtp) await otp()
+      if (resetting) {
+        if (otpStep === 'phone') await sendCode()
+        else await authenticate('/v1/auth/otp/reset-password', { phone: form.phone, code, newPassword })
+      }
+      else if (useOtp) await otp()
       else if (mode === 'sign-in') await authenticate('/v1/auth/sign-in', { phone: form.phone, password: form.password })
       else if (role === 'shop') {
         await authenticate('/v1/auth/sign-up', { ...form, language: i18n.language })
@@ -112,13 +120,21 @@ export function AuthScreen() {
         </>
       )}
       <Field label={t('phone')} value={form.phone} onChange={(e) => { set('phone')(e); setOtpStep('phone') }} required inputMode="tel" autoComplete="tel" />
+      {resetting && <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand-deep">{t('forgot.hint')}</p>}
+      {resetting && otpStep !== 'phone' && (
+        <>
+          <Field label={t('otp.code')} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            required inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={6} />
+          <Field label={t('forgot.newPassword')} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required type="password" minLength={6} autoComplete="new-password" />
+        </>
+      )}
       {useOtp && otpStep !== 'phone' && (
         <Field label={t('otp.code')} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
           required inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={6} />
       )}
       {useOtp && otpStep === 'name' && <Field label={t('yourName')} value={form.fullName} onChange={set('fullName')} required autoComplete="name" />}
       {info && !error && <p className="rounded-lg bg-brand-soft p-3 text-brand-deep">{info}</p>}
-      {!useOtp && <Field
+      {!useOtp && !resetting && <Field
         label={t('password')}
         value={form.password}
         onChange={set('password')}
@@ -130,13 +146,18 @@ export function AuthScreen() {
       />}
       {error && <p className="rounded-lg bg-due-soft p-3 text-due">{error}</p>}
       <Button type="submit" disabled={busy} className="h-14">
-        {useOtp ? (otpStep === 'phone' ? t('otp.send') : t('signIn')) : mode === 'sign-in' ? t('signIn') : role === 'shop' ? t('signUp') : t('plan.register')}
+        {resetting ? (otpStep === 'phone' ? t('otp.send') : t('forgot.save')) : useOtp ? (otpStep === 'phone' ? t('otp.send') : t('signIn')) : mode === 'sign-in' ? t('signIn') : role === 'shop' ? t('signUp') : t('plan.register')}
       </Button>
-      {useOtp && otpStep !== 'phone' && (
+      {(useOtp || resetting) && otpStep !== 'phone' && (
         <button type="button" disabled={busy} className="text-brand underline" onClick={() => { setError(''); void sendCode().catch((err: Error) => setError(err.message)) }}>{t('otp.resend')}</button>
       )}
+      {mode === 'sign-in' && method === 'password' && (
+        <button type="button" className="min-h-10 text-sm font-semibold text-brand underline" onClick={() => { setMethod('reset'); setOtpStep('phone'); setCode(''); setError(''); setInfo('') }}>
+          {t('forgot.link')}
+        </button>
+      )}
       {mode === 'sign-in' && (
-        <button type="button" className="min-h-10 text-sm font-semibold text-brand underline" onClick={() => { setMethod(method === 'otp' ? 'password' : 'otp'); setError(''); setInfo('') }}>
+        <button type="button" className="min-h-10 text-sm font-semibold text-brand underline" onClick={() => { setMethod(method === 'otp' ? 'password' : 'otp'); setOtpStep('phone'); setError(''); setInfo('') }}>
           {method === 'otp' ? t('otp.usePassword') : t('otp.useCode')}
         </button>
       )}
@@ -144,6 +165,7 @@ export function AuthScreen() {
       <button type="button" className={`min-h-12 rounded-xl ${btn.outline}`} onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
         {mode === 'sign-in' ? t('newShop') : t('haveAccount')}
       </button>
+      <button type="button" className="text-sm font-semibold text-brand underline" onClick={() => navigate('/pricing')}>{t('jwl7.pricing')}</button>
       {/* Field agents sign in (or register as a person) first; the app then opens their application. */}
       {agentPath
         ? <p className="rounded-lg bg-warn-soft p-3 text-sm text-warn-ink">{t('fieldAgent.signInFirst')}</p>

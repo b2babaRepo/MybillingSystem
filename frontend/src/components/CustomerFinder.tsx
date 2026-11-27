@@ -1,4 +1,5 @@
-import { btn } from './ui'
+import { phoneOk } from '../lib/phone'
+import { btn } from '../lib/buttonStyles'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { changeDue, findCustomers } from '../lib/customerFind'
@@ -25,7 +26,7 @@ export function CustomerFinder({ customers, selected, onKhata, onPick, onCreate,
   async function saveNew() {
     if (!adding || !onCreate) return
     const phone = adding.phone.replace(/\D/g, '')
-    if (phone && phone.length !== 10) { setProblem(t('newBuyer.badPhone')); return }
+    if (!phoneOk(adding.phone)) { setProblem(t('hwp2.badPhone')); return }
     const id = await onCreate(adding.name.trim() || phone, phone)
     setAdding(null)
     setText('')

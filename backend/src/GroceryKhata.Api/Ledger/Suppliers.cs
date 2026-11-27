@@ -950,6 +950,27 @@ await db.GoodsReceipts.Where(r => r.PurchaseId == id).ExecuteUpdateAsync(s => s.
         await db.Expenses.Where(e => paidCharges.Contains(e.Id) && e.StruckAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(e => e.StruckAt, now).SetProperty(e => e.StruckByUserId, userId), ct);
         db.SupplierEntries.Add(new SupplierEntry { SupplierId = purchase.SupplierId, Kind = SupplierEntryKind.BillCancelled, Amount = -purchase.Total, PurchaseId = id, Note = "Bill cancelled", OccurredAt = now, CreatedByUserId = userId });
+        // The bill's units come out of the average cost too: (stock × cost − these units × their cost) over what stays.
+        // Without this, a cancelled bill at a higher rate keeps lifting the item's cost, and with it stock value and losses.
+        var boughtAt = await db.StockMovements.AsNoTracking()
+            .Where(m => m.RefType == "purchase" && m.RefId == id && m.Kind == StockMovementKind.Purchase && m.Quantity > 0 && m.CostPrice != null)
+            .Select(m => new { m.ProductId, m.Quantity, m.CostPrice }).ToListAsync(ct);
+        foreach (var group in boughtAt.GroupBy(m => m.ProductId))
+        {
+            var product = await db.Products.SingleOrDefaultAsync(p => p.Id == group.Key, ct);
+            var units = group.Sum(m => m.Quantity);
+            if (product?.CostPrice is not { } cost || product.Stock - units <= 0)
+            {
+                continue;
+            }
+
+            var left = decimal.Round(((product.Stock * cost) - group.Sum(m => m.Quantity * m.CostPrice!.Value)) / (product.Stock - units), 2);
+            if (left > 0)
+            {
+                product.CostPrice = left;
+            }
+        }
+
         foreach (var line in purchase.Lines)
         {
             db.StockMovements.Add(new StockMovement

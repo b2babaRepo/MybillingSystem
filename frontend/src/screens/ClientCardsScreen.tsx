@@ -1,6 +1,6 @@
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
@@ -41,9 +41,11 @@ function ClientCard({ shopId, customerId }: { shopId: string; customerId: string
   const card = useQuery({ queryKey: [shopId, 'client-card', customerId], queryFn: () => api<Card>(`/v1/customers/${customerId}/card`) }).data
   const [d, setD] = useState({ hairType: '', skinType: '', allergies: '', colourFormula: '', patchTestOn: '', patchTestReaction: false, notes: '' })
   const [message, setMessage] = useState('')
-  useEffect(() => {
+  const [filledFrom, setFilledFrom] = useState<typeof card>(undefined)
+  if (card !== filledFrom) {
+    setFilledFrom(card)
     if (card) setD({ hairType: card.hairType ?? '', skinType: card.skinType ?? '', allergies: card.allergies ?? '', colourFormula: card.colourFormula ?? '', patchTestOn: card.patchTestOn ?? '', patchTestReaction: card.patchTestReaction, notes: card.notes ?? '' })
-  }, [card])
+  }
   const set = (key: keyof typeof d) => (e: { target: { value: string } }) => setD({ ...d, [key]: e.target.value })
   async function save() {
     setMessage('')
@@ -90,7 +92,11 @@ function ServiceProducts({ shopId }: { shopId: string }) {
   const recipe = useQuery({ queryKey: [shopId, 'service-products', serviceId], enabled: !!serviceId, queryFn: () => api<Recipe>(`/v1/services/${serviceId}/products`) }).data
   const [rows, setRows] = useState<{ productId: string; quantity: string }[]>([])
   const [message, setMessage] = useState('')
-  useEffect(() => { setRows(recipe?.products.map((p) => ({ productId: p.productId, quantity: String(p.quantity) })) ?? []) }, [recipe])
+  const [rowsFrom, setRowsFrom] = useState(recipe)
+  if (rowsFrom !== recipe) {
+    setRowsFrom(recipe)
+    setRows(recipe?.products.map((p) => ({ productId: p.productId, quantity: String(p.quantity) })) ?? [])
+  }
   async function save() {
     setMessage('')
     try {

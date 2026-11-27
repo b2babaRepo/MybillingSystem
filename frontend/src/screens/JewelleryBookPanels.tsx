@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomerFinder } from '../components/CustomerFinder'
-import { Button, Drawer, btn } from '../components/ui'
+import { Button, Drawer } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { addCustomer, useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
@@ -51,6 +52,28 @@ export interface Girvi {
   principal: number; ratePerMonth: number; dayWise: boolean; pledgedOn: string; dueOn: string; kyc: string | null; note: string | null; closedOn: string | null
   principalLeft: number; interestDue: number; toClose: number; overdue: boolean; payments: { paidOn: string; amount: number; interestPart: number; principalPart: number; mode: string }[]
   compoundYearly: boolean; capitalised: number
+  /** The pledged metal at today's buying rate, and what is owed as a percent of it (open loans). */
+  valueToday: number | null; coverPercent: number | null
+  /** State-law warnings: "no_licence:<act>", "over_cap:<yearly>:<cap>", "notice:<days>". */
+  warnings?: string[]
+}
+
+/** A state-law warning in words. */
+function GirviWarning({ w }: { w: string }) {
+  const { t } = useTranslation()
+  const [kind, a, b] = w.split(':')
+  if (kind === 'no_licence') return null
+  const text = kind === 'over_cap' ? t('jwl7.overCap', { rate: a, cap: b }) : kind === 'notice' ? t('jwl7.noticeDue', { days: a }) : w
+  return <span className="mt-1 block text-[11px] font-semibold text-warn-ink">⚠ {text}</span>
+}
+
+/** 75%: watch it; 85%: ask for interest or more gold; 100%: what is owed is more than the gold is worth today. */
+function CoverBadge({ g }: { g: Girvi }) {
+  const { t } = useTranslation()
+  const c = g.coverPercent
+  if (c == null || c < 75) return null
+  const [key, tone] = c >= 100 ? ['loss', 'bg-due text-white'] : c >= 85 ? ['alert', 'bg-due-soft text-due'] : ['watch', 'bg-warn-soft text-warn-ink']
+  return <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${tone}`} title={t('jwl6.coverHint', { value: formatRupees(g.valueToday ?? 0) })}>{t(`jwl6.cover.${key}`, { pct: Math.round(c) })}</span>
 }
 
 export function GirviPanel({ shopId, shopName, isOwner }: { shopId: string; shopName: string; isOwner: boolean }) {
@@ -77,6 +100,12 @@ export function GirviPanel({ shopId, shopName, isOwner }: { shopId: string; shop
         <Card tone="bg-[#fdf1e3] text-[#a1460a]" label={t('jwl2.interestDue')} value={formatRupees(open.reduce((n, g) => n + g.interestDue, 0))} />
         <Card tone={open.some((g) => g.overdue) ? 'bg-[#b45309] text-white' : 'bg-[#edf2f1] text-[#33423d]'} label={t('jwl2.overdue')} value={open.filter((g) => g.overdue).length} />
       </div>
+      {open.find((g) => g.warnings?.some((w) => w.startsWith('no_licence:'))) && (
+        <p className="rounded-xl bg-warn-soft p-3 text-sm font-semibold text-warn-ink">{t('jwl7.noLicence', { act: open.flatMap((g) => g.warnings ?? []).find((w) => w.startsWith('no_licence:'))!.slice('no_licence:'.length) })}</p>
+      )}
+      {open.some((g) => (g.coverPercent ?? 0) >= 85) && (
+        <p className="rounded-xl bg-due-soft p-3 text-sm font-semibold text-due">{t('jwl6.atRisk', { count: open.filter((g) => (g.coverPercent ?? 0) >= 85).length })}</p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex gap-1 rounded-xl bg-[#edf2f1] p-1">
           {(['open', 'closed'] as const).map((s) => <button key={s} onClick={() => setStatus(s)} aria-pressed={status === s} className={`min-h-9 rounded-lg px-3 text-sm font-semibold ${status === s ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted'}`}>{t(`jwl2.girviStatus.${s}`)}</button>)}
@@ -103,7 +132,7 @@ export function GirviPanel({ shopId, shopName, isOwner }: { shopId: string; shop
                     {g.payments.some((p) => p.amount < 0) && <span className="block text-xs font-semibold text-[#1d4ed8]">{t('jwl5.topUpRow')} {formatRupees(-g.payments.filter((p) => p.amount < 0).reduce((s, p) => s + p.amount, 0))}</span>}</td>
                   <td className="px-2 py-2.5">{g.ratePerMonth}% {t('jwl2.perMonth')}<span className="block text-xs text-muted">{g.dayWise ? t('jwl2.dayWise') : t('jwl2.monthWise')}{g.compoundYearly ? ` · ${t('jwl5.compoundTag')}` : ''}</span>
                     {g.capitalised > 0 && <span className="block text-xs font-semibold text-[#a1460a]">{t('jwl5.capitalised', { amount: formatRupees(g.capitalised) })}</span>}</td>
-                  <td className="px-2 py-2.5 text-right">{g.closedOn ? <span className="text-muted">{t('jwl2.closedOn', { date: date(g.closedOn) })}</span> : <><b>{formatRupees(g.toClose)}</b><span className="block text-xs text-muted">{t('jwl2.interestShort')} {formatRupees(g.interestDue)}</span></>}</td>
+                  <td className="px-2 py-2.5 text-right">{g.closedOn ? <span className="text-muted">{t('jwl2.closedOn', { date: date(g.closedOn) })}</span> : <><b>{formatRupees(g.toClose)}</b><span className="block text-xs text-muted">{t('jwl2.interestShort')} {formatRupees(g.interestDue)}</span><CoverBadge g={g} />{g.warnings?.map((w) => <GirviWarning key={w} w={w} />)}</>}</td>
                   <td className="px-2 py-2.5">{g.overdue ? <span className="rounded-full bg-due-soft px-2.5 py-0.5 text-xs font-bold text-due">{date(g.dueOn)}</span> : date(g.dueOn)}</td>
                   <td className="px-3 py-2.5 text-right"><span className="flex flex-wrap justify-end gap-1.5">
                     {!g.closedOn && <button onClick={() => { setPaying(g); setPay({ amount: String(g.toClose), mode: 'cash' }) }} className={`min-h-9 rounded-xl px-3 text-sm ${btn.solid}`}>{t('jwl2.receive')}</button>}
@@ -182,6 +211,8 @@ export interface Member {
   id: string; number: number; planId: string; plan: string; customerId: string; customer: string; phone: string | null; startedOn: string; months: number; instalment: number; bonus: number
   paid: number; paidTotal: number; complete: boolean; redeemedBillId: string | null; closedOn: string | null; nextDue: string
   kind: 'amount' | 'grams'; purity: number | null; grams: number
+  /** Instalments past their date plus 7 days' grace and not paid; the date the scheme must be redeemed by (within a year). */
+  missed: number; closeBy: string | null
 }
 
 export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
@@ -193,7 +224,7 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
   const [joining, setJoining] = useState<{ planId: string; customerId: string | null } | null>(null)
   const { busy, error, run } = useRun()
   const refresh = () => queryClient.invalidateQueries({ queryKey: [shopId, 'jewellery'] })
-  const late = members.filter((m) => !m.complete && m.nextDue < today())
+  const late = members.filter((m) => !m.complete && m.missed > 0)
 
   return (
     <div className="flex flex-col gap-3">
@@ -231,7 +262,7 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
                     <span className="flex items-center gap-2"><span className="h-2 w-24 overflow-hidden rounded-full bg-[#edf2f1]"><span className="block h-full bg-brand" style={{ width: `${(m.paid / m.months) * 100}%` }} /></span>{m.paid}/{m.months}</span>
                     <span className="text-xs text-muted">{formatRupees(m.paidTotal)}{m.kind === 'grams' && <b className="ml-1 text-[#a1460a]">· {t('jwl5.gramsSaved', { grams: m.grams.toFixed(3) })}</b>}</span>
                   </td>
-                  <td className="px-2 py-2.5">{m.complete ? <span className="rounded-full bg-[#f1eafd] px-2.5 py-0.5 text-xs font-bold text-[#6d28d9]">{t('jwl2.complete', { bonus: formatRupees(m.bonus) })}</span> : m.nextDue < today() ? <span className="rounded-full bg-due-soft px-2.5 py-0.5 text-xs font-bold text-due">{date(m.nextDue)}</span> : date(m.nextDue)}</td>
+                  <td className="px-2 py-2.5">{m.complete ? <span className="rounded-full bg-[#f1eafd] px-2.5 py-0.5 text-xs font-bold text-[#6d28d9]">{t('jwl2.complete', { bonus: formatRupees(m.bonus) })}</span> : m.missed > 0 ? <><span className="rounded-full bg-due-soft px-2.5 py-0.5 text-xs font-bold text-due">{date(m.nextDue)}</span><span className="mt-1 block text-xs font-semibold text-due">{t('jwl6.missed', { count: m.missed })}</span></> : date(m.nextDue)}{!m.complete && !m.closedOn && m.closeBy && <span className="block text-xs text-muted">{t('jwl6.closeBy', { date: date(m.closeBy) })}</span>}</td>
                   <td className="px-3 py-2.5 text-right">{!m.complete && <button disabled={busy} onClick={() => void run(() => api(`/v1/jewellery/schemes/members/${m.id}/instalments`, 'POST', { entryId: crypto.randomUUID(), mode: 'cash' })).then(() => refresh())}
                     className={`min-h-9 rounded-xl px-3 text-sm ${btn.solid}`}>{t('jwl2.takeInstalment', { amount: formatRupees(m.instalment) })}</button>}</td>
                 </tr>
@@ -247,7 +278,7 @@ export function SchemesPanel({ shopId, isOwner }: { shopId: string; isOwner: boo
         <Drawer title={t('jwl2.newPlan')} onClose={() => setNewPlan(null)}>
           <Field label={t('jwl2.planName')}><input value={newPlan.name} onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })} maxLength={60} placeholder={t('jwl2.planPlaceholder')} className={box} /></Field>
           <div className="grid grid-cols-3 gap-2">
-            <Field label={t('jwl2.months')}><input value={newPlan.months} onChange={(e) => setNewPlan({ ...newPlan, months: num(e.target.value) })} inputMode="numeric" className={box} /></Field>
+            <Field label={t('jwl2.months')}><input value={newPlan.months} onChange={(e) => setNewPlan({ ...newPlan, months: num(e.target.value) })} inputMode="numeric" className={box} /><span className="mt-1 block text-xs text-muted">{t('jwl6.monthsHint')}</span></Field>
             <Field label={t('jwl2.instalment')}><input value={newPlan.instalment} onChange={(e) => setNewPlan({ ...newPlan, instalment: num(e.target.value) })} inputMode="decimal" className={box} /></Field>
             <Field label={t('jwl2.bonus')}><input value={newPlan.bonus} onChange={(e) => setNewPlan({ ...newPlan, bonus: num(e.target.value) })} inputMode="decimal" className={box} /></Field>
           </div>

@@ -1,4 +1,4 @@
-import { btn } from '../../components/ui'
+import { btn } from '../../lib/buttonStyles'
 import { CustIcon } from '../../components/CustIcons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -13,7 +13,7 @@ import type { Unit } from '../../lib/types'
 import { navigate } from '../../router'
 import { VoiceButton } from '../../components/VoiceButton'
 import { UnitSelect } from '../BillScreen'
-import { confirmAsk } from '../../components/Ask'
+import { confirmAsk } from '../../lib/ask'
 
 type Confidence = 'high' | 'medium' | 'low'
 

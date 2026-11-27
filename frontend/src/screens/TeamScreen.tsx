@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BackIcon } from '../components/Icons'
-import { Button, btn } from '../components/ui'
+import { Button } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { addText, shownLocale } from '../i18n'
 import { teamText } from '../i18n/team'
 import { api, ApiError, request } from '../lib/api'
@@ -10,9 +11,10 @@ import { shrinkPhoto } from '../lib/images'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import type { ExpenseCategory } from './ExpensesScreen'
-import { shiftMonth, thisMonth } from './KharchaMonth'
-import { teamViewLink } from './TeamViewPage'
-import { ask, confirmAsk } from '../components/Ask'
+import { shiftMonth, thisMonth } from '../lib/kharchaMonth'
+import { teamJoinLink, teamViewLink } from '../lib/teamLinks'
+import { ask, confirmAsk } from '../lib/ask'
+import { useNow } from '../lib/useNow'
 
 addText(teamText)
 
@@ -31,8 +33,6 @@ interface Month { month: string; complete: boolean; total: number; cash: number;
 const indiaToday = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
 const shiftDay = (day: string, by: number) => new Date(Date.parse(`${day}T00:00:00Z`) + by * 86_400_000).toISOString().slice(0, 10)
 const monthLabel = (month: string) => new Date(`${month}-01T00:00:00`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric' })
-export const teamJoinLink = (code: string) => `${location.origin}/#/team/join/${code}`
-
 function useRun() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -357,6 +357,7 @@ function TeamMonth({ team }: { team: Team }) {
 }
 
 function TeamPeople({ team }: { team: Team }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const manages = team.myRole === 'owner' || team.myRole === 'admin'
@@ -364,7 +365,7 @@ function TeamPeople({ team }: { team: Team }) {
   const { busy, message, run } = useRun()
   const refresh = (next: Team) => queryClient.setQueryData(['team', team.id], next)
   const full = team.members.length >= team.maxMembers
-  const invite = team.inviteCode && team.inviteExpiresAt && Date.parse(team.inviteExpiresAt) > Date.now() ? team.inviteCode : null
+  const invite = team.inviteCode && team.inviteExpiresAt && Date.parse(team.inviteExpiresAt) > nowMs ? team.inviteCode : null
   const inviteText = invite ? t('team.inviteText', { team: team.name, code: invite, link: teamJoinLink(invite) }) : ''
 
   return (

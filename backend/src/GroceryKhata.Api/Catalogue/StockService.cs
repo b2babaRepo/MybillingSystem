@@ -80,7 +80,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var photos = await ProductPhotoEndpoints.IdsAsync(db, list.Count == 1 ? [list[0].Id] : null, ct);
         return list.Select(p => (daily.TryGetValue(p.Id, out var d) && d > 0 ? p with { DailySales = decimal.Round(d, 3) } : p) with
         {
-            Bags = bags.GetValueOrDefault(p.Id), Promised = promised.GetValueOrDefault(p.Id), ExtraPhotos = photos.GetValueOrDefault(p.Id),
+            Bags = SealedBags(bags.GetValueOrDefault(p.Id), p.Stock, p.PurchaseUnit is null ? null : p.BagSize), Promised = promised.GetValueOrDefault(p.Id), ExtraPhotos = photos.GetValueOrDefault(p.Id),
         }).ToList();
     }
 
@@ -530,7 +530,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             return null;
         }
 
-        var sealedBags = await db.StockMovements.Where(m => m.ProductId == productId && m.Bags != null).SumAsync(m => (decimal?)m.Bags, ct) ?? 0;
+        var item = await db.Products.AsNoTracking().Where(p => p.Id == productId).Select(p => new { p.Stock, BagSize = p.PurchaseUnit == null ? null : p.BagSize }).SingleAsync(ct);
+        var sealedBags = SealedBags(await db.StockMovements.Where(m => m.ProductId == productId && m.Bags != null).SumAsync(m => (decimal?)m.Bags, ct) ?? 0, item.Stock, item.BagSize);
         if (sealedBags < request.Bags)
         {
             return $"Only {sealedBags:0.##} sealed bags are on hand.";
@@ -545,6 +546,14 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         return null;
     }
 
+    /// <summary>
+    /// Sealed cartons or strips on hand: the movements added up, but never more than the stock can fill. Selling 5 soaps
+    /// loose from 2 cartons of 24 leaves 43 pieces, so one carton must have been opened even if nobody said so. Bags of
+    /// grain are only "about" their size (40 bags can hold 1,985 kg), so for bags <paramref name="bagSize"/> is null.
+    /// </summary>
+    internal static decimal SealedBags(decimal counted, decimal stock, decimal? bagSize) =>
+        bagSize is > 0 and var size ? Math.Max(0, Math.Min(counted, Math.Floor(stock / size))) : counted;
+
     private Task<decimal> WriteOffLimitAsync(CancellationToken ct) =>
         db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.StaffMaxWriteOff).FirstAsync(ct);
 
@@ -552,6 +561,13 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         Guid id, Guid productId, StockMovementKind kind, decimal quantity, StockReason? reason, decimal? costPrice, string? note,
         Guid userId, CancellationToken ct)
     {
+        // A write-off or count correction keeps the cost it had that day, so later cost changes don't revalue past losses
+        // (the month report and the year's P&L then agree).
+        if (costPrice is null && kind == StockMovementKind.Adjustment)
+        {
+            costPrice = await db.Products.AsNoTracking().Where(p => p.Id == productId).Select(p => p.CostPrice).SingleOrDefaultAsync(ct);
+        }
+
         var movement = new StockMovement
         {
             Id = id,
@@ -586,6 +602,11 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
 
         var ids = request.Rates.Select(r => r.ProductId).ToList();
         var products = await db.Products.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        if (ids.Distinct().Count(id => !products.ContainsKey(id)) is > 0 and var missing)
+        {
+            return (0, new() { ["Rates"] = [$"{missing} item(s) not found: they may have been deleted. Refresh and try again."] });
+        }
+
         var changed = 0;
         foreach (var rate in request.Rates)
         {

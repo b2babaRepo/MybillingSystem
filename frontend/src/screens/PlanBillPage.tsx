@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -27,11 +27,6 @@ interface InvoiceView {
   reference: string | null
   offerCode: string | null
   refundedAt: string | null
-}
-
-/** Where a plan bill opens: the link sent on WhatsApp. Works without signing in; the token in the link is the key. */
-export function planBillLink(paymentId: string, token: string) {
-  return `${location.origin}/#/bill/plan/${paymentId}?t=${token}`
 }
 
 /** A Apna Kaarobar plan bill (/bill/plan/{id}?t=…), printable on A4 or a phone screen. */

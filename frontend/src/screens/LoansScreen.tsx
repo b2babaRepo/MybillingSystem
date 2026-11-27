@@ -1,8 +1,8 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 

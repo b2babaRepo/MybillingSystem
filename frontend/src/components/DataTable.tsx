@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { filterBox } from './TableHead'
+import { filterBox } from '../lib/tableSort'
 
 /** A column's filter, shown under its head: a text box (matches anywhere) or a menu of fixed choices. */
 export type ColumnFilter<T> =

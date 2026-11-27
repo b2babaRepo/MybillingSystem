@@ -46,6 +46,29 @@ public sealed partial class AppDbContext
             b.Property(p => p.CommissionPercent).HasPrecision(5, 2);
         });
 
+        modelBuilder.Entity<PainterPayout>(b =>
+        {
+            b.ToTable("painter_payouts");
+            b.HasTenantKey();
+            b.Property(p => p.Amount).HasPrecision(14, 2);
+            b.Property(p => p.Mode).HasConversion<string>().HasMaxLength(10);
+            b.Property(p => p.Note).HasMaxLength(120);
+            b.HasIndex(p => new { p.ShopId, p.PainterId });
+        });
+
+        modelBuilder.Entity<BrandScheme>(b =>
+        {
+            b.ToTable("brand_schemes");
+            b.HasTenantKey();
+            b.Property(x => x.Name).HasMaxLength(80);
+            b.Property(x => x.Brand).HasMaxLength(40);
+            b.Property(x => x.Basis).HasMaxLength(10);
+            b.Property(x => x.Target).HasPrecision(14, 2);
+            b.Property(x => x.RebatePercent).HasPrecision(5, 2);
+            b.Property(x => x.Received).HasPrecision(14, 2);
+            b.Property(x => x.Note).HasMaxLength(120);
+        });
+
         modelBuilder.Entity<SaleOrder>(b =>
         {
             b.ToTable("sale_orders");
@@ -240,6 +263,7 @@ public sealed partial class AppDbContext
         {
             b.ToTable("customers");
             b.HasTenantKey();
+            b.Property(c => c.PriceGroup).HasMaxLength(12);
             b.Property(c => c.Name).HasMaxLength(120);
             b.Property(c => c.State).HasMaxLength(2);
             b.Property(c => c.Phone).HasMaxLength(16);

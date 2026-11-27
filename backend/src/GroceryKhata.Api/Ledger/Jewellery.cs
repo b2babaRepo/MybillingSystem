@@ -246,6 +246,26 @@ public static class JewelleryMath
 
     public static readonly int[] GoldPurities = [999, 995, 916, 750, 585];
 
+    /// <summary>The shop's cash and PAN limits (defaults: the law's ₹2 lakh, ₹2 lakh and ₹10,000).</summary>
+    public sealed record CashRules(decimal CashReceiptLimit, decimal PanFrom, decimal CashPayoutLimit);
+
+    public static async Task<CashRules> RulesAsync(AppDbContext db, CancellationToken ct) =>
+        await db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => new CashRules(s.CashReceiptLimit, s.PanFrom, s.CashPayoutLimit)).FirstOrDefaultAsync(ct)
+        ?? new CashRules(CashLimit, PanFrom, 10_000m);
+
+    /// <summary>Cash this customer has paid the jewellery counter today: bills, and girvi repayments.</summary>
+    public static async Task<decimal> CashTodayAsync(AppDbContext db, Guid customerId, TimeProvider clock, CancellationToken ct)
+    {
+        var today = IndiaTime.Today(clock);
+        var dayStart = IndiaTime.Day(today).Start;
+        var bills = await db.JewelleryBills.Where(b => b.CustomerId == customerId && b.Mode == PaymentMode.Cash && b.CreatedAt >= dayStart).SumAsync(b => (decimal?)b.MoneyPaid, ct) ?? 0;
+        var girvi = await (from p in db.GirviPayments
+                           join l in db.GirviLoans on p.LoanId equals l.Id
+                           where l.CustomerId == customerId && p.Mode == PaymentMode.Cash && p.PaidOn == today && p.Amount > 0
+                           select (decimal?)p.Amount).SumAsync(ct) ?? 0;
+        return bills + girvi;
+    }
+
     /// <summary>The silver grades of IS 2112:2025 (BIS); a hallmarked silver piece carries a HUID like gold.</summary>
     public static readonly int[] SilverPurities = [999, 990, 970, 958, 925, 900, 800];
 
@@ -679,14 +699,9 @@ public static class JewelleryEndpoints
         var (taxable, gst, roundOff, total) = JewelleryMath.Sum(worked);
         var oldValue = olds.Sum(o => o.Value);
         // Cash already taken from this customer today on jewellery bills counts towards the ₹2 lakh a day.
-        var cashToday = 0m;
-        if (customerId is { } cid)
-        {
-            var dayStart = IndiaTime.Day(IndiaTime.Today(clock)).Start;
-            cashToday = await db.JewelleryBills.Where(b => b.CustomerId == cid && b.Mode == PaymentMode.Cash && b.CreatedAt >= dayStart).SumAsync(b => (decimal?)b.MoneyPaid, ct) ?? 0;
-        }
-
-        var cashLimit = Math.Max(0, JewelleryMath.CashLimit - 1 - cashToday);
+        var cashToday = customerId is { } cid ? await JewelleryMath.CashTodayAsync(db, cid, clock, ct) : 0m;
+        var cashRules = await JewelleryMath.RulesAsync(db, ct);
+        var cashLimit = Math.Max(0, cashRules.CashReceiptLimit - 1 - cashToday);
         // Money already on the customer's khata as an advance (scheme instalments, order advances) pays towards this bill.
         var advance = customerId is { } who ? Math.Max(0, -(await db.Customers.AsNoTracking().Where(c => c.Id == who).Select(c => (decimal?)c.Balance).SingleOrDefaultAsync(ct) ?? 0)) : 0;
         // Kerala: gold worth ₹10 lakh or more moved inside the state needs an e-way bill (Rule 138F).
@@ -711,7 +726,7 @@ public static class JewelleryEndpoints
                 problems.Add("With this bill, this customer's cash this year reaches ₹10 lakh. Cash of ₹10 lakh or more in a year must be kept on record and reported (PMLA): the owner sees it in Jewellery reports.");
         }
 
-        var quote = new JewelleryQuoteDto(worked, taxable, gst, roundOff, total, olds, oldValue, total - oldValue, total >= JewelleryMath.PanFrom, cashLimit, problems, schemeDiscount, advance);
+        var quote = new JewelleryQuoteDto(worked, taxable, gst, roundOff, total, olds, oldValue, total - oldValue, total >= cashRules.PanFrom, cashLimit, problems, schemeDiscount, advance);
         return (new Worked(quote, pieces), null);
     }
 
@@ -764,7 +779,7 @@ public static class JewelleryEndpoints
         if (q.PanNeeded && string.IsNullOrEmpty(pan)) return Invalid("Pan", "This bill is ₹2 lakh or more: enter the buyer's PAN (or FORM 60).");
         if (mode == PaymentMode.Cash && request.MoneyPaid > q.CashLimit)
         {
-            return Invalid("MoneyPaid", $"Cash of ₹2 lakh or more from one person in a day is not allowed. Take at most ₹{q.CashLimit:N0} in cash today; the rest by UPI or card.");
+            return Invalid("MoneyPaid", $"Cash of the shop's limit or more from one person in a day is not allowed (s.269ST). Take at most ₹{q.CashLimit:N0} in cash today; the rest by UPI or card.");
         }
 
         // Old metal covers part of the bill; more old metal than the bill means the shop pays the difference.

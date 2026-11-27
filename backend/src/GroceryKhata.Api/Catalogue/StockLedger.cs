@@ -108,6 +108,12 @@ public static class StockLedger
             {
                 cost = cost is { } old && held > 0 ? ((held * old) + (m.Quantity * paid)) / (held + m.Quantity) : paid;
             }
+            else if (m.Kind == StockMovementKind.Purchase && m.CostPrice is { } back && m.Quantity < 0 && cost is { } now && held + m.Quantity > 0)
+            {
+                // A cancelled supplier bill: its units leave the average at the cost they came in at.
+                var left = ((held * now) + (m.Quantity * back)) / (held + m.Quantity);
+                cost = left > 0 ? left : now;
+            }
 
             held += m.Quantity;
         }
@@ -132,7 +138,7 @@ public static class StockLedger
                 FROM stock_movements
                 WHERE shop_id = {shopId} AND occurred_at < {end}
             ) m
-            WHERE kind = 'Purchase' AND cost_price IS NOT NULL AND quantity > 0
+            WHERE kind = 'Purchase' AND cost_price IS NOT NULL AND quantity <> 0
             ORDER BY product_id, occurred_at, id
             """).ToListAsync(ct);
         var result = new Dictionary<Guid, decimal?>();
@@ -141,6 +147,17 @@ public static class StockLedger
             decimal? cost = null;
             foreach (var r in g)
             {
+                if (r.Quantity < 0)
+                {
+                    // A cancelled supplier bill takes its units out of the average (as AverageCost does).
+                    if (cost is { } now && r.HeldBefore + r.Quantity > 0 && ((r.HeldBefore * now) + (r.Quantity * r.Paid)) / (r.HeldBefore + r.Quantity) is > 0 and var left)
+                    {
+                        cost = left;
+                    }
+
+                    continue;
+                }
+
                 cost = cost is { } old && r.HeldBefore > 0 ? ((r.HeldBefore * old) + (r.Quantity * r.Paid)) / (r.HeldBefore + r.Quantity) : r.Paid;
             }
 
@@ -242,9 +259,11 @@ public static class StockLedger
             Before = g.Sum(m => m.OccurredAt < start ? m.Quantity : 0),
             Moves = g.Count(m => m.OccurredAt >= start),
             Purchased = g.Sum(m => m.OccurredAt >= start && (m.Kind == StockMovementKind.Purchase || (m.Kind == StockMovementKind.Opening && m.Quantity > 0)) ? m.Quantity : 0),
-            Sold = -g.Sum(m => m.OccurredAt >= start && m.Kind == StockMovementKind.Sale ? m.Quantity : 0),
+            // A cancelled bill's goods coming back undo its sale: they come off Sold, not into "other in".
+            Sold = -g.Sum(m => m.OccurredAt >= start && (m.Kind == StockMovementKind.Sale || (m.Kind == StockMovementKind.Adjustment && m.BillId != null && m.Note == "Bill cancelled")) ? m.Quantity : 0),
             Lost = -g.Sum(m => m.OccurredAt >= start && m.Kind == StockMovementKind.Adjustment && m.Reason != null && Losses.Contains(m.Reason.Value) && m.Quantity < 0 ? m.Quantity : 0),
-            OtherIn = g.Sum(m => m.OccurredAt >= start && m.Kind != StockMovementKind.Purchase && m.Kind != StockMovementKind.Opening && m.Kind != StockMovementKind.Sale && m.Quantity > 0 ? m.Quantity : 0),
+            OtherIn = g.Sum(m => m.OccurredAt >= start && m.Kind != StockMovementKind.Purchase && m.Kind != StockMovementKind.Opening && m.Kind != StockMovementKind.Sale
+                && !(m.Kind == StockMovementKind.Adjustment && m.BillId != null && m.Note == "Bill cancelled") && m.Quantity > 0 ? m.Quantity : 0),
             OtherOut = -g.Sum(m => m.OccurredAt >= start && m.Kind != StockMovementKind.Purchase && m.Kind != StockMovementKind.Opening && m.Kind != StockMovementKind.Sale && m.Quantity < 0 ? m.Quantity : 0),
             Closing = g.Sum(m => m.Quantity),
             Bags = g.Sum(m => m.Bags ?? 0),

@@ -2,13 +2,16 @@ import { shownLocale } from '../i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, btn } from '../components/ui'
+import { Button } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api, ApiError, request } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import { downloadCsv } from '../lib/reports'
-import { daysUntil, ReportShell, useReportView } from '../components/ReportShell'
+import { ReportShell } from '../components/ReportShell'
+import { daysUntil, useReportView } from '../lib/reportShell'
 import { BooksCard } from '../components/BooksCard'
+import { useNow } from '../lib/useNow'
 
 interface GstMonth {
   month: string; composition: boolean; bills: number; cancelled: number; firstBillNo: string | null; lastBillNo: string | null
@@ -24,8 +27,9 @@ const FIX: Record<string, string> = { noRate: '/items', noHsn: '/items', badBuye
 
 /** A month's GST for the CA: what to fix first, the totals, and one file to send. Download is for paid plans. */
 export function GstExportScreen() {
+  const nowMs = useNow()
   const { t } = useTranslation()
-  const now = new Date()
+  const now = new Date(nowMs)
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
   const [error, setError] = useState('')
   const data = useQuery({ queryKey: ['gst', month], queryFn: () => api<GstMonth>(`/v1/gst/month?month=${month}`), retry: false }).data

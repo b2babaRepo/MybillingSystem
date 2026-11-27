@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
@@ -13,14 +13,11 @@ type PaymentMode = 'cash' | 'upi'
 import { KharchaMonth, MissingRegular } from './KharchaMonth'
 import { MeterCard } from './MeterCard'
 import { navigate } from '../router'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 import { DataTable } from '../components/DataTable'
 
 export type ExpenseCategory = 'tea' | 'transport' | 'rent' | 'electricity' | 'salary' | 'purchase' | 'packaging' | 'repair' | 'home' | 'other'
   | 'tax' | 'loan' | 'equipment' | 'deposit' | 'advance' | 'interest'
-
-/** Money out that is not a running cost, so it never lowers profit. The server keeps the same list. */
-export const OUTSIDE_PROFIT: ExpenseCategory[] = ['purchase', 'home', 'tax', 'loan', 'equipment', 'deposit', 'advance']
 
 interface ExpenseLine {
   id: string

@@ -23,14 +23,14 @@ public sealed partial class LedgerService(AppDbContext db, TimeProvider clock, I
         }
 
         return await query.OrderBy(c => c.Name).Take(500)
-            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays))
+            .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays, c.PriceGroup))
             .ToListAsync(cancellationToken);
     }
 
     public Task<LedgerResult<CustomerDto>> CreateCustomerAsync(CustomerRequest request, CancellationToken cancellationToken) =>
         WriteOnceAsync(
             () => db.Customers.AsNoTracking().Where(c => c.Id == request.Id)
-                .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays)).SingleOrDefaultAsync(cancellationToken),
+                .Select(c => new CustomerDto(c.Id, c.Name, c.Phone, c.Balance, c.CreditLimit, c.NameLater, c.CreditDays, c.PriceGroup)).SingleOrDefaultAsync(cancellationToken),
             async () =>
             {
                 var errors = new Dictionary<string, string[]>();

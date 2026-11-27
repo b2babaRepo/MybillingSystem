@@ -1,14 +1,15 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, btn } from '../components/ui'
+import { Button, Field } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { ExportImportPanel } from './ExportImportPanel'
 import { KarigarPanel, MachinesPanel } from './WorkshopPanels'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 
 interface SpeechRec { lang: string; start: () => void; onresult: (e: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => void; onend: () => void }
 type Status = 'quote' | 'order' | 'making' | 'ready' | 'delivered' | 'cancelled'

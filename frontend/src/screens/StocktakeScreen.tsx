@@ -8,7 +8,8 @@ import { useProducts } from '../lib/data'
 import { uuidv7 } from '../lib/ids'
 import { shownLocale } from '../i18n'
 import { itemName } from '../lib/itemName'
-import { compareCells, filterBox, nextSort, SortHead, type Sort } from '../components/TableHead'
+import { SortHead } from '../components/TableHead'
+import { compareCells, filterBox, nextSort, type Sort } from '../lib/tableSort'
 
 interface LastIn { productId: string; at: string; quantity: number; supplier: string | null; byHand: boolean }
 

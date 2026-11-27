@@ -62,6 +62,10 @@ public sealed record BillingOverview(
     IReadOnlyDictionary<SubscriptionStatus, int> ByStatus, int TrialsEndingThisWeek, decimal RevenueThisMonth, decimal RevenueThisYear,
     IReadOnlyList<ClaimDto> PendingClaims, IReadOnlyDictionary<string, int>? ByPlan = null);
 
+/// <summary>A plan as the public price page shows it.</summary>
+public sealed record PublicPlanDto(string Code, string Name, decimal? PriceMonthly, decimal? PriceYear1, decimal? PriceYear3, decimal? PriceYear5,
+    IReadOnlyList<string> Features, int? MaxCustomers, int MaxStaff, int MaxOwners, int WhatsAppPerMonth);
+
 public static class BillingEndpoints
 {
     public static IServiceCollection AddBilling(this IServiceCollection services)
@@ -77,6 +81,11 @@ public static class BillingEndpoints
 
     public static IEndpointRouteBuilder MapBilling(this IEndpointRouteBuilder app)
     {
+        // The public price page: every plan on sale and what it includes, no sign-in.
+        app.MapGet("/api/v1/plans/public", async (AppDbContext db, CancellationToken ct) =>
+            (await db.Plans.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.SortOrder).ToListAsync(ct))
+                .Select(p => new PublicPlanDto(p.Code, p.Name, p.PriceMonthly, p.PriceYear1, p.PriceYear3, p.PriceYear5, p.FeatureKeys, p.MaxCustomers, p.MaxStaff, p.MaxOwners, p.WhatsAppPerMonth)).ToList())
+            .WithTags("Subscription").AllowAnonymous();
         var shop = app.MapGroup("/api/v1/subscription").WithTags("Subscription").RequireAuthorization(AppPolicies.ShopMember);
         shop.MapGet("", ViewAsync);
         shop.MapPost("/quote", QuoteAsync);
@@ -570,6 +579,13 @@ public sealed class BillingSeeder(IServiceScopeFactory scopes) : IHostedService
             db.Plans.Add(Entitlements.Silver());
             await db.Plans.Where(p => p.Code == "pro").ExecuteUpdateAsync(u => u
                 .SetProperty(p => p.SortOrder, 3).SetProperty(p => p.Name, p => p.Name == "Pro" ? "Gold" : p.Name), cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        // Plans from before the jewellery plan: add it.
+        if (!await db.Plans.AnyAsync(p => p.Code == "jewellery", cancellationToken))
+        {
+            db.Plans.Add(Entitlements.Jewellery());
             await db.SaveChangesAsync(cancellationToken);
         }
     }

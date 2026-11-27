@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, Sheet, btn } from '../components/ui'
+import { Button, Field, Sheet } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { uuidv7 } from '../lib/ids'
 import type { CartLine } from '../lib/data'
@@ -135,7 +136,7 @@ export function TradeBillPanel({ shopId, shopType, customer, onKhata, products, 
         </>
       )}
 
-      {tinting && <TintSheet products={products} onClose={() => setTinting(false)} onAdd={onAddLine} />}
+      {tinting && <TintSheet shopId={shopId} customerId={customer?.id ?? null} products={products} onClose={() => setTinting(false)} onAdd={onAddLine} />}
     </div>
   )
 }
@@ -144,7 +145,10 @@ export function TradeBillPanel({ shopId, shopType, customer, onKhata, products, 
  * A tinted tin: pick the base tin (it comes off stock), type the shade code from the tinting machine and the tinting
  * charge; the line's rate is base price + tinting.
  */
-function TintSheet({ products, onClose, onAdd }: { products: Product[]; onClose: () => void; onAdd: (line: CartLine) => void }) {
+interface ShadeBefore { productId: string; name: string; shade: string; unitPrice: number; quantity: number; boughtAt: string }
+
+function TintSheet({ shopId, customerId, products, onClose, onAdd }: { shopId: string; customerId: string | null; products: Product[]; onClose: () => void; onAdd: (line: CartLine) => void }) {
+  const before = useQuery({ queryKey: [shopId, 'shades', customerId], queryFn: () => api<ShadeBefore[]>(`/v1/customers/${customerId}/shades`), enabled: !!customerId }).data ?? []
   const { t } = useTranslation()
   const [baseId, setBaseId] = useState('')
   const [shade, setShade] = useState('')
@@ -156,6 +160,25 @@ function TintSheet({ products, onClose, onAdd }: { products: Product[]; onClose:
 
   return (
     <Sheet title={t('trade.addTinted')} onClose={onClose}>
+      {before.length > 0 && (
+        <div className="mb-3 flex flex-col gap-1">
+          <span className="text-sm font-semibold text-muted">{t('hwp1.trade.shadesBefore')}</span>
+          <div className="flex flex-wrap gap-2">
+            {before.map((b) => {
+              const product = products.find((x) => x.id === b.productId)
+              // The tinting charge then, on today's base price.
+              const tintThen = product ? Math.max(0, round2(b.unitPrice - product.sellingPrice)) : 0
+              return (
+                <button key={`${b.productId}-${b.shade}`} disabled={!product}
+                  onClick={() => { setBaseId(b.productId); setShade(b.shade); setTint(tintThen ? String(tintThen) : '') }}
+                  className="min-h-11 rounded-xl border border-udhaar px-3 text-left text-sm disabled:opacity-40">
+                  <b>🎨 {b.shade}</b> <span className="text-muted">{b.name} · {b.boughtAt.slice(0, 10)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <div className="space-y-3">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-muted">{t('trade.base')}</span>

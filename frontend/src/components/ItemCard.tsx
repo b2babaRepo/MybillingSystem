@@ -51,7 +51,7 @@ export function ItemCard({ item, title, subtitle, badge, onClick, selected, comp
       }`}
     >
       <div
-        className={`relative flex items-center justify-center overflow-hidden ${square ? 'aspect-square' : compact ? 'h-16' : 'h-24'} ${onPhotoClick && photo ? 'cursor-zoom-in' : ''}`}
+        className={`relative flex items-center justify-center overflow-hidden ${square ? 'aspect-square' : compact ? 'h-16' : 'h-24'} ${onPhotoClick && photo ? 'cursor-zoom-in' : ''} ${!(photo && photoLoaded) && square ? 'art-tint' : ''}`}
         onClick={onPhotoClick && photo ? (e) => { e.stopPropagation(); onPhotoClick() } : undefined}
         style={{ background: photo && photoLoaded ? (square ? '#ffffff' : art.tint) : square ? art.tint : `linear-gradient(135deg, ${art.from}, ${art.to})` }}
       >

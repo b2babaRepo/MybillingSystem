@@ -1,19 +1,26 @@
+import { RateCardImage } from '../components/RateCardImage'
+import { useShopSettings } from '../lib/reports'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomerFinder } from '../components/CustomerFinder'
-import { Button, Drawer, btn } from '../components/ui'
+import { Button, Drawer } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { addCustomer, useCustomers } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
+import { confirmAsk } from '../lib/ask'
 import { GOLD_PURITIES, SILVER_PURITIES, grams, karat, rateMessage, type JewelleryBill, type JewelleryPiece, type JewelleryQuote, type MakingType, type Metal, type MetalRates } from '../lib/jewellery'
 import { navigate } from '../router'
 import { ApprovalsPanel, GirviPanel, OrdersPanel, SchemesPanel, type Member } from './JewelleryBookPanels'
 import { JewelleryReportsPanel } from './JewelleryReportsPanel'
-import { JewelleryTodayPanel, useDueToday } from './JewelleryTodayPanel'
+import { JewelleryTodayPanel } from './JewelleryTodayPanel'
+import { useDueToday } from '../lib/jewelleryToday'
 import { OldGoldPanel } from './OldGoldPanel'
 import { StaffCapSetting } from './StaffCapSetting'
-import { StonesEditor, TraysPanel, WeighButton, WorkshopPanel, stoneBody, stoneToDraft, useScales, type StoneDraft } from './JewelleryWorkshopPanels'
+import { StonesEditor, TraysPanel, WeighButton, WorkshopPanel, type StoneDraft } from './JewelleryWorkshopPanels'
+import { stoneBody, stoneToDraft, useScales } from '../lib/jewelleryWorkshop'
+import { useNow } from '../lib/useNow'
 
 type Tab = 'bill' | 'today' | 'buyOld' |'stock' | 'rates' | 'girvi' | 'schemes' | 'orders' | 'approvals' | 'workshop' | 'trays' | 'reports'
 const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
@@ -65,7 +72,7 @@ export function JewelleryScreen({ shopId, shopName, isOwner }: { shopId: string;
           </button>
         ))}
       </div>
-      {shown === 'rates' && <RatesPanel shopId={shopId} isOwner={isOwner} rates={rates.data} />}
+      {shown === 'rates' && <RatesPanel shopId={shopId} shopName={shopName} isOwner={isOwner} rates={rates.data} />}
       {shown === 'stock' && <StockPanel shopId={shopId} isOwner={isOwner} />}
       {shown === 'bill' && <BillPanel shopId={shopId} />}
       {shown === 'girvi' && <GirviPanel shopId={shopId} shopName={shopName} isOwner={isOwner} />}
@@ -84,7 +91,9 @@ export function JewelleryScreen({ shopId, shopName, isOwner }: { shopId: string;
 /* ---------------- rates ---------------- */
 
 /** Gold per 10 g, silver per kg, as the trade quotes them; stored per gram. Purities left empty come from 24K. */
-function RatesPanel({ shopId, isOwner, rates }: { shopId: string; isOwner: boolean; rates: MetalRates | undefined }) {
+function RatesPanel({ shopId, shopName, isOwner, rates }: { shopId: string; shopName: string; isOwner: boolean; rates: MetalRates | undefined }) {
+  const nowMs = useNow()
+  const slug = useShopSettings(shopId).data?.slug
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const rows: { metal: Metal; purity: number }[] = [...GOLD_PURITIES.map((p) => ({ metal: 'gold' as Metal, purity: p })), ...SILVER_PURITIES.map((p) => ({ metal: 'silver' as Metal, purity: p }))]
@@ -102,6 +111,17 @@ function RatesPanel({ shopId, isOwner, rates }: { shopId: string; isOwner: boole
       return [{ metal, purity, sellPerGram: Number(d.sell) / per(metal), buyPerGram: Number(d.buy) ? Number(d.buy) / per(metal) : null }]
     })
     if (list.length === 0) return
+    // A typo (₹1 for silver, a missing zero) would price every bill wrong: ask when a rate is far from the last one,
+    // or too low to be a real per-gram price.
+    const odd = list.flatMap((r) => {
+      const was = current(r.metal as Metal, r.purity)?.sellPerGram
+      const far = was != null && was > 0 && (r.sellPerGram > was * 1.5 || r.sellPerGram < was / 1.5)
+      if (!far && r.sellPerGram >= 10) return []
+      const name = r.metal === 'gold' ? `${karat(r.metal, r.purity)} · ${r.purity}` : `${t('jwl.silver')} ${r.purity}`
+      const shown = (perGram: number) => `${formatRupees(perGram * per(r.metal as Metal))}/${r.metal === 'gold' ? '10g' : 'kg'}`
+      return [`${name}: ${shown(r.sellPerGram)}${was != null ? ` (${t('jwl.rateWas', { rate: shown(was) })})` : ''}`]
+    })
+    if (odd.length > 0 && !(await confirmAsk(t('jwl.rateCheck', { list: odd.join('\n') })))) return
     setBusy(true)
     setMessage('')
     try {
@@ -147,9 +167,10 @@ function RatesPanel({ shopId, isOwner, rates }: { shopId: string; isOwner: boole
         : <p className="text-sm text-muted">{t('jwl.ownerSetsRates')}</p>}
       {message && <p role="status" className="text-sm font-semibold text-brand-deep">{message}</p>}
       {(rates?.current.length ?? 0) > 0 && (
-        <a href={whatsAppLink(null, rateMessage(rates!.current, t('jwl5.rateMsgTitle', { date: new Date().toLocaleDateString([], { day: 'numeric', month: 'short' }) }), t('jwl5.rateMsgNote'), t('jwl.silver')))}
+        <a href={whatsAppLink(null, rateMessage(rates!.current, t('jwl5.rateMsgTitle', { date: new Date(nowMs).toLocaleDateString([], { day: 'numeric', month: 'short' }) }), t('jwl5.rateMsgNote'), t('jwl.silver')))}
           target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center rounded-xl bg-[#1f9d55] px-4 font-bold text-white sm:self-start">{t('jwl5.shareRates')}</a>
       )}
+      {(rates?.current.length ?? 0) > 0 && <RateCardImage rates={rates!.current} shopName={shopName} link={slug ? `${window.location.origin}/#/s/${slug}` : null} />}
       {isOwner && <StaffCapSetting shopId={shopId} />}
       {(rates?.today.length ?? 0) > 0 && (
         <div className="flex flex-col gap-1">
@@ -178,7 +199,7 @@ function StockPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const [picked, setPicked] = useState<string[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const list = pieces.data ?? []
+  const list = useMemo(() => pieces.data ?? [], [pieces.data])
   const totals = useMemo(() => ({ count: list.length, gold: list.filter((p) => p.metal === 'gold').reduce((n, p) => n + p.net, 0), silver: list.filter((p) => p.metal === 'silver').reduce((n, p) => n + p.net, 0) }), [list])
 
   async function save() {
@@ -326,7 +347,8 @@ function BillPanel({ shopId }: { shopId: string }) {
   // A finished savings scheme for this customer: its bonus comes off the making charges.
   const members = useQuery({ queryKey: [shopId, 'jewellery', 'members'], queryFn: () => api<Member[]>('/v1/jewellery/schemes/members'), enabled: customerId != null }).data ?? []
   const ready = members.filter((m) => m.customerId === customerId && m.complete && !m.redeemedBillId)
-  useEffect(() => { setSchemeMemberId(null) }, [customerId])
+  const [schemeFor, setSchemeFor] = useState(customerId)
+  if (schemeFor !== customerId) { setSchemeFor(customerId); setSchemeMemberId(null) }
 
   const body = {
     customerId,
@@ -341,7 +363,12 @@ function BillPanel({ shopId }: { shopId: string }) {
   const qd = quote.data
   const toPay = qd ? Math.max(0, qd.toPay) : 0
   // Money received defaults to what is left to pay; in cash, never more than the day's limit allows.
-  useEffect(() => { setPaid(qd ? String(Math.max(0, qd.toPay - (qd.khataAdvance ?? 0))) : '') }, [qd?.toPay, qd?.khataAdvance]) // eslint-disable-line react-hooks/exhaustive-deps
+  const paidFor = qd ? `${qd.toPay}|${qd.khataAdvance ?? 0}` : null
+  const [paidSetFor, setPaidSetFor] = useState<string | null | undefined>(undefined)
+  if (paidSetFor !== paidFor) {
+    setPaidSetFor(paidFor)
+    setPaid(qd ? String(Math.max(0, qd.toPay - (qd.khataAdvance ?? 0))) : '')
+  }
   const cashOver = mode === 'cash' && qd != null && Number(paid) > qd.cashLimit
 
   async function addTag() {

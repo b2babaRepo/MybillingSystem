@@ -59,6 +59,92 @@ public sealed class JewelleryBookTests(ApiFactory api)
         Assert.Equal(-150_000m, drawer.CashIn - drawer.CashOut);
     }
 
+    [Fact]
+    public async Task A_girvi_is_watched_against_todays_gold_value_and_cannot_start_above_it()
+    {
+        var (shop, _) = await api.SignUpAsync("Lakshmi Sarafa");
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m } } });
+        var customer = await Customer(shop, "Mohan");
+        // 10 g at 100% = 10 g fine × ₹10,000 = ₹1,00,000: lending more than that is refused.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/jewellery/girvi",
+            new { customerId = customer, items = "Coin", metal = "gold", gross = 10m, reading = 100m, principal = 100_001m, ratePerMonth = 0m })).StatusCode);
+        var loan = await (await shop.PostJsonAsync("/api/v1/jewellery/girvi",
+            new { customerId = customer, items = "Coin", metal = "gold", gross = 10m, reading = 100m, principal = 80_000m, ratePerMonth = 0m })).ReadAsync<GirviDto>();
+        Assert.Equal((100_000m, 80m), (loan.ValueToday, loan.CoverPercent));
+
+        // Gold falls to ₹7,500 a gram: the same ₹80,000 is now more than the gold is worth.
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 7_500m } } });
+        var now = (await shop.GetJsonAsync<List<GirviDto>>("/api/v1/jewellery/girvi")).Single(g => g.Id == loan.Id);
+        Assert.Equal((75_000m, 106.7m), (now.ValueToday, now.CoverPercent));
+    }
+
+    [Fact]
+    public void A_scheme_instalment_counts_as_missed_a_week_after_its_date()
+    {
+        var start = new DateOnly(2026, 1, 10);
+        // Second instalment falls on 10 Feb: still fine on 17 Feb, missed from 18 Feb.
+        Assert.Equal(0, JewelleryBookEndpoints.MissedInstalments(start, 11, 1, new DateOnly(2026, 2, 17)));
+        Assert.Equal(1, JewelleryBookEndpoints.MissedInstalments(start, 11, 1, new DateOnly(2026, 2, 18)));
+        Assert.Equal(0, JewelleryBookEndpoints.MissedInstalments(start, 11, 2, new DateOnly(2026, 2, 18)));
+        Assert.Equal(10, JewelleryBookEndpoints.MissedInstalments(start, 11, 1, new DateOnly(2027, 6, 1)));
+    }
+
+    [Fact]
+    public async Task A_scheme_ends_within_a_year_and_girvi_cash_stays_under_the_shops_limit()
+    {
+        var (shop, _) = await api.SignUpAsync("Ganesh Sarafa");
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/jewellery/schemes", new { name = "Gold 12", months = 12, instalment = 5_000m })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/jewellery/schemes", new { name = "Gold 11", months = 11, instalment = 5_000m })).EnsureSuccessStatusCode();
+
+        // A lower cash limit for the test: ₹50,000.
+        (await shop.PutJsonAsync("/api/v1/shop", new { name = "Ganesh Sarafa", cashReceiptLimit = 50_000m })).EnsureSuccessStatusCode();
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m } } });
+        var customer = await Customer(shop, "Ramesh");
+        var loan = await (await shop.PostJsonAsync("/api/v1/jewellery/girvi", new { customerId = customer, items = "Kada", metal = "gold", gross = 20m, reading = 100m, principal = 100_000m, ratePerMonth = 0m }))
+            .ReadAsync<GirviDto>();
+        (await shop.PostJsonAsync($"/api/v1/jewellery/girvi/{loan.Id}/payments", new { amount = 40_000m, mode = "cash" })).EnsureSuccessStatusCode();
+        // Another ₹10,000 in cash today makes ₹50,000: refused; by UPI it is fine.
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync($"/api/v1/jewellery/girvi/{loan.Id}/payments", new { amount = 10_000m, mode = "cash" })).StatusCode);
+        (await shop.PostJsonAsync($"/api/v1/jewellery/girvi/{loan.Id}/payments", new { amount = 10_000m, mode = "upi" })).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task Gujarat_rules_warn_about_the_licence_the_interest_cap_and_notice_before_sale()
+    {
+        var (shop, _) = await api.SignUpAsync("Surat Sarafa");
+        await shop.PostJsonAsync("/api/v1/jewellery/rates", new { rates = new[] { new { metal = "gold", purity = 999, sellPerGram = 10_000m } } });
+        var customer = await Customer(shop, "Kanu");
+        var loan = await (await shop.PostJsonAsync("/api/v1/jewellery/girvi", new { customerId = customer, items = "Chain", metal = "gold", gross = 10m, reading = 100m, principal = 50_000m, ratePerMonth = 2m }))
+            .ReadAsync<GirviDto>();
+        Assert.Empty(loan.Warnings!);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PutJsonAsync("/api/v1/shop", new { name = "Surat Sarafa", girviState = "atlantis" })).StatusCode);
+        (await shop.PutJsonAsync("/api/v1/shop", new { name = "Surat Sarafa", girviState = "gujarat", girviMaxYearlyRate = 18m })).EnsureSuccessStatusCode();
+        var warned = (await shop.GetJsonAsync<List<GirviDto>>("/api/v1/jewellery/girvi")).Single();
+        Assert.Equal(["no_licence:Gujarat Money-Lenders Act, 2011", "over_cap:24:18"], warned.Warnings!);
+
+        (await shop.PutJsonAsync("/api/v1/shop", new { name = "Surat Sarafa", girviLicence = "ML/AHD/1234", girviMaxYearlyRate = 0m })).EnsureSuccessStatusCode();
+        Assert.Empty((await shop.GetJsonAsync<List<GirviDto>>("/api/v1/jewellery/girvi")).Single().Warnings!);
+        // Past the due date, the notice before sale is shown.
+        Assert.Equal(["notice:15"], GirviRules.Warnings(new GirviRuleSet(GirviRules.States["gujarat"], "ML/1", null, 15), 1m, overdue: true));
+    }
+
+    [Fact]
+    public async Task A_scheme_bonus_is_at_most_one_instalment()
+    {
+        var (shop, _) = await api.SignUpAsync("Bonus Sarafa");
+        Assert.Equal(HttpStatusCode.BadRequest, (await shop.PostJsonAsync("/api/v1/jewellery/schemes", new { name = "Too generous", months = 2, instalment = 100m, bonus = 100_000m })).StatusCode);
+        (await shop.PostJsonAsync("/api/v1/jewellery/schemes", new { name = "Pay 11 get 1", months = 11, instalment = 5_000m, bonus = 5_000m })).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task The_price_page_lists_the_jewellery_plan_without_signing_in()
+    {
+        var plans = await api.CreateClient().GetJsonAsync<List<GroceryKhata.Api.Billing.PublicPlanDto>>("/api/v1/plans/public");
+        var jewellery = plans.Single(p => p.Code == "jewellery");
+        Assert.Equal((4999m, (int?)null), (jewellery.PriceYear1, jewellery.MaxCustomers));
+    }
+
     private static async Task<Guid> Customer(HttpClient shop, string name)
     {
         var id = Guid.CreateVersion7();

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Field } from '../components/ui'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
+import { useNow } from '../lib/useNow'
 
 interface Month {
   month: string; sales: number; salesTaxable: number; outputGst: number; inputGst: number; gstPayable: number; creditCarried: number; purchases: number; costOfSales: number
@@ -13,8 +14,9 @@ interface Month {
 
 /** A medical shop's month: GST to pay after input credit, profit after expiry, and cash vs digital receipts. */
 export function PharmacyMonthScreen({ shopId }: { shopId: string }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
-  const now = new Date()
+  const now = new Date(nowMs)
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
   const m = useQuery({ queryKey: [shopId, 'pharmacy-month', month], queryFn: () => api<Month>(`/v1/pharmacy/month?month=${month}`) }).data
   const row = (label: string, value: number, strong = false, tone = '') => (

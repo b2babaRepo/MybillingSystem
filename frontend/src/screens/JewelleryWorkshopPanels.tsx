@@ -1,11 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Drawer, btn } from '../components/ui'
+import { Button, Drawer } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { grams, type JewelleryPiece, type Metal } from '../lib/jewellery'
 import { canReadScale, readScaleGrams } from '../lib/scale'
+import { useScales, blankStone } from '../lib/jewelleryWorkshop'
+import { useNow } from '../lib/useNow'
 
 // Phase 3 of the jewellery counter: karigar and trader metal accounts in fine grams, the shop's loose metal, tray
 // counts, the counter scales, and the stones set in a piece.
@@ -39,10 +42,6 @@ function useRun() {
 
 export interface Scale { id: string; name: string; readsTo: number; stampedUntil: string | null; baud: number; isActive: boolean; daysLeft: number }
 
-export function useScales(shopId: string) {
-  return useQuery({ queryKey: [shopId, 'jewellery', 'scales'], queryFn: () => api<Scale[]>('/v1/jewellery/scales') }).data ?? []
-}
-
 /** "Weigh" beside a weight box: reads the counter scale (Chrome on a computer) and rounds to what it is stamped for. */
 export function WeighButton({ shopId, onWeight }: { shopId: string; onWeight: (grams: string) => void }) {
   const { t } = useTranslation()
@@ -72,12 +71,6 @@ export function WeighButton({ shopId, onWeight }: { shopId: string; onWeight: (g
 /* ---------------- stones on a piece ---------------- */
 
 export interface StoneDraft { kind: string; labGrown: boolean; count: string; carat: string; shape: string; colour: string; clarity: string; certLab: string; certNo: string; ratePerCarat: string }
-export const blankStone: StoneDraft = { kind: 'Diamond', labGrown: false, count: '1', carat: '', shape: '', colour: '', clarity: '', certLab: '', certNo: '', ratePerCarat: '' }
-export const stoneToDraft = (s: NonNullable<JewelleryPiece['stones']>[number]): StoneDraft => ({ kind: s.kind, labGrown: s.labGrown, count: String(s.count), carat: s.carat ? String(s.carat) : '', shape: s.shape ?? '',
-  colour: s.colour ?? '', clarity: s.clarity ?? '', certLab: s.certLab ?? '', certNo: s.certNo ?? '', ratePerCarat: s.ratePerCarat ? String(s.ratePerCarat) : '' })
-export const stoneBody = (s: StoneDraft) => ({ kind: s.kind.trim() || 'Stone', labGrown: s.labGrown, count: Number(s.count) || 1, carat: Number(s.carat) || 0, shape: s.shape || null, colour: s.colour || null,
-  clarity: s.clarity || null, certLab: s.certLab || null, certNo: s.certNo || null, ratePerCarat: Number(s.ratePerCarat) || 0 })
-
 export function StonesEditor({ stones, onChange }: { stones: StoneDraft[]; onChange: (s: StoneDraft[]) => void }) {
   const { t } = useTranslation()
   const upd = (i: number, k: keyof StoneDraft, v: string | boolean) => onChange(stones.map((s, n) => (n === i ? { ...s, [k]: v } : s)))
@@ -299,6 +292,7 @@ interface TrayView { tray: string; pieces: number; gross: number; lastCountAt: s
 interface TrayCountView { id: string; tray: string; kind: string; expectedPieces: number; expectedGross: number; countedPieces: number; countedGross: number | null; grossDifference: number | null; missing: string[]; extra: string[]; clean: boolean; at: string }
 
 export function TraysPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
+  const nowMs = useNow()
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const trays = useQuery({ queryKey: [shopId, 'jewellery', 'trays'], queryFn: () => api<TrayView[]>('/v1/jewellery/trays') }).data ?? []
@@ -309,7 +303,7 @@ export function TraysPanel({ shopId, isOwner }: { shopId: string; isOwner: boole
   const [result, setResult] = useState<TrayCountView | null>(null)
   const [scale, setScale] = useState<{ id: string | null; name: string; readsTo: string; until: string; baud: string; active: boolean } | null>(null)
   const { busy, error, run } = useRun()
-  const hour = new Date().getHours()
+  const hour = new Date(nowMs).getHours()
   const inTray = counting ? pieces.filter((p) => !p.onApproval && (p.tray ?? '') === counting.tray) : []
   const toggle = (tag: string) => counting && setCounting({ ...counting, tags: counting.tags.includes(tag) ? counting.tags.filter((x) => x !== tag) : [...counting.tags, tag] })
 

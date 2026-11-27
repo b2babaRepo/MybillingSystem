@@ -766,6 +766,11 @@ public static class ReportEndpoints
         var khata = await db.LedgerEntries.AsNoTracking()
             .Where(e => (e.OccurredAt >= start && e.OccurredAt < end) && e.BillId == null && e.PaymentMode != null)
             .Select(e => new { e.OccurredAt, e.Amount, e.PaymentMode }).ToListAsync(ct);
+        // Credit notes (and RN return notes) undo part of a sale in the month they are issued: they come off sales, GST and
+        // turnover, as in GSTR-1 and GSTR-3B. Turnover drives the audit limits and 44AD, so it must be the net figure.
+        var notes = await db.CreditNotes.AsNoTracking().Include(n => n.Lines)
+            .Where(n => n.OccurredAt >= start && n.OccurredAt < end)
+            .Select(n => new { n.OccurredAt, Amount = n.Lines.Sum(l => l.Amount), Tax = n.Lines.Sum(l => l.Cgst + l.Sgst + l.Igst) }).ToListAsync(ct);
 
         var rows = new List<YearMonthRow>();
         for (var i = 0; i < 12; i++)
@@ -781,7 +786,9 @@ public static class ReportEndpoints
                 + gstLines.Where(l => l.TaxableValue == null && l.GstRate is > 0).GroupBy(l => l.GstRate!.Value)
                     .Sum(g => { var amount = g.Sum(l => l.Amount); return amount - decimal.Round(amount / (1 + (g.Key / 100)), 2); });
             decimal Received(PaymentMode mode) => own.Sum(b => b.PaidBy(mode)) - ownKhata.Where(e => e.PaymentMode == mode).Sum(e => e.Amount);
-            var sales = own.Sum(b => b.Total);
+            var ownNotes = notes.Where(n => n.OccurredAt >= from && n.OccurredAt < to).ToList();
+            var sales = own.Sum(b => b.Total) - ownNotes.Sum(n => n.Amount);
+            gst -= ownNotes.Sum(n => n.Tax);
             rows.Add(new YearMonthRow($"{year:D4}-{month:D2}", own.Count, sales, gst, sales - gst, gstLines.Where(l => l.GstRate == null).Sum(l => l.Amount), Received(PaymentMode.Cash),
                 // Digital for 44AD: UPI, card and cleared cheques.
                 Received(PaymentMode.Upi) + Received(PaymentMode.Card) + Received(PaymentMode.Cheque)));

@@ -1,7 +1,7 @@
 import { addToCart } from '../../lib/customer'
 import { aisleName } from '../../lib/aisleNames'
 import { ConnectShop } from '../../components/ConnectShop'
-import { btn } from '../../components/ui'
+import { btn } from '../../lib/buttonStyles'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AisleTiles, type Aisle } from '../../components/AisleTiles'
@@ -14,7 +14,7 @@ import { imageUrl } from '../../lib/images'
 import type { Unit } from '../../lib/types'
 import { navigate } from '../../router'
 import { itemArt } from '../../lib/itemArt'
-import { getChosenShop, listEstimate, listItemPhoto, setChosenShop } from './PlanHomeScreen'
+import { getChosenShop, listEstimate, listItemPhoto, setChosenShop } from '../../lib/planHome'
 import { UnitSelect } from '../BillScreen'
 
 /**
@@ -226,7 +226,7 @@ export function ListScreen({ userId, kind }: { userId: string; kind: ListKind })
                     <li key={item.id} className="flex items-center gap-2 py-2.5">
                       {photo
                         ? <img src={photo} alt="" loading="lazy" width={44} height={44} className={`h-11 w-11 shrink-0 rounded-xl border border-line bg-white object-contain ${group === 'out' ? 'grayscale' : ''}`} />
-                        : <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" style={{ background: art.tint }}>{art.emoji}</span>}
+                        : <span aria-hidden className="art-tint flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" style={{ background: art.tint }}>{art.emoji}</span>}
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="flex items-center gap-1.5 text-base font-semibold">
                           <span className="truncate">{item.name}</span>

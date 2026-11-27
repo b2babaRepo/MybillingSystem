@@ -8,11 +8,11 @@ import { StorePieces, type StorePiece } from '../../components/StorePieces'
 import { putCart, useCarts, useSavedShops, useSaveShop } from '../../lib/customer'
 import { api } from '../../lib/api'
 import { aisleName } from '../../lib/aisleNames'
-import { btn } from '../../components/ui'
+import { btn } from '../../lib/buttonStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAisles } from '../../components/AisleTiles'
+import { useAisles } from '../../lib/aisles'
 import { ItemCard } from '../../components/ItemCard'
 import { allPhotos, imageUrl } from '../../lib/images'
 import { PhotoGallery } from '../../components/PhotoGallery'
@@ -27,13 +27,16 @@ import { navigate } from '../../router'
 import { getSession } from '../../lib/session'
 import { AlertsPrompt, BillSummary, OrderSteps, PaymentPicker, SlotChips, UpiPay } from '../../components/OrderPay'
 import { billOf, isOpen, noSettings, useCheckoutInfo, type KhataAtCheckout, type StoreSettings } from '../../lib/orderFlow'
-import { ProductSheet, fullPageTrades } from '../../components/ProductSheet'
+import { ProductSheet } from '../../components/ProductSheet'
+import { update, usePwa } from '../../lib/pwa'
+import { fullPageTrades } from '../../lib/productSheet'
 import { Drawer } from '../../components/ui'
 import { rank, rememberSearch } from '../../lib/search'
 import { useHeart, useSavedItems } from '../../lib/savedItems'
 import { api as apiCall } from '../../lib/api'
 import { festive } from '../../lib/festive'
 import type { Fulfilment, OrderPayment } from '../../lib/planner'
+import { useNow } from '../../lib/useNow'
 
 // The shop's public online store at #/s/{slug}: no account, no app install. Guests browse, fill a cart, check
 // out with name, phone and (for delivery) an address, then follow the order by its private link.
@@ -148,6 +151,15 @@ export function StoreApp({ path }: { path: string }) {
   return orderId && token ? <OrderStatus slug={slug} orderId={orderId} token={token} /> : <Catalogue key={slug} slug={slug} openCheckout={!!toCart} />
 }
 
+/**
+ * A shop's page takes a new app version by itself: it shows no "Update" banner, and customers keep it open for days.
+ * The cart and the customer's details are kept on the phone, so the reload loses nothing; not while checkout is open.
+ */
+function useAutoUpdate(paused: boolean) {
+  const { updateReady } = usePwa()
+  useEffect(() => { if (updateReady && !paused) update() }, [updateReady, paused])
+}
+
 function NotFound() {
   const { t } = useTranslation()
   return <p className="p-8 text-center text-muted">{t('store.notFound')}</p>
@@ -179,7 +191,22 @@ function Header({ title, subtitle, shopId, theme }: { title: string; subtitle?: 
   )
 }
 
+/** Who is signed in on a shop's page: a customer, or the shop's own people looking at it as customers do. */
+function SignedInAs({ shopId }: { shopId: string }) {
+  const { t } = useTranslation()
+  const session = getSession()
+  if (!session) return null
+  const own = session.memberships?.some((m) => m.shopId === shopId)
+  return (
+    <p className="mx-4 mt-2 flex min-h-9 items-center justify-between gap-2 rounded-xl bg-brand-soft px-3 text-sm">
+      <span className="min-w-0 truncate">{own ? t('storeWho.yourShop') : t('storeWho.customer', { name: session.user.fullName })}</span>
+      {own && <button onClick={() => navigate('/')} className="shrink-0 font-semibold text-brand underline">{t('storeWho.openShop')}</button>}
+    </p>
+  )
+}
+
 function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?: boolean }) {
+  const nowMs = useNow()
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const store = useQuery({ queryKey: ['store', slug], queryFn: () => storeApi<Store>(slug), retry: false })
@@ -193,6 +220,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const aisles = useAisles().data ?? []
   const [checkingOut, setCheckingOut] = useState(openCheckout)
   useEffect(() => { if (checkingOut) seen(slug, 'checkout') }, [checkingOut, slug])
+  useAutoUpdate(checkingOut)
   const myOrders = remembered<MyOrder[]>(`store.${slug}.orders`, [])
   const signedIn = !!getSession()
   const accountCarts = useCarts(signedIn)
@@ -211,6 +239,8 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
     const local = remembered<Cart>(`store.${slug}.cart`, {})
     const joined: Cart = { ...server }
     for (const [id, q] of Object.entries(local)) joined[id] = Math.max(joined[id] ?? 0, q)
+    // Syncs with the server and this phone's storage (below), which is what effects are for.
+    // oxlint-disable-next-line react/set-state-in-effect
     setCartState(joined)
     setMerged(true)
     if (Object.keys(local).length > 0) { void putCart(shopId, joined).catch(() => {}); remember(`store.${slug}.cart`, {}) }
@@ -242,6 +272,13 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
     // A moment after the last tap, the account's cart is updated.
     window.clearTimeout(pushTimer.current)
     pushTimer.current = window.setTimeout(() => void putCart(data.shopId, next).then(() => queryClient.invalidateQueries({ queryKey: ['me', 'carts'] })).catch(() => {}), 600)
+  }
+  /** A typed quantity, capped at what the shop has. */
+  const setQuantity = (item: StoreItem, quantity: number) => {
+    const updated = { ...cart }
+    if (quantity <= 0) delete updated[item.id]
+    else updated[item.id] = Math.min(round2(quantity), Math.max(item.available, 0))
+    setCart(updated)
   }
   const change = (item: StoreItem, direction: 1 | -1) => {
     const next = round2((cart[item.id] ?? 0) + direction * STEP[item.unit])
@@ -285,7 +322,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   for (const o of pastOrders.filter((o) => o.shopId === data.shopId)) for (const l of o.lines) if (l.productId) counts.set(l.productId, (counts.get(l.productId) ?? 0) + 1)
   const usual = data.items.filter((i) => counts.has(i.id) && i.available > 0).sort((a, b) => counts.get(b.id)! - counts.get(a.id)!).slice(0, 12)
   const offers = data.items.filter((i) => i.regularPrice && i.regularPrice > i.price && i.available > 0).slice(0, 12)
-  const fresh = data.items.filter((i) => i.addedAt && Date.now() - Date.parse(i.addedAt) < 21 * 86_400_000 && i.available > 0)
+  const fresh = data.items.filter((i) => i.addedAt && nowMs - Date.parse(i.addedAt) < 21 * 86_400_000 && i.available > 0)
     .sort((a, b) => Date.parse(b.addedAt!) - Date.parse(a.addedAt!)).slice(0, 12)
   const front = category === 'all' && !q
   const rail = (title: string, items: StoreItem[]) => items.length > 0 && (
@@ -317,6 +354,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   return (
     <div className="mx-auto min-h-dvh max-w-xl bg-ground pb-28 lg:max-w-6xl lg:px-4">
       <Header title={data.name} subtitle={[data.area, data.address].filter(Boolean).join(' · ') || t('store.title')} shopId={data.shopId} theme={settings.theme} />
+      <SignedInAs shopId={data.shopId} />
       {festive(settings.theme) && <p className={`mx-4 mt-3 rounded-2xl p-3 text-center font-bold text-white ${festive(settings.theme)!.header}`}>{festive(settings.theme)!.emoji} {t(`cust4.festive.${settings.theme}`)}</p>}
 
       {data.rates && <MetalRates rates={data.rates} />}
@@ -470,7 +508,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
 
       {checkingOut && (!signedIn || merged) && (
         <Checkout store={data} lines={lines} onClose={() => setCheckingOut(false)}
-          onStep={change} onRemove={(item) => { const rest = { ...cart }; delete rest[item.id]; setCart(rest); if (lines.length <= 1) setCheckingOut(false) }}
+          onStep={change} onSet={setQuantity} onRemove={(item) => { const rest = { ...cart }; delete rest[item.id]; setCart(rest); if (lines.length <= 1) setCheckingOut(false) }}
           onPlaced={(placed) => {
             setCart({})
             remember(`store.${slug}.orders`, [{ id: placed.order.id, token: placed.statusToken, at: placed.order.createdAt }, ...myOrders].slice(0, 10))
@@ -481,12 +519,40 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   )
 }
 
-function Checkout({ store, lines, onClose, onPlaced, onStep, onRemove }: {
+/** Units sold in any amount (typed as 250 g or 1.5 kg); the rest count whole pieces, packets, boxes. */
+const LOOSE = new Set<Unit>(['kg', 'g', 'litre', 'ml', 'tonne', 'brass', 'cft', 'metre', 'sq_ft', 'running_ft', 'quintal'])
+
+/** The quantity in checkout: typed (a payal's weight, 250 g of dal), or nudged with − and +. */
+function QuantityBox({ value, unit, max, onSet }: { value: number; unit: Unit; max: number; onSet: (quantity: number) => void }) {
+  const { t } = useTranslation()
+  const [text, setText] = useState(String(value))
+  const [shown, setShown] = useState(value)
+  if (shown !== value) { setShown(value); setText(String(value)) }
+  const commit = () => {
+    const typed = Number(text)
+    if (!text.trim() || !Number.isFinite(typed) || typed <= 0) { setText(String(value)); return }
+    const quantity = Math.min(LOOSE.has(unit) ? round2(typed) : Math.max(1, Math.round(typed)), Math.max(max, 0))
+    setText(String(quantity))
+    if (quantity !== value) onSet(quantity)
+  }
+  return (
+    <label className="flex min-w-14 items-center justify-center gap-1 text-xs font-bold">
+      <input value={text} inputMode={LOOSE.has(unit) ? 'decimal' : 'numeric'} aria-label={t('a11y.quantity')}
+        onChange={(e) => setText(e.target.value.replace(LOOSE.has(unit) ? /[^0-9.]/g : /[^0-9]/g, ''))}
+        onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit() } }} onFocus={(e) => e.target.select()}
+        className="w-12 rounded-md bg-transparent py-1 text-center text-sm font-bold outline-none focus:bg-brand-soft" />
+      <span>{t(`units.${unit}`, { count: value })}</span>
+    </label>
+  )
+}
+
+function Checkout({ store, lines, onClose, onPlaced, onStep, onSet, onRemove }: {
   store: Store
   lines: { item: StoreItem; quantity: number }[]
   onClose: () => void
   /** Change a line by one step (−1 or +1), or remove it, from the checkout itself. */
   onStep: (item: StoreItem, direction: 1 | -1) => void
+  onSet: (item: StoreItem, quantity: number) => void
   onRemove: (item: StoreItem) => void
   onPlaced: (placed: Placed) => void
 }) {
@@ -541,7 +607,7 @@ function Checkout({ store, lines, onClose, onPlaced, onStep, onRemove }: {
               <span className="min-w-0 flex-1">{l.item.name}<span className="block text-xs text-muted">{formatRupees(round2(l.quantity * l.item.price))}</span></span>
               <span className="flex h-9 shrink-0 items-center rounded-lg border border-line">
                 <button type="button" onClick={() => onStep(l.item, -1)} aria-label={t('a11y.less')} className="h-full w-8 text-lg font-bold">−</button>
-                <b className="min-w-10 text-center text-xs">{l.quantity} {t(`units.${l.item.unit}`, { count: l.quantity })}</b>
+                <QuantityBox value={l.quantity} unit={l.item.unit} max={l.item.available} onSet={(q) => onSet(l.item, q)} />
                 <button type="button" onClick={() => onStep(l.item, 1)} disabled={l.quantity >= l.item.available} aria-label={t('a11y.more')} className="h-full w-8 text-lg font-bold disabled:opacity-40">+</button>
               </span>
               <button type="button" onClick={() => onRemove(l.item)} aria-label={`${t('remove')} ${l.item.name}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-due hover:bg-due-soft">
@@ -589,6 +655,7 @@ function Checkout({ store, lines, onClose, onPlaced, onStep, onRemove }: {
 
 function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; token: string }) {
   const { t } = useTranslation()
+  useAutoUpdate(false)
   const query = useQuery({
     queryKey: ['store', slug, 'order', orderId],
     queryFn: () => storeApi<Order>(`${slug}/orders/${orderId}?token=${token}`),

@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { btn, controlSm } from '../components/ui'
-import { confirmAsk } from '../components/Ask'
+import { controlSm } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
+import { confirmAsk } from '../lib/ask'
 import { shownLocale } from '../i18n'
 import { api } from '../lib/api'
 

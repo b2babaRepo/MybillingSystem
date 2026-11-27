@@ -318,6 +318,10 @@ public sealed partial class AppDbContext(DbContextOptions<AppDbContext> options,
 
     public DbSet<Painter> Painters => Set<Painter>();
 
+    public DbSet<PainterPayout> PainterPayouts => Set<PainterPayout>();
+
+    public DbSet<BrandScheme> BrandSchemes => Set<BrandScheme>();
+
     public DbSet<Billing.Plan> Plans => Set<Billing.Plan>();
 
     public DbSet<Billing.Subscription> Subscriptions => Set<Billing.Subscription>();

@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useState } from 'react'
@@ -6,8 +6,9 @@ import { useTranslation } from 'react-i18next'
 import { api, request } from '../lib/api'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { shrinkPhoto } from '../lib/images'
-import { pct } from '../components/SupplierPanels'
-import { compareCells, filterBox, nextSort, SortHead, type Sort } from '../components/TableHead'
+import { pct } from '../lib/supplierStats'
+import { SortHead } from '../components/TableHead'
+import { compareCells, filterBox, nextSort, type Sort } from '../lib/tableSort'
 
 interface Refill { customerId: string; customerName: string; phone: string | null; productId: string; medicine: string; lastQuantity: number; lastBought: string; everyDays: number; dueOn: string; daysLate: number }
 interface ReorderOption { supplierId: string; name: string; phone: string | null; lastRate: number | null; leadDays: number | null; fillRate: number | null; preferred: boolean }

@@ -51,7 +51,9 @@ public sealed record EstimateBilledRequest(Guid BillId);
 
 public sealed record EstimateDto(
     Guid Id, int Number, Guid? CustomerId, string? PartyName, IReadOnlyList<EstimateLine> Lines, decimal Total, DateOnly ValidUntil, string? Note,
-    Guid? BillId, DateTimeOffset? CancelledAt, DateTimeOffset CreatedAt);
+    Guid? BillId, DateTimeOffset? CancelledAt, DateTimeOffset CreatedAt,
+    // How much of each line (same order) has gone on delivery challans so far.
+    IReadOnlyList<decimal>? Delivered = null);
 
 public static class Estimates
 {
@@ -68,16 +70,54 @@ public static class Estimates
         return app;
     }
 
-    private static EstimateDto ToDto(Estimate e) =>
-        new(e.Id, e.Number, e.CustomerId, e.PartyName, JsonSerializer.Deserialize<List<EstimateLine>>(e.Lines, Json) ?? [], e.Total, e.ValidUntil, e.Note, e.BillId, e.CancelledAt, e.CreatedAt);
+    private static EstimateDto ToDto(Estimate e, Dictionary<string, decimal>? delivered = null)
+    {
+        var lines = JsonSerializer.Deserialize<List<EstimateLine>>(e.Lines, Json) ?? [];
+        // Shared out line by line in order, so two lines of the same item fill up one after the other.
+        var pool = delivered is null ? null : new Dictionary<string, decimal>(delivered);
+        var done = pool is null ? null : lines.Select(l =>
+        {
+            var key = Key(l.ProductId, l.Name);
+            var take = Math.Min(l.Quantity, pool.GetValueOrDefault(key));
+            pool[key] = pool.GetValueOrDefault(key) - take;
+            return take;
+        }).ToList();
+        return new(e.Id, e.Number, e.CustomerId, e.PartyName, lines, e.Total, e.ValidUntil, e.Note, e.BillId, e.CancelledAt, e.CreatedAt, done);
+    }
+
+    /// <summary>How an estimate line and a challan line are matched: the item, or the typed name for a loose line.</summary>
+    internal static string Key(Guid? productId, string name) => productId?.ToString() ?? name.Trim().ToLowerInvariant();
+
+    /// <summary>What has gone on challans against each estimate, by item.</summary>
+    private static async Task<Dictionary<Guid, Dictionary<string, decimal>>> DeliveredAsync(AppDbContext db, IReadOnlyCollection<Guid> ids, CancellationToken ct)
+    {
+        var challans = await db.Challans.AsNoTracking().Where(c => c.EstimateId != null && ids.Contains(c.EstimateId.Value)).Select(c => new { c.EstimateId, c.Lines }).ToListAsync(ct);
+        return challans.GroupBy(c => c.EstimateId!.Value).ToDictionary(g => g.Key, g => g
+            .SelectMany(c => JsonSerializer.Deserialize<List<BillLineDto>>(c.Lines, Json) ?? [])
+            .GroupBy(l => Key(l.ProductId, l.Name)).ToDictionary(x => x.Key, x => x.Sum(l => l.Quantity)));
+    }
+
+    /// <summary>Each item's quantity on the estimate less what has already gone on challans.</summary>
+    internal static async Task<Dictionary<string, decimal>> LeftToDeliverAsync(AppDbContext db, Estimate estimate, CancellationToken ct)
+    {
+        var sent = (await DeliveredAsync(db, [estimate.Id], ct)).GetValueOrDefault(estimate.Id) ?? [];
+        return (JsonSerializer.Deserialize<List<EstimateLine>>(estimate.Lines, Json) ?? [])
+            .GroupBy(l => Key(l.ProductId, l.Name)).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity) - sent.GetValueOrDefault(g.Key));
+    }
 
     /// <summary>The last 100, newest first; <paramref name="open"/>: only those not billed or cancelled.</summary>
-    private static async Task<IReadOnlyList<EstimateDto>> ListAsync(bool? open, AppDbContext db, CancellationToken ct) =>
-        (await db.Estimates.AsNoTracking().Where(e => open != true || (e.BillId == null && e.CancelledAt == null))
-            .OrderByDescending(e => e.Number).Take(100).ToListAsync(ct)).Select(ToDto).ToList();
+    private static async Task<IReadOnlyList<EstimateDto>> ListAsync(bool? open, AppDbContext db, CancellationToken ct)
+    {
+        var list = await db.Estimates.AsNoTracking().Where(e => open != true || (e.BillId == null && e.CancelledAt == null))
+            .OrderByDescending(e => e.Number).Take(100).ToListAsync(ct);
+        var delivered = await DeliveredAsync(db, list.Select(e => e.Id).ToList(), ct);
+        return list.Select(e => ToDto(e, delivered.GetValueOrDefault(e.Id) ?? [])).ToList();
+    }
 
     private static async Task<IResult> GetAsync(Guid id, AppDbContext db, CancellationToken ct) =>
-        await db.Estimates.AsNoTracking().SingleOrDefaultAsync(e => e.Id == id, ct) is { } e ? TypedResults.Ok(ToDto(e)) : TypedResults.NotFound();
+        await db.Estimates.AsNoTracking().SingleOrDefaultAsync(e => e.Id == id, ct) is { } e
+            ? TypedResults.Ok(ToDto(e, (await DeliveredAsync(db, [e.Id], ct)).GetValueOrDefault(e.Id) ?? []))
+            : TypedResults.NotFound();
 
     private static async Task<IResult> AddAsync(EstimateRequest request, ClaimsPrincipal user, AppDbContext db, TimeProvider clock, CancellationToken ct)
     {

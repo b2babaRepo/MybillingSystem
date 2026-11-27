@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { Button, btn } from '../components/ui'
+import { Button } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { counterName, setCounterName, useOutbox } from '../lib/data'
 import { useState } from 'react'
 import { formatDateTime } from '../lib/format'

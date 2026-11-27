@@ -29,12 +29,18 @@ export function problemMessage(problem: ProblemDetails | null): string | undefin
 /**
  * A proxy (Nginx in production, Vite in development) answers 502/503/504 when the API behind it is down or
  * restarting. To the shop that is the same as no internet: use the saved copy and keep entries in the outbox.
+ * The API's own 503s ("Codes by SMS aren't available right now") come as JSON and are shown as they are.
  */
 const GATEWAY_DOWN = new Set([502, 503, 504])
 
+/** True for a proxy's "the API is down" page; false for an answer the API itself gave. */
+export function isGatewayDown(response: Pick<Response, 'status' | 'headers'>): boolean {
+  return GATEWAY_DOWN.has(response.status) && !(response.headers.get('content-type') ?? '').includes('json')
+}
+
 async function send(path: string, method: string, body: unknown, token?: string, extra?: Record<string, string>): Promise<Response> {
   const response = await fetchOrThrow(path, method, body, token, extra)
-  if (GATEWAY_DOWN.has(response.status)) throw new NetworkError()
+  if (isGatewayDown(response)) throw new NetworkError()
   return response
 }
 

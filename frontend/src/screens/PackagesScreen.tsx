@@ -6,7 +6,7 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 
 interface Plan { id: string; name: string; kind: 'package' | 'membership'; price: number; serviceName: string | null; sessions: number | null; discountPercent: number | null; validDays: number }
 interface CustomerPlan {

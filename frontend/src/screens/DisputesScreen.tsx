@@ -1,4 +1,4 @@
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,8 +7,8 @@ import { api } from '../lib/api'
 import { formatDateTime, formatRupees } from '../lib/format'
 import type { DisputeItemView, ItemOutcome, LedgerEntryKind } from '../lib/types'
 import { navigate } from '../router'
-import { useOpenDisputes } from '../components/OpenDisputesBanner'
-import { ask, confirmAsk } from '../components/Ask'
+import { useOpenDisputes } from '../lib/openDisputes'
+import { ask, confirmAsk } from '../lib/ask'
 
 export interface Dispute {
   id: string

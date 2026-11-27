@@ -86,6 +86,8 @@ public sealed partial class AppDbContext
         {
             b.ToTable("shops");
             b.Property(s => s.JewelleryMaxOffPercent).HasPrecision(5, 2);
+            b.Property(s => s.ContractorDiscountPercent).HasPrecision(5, 2);
+            b.Property(s => s.DealerDiscountPercent).HasPrecision(5, 2);
             b.Property(s => s.State).HasMaxLength(80);
             b.Property(s => s.BillPrefix).HasMaxLength(3);
             b.Property(s => s.BillFields).HasColumnType("jsonb");

@@ -1,17 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { shownLocale } from '../i18n'
 import { whatsAppLink } from '../lib/format'
-
-/** The last 12 months as "yyyy-mm", newest first, in India's calendar. */
-export function lastMonths(count = 12) {
-  const now = new Date(Date.now() + (330 + new Date().getTimezoneOffset()) * 60_000)
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-  })
-}
-
-export const monthLabel = (m: string) => new Date(`${m}-01T00:00`).toLocaleDateString(shownLocale(), { month: 'long', year: 'numeric' })
+import { lastMonths, monthLabel } from '../lib/months'
 
 /** A statement's period: everything, or one of the last 12 months. */
 export function MonthSelect({ value, onChange, allLabel }: { value: string; onChange: (month: string) => void; allLabel: string }) {

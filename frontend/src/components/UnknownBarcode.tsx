@@ -1,6 +1,7 @@
-import { controlSm, btn } from './ui'
+import { controlSm } from './ui'
+import { btn } from '../lib/buttonStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { addProduct } from '../lib/data'
@@ -35,9 +36,11 @@ export function UnknownBarcode({ shopId, code, products, onItem, onClose }: {
     enabled: mode === 'new', staleTime: Infinity, retry: false,
   })
   const [filled, setFilled] = useState(false)
-  useEffect(() => {
+  const [lookedUp, setLookedUp] = useState(lookup.data)
+  if (lookedUp !== lookup.data) {
+    setLookedUp(lookup.data)
     if (lookup.data?.name && !name) { setName(lookup.data.name); setFilled(true) }
-  }, [lookup.data]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
   const goods = products.filter((p) => !p.isService)
   const picked = goods.find((p) => p.name.toLowerCase() === text.trim().toLowerCase())
 

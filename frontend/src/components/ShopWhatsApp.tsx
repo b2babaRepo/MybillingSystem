@@ -1,12 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
-
-/** Whether the shop's own WhatsApp Business number is connected (anyone at the counter may ask). */
-export function useShopWhatsApp() {
-  return useQuery({ queryKey: ['wa-business-on'], queryFn: () => api<{ connected: boolean }>('/v1/whatsapp/business/on'), staleTime: 5 * 60_000, retry: false }).data?.connected ?? false
-}
+import { useShopWhatsApp } from '../lib/shopWhatsApp'
 
 /**
  * "Send from shop WhatsApp": a bill, a payment reminder or a khata statement, sent from the shop's own number with

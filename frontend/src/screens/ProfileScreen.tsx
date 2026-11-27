@@ -98,7 +98,7 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
       <Button disabled={form.fullName.trim().length < 2} onClick={() => void save()}>{t('save')}</Button>
       {message && <p className="text-sm text-muted">{message}</p>}
       <div className="flex flex-col gap-2 border-t border-line pt-3">
-        <h2 className="font-bold">{t('profile.passwordTitle')}</h2>
+        <h2 id="password" className="font-bold">{t('profile.passwordTitle')}</h2>
         {initial.hasPassword && code === null && <>
           <Field label={t('profile.passwordCurrent')} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
           <button type="button" onClick={() => void sendCode()} className="min-h-11 self-start text-sm font-semibold text-brand underline">{t('profile.forgot')}</button>

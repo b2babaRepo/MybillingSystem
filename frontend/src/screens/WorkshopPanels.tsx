@@ -2,12 +2,13 @@ import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, btn } from '../components/ui'
+import { Button, Field } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { api, request } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Unit } from '../lib/types'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 
 interface Machine { id: string; name: string; boughtOn: string; cost: number; ratePercent: number; disposedOn: string | null; thisYear: number; bookValue: number }
 interface Machines { financialYear: string; thisYear: number; perMonth: number; machines: Machine[] }

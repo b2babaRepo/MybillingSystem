@@ -1,5 +1,5 @@
 import { DataTable } from '../components/DataTable'
-import { btn } from '../components/ui'
+import { btn } from '../lib/buttonStyles'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -8,7 +8,8 @@ import { api } from '../lib/api'
 import { formatRupees, indiaToday } from '../lib/format'
 import { uuidv7 } from '../lib/ids'
 import { navigate } from '../router'
-import { compareCells, filterBox, nextSort, SortHead, type Sort } from '../components/TableHead'
+import { SortHead } from '../components/TableHead'
+import { compareCells, filterBox, nextSort, type Sort } from '../lib/tableSort'
 
 interface Line { at: string; source: string; who: string; amount: number; balance: number; moveId: string | null; billId: string | null }
 interface Day { date: string; in: number; out: number; closing: number; counted: number | null; difference: number | null }

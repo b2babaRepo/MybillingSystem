@@ -236,7 +236,8 @@ export const en = {
   },
   connect: { title: 'Connect to a shop', hint: 'Type the shop ID (GKS-…) or the shop\'s mobile number, or scan the QR code at the shop.', placeholder: 'Shop ID or mobile', find: 'Find', scan: 'Scan shop QR code', none: 'No shop found with that ID or mobile.', notShopQr: 'That QR code is not a Apna Kaarobar shop. Scan the shop\'s store QR.', connect: 'Connect', browse: 'See all items at {{name}}' },
   cust: { tab: { home: 'Home', search: 'Search', orders: 'Orders', cart: 'Cart', account: 'Account' }, myShops: 'My shops', seeAll: 'See all', addShop: 'Add a shop' },
-  a11y: { less: 'Less', more: 'More', back: 'Back', close: 'Close', menu: 'Menu' },
+  a11y: { less: 'Less', more: 'More', back: 'Back', close: 'Close', menu: 'Menu', quantity: 'Quantity' },
+  storeWho: { customer: 'Signed in as {{name}} · customer', yourShop: 'Your shop, as customers see it', openShop: 'Open my shop' },
   dues: {
     link: 'Collect dues',
   },

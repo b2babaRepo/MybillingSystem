@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { Fragment, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { pct } from '../components/SupplierPanels'
+import { pct } from '../lib/supplierStats'
 import { api } from '../lib/api'
 import { orderedNames, useCategories } from '../lib/categories'
 import { saveCsv } from '../lib/csv'
@@ -26,7 +26,7 @@ const tone = (n: number | null, good: number, ok: number) => (n == null ? '' : n
 export function ReceivedBySupplierScreen({ shopId }: { shopId: string }) {
   const { t } = useTranslation()
   const [tab, setTab] = useState<'grid' | 'score'>('grid')
-  const [range, setRange] = useState({ from: monthStart(), to: iso(new Date()) })
+  const [range, setRange] = useState(() => ({ from: monthStart(), to: iso(new Date()) }))
   const [category, setCategory] = useState('')
   const [open, setOpen] = useState<{ productId: string; supplierId: string } | null>(null)
   const categoryRows = useCategories(shopId).data

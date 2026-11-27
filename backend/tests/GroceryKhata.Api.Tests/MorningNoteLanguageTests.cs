@@ -27,6 +27,15 @@ public sealed class MorningNoteLanguageTests
     }
 
     [Fact]
+    public void A_jewellery_shop_hears_about_girvi_schemes_and_ready_orders()
+    {
+        var (_, body) = StockAlerts.Message("en", new OrderTodayDto(0, []), 0, (0, 0, 0), null, (2, 1, 3, 1));
+        Assert.Equal("Nothing is running out. · Jewellery: 2 girvi past due, 1 girvi near the gold's value, 3 scheme instalments missed, 1 order ready", body);
+        var (_, hindi) = StockAlerts.Message("hi", new OrderTodayDto(0, []), 0, (0, 0, 0), null, (0, 0, 1, 0));
+        Assert.EndsWith(" · गहने: 1 स्कीम किस्त छूटी", hindi);
+    }
+
+    [Fact]
     public void English_stays_as_before()
     {
         var (title, body) = StockAlerts.Message("en", new OrderTodayDto(0, []), 0, (0, 0, 0), ("Holi", 1, 1));

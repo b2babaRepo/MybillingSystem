@@ -41,6 +41,8 @@ export interface Customer {
   creditLimit?: number | null
   /** Days the customer has to pay what they take on credit. Null: no terms. */
   creditDays?: number | null
+  /** Price group: a contractor or dealer pays the shop's percent off the list price; null is retail. */
+  priceGroup?: 'contractor' | 'dealer' | null
   /** A placeholder khata ("Name later 3") for udhaar to someone not named yet. */
   nameLater?: boolean
 }

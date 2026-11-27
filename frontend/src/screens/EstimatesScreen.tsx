@@ -1,9 +1,11 @@
-import { btn } from '../components/ui'
+import { PaintQuote } from './PaintQuote'
+import { NotFound } from '../components/NotFound'
+import { btn } from '../lib/buttonStyles'
 import { shownLocale } from '../i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { confirmAsk } from '../components/Ask'
+import { confirmAsk } from '../lib/ask'
 import { Page } from '../components/PrintPage'
 import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
@@ -25,6 +27,8 @@ export interface Estimate {
   billId: string | null
   cancelledAt: string | null
   createdAt: string
+  /** How much of each line has gone on delivery challans (same order). */
+  delivered?: number[] | null
 }
 
 /** Where the bill screen picks up an estimate to bill: read once, then cleared. */
@@ -43,6 +47,11 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
   const today = indiaToday()
   const state = (e: Estimate) => e.billId ? 'billed' : e.cancelledAt ? 'cancelled' : e.validUntil < today ? 'expired' : 'open'
 
+  const [sending, setSending] = useState<Estimate | null>(null)
+  const [quoting, setQuoting] = useState(false)
+  const sent = (e: Estimate) => (e.delivered ?? []).reduce((a, q) => a + q, 0)
+  const left = (e: Estimate) => e.lines.reduce((a, l, i) => a + Math.max(0, l.quantity - (e.delivered?.[i] ?? 0)), 0)
+
   function bill(e: Estimate) {
     try { sessionStorage.setItem(ESTIMATE_KEY, JSON.stringify(e)) } catch { /* no storage: nothing to carry */ }
     navigate('/bill')
@@ -60,6 +69,9 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
   return (
     <div className="flex flex-col gap-3 p-4 pb-24 lg:mx-auto lg:w-full lg:max-w-5xl">
       <p className="text-sm text-muted">{t('estimate.hint')}</p>
+      {quoting
+        ? <PaintQuote shopId={shopId} onClose={() => setQuoting(false)} onSaved={async (n) => { setQuoting(false); setMessage(t('hwp7.saved', { number: n })); await queryClient.invalidateQueries({ queryKey: [shopId, 'estimates'] }) }} />
+        : <button onClick={() => setQuoting(true)} className={`min-h-11 self-start rounded-xl px-4 ${btn.outline}`}>🎨 {t('hwp7.open')}</button>}
       {list.length === 0 && <p className="rounded-card bg-white p-4 text-sm text-muted">{t('estimate.none')}</p>}
       {list.length > 0 && (
         <div className="hidden lg:block">
@@ -78,11 +90,14 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
               { key: 'act', header: '', width: 'w-48', render: (e) => (state(e) === 'open' || state(e) === 'expired') ? (
                 <span className="flex justify-end gap-3" onClick={(ev) => ev.stopPropagation()}>
                   <button onClick={() => bill(e)} className="text-xs font-semibold text-brand underline">{t('estimate.makeBill')}</button>
+                  {e.customerId && left(e) > 0 && <button onClick={() => setSending(e)} className="text-xs font-semibold text-brand underline">{t('hwp6.send')}</button>}
                   <button onClick={() => void cancel(e)} className={`min-h-9 text-xs ${btn.dangerOutline}`}>{t('estimate.cancel')}</button>
                 </span>) : null },
             ]} />
         </div>
       )}
+      {sending && <ChallanSheet estimate={sending} onClose={() => setSending(null)} onSent={async () => { setSending(null); setMessage(t('hwp6.sent')); await queryClient.invalidateQueries({ queryKey: [shopId] }) }} />}
+      {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       {list.map((e) => (
         <section key={e.id} className="flex flex-col gap-1 rounded-card bg-white p-4 text-sm lg:hidden">
           <p className="flex items-center justify-between gap-2">
@@ -90,9 +105,11 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${state(e) === 'open' ? 'bg-brand-soft text-brand-strong' : 'bg-[#f1f5f4] text-muted'}`}>{t(`estimate.state.${state(e)}`)}</span>
           </p>
           <p className="text-muted">{t('estimate.line', { count: e.lines.length, total: formatRupees(e.total), date: day(e.createdAt), until: day(e.validUntil) })}</p>
+          {sent(e) > 0 && <p className="text-xs font-semibold text-brand-strong">🚚 {left(e) > 0 ? t('hwp6.partly', { lines: e.lines.map((l, i) => `${l.name} ${e.delivered?.[i] ?? 0}/${l.quantity}`).join(' · ') }) : t('hwp6.all')}</p>}
           <div className="flex flex-wrap gap-3">
             <button onClick={() => navigate(`/print/estimate/${e.id}`)} className="min-h-11 font-semibold text-brand">{t('estimate.print')}</button>
             {(state(e) === 'open' || state(e) === 'expired') && <button onClick={() => bill(e)} className="min-h-11 font-semibold text-brand">{t('estimate.makeBill')}</button>}
+            {(state(e) === 'open' || state(e) === 'expired') && e.customerId && left(e) > 0 && <button onClick={() => setSending(e)} className="min-h-11 font-semibold text-brand">{t('hwp6.send')}</button>}
             {(state(e) === 'open' || state(e) === 'expired') && <button onClick={() => void cancel(e)} className={`min-h-11 ${btn.dangerOutline}`}>{t('estimate.cancel')}</button>}
           </div>
         </section>
@@ -105,10 +122,12 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
 /** The estimate on paper: plainly not a tax invoice, with how long the prices hold. */
 export function EstimatePrint({ shopId, shopName, id }: { shopId: string; shopName: string; id: string }) {
   const { t } = useTranslation()
-  const e = useQuery({ queryKey: [shopId, 'estimate', id], queryFn: () => api<Estimate>(`/v1/estimates/${id}`) }).data
+  const estimate = useQuery({ queryKey: [shopId, 'estimate', id], queryFn: () => api<Estimate>(`/v1/estimates/${id}`), retry: false })
+  const e = estimate.data
   const { customers } = useCustomers(shopId)
   // The shop's logo, print style, terms and signature, as on its bills.
   const printLook = useQuery({ queryKey: ['print-look'], queryFn: () => api<BillPrint>('/v1/shop/print'), staleTime: 300_000, retry: false })
+  if (estimate.isError) return <NotFound text={t('hwp2.estimateMissing')} back="/estimates" />
   if (!e) return <p className="p-6">…</p>
   const party = customers.find((c) => c.id === e.customerId)
   const share = [
@@ -195,5 +214,54 @@ export function EstimatePrint({ shopId, shopName, id }: { shopId: string; shopNa
       )}
       <p className="mt-4 text-center text-xs text-gray-600">{t('estimate.notInvoice')}</p>
     </Page>
+  )
+}
+
+/**
+ * Send part or all of an estimate on a delivery challan: how much of each line goes now (what is left, to start), the
+ * site and the vehicle. Stock leaves at once; the challans become one invoice later from the customer's page.
+ */
+function ChallanSheet({ estimate, onClose, onSent }: { estimate: Estimate; onClose: () => void; onSent: () => Promise<void> }) {
+  const { t } = useTranslation()
+  const leftOf = (i: number) => Math.max(0, estimate.lines[i].quantity - (estimate.delivered?.[i] ?? 0))
+  const [qty, setQty] = useState(estimate.lines.map((_, i) => String(leftOf(i))))
+  const [site, setSite] = useState('')
+  const [vehicle, setVehicle] = useState('')
+  const [error, setError] = useState('')
+  const lines = estimate.lines.map((l, i) => ({ ...l, quantity: Number(qty[i]) || 0 })).filter((l) => l.quantity > 0)
+  const bad = estimate.lines.some((_, i) => (Number(qty[i]) || 0) > leftOf(i))
+  async function send() {
+    setError('')
+    try {
+      await api('/v1/challans', 'POST', {
+        id: crypto.randomUUID(), customerId: estimate.customerId, estimateId: estimate.id, site: site.trim() || null, vehicleNumber: vehicle.trim() || null,
+        lines: lines.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })),
+      })
+      await onSent()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('error'))
+    }
+  }
+  return (
+    <div role="dialog" aria-modal="true" aria-label={t('hwp6.title', { number: estimate.number })} className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
+      <div className="flex max-h-[90dvh] w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-t-3xl bg-white p-4 sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-bold">{t('hwp6.title', { number: estimate.number })}</h2>
+        <p className="text-xs text-muted">{t('hwp6.hint')}</p>
+        {estimate.lines.map((l, i) => (
+          <label key={i} className="flex items-center justify-between gap-2 text-sm">
+            <span className="min-w-0 flex-1"><b>{l.name}</b><span className="block text-xs text-muted">{t('hwp6.leftOf', { left: leftOf(i), total: l.quantity })}</span></span>
+            <input value={qty[i]} onChange={(e) => setQty(qty.map((q, k) => (k === i ? e.target.value.replace(/[^\d.]/g, '') : q)))} inputMode="decimal" aria-label={l.name}
+              className={`h-11 w-24 rounded-xl border px-3 text-right ${(Number(qty[i]) || 0) > leftOf(i) ? 'border-due' : 'border-line'}`} />
+          </label>
+        ))}
+        <input value={site} onChange={(e) => setSite(e.target.value)} maxLength={80} placeholder={t('trade.site')} aria-label={t('trade.site')} className="h-11 rounded-xl border border-line px-3" />
+        <input value={vehicle} onChange={(e) => setVehicle(e.target.value)} maxLength={15} placeholder={t('trade.vehicle')} aria-label={t('trade.vehicle')} className="h-11 rounded-xl border border-line px-3" />
+        {error && <p role="alert" className="text-sm text-due">{error}</p>}
+        <div className="flex gap-2">
+          <button onClick={onClose} className={`h-12 flex-1 rounded-xl ${btn.outline}`}>{t('cancel')}</button>
+          <button disabled={lines.length === 0 || bad} onClick={() => void send()} className={`h-12 flex-1 rounded-xl ${btn.solid}`}>{t('hwp6.sendNow')}</button>
+        </div>
+      </div>
+    </div>
   )
 }
