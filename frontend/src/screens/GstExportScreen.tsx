@@ -20,7 +20,8 @@ interface GstMonth {
   receipts?: number; receiptValue?: number
   purchaseBills?: number; inputTaxable?: number; inputGst?: number
   payable?: { outputCgst: number; outputSgst: number; outputIgst: number; inputCgst: number; inputSgst: number; inputIgst: number; payCgst: number; paySgst: number; payIgst: number
-    carryCgst: number; carrySgst: number; carryIgst: number; compositionTurnover: number | null; compositionTax: number | null }
+    carryCgst: number; carrySgst: number; carryIgst: number; compositionTurnover: number | null; compositionTax: number | null
+    rcmCgst?: number; rcmSgst?: number; rcmIgst?: number }
 }
 
 const FIX: Record<string, string> = { noRate: '/items', noHsn: '/items', badBuyerGstin: '/khata', noGstin: '/plan' }
@@ -154,10 +155,10 @@ export function GstExportScreen() {
               <table className="w-full text-sm">
                 <thead><tr className="text-left text-xs text-muted"><th /><th className="text-right">CGST</th><th className="text-right">SGST</th><th className="text-right">IGST</th></tr></thead>
                 <tbody>
-                  {([['taxOnSales', 'output'], ['inputClaimable', 'input'], ['toPay', 'pay'], ['carry', 'carry']] as const).map(([label, key]) => (
+                  {([['taxOnSales', 'output'], ...((data.payable.rcmCgst ?? 0) + (data.payable.rcmSgst ?? 0) + (data.payable.rcmIgst ?? 0) > 0 ? [['reverseCharge', 'rcm'] as const] : []), ['inputClaimable', 'input'], ['toPay', 'pay'], ['carry', 'carry']] as const).map(([label, key]) => (
                     <tr key={key} className={`border-t border-line ${key === 'pay' ? 'font-bold' : ''}`}>
                       <td className="py-1">{t(`gstExport.${label}`)}</td>
-                      {(['Cgst', 'Sgst', 'Igst'] as const).map((h) => <td key={h} className="text-right tabular-nums">{formatRupees(data.payable![`${key}${h}`])}</td>)}
+                      {(['Cgst', 'Sgst', 'Igst'] as const).map((h) => <td key={h} className="text-right tabular-nums">{formatRupees(data.payable![`${key}${h}`] ?? 0)}</td>)}
                     </tr>
                   ))}
                 </tbody>

@@ -14,7 +14,8 @@ public sealed record TaxPayableDto(
     decimal InputCgst, decimal InputSgst, decimal InputIgst,
     decimal PayCgst, decimal PaySgst, decimal PayIgst,
     decimal CarryCgst, decimal CarrySgst, decimal CarryIgst,
-    decimal? CompositionTurnover = null, decimal? CompositionTax = null);
+    decimal? CompositionTurnover = null, decimal? CompositionTax = null,
+    decimal RcmCgst = 0, decimal RcmSgst = 0, decimal RcmIgst = 0);
 
 public static class GstReturns
 {
@@ -75,18 +76,21 @@ public static class GstReturns
     /// A composition shop pays 1% of its turnover (0.5% each), which is what a trader in goods pays; others need the CA.
     /// </summary>
     internal static TaxPayableDto Payable(bool composition, decimal turnover, IReadOnlyCollection<TaxLine> sales, IReadOnlyCollection<TaxLine> returns,
-        (decimal Cgst, decimal Sgst, decimal Igst) input)
+        (decimal Cgst, decimal Sgst, decimal Igst) input, (decimal Cgst, decimal Sgst, decimal Igst) reverseCharge = default)
     {
+        // Reverse charge (section 9(3)/9(4)): paid in cash, never from input credit, then claimable as input credit
+        // (GSTR-3B Table 3.1(d) and 4(A)(3)). A composition shop pays it too but cannot claim it back.
+        var (rc, rs, ri) = reverseCharge;
         if (composition)
         {
             var tax = decimal.Round(turnover * 0.01m, 2);
             var half = decimal.Round(tax / 2, 2);
-            return new TaxPayableDto(turnover, 0, 0, 0, 0, 0, 0, half, tax - half, 0, 0, 0, 0, turnover, tax);
+            return new TaxPayableDto(turnover, 0, 0, 0, 0, 0, 0, half + rc, tax - half + rs, ri, 0, 0, 0, turnover, tax, rc, rs, ri);
         }
 
         decimal Net(Func<TaxLine, decimal> f) => sales.Sum(f) - returns.Sum(f);
         var (oc, os, oi) = (Net(l => l.Cgst), Net(l => l.Sgst), Net(l => l.Igst));
-        var (ic, isg, ii) = input;
+        var (ic, isg, ii) = (input.Cgst + rc, input.Sgst + rs, input.Igst + ri);
 
         decimal Use(ref decimal credit, ref decimal due)
         {
@@ -106,6 +110,6 @@ public static class GstReturns
         Use(ref credS, ref dueS);
         Use(ref credS, ref dueI);
         return new TaxPayableDto(Net(l => l.Taxable), oc, os, oi, ic, isg, ii,
-            Math.Max(0, dueC), Math.Max(0, dueS), Math.Max(0, dueI), Math.Max(0, credC), Math.Max(0, credS), Math.Max(0, credI));
+            Math.Max(0, dueC) + rc, Math.Max(0, dueS) + rs, Math.Max(0, dueI) + ri, Math.Max(0, credC), Math.Max(0, credS), Math.Max(0, credI), RcmCgst: rc, RcmSgst: rs, RcmIgst: ri);
     }
 }

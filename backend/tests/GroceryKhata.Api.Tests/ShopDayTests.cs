@@ -572,6 +572,13 @@ public sealed class ShopDayTests(ApiFactory api)
         var product = await Item(shop, change.ProductId);
         Assert.Equal((5m, "6913"), (product.GstRate, product.HsnCode));
         Assert.DoesNotContain((await shop.GetJsonAsync<MasterUpdatesDto>("/api/v1/master-items/updates")).Changes, c => c.ProductName == name);
+
+        // Renamed by the shop, the item still follows its master item by its link.
+        (await shop.PutAsJsonAsync($"/api/v1/products/{change.ProductId}", new { name = "Mitti diya", unit = "piece", sellingPrice = 10m, gstRate = 5m, hsnCode = "6913" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync($"/api/v1/platform/master-items/{item.Id}", new { trade = "sweets", category = "Puja", name, unit = "piece", gstRate = 12m, hsnCode = "6913" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        updates = await shop.GetJsonAsync<MasterUpdatesDto>("/api/v1/master-items/updates");
+        Assert.Equal(12m, Assert.Single(updates.Changes, c => c.ProductName == "Mitti diya").GstTo);
+        Assert.DoesNotContain(updates.NewItems, i => i.Id == item.Id);
     }
 
     [Fact]

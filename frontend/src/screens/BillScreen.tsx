@@ -24,6 +24,7 @@ import { promoteCart, spreadOff, type Promotion } from '../lib/promotions'
 import { onDisplayHello, showOnDisplay, type DisplayState } from '../lib/customerDisplay'
 import { barcodeIndex, cameraPossible, normBarcode, readScaleLabel, sameItemCode } from '../lib/barcode'
 const UnknownBarcode = lazy(() => import('../components/UnknownBarcode').then((module) => ({ default: module.UnknownBarcode })))
+const CategoryMenu = lazy(() => import('../components/CategoryMenu').then((module) => ({ default: module.CategoryMenu })))
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
 // The printed bill's own code, loaded only when a computer turns the live preview on.
 const BillPreview = lazy(() => import('./PrintScreen').then((module) => ({ default: module.BillPreview })))
@@ -79,6 +80,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [soldBy, setSoldBy] = useState<string>(() => getSession()?.user.id ?? '')
   // Barcodes: a scanner types the code and Enter; a typed code works the same. A camera scan where the phone can.
   const [scanning, setScanning] = useState(false)
+  // "सब विभाग": the category menu over the bill; adds go straight onto this bill.
+  const [menuOpen, setMenuOpen] = useState(false)
   const [scanMiss, setScanMiss] = useState<string | null>(null)
   const settings = useShopSettings(shopId).data
   // This counter's open cashier shift: shown so the cashier knows bills are counting toward it.
@@ -726,6 +729,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold xl:flex ${preview ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white shadow-md shadow-[#1d4ed8]/30' : 'border-transparent bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]'}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6" /></svg>{t('billPreview.toggle')}</button>
         <button onClick={() => setKeysHelp((v) => !v)} aria-pressed={keysHelp} title={`${t('keys.title')} (?)`}
           className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold lg:flex ${keysHelp ? 'border-ink bg-ink text-white shadow-md' : 'border-transparent bg-[#edf2f1] text-ink hover:bg-[#e1e8e5]'}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10" /></svg>{t('keys.button')}</button>
+        <button onClick={() => setMenuOpen(true)} aria-label={t('catMenu.open')} title={t('catMenu.open')}
+          className="flex h-12 shrink-0 items-center gap-1.5 rounded-2xl border border-transparent bg-[#e7f3f1] px-3 font-semibold text-[#0f5f58] hover:bg-[#d8ece8]"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg><span className="hidden sm:inline">{t('catMenu.open')}</span></button>
         {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className={`flex h-12 shrink-0 items-center gap-1.5 rounded-2xl px-4 ${btn.solid}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M4 7h3l2-3h6l2 3h3v13H4zM12 10a3.5 3.5 0 100 7 3.5 3.5 0 000-7" /></svg>{t('barcodeBill.scan')}</button>}
       </div>
       {keysHelp && (
@@ -739,6 +744,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         </div>
       )}
       {/* Scanning stays open for the next item; a code no item has waits below, to be put on an item or made one. */}
+      {menuOpen && (
+        <Suspense fallback={null}>
+          <CategoryMenu products={products} rank={rank} billItems={cart.length} billTotal={total} onClose={() => setMenuOpen(false)}
+            quantities={new Map(cart.filter((l) => l.productId).map((l) => [l.productId!, l.quantity]))}
+            onAdd={(p) => add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })}
+            onLess={(p) => { const i = cart.findIndex((l) => l.productId === p.id); if (i >= 0) setQuantity(i, round2(cart[i].quantity - 1)) }} />
+        </Suspense>
+      )}
       {scanning && (
         <Suspense fallback={null}>
           <ScanSheet continuous onCode={(code) => { const ok = addByBarcode(code); if (!ok) setScanMiss(normBarcode(code)); return ok }} onClose={() => setScanning(false)} />

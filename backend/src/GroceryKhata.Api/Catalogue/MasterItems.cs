@@ -196,6 +196,8 @@ public static class MasterItems
             var have = existing.Keys.ToHashSet();
             var listed = new Dictionary<string, string>();
             var now = DateTimeOffset.UtcNow;
+            var added = new List<MasterItem>();
+            var matched = 0;
             var first = true;
             while (await reader.ReadLineAsync(ct) is { } line)
             {
@@ -214,6 +216,7 @@ public static class MasterItems
                 listed[item.ToLower()] = f[2];
                 if (!have.Add(item.ToLower()))
                 {
+                    matched++;
                     // Already there (a starter item, or added before): fill only what it lacks, never overwrite an admin's edit.
                     if (existing.GetValueOrDefault(item.ToLower()) is { } old)
                     {
@@ -231,7 +234,7 @@ public static class MasterItems
                     continue;
                 }
 
-                db.MasterItems.Add(new MasterItem
+                var row = new MasterItem
                 {
                     Trade = trade, Name = item, NameHi = f[1].Length > 0 ? f[1] : null, Category = f[2].Length > 0 ? f[2][..Math.Min(60, f[2].Length)] : "Other",
                     Unit = Enum.TryParse<Unit>(f[3], ignoreCase: true, out var unit) ? unit : Unit.Piece,
@@ -239,7 +242,16 @@ public static class MasterItems
                     HsnCode = f[5].Length > 0 ? f[5] : null, UpdatedAt = now,
                     // An optional seventh column: the sizes it comes in ("100 g|500 g"), one shop item per size when picked.
                     PackSizes = f.Length > 6 ? Sizes(f[6].Split('|')) : [],
-                });
+                };
+                db.MasterItems.Add(row);
+                added.Add(row);
+            }
+
+            // Rows added to a list that was mostly there already (a later update) show as new to its shops for a
+            // month. The first fill of a trade, on top of a few starter items, does not.
+            if (matched * 2 >= listed.Count)
+            {
+                added.ForEach(r => r.CreatedAt = now);
             }
 
             // The list's categories were once finer (143 for medical, now about 24 groups). A row still in an old
@@ -423,8 +435,8 @@ public static class MasterItems
     private static readonly TimeSpan NewFor = TimeSpan.FromDays(30);
 
     /// <summary>
-    /// The shop's items matched to its trades' master items by the name picking gives them ("तूर दाल", "Bhujia 1 kg"),
-    /// paired where the master's GST rate or HSN (when set) differs. Items the shop renamed or made itself never match.
+    /// The shop's items matched to its trades' master items by their link (so a renamed item still matches), or by the
+    /// name picking gives them for an old unlinked item, paired where the master's GST rate or HSN (when set) differs.
     /// </summary>
     private static async Task<(List<(Product Product, MasterItem Master)> Changed, List<MasterItem> Fresh)> CompareAsync(AppDbContext db, ITenantContext tenant, bool track, CancellationToken ct)
     {
@@ -435,15 +447,19 @@ public static class MasterItems
 
         var byName = NamesFor(masters);
 
-        var changed = products
-            .Where(p => byName.ContainsKey(p.Name.Trim()))
-            .Select(p => (Product: p, Master: byName[p.Name.Trim()]))
+        var byId = masters.ToDictionary(m => m.Id);
+        var paired = products
+            .Select(p => (Product: p, Master: p.MasterItemId is { } id ? byId.GetValueOrDefault(id) : byName.GetValueOrDefault(p.Name.Trim())))
+            .Where(x => x.Master is not null)
+            .Select(x => (x.Product, Master: x.Master!))
+            .ToList();
+        var changed = paired
             .Where(x => (x.Master.GstRate is { } g && x.Product.GstRate != g) || (x.Master.HsnCode is { } h && x.Product.HsnCode != h))
             .ToList();
-        var held = products.Select(p => p.Name.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var held = paired.Select(x => x.Master.Id).ToHashSet();
         var since = DateTimeOffset.UtcNow - NewFor;
         var fresh = masters
-            .Where(m => m.CreatedAt >= since && !byName.Where(kv => kv.Value == m).Any(kv => held.Contains(kv.Key)))
+            .Where(m => m.CreatedAt >= since && !held.Contains(m.Id))
             .OrderBy(m => m.Category).ThenBy(m => m.Name).Take(200).ToList();
         return (changed, fresh);
     }

@@ -147,7 +147,7 @@ public static class GstExport
     private sealed record MonthData(List<Bill> Bills, List<Bill> Cancelled, Dictionary<Guid, (string Name, string? Gstin)> Customers, bool Composition, string? ShopGstin, int Returns, List<CreditNote> Notes, List<LedgerEntry> Receipts, Dictionary<string, string> Names,
         List<Purchase> Purchases, List<SupplierEntry> SupplierPayments, Dictionary<Guid, (string Name, string? Gstin)> Suppliers, List<Expense> Expenses,
         List<SupplierEntry> SupplierCredits, HashSet<Guid> FreightExpenses, List<(PurchaseCharge Charge, Purchase Bill)> UnpaidFreight,
-        Dictionary<(Guid Bill, int Line), BillLine> NoteSources, Dictionary<Guid, Bill> NoteBills, Dictionary<Guid, string> Users, List<CashMove> CashMoves);
+        Dictionary<(Guid Bill, int Line), BillLine> NoteSources, Dictionary<Guid, Bill> NoteBills, Dictionary<Guid, string> Users, List<CashMove> CashMoves, (decimal Cgst, decimal Sgst, decimal Igst) ReverseCharge = default);
 
     private static async Task<MonthData> LoadAsync(AppDbContext db, ITenantContext tenant, (int Year, int Month) period, CancellationToken ct)
     {
@@ -192,7 +192,8 @@ public static class GstExport
             .OrderBy(e => e.OccurredAt).ToListAsync(ct);
         return new MonthData(all.Where(b => b.CancelledAt == null).ToList(), all.Where(b => b.CancelledAt != null).ToList(), customers, shop.GstComposition, shop.Gstin, returns, notes, receipts, LedgerNames(shop.TallyLedgers),
             purchases, payments, suppliers, expenses, credits, paidFreight, unpaid, sources, noteBills, users,
-            await db.CashMoves.AsNoTracking().Where(m => m.OccurredAt >= start && m.OccurredAt < end && m.StruckAt == null).OrderBy(m => m.OccurredAt).ToListAsync(ct));
+            await db.CashMoves.AsNoTracking().Where(m => m.OccurredAt >= start && m.OccurredAt < end && m.StruckAt == null).OrderBy(m => m.OccurredAt).ToListAsync(ct),
+            ReverseCharge(charges));
     }
 
     private static (decimal Taxable, decimal Cgst, decimal Sgst, decimal Igst) Tax(Bill b) =>
@@ -241,7 +242,7 @@ public static class GstExport
         }.Where(c => c.Count > 0).ToList();
         var taxes = d.Bills.Select(Tax).ToList();
         var (saleLines, returnLines) = (SaleLines(d), ReturnLines(d));
-        var payable = GstReturns.Payable(d.Composition, d.Bills.Sum(b => b.Total) - d.Notes.Sum(n => n.Total), saleLines, returnLines, InputTax(d));
+        var payable = GstReturns.Payable(d.Composition, d.Bills.Sum(b => b.Total) - d.Notes.Sum(n => n.Total), saleLines, returnLines, InputTax(d), d.ReverseCharge);
         return TypedResults.Ok(new GstMonthDto(
             $"{period.Year:D4}-{period.Month:D2}", d.Composition, d.Bills.Count, d.Cancelled.Count,
             d.Bills.Concat(d.Cancelled).OrderBy(b => b.FinancialYear).ThenBy(b => b.Number).FirstOrDefault()?.BillNo,
@@ -490,6 +491,17 @@ public static class GstExport
         })).ToList();
 
     /// <summary>Input tax the month's bills give, by head: only claimable bills; another state's supplier charges IGST.</summary>
+    /// <summary>
+    /// GST under reverse charge on the month's freight and other charges (a GTA's freight at 5%): within the state, so
+    /// half CGST and half SGST. The transporter's state is not kept; a CA moves it to IGST for an inter-state GTA.
+    /// </summary>
+    internal static (decimal Cgst, decimal Sgst, decimal Igst) ReverseCharge(IEnumerable<PurchaseCharge> charges)
+    {
+        var tax = charges.Where(c => c.ReverseChargeRate is > 0).Sum(c => decimal.Round(c.Amount * c.ReverseChargeRate!.Value / 100m, 2));
+        var half = decimal.Round(tax / 2, 2);
+        return (half, tax - half, 0);
+    }
+
     private static (decimal Cgst, decimal Sgst, decimal Igst) InputTax(MonthData d)
     {
         var shopState = d.ShopGstin is { Length: 15 } sg ? sg[..2] : null;
@@ -792,7 +804,7 @@ public static class GstExport
                 Amount(h.Taxable), Amount(h.Cgst), Amount(h.Sgst), Amount(h.Igst)).Append('\n');
         }
 
-        var pay = GstReturns.Payable(d.Composition, d.Bills.Sum(b => b.Total) - d.Notes.Sum(n => n.Total), saleLines, returnLines, InputTax(d));
+        var pay = GstReturns.Payable(d.Composition, d.Bills.Sum(b => b.Total) - d.Notes.Sum(n => n.Total), saleLines, returnLines, InputTax(d), d.ReverseCharge);
         if (d.Composition)
         {
             csv.Append($"\nCMP-08 working,Turnover {Amount(pay.CompositionTurnover ?? 0)},Tax at 1% {Amount(pay.CompositionTax ?? 0)},CGST {Amount(pay.PayCgst)},SGST {Amount(pay.PaySgst)}\n");

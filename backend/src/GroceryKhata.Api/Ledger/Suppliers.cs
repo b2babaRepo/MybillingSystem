@@ -199,7 +199,7 @@ public enum CostSplit
 /// <see cref="PaidBy"/> cash or UPI writes it in the kharcha as stock bought (out of profit, since it is in the goods' cost);
 /// null when it is paid some other way or later.
 /// </summary>
-public sealed record LandedChargeRequest(string? Label, decimal Amount, PaymentMode? PaidBy = null);
+public sealed record LandedChargeRequest(string? Label, decimal Amount, PaymentMode? PaidBy = null, decimal? ReverseChargeRate = null);
 
 public sealed class PurchaseCharge : Entity, ITenantOwned
 {
@@ -213,6 +213,12 @@ public sealed class PurchaseCharge : Entity, ITenantOwned
 
     /// <summary>The kharcha line it was paid from, struck if the bill is cancelled.</summary>
     public Guid? ExpenseId { get; set; }
+
+    /// <summary>
+    /// GST the shop itself pays on this charge under reverse charge (5 for a goods transport agency, GTA, that charges
+    /// no GST). Null: not under reverse charge. The tax is paid in cash and then claimed back as input credit.
+    /// </summary>
+    public decimal? ReverseChargeRate { get; set; }
 }
 
 /// <summary>
@@ -361,7 +367,7 @@ public static class SupplierEndpoints
     private static async Task<IResult> AddChargesAsync(Guid id, AddChargesRequest request, ClaimsPrincipal user, AppDbContext db, ITenantContext tenant, TimeProvider clock, CancellationToken ct)
     {
         var charges = request.Charges ?? [];
-        if (charges.Count is 0 or > 10 || charges.Any(c => c.Amount <= 0 || c.Amount > Money.MaxAmount || decimal.Round(c.Amount, 2) != c.Amount || string.IsNullOrWhiteSpace(c.Label)
+        if (charges.Count is 0 or > 10 || charges.Any(c => c.Amount <= 0 || c.Amount > Money.MaxAmount || decimal.Round(c.Amount, 2) != c.Amount || string.IsNullOrWhiteSpace(c.Label) || c.ReverseChargeRate is { } rcm && rcm is not (5m or 12m or 18m)
             || c.PaidBy is not (null or PaymentMode.Cash or PaymentMode.Upi)) || !Enum.IsDefined(request.Split))
         {
             return Invalid("Charges", "Give each charge a name and an amount, paid by cash, UPI or not yet.");
@@ -434,7 +440,7 @@ public static class SupplierEndpoints
                 });
             }
 
-            db.PurchaseCharges.Add(new PurchaseCharge { PurchaseId = id, Label = label, Amount = charge.Amount, ExpenseId = expenseId });
+            db.PurchaseCharges.Add(new PurchaseCharge { PurchaseId = id, Label = label, Amount = charge.Amount, ExpenseId = expenseId, ReverseChargeRate = charge.ReverseChargeRate });
         }
 
         await db.SaveChangesAsync(ct);
@@ -698,7 +704,7 @@ public static class SupplierEndpoints
         }
 
         var charges = request.Charges ?? [];
-        if (charges.Count > 10 || charges.Any(c => c.Amount <= 0 || c.Amount > Money.MaxAmount || decimal.Round(c.Amount, 2) != c.Amount || string.IsNullOrWhiteSpace(c.Label)
+        if (charges.Count > 10 || charges.Any(c => c.Amount <= 0 || c.Amount > Money.MaxAmount || decimal.Round(c.Amount, 2) != c.Amount || string.IsNullOrWhiteSpace(c.Label) || c.ReverseChargeRate is { } rcm && rcm is not (5m or 12m or 18m)
             || c.PaidBy is not (null or PaymentMode.Cash or PaymentMode.Upi)) || !Enum.IsDefined(request.Split))
         {
             return Invalid("Charges", "Give each charge a name and an amount, paid by cash, UPI or not yet.");
@@ -744,7 +750,7 @@ public static class SupplierEndpoints
                 });
             }
 
-            db.PurchaseCharges.Add(new PurchaseCharge { PurchaseId = request.Id, Label = label, Amount = charge.Amount, ExpenseId = expenseId });
+            db.PurchaseCharges.Add(new PurchaseCharge { PurchaseId = request.Id, Label = label, Amount = charge.Amount, ExpenseId = expenseId, ReverseChargeRate = charge.ReverseChargeRate });
         }
         db.SupplierEntries.Add(new SupplierEntry { SupplierId = request.SupplierId, Kind = SupplierEntryKind.Bill, Amount = total, PurchaseId = request.Id, Note = billNo?[..Math.Min(billNo.Length, 40)], OccurredAt = billDate, CreatedByUserId = userId });
         var purchase = db.Purchases.Local.Single(p => p.Id == request.Id);
