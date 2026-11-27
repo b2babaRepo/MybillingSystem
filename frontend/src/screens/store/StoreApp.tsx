@@ -28,6 +28,7 @@ import { getSession } from '../../lib/session'
 import { AlertsPrompt, BillSummary, OrderSteps, PaymentPicker, SlotChips, UpiPay } from '../../components/OrderPay'
 import { billOf, isOpen, noSettings, useCheckoutInfo, type KhataAtCheckout, type StoreSettings } from '../../lib/orderFlow'
 import { ProductSheet } from '../../components/ProductSheet'
+import { update, usePwa } from '../../lib/pwa'
 import { fullPageTrades } from '../../lib/productSheet'
 import { Drawer } from '../../components/ui'
 import { rank, rememberSearch } from '../../lib/search'
@@ -150,6 +151,15 @@ export function StoreApp({ path }: { path: string }) {
   return orderId && token ? <OrderStatus slug={slug} orderId={orderId} token={token} /> : <Catalogue key={slug} slug={slug} openCheckout={!!toCart} />
 }
 
+/**
+ * A shop's page takes a new app version by itself: it shows no "Update" banner, and customers keep it open for days.
+ * The cart and the customer's details are kept on the phone, so the reload loses nothing; not while checkout is open.
+ */
+function useAutoUpdate(paused: boolean) {
+  const { updateReady } = usePwa()
+  useEffect(() => { if (updateReady && !paused) update() }, [updateReady, paused])
+}
+
 function NotFound() {
   const { t } = useTranslation()
   return <p className="p-8 text-center text-muted">{t('store.notFound')}</p>
@@ -210,6 +220,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const aisles = useAisles().data ?? []
   const [checkingOut, setCheckingOut] = useState(openCheckout)
   useEffect(() => { if (checkingOut) seen(slug, 'checkout') }, [checkingOut, slug])
+  useAutoUpdate(checkingOut)
   const myOrders = remembered<MyOrder[]>(`store.${slug}.orders`, [])
   const signedIn = !!getSession()
   const accountCarts = useCarts(signedIn)
@@ -644,6 +655,7 @@ function Checkout({ store, lines, onClose, onPlaced, onStep, onSet, onRemove }: 
 
 function OrderStatus({ slug, orderId, token }: { slug: string; orderId: string; token: string }) {
   const { t } = useTranslation()
+  useAutoUpdate(false)
   const query = useQuery({
     queryKey: ['store', slug, 'order', orderId],
     queryFn: () => storeApi<Order>(`${slug}/orders/${orderId}?token=${token}`),
