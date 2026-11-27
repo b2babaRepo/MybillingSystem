@@ -88,6 +88,16 @@ public sealed partial class AppDbContext
             b.HasIndex(s => new { s.ShopId, s.OpenedAt });
         });
 
+        modelBuilder.Entity<Shops.Terminal>(b =>
+        {
+            b.ToTable("terminals");
+            b.HasTenantKey();
+            b.Property(t => t.Code).HasMaxLength(4);
+            b.Property(t => t.Name).HasMaxLength(30);
+            b.Property(t => t.MallMachineId).HasMaxLength(40);
+            b.HasIndex(t => new { t.ShopId, t.Code }).IsUnique();
+        });
+
         modelBuilder.Entity<LoyaltyEntry>(b =>
         {
             b.ToTable("loyalty_entries");

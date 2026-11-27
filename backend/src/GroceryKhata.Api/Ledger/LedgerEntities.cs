@@ -250,6 +250,9 @@ public sealed class Bill : Entity, ITenantOwned
     /// <summary>The supervisor who approved it for a cashier: a price below their limit, or its cancelling.</summary>
     public Guid? ApprovedByUserId { get; set; }
 
+    /// <summary>The registered till it was made on (Shops.Terminal).</summary>
+    public Guid? TerminalId { get; set; }
+
     /// <summary>Loyalty points spent on this bill and the money they took off.</summary>
     public int LoyaltyPoints { get; set; }
 

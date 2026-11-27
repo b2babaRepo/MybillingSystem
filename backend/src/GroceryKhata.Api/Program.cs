@@ -212,6 +212,7 @@ app.MapCashCounts();
 app.MapCashierShifts();
 app.MapHeldBills();
 app.MapLoyalty();
+app.MapTerminals();
 app.MapMeterReadings();
 app.MapGoodsReceipts();
 app.MapEstimates();

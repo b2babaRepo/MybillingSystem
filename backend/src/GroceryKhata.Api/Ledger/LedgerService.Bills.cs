@@ -63,6 +63,18 @@ public sealed partial class LedgerService
                 var promotionsAllow = !isOwner && (billOffer is not null || loyaltyValue > 0 || offers.Values.Any(o => o.Kind is not (SaleOfferKind.Percent or SaleOfferKind.Amount)))
                     && await PromotionsAllowAsync(request.Lines, products, billAt, cancellationToken, loyaltyValue);
 
+                // A till that was turned off can't make new bills (one already queued offline before that still can).
+                var till = request.TerminalId is { } tillId ? await db.Terminals.SingleOrDefaultAsync(t => t.Id == tillId, cancellationToken) : null;
+                if (till is { IsActive: false, TurnedOffAt: { } offAt } && OccurredAt(request.OccurredAt) > offAt)
+                {
+                    errors[nameof(request.TerminalId)] = [$"Till {till.Code} was turned off by the owner. Ask them to turn it on, or bill from another till."];
+                }
+
+                if (till is not null)
+                {
+                    till.LastBillAt = clock.GetUtcNow();
+                }
+
                 var lines = new List<BillLine>();
                 for (var i = 0; i < request.Lines.Count; i++)
                 {
@@ -254,10 +266,13 @@ public sealed partial class LedgerService
                     Lines = lines,
                     Site = site,
                     VehicleNumber = vehicle,
-                    Counter = string.IsNullOrWhiteSpace(request.Counter) ? null : request.Counter.Trim()[..Math.Min(30, request.Counter.Trim().Length)],
+                    // A registered till names the counter itself ("Counter 2 (T02)"), whatever the device typed.
+                    Counter = till is not null ? $"{till.Name} ({till.Code})"[..Math.Min(30, $"{till.Name} ({till.Code})".Length)]
+                        : string.IsNullOrWhiteSpace(request.Counter) ? null : request.Counter.Trim()[..Math.Min(30, request.Counter.Trim().Length)],
                     PainterId = request.PainterId,
                     // A shift this shop doesn't have is left off rather than refusing the sale.
                     BillOfferId = billOffer?.Id,
+                    TerminalId = till?.Id,
                     ApprovedByUserId = approvedBy,
                     LoyaltyPoints = loyaltyValue > 0 ? request.LoyaltyPoints!.Value : 0,
                     LoyaltyValue = loyaltyValue,

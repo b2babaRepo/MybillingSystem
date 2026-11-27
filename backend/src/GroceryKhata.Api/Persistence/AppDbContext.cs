@@ -303,6 +303,8 @@ public sealed partial class AppDbContext(DbContextOptions<AppDbContext> options,
 
     public DbSet<LoyaltyEntry> LoyaltyEntries => Set<LoyaltyEntry>();
 
+    public DbSet<Shops.Terminal> Terminals => Set<Shops.Terminal>();
+
     public DbSet<Ledger.CashMove> CashMoves => Set<Ledger.CashMove>();
     public DbSet<Catalogue.Stocktake> Stocktakes => Set<Catalogue.Stocktake>();
     public DbSet<Ledger.PushDevice> PushDevices => Set<Ledger.PushDevice>();

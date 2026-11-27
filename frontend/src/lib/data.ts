@@ -1,5 +1,6 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { currentShift } from './shift'
+import { thisTill } from './terminal'
 import { syncProducts } from './catalogueSync'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { api, NetworkError } from './api'
@@ -225,7 +226,7 @@ export async function saveBill(
     kind: 'bill',
     // extras.withoutGst rides along in the body: a bill the shop chose to make without GST.
     path: '/v1/bills',
-    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), counter: counterName() || null, shiftId: currentShift(shopId)?.id ?? null, ...extras, exchangeCredit: undefined, supervisorPin: undefined },
+    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), counter: counterName() || null, terminalId: thisTill(shopId)?.id ?? null, shiftId: currentShift(shopId)?.id ?? null, ...extras, exchangeCredit: undefined, supervisorPin: undefined },
     supervisorPin: extras.supervisorPin || undefined,
     customerId: customer?.id,
     delta: customer ? round2(total - paidAmount - Math.min(extras.exchangeCredit ?? 0, total)) : undefined,
