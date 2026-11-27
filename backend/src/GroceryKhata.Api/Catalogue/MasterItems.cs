@@ -182,7 +182,8 @@ public static class MasterItems
         var assembly = typeof(MasterItems).Assembly;
         foreach (var (resource, trade) in new[] { ("medical-master.csv", ShopTypes.Name(ShopType.Medical)), ("kirana-master.csv", ShopTypes.Name(ShopType.Kirana)),
             ("paint-master.csv", ShopTypes.Name(ShopType.Paint)), ("hardware-master.csv", ShopTypes.Name(ShopType.Hardware)),
-            ("beauty-master.csv", ShopTypes.Name(ShopType.Beauty)), ("clothes-master.csv", ShopTypes.Name(ShopType.Clothes)) })
+            ("beauty-master.csv", ShopTypes.Name(ShopType.Beauty)), ("clothes-master.csv", ShopTypes.Name(ShopType.Clothes)),
+            ("electrical-master.csv", ShopTypes.Name(ShopType.Electrical)) })
         {
             var name = assembly.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(resource, StringComparison.OrdinalIgnoreCase));
             if (name is null)

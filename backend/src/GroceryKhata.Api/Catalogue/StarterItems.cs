@@ -321,20 +321,20 @@ public static class StarterItems
 
     private static readonly ImportRow[] Electrical =
     [
-        Item("Wire 1.0 sq mm (90 m coil)", "Wires", Unit.Box, 18, "8544"),
-        Item("Wire 1.5 sq mm (90 m coil)", "Wires", Unit.Box, 18, "8544"),
-        Item("Wire 2.5 sq mm (90 m coil)", "Wires", Unit.Box, 18, "8544"),
-        Item("Wire 1.5 sq mm (per metre)", "Wires", Unit.Metre, 18, "8544"),
+        Item("Wire 1.0 sq mm (90 m coil)", "House wire", Unit.Box, 18, "8544"),
+        Item("Wire 1.5 sq mm (90 m coil)", "House wire", Unit.Box, 18, "8544"),
+        Item("Wire 2.5 sq mm (90 m coil)", "House wire", Unit.Box, 18, "8544"),
+        Item("Wire 1.5 sq mm (per metre)", "House wire", Unit.Metre, 18, "8544"),
         Item("Switch 6 A", "Switches", Unit.Piece, 18, "8536"),
-        Item("Socket 6 A", "Switches", Unit.Piece, 18, "8536"),
-        Item("Switch board 4 module", "Switches", Unit.Piece, 18, "8538"),
-        Item("MCB 16 A", "Protection", Unit.Piece, 18, "8536"),
-        Item("LED bulb 9 W", "Lights", Unit.Piece, 18, "8539"),
-        Item("LED tube light 20 W", "Lights", Unit.Piece, 18, "8539"),
+        Item("Socket 6 A", "Sockets, plugs and extensions", Unit.Piece, 18, "8536"),
+        Item("Switch board 4 module", "Modular plates, boxes and regulators", Unit.Piece, 18, "8538"),
+        Item("MCB 16 A", "MCB, RCCB and isolators", Unit.Piece, 18, "8536"),
+        Item("LED bulb 9 W", "LED bulbs and tubes", Unit.Piece, 18, "8539"),
+        Item("LED tube light 20 W", "LED bulbs and tubes", Unit.Piece, 18, "8539"),
         Item("Ceiling fan", "Fans", Unit.Piece, 18, "8414"),
         Item("Exhaust fan", "Fans", Unit.Piece, 18, "8414"),
-        Item("PVC conduit pipe 20 mm", "Fittings", Unit.Metre, 18, "3917"),
-        Item("Insulation tape", "Fittings", Unit.Piece, 18, "3919"),
+        Item("PVC conduit pipe 20 mm", "Conduit and casing", Unit.Metre, 18, "3917"),
+        Item("Insulation tape", "Tapes, sleeves and ties", Unit.Piece, 18, "3919"),
     ];
 
     private static readonly ImportRow[] Paint =
