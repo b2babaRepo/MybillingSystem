@@ -63,7 +63,7 @@ public static class GstExport
         ["roundOff"] = "Round Off", ["cash"] = "Cash", ["upi"] = "UPI Collections",
         // Buying and spending: supplier bills, payments and the kharcha book.
         ["purchases"] = "Purchase", ["inputCgst"] = "Input CGST", ["inputSgst"] = "Input SGST", ["inputIgst"] = "Input IGST",
-        ["freight"] = "Freight Inward", ["freightPayable"] = "Freight Payable", ["bank"] = "Bank Account", ["capital"] = "Capital Account",
+        ["freight"] = "Freight Inward", ["freightPayable"] = "Freight Payable", ["bank"] = "Bank Account", ["vouchers"] = "Gift Vouchers", ["capital"] = "Capital Account",
         ["tea"] = "Staff Welfare", ["transport"] = "Conveyance", ["rent"] = "Rent", ["electricity"] = "Electricity Charges", ["salary"] = "Salary",
         ["packaging"] = "Packing Material", ["repair"] = "Repairs and Maintenance", ["other"] = "Miscellaneous Expenses",
         ["home"] = "Drawings", ["tax"] = "Taxes Paid", ["loan"] = "Loan Repayment", ["equipment"] = "Furniture and Equipment", ["advance"] = "Staff Advance",
@@ -602,6 +602,8 @@ public static class GstExport
     {
         PaymentMode.Upi => d.Names["upi"],
         PaymentMode.Card or PaymentMode.Cheque or PaymentMode.Bank => d.Names["bank"],
+        // Paid with a gift voucher: it settles what the shop owes the voucher's holder.
+        PaymentMode.Voucher => d.Names.GetValueOrDefault("vouchers") ?? "Gift Vouchers",
         _ => d.Names["cash"],
     };
 

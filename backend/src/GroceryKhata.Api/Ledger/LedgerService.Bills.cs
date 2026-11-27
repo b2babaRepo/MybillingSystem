@@ -241,14 +241,23 @@ public sealed partial class LedgerService
 
                 // Paid two ways: each part cash or UPI, above ₹0, together exactly what was paid.
                 var parts = (request.Payments ?? []).Where(p => p.Amount != 0).Select(p => new BillPaymentPart(p.Mode, p.Amount, string.IsNullOrWhiteSpace(p.Reference) ? null : p.Reference.Trim().ToUpperInvariant())).ToList();
-                if (parts.Count > 0 && (parts.Count > 4 || parts.Any(p => p.Amount < 0 || decimal.Round(p.Amount, 2) != p.Amount || p.Mode is not (PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Card) || (p.Reference is { } r && (p.Mode != PaymentMode.Upi || r.Length is < 6 or > 30 || !r.All(char.IsAsciiLetterOrDigit))))
+                if (parts.Count > 0 && (parts.Count > 4 || parts.Any(p => p.Amount < 0 || decimal.Round(p.Amount, 2) != p.Amount || p.Mode is not (PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Card or PaymentMode.Voucher)
+                    || (p.Mode == PaymentMode.Voucher && GiftVouchers.Clean(p.Reference).Length != 12)
+                    || (p.Reference is { } r && p.Mode != PaymentMode.Voucher && (p.Mode != PaymentMode.Upi || r.Length is < 6 or > 30 || !r.All(char.IsAsciiLetterOrDigit))))
                     || parts.Sum(p => p.Amount) != request.PaidAmount))
                 {
                     return LedgerResult<BillDto>.Invalid(nameof(request.Payments), "The cash, UPI and card parts must add up to the amount paid, and a UPI reference is 6 to 30 letters and digits.");
                 }
 
-                // Parts of one mode join up; one part left is an ordinary one-way payment.
-                parts = parts.GroupBy(p => p.Mode).Select(g => new BillPaymentPart(g.Key, g.Sum(p => p.Amount), g.Select(p => p.Reference).FirstOrDefault(r => r is not null))).OrderByDescending(p => p.Amount).ToList();
+                // A voucher's code is kept as printed on it (capitals, no spaces).
+                parts = parts.Select(p => p.Mode == PaymentMode.Voucher ? p with { Reference = GiftVouchers.Clean(p.Reference) } : p).ToList();
+                if (parts.Where(p => p.Mode == PaymentMode.Voucher).GroupBy(p => p.Reference).Any(g => g.Count() > 1))
+                {
+                    return LedgerResult<BillDto>.Invalid(nameof(request.Payments), "Use each gift voucher once on a bill.");
+                }
+
+                // Parts of one mode join up (vouchers stay one part each); one part left is an ordinary one-way payment.
+                parts = parts.GroupBy(p => p.Mode == PaymentMode.Voucher ? $"V:{p.Reference}" : p.Mode.ToString()).Select(g => new BillPaymentPart(g.First().Mode, g.Sum(p => p.Amount), g.Select(p => p.Reference).FirstOrDefault(r => r is not null))).OrderByDescending(p => p.Amount).ToList();
                 var occurredAt = OccurredAt(request.OccurredAt);
                 var paymentMode = request.PaidAmount > 0 ? parts.FirstOrDefault()?.Mode ?? request.PaymentMode ?? PaymentMode.Cash : (PaymentMode?)null;
                 var bill = new Bill
@@ -396,6 +405,12 @@ public sealed partial class LedgerService
 
                 await db.SaveChangesAsync(cancellationToken);
 
+                // Gift vouchers that paid part of it: taken off their balance now, or the bill isn't saved.
+                if (await GiftVouchers.SpendAsync(db, parts, IndiaTime.Today(clock), cancellationToken) is { } voucherProblem)
+                {
+                    return LedgerResult<BillDto>.Invalid(nameof(request.Payments), voucherProblem);
+                }
+
                 // Two tills spending the same points at once: one at a time per customer, and none may go below zero.
                 if (bill.LoyaltyPoints > 0 && bill.CustomerId is { } spender)
                 {
@@ -516,6 +531,8 @@ public sealed partial class LedgerService
             CreatedByUserId = userId,
         }).ToList();
         db.LedgerEntries.AddRange(reversals);
+        // Gift vouchers that paid for it get their amount back.
+        await GiftVouchers.RefundAsync(db, (await db.Bills.AsNoTracking().SingleAsync(b => b.Id == id, cancellationToken)).Parts(), cancellationToken);
         // Points the bill earned go, points it spent come back.
         db.LoyaltyEntries.AddRange((await db.LoyaltyEntries.AsNoTracking().Where(e => e.BillId == id).ToListAsync(cancellationToken))
             .Select(e => new LoyaltyEntry { CustomerId = e.CustomerId, BillId = id, Kind = LoyaltyKind.Reverse, Points = -e.Points, OccurredAt = now }));

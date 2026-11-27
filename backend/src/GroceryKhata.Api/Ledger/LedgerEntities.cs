@@ -171,6 +171,9 @@ public enum PaymentMode
     /// only once it clears; a bounce puts the amount back on the khata.
     /// </summary>
     Cheque,
+
+    /// <summary>A gift voucher the shop sold (GiftVoucher): its code is the payment's reference; not money in the drawer.</summary>
+    Voucher,
 }
 
 public enum ChequeStatus

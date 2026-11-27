@@ -6,7 +6,7 @@ export type AdminRole = 'super' | 'approver' | 'support' | 'billing' | 'agent_ma
 
 export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'pair' | 'dozen' | 'box' | 'jar' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre' | 'sq_ft' | 'running_ft' | 'quintal' | 'carton' | 'bottle' | 'set' | 'strip'
 /** Card and cheque reach the bank, not the drawer. A cheque is for khata payments, and counts once cleared. */
-export type PaymentMode = 'cash' | 'upi' | 'card' | 'cheque'
+export type PaymentMode = 'cash' | 'upi' | 'card' | 'cheque' | 'voucher'
 export type LedgerEntryKind = 'credit' | 'payment' | 'reversal' | 'return' | 'opening'
 export type KhataEntryType = 'credit' | 'payment'
 

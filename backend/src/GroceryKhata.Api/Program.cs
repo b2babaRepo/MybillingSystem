@@ -215,6 +215,7 @@ app.MapHeldBills();
 app.MapLoyalty();
 app.MapTerminals();
 app.MapMallFeeds();
+app.MapGiftVouchers();
 app.MapMeterReadings();
 app.MapGoodsReceipts();
 app.MapEstimates();

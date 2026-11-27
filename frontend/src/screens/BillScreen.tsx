@@ -20,6 +20,7 @@ import { billNameFor } from '../lib/billNames'
 import { billTax, garmentRate } from '../lib/gst'
 import { bestOffer, isRunning, offerPrice, perPiece, useOffers } from '../lib/offers'
 import { promoteCart, spreadOff, type Promotion } from '../lib/promotions'
+import { onDisplayHello, showOnDisplay, type DisplayState } from '../lib/customerDisplay'
 import { barcodeIndex, cameraPossible, normBarcode, readScaleLabel, sameItemCode } from '../lib/barcode'
 const UnknownBarcode = lazy(() => import('../components/UnknownBarcode').then((module) => ({ default: module.UnknownBarcode })))
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
@@ -32,7 +33,7 @@ import { imageUrl } from '../lib/images'
 import { Button, Field, Input, Sheet, btn } from '../components/ui'
 import { addCustomer, counterName, saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
 import { HeldBillGone, useHeldBills } from '../lib/heldBills'
-import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
+import { formatDateTime, formatRupees, whatsAppLink, indiaToday } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { BillPrint, BillView, PaymentMode, Unit } from '../lib/types'
 import { useShopSettings, shopTypes, isTrade, sendsToSites, upiUri } from '../lib/reports'
@@ -410,7 +411,21 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     }
   }
   const exchangeCredit = exchange ? Math.min(exchange.total, total) : 0
-  const due = round2(total - exchangeCredit)
+  // A gift voucher paying part of the bill: its code and how much it takes (never more than its balance or the bill).
+  const [voucherPay, setVoucherPay] = useState<{ code: string; balance: number } | null>(null)
+  const voucherAmt = voucherPay ? Math.min(voucherPay.balance, round2(total - exchangeCredit)) : 0
+  const due = round2(total - exchangeCredit - voucherAmt)
+  async function applyVoucher() {
+    const code = (await ask(t('gift.askCode')))?.trim()
+    if (!code) return
+    try {
+      const v = await api<{ code: string; balance: number; expiresOn: string; cancelledAt: string | null }>(`/v1/gift-vouchers/${encodeURIComponent(code)}`)
+      if (v.cancelledAt || v.balance <= 0 || v.expiresOn < indiaToday()) { void ask(t('gift.notUsable')); return }
+      setVoucherPay({ code: v.code, balance: v.balance })
+    } catch {
+      void ask(t('gift.notFound'))
+    }
+  }
   const paidAmount = paid === null || !customer ? due : Math.min(Number(paid) || 0, due)
   // Paid two ways: the UPI part typed, the rest of what is paid now in cash. null: one way, by mode.
   const [upiPart, setUpiPart] = useState<string | null>(null)
@@ -499,14 +514,19 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     // An event handler (Save), not render: the bill is timed from its first item to now.
     // eslint-disable-next-line react/purity
     const savedAt = Date.now()
-    const result = await saveBill(shopId, billedLines.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
+    // The voucher is one way of paying: it joins the parts, and what is paid includes it.
+    const restParts: { mode: PaymentMode; amount: number; reference?: string | null }[] | undefined = split ? [{ mode: 'cash', amount: cashPaid }, { mode: splitWith, amount: upiPaid, reference: splitWith === 'upi' ? reference : null }]
+      : reference ? [{ mode: 'upi', amount: paidAmount, reference }] : undefined
+    const payments = voucherAmt > 0
+      ? [{ mode: 'voucher' as PaymentMode, amount: voucherAmt, reference: voucherPay!.code }, ...(restParts ?? (paidAmount > 0 ? [{ mode, amount: paidAmount }] : []))]
+      : restParts
+    const result = await saveBill(shopId, billedLines.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, round2(paidAmount + voucherAmt), voucherAmt > 0 && paidAmount === 0 ? 'cash' : mode, {
       billOfferId: billed.billOfferId,
       loyaltyPoints: pointsOff > 0 ? spend!.points : null, loyaltyCode: pointsOff > 0 ? spend!.code : null, supervisorPin: approval,
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
       exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
-      payments: split ? [{ mode: 'cash', amount: cashPaid }, { mode: splitWith, amount: upiPaid, reference: splitWith === 'upi' ? reference : null }]
-        : reference ? [{ mode: 'upi', amount: paidAmount, reference }] : undefined, placeOfSupply: (picksState && deliveredTo) || null, entrySeconds: billSeconds(startedAt.current, savedAt), withoutGst: picksState && withoutGst, godownId: fromGodown || null,
+      payments, placeOfSupply: (picksState && deliveredTo) || null, entrySeconds: billSeconds(startedAt.current, savedAt), withoutGst: picksState && withoutGst, godownId: fromGodown || null,
       prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
       fields: billFieldLabels.map((label) => ({ label, value: (fieldValues[label] ?? '').trim() })).filter((f) => f.value),
     })
@@ -532,7 +552,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     }
     setOrderSaved(null)
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, split, customer: customer && { name: customer.name, phone: customer.phone } })
-    setCart([]); setSpend(null); setApproval(null)
+    setCart([]); setSpend(null); setApproval(null); setVoucherPay(null)
     if (exchange) { endExchange(); setExchangeState(null) }
     setPaid(null)
     setReceived('')
@@ -597,6 +617,17 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // F9: a discount on the whole bill. F8: take off the item added last. F7: keep this bill in its tab and start another.
   function billDiscount() { if (cart.length > 0 && !billOff) setOffForm((f) => f ?? { value: '', percent: false }) }
   function removeLast() { setCart((current) => current.slice(0, -1)) }
+  // The customer-facing display (a second window on this computer): what the customer should see, as it changes.
+  const displayState = (): DisplayState => ({
+    shop: shopName, upiId: settings?.upiId ?? null, total, saved: round2(discountTotal + billed.applied.reduce((n, a) => n + a.saved, 0) + pointsOff),
+    lines: billedLines.map((l) => ({ name: l.name, quantity: l.quantity, unit: l.unit, amount: round2(l.quantity * l.unitPrice) })),
+    offers: billed.applied.map((a) => ({ name: a.offerName, saved: a.saved })),
+    done: cart.length === 0 && saved ? { total: saved.total, paid: saved.paid, change: round2(Math.max(0, (Number(received) || 0) - saved.paid)) } : null,
+  })
+  const sendDisplay = useRef(displayState)
+  useEffect(() => { sendDisplay.current = displayState })
+  useEffect(() => { showOnDisplay(shopId, sendDisplay.current()) }, [shopId, billedLines, total, saved]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => onDisplayHello(shopId, () => showOnDisplay(shopId, sendDisplay.current())), [shopId])
   const keys = useRef({ save, canSave, printSaved, canPrint: false, allOnKhata, billDiscount, removeLast, holdBill })
   // The latest handlers for the keyboard shortcuts, swapped in after each render (never during one).
   useEffect(() => { keys.current = { save, canSave, printSaved, canPrint: !!saved && cart.length === 0, allOnKhata, billDiscount, removeLast, holdBill } })
@@ -987,6 +1018,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               <span>{t('exchange.credit', { note: exchange!.noteNo })}</span><span>− {formatRupees(exchangeCredit)}</span>
             </div>
           )}
+          {total > 0 && (voucherAmt > 0 ? (
+            <div className="mt-2 flex justify-between text-sm font-semibold text-warn-ink">
+              <span>🎁 {t('gift.paying', { code: voucherPay!.code })} <button type="button" onClick={() => setVoucherPay(null)} className={`min-h-9 text-xs ${btn.quiet}`}>{t('billOff.remove')}</button></span><span>− {formatRupees(voucherAmt)}</span>
+            </div>
+          ) : (
+            <button type="button" onClick={() => void applyVoucher()} className="mt-1 min-h-11 text-sm font-semibold text-brand">🎁 {t('gift.use')}</button>
+          ))}
           {exchange && exchange.total > total && total > 0 && <p className="mt-1 text-sm font-semibold text-brand-deep">{t('exchange.leftOnSlip', { amount: formatRupees(round2(exchange.total - total)), note: exchange.noteNo })}</p>}
           {discountTotal > 0 && (
             <>

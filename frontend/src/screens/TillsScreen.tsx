@@ -60,6 +60,11 @@ export function TillsScreen({ shopId }: { shopId: string }) {
           </>
         )}
       </section>
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 text-sm">
+        <b>{t('display.title')}</b>
+        <p className="text-muted">{t('display.hint')}</p>
+        <button type="button" onClick={() => window.open('/#/display', 'gk-display', 'popup,width=1024,height=768')} className={`min-h-11 self-start rounded-xl px-4 ${btn.outline}`}>{t('display.open')}</button>
+      </section>
       {message && <p className="text-sm text-due">{message}</p>}
       <ul className="flex flex-col gap-2">
         {list.data?.map((till) => (

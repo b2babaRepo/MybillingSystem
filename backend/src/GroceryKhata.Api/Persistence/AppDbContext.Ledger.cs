@@ -88,6 +88,16 @@ public sealed partial class AppDbContext
             b.HasIndex(s => new { s.ShopId, s.OpenedAt });
         });
 
+        modelBuilder.Entity<GiftVoucher>(b =>
+        {
+            b.ToTable("gift_vouchers");
+            b.HasTenantKey();
+            b.Property(v => v.Code).HasMaxLength(12);
+            b.Property(v => v.BuyerName).HasMaxLength(80);
+            b.HasIndex(v => new { v.ShopId, v.Code }).IsUnique();
+            b.HasIndex(v => new { v.ShopId, v.SoldAt });
+        });
+
         // Not shop-scoped on purpose: a mall's key is looked up before any shop is chosen (see MallFeeds).
         modelBuilder.Entity<MallFeed>(b =>
         {

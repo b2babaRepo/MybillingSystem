@@ -41,6 +41,10 @@ public enum CashBookSource
     ToBank,
     FromBank,
 
+    /// <summary>A gift voucher sold (its money in), or cancelled unused (its money back out, negative).</summary>
+    VoucherSold,
+    VoucherCancelled,
+
     /// <summary>Empty bags sold to the bardana dealer (in), or bought (out).</summary>
     BagsSold,
     BagsBought,
@@ -162,6 +166,11 @@ public static class CashBookEndpoints
                               join p in db.MetalParties.AsNoTracking() on m.PartyId equals p.Id
                               select new CashBookLine(m.At, m.CashEffect > 0 ? CashBookSource.MetalReceived : CashBookSource.MetalPaid,
                                   p.Name + (m.Kind == "labour_paid" ? " · labour" : " · rate cut"), m.Mode!.Value, m.CashEffect, null)).ToListAsync(ct));
+        // Gift vouchers: the money comes in when one is sold; spending it later on a bill is not money again.
+        lines.AddRange(await db.GiftVouchers.AsNoTracking().Where(v => v.SoldAt >= start && v.SoldAt < end)
+            .Select(v => new CashBookLine(v.SoldAt, CashBookSource.VoucherSold, v.Code, v.SoldMode, v.Amount, null)).ToListAsync(ct));
+        lines.AddRange(await db.GiftVouchers.AsNoTracking().Where(v => v.CancelledAt >= start && v.CancelledAt < end)
+            .Select(v => new CashBookLine(v.CancelledAt!.Value, CashBookSource.VoucherCancelled, v.Code, v.SoldMode, -v.Amount, null)).ToListAsync(ct));
         lines.Sort((a, b) => a.OccurredAt.CompareTo(b.OccurredAt));
 
         // Money out of the drawer that isn't a refund of money in: kharcha, cash taken out, cash put in the bank.
@@ -173,7 +182,7 @@ public static class CashBookEndpoints
         var udhaar = entries.Where(e => e.PaymentMode is null && e.Kind != LedgerEntryKind.Opening).Sum(e => e.Amount)
             + entries.Where(e => e.PaymentMode is not null && e.BillId is not null).Sum(e => e.Amount);
         // Money received is every way it came: cash, UPI, and card, cheque or bank transfer.
-        var other = money.Where(l => l.Mode is not (PaymentMode.Cash or PaymentMode.Upi)).Sum(l => l.Amount);
+        var other = money.Where(l => l.Mode is not (PaymentMode.Cash or PaymentMode.Upi or PaymentMode.Voucher)).Sum(l => l.Amount);
         return new CashBookDto(day, cash, upi, cash + upi + other, bills.Where(b => b.CancelledAt == null).Sum(b => b.Total), udhaar, lines,
             -spent.Where(l => l.Mode == PaymentMode.Cash).Sum(l => l.Amount), -spent.Where(l => l.Mode == PaymentMode.Upi).Sum(l => l.Amount));
     }
