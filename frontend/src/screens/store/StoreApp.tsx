@@ -17,6 +17,7 @@ import { ItemCard } from '../../components/ItemCard'
 import { allPhotos, imageUrl } from '../../lib/images'
 import { PhotoGallery } from '../../components/PhotoGallery'
 import { aisleOf } from '../../lib/itemArt'
+import { categoryOf, KIRANA, nameIn } from '../../lib/categoryTree'
 import { nextLanguage, setLanguage } from '../../i18n'
 import { formatRupees, whatsAppLink } from '../../lib/format'
 import { uuidv7 } from '../../lib/ids'
@@ -298,13 +299,22 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const kirana = !data.type || data.type === 'kirana'
   const full = !!data.type && fullPageTrades.includes(data.type)
 
-  // Browse by aisle (the common grocery tree). Items not on it (a clothes or jewellery shop's goods, or items added by
-  // hand) sit under the shop's own categories, and those with none under "Other".
-  const aisleOfItem = (i: StoreItem) => aisleOf(i.catalogueItemId) ?? (i.category ? `cat:${i.category}` : 'other')
+  // A kirana store browses by the same category tree as the shop's bill and order menus (lib/categoryTree): one chip
+  // per category in department order, so "Atta & rice" and "आटा, चावल, दाल" no longer sit side by side. Other trades,
+  // and a store whose items mostly fall outside the tree, browse by aisle (the common grocery list), then the shop's
+  // own categories, and "Other" for the rest.
+  const treeKey = (i: StoreItem) => { const c = categoryOf({ name: i.name, category: i.category }); return c.key === 'other' ? 'other' : `tree:${c.key}` }
+  const byTree = kirana && data.items.filter((i) => treeKey(i) !== 'other').length >= data.items.length / 2
+  const aisleOfItem = (i: StoreItem) => (byTree ? treeKey(i) : aisleOf(i.catalogueItemId) ?? (i.category ? `cat:${i.category}` : 'other'))
   const stocked = new Set(data.items.map(aisleOfItem))
   const ownCategories = [...stocked].filter((a) => a.startsWith('cat:')).sort().map((a) => ({ code: a, name: a.slice(4), count: data.items.filter((i) => aisleOfItem(i) === a).length }))
   // Like the big shopping apps: every item shows at once as a photo card; chips narrow it, search finds by name.
-  const chips = [
+  const treeChips = KIRANA.flatMap((d) => d.categories).map((c) => ({ code: `tree:${c.key}`, name: nameIn(c, i18n.language), count: data.items.filter((i) => aisleOfItem(i) === `tree:${c.key}`).length })).filter((c) => c.count > 0)
+  const chips = byTree ? [
+    { code: 'all', name: t('store.all'), count: data.items.length },
+    ...treeChips,
+    ...(stocked.has('other') ? [{ code: 'other', name: t('store.otherItems'), count: data.items.filter((i) => aisleOfItem(i) === 'other').length }] : []),
+  ] : [
     { code: 'all', name: t('store.all'), count: data.items.length },
     ...aisles.filter((a) => stocked.has(a.code)).map((a) => ({ code: a.code, name: aisleName(a, i18n.language), count: data.items.filter((i) => aisleOfItem(i) === a.code).length })),
     ...ownCategories,
@@ -312,7 +322,9 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   ]
   const q = search.trim()
   // Search forgives: doodh finds milk, a letter wrong still matches (lib/search.ts).
-  const found = q ? rank(data.items, q, (i) => `${i.name} ${i.category ?? ''}`) : data.items
+  // The tree's names in three scripts go in too, so "dal" finds "तूर दाल" and "chai" the teas.
+  const treeWords = (i: StoreItem) => { const c = categoryOf({ name: i.name, category: i.category }); return c.key === 'other' ? '' : `${c.hi} ${c.en} ${c.gu}` }
+  const found = q ? rank(data.items, q, (i) => `${i.name} ${i.category ?? ''} ${treeWords(i)}`) : data.items
   const max = Number(filters.max) || Infinity
   const shown = found
     .filter((i) => (category === 'all' || aisleOfItem(i) === category) && (!filters.inStock || i.available > 0) && i.price <= max)
@@ -384,7 +396,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
         <div className="flex gap-2">
           <input value={search} onChange={(e) => setSearch(e.target.value)} onBlur={() => rememberSearch(search)} placeholder={t('store.search', { name: data.name })} aria-label={t('store.search', { name: data.name })}
             className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-white px-4 shadow-sm outline-none focus:border-brand-line" />
-          {!kirana && <button onClick={() => setFilters({ ...filters, open: true })} className="h-12 shrink-0 rounded-xl border border-line bg-white px-3 font-semibold">⚙ {t('cust4.filters')}</button>}
+          <button onClick={() => setFilters({ ...filters, open: true })} className="h-12 shrink-0 rounded-xl border border-line bg-white px-3 font-semibold">⚙ {t('cust4.filters')}</button>
         </div>
         <div className={`-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 ${kirana ? 'lg:hidden' : ''}`} role="tablist">
           {chips.map((c) => (

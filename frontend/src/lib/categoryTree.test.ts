@@ -13,6 +13,10 @@ describe('categoryTree', () => {
     expect(categoryOf(item('Maggi Masala Noodles', 'इंस्टेंट, नाश्ता')).key).toBe('noodles')
     expect(categoryOf(item('Tata Tea Gold', 'चाय, कॉफ़ी, दूध')).key).toBe('tea')
     expect(categoryOf(item('Nescafe Classic', 'चाय, कॉफ़ी, दूध')).key).toBe('coffee')
+    // The store has only the shop's (often Hindi) name, so brands need their Hindi spelling too.
+    expect(categoryOf(item('दावत रोज़ाना 1 kg', 'आटा, चावल, दाल')).key).toBe('rice')
+    expect(categoryOf(item('मोगरा 1 kg', 'आटा, चावल, दाल')).key).toBe('rice')
+    expect(categoryOf(item('फुटाना 250 g', 'आटा, चावल, दाल')).key).toBe('dal')
   })
 
   it('places a typed item by its name words, else under Other', () => {
