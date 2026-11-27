@@ -40,14 +40,15 @@ public static class LedgerEndpoints
             async (Guid id, ReverseRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
                 (await ledger.ReverseAsync(id, request, user.UserId()!.Value, IsOwner(user), ct)).ToHttp($"/api/v1/ledger-entries/{request.Id}"));
 
-        group.MapPost("/bills", async (BillRequest request, ClaimsPrincipal user, LedgerService ledger, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        group.MapPost("/bills", async (BillRequest request, ClaimsPrincipal user, LedgerService ledger, AppDbContext db, TimeProvider clock, HttpContext http, CancellationToken ct) =>
         {
             if (request.GodownId is null && await ShelfShortAsync(request, db, ct) is { } shelfProblem)
             {
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["Lines"] = [shelfProblem] });
             }
 
-            var result = await ledger.CreateBillAsync(request, user.UserId()!.Value, ct, isOwner: IsOwner(user));
+            // A supervisor's PIN lets a cashier sell below their discount limit; it is kept on the bill.
+            var result = await ledger.CreateBillAsync(request, user.UserId()!.Value, ct, isOwner: IsOwner(user), approvedBy: IsOwner(user) ? null : await Shops.Supervisor.ApproverAsync(http));
             if (result.Value is not null && request.GodownId is { } godown && await Catalogue.Godowns.IsActiveAsync(db, godown, ct))
             {
                 // Sold from a godown: what the bill took leaves the godown (as much as it holds), not the shelf. Same
@@ -66,9 +67,10 @@ public static class LedgerEndpoints
         group.MapPost("/bills/{id:guid}/attach-customer", async (Guid id, AttachCustomerRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
             (await ledger.AttachCustomerAsync(id, request, user.UserId()!.Value, IsOwner(user), ct)).ToHttp($"/api/v1/bills/{id}"));
 
-        group.MapPost("/bills/{id:guid}/cancel", async (Guid id, CancelBillRequest request, ClaimsPrincipal user, LedgerService ledger, CancellationToken ct) =>
-            (await ledger.CancelBillAsync(id, request, user.UserId()!.Value, ct)).ToHttp($"/api/v1/bills/{id}"))
-            .RequireAuthorization(AppPolicies.ShopOwner).RequireBillPasscode();
+        // The owner, or a cashier with a supervisor's PIN (kept on the bill as who approved it).
+        group.MapPost("/bills/{id:guid}/cancel", async (Guid id, CancelBillRequest request, ClaimsPrincipal user, LedgerService ledger, HttpContext http, CancellationToken ct) =>
+            (await ledger.CancelBillAsync(id, request, user.UserId()!.Value, ct, await Shops.Supervisor.ApproverAsync(http))).ToHttp($"/api/v1/bills/{id}"))
+            .RequireAuthorization(AppPolicies.ShopMember).RequireOwnerOrSupervisor().RequireBillPasscode();
 
         group.MapGet("/ledger/reconcile/stock", ReconcileStockAsync).RequireAuthorization(AppPolicies.ShopOwner);
         group.MapGet("/ledger/reconcile", (LedgerService ledger, CancellationToken ct) => ledger.ReconcileAsync(ct))

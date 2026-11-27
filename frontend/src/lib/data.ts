@@ -215,7 +215,7 @@ export async function saveBill(
   paidAmount: number,
   paymentMode: PaymentMode,
   /** Other trades: the site, the vehicle, the painter. */
-  extras: { withoutGst?: boolean; payments?: { mode: PaymentMode; amount: number; reference?: string | null }[]; site?: string | null; vehicleNumber?: string | null; painterId?: string | null; prescription?: { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null } | null; serials?: { productId: string; serialNo: string }[]; exchangeNoteId?: string | null; exchangeCredit?: number; placeOfSupply?: string | null; entrySeconds?: number | null; godownId?: string | null; fields?: { label: string; value: string }[]; billOfferId?: string | null; loyaltyPoints?: number | null; loyaltyCode?: string | null } = {},
+  extras: { withoutGst?: boolean; payments?: { mode: PaymentMode; amount: number; reference?: string | null }[]; site?: string | null; vehicleNumber?: string | null; painterId?: string | null; prescription?: { doctorName: string; doctorAddress: string | null; doctorRegNo: string | null; patientName: string; patientAddress: string | null } | null; serials?: { productId: string; serialNo: string }[]; exchangeNoteId?: string | null; exchangeCredit?: number; placeOfSupply?: string | null; entrySeconds?: number | null; godownId?: string | null; fields?: { label: string; value: string }[]; billOfferId?: string | null; loyaltyPoints?: number | null; loyaltyCode?: string | null; supervisorPin?: string | null } = {},
 ) {
   const id = uuidv7()
   const total = round2(lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
@@ -225,7 +225,8 @@ export async function saveBill(
     kind: 'bill',
     // extras.withoutGst rides along in the body: a bill the shop chose to make without GST.
     path: '/v1/bills',
-    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), counter: counterName() || null, shiftId: currentShift(shopId)?.id ?? null, ...extras, exchangeCredit: undefined },
+    body: { id, customerId: customer?.id ?? null, lines, paidAmount, paymentMode, occurredAt: new Date().toISOString(), counter: counterName() || null, shiftId: currentShift(shopId)?.id ?? null, ...extras, exchangeCredit: undefined, supervisorPin: undefined },
+    supervisorPin: extras.supervisorPin || undefined,
     customerId: customer?.id,
     delta: customer ? round2(total - paidAmount - Math.min(extras.exchangeCredit ?? 0, total)) : undefined,
     customerName: customer?.name,

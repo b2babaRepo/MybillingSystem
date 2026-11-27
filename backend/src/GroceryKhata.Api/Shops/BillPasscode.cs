@@ -44,7 +44,7 @@ public static class BillPasscode
     {
         var http = context.HttpContext;
         // Only what changes something: reading a bill's credit notes needs no passcode.
-        if (HttpMethods.IsGet(http.Request.Method))
+        if (HttpMethods.IsGet(http.Request.Method) || Supervisor.Approved(http))
         {
             return await next(context);
         }

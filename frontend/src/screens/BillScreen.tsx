@@ -38,7 +38,7 @@ import type { BillPrint, BillView, PaymentMode, Unit } from '../lib/types'
 import { useShopSettings, shopTypes, isTrade, sendsToSites, upiUri } from '../lib/reports'
 import { navigate } from '../router'
 import { useSerialsInStock } from '../lib/serials'
-import { ask, tell } from '../components/Ask'
+import { ask, askSecret, tell } from '../components/Ask'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
 const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))
@@ -320,7 +320,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const offers = useMemo(() => offerData ?? [], [offerData])
   // Only while the offer still runs: a held bill picked up after the offer ended goes back under the helper's limit, as on the server.
   const underOffer = (l: CartLine) => !!l.offerId && offers.some((o) => o.id === l.offerId && isRunning(o, Date.now()))
-  const overLimit = !isOwner && cart.some((l) => !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit)
+  // A supervisor's PIN lets the cashier keep a price below their limit (checked when the bill reaches the server).
+  const [approval, setApproval] = useState<string | null>(null)
+  const overLimit = !isOwner && !approval && cart.some((l) => !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit)
+  async function askSupervisor() {
+    const pin = (await askSecret(t('super.ask')))?.trim()
+    if (pin) setApproval(pin)
+  }
   const [billOff, setBillOff] = useState<{ before: CartLine[]; amount: number } | null>(null)
   const [offForm, setOffForm] = useState<{ value: string; percent: boolean } | null>(null)
   // Promotions over the whole cart (buy-get, slabs, combos, bill offers), as the server prices them: the cart stays as
@@ -495,7 +501,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     const savedAt = Date.now()
     const result = await saveBill(shopId, billedLines.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
       billOfferId: billed.billOfferId,
-      loyaltyPoints: pointsOff > 0 ? spend!.points : null, loyaltyCode: pointsOff > 0 ? spend!.code : null,
+      loyaltyPoints: pointsOff > 0 ? spend!.points : null, loyaltyCode: pointsOff > 0 ? spend!.code : null, supervisorPin: approval,
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
       exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
@@ -526,7 +532,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     }
     setOrderSaved(null)
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, split, customer: customer && { name: customer.name, phone: customer.phone } })
-    setCart([]); setSpend(null)
+    setCart([]); setSpend(null); setApproval(null)
     if (exchange) { endExchange(); setExchangeState(null) }
     setPaid(null)
     setReceived('')
@@ -882,7 +888,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                   <button type="button" onClick={() => setPrice(i, regularOf(l))} className={`min-h-8 ${btn.quiet}`}>{t('offers.remove')}</button>
                 </p>
               )}
-              {!isOwner && !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit && <p className="text-xs font-semibold text-due">{t('discount.overLimit', { percent: staffLimit })}</p>}
+              {!isOwner && !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit && (approval
+                ? <p className="text-xs font-semibold text-brand-deep">✓ {t('super.approved')}</p>
+                : <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-due">{t('discount.overLimit', { percent: staffLimit })}
+                  <button type="button" onClick={() => void askSupervisor()} className="min-h-9 rounded-lg border border-due px-2">{t('super.approve')}</button></p>)}
               {(() => {
                 // Medicines run on thin margins: warn when this price, before GST, is at or under what the item cost.
                 const p = products.find((x) => x.id === l.productId)

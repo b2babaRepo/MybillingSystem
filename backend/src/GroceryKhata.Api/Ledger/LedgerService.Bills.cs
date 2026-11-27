@@ -17,7 +17,7 @@ public sealed partial class LedgerService
     /// <param name="beforeCommit">Runs in the bill's transaction, last: a message from it undoes the bill.</param>
     public Task<LedgerResult<BillDto>> CreateBillAsync(
         BillRequest request, Guid userId, CancellationToken cancellationToken, bool stockAlreadyOut = false, bool isOwner = true,
-        IReadOnlyList<(decimal? GstRate, string? HsnCode)>? taxSnapshot = null, Func<Task<string?>>? beforeCommit = null) =>
+        IReadOnlyList<(decimal? GstRate, string? HsnCode)>? taxSnapshot = null, Func<Task<string?>>? beforeCommit = null, Guid? approvedBy = null) =>
         WriteOnceAsync(
             () => FindBillAsync(request.Id, cancellationToken),
             async () =>
@@ -26,7 +26,7 @@ public sealed partial class LedgerService
                 RequireId(request.Id, errors);
                 // Salespeople must have access to this shop; a line without one (or with a stranger) is the biller's.
                 var sellers = (await db.Memberships.AsNoTracking().Where(m => m.ShopId == tenant.ShopId).Select(m => m.UserId).ToListAsync(cancellationToken)).ToHashSet();
-                var staffMaxDiscount = isOwner ? 100m : await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.StaffMaxDiscountPercent).SingleAsync(cancellationToken);
+                var staffMaxDiscount = isOwner || approvedBy is not null ? 100m : await db.Shops.Where(s => s.Id == tenant.ShopId).Select(s => s.StaffMaxDiscountPercent).SingleAsync(cancellationToken);
                 if (request.Lines is not { Count: > 0 and <= 200 })
                 {
                     errors[nameof(request.Lines)] = ["Add between 1 and 200 items."];
@@ -97,7 +97,7 @@ public sealed partial class LedgerService
                     }
                     // The owner set the offer's price before billing, so a helper may sell at it, past their own limit.
                     // So did a wholesale price, for a line that takes at least its quantity.
-                    else if (!isOwner && !promotionsAllow && !(offerPrice is { } floor && line.UnitPrice >= floor)
+                    else if (!isOwner && approvedBy is null && !promotionsAllow && !(offerPrice is { } floor && line.UnitPrice >= floor)
                         && !(product is { WholesalePrice: { } wholesale, WholesaleMinQty: { } atLeast } && line.Quantity >= atLeast && line.UnitPrice >= wholesale)
                         && DiscountProblem(name, product, line.UnitPrice, staffMaxDiscount) is { } tooLow)
                     {
@@ -258,6 +258,7 @@ public sealed partial class LedgerService
                     PainterId = request.PainterId,
                     // A shift this shop doesn't have is left off rather than refusing the sale.
                     BillOfferId = billOffer?.Id,
+                    ApprovedByUserId = approvedBy,
                     LoyaltyPoints = loyaltyValue > 0 ? request.LoyaltyPoints!.Value : 0,
                     LoyaltyValue = loyaltyValue,
                     ShiftId = request.ShiftId is { } shiftId && await db.CashierShifts.AnyAsync(s => s.Id == shiftId, cancellationToken) ? shiftId : null,
@@ -452,7 +453,7 @@ public sealed partial class LedgerService
     /// Cancels a whole bill, owner only, with a reason. Nothing is deleted: the number stays used, its khata entries are
     /// reversed, shelf stock comes back and challans can be billed again (their goods stay out). Safe to repeat.
     /// </summary>
-    public async Task<LedgerResult<BillDto>> CancelBillAsync(Guid id, CancelBillRequest request, Guid userId, CancellationToken cancellationToken)
+    public async Task<LedgerResult<BillDto>> CancelBillAsync(Guid id, CancelBillRequest request, Guid userId, CancellationToken cancellationToken, Guid? approvedBy = null)
     {
         var reason = request.Reason?.Trim();
         if (reason is not { Length: >= 3 and <= 200 })
@@ -479,7 +480,8 @@ public sealed partial class LedgerService
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         // One update decides who cancels: a second attempt changes no row and gets the saved bill back.
         var claimed = await db.Bills.Where(b => b.Id == id && b.CancelledAt == null).ExecuteUpdateAsync(s => s
-            .SetProperty(b => b.CancelledAt, now).SetProperty(b => b.CancelReason, reason).SetProperty(b => b.CancelledByUserId, userId), cancellationToken);
+            .SetProperty(b => b.CancelledAt, now).SetProperty(b => b.CancelReason, reason).SetProperty(b => b.CancelledByUserId, userId)
+            .SetProperty(b => b.ApprovedByUserId, b => approvedBy ?? b.ApprovedByUserId), cancellationToken);
         if (claimed == 0)
         {
             return LedgerResult<BillDto>.Replay((await FindBillAsync(id, cancellationToken))!);

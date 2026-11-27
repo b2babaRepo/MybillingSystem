@@ -2956,6 +2956,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<bool>("IsSupervisor")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_supervisor");
+
                     b.Property<string>("PinHash")
                         .HasColumnType("text")
                         .HasColumnName("pin_hash");
@@ -3944,6 +3948,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by_user_id");
+
                     b.Property<bool>("BillOfSupply")
                         .HasColumnType("boolean")
                         .HasColumnName("bill_of_supply");
@@ -4925,6 +4933,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by_user_id");
 
                     b.Property<Guid>("BillId")
                         .HasColumnType("uuid")

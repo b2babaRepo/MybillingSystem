@@ -247,6 +247,9 @@ public sealed class Bill : Entity, ITenantOwned
     /// <summary>The whole-bill promotion taken on it (money off from a bill amount): kept for the offer's results.</summary>
     public Guid? BillOfferId { get; set; }
 
+    /// <summary>The supervisor who approved it for a cashier: a price below their limit, or its cancelling.</summary>
+    public Guid? ApprovedByUserId { get; set; }
+
     /// <summary>Loyalty points spent on this bill and the money they took off.</summary>
     public int LoyaltyPoints { get; set; }
 
