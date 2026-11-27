@@ -208,3 +208,20 @@ export function promoteCart<L extends { productId: string | null; quantity: numb
   }
   return { lines, applied: [...saved.values()], billOfferId: billOff?.offerId ?? null }
 }
+
+/**
+ * Money off the whole bill spread over its lines by their share (a bill offer, loyalty points): each line's price goes
+ * down, so GST is worked on what is really paid. A single-piece line takes the rounding paise, so the total is exact.
+ */
+export function spreadOff<L extends { quantity: number; unitPrice: number }>(lines: L[], off: number): L[] {
+  const amount = (x: L) => Math.round(x.quantity * x.unitPrice * 100) / 100
+  const total = Math.round(lines.reduce((n, x) => n + amount(x), 0) * 100) / 100
+  if (!(off > 0) || total <= 0) return lines
+  const factor = (total - off) / total
+  const next = lines.map((x) => ({ ...x, unitPrice: Math.round(x.unitPrice * factor * 100) / 100 }))
+  const gap = Math.round((total - off - next.reduce((n, x) => n + amount(x), 0)) * 100) / 100
+  const single = next.map((x, k) => ({ x, k })).filter(({ x }) => x.quantity === 1 && x.unitPrice + gap >= 0)
+  const big = single.reduce<number | null>((best, { x, k }) => (best === null || amount(x) > amount(next[best]) ? k : best), null)
+  if (gap !== 0 && big !== null) next[big] = { ...next[big], unitPrice: Math.round((next[big].unitPrice + gap) * 100) / 100 }
+  return next
+}

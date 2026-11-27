@@ -107,6 +107,10 @@ export interface ShopSettings {
   billFields?: string[]
   /** The weighing scale's label barcode layout (21PPPPPWWWWWC); null: no scale labels. See readScaleLabel. */
   scaleLabel?: string | null
+  /** Loyalty: 1 point for each this many rupees; null: off. */
+  loyaltyEarnPer?: number | null
+  /** What a point takes off a bill (₹). */
+  loyaltyPointValue?: number
   /** Bills offer delivery. Null: not chosen yet, the trade decides. */
   deliversGoods?: boolean | null
   extraTypes?: ShopType[] | null

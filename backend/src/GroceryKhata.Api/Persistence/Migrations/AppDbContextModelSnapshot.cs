@@ -4006,6 +4006,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(15)")
                         .HasColumnName("gstin");
 
+                    b.Property<int>("LoyaltyPoints")
+                        .HasColumnType("integer")
+                        .HasColumnName("loyalty_points");
+
+                    b.Property<decimal>("LoyaltyValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("loyalty_value");
+
                     b.Property<int>("Number")
                         .HasColumnType("integer")
                         .HasColumnName("number");
@@ -7294,6 +7303,59 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.HasIndex("ShopId", "LoanId");
 
                     b.ToTable("loan_payments", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Ledger.LoyaltyEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bill_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("integer")
+                        .HasColumnName("points");
+
+                    b.Property<Guid>("ShopId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shop_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ShopId", "Id");
+
+                    b.HasIndex("BillId")
+                        .HasFilter("bill_id IS NOT NULL");
+
+                    b.HasIndex("ShopId", "CustomerId");
+
+                    b.ToTable("loyalty_entries", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Ledger.Machine", b =>
@@ -11929,6 +11991,16 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<double?>("Longitude")
                         .HasColumnType("double precision")
                         .HasColumnName("longitude");
+
+                    b.Property<decimal?>("LoyaltyEarnPer")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("loyalty_earn_per");
+
+                    b.Property<decimal>("LoyaltyPointValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("loyalty_point_value");
 
                     b.Property<Guid?>("MarketId")
                         .HasColumnType("uuid")

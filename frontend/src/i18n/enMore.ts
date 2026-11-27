@@ -1182,6 +1182,7 @@ export const enMore = {
     open: 'Open drawer', opened: 'Drawer opened through {{name}}',
   },
   promo: { taken: 'Offers on this bill', kinds: { percent: 'Percent off', amount: 'Rupees off each', buy_get: 'Buy and get free', slab: 'Discount from a quantity', combo: 'Combo price', bill_percent: 'Percent off the bill', bill_amount: 'Rupees off the bill' } },
+  points: { have: '{{points}} points ({{value}})', use: 'Use points', howMany: 'Points to use', code: 'Code on customer\'s mobile', codeHint: 'A code was sent by SMS to the customer. Ask them to read it out.', earnPer: 'Loyalty: 1 point for every ₹', pointValue: '1 point is worth ₹', hint: 'Customers earn points on bills with their name and spend them with a code sent to their mobile. Leave empty for no points.' },
   shift: {
     link: 'Cashier shifts', title: 'Cashier shift', openTitle: 'Open a shift on this counter',
     openHint: 'Put the starting cash in the drawer and enter it. Bills made on this counter count toward your shift until you close it.',

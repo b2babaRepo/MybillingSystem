@@ -211,6 +211,7 @@ app.MapPrepaid();
 app.MapCashCounts();
 app.MapCashierShifts();
 app.MapHeldBills();
+app.MapLoyalty();
 app.MapMeterReadings();
 app.MapGoodsReceipts();
 app.MapEstimates();

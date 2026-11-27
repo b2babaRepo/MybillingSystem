@@ -46,8 +46,22 @@ public sealed partial class LedgerService
                 // Promotions over the whole bill (buy-get, slabs, combos, bill offers) priced by the same engine as the app:
                 // a helper may sell at what it gives, but no lower.
                 var billOffer = request.BillOfferId is { } billOfferId ? await db.SaleOffers.AsNoTracking().SingleOrDefaultAsync(o => o.Id == billOfferId, cancellationToken) : null;
-                var promotionsAllow = !isOwner && (billOffer is not null || offers.Values.Any(o => o.Kind is not (SaleOfferKind.Percent or SaleOfferKind.Amount)))
-                    && await PromotionsAllowAsync(request.Lines, products, billAt, cancellationToken);
+                // Loyalty points spent: the customer's code by SMS proves it's them; their value comes off the bill.
+                var loyaltyValue = 0m;
+                if (request.LoyaltyPoints is { } spend && spend != 0)
+                {
+                    var (value, problem) = spend < 0 ? (0m, "Points to spend must be more than 0.")
+                        : await Loyalty.CheckRedeemAsync(db, tenant.ShopId, request.CustomerId, spend, request.LoyaltyCode, otpOptions?.Value ?? new Identity.OtpOptions(), clock.GetUtcNow(), cancellationToken);
+                    if (problem is not null)
+                    {
+                        errors[nameof(request.LoyaltyPoints)] = [problem];
+                    }
+
+                    loyaltyValue = value;
+                }
+
+                var promotionsAllow = !isOwner && (billOffer is not null || loyaltyValue > 0 || offers.Values.Any(o => o.Kind is not (SaleOfferKind.Percent or SaleOfferKind.Amount)))
+                    && await PromotionsAllowAsync(request.Lines, products, billAt, cancellationToken, loyaltyValue);
 
                 var lines = new List<BillLine>();
                 for (var i = 0; i < request.Lines.Count; i++)
@@ -244,6 +258,8 @@ public sealed partial class LedgerService
                     PainterId = request.PainterId,
                     // A shift this shop doesn't have is left off rather than refusing the sale.
                     BillOfferId = billOffer?.Id,
+                    LoyaltyPoints = loyaltyValue > 0 ? request.LoyaltyPoints!.Value : 0,
+                    LoyaltyValue = loyaltyValue,
                     ShiftId = request.ShiftId is { } shiftId && await db.CashierShifts.AnyAsync(s => s.Id == shiftId, cancellationToken) ? shiftId : null,
                     Gstin = request.WithoutGst ? null : await BillGstinAsync(cancellationToken),
                     EntrySeconds = BillSpeed.Clean(request.EntrySeconds),
@@ -347,7 +363,32 @@ public sealed partial class LedgerService
                     });
                 }
 
+                // Loyalty: points spent leave, points earned on what is paid for arrive.
+                if (bill.CustomerId is { } pointsOwner)
+                {
+                    var earnPer = await db.Shops.AsNoTracking().Where(s => s.Id == tenant.ShopId).Select(s => s.LoyaltyEarnPer).SingleAsync(cancellationToken);
+                    if (bill.LoyaltyPoints > 0)
+                    {
+                        db.LoyaltyEntries.Add(new LoyaltyEntry { CustomerId = pointsOwner, BillId = bill.Id, Kind = LoyaltyKind.Redeem, Points = -bill.LoyaltyPoints, OccurredAt = occurredAt });
+                    }
+
+                    if (Loyalty.Earned(total, earnPer) is > 0 and var earned)
+                    {
+                        db.LoyaltyEntries.Add(new LoyaltyEntry { CustomerId = pointsOwner, BillId = bill.Id, Kind = LoyaltyKind.Earn, Points = earned, OccurredAt = occurredAt });
+                    }
+                }
+
                 await db.SaveChangesAsync(cancellationToken);
+
+                // Two tills spending the same points at once: one at a time per customer, and none may go below zero.
+                if (bill.LoyaltyPoints > 0 && bill.CustomerId is { } spender)
+                {
+                    await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({"loyalty:" + spender}))", cancellationToken);
+                    if (await Loyalty.BalanceAsync(db, spender, cancellationToken) < 0)
+                    {
+                        return LedgerResult<BillDto>.Conflicted("Those points were just spent on another bill.");
+                    }
+                }
 
                 // One update decides which bill gets the credit: two tills can't both spend it.
                 if (exchange is not null && await db.CreditNotes.Where(n => n.Id == exchange.Id && n.Spent == exchange.Spent && n.Spent + exchangeCredit <= n.Total)
@@ -458,6 +499,9 @@ public sealed partial class LedgerService
             CreatedByUserId = userId,
         }).ToList();
         db.LedgerEntries.AddRange(reversals);
+        // Points the bill earned go, points it spent come back.
+        db.LoyaltyEntries.AddRange((await db.LoyaltyEntries.AsNoTracking().Where(e => e.BillId == id).ToListAsync(cancellationToken))
+            .Select(e => new LoyaltyEntry { CustomerId = e.CustomerId, BillId = id, Kind = LoyaltyKind.Reverse, Points = -e.Points, OccurredAt = now }));
 
         var sold = (await db.StockMovements.AsNoTracking().Where(m => m.BillId == id && m.Kind == StockMovementKind.Sale).ToListAsync(cancellationToken))
             .GroupBy(m => m.ProductId).Select(g => (ProductId: g.Key, Quantity: -g.Sum(m => m.Quantity), Bags: -g.Sum(m => m.Bags ?? 0))).OrderBy(x => x.ProductId).ToList();
@@ -674,13 +718,13 @@ public sealed partial class LedgerService
     /// The bill is priced no lower than the running promotions give its items (worked out from the items' own prices,
     /// whatever the lines say): then the lines' prices may stand for a helper. A paisa a line is allowed for rounding.
     /// </summary>
-    private async Task<bool> PromotionsAllowAsync(IReadOnlyList<BillLineRequest> requested, IReadOnlyDictionary<Guid, Catalogue.Product> products, DateTimeOffset at, CancellationToken ct)
+    private async Task<bool> PromotionsAllowAsync(IReadOnlyList<BillLineRequest> requested, IReadOnlyDictionary<Guid, Catalogue.Product> products, DateTimeOffset at, CancellationToken ct, decimal pointsOff = 0)
     {
         var rules = (await SaleOffers.RunningAsync(db, at, ct)).Select(SaleOffers.ToRule).ToList();
         var cart = requested.Where(l => l.ProductId is not null).GroupBy(l => l.ProductId!.Value)
             .Select(g => new Promotions.Line(g.Key, products.GetValueOrDefault(g.Key)?.Category, products.GetValueOrDefault(g.Key)?.SellingPrice ?? 0, g.Sum(l => l.Quantity))).ToList();
         var priced = Promotions.Apply(cart, rules, at);
-        var floor = priced.Parts.Sum(ps => ps.Sum(p => Money.LineAmount(p.Quantity, p.UnitPrice))) - (priced.Bill?.Amount ?? 0);
+        var floor = priced.Parts.Sum(ps => ps.Sum(p => Money.LineAmount(p.Quantity, p.UnitPrice))) - (priced.Bill?.Amount ?? 0) - pointsOff;
         var asked = requested.Where(l => l.ProductId is not null).Sum(l => Money.LineAmount(l.Quantity, l.UnitPrice));
         return asked >= floor - (0.01m * requested.Count);
     }

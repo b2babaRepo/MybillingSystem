@@ -55,6 +55,12 @@ public sealed class Shop : Entity
     /// </summary>
     public string? ScaleLabel { get; set; }
 
+    /// <summary>Loyalty points: 1 point for each this many rupees on a customer's bill. Null: the shop doesn't run points.</summary>
+    public decimal? LoyaltyEarnPer { get; set; }
+
+    /// <summary>What 1 point takes off a bill (₹).</summary>
+    public decimal LoyaltyPointValue { get; set; } = 1m;
+
     /// <summary>
     /// The shop's own WhatsApp reminder wording, with {name}, {amount}, {shop} and {upi} filled in per
     /// customer. Null: the app's default Hinglish text.

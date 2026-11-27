@@ -88,6 +88,14 @@ public sealed partial class AppDbContext
             b.HasIndex(s => new { s.ShopId, s.OpenedAt });
         });
 
+        modelBuilder.Entity<LoyaltyEntry>(b =>
+        {
+            b.ToTable("loyalty_entries");
+            b.HasTenantKey();
+            b.HasIndex(e => new { e.ShopId, e.CustomerId });
+            b.HasIndex(e => e.BillId).HasFilter("bill_id IS NOT NULL");
+        });
+
         modelBuilder.Entity<HeldBill>(b =>
         {
             b.ToTable("held_bills");

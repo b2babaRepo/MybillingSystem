@@ -247,6 +247,11 @@ public sealed class Bill : Entity, ITenantOwned
     /// <summary>The whole-bill promotion taken on it (money off from a bill amount): kept for the offer's results.</summary>
     public Guid? BillOfferId { get; set; }
 
+    /// <summary>Loyalty points spent on this bill and the money they took off.</summary>
+    public int LoyaltyPoints { get; set; }
+
+    public decimal LoyaltyValue { get; set; }
+
     /// <summary>The painter who brought the customer (paint shops): their commission is counted from these bills.</summary>
     public Guid? PainterId { get; set; }
 
