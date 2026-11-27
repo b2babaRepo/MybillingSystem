@@ -10,7 +10,8 @@ namespace GroceryKhata.Api.Ledger;
 /// entries are append-only (fix with a reversal); a customer's balance changes only in the same
 /// transaction as the entry that moves it; every write carries the app's own ID, so a retry is a no-op.
 /// </summary>
-public sealed partial class LedgerService(AppDbContext db, TimeProvider clock, ITenantContext tenant, IHttpContextAccessor? http = null)
+public sealed partial class LedgerService(AppDbContext db, TimeProvider clock, ITenantContext tenant, IHttpContextAccessor? http = null,
+    Microsoft.Extensions.Options.IOptions<Identity.OtpOptions>? otpOptions = null)
 {
     public async Task<IReadOnlyList<CustomerDto>> ListCustomersAsync(string? search, CancellationToken cancellationToken)
     {

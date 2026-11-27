@@ -67,6 +67,10 @@ const TagsScreen = lazy(() => import('./screens/TagsScreen').then((module) => ({
 const SizeReportScreen = lazy(() => import('./screens/SizeReportScreen').then((module) => ({ default: module.SizeReportScreen })))
 const SideGroups = lazy(() => import('./components/SideGroups').then((module) => ({ default: module.SideGroups })))
 const ChequesScreen = lazy(() => import('./screens/ChequesScreen').then((module) => ({ default: module.ChequesScreen })))
+const CustomerDisplay = lazy(() => import('./screens/CustomerDisplay').then((module) => ({ default: module.CustomerDisplay })))
+const VouchersScreen = lazy(() => import('./screens/VouchersScreen').then((module) => ({ default: module.VouchersScreen })))
+const MallFeedsScreen = lazy(() => import('./screens/MallFeedsScreen').then((module) => ({ default: module.MallFeedsScreen })))
+const TillsScreen = lazy(() => import('./screens/TillsScreen').then((module) => ({ default: module.TillsScreen })))
 const ShiftsScreen = lazy(() => import('./screens/ShiftsScreen').then((module) => ({ default: module.ShiftsScreen })))
 const DayReportScreen = lazy(() => import('./screens/DayReportScreen').then((module) => ({ default: module.DayReportScreen })))
 const SalesWeekScreen = lazy(() => import('./screens/SalesInsightsScreens').then((module) => ({ default: module.SalesWeekScreen })))
@@ -209,6 +213,14 @@ export default function App() {
     )
   }
   if (!session) return <Suspense fallback={<Loading />}><AuthScreen /></Suspense>
+  // The customer-facing screen: full screen, no menus, fed by this computer's till.
+  if (path === '/display' && session.shopId) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <CustomerDisplay shopId={session.shopId} />
+      </Suspense>
+    )
+  }
   // Team kharcha: any account (shop or household), any plan.
   if (path === '/team' || path.startsWith('/team/')) {
     return (
@@ -319,10 +331,12 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
       ...(trades.includes('jewellery') ? [{ path: '/jewellery', label: t('jwl.title') }] : []),
       { path: '/find-bill', label: t('billList.title') },
       { path: '/exchange-slips', label: t('slip.register') },
+      { path: '/vouchers', label: t('gift.link') },
       { path: '/estimates', label: t('estimate.link') },
       { path: '/sale-orders', label: t('saleOrder.link') },
       { path: '/holds', label: t('holds.link') },
       { path: '/shifts', label: t('shift.link') },
+      ...(isOwner ? [{ path: '/tills', label: t('tills.link') }, { path: '/mall-feeds', label: t('mall.link') }] : []),
       { path: '/reports/day', label: t('menu.dayBook') },
       ...(isOwner ? [{ path: '/offers', label: t('offers.link') }] : []),
       ...(isOwner ? [{ path: '/posters', label: t('posters.link') }] : []),
@@ -361,7 +375,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
       { path: '/stock-health', label: t('sh.title') },
       ...(medical ? [{ path: '/medical/stock', label: t('batches.link') }, { path: '/medical/h1', label: t('rx.register') }, { path: '/medical/refills', label: t('refills.link') }] : []),
       ...(medical && isOwner ? [{ path: '/medical/returns', label: t('returns.link') }, { path: '/medical/month', label: t('pmonth.link') }] : []),
-      ...(isOwner ? [{ path: '/categories', label: t('cat.title') }] : []),
+      ...(isOwner ? [{ path: '/categories', label: t('cat.title') }, { path: '/rates', label: t('bulk.menu') }] : []),
     ] },
     { key: 'reports', title: t('menu.reports'), links: [
       { path: '/reports', label: t('side.reports') },
@@ -483,6 +497,12 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
           <SizeReportScreen shopId={shopId} />
         ) : path === '/cheques' ? (
           <ChequesScreen isOwner={isOwner} />
+        ) : path === '/vouchers' ? (
+          <VouchersScreen shopId={shopId} shopName={shopName} isOwner={isOwner} />
+        ) : path === '/mall-feeds' && isOwner ? (
+          <MallFeedsScreen shopId={shopId} />
+        ) : path === '/tills' && isOwner ? (
+          <TillsScreen shopId={shopId} />
         ) : path === '/shifts' ? (
           <ShiftsScreen shopId={shopId} isOwner={isOwner} />
         ) : path === '/reports/day' ? (

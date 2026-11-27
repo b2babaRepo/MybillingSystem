@@ -174,6 +174,9 @@ public enum PaymentMode
     /// only once it clears; a bounce puts the amount back on the khata.
     /// </summary>
     Cheque,
+
+    /// <summary>A gift voucher the shop sold (GiftVoucher): its code is the payment's reference; not money in the drawer.</summary>
+    Voucher,
 }
 
 public enum ChequeStatus
@@ -249,6 +252,17 @@ public sealed class Bill : Entity, ITenantOwned
 
     /// <summary>The whole-bill promotion taken on it (money off from a bill amount): kept for the offer's results.</summary>
     public Guid? BillOfferId { get; set; }
+
+    /// <summary>The supervisor who approved it for a cashier: a price below their limit, or its cancelling.</summary>
+    public Guid? ApprovedByUserId { get; set; }
+
+    /// <summary>The registered till it was made on (Shops.Terminal).</summary>
+    public Guid? TerminalId { get; set; }
+
+    /// <summary>Loyalty points spent on this bill and the money they took off.</summary>
+    public int LoyaltyPoints { get; set; }
+
+    public decimal LoyaltyValue { get; set; }
 
     /// <summary>The painter who brought the customer (paint shops): their commission is counted from these bills.</summary>
     public Guid? PainterId { get; set; }

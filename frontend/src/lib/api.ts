@@ -55,6 +55,7 @@ async function fetchOrThrow(path: string, method: string, body: unknown, token?:
         // The phone's clock: the server puts entry times right when it is wrong.
         'X-Client-Time': new Date().toISOString(),
         ...(billPasscode ? { 'X-Bill-Passcode': billPasscode } : {}),
+        ...(supervisorPin ? { 'X-Supervisor-Pin': supervisorPin } : {}),
         ...extra,
       },
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
@@ -144,32 +145,39 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
 
 /** The bill passcode typed for the action being sent: only while {@link withBillPasscode} retries it. */
 let billPasscode: string | null = null
+/** A supervisor's PIN approving a cashier's cancel, return or low price: only while it is being sent. */
+let supervisorPin: string | null = null
 
 /** The server wants the shop's bill passcode for this action (cancel a bill, a return…). */
 export const needsBillPasscode = (error: unknown): error is ApiError => error instanceof ApiError && error.status === 403 && error.problem?.type === 'bill-passcode'
+/** The server wants a supervisor to approve a cashier's action. */
+export const needsSupervisor = (error: unknown): error is ApiError => error instanceof ApiError && error.status === 403 && error.problem?.type === 'supervisor-pin'
 
 /**
  * Runs an action that undoes money. When the shop has a bill passcode, the server refuses it at first: then the
  * passcode is asked for and the action sent again with it. Closing the prompt ends it with the server's refusal.
  */
-export async function withBillPasscode<T>(run: () => Promise<T>, askPasscode: (wrongBefore: boolean) => Promise<string | null>): Promise<T> {
+export async function withBillPasscode<T>(run: () => Promise<T>, askPasscode: (wrongBefore: boolean, supervisor: boolean) => Promise<string | null>): Promise<T> {
   try {
     return await run()
   } catch (refused) {
-    if (!needsBillPasscode(refused)) throw refused
+    if (!needsBillPasscode(refused) && !needsSupervisor(refused)) throw refused
     let last: ApiError = refused
     // Two tries at typing it; the server locks it after five wrong ones.
     for (let attempt = 0; attempt < 2; attempt++) {
-      const code = (await askPasscode(attempt > 0))?.trim()
+      const supervisor = needsSupervisor(last)
+      const code = (await askPasscode(attempt > 0, supervisor))?.trim()
       if (!code) throw last
-      billPasscode = code
+      if (supervisor) supervisorPin = code
+      else billPasscode = code
       try {
         return await run()
       } catch (again) {
-        if (!needsBillPasscode(again)) throw again
+        if (!needsBillPasscode(again) && !needsSupervisor(again)) throw again
         last = again
       } finally {
         billPasscode = null
+        supervisorPin = null
       }
     }
     throw last

@@ -7,5 +7,5 @@ import { withBillPasscode } from './api'
  * server wants it: "Enter the bill passcode", then "Wrong passcode, try again".
  */
 export function guarded<T>(run: () => Promise<T>): Promise<T> {
-  return withBillPasscode(run, (wrongBefore) => askSecret(i18n.t(wrongBefore ? 'passcode.wrong' : 'passcode.billAsk')))
+  return withBillPasscode(run, (wrongBefore, supervisor) => askSecret(i18n.t(supervisor ? (wrongBefore ? 'super.wrong' : 'super.ask') : wrongBefore ? 'passcode.wrong' : 'passcode.billAsk')))
 }

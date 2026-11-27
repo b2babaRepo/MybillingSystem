@@ -1,11 +1,12 @@
 import { matchPrices, readPriceList } from '../lib/priceList'
 import { btn } from '../lib/buttonStyles'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
+import { navigate } from '../router'
 
 /**
  * Today's rates: cement, sand and steel prices move daily, so the owner changes many at once instead of opening each
@@ -50,6 +51,9 @@ export function RatesScreen({ shopId }: { shopId: string }) {
     setMessage(t('hwp1.rates.percentDone', { count: matching.length }))
   }
 
+  // Items whose price changed since their label was printed: print them again (a sheet's worth at a time).
+  const queue = useQuery({ queryKey: [shopId, 'label-queue'], queryFn: () => api<string[]>('/v1/products/label-queue'), retry: false })
+
   async function run(action: () => Promise<string>) {
     setBusy(true)
     setMessage(null)
@@ -66,6 +70,7 @@ export function RatesScreen({ shopId }: { shopId: string }) {
   const save = () => run(async () => {
     await api('/v1/products/rates', 'PUT', { rates: changed.map((p) => ({ productId: p.id, sellingPrice: Number(draft[p.id]) })) })
     setDraft({})
+    void queue.refetch()
     return t('rates.saved')
   })
 
@@ -78,6 +83,11 @@ export function RatesScreen({ shopId }: { shopId: string }) {
     <div className="flex flex-col gap-3 p-4 pb-28">
       <p className="text-sm text-muted">{t('rates.hint')}</p>
       {message && <p className="rounded-[14px] bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
+      {(queue.data?.length ?? 0) > 0 && (
+        <button onClick={() => navigate(`/tags/${queue.data!.slice(0, 150).join(',')}`)} className={`min-h-12 rounded-xl px-3 ${btn.outline}`}>
+          🏷 {t('bulk.reprint', { count: queue.data!.length })}
+        </button>
+      )}
       {products.length < 5 && (
         <button disabled={busy} onClick={() => void starter()} className={`min-h-12 rounded-xl ${btn.outline}`}>
           {t('rates.starter')}

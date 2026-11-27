@@ -1,4 +1,4 @@
-﻿using GroceryKhata.Api.Common;
+using GroceryKhata.Api.Common;
 
 namespace GroceryKhata.Api.Identity;
 
@@ -85,6 +85,9 @@ public sealed class Membership : Entity
     /// password; wrong tries count towards the same lockout. Null: this membership signs in with a password only.
     /// </summary>
     public string? PinHash { get; set; }
+
+    /// <summary>A helper who approves cancels, returns and prices below the helper limit with their PIN (Shops.Supervisor).</summary>
+    public bool IsSupervisor { get; set; }
 
     /// <summary>What the owner has stopped this helper doing (<see cref="StaffLimits"/>). Empty: nothing.</summary>
     public string[] Blocked { get; set; } = [];

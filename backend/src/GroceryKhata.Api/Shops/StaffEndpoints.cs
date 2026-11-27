@@ -8,12 +8,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Shops;
 
-public sealed record StaffDto(Guid MembershipId, Guid UserId, string Name, string Phone, ShopRole Role, bool IsActive, bool HasPin, decimal? CommissionPercent = null, string[]? Blocked = null);
+public sealed record StaffDto(Guid MembershipId, Guid UserId, string Name, string Phone, ShopRole Role, bool IsActive, bool HasPin, decimal? CommissionPercent = null, string[]? Blocked = null, bool IsSupervisor = false);
 
 /// <summary>What one helper may not do (Identity.StaffLimits names); empty: nothing stopped.</summary>
 public sealed record StaffLimitsRequest(string[]? Blocked);
 
 public sealed record CommissionRequest(decimal? Percent);
+
+public sealed record SupervisorRequest(bool IsSupervisor);
 
 public sealed record SellerDto(Guid UserId, string Name);
 
@@ -36,6 +38,7 @@ public static class StaffEndpoints
         group.MapPost("/{membershipId:guid}/active", SetActiveAsync);
         group.MapPost("/{membershipId:guid}/commission", SetCommissionAsync);
         group.MapPost("/{membershipId:guid}/limits", SetLimitsAsync);
+        group.MapPost("/{membershipId:guid}/supervisor", SetSupervisorAsync);
         // Any member: what am I stopped from? (The app hides those screens.)
         app.MapGet("/api/v1/shop/my-limits", (ITenantContext tenant) => TypedResults.Ok(tenant.Blocked)).WithTags("Staff").RequireAuthorization(AppPolicies.ShopMember);
         // Who can be named as the salesperson on a bill line: everyone with access, for the owner and helpers alike.
@@ -54,7 +57,7 @@ public static class StaffEndpoints
                join u in db.Users.AsNoTracking() on m.UserId equals u.Id
                where m.ShopId == tenant.ShopId
                orderby m.Role, u.FullName
-               select new StaffDto(m.Id, u.Id, u.FullName, u.Phone, m.Role, m.IsActive, m.PinHash != null, m.CommissionPercent, m.Blocked))
+               select new StaffDto(m.Id, u.Id, u.FullName, u.Phone, m.Role, m.IsActive, m.PinHash != null, m.CommissionPercent, m.Blocked, m.IsSupervisor))
             .ToListAsync(ct);
 
     /// <summary>
@@ -74,6 +77,20 @@ public static class StaffEndpoints
         var result = await ShopPeople.AddAsync(request, tenant.ShopId, db, hasher, ct);
         logger.LogInformation("Shop {ShopId} added a {Role}", tenant.ShopId, request.Role);
         return result;
+    }
+
+    /// <summary>Makes a helper a supervisor (approves cancels, returns and low prices with their PIN), or not.</summary>
+    private static async Task<IResult> SetSupervisorAsync(Guid membershipId, SupervisorRequest request, AppDbContext db, ITenantContext tenant, CancellationToken ct)
+    {
+        var membership = await db.Memberships.SingleOrDefaultAsync(m => m.Id == membershipId && m.ShopId == tenant.ShopId, ct);
+        if (membership is null || membership.Role != ShopRole.Staff)
+        {
+            return TypedResults.NotFound();
+        }
+
+        membership.IsSupervisor = request.IsSupervisor;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.NoContent();
     }
 
     /// <summary>A person's commission on their sales, 0–50%; null or 0 clears it.</summary>

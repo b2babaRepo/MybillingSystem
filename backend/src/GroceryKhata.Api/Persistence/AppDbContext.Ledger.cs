@@ -111,6 +111,47 @@ public sealed partial class AppDbContext
             b.HasIndex(s => new { s.ShopId, s.OpenedAt });
         });
 
+        modelBuilder.Entity<GiftVoucher>(b =>
+        {
+            b.ToTable("gift_vouchers");
+            b.HasTenantKey();
+            b.Property(v => v.Code).HasMaxLength(12);
+            b.Property(v => v.BuyerName).HasMaxLength(80);
+            b.HasIndex(v => new { v.ShopId, v.Code }).IsUnique();
+            b.HasIndex(v => new { v.ShopId, v.SoldAt });
+        });
+
+        // Not shop-scoped on purpose: a mall's key is looked up before any shop is chosen (see MallFeeds).
+        modelBuilder.Entity<MallFeed>(b =>
+        {
+            b.ToTable("mall_feeds");
+            b.Property(f => f.Name).HasMaxLength(80);
+            b.Property(f => f.KeyPrefix).HasMaxLength(12);
+            b.Property(f => f.KeyHash).HasMaxLength(64);
+            b.Property(f => f.PushUrl).HasMaxLength(300);
+            b.Property(f => f.LastPushError).HasMaxLength(300);
+            b.HasIndex(f => f.KeyHash).IsUnique();
+            b.HasIndex(f => f.ShopId);
+        });
+
+        modelBuilder.Entity<Shops.Terminal>(b =>
+        {
+            b.ToTable("terminals");
+            b.HasTenantKey();
+            b.Property(t => t.Code).HasMaxLength(4);
+            b.Property(t => t.Name).HasMaxLength(30);
+            b.Property(t => t.MallMachineId).HasMaxLength(40);
+            b.HasIndex(t => new { t.ShopId, t.Code }).IsUnique();
+        });
+
+        modelBuilder.Entity<LoyaltyEntry>(b =>
+        {
+            b.ToTable("loyalty_entries");
+            b.HasTenantKey();
+            b.HasIndex(e => new { e.ShopId, e.CustomerId });
+            b.HasIndex(e => e.BillId).HasFilter("bill_id IS NOT NULL");
+        });
+
         modelBuilder.Entity<HeldBill>(b =>
         {
             b.ToTable("held_bills");

@@ -20,7 +20,8 @@ import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
 import { billTax, garmentRate } from '../lib/gst'
 import { bestOffer, isRunning, offerPrice, perPiece, useOffers } from '../lib/offers'
-import { promoteCart, type Promotion } from '../lib/promotions'
+import { promoteCart, spreadOff, type Promotion } from '../lib/promotions'
+import { onDisplayHello, showOnDisplay, type DisplayState } from '../lib/customerDisplay'
 import { barcodeIndex, cameraPossible, normBarcode, readScaleLabel, sameItemCode } from '../lib/barcode'
 const UnknownBarcode = lazy(() => import('../components/UnknownBarcode').then((module) => ({ default: module.UnknownBarcode })))
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((module) => ({ default: module.ScanSheet })))
@@ -34,13 +35,13 @@ import { Button, Field, Input, Sheet } from '../components/ui'
 import { btn } from '../lib/buttonStyles'
 import { addCustomer, counterName, saveBill, useCustomers, usePopularOrder, useProducts, type CartLine } from '../lib/data'
 import { HeldBillGone, useHeldBills } from '../lib/heldBills'
-import { formatDateTime, formatRupees, whatsAppLink } from '../lib/format'
+import { formatDateTime, formatRupees, whatsAppLink, indiaToday } from '../lib/format'
 import { round2 } from '../lib/local'
 import type { BillPrint, BillView, PaymentMode, Unit } from '../lib/types'
 import { useShopSettings, shopTypes, isTrade, sendsToSites, upiUri } from '../lib/reports'
 import { navigate } from '../router'
 import { useSerialsInStock } from '../lib/serials'
-import { ask, tell } from '../lib/ask'
+import { ask, askSecret, tell } from '../lib/ask'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
 const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))
@@ -335,7 +336,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const offers = useMemo(() => offerData ?? [], [offerData])
   // Only while the offer still runs: a held bill picked up after the offer ended goes back under the helper's limit, as on the server.
   const underOffer = (l: CartLine) => !!l.offerId && offers.some((o) => o.id === l.offerId && isRunning(o, Date.now()))
-  const overLimit = !isOwner && cart.some((l) => !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit)
+  // A supervisor's PIN lets the cashier keep a price below their limit (checked when the bill reaches the server).
+  const [approval, setApproval] = useState<string | null>(null)
+  const overLimit = !isOwner && !approval && cart.some((l) => !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit)
+  async function askSupervisor() {
+    const pin = (await askSecret(t('super.ask')))?.trim()
+    if (pin) setApproval(pin)
+  }
   const [billOff, setBillOff] = useState<{ before: CartLine[]; amount: number } | null>(null)
   const [offForm, setOffForm] = useState<{ value: string; percent: boolean } | null>(null)
   // Promotions over the whole cart (buy-get, slabs, combos, bill offers), as the server prices them: the cart stays as
@@ -345,7 +352,27 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const promotions = useMemo(() => offers.filter((o) => !perPiece(o)) as Promotion[], [offers])
   const billed = useMemo(() => promoteCart(cart, products, billOff ? [] : promotions, new Date(clock)), [cart, products, promotions, clock, billOff])
   const cartTotal = round2(cart.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
-  const total = useMemo(() => round2(billed.lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [billed])
+  // Loyalty points: the customer's balance, and the points they chose to spend with the code sent to their mobile.
+  const loyaltyOn = !!settings?.loyaltyEarnPer
+  const loyalty = useQuery({
+    queryKey: [shopId, 'loyalty', customerId], enabled: loyaltyOn && !!customerId, retry: false,
+    queryFn: () => api<{ points: number; value: number; pointValue: number }>(`/v1/customers/${customerId}/loyalty`),
+  })
+  const [spend, setSpend] = useState<{ customerId: string; points: number; code: string } | null>(null)
+  const [pointsForm, setPointsForm] = useState<{ points: string; code: string } | null>(null)
+  const promoTotal = round2(billed.lines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0))
+  // Only for the customer they belong to, and never the whole bill.
+  const pointsOff = spend && spend.customerId === customerId ? Math.min(round2(spend.points * (loyalty.data?.pointValue ?? settings?.loyaltyPointValue ?? 1)), round2(promoTotal - 0.01)) : 0
+  const billedLines = useMemo(() => spreadOff(billed.lines, pointsOff), [billed, pointsOff])
+  const total = useMemo(() => round2(billedLines.reduce((sum, l) => sum + round2(l.quantity * l.unitPrice), 0)), [billedLines])
+  async function askCustomerCode() {
+    try {
+      await api(`/v1/customers/${customerId}/loyalty/code`, 'POST')
+      setPointsForm({ points: String(loyalty.data?.points ?? 0), code: '' })
+    } catch (e) {
+      void ask(e instanceof Error ? e.message : t('error'))
+    }
+  }
   // A discount on the whole bill, if the shop wants one: spread over the lines by their share, so each line's price, its
   // GST and the helper's limit all stay right. "remove" puts the prices back as they were.
   // A line added or taken off ends the whole-bill discount (its spread no longer fits): decided while rendering, not after.
@@ -399,7 +426,21 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     }
   }
   const exchangeCredit = exchange ? Math.min(exchange.total, total) : 0
-  const due = round2(total - exchangeCredit)
+  // A gift voucher paying part of the bill: its code and how much it takes (never more than its balance or the bill).
+  const [voucherPay, setVoucherPay] = useState<{ code: string; balance: number } | null>(null)
+  const voucherAmt = voucherPay ? Math.min(voucherPay.balance, round2(total - exchangeCredit)) : 0
+  const due = round2(total - exchangeCredit - voucherAmt)
+  async function applyVoucher() {
+    const code = (await ask(t('gift.askCode')))?.trim()
+    if (!code) return
+    try {
+      const v = await api<{ code: string; balance: number; expiresOn: string; cancelledAt: string | null }>(`/v1/gift-vouchers/${encodeURIComponent(code)}`)
+      if (v.cancelledAt || v.balance <= 0 || v.expiresOn < indiaToday()) { void ask(t('gift.notUsable')); return }
+      setVoucherPay({ code: v.code, balance: v.balance })
+    } catch {
+      void ask(t('gift.notFound'))
+    }
+  }
   const paidAmount = paid === null || !customer ? due : Math.min(Number(paid) || 0, due)
   // Paid two ways: the UPI part typed, the rest of what is paid now in cash. null: one way, by mode.
   const [upiPart, setUpiPart] = useState<string | null>(null)
@@ -490,13 +531,19 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     // An event handler (Save), not render: the bill is timed from its first item to now.
     // eslint-disable-next-line react/purity
     const savedAt = Date.now()
-    const result = await saveBill(shopId, billed.lines.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, paidAmount, mode, {
+    // The voucher is one way of paying: it joins the parts, and what is paid includes it.
+    const restParts: { mode: PaymentMode; amount: number; reference?: string | null }[] | undefined = split ? [{ mode: 'cash', amount: cashPaid }, { mode: splitWith, amount: upiPaid, reference: splitWith === 'upi' ? reference : null }]
+      : reference ? [{ mode: 'upi', amount: paidAmount, reference }] : undefined
+    const payments = voucherAmt > 0
+      ? [{ mode: 'voucher' as PaymentMode, amount: voucherAmt, reference: voucherPay!.code }, ...(restParts ?? (paidAmount > 0 ? [{ mode, amount: paidAmount }] : []))]
+      : restParts
+    const result = await saveBill(shopId, billedLines.map((l) => ({ ...l, salespersonId: l.salespersonId || soldBy || null })), customer, round2(paidAmount + voucherAmt), voucherAmt > 0 && paidAmount === 0 ? 'cash' : mode, {
       billOfferId: billed.billOfferId,
+      loyaltyPoints: pointsOff > 0 ? spend!.points : null, loyaltyCode: pointsOff > 0 ? spend!.code : null, supervisorPin: approval,
       site: extras.site.trim() || null, vehicleNumber: extras.vehicleNumber.trim() || null, painterId: extras.painterId || null,
       serials: Object.entries(picked).flatMap(([productId, list]) => list.map((serialNo) => ({ productId, serialNo }))),
       exchangeNoteId: exchange?.noteId ?? null, exchangeCredit,
-      payments: split ? [{ mode: 'cash', amount: cashPaid }, { mode: splitWith, amount: upiPaid, reference: splitWith === 'upi' ? reference : null }]
-        : reference ? [{ mode: 'upi', amount: paidAmount, reference }] : undefined, placeOfSupply: (picksState && deliveredTo) || null, entrySeconds: billSeconds(startedAt.current, savedAt), withoutGst: picksState && withoutGst, godownId: fromGodown || null,
+      payments, placeOfSupply: (picksState && deliveredTo) || null, entrySeconds: billSeconds(startedAt.current, savedAt), withoutGst: picksState && withoutGst, godownId: fromGodown || null,
       prescription: schedules.length > 0 ? { doctorName: rx.doctorName.trim(), doctorAddress: rx.doctorAddress.trim() || null, doctorRegNo: rx.doctorRegNo.trim() || null, patientName: rx.patientName.trim(), patientAddress: rx.patientAddress.trim() || null } : null,
       fields: billFieldLabels.map((label) => ({ label, value: (fieldValues[label] ?? '').trim() })).filter((f) => f.value),
     })
@@ -522,7 +569,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     }
     setOrderSaved(null)
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, split, customer: customer && { name: customer.name, phone: customer.phone } })
-    setCart([])
+    setCart([]); setSpend(null); setApproval(null); setVoucherPay(null)
     if (exchange) { endExchange(); setExchangeState(null) }
     setPaid(null)
     setReceived('')
@@ -545,10 +592,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [fromGodown, setFromGodown] = useState('')
   const taxInvoice = picksState && !withoutGst
   const taxState = buyerState ?? (deliveredTo || shopState)
-  const tax = useMemo(() => billTax(billed.lines.map((l) => {
+  const tax = useMemo(() => billTax(billedLines.map((l) => {
     const item = products.find((p) => p.id === l.productId)
     return { amount: round2(l.quantity * l.unitPrice), gstRate: item ? garmentRate(item.hsnCode, item.gstRate, l.unitPrice) : null }
-  }), taxState !== shopState), [billed, products, taxState, shopState])
+  }), taxState !== shopState), [billedLines, products, taxState, shopState])
   const [taxOpen, setTaxOpen] = useState(false)
   // A computer's live preview of the bill as it will print, in place of the item tiles while on. Remembered on this device.
   const [preview, setPreview] = useState(() => { try { return localStorage.getItem('gk-bill-preview') === '1' } catch { return false } })
@@ -566,7 +613,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
       // What goes on khata is due the customer's credit days from today, as the saved bill will say.
       dueOn: customer?.creditDays && due - paidAmount > 0
         ? (() => { const d = new Date(previewAt); d.setDate(d.getDate() + customer.creditDays!); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })() : null,
-      lines: billed.lines.map((l) => {
+      lines: billedLines.map((l) => {
         const p = products.find((x) => x.id === l.productId)
         const regular = regularOf(l)
         return {
@@ -576,7 +623,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         }
       }),
     }
-  }, [billed, products, customer, total, paidAmount, due, mode, settings, withoutGst, taxState, previewLook.data, exchangeCredit, extras, billFieldLabels, fieldValues, previewAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [billedLines, products, customer, total, paidAmount, due, mode, settings, withoutGst, taxState, previewLook.data, exchangeCredit, extras, billFieldLabels, fieldValues, previewAt]) // eslint-disable-line react-hooks/exhaustive-deps
   // Credit with no customer yet can't be saved: whose khata would it go on?
   const canSave = total > 0 && !unpriced && !rxMissing && !serialsMissing && !overLimit && !(creditAsked && !customer)
   // Desktop keys: F2 search, F4 amount paid, Ctrl+Enter save, Esc clear search, ? the key list.
@@ -587,6 +634,17 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // F9: a discount on the whole bill. F8: take off the item added last. F7: keep this bill in its tab and start another.
   function billDiscount() { if (cart.length > 0 && !billOff) setOffForm((f) => f ?? { value: '', percent: false }) }
   function removeLast() { setCart((current) => current.slice(0, -1)) }
+  // The customer-facing display (a second window on this computer): what the customer should see, as it changes.
+  const displayState = (): DisplayState => ({
+    shop: shopName, upiId: settings?.upiId ?? null, total, saved: round2(discountTotal + billed.applied.reduce((n, a) => n + a.saved, 0) + pointsOff),
+    lines: billedLines.map((l) => ({ name: l.name, quantity: l.quantity, unit: l.unit, amount: round2(l.quantity * l.unitPrice) })),
+    offers: billed.applied.map((a) => ({ name: a.offerName, saved: a.saved })),
+    done: cart.length === 0 && saved ? { total: saved.total, paid: saved.paid, change: round2(Math.max(0, (Number(received) || 0) - saved.paid)) } : null,
+  })
+  const sendDisplay = useRef(displayState)
+  useEffect(() => { sendDisplay.current = displayState })
+  useEffect(() => { showOnDisplay(shopId, sendDisplay.current()) }, [shopId, billedLines, total, saved]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => onDisplayHello(shopId, () => showOnDisplay(shopId, sendDisplay.current())), [shopId])
   const keys = useRef({ save, canSave, printSaved, canPrint: false, allOnKhata, billDiscount, removeLast, holdBill })
   // The latest handlers for the keyboard shortcuts, swapped in after each render (never during one).
   useEffect(() => { keys.current = { save, canSave, printSaved, canPrint: !!saved && cart.length === 0, allOnKhata, billDiscount, removeLast, holdBill } })
@@ -878,7 +936,10 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                   <button type="button" onClick={() => setPrice(i, regularOf(l))} className={`min-h-8 ${btn.quiet}`}>{t('offers.remove')}</button>
                 </p>
               )}
-              {!isOwner && !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit && <p className="text-xs font-semibold text-due">{t('discount.overLimit', { percent: staffLimit })}</p>}
+              {!isOwner && !underOffer(l) && (offOf(l)?.percent ?? 0) > staffLimit && (approval
+                ? <p className="text-xs font-semibold text-brand-deep">✓ {t('super.approved')}</p>
+                : <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-due">{t('discount.overLimit', { percent: staffLimit })}
+                  <button type="button" onClick={() => void askSupervisor()} className="min-h-9 rounded-lg border border-due px-2">{t('super.approve')}</button></p>)}
               {(() => {
                 // Medicines run on thin margins: warn when this price, before GST, is at or under what the item cost.
                 const p = products.find((x) => x.id === l.productId)
@@ -988,6 +1049,13 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               <span>{t('exchange.credit', { note: exchange!.noteNo })}</span><span>− {formatRupees(exchangeCredit)}</span>
             </div>
           )}
+          {total > 0 && (voucherAmt > 0 ? (
+            <div className="mt-2 flex justify-between text-sm font-semibold text-warn-ink">
+              <span>🎁 {t('gift.paying', { code: voucherPay!.code })} <button type="button" onClick={() => setVoucherPay(null)} className={`min-h-9 text-xs ${btn.quiet}`}>{t('billOff.remove')}</button></span><span>− {formatRupees(voucherAmt)}</span>
+            </div>
+          ) : (
+            <button type="button" onClick={() => void applyVoucher()} className="mt-1 min-h-11 text-sm font-semibold text-brand">🎁 {t('gift.use')}</button>
+          ))}
           {exchange && exchange.total > total && total > 0 && <p className="mt-1 text-sm font-semibold text-brand-deep">{t('exchange.leftOnSlip', { amount: formatRupees(round2(exchange.total - total)), note: exchange.noteNo })}</p>}
           {discountTotal > 0 && (
             <>
@@ -1007,6 +1075,28 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 <li key={a.offerId} className="flex justify-between gap-2"><span className="font-semibold text-warn-ink">🏷 {a.offerName}</span><span className="font-semibold">−{formatRupees(a.saved)}</span></li>
               ))}
             </ul>
+          )}
+          {/* The customer's loyalty points: spend them with the code their mobile gets. */}
+          {loyaltyOn && customerId && (loyalty.data?.points ?? 0) > 0 && (
+            <div className="mt-1 flex flex-col gap-2 rounded-xl bg-brand-soft p-2 text-sm">
+              <p className="flex items-center justify-between gap-2">
+                <span>⭐ {t('points.have', { points: loyalty.data!.points, value: formatRupees(loyalty.data!.value) })}</span>
+                {pointsOff > 0
+                  ? <span className="flex items-center gap-2 font-semibold">−{formatRupees(pointsOff)} <button type="button" onClick={() => setSpend(null)} className={`min-h-9 text-xs ${btn.quiet}`}>{t('billOff.remove')}</button></span>
+                  : !pointsForm && <button type="button" onClick={() => void askCustomerCode()} className={`min-h-9 rounded-xl px-3 font-semibold ${btn.outline}`}>{t('points.use')}</button>}
+              </p>
+              {pointsForm && pointsOff === 0 && (
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="flex flex-col text-xs">{t('points.howMany')}
+                    <input value={pointsForm.points} onChange={(e) => setPointsForm({ ...pointsForm, points: e.target.value.replace(/\D/g, '') })} inputMode="numeric" className="h-11 w-24 rounded-xl border border-line bg-white px-2" /></label>
+                  <label className="flex flex-col text-xs">{t('points.code')}
+                    <input value={pointsForm.code} onChange={(e) => setPointsForm({ ...pointsForm, code: e.target.value.replace(/\D/g, '').slice(0, 6) })} inputMode="numeric" autoComplete="one-time-code" className="h-11 w-28 rounded-xl border border-line bg-white px-2" /></label>
+                  <button type="button" disabled={pointsForm.code.length !== 6 || !(Number(pointsForm.points) > 0) || Number(pointsForm.points) > (loyalty.data?.points ?? 0)}
+                    onClick={() => { setSpend({ customerId, points: Number(pointsForm.points), code: pointsForm.code }); setPointsForm(null) }} className={`min-h-11 rounded-xl px-3 ${btn.solid}`}>{t('billOff.apply')}</button>
+                  <p className="w-full text-xs text-muted">{t('points.codeHint')}</p>
+                </div>
+              )}
+            </div>
           )}
           {/* Optional: the shopkeeper's own discount on the whole bill. */}
           {billOff ? (

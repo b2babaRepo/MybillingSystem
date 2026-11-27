@@ -67,6 +67,11 @@ public sealed record BillRequest(
     Guid? ShiftId = null,
     // The whole-bill promotion taken (its money off is spread into the line prices, as a bill discount is).
     Guid? BillOfferId = null,
+    // The registered till it was made on (Shops.Terminal); its name becomes the bill's counter.
+    Guid? TerminalId = null,
+    // Loyalty points spent on this bill (their money off is spread into the line prices), with the code the customer got by SMS.
+    int? LoyaltyPoints = null,
+    string? LoyaltyCode = null,
     // Handed out from this godown rather than the shop shelf: the goods move out of the godown with the bill.
     Guid? GodownId = null,
     // The shop's own extra bill fields as filled in (PO no., doctor…).

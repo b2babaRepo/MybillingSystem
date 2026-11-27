@@ -106,6 +106,8 @@ public sealed record ProductDto(
 
 public sealed record OutTodayRequest(bool Out);
 
+public sealed record LabelsPrintedRequest(IReadOnlyList<Guid>? ProductIds);
+
 /// <summary>Items changed since a time (all of them when <see cref="Full"/>), and the ids of items removed since then.</summary>
 public sealed record ProductChanges(DateTimeOffset At, bool Full, IReadOnlyList<ProductDto> Changed, IReadOnlyList<Guid> Removed)
 {
@@ -177,6 +179,19 @@ public static class ProductEndpoints
 
         products.MapGet("", (string? search, string? category, bool? low, string? sort, StockService stock, CancellationToken ct) =>
             stock.ListAsync(search, category, low == true, ct, popular: sort == "popular"));
+
+        // Labels to print again: items whose price or MRP changed after their label was last printed.
+        products.MapGet("/label-queue", async (AppDbContext db, CancellationToken ct) =>
+            TypedResults.Ok(await db.Products.AsNoTracking()
+                .Where(p => p.IsActive && p.PriceChangedAt != null && (p.LabelPrintedAt == null || p.PriceChangedAt > p.LabelPrintedAt))
+                .OrderBy(p => p.Category).ThenBy(p => p.Name).Select(p => p.Id).Take(2000).ToListAsync(ct)));
+        products.MapPost("/labels-printed", async (LabelsPrintedRequest request, AppDbContext db, TimeProvider clock, CancellationToken ct) =>
+        {
+            var ids = (request.ProductIds ?? []).Distinct().Take(2000).ToList();
+            var now = clock.GetUtcNow();
+            await db.Products.Where(p => ids.Contains(p.Id)).ExecuteUpdateAsync(s => s.SetProperty(p => p.LabelPrintedAt, now), ct);
+            return TypedResults.NoContent();
+        });
 
         products.MapGet("/changes", (DateTimeOffset? since, StockService stock, CancellationToken ct) => stock.ChangesAsync(since, ct));
 

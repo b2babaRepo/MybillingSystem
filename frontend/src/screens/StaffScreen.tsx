@@ -15,6 +15,7 @@ interface Staff {
   isActive: boolean
   hasPin: boolean
   commissionPercent?: number | null
+  isSupervisor?: boolean
   blocked?: string[] | null
 }
 
@@ -118,6 +119,13 @@ export function StaffScreen() {
               </span>
             </div>
             {s.role !== 'accountant' && <Commission staff={s} onSaved={() => void staff.refetch()} />}
+            {s.role === 'staff' && (
+              <label className="flex min-h-11 items-center gap-2 text-sm">
+                <input type="checkbox" checked={!!s.isSupervisor} className="h-5 w-5"
+                  onChange={(e) => void api(`/v1/shop/staff/${s.membershipId}/supervisor`, 'POST', { isSupervisor: e.target.checked }).then(() => staff.refetch())} />
+                <span>{t('super.make')}</span>
+              </label>
+            )}
             {s.role === 'staff' && s.isActive && <Limits staff={s} onSaved={() => void staff.refetch()} />}
             {(s.role !== 'owner' || staff.data!.filter((x) => x.role === 'owner' && x.isActive).length > 1 || !s.isActive) && (
               <div className="grid grid-cols-2 gap-2 text-sm">

@@ -30,6 +30,8 @@ export interface OutboxOp {
   listKind?: 'monthly' | 'weekly'
   /** A return made offline: the bill passcode typed then, sent with it (the server checks it). Gone once sent. */
   passcode?: string
+  /** A supervisor's PIN approving a cashier's price below their limit, sent with it. Gone once sent. */
+  supervisorPin?: string
   /** Short text for the sync screen, e.g. "Ramesh ₹340 udhaar". */
   label: string
   createdAt: string
@@ -138,7 +140,7 @@ async function flushShop(shopId: string): Promise<void> {
 
         let response: Response
         try {
-          response = await request(op.path, op.method ?? 'POST', op.method === 'DELETE' ? undefined : op.body, op.passcode ? { 'X-Bill-Passcode': op.passcode } : undefined)
+          response = await request(op.path, op.method ?? 'POST', op.method === 'DELETE' ? undefined : op.body, op.passcode || op.supervisorPin ? { ...(op.passcode ? { 'X-Bill-Passcode': op.passcode } : {}), ...(op.supervisorPin ? { 'X-Supervisor-Pin': op.supervisorPin } : {}) } : undefined)
         } catch (error) {
           if (error instanceof NetworkError) {
             syncState = 'offline'

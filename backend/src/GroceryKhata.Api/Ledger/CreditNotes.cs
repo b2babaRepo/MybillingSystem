@@ -54,6 +54,9 @@ public sealed class CreditNote : Entity, ITenantOwned
     /// <summary>The cashier's shift it was made in: a cash refund comes out of that drawer (see <see cref="CashierShift"/>).</summary>
     public Guid? ShiftId { get; set; }
 
+    /// <summary>The supervisor who approved it for a cashier.</summary>
+    public Guid? ApprovedByUserId { get; set; }
+
     /// <summary>The last bill this exchange credit paid for.</summary>
     public Guid? ExchangeBillId { get; set; }
 
@@ -114,9 +117,10 @@ public static class CreditNotes
 {
     public static IEndpointRouteBuilder MapCreditNotes(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/bills/{billId:guid}/credit-notes").WithTags("Khata").RequireAuthorization(AppPolicies.ShopOwner);
+        var group = app.MapGroup("/api/v1/bills/{billId:guid}/credit-notes").WithTags("Khata").RequireAuthorization(AppPolicies.ShopMember);
         group.MapGet("", ListAsync);
-        group.MapPost("", AddAsync).RequireBillPasscode();
+        // The owner, or a cashier with a supervisor's PIN.
+        group.MapPost("", AddAsync).RequireOwnerOrSupervisor().RequireBillPasscode();
         return app;
     }
 
@@ -232,6 +236,7 @@ public static class CreditNotes
             Id = request.Id, BillId = billId, CustomerId = bill.CustomerId, FinancialYear = year, Number = number, Reason = reason!,
             Total = total, Restocked = request.Restock, OccurredAt = now, CreatedByUserId = userId, Lines = lines, ForExchange = request.Exchange,
             RefundMode = request.Exchange || bill.CustomerId is not null ? null : refundMode,
+            ApprovedByUserId = await Shops.Supervisor.ApproverAsync(http),
             ShiftId = request.ShiftId is { } shiftId && await db.CashierShifts.AnyAsync(s => s.Id == shiftId, ct) ? shiftId : null,
             TaxFree = bill.Gstin is null || bill.BillOfSupply,
             SlipCode = request.Exchange ? ExchangeSlips.NewCode() : null,

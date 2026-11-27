@@ -56,6 +56,8 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     billPrefix: initial.billPrefix ?? '',
     billFields: [0, 1, 2, 3].map((i) => initial.billFields?.[i] ?? ''),
     scaleLabel: initial.scaleLabel ?? '',
+    loyaltyEarnPer: initial.loyaltyEarnPer ? String(initial.loyaltyEarnPer) : '',
+    loyaltyPointValue: String(initial.loyaltyPointValue ?? 1),
   })
   const [message, setMessage] = useState('')
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
@@ -64,7 +66,7 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
   async function save() {
     setMessage('')
     try {
-      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, cashReceiptLimit: Number(form.cashReceiptLimit) || 200000, panFrom: Number(form.panFrom) || 200000, cashPayoutLimit: Number(form.cashPayoutLimit) || 0, girviState: form.girviState, girviLicence: form.girviLicence, girviMaxYearlyRate: Number(form.girviMaxYearlyRate) || 0, girviNoticeDays: Number(form.girviNoticeDays) || 0, contractorDiscountPercent: Number(form.contractorDiscountPercent) || 0, dealerDiscountPercent: Number(form.dealerDiscountPercent) || 0, scaleLabel: form.scaleLabel.trim(), billPrefix: form.billPrefix.trim(), billFields: form.billFields.map((f) => f.trim()).filter(Boolean), extraTypes: extra.filter((x) => x !== form.type) })
+      const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, cashReceiptLimit: Number(form.cashReceiptLimit) || 200000, panFrom: Number(form.panFrom) || 200000, cashPayoutLimit: Number(form.cashPayoutLimit) || 0, girviState: form.girviState, girviLicence: form.girviLicence, girviMaxYearlyRate: Number(form.girviMaxYearlyRate) || 0, girviNoticeDays: Number(form.girviNoticeDays) || 0, contractorDiscountPercent: Number(form.contractorDiscountPercent) || 0, dealerDiscountPercent: Number(form.dealerDiscountPercent) || 0, scaleLabel: form.scaleLabel.trim(), loyaltyEarnPer: Number(form.loyaltyEarnPer) || 0, loyaltyPointValue: Number(form.loyaltyPointValue) || 1, billPrefix: form.billPrefix.trim(), billFields: form.billFields.map((f) => f.trim()).filter(Boolean), extraTypes: extra.filter((x) => x !== form.type) })
       queryClient.setQueryData([shopId, 'settings'], saved)
       setMessage(t('settings.saved'))
     } catch (err) {
@@ -195,6 +197,15 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
               className="h-11 w-48 rounded-xl border border-line bg-white px-3 font-mono outline-none focus:border-brand-line" />
           </label>}
           <p className="text-xs text-muted">{t('billSetup.scaleHint')}</p>
+        </div>
+        <div className="flex flex-col gap-2 rounded-2xl border border-line p-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1 text-sm"><span className="font-semibold text-muted">{t('points.earnPer')}</span>
+              <input value={form.loyaltyEarnPer} onChange={(e) => setForm({ ...form, loyaltyEarnPer: e.target.value.replace(/[^\d.]/g, '') })} inputMode="decimal" placeholder="100" className="h-11 rounded-xl border border-line bg-white px-3" /></label>
+            <label className="flex flex-col gap-1 text-sm"><span className="font-semibold text-muted">{t('points.pointValue')}</span>
+              <input value={form.loyaltyPointValue} onChange={(e) => setForm({ ...form, loyaltyPointValue: e.target.value.replace(/[^\d.]/g, '') })} inputMode="decimal" className="h-11 rounded-xl border border-line bg-white px-3" /></label>
+          </div>
+          <p className="text-xs text-muted">{t('points.hint')}</p>
         </div>
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-muted">{t('slip.daysLabel')}</span>
