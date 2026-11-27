@@ -154,7 +154,11 @@ export function TagsScreen({ shopId, shopName, ids }: { shopId: string; shopName
           <button disabled={busy} onClick={() => void makeCodes()} className={`min-h-11 px-3 rounded-xl ${btn.outline}`}>{t('labels.makeCodes', { count: noCode.length })}</button>
         )}
         {message && <p role="status" className="text-sm font-semibold">{message}</p>}
-        <button onClick={() => window.print()} disabled={labels.length === 0} className={`h-12 rounded-xl ${btn.solid}`}>
+        <button onClick={() => {
+          // These items' labels now show their price: they leave the reprint queue.
+          void api('/v1/products/labels-printed', 'POST', { productIds: [...new Set(labels.map((p) => p.id))] }).catch(() => undefined)
+          window.print()
+        }} disabled={labels.length === 0} className={`h-12 rounded-xl ${btn.solid}`}>
           {t('labels.print', { count: labels.length, pages: list.length })}</button>
         <p className="text-xs text-muted">{t(sheet.roll ? 'labels.rollTip' : 'labels.sheetTip')}</p>
       </section>

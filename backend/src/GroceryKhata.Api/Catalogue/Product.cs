@@ -150,6 +150,12 @@ public sealed class Product : Entity, ITenantOwned
     /// </summary>
     public string[] ExtraBarcodes { get; set; } = [];
 
+    /// <summary>When its selling price or MRP last changed (stamped by the database, whatever changed it).</summary>
+    public DateTimeOffset? PriceChangedAt { get; set; }
+
+    /// <summary>When its shelf label was last printed: a price changed after this needs a new label.</summary>
+    public DateTimeOffset? LabelPrintedAt { get; set; }
+
     /// <summary>Who the photo is from when it isn't the shop's own ("Open Food Facts (CC BY-SA)"): shown beside it.</summary>
     public string? ImageCredit { get; set; }
 

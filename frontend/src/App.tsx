@@ -352,7 +352,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
       { path: '/stock-health', label: t('sh.title') },
       ...(medical ? [{ path: '/medical/stock', label: t('batches.link') }, { path: '/medical/h1', label: t('rx.register') }, { path: '/medical/refills', label: t('refills.link') }] : []),
       ...(medical && isOwner ? [{ path: '/medical/returns', label: t('returns.link') }, { path: '/medical/month', label: t('pmonth.link') }] : []),
-      ...(isOwner ? [{ path: '/categories', label: t('cat.title') }] : []),
+      ...(isOwner ? [{ path: '/categories', label: t('cat.title') }, { path: '/rates', label: t('bulk.menu') }] : []),
     ] },
     { key: 'reports', title: t('menu.reports'), links: [
       { path: '/reports', label: t('side.reports') },

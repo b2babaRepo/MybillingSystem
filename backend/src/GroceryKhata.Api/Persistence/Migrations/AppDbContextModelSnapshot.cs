@@ -2253,6 +2253,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_service");
 
+                    b.Property<DateTimeOffset?>("LabelPrintedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("label_printed_at");
+
                     b.Property<int?>("MasterItemId")
                         .HasColumnType("integer")
                         .HasColumnName("master_item_id");
@@ -2289,6 +2293,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.Property<int>("PhotoReports")
                         .HasColumnType("integer")
                         .HasColumnName("photo_reports");
+
+                    b.Property<DateTimeOffset?>("PriceChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("price_changed_at");
 
                     b.Property<string>("PurchaseUnit")
                         .HasMaxLength(20)
