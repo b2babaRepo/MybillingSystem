@@ -305,6 +305,8 @@ public sealed partial class AppDbContext(DbContextOptions<AppDbContext> options,
 
     public DbSet<Shops.Terminal> Terminals => Set<Shops.Terminal>();
 
+    public DbSet<MallFeed> MallFeeds => Set<MallFeed>();
+
     public DbSet<Ledger.CashMove> CashMoves => Set<Ledger.CashMove>();
     public DbSet<Catalogue.Stocktake> Stocktakes => Set<Catalogue.Stocktake>();
     public DbSet<Ledger.PushDevice> PushDevices => Set<Ledger.PushDevice>();

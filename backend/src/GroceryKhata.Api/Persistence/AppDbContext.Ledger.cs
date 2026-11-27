@@ -88,6 +88,19 @@ public sealed partial class AppDbContext
             b.HasIndex(s => new { s.ShopId, s.OpenedAt });
         });
 
+        // Not shop-scoped on purpose: a mall's key is looked up before any shop is chosen (see MallFeeds).
+        modelBuilder.Entity<MallFeed>(b =>
+        {
+            b.ToTable("mall_feeds");
+            b.Property(f => f.Name).HasMaxLength(80);
+            b.Property(f => f.KeyPrefix).HasMaxLength(12);
+            b.Property(f => f.KeyHash).HasMaxLength(64);
+            b.Property(f => f.PushUrl).HasMaxLength(300);
+            b.Property(f => f.LastPushError).HasMaxLength(300);
+            b.HasIndex(f => f.KeyHash).IsUnique();
+            b.HasIndex(f => f.ShopId);
+        });
+
         modelBuilder.Entity<Shops.Terminal>(b =>
         {
             b.ToTable("terminals");

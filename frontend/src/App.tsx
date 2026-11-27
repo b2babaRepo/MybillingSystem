@@ -67,6 +67,7 @@ const TagsScreen = lazy(() => import('./screens/TagsScreen').then((module) => ({
 const SizeReportScreen = lazy(() => import('./screens/SizeReportScreen').then((module) => ({ default: module.SizeReportScreen })))
 const SideGroups = lazy(() => import('./components/SideGroups').then((module) => ({ default: module.SideGroups })))
 const ChequesScreen = lazy(() => import('./screens/ChequesScreen').then((module) => ({ default: module.ChequesScreen })))
+const MallFeedsScreen = lazy(() => import('./screens/MallFeedsScreen').then((module) => ({ default: module.MallFeedsScreen })))
 const TillsScreen = lazy(() => import('./screens/TillsScreen').then((module) => ({ default: module.TillsScreen })))
 const ShiftsScreen = lazy(() => import('./screens/ShiftsScreen').then((module) => ({ default: module.ShiftsScreen })))
 const DayReportScreen = lazy(() => import('./screens/DayReportScreen').then((module) => ({ default: module.DayReportScreen })))
@@ -315,7 +316,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
       { path: '/sale-orders', label: t('saleOrder.link') },
       { path: '/holds', label: t('holds.link') },
       { path: '/shifts', label: t('shift.link') },
-      ...(isOwner ? [{ path: '/tills', label: t('tills.link') }] : []),
+      ...(isOwner ? [{ path: '/tills', label: t('tills.link') }, { path: '/mall-feeds', label: t('mall.link') }] : []),
       { path: '/reports/day', label: t('menu.dayBook') },
       ...(isOwner ? [{ path: '/offers', label: t('offers.link') }] : []),
       ...(isOwner ? [{ path: '/posters', label: t('posters.link') }] : []),
@@ -475,6 +476,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
           <SizeReportScreen shopId={shopId} />
         ) : path === '/cheques' ? (
           <ChequesScreen isOwner={isOwner} />
+        ) : path === '/mall-feeds' && isOwner ? (
+          <MallFeedsScreen shopId={shopId} />
         ) : path === '/tills' && isOwner ? (
           <TillsScreen shopId={shopId} />
         ) : path === '/shifts' ? (
