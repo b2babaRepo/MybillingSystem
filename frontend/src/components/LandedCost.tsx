@@ -8,7 +8,7 @@ import { formatRupees } from '../lib/format'
 import { noCharges, rows } from '../lib/landedCost'
 
 export type Split = 'value' | 'quantity' | 'bags' | 'weight'
-export interface Charge { label: string; amount: string; paidBy: '' | 'cash' | 'upi' }
+export interface Charge { label: string; amount: string; paidBy: '' | 'cash' | 'upi'; rcm?: '' | '5' | '12' | '18' }
 export interface Charges { rows: Charge[]; split: Split; extraInCost: boolean }
 export interface LotLine { productId: string; name: string; units: number; billRate: number; chargePerUnit: number; landedCost: number; sellingPrice: number | null; marginPerUnit: number | null; marginPercent: number | null; lotMargin: number | null; sold: number; revenue: number; profit: number; left: number }
 export interface Lot { id: string; billNo: string | null; supplier: string; occurredAt: string; charges: number; chargeLines: { label: string; amount: number; paid: boolean }[]; landedTotal: number; expectedMargin: number | null; revenue: number; profit: number; lines: LotLine[] }
@@ -35,6 +35,9 @@ export function ChargesEditor({ value, onChange, hasExtra, open = false }: { val
             <input aria-label={t('landed.amount')} placeholder="₹" value={r.amount} onChange={(e) => set(i, { amount: e.target.value })} inputMode="decimal" className={input} />
             <select aria-label={t('landed.paidBy')} value={r.paidBy} onChange={(e) => set(i, { paidBy: e.target.value as Charge['paidBy'] })} className={input}>
               <option value="">{t('landed.notPaid')}</option><option value="cash">{t('landed.cash')}</option><option value="upi">UPI</option>
+            </select>
+            <select aria-label={t('rcm.label')} value={r.rcm ?? ''} onChange={(e) => set(i, { rcm: e.target.value as Charge['rcm'] })} className={`${input} col-span-3`}>
+              <option value="">{t('rcm.none')}</option><option value="5">{t('rcm.gta')}</option><option value="12">{t('rcm.rate', { rate: 12 })}</option><option value="18">{t('rcm.rate', { rate: 18 })}</option>
             </select>
           </div>
         ))}

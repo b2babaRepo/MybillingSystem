@@ -61,6 +61,30 @@ public sealed class DetailedReportsTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Gta_freight_under_reverse_charge_is_paid_in_cash_and_claimed_back()
+    {
+        var (shop, _) = await ShopAsync();
+        var soap = await ItemAsync(shop, "Soap", "piece", 118m, 18m, "3401");
+        (await SellAsync(shop, soap, "Soap", 1m, 118m)).EnsureSuccessStatusCode();
+        var supplier = Guid.CreateVersion7();
+        (await shop.PostJsonAsync("/api/v1/suppliers", new { id = supplier, name = "Jain Traders", gstin = "08AAPFU0939F1ZV" })).EnsureSuccessStatusCode();
+        var bad = await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = Guid.CreateVersion7(), supplierId = supplier, paidAmount = 0m,
+            lines = new[] { new { productId = soap, quantity = 1m, unitCost = 50m, gstRate = 18m } }, charges = new[] { new { label = "Lorry freight", amount = 1_000m, reverseChargeRate = 7m } } });
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, bad.StatusCode);
+        (await shop.PostJsonAsync("/api/v1/suppliers/purchases", new { id = Guid.CreateVersion7(), supplierId = supplier, paidAmount = 0m,
+            lines = new[] { new { productId = soap, quantity = 1m, unitCost = 50m, gstRate = 18m } }, charges = new[] { new { label = "Lorry freight (GTA)", amount = 1_000m, reverseChargeRate = 5m } } }))
+            .EnsureSuccessStatusCode();
+
+        // ₹1,000 of GTA freight at 5%: ₹25 CGST + ₹25 SGST paid in cash on top of the ₹9 + ₹9 on the sale less the
+        // ₹4.50 + ₹4.50 supplier credit, and the ₹25 + ₹25 also claimed back as input credit (carried forward).
+        var p = (await shop.GetJsonAsync<GstMonthDto>("/api/v1/gst/month")).Payable!;
+        Assert.Equal((25m, 25m), (p.RcmCgst, p.RcmSgst));
+        Assert.Equal((29.5m, 29.5m), (p.InputCgst, p.InputSgst));
+        Assert.Equal((25m, 25m), (p.PayCgst, p.PaySgst));
+        Assert.Equal((20.5m, 20.5m), (p.CarryCgst, p.CarrySgst));
+    }
+
+    [Fact]
     public async Task A_composition_shop_sees_one_percent_of_its_turnover_to_pay()
     {
         var (shop, _) = await ShopAsync(composition: true);
