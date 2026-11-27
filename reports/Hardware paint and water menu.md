@@ -60,3 +60,30 @@ Step 8 of the main plan (hardware and paint, 2.5–3 days) now also covers:
 - splitting "Pipes and fittings" into the seven water and plumbing tiles above, and moving glue and tape to Adhesives;
 - the size-chip row for pipes and fittings;
 - adding the missing items listed above (about half a day, plus checking GST).
+
+## Electrical shop: left rail and tiles
+
+The electrical shop had only 14 starter items. It now has its own master list, `electrical-master.csv`, with **258 items in 18 groups** built from your list. The 14 starter items are inside it, moved into the new groups. GST is left blank on the new rows (the shop or a CA sets it); HSN codes are filled.
+
+| Rail (Hindi · English) | Tiles inside (groups in the item list) | Items | Quick filter chips |
+|---|---|---|---|
+| ★ रोज़ के · Your usual | Most sold this month | — | — |
+| तार, केबल · Wires & cables | House wire (FRLS copper 0.75–10 sq mm, coil or metre) · Flexible and multi-core cable · Armoured and special cable (underground, TV coaxial, LAN Cat6, speaker, CCTV, solar) | 42 | **sq mm** · Colour (red, black, green, yellow, blue) · Coil 90/180 m or per metre · Copper/aluminium · Brand |
+| पाइप, केसिंग · Conduit & casing | PVC conduit, flexible pipe, casing-capping, bends, junction and fan boxes | 17 | Size 20/25 mm · Light/heavy |
+| एमसीबी, डीबी · Switchgear | Distribution boards (single and three phase, busbars) · MCB, RCCB, ELCB, isolators · Fuses (kit-kat, HRC), stabilisers, surge protection | 41 | **Amps** (6–63 A) · Poles (SP/DP/TP/FP) · Curve B/C · Ways (4/8/12) |
+| स्विच, सॉकेट · Switches & sockets | Switches (one-way, two-way, bell push, 16/32 A) · Sockets, plug tops, extension boards · Modular plates, boxes, regulators, dimmers | 45 | Modular / non-modular · 6 A / 16 A · Modules (1–12) · Range and colour |
+| लाइट · Lights | LED bulbs and tubes (including night lamp, smart bulb, battens) · Ceiling and panel lights (panel, COB, downlighter, strip) · Outdoor and decorative (flood, street, gate, sconce, chandelier) | 45 | **Watts** · Light colour (cool/warm/neutral) · Round/square · Base (B22/E27) |
+| पंखे · Fans | Ceiling (induction and BLDC), exhaust, pedestal, wall, table fans, capacitors, blades | 17 | Sweep (1200/1400 mm) · BLDC · Colour |
+| गीज़र, हीटर · Geysers & heaters | Storage and instant geysers, immersion rods, room heaters, iron and kettle, spares | 13 | Litres · Watts |
+| छोटा सामान · Consumables | Tapes, heat-shrink, cable ties · Holders, ceiling roses, clips, lugs, connectors | 23 | Size · Pack |
+| मीटर, औज़ार · Meters & tools | Energy meters, multimeter, clamp meter, testers, stripper, crimper, insulated pliers | 15 | Type · Brand |
+
+### How the wire row works
+
+Wire is the one item that needs its own row: one line for "FRLS copper wire" with **sq mm chips (0.75 · 1 · 1.5 · 2.5 · 4 · 6)**, colour dots under it, and a toggle for **full coil or per metre**. A customer asking for "dedh mm laal" (1.5 sq mm red) is two taps. Search treats `1.5`, `1.5mm`, `dedh` and `1.5 sq mm` as the same size.
+
+Switchgear works the same way with amp chips (6 · 10 · 16 · 20 · 32 · 40 · 63 A) and a pole switch (SP/DP/TP/FP).
+
+### Fields still missing for electrical filters
+
+Size (sq mm, amps, watts), colour and coil length are written inside the item name today. To filter on them, they need to be stored as their own fields on the item (same gap as hardware size in the main report). Until then, the chips can be filled by reading the number out of the name, which works for these 258 rows because the names follow one pattern.

@@ -223,6 +223,18 @@ public sealed class TestingFixesTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task An_electrical_shop_gets_the_long_list_with_starter_items_in_its_groups()
+    {
+        var (shop, _) = await ShopAsync("electrical");
+        var master = await shop.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items?trade=electrical");
+        Assert.True(master.Count > 200);
+        Assert.Contains(master, m => m.Category == "MCB, RCCB and isolators" && m.Name == "MCB 16 A");
+        Assert.Contains(master, m => m.Category == "Conduit and casing" && m.Name == "PVC conduit pipe 20 mm");
+        Assert.Contains(master, m => m.Category == "Armoured and special cable" && m.Name == "LAN cable Cat6 box" && m.PackSizes.SequenceEqual(new[] { "305 m" }));
+        Assert.DoesNotContain(master, m => m.Category is "Wires" or "Fittings" or "Protection");
+    }
+
+    [Fact]
     public async Task A_later_cancel_moves_money_on_the_day_it_happens_and_the_first_count_needs_an_opening()
     {
         var (shop, _) = await ShopAsync();
