@@ -15,20 +15,23 @@ const Icon = ({ name, size = 22, stroke = 'currentColor', width = 1.8 }: { name:
  * "सब विभाग": the shop's items by department and category, over the bill (reports/Category menu for item ordering.md).
  * A rail of departments, tiles per category with a count, and inside a tile its items with kind chips, an in-stock
  * filter and a stepper that puts them straight on the bill. The bill bar at the bottom closes it.
+ * mode "order": the same menu for a supplier order (unpriced items too), with a Low stock filter, low items first,
+ * stock and the last buying rate on each card, and taps adding to the order's rows.
  */
-export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billItems, billTotal, onClose }: {
+export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billItems, billTotal = 0, onClose, mode = 'bill' }: {
   products: Product[]
   rank: Map<string, number>
   quantities: Map<string, number>
   onAdd: (p: Product) => void
   onLess: (p: Product) => void
   billItems: number
-  billTotal: number
+  billTotal?: number
   onClose: () => void
+  mode?: Mode
 }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.language
-  const sellable = useMemo(() => products.filter((p) => p.sellingPrice > 0), [products])
+  const sellable = useMemo(() => products.filter((p) => (mode === 'order' ? !p.isService : p.sellingPrice > 0)), [products, mode])
   const menu = useMemo(() => buildMenu(sellable, rank), [sellable, rank])
   const usual = useMemo(() => sellable.filter((p) => rank.has(p.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!).slice(0, 12), [sellable, rank])
   const [open, setOpen] = useState<MenuCategory | null>(null)
@@ -48,7 +51,7 @@ export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billIt
   return (
     <div role="dialog" aria-modal="true" aria-label={t('catMenu.title')} className="fixed inset-0 z-50 flex flex-col bg-ground text-ink lg:inset-y-4 lg:left-1/2 lg:w-[760px] lg:-translate-x-1/2 lg:rounded-3xl lg:shadow-2xl lg:overflow-hidden">
       {open
-        ? <Listing entry={open} lang={lang} quantities={quantities} onAdd={onAdd} onLess={onLess} onBack={() => setOpen(null)} />
+        ? <Listing entry={open} lang={lang} mode={mode} quantities={quantities} onAdd={onAdd} onLess={onLess} onBack={() => setOpen(null)} />
         : <>
             <header className="flex items-center gap-2 border-b border-line bg-white py-3 pl-4 pr-3">
               <div className="flex flex-1 flex-col">
@@ -98,10 +101,10 @@ export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billIt
           </>}
       <button onClick={onClose} className="relative mx-3 -mt-[76px] mb-3 flex h-[60px] items-center justify-between rounded-2xl bg-brand px-4 text-white shadow-[0_6px_16px_rgba(15,95,88,0.28)]">
         <span className="flex flex-col text-left leading-[1.15]">
-          <span className="text-[13px] opacity-90">{t('catMenu.bill', { count: billItems })}</span>
-          <span className="text-[19px] font-bold">{formatRupees(billTotal)}</span>
+          <span className="text-[13px] opacity-90">{t(mode === 'order' ? 'catMenu.order' : 'catMenu.bill', { count: billItems })}</span>
+          {mode === 'bill' && <span className="text-[19px] font-bold">{formatRupees(billTotal)}</span>}
         </span>
-        <span className="text-base font-bold">{t('catMenu.viewBill')}</span>
+        <span className="text-base font-bold">{t(mode === 'order' ? 'catMenu.backToOrder' : 'catMenu.viewBill')}</span>
       </button>
     </div>
   )
@@ -120,16 +123,24 @@ function Tile({ c, count, lang, onOpen }: { c: Category; count: number; lang: st
   )
 }
 
-function Listing({ entry, lang, quantities, onAdd, onLess, onBack }: {
-  entry: MenuCategory; lang: string; quantities: Map<string, number>; onAdd: (p: Product) => void; onLess: (p: Product) => void; onBack: () => void
+type Mode = 'bill' | 'order'
+
+/** Days of stock left at the last month's selling rate; unknown (Infinity) when it doesn't sell or isn't counted. */
+const daysLeft = (p: Product) => (p.uncounted || !p.dailySales ? Infinity : p.stock / p.dailySales)
+
+function Listing({ entry, lang, mode, quantities, onAdd, onLess, onBack }: {
+  entry: MenuCategory; lang: string; mode: Mode; quantities: Map<string, number>; onAdd: (p: Product) => void; onLess: (p: Product) => void; onBack: () => void
 }) {
   const { t } = useTranslation()
   const { category: c, items } = entry
   const [kind, setKind] = useState<string | null>(null)
   const [inStock, setInStock] = useState(false)
   const [onOffer, setOnOffer] = useState(false)
+  const [low, setLow] = useState(false)
   const kinds = (c.kinds ?? []).map((kd) => ({ kd, count: items.filter((p) => kindOf(p, c) === kd.key).length })).filter((x) => x.count > 0)
-  const shown = items.filter((p) => (!kind || kindOf(p, c) === kind) && (!inStock || p.uncounted || p.isService || p.stock > 0) && (!onOffer || (p.mrp ?? 0) > p.sellingPrice))
+  const shown = items.filter((p) => (!kind || kindOf(p, c) === kind) && (!inStock || p.uncounted || p.isService || p.stock > 0) && (!onOffer || (p.mrp ?? 0) > p.sellingPrice) && (!low || p.isLow))
+  // Ordering: what runs out first comes first.
+  if (mode === 'order') shown.sort((a, b) => Number(b.isLow) - Number(a.isLow) || daysLeft(a) - daysLeft(b))
   const chip = (on: boolean) => `h-9 shrink-0 rounded-[18px] px-3.5 text-sm font-semibold ${on ? 'bg-brand text-white' : 'bg-line/50 text-ink'}`
   const filter = (on: boolean) => `h-9 shrink-0 rounded-[18px] border px-3 text-[13px] ${on ? 'border-brand bg-brand-soft font-semibold text-brand-strong' : 'border-line bg-white'}`
 
@@ -154,8 +165,12 @@ function Listing({ entry, lang, quantities, onAdd, onLess, onBack }: {
       </div>
     )}
     <div className="flex gap-2 overflow-x-auto border-y border-line bg-ground px-3 py-2.5">
-      <button aria-pressed={inStock} onClick={() => setInStock(!inStock)} className={filter(inStock)}>{t('catMenu.inStock')}{inStock && ' ✕'}</button>
-      <button aria-pressed={onOffer} onClick={() => setOnOffer(!onOffer)} className={filter(onOffer)}>{t('catMenu.offer')}{onOffer && ' ✕'}</button>
+      {mode === 'order'
+        ? <button aria-pressed={low} onClick={() => setLow(!low)} className={filter(low)}>{t('catMenu.lowStock', { count: items.filter((p) => p.isLow).length })}{low && ' ✕'}</button>
+        : <>
+            <button aria-pressed={inStock} onClick={() => setInStock(!inStock)} className={filter(inStock)}>{t('catMenu.inStock')}{inStock && ' ✕'}</button>
+            <button aria-pressed={onOffer} onClick={() => setOnOffer(!onOffer)} className={filter(onOffer)}>{t('catMenu.offer')}{onOffer && ' ✕'}</button>
+          </>}
     </div>
     <main className="grid min-h-0 flex-1 grid-cols-2 content-start gap-2.5 overflow-y-auto px-3 pb-24 pt-3 sm:grid-cols-3 lg:grid-cols-4">
       {shown.length === 0 && <p className="col-span-full text-muted">{t('catMenu.none')}</p>}
@@ -169,11 +184,13 @@ function Listing({ entry, lang, quantities, onAdd, onLess, onBack }: {
               {off > 0 && <span className="absolute left-1.5 top-1.5 rounded-md bg-[#b45309] px-1.5 text-[11px] font-bold text-white">{t('catMenu.off', { amount: formatRupees(off) })}</span>}
             </div>
             <span className="text-sm font-semibold leading-[1.15]">{itemName(p, lang)}</span>
-            <span className="text-xs text-muted">{t(`units.${p.unit}`)}{!p.uncounted && !p.isService && <> · {t('catMenu.stock', { count: p.stock })}</>}</span>
+            <span className={`text-xs ${mode === 'order' && p.isLow ? 'font-semibold text-due' : 'text-muted'}`}>{t(`units.${p.unit}`)}{!p.uncounted && !p.isService && <> · {t('catMenu.stock', { count: p.stock })}</>}{mode === 'order' && Number.isFinite(daysLeft(p)) && <> · {t('catMenu.daysLeft', { count: Math.floor(daysLeft(p)) })}</>}</span>
             <div className="mt-0.5 flex items-center justify-between gap-1.5">
               <span className="flex flex-col leading-[1.1]">
-                <span className="text-base font-bold">{formatRupees(p.sellingPrice)}</span>
-                {off > 0 && <span className="text-[11.5px] text-muted line-through">{formatRupees(p.mrp!)}</span>}
+                {mode === 'order'
+                  ? <span className="text-sm text-muted">{p.costPrice ? t('catMenu.cost', { amount: formatRupees(p.costPrice) }) : ''}</span>
+                  : <span className="text-base font-bold">{formatRupees(p.sellingPrice)}</span>}
+                {mode === 'bill' && off > 0 && <span className="text-[11.5px] text-muted line-through">{formatRupees(p.mrp!)}</span>}
               </span>
               {qty > 0
                 ? <div className="flex h-9 items-center rounded-[10px] bg-brand text-white">
