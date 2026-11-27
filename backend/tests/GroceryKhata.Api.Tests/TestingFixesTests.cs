@@ -235,6 +235,16 @@ public sealed class TestingFixesTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task A_beauty_shop_gets_baby_and_kids_care_and_mens_grooming_items()
+    {
+        var (shop, _) = await ShopAsync("beauty");
+        var master = await shop.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items?trade=beauty");
+        Assert.Contains(master, m => m.Category == "Baby and kids care" && m.Name == "Diaper Rash Cream");
+        Assert.Contains(master, m => m.Category == "Baby and kids care" && m.Name == "Johnson's Baby Shampoo");
+        Assert.Contains(master, m => m.Category == "Men's grooming" && m.Name == "Beard Wash / Beard Shampoo");
+    }
+
+    [Fact]
     public async Task A_later_cancel_moves_money_on_the_day_it_happens_and_the_first_count_needs_an_opening()
     {
         var (shop, _) = await ShopAsync();

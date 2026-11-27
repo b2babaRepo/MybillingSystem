@@ -87,3 +87,30 @@ Switchgear works the same way with amp chips (6 · 10 · 16 · 20 · 32 · 40 ·
 ### Fields still missing for electrical filters
 
 Size (sq mm, amps, watts), colour and coil length are written inside the item name today. To filter on them, they need to be stored as their own fields on the item (same gap as hardware size in the main report). Until then, the chips can be filled by reading the number out of the name, which works for these 258 rows because the names follow one pattern.
+
+## Beauty shop: Women, Men, Kids & baby, Salon
+
+The beauty list had 952 items in 12 groups by product type. **65 items from your list were missing and are now added (1,017 in all)**, with a new group **Baby and kids care** (the three Johnson's and Himalaya baby items moved into it). Missing before: cleansing balm, sleeping mask, lip scrub and lip mask, body butter, body yogurt, massage oils, stretch-mark cream, men's charcoal and de-tan face care, beard wash and growth oil, men's sunscreen and matte moisturiser, every baby item (lotion, rash cream, massage oil, wash, wipes, powders, kids sunscreen, mosquito repellent), body ubtan, liposoluble and chocolate wax. GST is left blank on new rows; HSN is filled.
+
+### Top of the menu: who it is for
+
+Four buttons across the top: **महिला · Women | पुरुष · Men | बच्चे · Kids & baby | पार्लर · Salon**. The left rail then shows that person's areas:
+
+| For | Rail (areas) | Tiles inside |
+|---|---|---|
+| Women | Face · Body · Hair · Makeup · Lip & nail | **Face:** face wash, micellar and remover · toner and rose water · serums (vitamin C, niacinamide, hyaluronic, acne) · day, night, gel and under-eye cream · **face packs** (clay/multani mitti, peel-off, sheet, sleeping, ubtan) · scrubs and **massage cream/gel** · sunscreen and lip care. **Body:** soap and body wash, scrubs, loofah · lotion, butter, yogurt, **massage oil**, stretch-mark cream · hand and foot cream, deo, body mist, intimate wash. **Hair:** shampoo, conditioner, mask, serum, oil. **Makeup:** foundation, concealer, compact, blush, kajal, liner, mascara. **Lip & nail:** lipstick, gloss, nail polish, remover |
+| Men | Face · Shaving & beard · Body · Hair | **Face:** oil-control and charcoal face wash, de-tan scrub and pack, charcoal peel-off, massage cream, matte moisturiser, sunscreen. **Shaving & beard:** foam, gel, cream, razors, brush, aftershave · beard wash, oil, softener, balm, wax. **Body:** shower gel, cooling soap, lotion, deo, perfume. **Hair:** anti-dandruff shampoo, hair-fall oil, wax, gel, clay |
+| Kids & baby | Face & body · Bath · Powder & wipes · Outdoor | Baby cream, lotion, rash cream, massage oil and balm · baby wash, kids shampoo, bathing bar · talc-free and cornstarch powder, wipes · kids sunscreen, mosquito repellent, lip balm |
+| Salon | Facial kits · Body spa · Waxing · Bleach & clean-up · Professional hair | Gold, pearl, fruit, diamond, charcoal facial kits · body massage cream, body ubtan, polishing, paraffin · Rica, liposoluble, chocolate wax · bleach, clean-up · salon hair colour and treatment |
+
+Most items are for everyone (shampoo, soap, sunscreen), so the menu works this way:
+- **Men** shows the Men's grooming group plus any item with "men" in its name.
+- **Kids & baby** shows the Baby and kids care group.
+- **Salon** shows the facial, salon consumables and salon hair groups, and shop-use stock (kept apart from stock for sale, as in the main report).
+- **Women** shows everything else. An item can be pinned to more than one (a shampoo under both Women and Men) once the item gets a "for" field.
+
+### Filters for beauty
+
+Quick chips: **Skin type** (oily, dry, normal, sensitive, acne-prone) · **Concern** (tan, pigmentation, acne, dark circles, ageing, dandruff, hair fall) · **Shade** swatches for makeup · Pack size · Brand. In the filter panel: ingredient (vitamin C, niacinamide, charcoal, aloe, ubtan, onion), herbal/ayurvedic, SPF value, finish (matte, dewy), price, offer, in stock.
+
+Skin type, concern and ingredient are not stored on items today. Ingredient and concern can be read from the name for most rows ("Vitamin C", "De-Tan", "Anti-Dandruff"); skin type needs a field.

@@ -159,7 +159,7 @@ Fogg Master Perfume,,Fragrance and talc,piece,18,33030090,100 ml
 Fogg Scent Perfume,,Fragrance and talc,piece,18,33030090,100 ml
 Fogg Talc,,Fragrance and talc,piece,,33049110,100 g
 Gokul Santol Talc,,Fragrance and talc,piece,5,33049110,100 g
-Johnson's Baby Powder,,Fragrance and talc,piece,5,33049110,100 g|200 g|400 g
+Johnson's Baby Powder,,Baby and kids care,piece,5,33049110,100 g|200 g|400 g
 Loose Attar (bottle),,Fragrance and talc,piece,18,33030020,3 ml|6 ml|8 ml|12 ml
 Navratna Cool Talc,,Fragrance and talc,piece,5,33049110,100 g|200 g|400 g
 Nivea Men Deodorant Fresh Active,,Fragrance and talc,piece,18,33072000,150 ml
@@ -260,13 +260,13 @@ Himalaya Anti-Dandruff Hair Cream,,Hair care,piece,18,33059030,50 ml|100 ml
 Himalaya Anti-Dandruff Shampoo,,Hair care,piece,5,33051090,80 ml|180 ml|400 ml|700 ml
 Himalaya Anti-Hair Fall Hair Oil,,Hair care,piece,5,33059011,100 ml|200 ml
 Himalaya Anti-Hair Fall Shampoo,,Hair care,piece,5,33051090,80 ml|180 ml|400 ml|700 ml
-Himalaya Gentle Baby Shampoo,,Hair care,piece,5,33051090,100 ml|200 ml|400 ml
+Himalaya Gentle Baby Shampoo,,Baby and kids care,piece,5,33051090,100 ml|200 ml|400 ml
 Himalaya Protein Conditioner,,Hair care,piece,18,33059090,100 ml|200 ml
 Himalaya Protein Shampoo,,Hair care,piece,5,33051090,100 ml|200 ml|400 ml|700 ml
 Ikonic Hair Straightener,,Hair care,piece,18,8516,
 Indulekha Bringha Hair Oil,,Hair care,piece,5,33059019,50 ml|100 ml|250 ml
 Indulekha Bringha Shampoo,,Hair care,piece,5,33051090,100 ml|200 ml|340 ml
-Johnson's Baby Shampoo,,Hair care,piece,5,33051090,100 ml|200 ml|475 ml
+Johnson's Baby Shampoo,,Baby and kids care,piece,5,33051090,100 ml|200 ml|475 ml
 Jooda Maker (bun donut),,Hair care,piece,,3926,
 Kama Ayurveda Kumkumadi Miraculous Beauty Fluid,,Hair care,piece,18,3304,12 ml|25 ml
 Keo Karpin Hair Oil,,Hair care,piece,5,33059011,100 ml|200 ml|300 ml
@@ -951,3 +951,68 @@ Vicco Turmeric WSO Cream,,Skin care,piece,,3004,15 g|30 g|60 g
 WOW Skin Science Aloe Vera Gel,,Skin care,piece,18,3304,130 ml|250 ml
 WOW Ubtan Face Wash,,Skin care,piece,,3401,100 ml|200 ml
 WOW Vitamin C Face Wash,,Skin care,piece,,3401,100 ml|200 ml
+Cleansing Balm,,Skin care,piece,,33049990,50 ml|100 ml
+Sleeping Mask (overnight),,Skin care,piece,,33049990,50 g|100 g
+Lip Scrub,,Skin care,piece,,33041000,10 g|15 g
+Lip Mask (overnight),,Skin care,piece,,33041000,10 g|20 g
+AHA / BHA Exfoliating Serum,,Skin care,piece,,33049990,30 ml
+Facial Massage Gel,,"Facial, bleach and clean-up",piece,,33049990,100 g|500 g
+Clay Face Pack (bentonite / kaolin),,Skin care,piece,,33049990,100 g
+Tinted Sunscreen,,Skin care,piece,,33049990,30 g|50 g
+Matte Gel Sunscreen SPF 50,,Skin care,piece,,33049990,50 g|80 g
+Facial Mist (hydrating),,Skin care,piece,,33049990,50 ml|100 ml
+Gel Moisturiser (oil-free),,Skin care,piece,,33049990,50 g|100 g
+Acne Spot Treatment Gel,,Skin care,piece,,33049990,15 g
+Body Butter,,"Bath, body and personal care",piece,,33049990,100 g|200 g
+Body Yogurt,,"Bath, body and personal care",piece,,33049990,200 ml
+Body Polish / Body Scrub (salon),,"Bath, body and personal care",piece,,33049990,200 g|500 g
+Body Massage Oil,,"Bath, body and personal care",piece,,33049990,100 ml|200 ml
+Stretch Mark Cream,,"Bath, body and personal care",piece,,33049990,100 g|200 g
+Body Mist (women),,"Bath, body and personal care",piece,,33030090,135 ml|150 ml
+Bath Gloves / Exfoliating Mitt,,"Bath, body and personal care",piece,,96039000,
+Foot Scrub / Pumice Stone,,"Bath, body and personal care",piece,,68042210,
+Charcoal Face Wash (men),,Men's grooming,piece,,33049990,100 ml|150 ml
+Oil Control Face Wash (men),,Men's grooming,piece,,33049990,100 ml|150 ml
+De-Tan Face Scrub (men),,Men's grooming,piece,,33049990,100 g
+De-Tan Face Pack (men),,Men's grooming,piece,,33049990,100 g
+Charcoal Peel-off Mask (men),,Men's grooming,piece,,33049990,100 g
+Facial Massage Cream (men),,Men's grooming,piece,,33049990,100 g
+Matte Moisturiser (men),,Men's grooming,piece,,33049990,50 g|100 g
+Anti-Ageing Cream (men),,Men's grooming,piece,,33049990,50 g
+Sweat-Resistant Sunscreen (men),,Men's grooming,piece,,33049990,50 g|80 g
+Shaving Gel,,Men's grooming,piece,,33071090,60 g|200 g
+Shaving Cream (tube),,Men's grooming,piece,,33071090,30 g|70 g|125 g
+Beard Wash / Beard Shampoo,,Men's grooming,piece,,33059090,100 ml
+Beard Growth Oil,,Men's grooming,piece,,33059090,30 ml|50 ml
+Beard Softener,,Men's grooming,piece,,33059090,50 ml
+Cooling Soap (menthol),,"Bath, body and personal care",piece,,34011190,100 g|3x100 g
+Body Lotion (men),,Men's grooming,piece,,33049990,200 ml|400 ml
+Hair Styling Clay (men),,Men's grooming,piece,,33059090,50 g|100 g
+Hair Fall Control Oil (men),,Men's grooming,piece,,33059011,100 ml|200 ml
+Anti-Dandruff Shampoo (men),,Men's grooming,piece,,33051090,180 ml|340 ml
+Perfume EDT (men),,Men's grooming,piece,,33030090,50 ml|100 ml
+Baby Face Cream (tear-free / gentle),,Baby and kids care,piece,,33049990,50 g|100 g
+Baby Lotion,,Baby and kids care,piece,,33049990,100 ml|200 ml|400 ml
+Diaper Rash Cream,,Baby and kids care,piece,,33049990,50 g|100 g
+Baby Massage Oil,,Baby and kids care,piece,,33049990,100 ml|200 ml|500 ml
+Baby Massage Oil (almond / olive),,Baby and kids care,piece,,33049990,100 ml|200 ml
+Baby Massage Balm (soothing),,Baby and kids care,piece,,33049990,25 g|50 g
+"Baby Wash (head to toe, tear-free)",,Baby and kids care,piece,,33073090,100 ml|200 ml|500 ml
+Kids Shampoo (gentle),,Baby and kids care,piece,,33051090,100 ml|200 ml
+Baby Soap / Moisturising Bathing Bar,,Baby and kids care,piece,,34011190,75 g|3x75 g
+Baby Dusting Powder (talc-free),,Baby and kids care,piece,,33049110,100 g|200 g
+Baby Cornstarch Powder,,Baby and kids care,piece,,33049110,100 g|200 g
+Baby Wipes (alcohol-free),,Baby and kids care,piece,,34013090,72 pcs|80 pcs
+Kids Sunscreen (mineral / zinc),,Baby and kids care,piece,,33049990,50 g|100 g
+Mosquito Repellent Lotion / Cream,,Baby and kids care,piece,,38089199,50 g|100 ml
+Mosquito Repellent Patches,,Baby and kids care,piece,,38089199,24 pcs
+Kids Lip Balm,,Baby and kids care,piece,,33041000,4.5 g
+Baby Hair Oil,,Baby and kids care,piece,,33059011,100 ml|200 ml
+Baby Toothpaste (kids),,Baby and kids care,piece,,33061020,50 g|80 g
+Baby Comb and Brush Set,,Baby and kids care,piece,,96151900,
+Body Ubtan Pack,,"Salon consumables, bridal and tools",piece,,33049990,200 g|500 g
+Body Massage Cream (salon),,"Salon consumables, bridal and tools",piece,,33049990,500 g|1 kg
+Liposoluble Wax,,"Salon consumables, bridal and tools",piece,,34049090,800 g
+Charcoal Facial Kit,,"Facial, bleach and clean-up",piece,,33049990,single use|5 use
+Pearl Facial Kit,,"Facial, bleach and clean-up",piece,,33049990,single use|5 use
+Gold Facial Kit,,"Facial, bleach and clean-up",piece,,33049990,single use|5 use
