@@ -1082,8 +1082,9 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               )}
             </div>
             <span className="flex shrink-0 items-center gap-0.5 rounded-xl bg-[#edf2f1] p-0.5 xl:bg-transparent xl:p-0">
-              <button aria-label="−" className={`h-10 w-10 rounded-lg text-xl active:scale-95 lg:h-8 lg:w-8 xl:hidden ${btn.outline}`} onClick={() => setQuantity(i, round2(l.quantity - 1))}>−</button>
-              <QuantityInput value={l.quantity} onChange={(q) => setQuantity(i, q)} label={`${t('quantity')}: ${l.name}`} />
+              <button aria-label="−" disabled={l.bags ? l.bags <= 1 : l.quantity <= 1} className={`h-10 w-10 rounded-lg text-xl active:scale-95 disabled:opacity-35 disabled:active:scale-100 lg:h-8 lg:w-8 xl:hidden ${btn.outline}`}
+                onClick={() => setQuantity(i, l.bags ? round2(l.quantity - 1) : Math.max(1, round2(l.quantity - 1)))}>−</button>
+              <QuantityInput value={l.quantity} onChange={(q) => { if (q > 0) setQuantity(i, q) }} label={`${t('quantity')}: ${l.name}`} />
               <button aria-label="+" className={`h-10 w-10 rounded-lg text-xl active:scale-95 lg:h-8 lg:w-8 xl:hidden ${btn.solid}`} onClick={() => setQuantity(i, round2(l.quantity + 1))}>+</button>
             </span>
             {/* Desk columns: rate, discount % off the regular price, GST %. Enter goes back to the item search for the next one. */}
@@ -1093,7 +1094,14 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
             <PercentInput percent={offOf(l)?.percent ?? 0} disabled={!(regularOf(l) > 0)} label={`${t('billTable.disc')}: ${l.name}`}
               onChange={(pct) => setPrice(i, round2(regularOf(l) * (1 - pct / 100)))} onEnter={() => searchRef.current?.focus()} />
             <span className="hidden pt-1.5 text-right text-sm xl:block">{(() => { const p = products.find((x) => x.id === l.productId); const r = p ? garmentRate(p.hsnCode, p.gstRate, l.unitPrice) : null; return r == null ? '—' : `${r}%` })()}</span>
-            <div className="w-20 text-right font-bold xl:w-auto xl:pt-1.5">{formatRupees(round2(l.quantity * l.unitPrice))}</div>
+            <div className="flex w-20 items-start justify-end gap-1 xl:w-auto xl:pt-1.5">
+              <span className="font-bold">{formatRupees(round2(l.quantity * l.unitPrice))}</span>
+              {/* Not wanted on this bill: take the line off (− stops at 1). */}
+              <button onClick={() => setCart((c) => c.filter((_, k) => k !== i))} aria-label={`${t('remove')}: ${l.name}`} title={t('remove')}
+                className="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-due-soft hover:text-due">
+                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </div>
           </div>
         ))}
         {cart.length > 0 && (<>

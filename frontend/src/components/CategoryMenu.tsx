@@ -339,7 +339,7 @@ function Card({ p, c = plain, lang, mode, qty, onAdd, onLess, bags = 0, onAddBag
         </span>
         {qty > 0
           ? <div className="flex h-9 items-center rounded-[10px] bg-brand text-white">
-              <button aria-label={t('catMenu.less')} onClick={() => onLess(p)} className="h-9 w-8 text-xl font-bold">−</button>
+              <button aria-label={t('catMenu.less')} disabled={qty <= 1} onClick={() => onLess(p)} className="h-9 w-8 text-xl font-bold disabled:opacity-40">−</button>
               <span className="min-w-[18px] text-center font-bold">{qty}</span>
               <button aria-label={t('catMenu.more')} onClick={() => onAdd(p)} className="h-9 w-8 text-xl font-bold">+</button>
             </div>
