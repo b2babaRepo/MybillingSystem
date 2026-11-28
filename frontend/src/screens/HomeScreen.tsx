@@ -15,6 +15,7 @@ import { formatRupees } from '../lib/format'
 import { useSubscription } from '../lib/billing'
 import { useShopSettings, shopTypes, isTrade, COMMISSION_TYPES } from '../lib/reports'
 import { navigate } from '../router'
+import { chooseCountCategory, countDoneToday, todaysCategory } from '../lib/dailyCount'
 import { useNow } from '../lib/useNow'
 // Last week's summary, on Mondays and Tuesdays only: loaded then, not with the app.
 const WeekSummaryCard = lazy(() => import('./SalesInsightsScreens').then((module) => ({ default: module.WeekSummaryCard })))
@@ -102,6 +103,21 @@ export function HomeScreen({ shopId, isOwner }: { shopId: string; isOwner: boole
       {isOwner && (masterUpdates?.changes.length ?? 0) > 0 && (
         <Alert to="/items/pick" icon="M4 12a8 8 0 0114-5l2 2M20 4v5h-5M20 12a8 8 0 01-14 5l-2-2M4 20v-5h5" tone="bg-warn-soft text-warn-ink ring-amber-200">{t('pick.updatesBanner')} ({masterUpdates!.changes.length})</Alert>
       )}
+      {isOwner && products.filter((p) => p.stock === 0 && !p.isService && !p.uncounted).length >= 5 && (
+        <Alert to="/stocktake" icon="M4 7h16M4 12h16M4 17h10M18 15l2 2 3-4" tone="bg-brand-soft text-brand-deep ring-teal-200">{t('opening.toCount', { count: products.filter((p) => p.stock === 0 && !p.isService && !p.uncounted).length })} · {t('opening.count')} ›</Alert>
+      )}
+      {/* After the first count: one category to check today, in turn. */}
+      {isOwner && products.filter((p) => p.stock === 0 && !p.isService && !p.uncounted).length < 5 && !countDoneToday(shopId) && (() => {
+        const today = todaysCategory(products)
+        if (!today) return null
+        return (
+          <button onClick={() => { chooseCountCategory(shopId, today.name); navigate('/stocktake') }}
+            className="flex min-h-12 items-center justify-between gap-2 rounded-2xl bg-white px-4 text-left text-sm font-semibold shadow-sm ring-1 ring-line">
+            <span>🧮 {t('opening.today', { name: today.name, count: today.items })}</span>
+            <span aria-hidden className="text-lg text-muted">›</span>
+          </button>
+        )
+      })()}
       {isOwner && products.length === 0 && (
         <Alert to="/items/pick" icon="M12 2c3 3 4 7 3 11l-3 3-3-3c-1-4 0-8 3-11zM9 13l-4 1 2 3M15 13l4 1-2 3M12 16v5" tone="bg-brand text-white ring-teal-800">{t('pick.start')}</Alert>
       )}

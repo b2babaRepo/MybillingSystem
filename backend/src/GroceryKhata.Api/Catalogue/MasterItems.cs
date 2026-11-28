@@ -368,6 +368,16 @@ public static class MasterItems
                 StyleName: IsWearSize(i) ? NameOf(i) : null, Size: IsWearSize(i) ? size : null, Schedule: ScheduleOf(i))))
             .ToList();
         var (result, errors) = await stock.ImportAsync(new ImportRequest(rows), userId, ct);
+        if (errors is null)
+        {
+            var sacks = items.Where(i => i.PackSizes.Count == 0 && i.Unit == Unit.Kg && SackGroups.Contains(i.Category)).Select(i => i.Id).ToList();
+            if (sacks.Count > 0)
+            {
+                await db.Products.Where(p => p.MasterItemId != null && sacks.Contains(p.MasterItemId.Value) && p.Unit == Unit.Kg && p.BagSize == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.BagSize, 50m), ct);
+            }
+        }
+
         return errors is null ? TypedResults.Ok(result) : TypedResults.ValidationProblem(errors);
     }
 
@@ -424,6 +434,9 @@ public static class MasterItems
 
     /// <summary>A packed size of something sold by weight or volume is sold by the packet; a sized bag or piece keeps its unit.</summary>
     /// <summary>A size that makes a style (clothes: 32, M, 34B, 0-3M), not a pack weight (500 g).</summary>
+    /// <summary>Kirana groups bought loose in 50 kg bags (बोरी): grain, dal, flour, sugar, jaggery.</summary>
+    private static readonly HashSet<string> SackGroups = ["आटा, चावल, दाल", "चीनी, नमक, गुड़"];
+
     private static bool IsWearSize(MasterItem item) => item.Trade == ShopTypes.Name(ShopType.Clothes);
 
     private static Unit PackUnit(Unit unit) => unit is Unit.Kg or Unit.G or Unit.Litre or Unit.Ml ? Unit.Packet : unit;

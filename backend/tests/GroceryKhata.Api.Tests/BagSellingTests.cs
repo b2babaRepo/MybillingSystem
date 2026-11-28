@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using GroceryKhata.Api.Catalogue;
+using GroceryKhata.Api.Ledger;
 using GroceryKhata.Api.Identity;
 using GroceryKhata.Api.Shops;
 
@@ -11,6 +12,37 @@ namespace GroceryKhata.Api.Tests;
 [Collection(ApiCollection.Name)]
 public sealed class BagSellingTests(ApiFactory api)
 {
+    [Fact]
+    public async Task A_new_shops_first_count_is_its_opening_stock_in_bags_and_loose()
+    {
+        var (shop, _) = await api.SignUpAsync();
+
+        // Loose atta picked from the kirana list comes kept in 50 kg bags, so it can be counted and sold by the bori.
+        var list = await shop.GetJsonAsync<List<MasterItemDto>>("/api/v1/master-items");
+        var looseAtta = list.First(i => i.Trade == "kirana" && i.Category == "आटा, चावल, दाल" && i.Unit == Unit.Kg && i.PackSizes.Count == 0);
+        (await shop.PostJsonAsync("/api/v1/products/from-master", new { ids = new[] { looseAtta.Id } })).EnsureSuccessStatusCode();
+        var atta = (await shop.GetJsonAsync<List<ProductDto>>("/api/v1/products")).Single();
+        Assert.Equal((50m, 0m), (atta.BagSize, atta.Stock));
+
+        // Prices set from the count sheet: the selling price and the buying cost together.
+        (await shop.PutAsJsonAsync("/api/v1/products/rates", new { rates = new[] { new { productId = atta.Id, sellingPrice = 52m, costPrice = 44m } } }, ApiFactory.Json)).EnsureSuccessStatusCode();
+        var priced = await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{atta.Id}");
+        Assert.Equal((52m, (decimal?)44m), (priced.SellingPrice, priced.CostPrice));
+
+        // First count: 3 bori + 20 kg loose = 170 kg, 3 sealed bags, saved as the opening stock.
+        (await shop.PostJsonAsync("/api/v1/stocktakes", new { id = Guid.CreateVersion7(), counts = new[] { new { productId = atta.Id, counted = 170m, bags = 3m } } })).EnsureSuccessStatusCode();
+        var counted = await shop.GetJsonAsync<ProductDto>($"/api/v1/products/{atta.Id}");
+        Assert.Equal((170m, 3m), (counted.Stock, counted.Bags));
+        var ledger = await shop.GetJsonAsync<ItemLedger>($"/api/v1/products/{atta.Id}/ledger");
+        Assert.Contains(ledger.Lines, l => l.Kind == StockMovementKind.Opening && l.In == 170m);
+
+        // A later count is a correction, not another opening.
+        (await shop.PostJsonAsync("/api/v1/stocktakes", new { id = Guid.CreateVersion7(), counts = new[] { new { productId = atta.Id, counted = 165m, bags = 3m } } })).EnsureSuccessStatusCode();
+        ledger = await shop.GetJsonAsync<ItemLedger>($"/api/v1/products/{atta.Id}/ledger");
+        Assert.Single(ledger.Lines, l => l.Kind == StockMovementKind.Opening);
+        Assert.Contains(ledger.Lines, l => l.Kind == StockMovementKind.Adjustment && l.Out == 5m);
+    }
+
     [Fact]
     public async Task A_loose_sale_bigger_than_the_loose_stock_opens_a_bag()
     {

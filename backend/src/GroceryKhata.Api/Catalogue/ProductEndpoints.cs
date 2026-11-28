@@ -137,7 +137,8 @@ public sealed record StockMovementDto(
     string? Note,
     DateTimeOffset OccurredAt);
 
-public sealed record StocktakeCount(Guid ProductId, decimal Counted);
+/// <summary><see cref="Bags"/>: sealed bags counted on the shelf (items kept in bags), beside the total in the item's unit.</summary>
+public sealed record StocktakeCount(Guid ProductId, decimal Counted, decimal? Bags = null);
 
 public sealed record StocktakeRequest(Guid Id, IReadOnlyList<StocktakeCount>? Counts);
 
@@ -157,7 +158,8 @@ public sealed record ImportRow(
     bool Uncounted = false);
 
 /// <summary>One item's new rate on the "today's rates" screen.</summary>
-public sealed record RateChange(Guid ProductId, decimal SellingPrice);
+/// <summary><see cref="CostPrice"/>: the buying cost too, when sent (null keeps it).</summary>
+public sealed record RateChange(Guid ProductId, decimal SellingPrice, decimal? CostPrice = null);
 
 public sealed record RatesRequest(IReadOnlyList<RateChange>? Rates);
 
