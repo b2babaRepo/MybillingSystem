@@ -430,7 +430,8 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
           </button>
         )}
         <div className="flex min-w-0 flex-1 flex-col">
-          {path === '/' && <span className="text-sm opacity-85">{t('greeting', { name: userName.split(' ')[0] })}</span>}
+          {/* Which app this is, always in sight: a shopkeeper and a customer sign in at the same place. */}
+          <span className="truncate text-sm opacity-85">{path === '/' ? `${t('greeting', { name: userName.split(' ')[0] })} · ` : ''}🏪 {t('mode.shop')}</span>
           <h1 className="truncate text-xl font-bold">{shopName}{pageTitle && <span className="hidden font-semibold opacity-85 lg:inline"> · {pageTitle}</span>}</h1>
         </div>
         <button
@@ -454,7 +455,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
             { label: `🔑 ${t('forgot.change')}`, onClick: () => { navigate('/profile'); setTimeout(() => document.getElementById('password')?.scrollIntoView({ block: 'center' }), 400) } },
             ...(isOwner ? [{ label: t('plan2.myPlan'), onClick: () => navigate('/plan') }] : []),
             { label: t('teamLink'), onClick: () => navigate('/team') },
-            { label: t('plan.householdLists'), onClick: onHousehold },
+            { label: t('mode.toCustomer'), onClick: onHousehold },
             { label: t('account.syncStatus'), onClick: () => navigate('/sync') },
           ]}
         /></Suspense>

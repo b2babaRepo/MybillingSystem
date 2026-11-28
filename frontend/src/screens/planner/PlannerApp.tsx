@@ -101,7 +101,7 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
             </button>
           )}
           <div className="flex min-w-0 flex-1 flex-col">
-            {path === '/' && <span className="text-sm opacity-85">{t('greeting', { name: userName.split(' ')[0] })}</span>}
+            <span className="truncate text-sm opacity-85">{path === '/' ? `${t('greeting', { name: userName.split(' ')[0] })} · ` : ''}🛒 {t('mode.customer')}</span>
             <h1 className="truncate text-xl font-bold">{title}</h1>
           </div>
           <span className={`flex h-11 items-center gap-1 rounded-full px-3 text-[13px] font-semibold ${unsynced > 0 || state === 'offline' ? 'bg-amber-400 text-amber-950' : 'bg-white/20'}`}>

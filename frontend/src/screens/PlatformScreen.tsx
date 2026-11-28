@@ -20,6 +20,10 @@ import { navigate } from '../router'
 import { getSession, setSession } from '../lib/session'
 import { MasterItemsPanel } from './PlatformMasterItems'
 import { PlatformMenuPanel } from './PlatformMenu'
+import { PlatformReferralsPanel } from './PlatformReferrals'
+import { PlatformAccountsPanel } from './PlatformAccounts'
+import { RolesGrid, useRoles } from './PlatformRolesGrid'
+import { usePlatformCan, type Can } from '../lib/platformAccess'
 import { AddPerson, NewShop } from './PlatformNewShop'
 import { marketPlace, useMarkets, type MarketRow } from '../lib/markets'
 
@@ -47,7 +51,7 @@ interface Person { userId: string; membershipId: string; name: string; phone: st
 interface Detail { shopNo?: string | null; gstin?: string | null; market?: string | null; place?: string | null; latitude?: number | null; longitude?: number | null; hasPhoto?: boolean; shop: ShopRow; address: string | null; adminNote: string | null; people: Person[]; customers: number; billsLast30Days: number; lastBillAt: string | null; lastBalanceCheck: { mismatches: number } | null }
 
 type Status = 'new' | 'active' | 'blocked' | 'all'
-type Section = 'shops' | 'plans' | 'markets' | 'items' | 'menu' | 'agents' | 'ai' | 'admins'
+type Section = 'shops' | 'accounts' | 'plans' | 'markets' | 'items' | 'menu' | 'agents' | 'referrals' | 'ai' | 'admins'
 
 /**
  * The platform admin's view of every shop: counts at the top, then new / active / blocked shops with search. Open a
@@ -59,6 +63,7 @@ export function PlatformScreen() {
   // What this admin may do; the server checks the same on every request (a session from before roles counts as super).
   const session = useSession()
   const role: AdminRole = session?.user.platformRole ?? 'super'
+  const can = usePlatformCan(role)
   // An admin who also runs a shop may have bills not yet sent: warn before signing out, as the shop screens do.
   const { pending, failed } = useOutbox(session?.shopId ?? '')
   async function signOut() {
@@ -78,7 +83,7 @@ export function PlatformScreen() {
     queryKey: ['platform', 'shops', status, q, plan],
     queryFn: () => api<ShopRow[]>(`/v1/platform/shops?status=${status}&q=${encodeURIComponent(q.trim())}&plan=${plan}`),
   })
-  const seesBilling = role === 'super' || role === 'billing'
+  const seesBilling = can('billing')
   const byPlan = useQuery({
     queryKey: ['platform', 'billing', 'byPlan'],
     queryFn: () => api<{ byPlan?: Record<string, number> }>('/v1/platform/billing'),
@@ -105,7 +110,7 @@ export function PlatformScreen() {
   }
   const SECTION_ICON: Record<Section, string> = {
     shops: 'M4 9l1-5h14l1 5M4 9h16v11H4zM9 20v-6h6v6', plans: 'M3 6h18v12H3zM3 10h18M7 15h3',
-    markets: 'M12 21s7-6 7-11a7 7 0 10-14 0c0 5 7 11 7 11zM12 8a2 2 0 100 4 2 2 0 000-4', items: 'M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01', menu: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+    markets: 'M12 21s7-6 7-11a7 7 0 10-14 0c0 5 7 11 7 11zM12 8a2 2 0 100 4 2 2 0 000-4', items: 'M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01', menu: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', referrals: 'M8 7a3 3 0 106 0 3 3 0 00-6 0M3 20c0-3 3-5 6-5M15 14l2 2 4-4', accounts: 'M16 11a4 4 0 10-8 0 4 4 0 008 0M4 21c0-4 4-6 8-6s8 2 8 6',
     agents: 'M9 11a4 4 0 100-8 4 4 0 000 8zM2 21v-1a7 7 0 0114 0v1M17 3a4 4 0 010 8M22 21v-1a7 7 0 00-4-6', ai: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z',
     admins: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
   }
@@ -115,7 +120,7 @@ export function PlatformScreen() {
   const [hideTest, setHideTest] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
   const [addAgent, setAddAgent] = useState(0)
-  const canApprove = role === 'super' || role === 'approver'
+  const canApprove = can('shops.approve')
   const isTest = (s: ShopRow) => /\b(test|qa)\b|\(test\)/i.test(s.name)
   const shown = (shops.data ?? []).filter((s) => !hideTest || !isTest(s))
   async function approve(ids: string[]) {
@@ -131,12 +136,14 @@ export function PlatformScreen() {
   const sections: { id: Section; label: string; show: boolean }[] = [
     { id: 'shops', label: t('platform.title'), show: true },
     { id: 'plans', label: t('platformNav.plans'), show: seesBilling },
-    { id: 'markets', label: t('platformNav.markets'), show: role !== 'support' },
-    { id: 'items', label: t('masterItems.title'), show: role !== 'support' },
-    { id: 'menu', label: t('platformNav.menu'), show: role !== 'support' },
-    { id: 'agents', label: t('platformNav.agents'), show: role !== 'support' },
+    { id: 'markets', label: t('platformNav.markets'), show: can('catalogue') },
+    { id: 'items', label: t('masterItems.title'), show: can('catalogue') },
+    { id: 'menu', label: t('platformNav.menu'), show: can('catalogue') },
+    { id: 'agents', label: t('platformNav.agents'), show: can('agents.manage') || can('agents.money') || can('shops.review') },
+    { id: 'referrals', label: t('platformNav.referrals'), show: can('catalogue') || can('billing') },
+    { id: 'accounts', label: t('platformNav.accounts'), show: true },
     { id: 'ai', label: t('platformNav.ai'), show: true },
-    { id: 'admins', label: t('platformNav.admins'), show: role === 'super' },
+    { id: 'admins', label: t('platformNav.admins'), show: can('admins.manage') },
   ]
 
   return (
@@ -179,7 +186,7 @@ export function PlatformScreen() {
                 return x.onClick ? <button key={x.label} onClick={x.onClick} className={style}>{body}</button> : <div key={x.label} className={style}>{body}</div>
               })}
             </div>
-            {role !== 'support' && <NewShop canBill={seesBilling} />}
+            {can('shops.open') && <NewShop canBill={seesBilling} />}
             <section className="flex flex-col gap-3 rounded-2xl bg-white p-3">
               <label className="sr-only" htmlFor="platform-search">{t('platform.search')}</label>
               <div className="flex flex-wrap items-center gap-3">
@@ -261,7 +268,7 @@ export function PlatformScreen() {
                               <button onClick={() => setOpenId(openId === s.id ? null : s.id)} className={`min-h-9 rounded-xl px-3 text-sm ${btn.outline}`}>{openId === s.id ? t('plat3.close') : t('plat3.open')}</button>
                             </td>
                           </tr>
-                          {openId === s.id && <tr><td colSpan={6} className="border-t border-line bg-white"><ShopDetail id={s.id} role={role} /></td></tr>}
+                          {openId === s.id && <tr><td colSpan={6} className="border-t border-line bg-white"><ShopDetail id={s.id} can={can} /></td></tr>}
                         </Fragment>
                       )
                     })}
@@ -274,20 +281,22 @@ export function PlatformScreen() {
           {section === 'markets' && <MarketsPanel />}
           {section === 'items' && <MasterItemsPanel />}
           {section === 'menu' && <PlatformMenuPanel />}
+          {section === 'referrals' && <PlatformReferralsPanel />}
+          {section === 'accounts' && <PlatformAccountsPanel can={can} />}
           {section === 'agents' && <>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="mr-auto text-2xl font-extrabold">{t('platformNav.agents')}</h1>
-              {(role === 'super' || role === 'agent_manager') && <button onClick={() => setAddAgent((n) => n + 1)} className={`min-h-11 rounded-xl px-4 ${btn.solid}`}>+ {t('agentsAdmin.addTitle')}</button>}
+              {can('agents.manage') && <button onClick={() => setAddAgent((n) => n + 1)} className={`min-h-11 rounded-xl px-4 ${btn.solid}`}>+ {t('agentsAdmin.addTitle')}</button>}
             </div>
-            <AgentsSummary showMoney={role === 'super' || role === 'agent_manager' || role === 'billing'} />
+            <AgentsSummary showMoney={can('agents.money')} />
             <div className="grid items-start gap-3 xl:grid-cols-2">
-            {role !== 'support' && <RegistrationsPanel role={role} />}
-            {(role === 'super' || role === 'agent_manager') && <AgentsPanel addRequest={addAgent} />}
+            {(can('shops.review') || can('billing')) && <RegistrationsPanel can={can} />}
+            {can('agents.manage') && <AgentsPanel addRequest={addAgent} />}
             </div>
-            {(role === 'super' || role === 'agent_manager' || role === 'billing') && <PerformancePanel role={role} />}
+            {can('agents.money') && <PerformancePanel can={can} />}
           </>}
-          {section === 'ai' && <><AgentPanel role={role} /><CustomerUsagePanel /></>}
-          {section === 'admins' && <><ManageAdmins /><ActivityPanel /></>}
+          {section === 'ai' && <><AgentPanel can={can} /><CustomerUsagePanel /></>}
+          {section === 'admins' && <><ManageAdmins /><RolesGrid /><ActivityPanel /></>}
         </main>
       </div>
     </div>
@@ -327,10 +336,10 @@ function ShopFacts({ id, d }: { id: string; d: Detail }) {
   )
 }
 
-function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
-  const canApprove = role === 'super' || role === 'approver'
-  const canSupport = role === 'super' || role === 'support'
-  const canPeople = role !== 'support'
+function ShopDetail({ id, can }: { id: string; can: Can }) {
+  const canApprove = can('shops.approve')
+  const canSupport = can('support')
+  const canPeople = can('shops.open')
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const detail = useQuery({ queryKey: ['platform', 'shop', id], queryFn: () => api<Detail>(`/v1/platform/shops/${id}`) })
@@ -404,7 +413,7 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
         <Button tone="plain" disabled={busy} onClick={() => void run(`/v1/platform/shops/${id}/note`, { note }, 'PUT', t('platform.noteSaved')).then(() => setNote(null))}>{t('platform.saveNote')}</Button>
       )}
 
-      <ShopBillingPanel shopId={id} role={role} shopName={d.shop.name} ownerPhone={d.people.find((x) => x.role === 'owner')?.phone ?? null} />
+      <ShopBillingPanel shopId={id} can={can} shopName={d.shop.name} ownerPhone={d.people.find((x) => x.role === 'owner')?.phone ?? null} />
 
       {canApprove && <div className="grid grid-cols-2 gap-2">
         {d.shop.isActive && !d.shop.approvedAt && <Button disabled={busy} onClick={() => void run(`/v1/platform/shops/${id}/approve`)}>{t('platform.approve')}</Button>}
@@ -416,9 +425,9 @@ function ShopDetail({ id, role }: { id: string; role: AdminRole }) {
   )
 }
 
-interface Admin { userId: string; name: string; phone: string; role: AdminRole; addedAt: string; addedBy: string | null }
+interface Admin { userId: string; name: string; phone: string; role: AdminRole; addedAt: string; addedBy: string | null; customRoleId: string | null; customRoleName: string | null }
 
-const ROLES: AdminRole[] = ['super', 'approver', 'support', 'billing', 'agent_manager']
+const ROLES: Exclude<AdminRole, 'custom'>[] = ['super', 'approver', 'support', 'billing', 'agent_manager']
 
 /**
  * Super admins only: who else has admin access, and what they may do. Add a person by their phone number (they need
@@ -512,7 +521,10 @@ function ManageAdmins() {
   const me = useSession()?.user.id
   const admins = useQuery({ queryKey: ['platform', 'admins'], queryFn: () => api<Admin[]>('/v1/platform/admins') })
   const [phone, setPhone] = useState('')
-  const [role, setRole] = useState<AdminRole>('support')
+  // A built-in role, or "custom:<id>" for one of the super admin's own roles.
+  const [role, setRole] = useState<string>('support')
+  const custom = useRoles().data?.custom ?? []
+  const roleBody = (value: string) => value.startsWith('custom:') ? { role: 'custom', customRoleId: value.slice(7) } : { role: value }
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [open, setOpen] = useState(true)
@@ -558,10 +570,11 @@ function ManageAdmins() {
               <span className="text-xs text-muted">{formatPhone(a.phone)}{a.addedBy ? ` · ${t('admins.addedBy', { name: a.addedBy })}` : ''}</span>
             </span>
             <div role="radiogroup" aria-label={t('admins.role')} className="flex flex-wrap gap-1 rounded-xl bg-ground p-1">
-              {ROLES.map((r) => (
-                <button key={r} role="radio" aria-checked={a.role === r} disabled={busy || a.role === r}
-                  onClick={() => void run(`/v1/platform/admins/${a.userId}`, 'PUT', { role: r }, t('admins.changed', { name: a.name }))}
-                  className={`min-h-9 rounded-lg px-2.5 text-xs font-semibold transition ${a.role === r ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}>{t(`admins.roles.${r}`)}</button>
+              {[...ROLES.map((r) => ({ value: r as string, label: t(`admins.roles.${r}`), on: a.role === r })),
+                ...custom.map((c) => ({ value: `custom:${c.id}`, label: c.name, on: a.role === 'custom' && a.customRoleId === c.id }))].map((r) => (
+                <button key={r.value} role="radio" aria-checked={r.on} disabled={busy || r.on || a.userId === me}
+                  onClick={() => void run(`/v1/platform/admins/${a.userId}`, 'PUT', roleBody(r.value), t('admins.changed', { name: a.name }))}
+                  className={`min-h-9 rounded-lg px-2.5 text-xs font-semibold transition ${r.on ? 'bg-brand text-white shadow-md shadow-teal-900/20' : 'text-muted hover:text-ink'}`}>{r.label}</button>
               ))}
             </div>
             {a.userId !== me && <button disabled={busy} aria-label={t('admins.remove', { name: a.name })}
@@ -577,10 +590,11 @@ function ManageAdmins() {
         <input id="admin-phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder={t('staff.phone')}
           className="h-12 rounded-xl border border-line bg-white px-3" />
         <label className="sr-only" htmlFor="admin-role">{t('admins.role')}</label>
-        <select id="admin-role" value={role} onChange={(e) => setRole(e.target.value as AdminRole)} className="h-12 rounded-xl border border-line bg-white px-3">
+        <select id="admin-role" value={role} onChange={(e) => setRole(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3">
           {ROLES.map((r) => <option key={r} value={r}>{t(`admins.roles.${r}`)} — {t(`admins.can.${r}`)}</option>)}
+          {custom.map((c) => <option key={c.id} value={`custom:${c.id}`}>{c.name} — {t('rolesAdmin.custom')}</option>)}
         </select>
-        <Button disabled={busy || phone.trim().length < 10} onClick={() => void run('/v1/platform/admins', 'POST', { phone: phone.trim(), role }, t('admins.added'))}>
+        <Button disabled={busy || phone.trim().length < 10} onClick={() => void run('/v1/platform/admins', 'POST', { phone: phone.trim(), ...roleBody(role) }, t('admins.added'))}>
           {t('admins.add')}
         </Button>
       </div>}

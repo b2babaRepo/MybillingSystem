@@ -18,6 +18,9 @@ public sealed class PlatformAdmin : Entity
 
     /// <summary>Who gave this access (null: from the server's settings at start-up).</summary>
     public Guid? AddedByUserId { get; set; }
+
+    /// <summary>With <see cref="AdminRole.Custom"/>: the super admin's own role (<see cref="PlatformRole"/>) whose permissions apply.</summary>
+    public Guid? CustomRoleId { get; set; }
 }
 
 /// <summary>What a platform admin may do. Everyone sees the shops; the rest depends on the role.</summary>
@@ -37,6 +40,9 @@ public enum AdminRole
 
     /// <summary>Field agents: checks their Aadhaar card, approves them (giving their agent code), assigns markets, blocks them.</summary>
     AgentManager,
+
+    /// <summary>A role a super admin made (PlatformAdmin.CustomRoleId): its ticked permissions only.</summary>
+    Custom,
 }
 
 /// <summary>
@@ -44,9 +50,10 @@ public enum AdminRole
 /// allowed roles, checked on every request, so removing someone or changing their role works at once rather than
 /// when their token expires. (Same pattern as SchoolErp.)
 /// </summary>
-public sealed class PlatformAdminRequirement(params AdminRole[] roles) : IAuthorizationRequirement
+public sealed class PlatformAdminRequirement(string? permission = null) : IAuthorizationRequirement
 {
-    public IReadOnlyList<AdminRole> Roles { get; } = roles.Length == 0 ? Enum.GetValues<AdminRole>() : roles;
+    /// <summary>The <see cref="Permissions"/> code needed; null: any admin.</summary>
+    public string? Permission { get; } = permission;
 }
 
 public sealed class PlatformAdminHandler(AppDbContext db) : AuthorizationHandler<PlatformAdminRequirement>
@@ -65,19 +72,20 @@ public sealed class PlatformAdminHandler(AppDbContext db) : AuthorizationHandler
             return;
         }
 
-        var role = await db.PlatformAdmins.AsNoTracking().Where(a => a.UserId == userId).Select(a => (AdminRole?)a.Role).SingleOrDefaultAsync();
-        if (role is { } r && requirement.Roles.Contains(r))
+        var permissions = await Permissions.ForUserAsync(db, userId);
+        if (permissions is not null && (requirement.Permission is null || permissions.Contains(requirement.Permission)))
         {
             context.Succeed(requirement);
         }
     }
 }
 
-public sealed record AdminDto(Guid UserId, string Name, string Phone, AdminRole Role, DateTimeOffset AddedAt, string? AddedBy);
+public sealed record AdminDto(Guid UserId, string Name, string Phone, AdminRole Role, DateTimeOffset AddedAt, string? AddedBy, Guid? CustomRoleId = null, string? CustomRoleName = null);
 
-public sealed record AddAdminRequest(string? Phone, AdminRole? Role);
+/// <summary><see cref="CustomRoleId"/> with <see cref="AdminRole.Custom"/>: one of the super admin's own roles.</summary>
+public sealed record AddAdminRequest(string? Phone, AdminRole? Role, Guid? CustomRoleId = null);
 
-public sealed record AdminRoleRequest(AdminRole? Role);
+public sealed record AdminRoleRequest(AdminRole? Role, Guid? CustomRoleId = null);
 
 /// <summary><see cref="OldClaims"/>: UPI payments waiting over a day. <see cref="JobsBehind"/>: daily jobs that failed or haven't run for over a day.</summary>
 public sealed record PlatformOverview(int Shops, int Active, int Blocked, int AwaitingApproval, int NewThisWeek, int Households, int OldClaims = 0, int JobsBehind = 0);
@@ -246,7 +254,8 @@ public static class PlatformEndpoints
                join adder in db.Users.AsNoTracking() on a.AddedByUserId equals (Guid?)adder.Id into adders
                from b in adders.DefaultIfEmpty()
                orderby a.Role, u.FullName
-               select new AdminDto(u.Id, u.FullName, u.Phone, a.Role, a.CreatedAt, b == null ? null : b.FullName))
+               select new AdminDto(u.Id, u.FullName, u.Phone, a.Role, a.CreatedAt, b == null ? null : b.FullName, a.CustomRoleId,
+                   db.PlatformRoles.Where(r => r.Id == a.CustomRoleId).Select(r => r.Name).FirstOrDefault()))
             .ToListAsync(ct);
 
     /// <summary>
@@ -278,7 +287,12 @@ public static class PlatformEndpoints
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "They are already an admin. Change their role instead.");
         }
 
-        db.PlatformAdmins.Add(new PlatformAdmin { UserId = user.Id, Role = request.Role.Value, AddedByUserId = admin.UserId() });
+        if (await CustomRoleProblemAsync(request.Role.Value, request.CustomRoleId, db, ct) is { } badRole)
+        {
+            return badRole;
+        }
+
+        db.PlatformAdmins.Add(new PlatformAdmin { UserId = user.Id, Role = request.Role.Value, CustomRoleId = request.Role == AdminRole.Custom ? request.CustomRoleId : null, AddedByUserId = admin.UserId() });
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Admin {AdminId} made user {UserId} a platform admin ({Role})", admin.UserId(), user.Id, request.Role);
         return TypedResults.Ok(await ListAdminsAsync(db, ct));
@@ -298,12 +312,23 @@ public static class PlatformEndpoints
             return TypedResults.NotFound();
         }
 
+        // Nobody changes their own access: another super admin has to.
+        if (userId == admin.UserId())
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "You can't change your own role. Ask another super admin.");
+        }
+
         if (row.Role == AdminRole.Super && request.Role != AdminRole.Super && await LastSuperAsync(db, userId, ct))
         {
             return LastSuper();
         }
 
-        row.Role = request.Role.Value;
+        if (await CustomRoleProblemAsync(request.Role.Value, request.CustomRoleId, db, ct) is { } badRole)
+        {
+            return badRole;
+        }
+
+        (row.Role, row.CustomRoleId) = (request.Role.Value, request.Role == AdminRole.Custom ? request.CustomRoleId : null);
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Admin {AdminId} changed user {UserId} to {Role}", admin.UserId(), userId, request.Role);
         return TypedResults.Ok(await ListAdminsAsync(db, ct));
@@ -328,6 +353,11 @@ public static class PlatformEndpoints
         logger.LogWarning("Admin {AdminId} removed platform admin {UserId}", admin.UserId(), userId);
         return TypedResults.Ok(await ListAdminsAsync(db, ct));
     }
+
+    private static async Task<IResult?> CustomRoleProblemAsync(AdminRole role, Guid? customRoleId, AppDbContext db, CancellationToken ct) =>
+        role != AdminRole.Custom ? null
+            : customRoleId is { } id && await db.PlatformRoles.AnyAsync(r => r.Id == id, ct) ? null
+            : TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["CustomRoleId"] = ["Choose one of your roles."] });
 
     private static async Task<bool> LastSuperAsync(AppDbContext db, Guid userId, CancellationToken ct) =>
         !await db.PlatformAdmins.AnyAsync(a => a.Role == AdminRole.Super && a.UserId != userId, ct);

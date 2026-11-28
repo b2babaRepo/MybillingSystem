@@ -169,6 +169,24 @@ public sealed class AuthService(
         return AuthResult<AuthResponse>.Ok(await IssueAsync(user, only, cancellationToken));
     }
 
+    /// <summary>
+    /// Sign-in after a code sent to the account's verified email replaced a forgotten password: opens as a password
+    /// sign-in would (its one shop straight away). The code itself lifts a lockout, as an SMS code does.
+    /// </summary>
+    public async Task<AuthResult<AuthResponse>> SignInAfterEmailResetAsync(User user, CancellationToken cancellationToken)
+    {
+        if (!user.IsActive)
+        {
+            return AuthResult<AuthResponse>.Fail(AuthError.InvalidCredentials);
+        }
+
+        Succeeded(user, clock.GetUtcNow());
+        user.LockoutEndsAt = null;
+        var memberships = await ListMembershipsAsync(user.Id, cancellationToken);
+        var only = memberships.Count == 1 ? await FindUsableMembershipAsync(memberships[0].MembershipId, user.Id, cancellationToken) : null;
+        return AuthResult<AuthResponse>.Ok(await IssueAsync(user, only, cancellationToken));
+    }
+
     public async Task<AuthResult<AuthResponse>> SelectShopAsync(Guid userId, SelectShopRequest request, CancellationToken cancellationToken)
     {
         var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId && u.IsActive, cancellationToken);

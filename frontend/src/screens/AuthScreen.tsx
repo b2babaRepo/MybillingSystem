@@ -1,5 +1,6 @@
 import { SHOP_TYPES } from '../lib/reports'
 import { useState, type FormEvent } from 'react'
+import { forgetReferral, referralFromLink } from '../lib/referral'
 import { useTranslation } from 'react-i18next'
 import { navigate, usePath } from '../router'
 import { Button, Field } from '../components/ui'
@@ -12,9 +13,11 @@ export function AuthScreen() {
   // A trade's own sign-up link opens straight on that shop's registration: #/start/salon (beauty parlour), #/start/medical (chemist).
   const path = usePath()
   const preset = path === '/start/salon' ? 'beauty' : path === '/start/medical' ? 'medical' : path === '/start/dairy' ? 'dairy' : path === '/start/service' ? 'sales_service' : null
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>(preset ? 'sign-up' : 'sign-in')
-  const [role, setRole] = useState<'home' | 'shop'>(preset ? 'shop' : 'home')
-  const [form, setForm] = useState({ shopName: '', area: '', fullName: '', phone: '', password: '', type: preset ?? 'kirana' })
+  // Opened from a shop's invite link: straight to a new shop's sign-up, with the code filled in.
+  const [referral] = useState(referralFromLink)
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>(preset || referral ? 'sign-up' : 'sign-in')
+  const [role, setRole] = useState<'home' | 'shop'>(preset || referral ? 'shop' : 'home')
+  const [form, setForm] = useState({ shopName: '', area: '', fullName: '', phone: '', password: '', type: preset ?? 'kirana', referralCode: referral })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   // Signing in: a code by SMS (default; no password to remember) or a password / counter PIN.
@@ -26,6 +29,10 @@ export function AuthScreen() {
   // Forgot password: a code to the mobile, then the code and a new password (signs in at once).
   const resetting = mode === 'sign-in' && method === 'reset'
   const [newPassword, setNewPassword] = useState('')
+  // The code can go by SMS to the mobile, or to a recovery email the person verified in Profile.
+  const [resetBy, setResetBy] = useState<'sms' | 'email'>('sms')
+  const [email, setEmail] = useState('')
+  const byEmail = resetting && resetBy === 'email'
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value })
 
   async function submit(e: FormEvent) {
@@ -35,12 +42,14 @@ export function AuthScreen() {
     try {
       if (resetting) {
         if (otpStep === 'phone') await sendCode()
+        else if (byEmail) await authenticate('/v1/auth/email/reset-password', { email, code, newPassword })
         else await authenticate('/v1/auth/otp/reset-password', { phone: form.phone, code, newPassword })
       }
       else if (useOtp) await otp()
       else if (mode === 'sign-in') await authenticate('/v1/auth/sign-in', { phone: form.phone, password: form.password })
       else if (role === 'shop') {
-        await authenticate('/v1/auth/sign-up', { ...form, language: i18n.language })
+        await authenticate('/v1/auth/sign-up', { ...form, referralCode: form.referralCode.trim() || null, language: i18n.language })
+        forgetReferral()
         navigate('/choose-plan')
       }
       else await authenticate('/v1/auth/register', { fullName: form.fullName, phone: form.phone, password: form.password, language: i18n.language })
@@ -52,11 +61,13 @@ export function AuthScreen() {
   }
 
   async function sendCode() {
-    const response = await request('/v1/auth/otp/send', 'POST', { phone: form.phone })
+    const response = byEmail
+      ? await request('/v1/auth/email/send-reset', 'POST', { email })
+      : await request('/v1/auth/otp/send', 'POST', { phone: form.phone })
     if (!response.ok) throw new ApiError(response.status, await readProblem(response))
     setCode('')
     setOtpStep('code')
-    setInfo(t('otp.sent'))
+    setInfo(byEmail ? t('emailReset.sent') : t('otp.sent'))
   }
 
   async function otp() {
@@ -108,6 +119,7 @@ export function AuthScreen() {
           </div>}
           {role === 'shop' && <Field label={t('shopName')} value={form.shopName} onChange={set('shopName')} required autoComplete="organization" />}
           {role === 'shop' && <Field label={t('plan.searchShop')} value={form.area} onChange={set('area')} placeholder="Raja Park bazaar" />}
+          {role === 'shop' && <Field label={t('referral.codeLabel')} value={form.referralCode} onChange={set('referralCode')} placeholder="sharma-store" autoComplete="off" />}
           {role === 'shop' && !preset && (
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-muted">{t('shopType.label')}</span>
@@ -119,8 +131,21 @@ export function AuthScreen() {
           <Field label={t('yourName')} value={form.fullName} onChange={set('fullName')} required autoComplete="name" />
         </>
       )}
-      <Field label={t('phone')} value={form.phone} onChange={(e) => { set('phone')(e); setOtpStep('phone') }} required inputMode="tel" autoComplete="tel" />
-      {resetting && <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand-deep">{t('forgot.hint')}</p>}
+      {mode === 'sign-in' && !resetting && <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand-deep">{t('mode.signInHint')}</p>}
+      {resetting && (
+        <div role="radiogroup" className="grid grid-cols-2 gap-2">
+          {(['sms', 'email'] as const).map((by) => (
+            <button key={by} type="button" role="radio" aria-checked={resetBy === by} onClick={() => { setResetBy(by); setOtpStep('phone'); setCode(''); setError(''); setInfo('') }}
+              className={`min-h-11 rounded-xl px-2 text-sm font-semibold ${resetBy === by ? 'border-2 border-brand bg-brand-soft text-brand-strong' : 'border border-line bg-white'}`}>
+              {by === 'sms' ? t('emailReset.bySms') : t('emailReset.byEmail')}
+            </button>
+          ))}
+        </div>
+      )}
+      {byEmail
+        ? <Field label={t('emailReset.email')} value={email} onChange={(e) => { setEmail(e.target.value); setOtpStep('phone') }} required type="email" inputMode="email" autoComplete="email" />
+        : <Field label={t('phone')} value={form.phone} onChange={(e) => { set('phone')(e); setOtpStep('phone') }} required inputMode="tel" autoComplete="tel" />}
+      {resetting && <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand-deep">{byEmail ? t('emailReset.hint') : t('forgot.hint')}</p>}
       {resetting && otpStep !== 'phone' && (
         <>
           <Field label={t('otp.code')} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -146,7 +171,7 @@ export function AuthScreen() {
       />}
       {error && <p className="rounded-lg bg-due-soft p-3 text-due">{error}</p>}
       <Button type="submit" disabled={busy} className="h-14">
-        {resetting ? (otpStep === 'phone' ? t('otp.send') : t('forgot.save')) : useOtp ? (otpStep === 'phone' ? t('otp.send') : t('signIn')) : mode === 'sign-in' ? t('signIn') : role === 'shop' ? t('signUp') : t('plan.register')}
+        {resetting ? (otpStep === 'phone' ? (byEmail ? t('emailReset.sendCode') : t('otp.send')) : t('forgot.save')) : useOtp ? (otpStep === 'phone' ? t('otp.send') : t('signIn')) : mode === 'sign-in' ? t('signIn') : role === 'shop' ? t('signUp') : t('plan.register')}
       </Button>
       {(useOtp || resetting) && otpStep !== 'phone' && (
         <button type="button" disabled={busy} className="text-brand underline" onClick={() => { setError(''); void sendCode().catch((err: Error) => setError(err.message)) }}>{t('otp.resend')}</button>

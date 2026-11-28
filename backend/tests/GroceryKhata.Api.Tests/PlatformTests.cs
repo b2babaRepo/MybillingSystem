@@ -108,7 +108,7 @@ public sealed class PlatformTests(ApiFactory api)
         (await verified.PutAsJsonAsync("/api/v1/profile/password", new { newPassword = "secret123" })).EnsureSuccessStatusCode();
 
         var admins = await (await super.PostJsonAsync("/api/v1/platform/admins", new { phone, role = "support" })).ReadAsync<List<AdminDto>>();
-        var helperId = Assert.Single(admins, a => a.Role == AdminRole.Support).UserId;
+        var helperId = Assert.Single(admins, a => a.Role == AdminRole.Support && a.Phone == GroceryKhata.Api.Common.PhoneNumber.Normalize(phone)).UserId;
 
         // Their next sign-in carries the admin mark; the role itself is checked on every request.
         var signedIn = await (await api.CreateClient().PostJsonAsync("/api/v1/auth/sign-in", new { phone, password = "secret123" })).ReadAsync<AuthResponse>();

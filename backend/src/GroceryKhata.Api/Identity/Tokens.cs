@@ -52,6 +52,9 @@ public static class AppPolicies
     /// <summary>Super admins: everything, including managing admins.</summary>
     public const string PlatformSuper = nameof(PlatformSuper);
 
+    /// <summary>Removing a person's account (wiping their details): super admins, or a custom role given it.</summary>
+    public const string PlatformRemoveAccounts = nameof(PlatformRemoveAccounts);
+
     /// <summary>Platform admins who handle money: plans' payments, offers, refunds (billing or super).</summary>
     public const string PlatformBilling = nameof(PlatformBilling);
 

@@ -136,6 +136,27 @@ public sealed partial class AppDbContext
             b.HasOne<User>().WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<Shops.PlatformRole>(b =>
+        {
+            b.ToTable("platform_roles");
+            b.Property(r => r.Name).HasMaxLength(40);
+            b.HasIndex(r => r.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<Shops.PlatformAdmin>().HasOne<Shops.PlatformRole>().WithMany().HasForeignKey(a => a.CustomRoleId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<EmailCode>(b =>
+        {
+            b.ToTable("email_codes");
+            b.Property(c => c.Email).HasMaxLength(160);
+            b.Property(c => c.CodeHash).HasMaxLength(64);
+            b.HasIndex(c => new { c.UserId, c.Purpose, c.CreatedAt });
+            b.HasOne<User>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // One account per verified email: it is a way in.
+        modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique().HasFilter("email_verified_at IS NOT NULL").HasDatabaseName("ix_users_verified_email");
+
         modelBuilder.Entity<OtpCode>(b =>
         {
             b.ToTable("otp_codes");

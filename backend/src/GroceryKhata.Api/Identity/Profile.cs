@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GroceryKhata.Api.Identity;
 
-public sealed record ProfileDto(string FullName, string Phone, string PreferredLanguage, string? Email, string? Address, string? City, string? Pincode, bool HasPassword = false, string? Gstin = null, DateTimeOffset? PrivacyAcceptedAt = null);
+public sealed record ProfileDto(string FullName, string Phone, string PreferredLanguage, string? Email, string? Address, string? City, string? Pincode, bool HasPassword = false, string? Gstin = null, DateTimeOffset? PrivacyAcceptedAt = null, bool EmailVerified = false);
 
 /// <summary><see cref="Code"/>: an SMS code just sent to the account's own number, in place of a forgotten current password.</summary>
 public sealed record PasswordChange(string? CurrentPassword, string? NewPassword, string? Code = null);
@@ -81,7 +81,7 @@ public static class Profile
         return TypedResults.NoContent();
     }
 
-    private static ProfileDto ToDto(User u) => new(u.FullName, u.Phone, u.PreferredLanguage, u.Email, u.Address, u.City, u.Pincode, u.PasswordHash is not null, u.Gstin, u.PrivacyAcceptedAt);
+    private static ProfileDto ToDto(User u) => new(u.FullName, u.Phone, u.PreferredLanguage, u.Email, u.Address, u.City, u.Pincode, u.PasswordHash is not null, u.Gstin, u.PrivacyAcceptedAt, u.EmailVerifiedAt is not null);
 
     /// <summary>Saves the language picked anywhere in the app, without touching the rest of the profile.</summary>
     private static async Task<IResult> LanguageAsync(LanguageChange request, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
@@ -130,6 +130,12 @@ public static class Profile
         if (request.Gstin is not null)
         {
             user.Gstin = gstin;
+        }
+
+        // A different email isn't proved yet: it can't reset the password until its code is entered.
+        if (!string.Equals(user.Email, email, StringComparison.OrdinalIgnoreCase))
+        {
+            user.EmailVerifiedAt = null;
         }
 
         (user.FullName, user.PreferredLanguage, user.Email, user.Address, user.City, user.Pincode) = (name!, request.PreferredLanguage!, email, address, city, pincode);

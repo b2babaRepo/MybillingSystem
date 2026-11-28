@@ -232,7 +232,7 @@ export function AccountScreen({ onSignOut, onSwitchToShop }: { onSignOut: () => 
           <DataSaverRow />
           {row('lock', t('cust4.privacy'), () => navigate('/privacy'))}
           {row('team', t('teamLink'), () => navigate('/team'))}
-          {onSwitchToShop && row('store', t('plan.iAmShop'), onSwitchToShop)}
+          {onSwitchToShop && row('store', t('mode.toShop'), onSwitchToShop)}
         </div>
       </section>
       <div className="px-4"><button onClick={onSignOut} className="h-12 w-full rounded-xl border-2 border-line font-bold text-due">{t('signOut')}</button></div>

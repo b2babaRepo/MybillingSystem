@@ -7,14 +7,63 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { formatPhone } from '../lib/format'
 
-interface Profile { fullName: string; phone: string; preferredLanguage: string; email: string | null; address: string | null; city: string | null; pincode: string | null; hasPassword?: boolean; gstin?: string | null }
+interface Profile { fullName: string; phone: string; preferredLanguage: string; email: string | null; address: string | null; city: string | null; pincode: string | null; hasPassword?: boolean; gstin?: string | null; emailVerified?: boolean }
 
 /** The signed-in person's own details. The mobile number is the login, so it only shows here. */
 /** customer: the shopping app's profile (offers Hinglish too); the shop app's leaves it out. */
 export function ProfileScreen({ customer = false }: { customer?: boolean }) {
   const profile = useQuery({ queryKey: ['profile'], queryFn: () => api<Profile>('/v1/profile') })
   if (!profile.data) return <p className="p-4 text-muted">…</p>
-  return <ProfileForm initial={profile.data} customer={customer} />
+  return <>
+    <ProfileForm initial={profile.data} customer={customer} />
+    {!customer && <AgentCard />}
+  </>
+}
+
+/** A shopkeeper can sign other shops up as a field agent: apply here, and once approved open the agent screen. */
+function AgentCard() {
+  const { t } = useTranslation()
+  const me = useQuery({ queryKey: ['agent', 'me'], queryFn: () => api<{ status: string; code: string | null } | null>('/v1/agents/me').then((a) => a ?? null), retry: false })
+  const status = me.data?.status
+  return (
+    <a href="#/agent" className="m-4 mt-0 flex items-center justify-between gap-3 rounded-card bg-white p-4 shadow-sm">
+      <span className="flex flex-col">
+        <span className="font-bold">{status === 'approved' ? t('agentLink.panel') : t('agentLink.become')}</span>
+        <span className="text-sm text-muted">{status === 'approved' ? t('agentLink.code', { code: me.data?.code ?? '' }) : status ? t('agentLink.status', { status: t(`agentLink.${status}`) }) : t('agentLink.hint')}</span>
+      </span>
+      <span aria-hidden className="text-2xl text-muted">›</span>
+    </a>
+  )
+}
+
+/** A saved email proved with a code: then "forgot password" can send a code to it. */
+function EmailVerify({ saved, verified, typed }: { saved: string | null; verified: boolean; typed: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [code, setCode] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  if (!saved || typed.trim().toLowerCase() !== saved.trim().toLowerCase()) return typed.trim() ? <p className="-mt-2 text-xs text-muted">{t('emailReset.saveFirst')}</p> : null
+  if (verified) return <p className="-mt-2 text-sm font-semibold text-emerald-700">✓ {t('emailReset.verified')}</p>
+  async function send() {
+    setNote('')
+    try { await api('/v1/profile/email/send-code', 'POST', {}); setCode(''); setNote(t('emailReset.sent')) } catch (e) { setNote(e instanceof Error ? e.message : t('error')) }
+  }
+  async function confirm() {
+    setNote('')
+    try { await api('/v1/profile/email/verify', 'POST', { code }); setCode(null); await queryClient.invalidateQueries({ queryKey: ['profile'] }) } catch (e) { setNote(e instanceof Error ? e.message : t('error')) }
+  }
+  return (
+    <div className="-mt-1 flex flex-col gap-2 rounded-xl bg-warn-soft p-3">
+      <p className="text-sm text-warn-ink">{t('emailReset.notVerified')}</p>
+      {code === null
+        ? <button type="button" onClick={() => void send()} className="min-h-11 self-start rounded-xl border border-line bg-white px-3 text-sm font-bold text-brand">{t('emailReset.sendCode')}</button>
+        : <div className="flex gap-2">
+            <Field label={t('emailReset.code')} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" />
+            <Button className="self-end" disabled={code.length !== 6} onClick={() => void confirm()}>{t('emailReset.confirm')}</Button>
+          </div>}
+      {note && <p className="text-xs text-muted">{note}</p>}
+    </div>
+  )
 }
 
 function ProfileForm({ initial, customer }: { initial: Profile; customer: boolean }) {
@@ -80,6 +129,7 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
       </div>
       {changing && <PhoneChangeSheet hasPassword={!!initial.hasPassword} onClose={() => setChanging(false)} />}
       <Field label={t('profile.email')} value={form.email} onChange={set('email')} inputMode="email" maxLength={160} />
+      <EmailVerify saved={initial.email} verified={!!initial.emailVerified} typed={form.email} />
       <Field label={t('profile.address')} value={form.address} onChange={set('address')} maxLength={300} />
       <div className="grid grid-cols-2 gap-2">
         <Field label={t('profile.city')} value={form.city} onChange={set('city')} maxLength={80} />
