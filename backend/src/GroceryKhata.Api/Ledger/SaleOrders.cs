@@ -45,19 +45,19 @@ public sealed class SaleOrder : Entity, ITenantOwned
     public Guid CreatedByUserId { get; set; }
 }
 
-public sealed record SaleOrderLine(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Delivered = 0)
+public sealed record SaleOrderLine(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Delivered = 0, decimal? Bags = null)
 {
     public decimal Pending => Math.Max(0, Quantity - Delivered);
 }
 
-public sealed record SaleOrderLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice);
+public sealed record SaleOrderLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice, decimal? Bags = null);
 
 public sealed record SaleOrderRequest(Guid Id, Guid? CustomerId, string? PartyName, IReadOnlyList<SaleOrderLineRequest>? Lines, DateOnly? DueOn = null, string? Note = null);
 
 public sealed record SaleOrderDeliveredRequest(Guid BillId);
 
 /// <summary>A line as the screen shows it: ordered, delivered, still to go, on the shelf now, and how much short.</summary>
-public sealed record SaleOrderLineDto(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Delivered, decimal Pending, decimal? InStock, decimal ShortBy);
+public sealed record SaleOrderLineDto(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Delivered, decimal Pending, decimal? InStock, decimal ShortBy, decimal? Bags = null);
 
 /// <summary><see cref="State"/>: open, part (some delivered), delivered, closed (short), cancelled.</summary>
 public sealed record SaleOrderDto(
@@ -130,7 +130,7 @@ public static class SaleOrders
                 decimal? onShelf = l.ProductId is { } pid ? stock.GetValueOrDefault(pid) : null;
                 var left = onShelf is { } s && l.ProductId is { } p2 ? Math.Max(0, s - before.GetValueOrDefault(p2)) : (decimal?)null;
                 return new SaleOrderLineDto(l.ProductId, l.Name, l.Quantity, l.Unit, l.UnitPrice, l.Delivered, l.Pending, onShelf,
-                    open && left is { } avail ? Math.Max(0, l.Pending - avail) : 0);
+                    open && left is { } avail ? Math.Max(0, l.Pending - avail) : 0, l.Bags);
             }).ToList();
             return new SaleOrderDto(o.Id, o.Number, o.CustomerId, o.CustomerId is { } c ? names.GetValueOrDefault(c) : o.PartyName, dtoLines, o.Total,
                 lines.Sum(l => Money.LineAmount(l.Pending, l.UnitPrice)), o.DueOn, o.Note, StateOf(o, lines),
@@ -181,7 +181,8 @@ public static class SaleOrders
         var built = lines.Select(l =>
         {
             var product = l.ProductId is { } pid ? products[pid] : null;
-            return new SaleOrderLine(l.ProductId, product?.Name ?? l.Name!.Trim(), l.Quantity, product?.Unit ?? l.Unit ?? Unit.Piece, l.UnitPrice);
+            return new SaleOrderLine(l.ProductId, product?.Name ?? l.Name!.Trim(), l.Quantity, product?.Unit ?? l.Unit ?? Unit.Piece, l.UnitPrice,
+                Bags: l.Bags is > 0 and <= 100_000 && product?.BagSize != null ? l.Bags : null);
         }).ToList();
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext('sale_orders'))", ct);

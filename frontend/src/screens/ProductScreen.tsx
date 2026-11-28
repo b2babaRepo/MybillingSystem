@@ -278,6 +278,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     colour: product.colour ?? '',
     uncounted: !!product.uncounted,
     bagSize: product.bagSize ? String(product.bagSize) : '',
+    bagPrice: product.bagPrice ? String(product.bagPrice) : '',
     purchaseUnit: product.purchaseUnit ?? 'bag',
     weightKg: product.weightKg ? String(product.weightKg) : '',
     wholesale: product.wholesalePrice ? String(product.wholesalePrice) : '',
@@ -306,6 +307,8 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     colour: form.colour.trim(),
     uncounted: form.uncounted,
     bagSize: Number(form.bagSize) || 0,
+    // 0 clears the bag price (a bag then costs the loose rate times its size).
+    bagPrice: Number(form.bagSize) ? Number(form.bagPrice) || 0 : 0,
     purchaseUnit: form.purchaseUnit,
     weightKg: Number(form.weightKg) || 0,
     // 0 clears the wholesale price.
@@ -392,6 +395,24 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
           <span className="mt-1 block text-xs text-muted">{t('bag.sizeHint', { unit: t(`units.${form.unit}`) })}</span>
         </label>
       )}
+      {!product.isService && Number(form.bagSize) > 0 && (() => {
+        // A whole bag's own price, shown against the loose rate so the owner sees the bag discount per unit.
+        const perUnit = Number(form.bagPrice) > 0 ? Math.round((Number(form.bagPrice) / Number(form.bagSize)) * 100) / 100 : null
+        const loose = Number(form.price) || 0
+        return (
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-muted">{t('bag.priceLabel', { bag: t(`units.${form.purchaseUnit || 'bag'}`) })}</span>
+            <span className="flex items-center gap-2">₹
+              <input value={form.bagPrice} onChange={set('bagPrice')} inputMode="decimal" placeholder={loose ? String(Math.round(loose * Number(form.bagSize))) : ''} className="h-12 w-36 rounded-2xl border-[1.5px] border-line bg-white px-3 text-lg outline-none transition focus:border-brand-line focus:ring-4 focus:ring-brand-line/10" />
+            </span>
+            <span className="mt-1 block text-xs text-muted">
+              {perUnit !== null
+                ? t('bag.priceEach', { price: perUnit, unit: t(`units.${form.unit}`), loose })
+                : t('bag.priceHint', { size: form.bagSize, unit: t(`units.${form.unit}`) })}
+            </span>
+          </label>
+        )
+      })()}
       {!product.isService && !['kg', 'g', 'tonne', 'quintal'].includes(form.unit) && (
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-muted">⚖️ {t('weigh.label', { unit: t(`units.${form.unit}`) })}</span>

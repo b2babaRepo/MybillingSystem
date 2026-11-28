@@ -12,6 +12,7 @@ import { fitPrice, priceFor } from '../lib/wholesale'
 import { billSeconds } from '../lib/billTimer'
 import { GST_STATES } from '../lib/states'
 import { nameMatches, splitQuantity } from '../lib/nameMatch'
+import { score } from '../lib/search'
 import { getSession } from '../lib/session'
 import { ApiError, api } from '../lib/api'
 import { useQuery } from '@tanstack/react-query'
@@ -38,7 +39,7 @@ import { addCustomer, counterName, saveBill, useCustomers, usePopularOrder, useP
 import { HeldBillGone, useHeldBills } from '../lib/heldBills'
 import { formatDateTime, formatRupees, whatsAppLink, indiaToday } from '../lib/format'
 import { round2 } from '../lib/local'
-import type { BillPrint, BillView, PaymentMode, Unit } from '../lib/types'
+import type { BillPrint, BillView, PaymentMode, Product, Unit } from '../lib/types'
 import { useShopSettings, shopTypes, isTrade, sendsToSites, upiUri } from '../lib/reports'
 import { navigate } from '../router'
 import { useSerialsInStock } from '../lib/serials'
@@ -63,7 +64,8 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   // Most-sold items first (the tiles the thumb needs), then the rest by name; typing filters.
   const tiles = products
     .filter((p) => !query || p.name.toLowerCase().includes(query) || (p.styleName ?? '').toLowerCase().includes(query) || nameMatches(p.name, query) || (!!p.styleName && nameMatches(p.styleName, query)))
-    .sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9) || a.name.localeCompare(b.name))
+    // A typed word at the start of a word ("dal" → "Moong dal") comes before the same letters inside one ("Sandal").
+    .sort((a, b) => (query ? score(b.name, query) - score(a.name, query) : 0) || (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9) || a.name.localeCompare(b.name))
   // Cut after grouping sizes into one tile, so a clothes shop isn't left with five tiles. A wide screen has room for more.
   const wide = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
   const groups = groupStyles(tiles).slice(0, query || wide ? 30 : 12)
@@ -80,8 +82,6 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   const [soldBy, setSoldBy] = useState<string>(() => getSession()?.user.id ?? '')
   // Barcodes: a scanner types the code and Enter; a typed code works the same. A camera scan where the phone can.
   const [scanning, setScanning] = useState(false)
-  // "सब विभाग": the category menu over the bill; adds go straight onto this bill.
-  const [menuOpen, setMenuOpen] = useState(false)
   const [scanMiss, setScanMiss] = useState<string | null>(null)
   const settings = useShopSettings(shopId).data
   // This counter's open cashier shift: shown so the cashier knows bills are counting toward it.
@@ -136,11 +136,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     let raw: string | null = null
     try { raw = sessionStorage.getItem('gk-sale-order'); sessionStorage.removeItem('gk-sale-order') } catch { /* no storage */ }
     if (!raw) return
-    const o = JSON.parse(raw) as { id: string; number: number; customerId: string | null; lines: { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number }[] }
+    const o = JSON.parse(raw) as { id: string; number: number; customerId: string | null; lines: { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number; bags?: number | null }[] }
     startedAt.current = 0
     // Read once from storage another screen left (and removed here): an effect, as a state initializer runs twice in development.
     // eslint-disable-next-line react/set-state-in-effect
-    setCart(o.lines.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })))
+    setCart(o.lines.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice, bags: l.bags ?? null })))
     setCustomerId(o.customerId ?? '')
     setFromOrder({ id: o.id, number: o.number })
   }, [])
@@ -149,7 +149,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     try {
       const o = await api<{ number: number }>('/v1/sale-orders', 'POST', {
         id: crypto.randomUUID(), customerId,
-        lines: cart.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })),
+        lines: cart.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice, bags: l.bags ?? null })),
       })
       setOrderSaved(o.number)
       setCart([]); setCustomerId(''); setPaid(null); setSaved(null); setFromEstimate(null)
@@ -161,11 +161,11 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     let raw: string | null = null
     try { raw = sessionStorage.getItem('gk-estimate'); sessionStorage.removeItem('gk-estimate') } catch { /* no storage */ }
     if (!raw) return
-    const e = JSON.parse(raw) as { id: string; number: number; customerId: string | null; lines: { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number }[] }
+    const e = JSON.parse(raw) as { id: string; number: number; customerId: string | null; lines: { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number; bags?: number | null }[] }
     startedAt.current = 0
     // Read once from storage, as the sale order above.
     // eslint-disable-next-line react/set-state-in-effect
-    setCart(e.lines.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })))
+    setCart(e.lines.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice, bags: l.bags ?? null })))
     setCustomerId(e.customerId ?? '')
     setFromEstimate({ id: e.id, number: e.number })
   }, [])
@@ -174,7 +174,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     try {
       const e = await api<{ id: string; number: number }>('/v1/estimates', 'POST', {
         id: crypto.randomUUID(), customerId: customerId || null,
-        lines: cart.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice })),
+        lines: cart.map((l) => ({ productId: l.productId, name: l.name, quantity: l.quantity, unit: l.unit, unitPrice: l.unitPrice, bags: l.bags ?? null })),
       })
       setEstimateSaved({ id: e.id, number: e.number })
       setCart([]); setCustomerId(''); setPaid(null); setSaved(null); setFromEstimate(null)
@@ -481,13 +481,31 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     if (pendingQty) { line = { ...line, quantity: pendingQty, unitPrice: fitPrice(item, pendingQty, line.unitPrice) }; setSearch('') }
     setCart((current) => {
       // A tinted tin shares its base's product but is its own line (its own shade and rate).
-      const index = line.productId ? current.findIndex((l) => l.productId === line.productId && l.name === line.name) : -1
+      const index = line.productId ? current.findIndex((l) => l.productId === line.productId && l.name === line.name && !l.bags) : -1
       if (index < 0) return [...current, line]
       // Quantities keep three decimals, as the server does (1 kg + 0.125 kg is 1.125, not 1.13).
       const quantity = Math.round((current[index].quantity + qty) * 1000) / 1000
       return current.map((l, i) => (i === index ? { ...l, quantity, unitPrice: fitPrice(item, quantity, l.unitPrice) } : l))
     })
     if (keyboardDesk) setTimeout(() => searchRef.current?.focus(), 0)
+  }
+
+  /** One unit's price on a whole-bag line: the bag price spread over the bag, else the loose (or wholesale) rate. */
+  function bagUnitPrice(item: Product) {
+    const size = item.bagSize ?? 1
+    return item.bagPrice ? Math.round((item.bagPrice / size) * 100) / 100 : fitPrice(item, size, item.sellingPrice)
+  }
+
+  /** "+1 बोरी": a whole sealed bag at the bag price, on its own line (one bill can carry bags and loose of one item). */
+  function addBag(item: Product) {
+    const size = item.bagSize
+    if (!size) return
+    setSaved(null)
+    setCart((current) => {
+      const index = current.findIndex((l) => l.productId === item.id && !!l.bags)
+      if (index >= 0) return current.map((l, i) => (i === index ? { ...l, bags: (l.bags ?? 0) + 1, quantity: Math.round(((l.bags ?? 0) + 1) * size * 1000) / 1000 } : l))
+      return [...current, { productId: item.id, name: item.name, quantity: size, unit: item.unit, unitPrice: bagUnitPrice(item), bags: 1 }]
+    })
   }
 
   // A USB or serial weighing scale (Chrome on computers): weigh a kg or g line instead of typing it.
@@ -507,7 +525,20 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }
 
   function setQuantity(index: number, quantity: number) {
-    // A typed weight is no longer whole bags.
+    // A whole-bag line: + and − add or take one bag (its price stays the bag price).
+    const bagLine = cart[index]
+    const bagItem = bagLine?.bags ? products.find((p) => p.id === bagLine.productId) : undefined
+    if (bagLine?.bags && bagItem?.bagSize && Math.abs(Math.round((quantity - bagLine.quantity) * 1000) / 1000) === 1) {
+      const bags = bagLine.bags + Math.sign(quantity - bagLine.quantity)
+      const size = bagItem.bagSize
+      setCart((current) => (bags <= 0 ? current.filter((_, i) => i !== index) : current.map((l, i) => (i === index ? { ...l, bags, quantity: Math.round(bags * size * 1000) / 1000 } : l))))
+      return
+    }
+    // A typed weight is no longer whole bags, and goes back to the loose rate.
+    if (bagLine?.bags && bagItem) {
+      setCart((current) => (quantity <= 0 ? current.filter((_, i) => i !== index) : current.map((l, i) => (i === index ? { ...l, quantity, bags: null, unitPrice: fitPrice(bagItem, quantity, bagItem.sellingPrice) } : l))))
+      return
+    }
     // Crossing the wholesale quantity moves the price to the wholesale one, or back.
     setCart((current) => (quantity <= 0 ? current.filter((_, i) => i !== index) : current.map((l, i) => (i === index
       ? { ...l, quantity, bags: null, unitPrice: fitPrice(products.find((p) => p.id === l.productId), quantity, l.unitPrice) } : l))))
@@ -670,7 +701,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
   }, [])
 
   return (
-    <div className="flex flex-col gap-3 p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,52%)]">
+    <div className="flex flex-col gap-3 p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(440px,40%)]">
       {/* Desktop: items on the left, the bill on the right (always in view). A phone shows them one under the other. */}
       <div className="flex flex-col gap-3 lg:col-start-1">
       {exchange && (
@@ -729,8 +760,6 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold xl:flex ${preview ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white shadow-md shadow-[#1d4ed8]/30' : 'border-transparent bg-[#e8effd] text-[#1d4ed8] hover:bg-[#dbe5fc]'}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6" /></svg>{t('billPreview.toggle')}</button>
         <button onClick={() => setKeysHelp((v) => !v)} aria-pressed={keysHelp} title={`${t('keys.title')} (?)`}
           className={`hidden h-12 shrink-0 items-center gap-1.5 rounded-[14px] border px-3 font-semibold lg:flex ${keysHelp ? 'border-ink bg-ink text-white shadow-md' : 'border-transparent bg-[#edf2f1] text-ink hover:bg-[#e1e8e5]'}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10" /></svg>{t('keys.button')}</button>
-        <button onClick={() => setMenuOpen(true)} aria-label={t('catMenu.open')} title={t('catMenu.open')}
-          className="flex h-12 shrink-0 items-center gap-1.5 rounded-2xl border border-transparent bg-[#e7f3f1] px-3 font-semibold text-[#0f5f58] hover:bg-[#d8ece8]"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg><span className="hidden sm:inline">{t('catMenu.open')}</span></button>
         {canScan && <button onClick={() => setScanning(true)} aria-label={t('barcodeBill.scan')} className={`flex h-12 shrink-0 items-center gap-1.5 rounded-2xl px-4 ${btn.solid}`}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M4 7h3l2-3h6l2 3h3v13H4zM12 10a3.5 3.5 0 100 7 3.5 3.5 0 000-7" /></svg>{t('barcodeBill.scan')}</button>}
       </div>
       {keysHelp && (
@@ -744,14 +773,6 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
         </div>
       )}
       {/* Scanning stays open for the next item; a code no item has waits below, to be put on an item or made one. */}
-      {menuOpen && (
-        <Suspense fallback={null}>
-          <CategoryMenu products={products} rank={rank} billItems={cart.length} billTotal={total} onClose={() => setMenuOpen(false)}
-            quantities={new Map(cart.filter((l) => l.productId).map((l) => [l.productId!, l.quantity]))}
-            onAdd={(p) => add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })}
-            onLess={(p) => { const i = cart.findIndex((l) => l.productId === p.id); if (i >= 0) setQuantity(i, round2(cart[i].quantity - 1)) }} />
-        </Suspense>
-      )}
       {scanning && (
         <Suspense fallback={null}>
           <ScanSheet continuous onCode={(code) => { const ok = addByBarcode(code); if (!ok) setScanMiss(normBarcode(code)); return ok }} onClose={() => setScanning(false)} />
@@ -774,7 +795,21 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
           )}
         </div>
       )}
-      <div className={`grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 ${preview ? 'xl:hidden' : ''}`}>
+      {/* One layout at every size (layout A): department rail, its category tiles and best sellers, and typed matches, all in
+          this one frame; the bill sits beside it on a wide screen and below it on a phone. */}
+      {(
+        <div className={preview ? 'xl:hidden' : ''}>
+          <Suspense fallback={null}>
+            <CategoryMenu embedded search={searchText} products={products} rank={rank} billItems={cart.length} onClose={() => {}}
+              quantities={new Map(cart.filter((l) => l.productId && !l.bags).map((l) => [l.productId!, l.quantity]))}
+              bagCounts={new Map(cart.filter((l) => l.productId && l.bags).map((l) => [l.productId!, l.bags!]))}
+              onAddBag={addBag}
+              onAdd={(p) => add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })}
+              onLess={(p) => { const i = cart.findIndex((l) => l.productId === p.id && !l.bags); if (i >= 0) setQuantity(i, round2(cart[i].quantity - 1)) }} />
+          </Suspense>
+        </div>
+      )}
+      <div className={`grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 ${preview ? 'xl:hidden' : ''} hidden`}>
         {groups.map((entry) => entry.kind === 'style' ? (
           <ItemCard
             key={`style-${entry.name}`}
@@ -998,12 +1033,22 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                 <button onClick={() => sellLoose(i, per)} className={`min-h-11 text-xs ${btn.link}`}>{t('loose.button')}</button>
               ) : null })()}
               {(() => {
+                // A packet item with a known weight (atta in 0.5 kg packets): type kg, get that many packets.
+                const item = products.find((p) => p.id === l.productId)
+                if (!item?.weightKg || ['kg', 'g', 'tonne', 'quintal'].includes(l.unit) || l.bags) return null
+                const perKg = item.weightKg
+                async function byKg() {
+                  const kg = Number(await ask(t('bag.kgAsk', { unit: t(`units.${l.unit}`), kg: perKg })))
+                  if (kg > 0) setQuantity(i, Math.round((kg / perKg) * 1000) / 1000)
+                }
+                return <button onClick={() => void byKg()} className={`min-h-11 text-xs ${btn.link}`}>{t('bag.byKg')} · {Math.round(l.quantity * perKg * 1000) / 1000} kg</button>
+              })()}
+              {(() => {
                 const item = products.find((p) => p.id === l.productId)
                 if (!item?.bagSize) return null
                 const bagSize = item.bagSize
                 // Cartons and strips are whole packs bought and sold by count; grain bags are sold by weight.
                 const pack = item.purchaseUnit ?? null
-                const packWord = (n: number) => (pack ? t(`units.${pack}`, { count: n }) : t('bag.inBags', { count: n }))
                 async function sellWhole() {
                   const n = Math.round(Number(await ask(pack ? t('hwp5.wholeAsk', { size: bagSize, unit: t(`units.${l.unit}`, { count: bagSize }), pack: t(`units.${pack}`, { count: 1 }) }) : t('bag.wholeAsk', { size: bagSize, unit: t(`units.${l.unit}`) }))) || 0)
                   if (!(n > 0)) return
@@ -1011,13 +1056,16 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
                     const line = c[i]
                     // A line just tapped in (1 loose piece) or already in whole packs becomes the packs; otherwise the packs
                     // go on their own line, so one bill can carry "2 cartons" and "5 pieces" of the same item.
-                    if (line.bags || line.quantity === 1 || !pack) return c.map((x, k) => (k === i ? { ...x, quantity: n * bagSize, bags: n } : x))
-                    return [...c, { ...line, name: `${item!.name} (${n} ${t(`units.${pack}`, { count: n })})`.slice(0, 120), quantity: n * bagSize, bags: n, offerId: null, offerName: null }]
+                    if (line.bags || line.quantity === 1 || !pack) return c.map((x, k) => (k === i ? { ...x, quantity: n * bagSize, bags: n, unitPrice: bagUnitPrice(item!), offerId: null, offerName: null } : x))
+                    return [...c, { ...line, name: `${item!.name} (${n} ${t(`units.${pack}`, { count: n })})`.slice(0, 120), quantity: n * bagSize, bags: n, unitPrice: bagUnitPrice(item!), offerId: null, offerName: null }]
                   })
                 }
                 return (
                   <span className="flex flex-wrap items-center gap-2">
-                    {l.bags ? <span className="rounded-full bg-warn-soft px-2 text-xs font-semibold text-warn">{pack ? '📦' : '🛍️'} {l.bags} {packWord(l.bags)}</span> : null}
+                    {l.bags ? <>
+                      <span className="rounded-full bg-warn-soft px-2 py-0.5 text-xs font-semibold text-warn-ink">{pack ? '📦' : '🛍️'} {t('bag.bagLine', { count: l.bags, size: bagSize, unit: t(`units.${l.unit}`) })} · {t('bag.bagRate', { price: item.bagPrice ?? Math.round(l.unitPrice * bagSize) })}</span>
+                      <button onClick={() => setCart((c) => c.map((x, k) => (k === i ? { ...x, bags: null, unitPrice: fitPrice(item, x.quantity, item.sellingPrice) } : x)))} className={`min-h-11 text-xs ${btn.link}`}>{t('bag.toLoose')}</button>
+                    </> : <button onClick={() => addBag(item)} className="min-h-9 rounded-lg border border-brand px-2.5 text-xs font-bold text-brand-strong">{t('bag.sellBag')}{item.bagPrice ? ` · ₹${item.bagPrice}` : ''}</button>}
                     <button onClick={() => void sellWhole()} className={`min-h-11 text-xs ${btn.link}`}>{pack ? t('hwp5.wholePacks', { pack: t(`units.${pack}`, { count: 2 }) }) : t('bag.wholeBags')}</button>
                   </span>
                 )

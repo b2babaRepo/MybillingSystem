@@ -19,8 +19,12 @@ export interface Category extends Names {
   /** Words in the name: with cats, only those items of the group; alone, any item whose category didn't place it. */
   kw?: RegExp
   kinds?: Kind[]
+  /** The platform admin's picture for it (lib/menuConfig). */
+  picture?: string
+  /** Made by the platform admin: its words win over the built-in groups. */
+  custom?: boolean
 }
-export interface Department extends Names { key: string; icon: string; categories: Category[] }
+export interface Department extends Names { key: string; icon: string; categories: Category[]; picture?: string }
 
 export const ICONS = {
   star: 'M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z',
@@ -39,6 +43,8 @@ export const ICONS = {
   biscuit: 'M4 5h16v14H4zM8 9h.01M12 9h.01M16 9h.01M8 14h.01M12 14h.01M16 14h.01',
   milk: 'M9 2h6v3l2 3v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V8l2-3zM7 12h10',
   bottle: 'M10 2h4v4l2 3v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V9l2-3z',
+  /** A cold drink: a glass with a straw and ice. */
+  soda: 'M6 8h12l-1.6 12.2a2 2 0 0 1-2 1.8H9.6a2 2 0 0 1-2-1.8zM13 8l2.5-6H19M9.5 12.5h2v2h-2zM12.5 15h2v2h-2z',
   tooth: 'M7 3c2 0 3 1 5 1s3-1 5-1c3 0 4 3 3 6l-2 11c-1 2-3 1-3-1l-1-4h-4l-1 4c0 2-2 3-3 1L4 9C3 6 4 3 7 3z',
   home: 'M3 11l9-7 9 7M5 10v10h14V10',
   lamp: 'M12 3c2 3 3 5 3 7a3 3 0 0 1-6 0c0-2 1-4 3-7zM6 21h12M8 17h8',
@@ -77,7 +83,7 @@ export const KIRANA: Department[] = [
     { key: 'health', hi: 'हेल्थ ड्रिंक', en: 'Health drinks', gu: 'હેલ્થ ડ્રિંક', icon: 'milk', tint: '#e8eefc', ink: '#2b4a9a', cats: ['चाय, कॉफ़ी, दूध'], kw: /horlicks|bournvita|boost|complan|protinex|milk powder|everyday|amulya/i },
     { key: 'tea', hi: 'चाय पत्ती', en: 'Tea', gu: 'ચા', icon: 'cup', tint: '#fdf0e1', ink: '#9a5300', cats: ['चाय, कॉफ़ी, दूध'],
       kinds: [k('green', 'ग्रीन टी', 'Green tea', 'ગ્રીન ટી', /green|herbal|tulsi/i), k('bags', 'टी बैग', 'Tea bags', 'ટી બેગ', /bag/i)] },
-    { key: 'drinks', hi: 'कोल्ड ड्रिंक, जूस', en: 'Cold drinks & juices', gu: 'ઠંડા પીણાં, જ્યુસ', icon: 'bottle', tint: '#e3f1f6', ink: '#1f5a6b', cats: ['पेय'] },
+    { key: 'drinks', hi: 'कोल्ड ड्रिंक, जूस', en: 'Cold drinks & juices', gu: 'ઠંડા પીણાં, જ્યુસ', icon: 'soda', tint: '#e3f1f6', ink: '#1f5a6b', cats: ['पेय'] },
   ] },
   { key: 'snacks', hi: 'नाश्ता, बिस्कुट', en: 'Snacks & biscuits', gu: 'નાસ્તો, બિસ્કિટ', icon: 'biscuit', categories: [
     { key: 'noodles', hi: 'नूडल्स, पास्ता', en: 'Noodles & pasta', gu: 'નૂડલ્સ, પાસ્તા', icon: 'noodle', tint: '#fff3d6', ink: '#8a5a00', cats: ['इंस्टेंट, नाश्ता'], kw: /noodle|नूडल|maggi|मैगी|yippee|pasta|macaroni|vermicelli|seviyan|सेवइयां|hakka/i },
@@ -113,6 +119,9 @@ const text = (p: Pick<Product, 'name' | 'nameEn' | 'nameHi'>) => [p.name, p.name
 export function categoryOf(p: Pick<Product, 'name' | 'nameEn' | 'nameHi' | 'category'>, tree: Department[] = KIRANA): Category {
   const all = tree.flatMap((d) => d.categories)
   const words = text(p)
+  // A category the platform admin added takes the items its words name, before the built-in groups do.
+  const custom = all.find((c) => c.custom && c.kw?.test(words))
+  if (custom) return custom
   const cat = p.category?.trim()
   if (cat) {
     const found = all.find((c) => c.cats?.includes(cat) && (!c.kw || c.kw.test(words)))
@@ -135,9 +144,9 @@ export interface MenuDepartment { department: Department; categories: MenuCatego
  * The menu for this shop: only departments and tiles that hold its items, each tile's items most-sold first. A shop
  * whose items mostly fall outside the kirana tree (another trade) gets one tile per category it uses instead.
  */
-export function buildMenu(products: Product[], rank: Map<string, number>): MenuDepartment[] {
+export function buildMenu(products: Product[], rank: Map<string, number>, tree: Department[] = KIRANA): MenuDepartment[] {
   const sorted = [...products].sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9) || a.name.localeCompare(b.name))
-  const placed = sorted.map((p) => ({ p, c: categoryOf(p) }))
+  const placed = sorted.map((p) => ({ p, c: categoryOf(p, tree) }))
   const kirana = placed.filter((x) => x.c !== OTHER).length >= placed.length / 2
   if (!kirana) {
     const byCat = new Map<string, Product[]>()
@@ -152,7 +161,7 @@ export function buildMenu(products: Product[], rank: Map<string, number>): MenuD
   }
 
   const menu: MenuDepartment[] = []
-  for (const d of KIRANA) {
+  for (const d of tree) {
     const categories = d.categories.map((c) => ({ category: c, items: placed.filter((x) => x.c === c).map((x) => x.p) })).filter((c) => c.items.length > 0)
     if (categories.length > 0) menu.push({ department: d, categories })
   }

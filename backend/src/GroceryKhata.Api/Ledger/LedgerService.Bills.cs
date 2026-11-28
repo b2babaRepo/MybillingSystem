@@ -109,6 +109,11 @@ public sealed partial class LedgerService
                     {
                         errors[field] = ["Enter a valid price."];
                     }
+                    else if (line.Bags is > 0 and var bagCount && product?.BagSize is { } bagSize && bagSize > 0
+                        && Math.Abs(line.Quantity - (bagCount * bagSize)) > bagCount * bagSize * 0.05m)
+                    {
+                        errors[field] = [$"{name}: {bagCount:0.##} bags of {bagSize:0.##} should be about {bagCount * bagSize:0.##}, not {line.Quantity:0.###}."];
+                    }
                     else if (product?.Mrp is { } mrp && mrp > 0 && line.UnitPrice > mrp)
                     {
                         // Legal Metrology: nothing may be sold above the MRP printed on it.
@@ -118,6 +123,8 @@ public sealed partial class LedgerService
                     // So did a wholesale price, for a line that takes at least its quantity.
                     else if (!isOwner && approvedBy is null && !promotionsAllow && !(offerPrice is { } floor && line.UnitPrice >= floor)
                         && !(product is { WholesalePrice: { } wholesale, WholesaleMinQty: { } atLeast } && line.Quantity >= atLeast && line.UnitPrice >= wholesale)
+                        // Whole bags at the owner's bag price (per unit, to the paisa).
+                        && !(line.Bags is > 0 && product is { BagPrice: { } bagPrice, BagSize: { } perBag } && perBag > 0 && line.UnitPrice >= decimal.Round(bagPrice / perBag, 2) - 0.01m)
                         && !(groupOff > 0 && product is { SellingPrice: > 0 } listed && line.UnitPrice >= decimal.Round(listed.SellingPrice * (1 - (groupOff / 100)), 2))
                         && DiscountProblem(name, product, line.UnitPrice, staffMaxDiscount) is { } tooLow)
                     {
@@ -382,8 +389,27 @@ public sealed partial class LedgerService
                     .GroupBy(l => l.ProductId!.Value)
                     .Select(g => (ProductId: g.Key, Quantity: g.Sum(l => l.Quantity), Bags: g.Sum(l => l.Bags ?? 0)))
                     .ToList();
+                // Items kept in bags: what is on hand now (before this sale) and the sealed bags counted, so a loose sale
+                // bigger than the loose stock opens a bag, as the shopkeeper does at the counter.
+                var baggedIds = sold.Select(s => s.ProductId).ToList();
+                var bagged = baggedIds.Count == 0 ? [] : await db.Products.AsNoTracking()
+                    .Where(p => baggedIds.Contains(p.Id) && p.BagSize != null && p.BagSize > 0)
+                    .Select(p => new { p.Id, p.Stock, Size = p.BagSize!.Value }).ToDictionaryAsync(p => p.Id, cancellationToken);
+                var counted = bagged.Count == 0 ? [] : await db.StockMovements.AsNoTracking()
+                    .Where(m => bagged.Keys.Contains(m.ProductId) && m.Bags != null)
+                    .GroupBy(m => m.ProductId).Select(g => new { g.Key, Bags = g.Sum(m => m.Bags ?? 0) }).ToDictionaryAsync(g => g.Key, g => g.Bags, cancellationToken);
                 foreach (var (productId, quantity, bagsSold) in sold)
                 {
+                    if (bagged.GetValueOrDefault(productId) is { } bag
+                        && StockService.BagsToOpen(bag.Stock - quantity, counted.GetValueOrDefault(productId) - bagsSold, bag.Size) is > 0 and var opened)
+                    {
+                        db.StockMovements.Add(new StockMovement
+                        {
+                            ProductId = productId, Kind = StockMovementKind.OpenBag, Quantity = 0, Bags = -opened, BillId = bill.Id,
+                            Note = "Opened for a loose sale", OccurredAt = occurredAt, CreatedByUserId = userId,
+                        });
+                    }
+
                     db.StockMovements.Add(new StockMovement
                     {
                         ProductId = productId,

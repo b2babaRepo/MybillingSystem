@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { categoryOf, KIRANA, nameIn } from '../lib/categoryTree'
+import { categoryOf, nameIn } from '../lib/categoryTree'
+import { useMenuTree } from '../lib/menuConfig'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Sheet } from '../components/ui'
@@ -45,6 +46,7 @@ const TINTS = ['#faeeda', '#faece7', '#e1f5ee', '#eeedfe', '#fbeaf0', '#eaf3de',
  */
 export function PickItemsScreen({ shopId }: { shopId: string }) {
   const { t, i18n } = useTranslation()
+  const tree = useMenuTree()
   const queryClient = useQueryClient()
   const list = useQuery({ queryKey: ['master-items'], queryFn: () => api<MasterItem[]>('/v1/master-items') })
   const updates = useQuery({ queryKey: [shopId, 'master-updates'], queryFn: () => api<{ changes: MasterChange[]; newItems: MasterItem[] }>('/v1/master-items/updates') })
@@ -79,9 +81,9 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
   // Kirana groups by the category tree the bill, orders and store use (names in the app's language, in department
   // order, merged groups like "आटा, चावल, दाल" split); other trades by the list's own categories.
   const byTree = activeTrade === 'kirana'
-  const treeNames = new Map(KIRANA.flatMap((d) => d.categories).map((c) => [c.key, nameIn(c, i18n.language)]))
+  const treeNames = new Map(tree.flatMap((d) => d.categories).map((c) => [c.key, nameIn(c, i18n.language)]))
   const treeOrder = [...treeNames.keys(), 'other']
-  const groupOf = (i: MasterItem) => (byTree ? categoryOf({ name: i.name, nameHi: i.nameHi, category: i.category }).key : i.category)
+  const groupOf = (i: MasterItem) => (byTree ? categoryOf({ name: i.name, nameHi: i.nameHi, category: i.category }, tree).key : i.category)
   const groupName = (g: string) => (byTree ? treeNames.get(g) ?? t('store.otherItems') : g)
   const categories = [...new Set(items.filter((i) => i.trade === activeTrade).map(groupOf))].sort((a, b) => (byTree ? treeOrder.indexOf(a) - treeOrder.indexOf(b) : 0))
   const label = (i: MasterItem) => (i18n.language === 'hi' && i.nameHi ? i.nameHi : i.name)

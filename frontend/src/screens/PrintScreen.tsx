@@ -292,7 +292,7 @@ function ProvisionalPrint({ shopName, bill }: { shopName: string; bill: Provisio
           {bill.lines.map((l, i) => (
             <tr key={i} className="border-b border-gray-300">
               <td className="py-1.5 pr-2">{l.name}</td>
-              <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`, { count: l.quantity })}{l.bags ? <span className="block text-xs text-gray-600">{t('bag.inBags', { count: l.bags })}</span> : null}</td>
+              <td className="text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`, { count: l.quantity })}{l.bags ? <span className="block text-xs text-gray-600">{t('bag.inBags', { count: l.bags })} @ {formatRupees(Math.round((l.amount / l.bags) * 100) / 100)}</span> : null}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.unitPrice)}</td>
               <td className="text-right whitespace-nowrap">{formatRupees(l.amount)}</td>
             </tr>
@@ -430,6 +430,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel, bar
     rows.push({ rule: true })
     for (const l of bill.lines) {
       rows.push({ left: l.printName ?? l.name, right: formatRupees(l.amount), bold: true })
+      if (l.bags) rows.push({ text: `  ${t('bag.inBags', { count: l.bags })} @ ${formatRupees(Math.round((l.amount / l.bags) * 100) / 100)}` })
       rows.push({ text: `  ${l.quantity} ${t(`units.${l.unit}`, { count: l.quantity })} × ${formatRupees(l.unitPrice)}${l.hsnCode ? ` · HSN ${l.hsnCode}` : ''}${gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}` })
     }
     rows.push({ rule: true }, { left: t('print.total'), right: formatRupees(bill.total), big: true }, { text: rupeesInWords(bill.total) })
@@ -511,7 +512,7 @@ function BillDocument({ shopName, bill, customerName, phone, link, onCancel, bar
                 <tr key={i} className="border-b border-gray-300 align-top">
                   <td className="a4-only py-1.5 text-gray-600">{i + 1}</td>
                   <td className="cell-item py-1.5 pr-2">{l.printName ?? l.name}{l.batch && <span className="block text-xs text-gray-600">{l.batch.startsWith('S/N') ? l.batch : `Batch ${l.batch}`}</span>}{l.hsnCode && <span className="block text-xs text-gray-600">HSN {l.hsnCode}<span className="roll-only">{gstin && l.gstRate != null ? ` · GST ${l.gstRate}%` : ''}</span></span>}</td>
-                  <td className="py-1.5 text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`, { count: l.quantity })}{l.bags ? <span className="block text-xs text-gray-600">{t('bag.inBags', { count: l.bags })}</span> : null}</td>
+                  <td className="py-1.5 text-right whitespace-nowrap">{l.quantity} {t(`units.${l.unit}`, { count: l.quantity })}{l.bags ? <span className="block text-xs text-gray-600">{t('bag.inBags', { count: l.bags })} @ {formatRupees(Math.round((l.amount / l.bags) * 100) / 100)}</span> : null}</td>
                   <td className="cell-rate py-1.5 text-right whitespace-nowrap">{formatRupees(l.unitPrice)}</td>
                   {showTax && <td className="a4-only py-1.5 text-right whitespace-nowrap">{l.gstRate != null ? `${l.gstRate}%` : '—'}</td>}
                   {showTax && <td className="a4-only py-1.5 text-right whitespace-nowrap">{formatRupees(lineGst(l))}</td>}

@@ -19,6 +19,7 @@ import type { AdminRole } from '../lib/types'
 import { navigate } from '../router'
 import { getSession, setSession } from '../lib/session'
 import { MasterItemsPanel } from './PlatformMasterItems'
+import { PlatformMenuPanel } from './PlatformMenu'
 import { AddPerson, NewShop } from './PlatformNewShop'
 import { marketPlace, useMarkets, type MarketRow } from '../lib/markets'
 
@@ -46,7 +47,7 @@ interface Person { userId: string; membershipId: string; name: string; phone: st
 interface Detail { shopNo?: string | null; gstin?: string | null; market?: string | null; place?: string | null; latitude?: number | null; longitude?: number | null; hasPhoto?: boolean; shop: ShopRow; address: string | null; adminNote: string | null; people: Person[]; customers: number; billsLast30Days: number; lastBillAt: string | null; lastBalanceCheck: { mismatches: number } | null }
 
 type Status = 'new' | 'active' | 'blocked' | 'all'
-type Section = 'shops' | 'plans' | 'markets' | 'items' | 'agents' | 'ai' | 'admins'
+type Section = 'shops' | 'plans' | 'markets' | 'items' | 'menu' | 'agents' | 'ai' | 'admins'
 
 /**
  * The platform admin's view of every shop: counts at the top, then new / active / blocked shops with search. Open a
@@ -104,7 +105,7 @@ export function PlatformScreen() {
   }
   const SECTION_ICON: Record<Section, string> = {
     shops: 'M4 9l1-5h14l1 5M4 9h16v11H4zM9 20v-6h6v6', plans: 'M3 6h18v12H3zM3 10h18M7 15h3',
-    markets: 'M12 21s7-6 7-11a7 7 0 10-14 0c0 5 7 11 7 11zM12 8a2 2 0 100 4 2 2 0 000-4', items: 'M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01',
+    markets: 'M12 21s7-6 7-11a7 7 0 10-14 0c0 5 7 11 7 11zM12 8a2 2 0 100 4 2 2 0 000-4', items: 'M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01', menu: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
     agents: 'M9 11a4 4 0 100-8 4 4 0 000 8zM2 21v-1a7 7 0 0114 0v1M17 3a4 4 0 010 8M22 21v-1a7 7 0 00-4-6', ai: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z',
     admins: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
   }
@@ -132,6 +133,7 @@ export function PlatformScreen() {
     { id: 'plans', label: t('platformNav.plans'), show: seesBilling },
     { id: 'markets', label: t('platformNav.markets'), show: role !== 'support' },
     { id: 'items', label: t('masterItems.title'), show: role !== 'support' },
+    { id: 'menu', label: t('platformNav.menu'), show: role !== 'support' },
     { id: 'agents', label: t('platformNav.agents'), show: role !== 'support' },
     { id: 'ai', label: t('platformNav.ai'), show: true },
     { id: 'admins', label: t('platformNav.admins'), show: role === 'super' },
@@ -271,6 +273,7 @@ export function PlatformScreen() {
           {section === 'plans' && <><PlansPanel /><BillingPanel /></>}
           {section === 'markets' && <MarketsPanel />}
           {section === 'items' && <MasterItemsPanel />}
+          {section === 'menu' && <PlatformMenuPanel />}
           {section === 'agents' && <>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="mr-auto text-2xl font-extrabold">{t('platformNav.agents')}</h1>

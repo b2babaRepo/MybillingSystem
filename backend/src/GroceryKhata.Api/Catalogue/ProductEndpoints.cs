@@ -32,7 +32,9 @@ public sealed record ProductRequest(
     string? Barcode = null,
     decimal? BagSize = null,
     Unit? PurchaseUnit = null,
-    decimal? WeightKg = null);
+    decimal? WeightKg = null,
+    // The price of one whole bag; none: the loose rate times the bag.
+    decimal? BagPrice = null);
 
 /// <summary><see cref="GstRate"/> and <see cref="HsnCode"/>: null keeps what the item has (older apps don't send them), unless <see cref="ReplaceTax"/> says null means clear it.</summary>
 public sealed record ProductUpdate(
@@ -44,7 +46,9 @@ public sealed record ProductUpdate(
     decimal? WeightKg = null,
     // The wholesale price and the quantity it starts at: null keeps them; a price of 0 clears both.
     decimal? WholesalePrice = null,
-    decimal? WholesaleMinQty = null);
+    decimal? WholesaleMinQty = null,
+    // The price of one whole bag: null keeps it; 0 clears it.
+    decimal? BagPrice = null);
 
 /// <summary><see cref="IsLow"/>: out of stock, or at/below the reorder level.</summary>
 public sealed record ProductDto(
@@ -102,7 +106,9 @@ public sealed record ProductDto(
     // More photos beyond the main one, oldest first (see ProductExtraPhoto).
     IReadOnlyList<Guid>? ExtraPhotos = null,
     // More codes that scan as this item, beside Barcode.
-    IReadOnlyList<string>? ExtraBarcodes = null);
+    IReadOnlyList<string>? ExtraBarcodes = null,
+    // The price of one whole sealed bag (BagSize of the unit); none: the loose rate times the bag.
+    decimal? BagPrice = null);
 
 public sealed record OutTodayRequest(bool Out);
 

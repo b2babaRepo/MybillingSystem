@@ -186,6 +186,10 @@ public sealed partial class AppDbContext(DbContextOptions<AppDbContext> options,
 
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
 
+    public DbSet<ShopPicture> ShopPictures => Set<ShopPicture>();
+
+    public DbSet<MenuNode> MenuNodes => Set<MenuNode>();
+
     public DbSet<ProductExtraPhoto> ProductExtraPhotos => Set<ProductExtraPhoto>();
 
     public DbSet<AiProposal> AiProposals => Set<AiProposal>();

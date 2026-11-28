@@ -94,6 +94,8 @@ export interface Product {
   /** From wholesaleMinQty on a bill, the price per unit is wholesalePrice. */
   wholesalePrice?: number | null
   wholesaleMinQty?: number | null
+  /** The price of one whole sealed bag (bagSize of the unit); none: the loose rate times the bag. */
+  bagPrice?: number | null
   /** Printed on the customer's bill instead of the name ("Innerwear"); see lib/billNames.ts. */
   billName?: string | null
   /** Clothes: the design this item is one size/colour of ("पुरुष जींस"); see lib/styles.ts. */
