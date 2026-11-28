@@ -12,6 +12,7 @@ import { useProducts } from '../lib/data'
 import { formatRupees, indiaToday as today } from '../lib/format'
 import { isRunning, useOffers, type SaleOffer } from '../lib/offers'
 import { useNow } from '../lib/useNow'
+import { shownError } from '../lib/notify'
 
 const input = control
 const day = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short' })
@@ -48,7 +49,7 @@ export function OffersScreen({ shopId }: { shopId: string }) {
       await action()
       await queryClient.invalidateQueries({ queryKey: [shopId, 'offers'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

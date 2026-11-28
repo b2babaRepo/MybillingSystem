@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { priceFor, useSubscription, type PlanTerm, type Quote } from '../lib/billing'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
+import { shownError, shownDone } from '../lib/notify'
 
 const STATUS_STYLE: Record<string, string> = {
   trial: 'bg-brand-soft text-brand-deep', active: 'bg-emerald-50 text-emerald-900', complimentary: 'bg-violet-50 text-violet-900',
@@ -53,7 +54,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
     try {
       await action()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -94,7 +95,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
     await api('/v1/subscription/claims', 'POST', { planCode, term, offerCode: quote?.offerCode ?? null, upiRef: utr.trim() })
     setUtr('')
     await queryClient.invalidateQueries({ queryKey: [shopId, 'subscription'] })
-    setMessage(t('plan2.claimSent'))
+    setMessage(shownDone(t('plan2.claimSent')))
   })
 
   return (

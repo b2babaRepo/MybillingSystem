@@ -6,6 +6,7 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
+import { shownError, shownDone } from '../lib/notify'
 
 interface Card {
   customerId: string; hairType: string | null; skinType: string | null; allergies: string | null; colourFormula: string | null; patchTestOn: string | null
@@ -51,10 +52,10 @@ function ClientCard({ shopId, customerId }: { shopId: string; customerId: string
     setMessage('')
     try {
       await api(`/v1/customers/${customerId}/card`, 'PUT', { ...d, patchTestOn: d.patchTestOn || null })
-      setMessage(t('saved'))
+      setMessage(shownDone(t('saved')))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'client-card', customerId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   if (!card) return null
@@ -101,10 +102,10 @@ function ServiceProducts({ shopId }: { shopId: string }) {
     setMessage('')
     try {
       await api(`/v1/services/${serviceId}/products`, 'PUT', { products: rows.filter((r) => r.productId).map((r) => ({ productId: r.productId, quantity: Number(r.quantity) || 0 })) })
-      setMessage(t('saved'))
+      setMessage(shownDone(t('saved')))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'service-products', serviceId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   return (

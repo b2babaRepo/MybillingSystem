@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { confirmAsk } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 interface Books { closedUntil: string | null; history: { at: string; by: string | null; action: 'close' | 'reopen'; month: string; reason: string | null }[] }
 
@@ -35,7 +36,7 @@ export function BooksCard({ month }: { month: string }) {
       setReopening(false)
       setReason('')
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

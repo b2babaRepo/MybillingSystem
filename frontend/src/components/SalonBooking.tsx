@@ -5,6 +5,7 @@ import { shownLocale } from '../i18n'
 import { formatRupees } from '../lib/format'
 import { bookVisit } from '../lib/salon'
 import { btn } from '../lib/buttonStyles'
+import { shownError } from '../lib/notify'
 
 export interface SalonService { id: string; name: string; price: number; minutes: number }
 
@@ -44,7 +45,7 @@ export function SalonBooking({ shopId, shopName, services, preselect, onClose }:
       await queryClient.invalidateQueries({ queryKey: ['me', 'salon-visits'] })
       setDone(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

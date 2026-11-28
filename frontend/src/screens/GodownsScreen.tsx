@@ -9,6 +9,7 @@ import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
+import { shownError } from '../lib/notify'
 
 interface Godown { id: string; name: string; address: string | null; isActive: boolean; items: number; units: number; value: number }
 interface PlaceStock { productId: string; name: string; category: string; unit: string; total: number; shelf: number; godowns: Record<string, number> }
@@ -52,7 +53,7 @@ export function GodownsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
       await queryClient.invalidateQueries({ queryKey: [shopId, 'godowns'] })
       return true
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       return false
     }
   }

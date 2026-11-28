@@ -13,7 +13,7 @@ import { btn } from '../lib/buttonStyles'
 import { api, request } from '../lib/api'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { ask, tell } from '../lib/ask'
-import { notify } from '../lib/notify'
+import { notify, shownError, shownDone } from '../lib/notify'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { GST_RATES } from '../lib/gst'
 import { formatRupees } from '../lib/format'
@@ -161,7 +161,7 @@ function MoveSheet({ shopId, product, kind, onClose }: { shopId: string; product
         await queryClient.invalidateQueries({ queryKey: [shopId] })
         onClose()
       } catch (e) {
-        setError(e instanceof Error ? e.message : t('error'))
+        setError(shownError(e))
       }
       return
     }
@@ -256,7 +256,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     })
     // This item joins the style too, if it wasn't in one yet.
     if (!product.styleName?.trim()) setForm((f) => ({ ...f, styleName: style }))
-    setMessage(t('styles.added', { name }))
+    setMessage(shownDone(t('styles.added', { name })))
   }
 
   const [form, setForm] = useState({
@@ -330,8 +330,7 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
       notify.success(t('notice.itemSaved', { name: product.name }))
       navigate('/items')
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
-      notify.error(err)
+      setMessage(shownError(err))
     }
   }
 
@@ -339,12 +338,11 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     setMessage('')
     try {
       await api(`/v1/products/${product.id}`, 'PUT', body())
-      setMessage(t('saved'))
+      setMessage(shownDone(t('saved')))
       notify.success(t('notice.itemSaved', { name: product.name }))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
-      notify.error(err)
+      setMessage(shownError(err))
     }
   }
 
@@ -481,7 +479,7 @@ function PhotoCard({ shopId, product }: { shopId: string; product: Product }) {
       await action()
       await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -567,12 +565,11 @@ function BarcodeRow({ product }: { product: Product }) {
     try {
       const r = await api<{ barcode: string | null }>(path, method, body)
       setCode(r.barcode ?? '')
-      setMessage(t('saved'))
+      setMessage(shownDone(t('saved')))
       notify.success(t('saved'))
       void queryClient.invalidateQueries()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
-      notify.error(e)
+      setMessage(shownError(e))
     }
   }
   return (
@@ -618,8 +615,7 @@ function ExtraBarcodes({ product }: { product: Product }) {
       notify.success(t(method === 'POST' ? 'notice.barcodeAdded' : 'notice.barcodeRemoved'))
       void queryClient.invalidateQueries()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
-      notify.error(e)
+      setMessage(shownError(e))
     }
   }
   return (

@@ -5,6 +5,7 @@ import { Button } from '../components/ui'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { parseParties } from '../lib/partyImport'
+import { shownError } from '../lib/notify'
 
 /**
  * Moving to the app with customers already on credit: paste from Excel or pick a CSV, see exactly what will go in, then
@@ -38,7 +39,7 @@ export function CustomerImportScreen({ shopId }: { shopId: string }) {
       setText('')
       await queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] })
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
+      setMessage(shownError(err))
     } finally {
       setBusy(false)
     }

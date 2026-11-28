@@ -99,3 +99,18 @@ export function resetToasts() {
   toasts = []
   emit()
 }
+
+/**
+ * For a screen that also keeps its own message line: shows the red pop-up and gives back the same words for that
+ * line. `setError(shownError(e))` in a catch.
+ */
+export function shownError(error: unknown): string {
+  notify.error(error)
+  return errorText(error)
+}
+
+/** The same for a success: the green pop-up, and the words back for the screen's own line. `setMessage(shownDone(t('saved')))`. */
+export function shownDone(text: string): string {
+  notify.success(text)
+  return text
+}

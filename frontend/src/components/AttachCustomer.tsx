@@ -5,6 +5,7 @@ import { addCustomer, useCustomers } from '../lib/data'
 import { CustomerFinder } from './CustomerFinder'
 import { CashLimitNote } from './CashLimitNote'
 import { useNow } from '../lib/useNow'
+import { shownError } from '../lib/notify'
 
 /**
  * On a paid walk-in bill: put it on a customer's khata now that we know who it was. The bill itself (number, GST,
@@ -30,7 +31,7 @@ export function AttachCustomer({ shopId, billId, occurredAt, cash, onDone }: { s
       await api(`/v1/bills/${billId}/attach-customer`, 'POST', { customerId: picked, reason: reason.trim() || null })
       onDone(picked)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

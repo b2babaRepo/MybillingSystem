@@ -21,6 +21,7 @@ import { StaffCapSetting } from './StaffCapSetting'
 import { StonesEditor, TraysPanel, WeighButton, WorkshopPanel, type StoneDraft } from './JewelleryWorkshopPanels'
 import { stoneBody, stoneToDraft, useScales } from '../lib/jewelleryWorkshop'
 import { useNow } from '../lib/useNow'
+import { shownError, shownDone } from '../lib/notify'
 
 type Tab = 'bill' | 'today' | 'buyOld' |'stock' | 'rates' | 'girvi' | 'schemes' | 'orders' | 'approvals' | 'workshop' | 'trays' | 'reports'
 const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
@@ -128,9 +129,9 @@ function RatesPanel({ shopId, shopName, isOwner, rates }: { shopId: string; shop
       await api('/v1/jewellery/rates', 'POST', { rates: list })
       await queryClient.invalidateQueries({ queryKey: [shopId, 'jewellery', 'rates'] })
       setDraft({})
-      setMessage(t('jwl.ratesSaved'))
+      setMessage(shownDone(t('jwl.ratesSaved')))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -216,7 +217,7 @@ function StockPanel({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
       // A new piece: keep the form for the next one, same metal, purity and making.
       setEditing(editing.id ? null : { id: null, draft: { ...d, name: '', gross: '', stone: '', huid: '', stoneValue: '', stones: [] } })
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -382,7 +383,7 @@ function BillPanel({ shopId }: { shopId: string }) {
       setLines([...lines, { pieceId: p.id, label: `J-${p.tagNo} · ${p.name}`, rate: '', making: '', wastage: '' }])
       setTagText('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     }
   }
 
@@ -395,7 +396,7 @@ function BillPanel({ shopId }: { shopId: string }) {
       await queryClient.invalidateQueries({ queryKey: [shopId] })
       navigate(`/print/bill/${saved.billId}`)
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

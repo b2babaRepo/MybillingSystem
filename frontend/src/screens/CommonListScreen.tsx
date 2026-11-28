@@ -11,6 +11,7 @@ import { formatRupees } from '../lib/format'
 import type { CatalogueItem } from '../lib/planner'
 import type { Product, Unit } from '../lib/types'
 import { navigate } from '../router'
+import { shownError, shownDone } from '../lib/notify'
 
 type Pick = { price: string; stock: string }
 
@@ -46,10 +47,10 @@ export function CommonListScreen({ shopId }: { shopId: string }) {
         items: ready.map(([id, p]) => ({ catalogueItemId: Number(id), sellingPrice: Number(p.price), openingStock: p.stock ? Number(p.stock) : null })),
       })
       setPicked({})
-      setResult(t('commonList.added', { count: done.created }))
+      setResult(shownDone(t('commonList.added', { count: done.created })))
       await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (e) {
-      setResult(e instanceof Error ? e.message : String(e))
+      setResult(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -165,7 +166,7 @@ function OptionsSheet({ shopId, item, options, onClose, onChanged }: { shopId: s
       await action()
       onChanged()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     }
   }
 

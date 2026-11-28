@@ -12,6 +12,7 @@ import { ReportShell } from '../components/ReportShell'
 import { daysUntil, useReportView } from '../lib/reportShell'
 import { BooksCard } from '../components/BooksCard'
 import { useNow } from '../lib/useNow'
+import { shownError } from '../lib/notify'
 
 interface GstMonth {
   month: string; composition: boolean; bills: number; cancelled: number; firstBillNo: string | null; lastBillNo: string | null
@@ -54,7 +55,7 @@ export function GstExportScreen() {
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
-      setError(e instanceof ApiError && e.status === 402 ? t('gstExport.paid') : e instanceof Error ? e.message : t('error'))
+      setError(e instanceof ApiError && e.status === 402 ? t('gstExport.paid') : shownError(e))
     }
   }
 

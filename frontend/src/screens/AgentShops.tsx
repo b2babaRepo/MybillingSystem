@@ -10,6 +10,7 @@ import { shrinkPhoto } from '../lib/images'
 import { SHOP_TYPES } from '../lib/reports'
 import { addText } from '../i18n'
 import { agentText } from '../i18n/agent'
+import { shownError } from '../lib/notify'
 
 addText(agentText)
 
@@ -89,7 +90,7 @@ function NewShopForm({ agent, onDone }: { agent: FieldAgent; onDone: () => void 
     try {
       await action()
     } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : String(e) })
+      setMessage({ ok: false, text: shownError(e) })
     } finally {
       setBusy(false)
     }

@@ -8,6 +8,7 @@ import { formatRupees, whatsAppLink } from '../lib/format'
 import { buildReminder, useShopSettings } from '../lib/reports'
 import { navigate } from '../router'
 import { DataTable } from '../components/DataTable'
+import { shownError } from '../lib/notify'
 
 interface Item {
   customerId: string
@@ -42,7 +43,7 @@ export function RemindersScreen({ shopId, shopName }: { shopId: string; shopName
       await api(`/v1/customers/${i.customerId}/reminder-consent`, 'PUT', { given })
       await refresh()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

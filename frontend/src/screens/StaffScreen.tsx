@@ -5,6 +5,7 @@ import { Button, Field } from '../components/ui'
 import { api, request } from '../lib/api'
 import { formatPhone } from '../lib/format'
 import { ask, confirmAsk, tell } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 interface Staff {
   membershipId: string
@@ -76,7 +77,7 @@ export function StaffScreen() {
       await queryClient.invalidateQueries({ queryKey: ['staff'] })
       if (done) setMessage(done)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }

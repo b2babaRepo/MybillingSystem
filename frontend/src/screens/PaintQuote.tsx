@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { litresFor, packLitres, packMix, roomArea, type Room } from '../lib/paintQuote'
+import { shownError } from '../lib/notify'
 
 const blankRoom = (n: number): Room => ({ name: `Room ${n}`, length: 12, width: 10, height: 10, openings: 40, ceiling: false })
 
@@ -47,7 +48,7 @@ export function PaintQuote({ shopId, onClose, onSaved }: { shopId: string; onClo
       })
       onSaved(saved.number)
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     }
   }
 

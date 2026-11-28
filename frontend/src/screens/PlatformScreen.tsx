@@ -26,6 +26,7 @@ import { RolesGrid, useRoles } from './PlatformRolesGrid'
 import { usePlatformCan, type Can } from '../lib/platformAccess'
 import { AddPerson, NewShop } from './PlatformNewShop'
 import { marketPlace, useMarkets, type MarketRow } from '../lib/markets'
+import { shownError } from '../lib/notify'
 
 const AccountMenu = lazy(() => import('../components/AccountMenu').then((module) => ({ default: module.AccountMenu })))
 
@@ -358,7 +359,7 @@ function ShopDetail({ id, can }: { id: string; can: Can }) {
       await queryClient.invalidateQueries({ queryKey: ['platform'] })
       if (done) setMessage(done)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -457,7 +458,7 @@ function MarketsPanel() {
       await action()
       await queryClient.invalidateQueries({ queryKey: ['platform', 'markets'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     }
   }
 
@@ -539,7 +540,7 @@ function ManageAdmins() {
       if (method === 'POST') setPhone('')
       if (done) setMessage(done)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }

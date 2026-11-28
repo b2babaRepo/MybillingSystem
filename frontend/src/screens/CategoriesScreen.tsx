@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { useCategories, type CategoryRow } from '../lib/categories'
 import { GST_RATES } from '../lib/gst'
 import type { Unit } from '../lib/types'
+import { shownError } from '../lib/notify'
 
 const UNITS: Unit[] = ['piece', 'kg', 'g', 'litre', 'ml', 'packet', 'dozen', 'box', 'bag', 'metre']
 const input = controlSm
@@ -41,7 +42,7 @@ export function CategoriesScreen({ shopId }: { shopId: string }) {
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
       return true
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       return false
     }
   }

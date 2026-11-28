@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { decimalText } from '../lib/decimalText'
 import { formatRupees } from '../lib/format'
 import type { Metal, MetalRates, OldMetal } from '../lib/jewellery'
+import { shownError } from '../lib/notify'
 
 export interface OldMetalVoucher {
   id: string; number: number; sellerName: string; sellerPhone: string | null; pan: string | null; mode: string; total: number
@@ -57,7 +58,7 @@ export function OldGoldPanel({ shopId }: { shopId: string }) {
       setRows([{ ...blank }]); setName(''); setPhone(''); setAddress(''); setPan('')
       void qc.invalidateQueries({ queryKey: [shopId, 'jewellery'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally { setBusy(false) }
   }
 

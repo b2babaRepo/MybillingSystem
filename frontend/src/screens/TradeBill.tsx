@@ -11,6 +11,7 @@ import { round2 } from '../lib/local'
 import { useSubscription } from '../lib/billing'
 import type { ShopType } from '../lib/reports'
 import type { Customer, Product } from '../lib/types'
+import { shownError } from '../lib/notify'
 
 /** What other trades add to a bill: where it went, which vehicle took it, which painter brought the customer. */
 export interface TradeExtras {
@@ -65,7 +66,7 @@ export function TradeDelivery({ shopId, customer, total, cart, extras, onExtras,
       })
       onChallanSaved()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

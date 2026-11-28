@@ -13,6 +13,7 @@ import { compareCells, filterBox, nextSort, type Sort } from '../lib/tableSort'
 import type { Product } from '../lib/types'
 import { markCountDone, takeCountCategory } from '../lib/dailyCount'
 import { packGroups, sizeOf } from '../lib/packGroups'
+import { shownError } from '../lib/notify'
 
 /** What one item's count holds: the total in its unit, and for items kept in bags the bags and the loose part. */
 interface Count { bags?: string; loose?: string; quintal?: boolean; cost?: string; price?: string }
@@ -159,7 +160,7 @@ export function StocktakeScreen({ shopId }: { shopId: string }) {
       markCountDone(shopId)
       try { localStorage.removeItem(draftKey) } catch { /* storage off */ }
     } catch (err) {
-      setResult(err instanceof Error ? err.message : t('error'))
+      setResult(shownError(err))
     } finally {
       setBusy(false)
     }

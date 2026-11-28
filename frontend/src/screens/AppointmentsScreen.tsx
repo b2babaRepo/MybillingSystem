@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { confirmAsk } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 type Status = 'booked' | 'arrived' | 'done' | 'no_show' | 'cancelled'
 interface Appointment {
@@ -52,7 +53,7 @@ export function AppointmentsScreen({ shopId, shopName }: { shopId: string; shopN
       setPaying(null)
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const shift = (n: number) => { const d = new Date(`${date}T00:00`); d.setDate(d.getDate() + n); setDate(isoDay(d)) }
@@ -151,7 +152,7 @@ function NewAppointment({ shopId, date, walkIn, stylists, onDone }: { shopId: st
       void queryClient.invalidateQueries({ queryKey: [shopId, 'appointments'] })
       onDone()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

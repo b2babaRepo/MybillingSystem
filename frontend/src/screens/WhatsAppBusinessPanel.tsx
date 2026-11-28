@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { confirmAsk } from '../lib/ask'
 import { api } from '../lib/api'
+import { shownError } from '../lib/notify'
 
 interface Config { enabled: boolean; appId: string | null; configId: string | null; graphVersion: string }
 interface Connection { connected: boolean; displayNumber: string | null; verifiedName: string | null; quality: string | null; connectedAt: string | null; testSentAt: string | null }
@@ -88,7 +89,7 @@ export function WhatsAppBusinessPanel() {
       setMessage({ ok: true, text: t('waBiz.testSent') })
       await refresh()
     } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : t('error') })
+      setMessage({ ok: false, text: shownError(e) })
     } finally {
       setBusy(false)
     }
@@ -160,7 +161,7 @@ function Templates() {
       await api('/v1/whatsapp/business/templates', 'POST', {})
       await queryClient.invalidateQueries({ queryKey: ['wa-templates'] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

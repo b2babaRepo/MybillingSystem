@@ -6,6 +6,7 @@ import { api, request } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { shrinkPhoto } from '../lib/images'
 import { formatRupees } from '../lib/format'
+import { shownError } from '../lib/notify'
 
 type Kind = 'advance' | 'travel' | 'food' | 'stay' | 'other' | 'collected'
 interface Trip {
@@ -34,7 +35,7 @@ export function TripsScreen({ shopId, isOwner }: { shopId: string; isOwner: bool
       void queryClient.invalidateQueries({ queryKey: [shopId] })
       return true
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       return false
     }
   }

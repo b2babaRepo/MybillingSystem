@@ -14,6 +14,7 @@ import { navigate } from '../../router'
 import { VoiceButton } from '../../components/VoiceButton'
 import { UnitSelect } from '../BillScreen'
 import { confirmAsk } from '../../lib/ask'
+import { shownError } from '../../lib/notify'
 
 type Confidence = 'high' | 'medium' | 'low'
 
@@ -115,7 +116,7 @@ export function AiOrderScreen({ userId }: { userId: string }) {
       setDraft(result)
       setLines(result.lines)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

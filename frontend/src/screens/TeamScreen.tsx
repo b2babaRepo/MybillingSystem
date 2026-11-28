@@ -15,6 +15,7 @@ import { shiftMonth, thisMonth } from '../lib/kharchaMonth'
 import { teamJoinLink, teamViewLink } from '../lib/teamLinks'
 import { ask, confirmAsk } from '../lib/ask'
 import { useNow } from '../lib/useNow'
+import { shownError } from '../lib/notify'
 
 addText(teamText)
 
@@ -43,7 +44,7 @@ function useRun() {
       await action()
       if (done) setMessage(done)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }

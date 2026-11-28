@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, controlSm } from '../components/ui'
 import { api } from '../lib/api'
 import { navigate } from '../router'
+import { shownError } from '../lib/notify'
 
 interface FestivalItem { productId: string; name: string; category: string | null; unit: string; stock: number; onOrder: number; lastYear: number | null; usual: number; suggest: number }
 interface Festival { key: string; name: string; date: string; daysLeft: number; changed: boolean; basis: 'last_year' | 'usual_items'; items: FestivalItem[] }
@@ -55,7 +56,7 @@ export function FestivalsScreen({ shopId, isOwner }: { shopId: string; isOwner: 
       await queryClient.invalidateQueries({ queryKey: ['festivals', shopId] })
       if (done) setMessage(done)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

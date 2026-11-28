@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { setCounterName } from '../lib/data'
 import { uuidv7 } from '../lib/ids'
 import { setThisTill, thisTill, type Till } from '../lib/terminal'
+import { shownError } from '../lib/notify'
 
 interface Terminal extends Till { mallMachineId: string | null; isActive: boolean; registeredAt: string; lastBillAt: string | null }
 
@@ -29,7 +30,7 @@ export function TillsScreen({ shopId }: { shopId: string }) {
       await work()
       await list.refetch()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const register = () => run(async () => {

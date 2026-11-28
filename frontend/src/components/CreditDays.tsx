@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
+import { shownError } from '../lib/notify'
 
 /**
  * How many days this customer has to pay for what they take on credit (15, 30): each udhaar then has a due date, the dues
@@ -23,7 +24,7 @@ export function CreditDays({ shopId, customerId, days, isOwner }: { shopId: stri
       await queryClient.invalidateQueries({ queryKey: [shopId, 'customers'] })
       await queryClient.invalidateQueries({ queryKey: [shopId, 'dues'] })
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('error'))
+      setError(shownError(err))
     }
   }
 

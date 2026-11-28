@@ -14,6 +14,7 @@ import { formatRupees, whatsAppLink } from '../lib/format'
 import { parseSuppliers } from '../lib/supplierImport'
 import type { Product } from '../lib/types'
 import { kgOf, todayIso, isLate, orderText } from '../lib/supplierOrders'
+import { shownError } from '../lib/notify'
 
 export interface OrderLine { productId: string; name: string; quantity: number; rate: number | null; received: number; shortClosed?: number; shortReason?: string | null; unit?: string; bags?: number | null; packUnit?: string | null }
 export interface PurchaseOrder { id: string; number: number; supplierId: string; supplierName: string; status: 'open' | 'closed' | 'cancelled' | 'draft'; note: string | null; expectedOn: string | null; createdAt: string; closedAt?: string | null; stage?: string; promiseMoves?: number; pending: number; lines: OrderLine[]; totals?: { unit: string; quantity: number }[]; bags?: number; weightKg?: number | null; unweighedLines?: number }
@@ -117,7 +118,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
       await action()
       await refresh()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -226,7 +227,7 @@ export function ReturnsPanel({ shopId, supplierId, products }: { shopId: string;
       await queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -310,7 +311,7 @@ export function ReceiptsPanel({ shopId, supplierId, products, onBill }: { shopId
       await queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -413,7 +414,7 @@ export function SupplierImport({ shopId, open = false }: { shopId: string; open?
       setMessage([t('supplier2.imported', { created: result.created, skipped: result.skipped }), ...result.problems].join('\n'))
       await queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

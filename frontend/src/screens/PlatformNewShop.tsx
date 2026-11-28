@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { usePlans } from '../lib/billing'
 import { shrinkPhoto } from '../lib/images'
 import { marketPlace, useMarkets } from '../lib/markets'
+import { shownError, shownDone } from '../lib/notify'
 
 export function NewShop({ canBill }: { canBill: boolean }) {
   const { t } = useTranslation()
@@ -76,7 +77,7 @@ export function NewShop({ canBill }: { canBill: boolean }) {
       setPeople([])
       await queryClient.invalidateQueries({ queryKey: ['platform'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -211,9 +212,9 @@ export function AddPerson({ shopId }: { shopId: string }) {
       for (const p of draft.filter((x) => x.name.trim() && x.phone.trim())) await api(`/v1/platform/shops/${shopId}/people`, 'POST', toPerson(p))
       setDraft([])
       await queryClient.invalidateQueries({ queryKey: ['platform'] })
-      setMessage(t('people.added'))
+      setMessage(shownDone(t('people.added')))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }

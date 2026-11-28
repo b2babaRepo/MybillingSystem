@@ -14,6 +14,7 @@ import { api } from '../../lib/api'
 import { formatPhone, formatRupees } from '../../lib/format'
 import type { ItemProblem, StatementLine, Statement } from '../../lib/types'
 import { navigate } from '../../router'
+import { shownError } from '../../lib/notify'
 
 // Transparency step 2: the customer's own, read-only copy of their khata. The same ledger the shop sees,
 // removed entries and their reasons included. Reached by the private link the shop shares (#/k/...), with no
@@ -81,7 +82,7 @@ function DisputeSheet({ entry, path, onClose, onSent }: { entry: StatementLine; 
       })
       onSent()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
       setBusy(false)
     }
   }
@@ -159,7 +160,7 @@ function PaidCard({ path, balance, queryKey }: { path: string; balance: number; 
       setSent(true)
       await queryClient.invalidateQueries({ queryKey })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   if (sent) return <p className="rounded-[14px] bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{t('receipts.paidSent')}</p>
@@ -267,7 +268,7 @@ function ConfirmKhata({ khata }: { khata: MyKhata }) {
       await api(`/v1/me/khata/${khata.shopId}/${khata.customerId}/confirm`, 'POST', { code: code.trim() })
       await queryClient.invalidateQueries({ queryKey: ['my-khata'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   return (
@@ -331,7 +332,7 @@ function ConfirmBalance({ shopId, customerId, balance, confirmed }: { shopId: st
       await api(`/v1/me/khata/${shopId}/${customerId}/confirm-balance`, 'POST', { balance })
       await queryClient.invalidateQueries({ queryKey: ['my-khata', shopId, customerId] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

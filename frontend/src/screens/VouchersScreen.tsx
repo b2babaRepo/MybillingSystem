@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { code128Modules } from '../lib/barcode'
 import { formatRupees } from '../lib/format'
 import { uuidv7 } from '../lib/ids'
+import { shownError } from '../lib/notify'
 
 interface Voucher { id: string; code: string; amount: number; balance: number; soldAt: string; soldMode: 'cash' | 'upi' | 'card'; expiresOn: string; buyerName: string | null; cancelledAt: string | null }
 
@@ -41,7 +42,7 @@ export function VouchersScreen({ shopId, shopName, isOwner }: { shopId: string; 
       setForm({ ...form, amount: '', buyer: '' })
       await list.refetch()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   async function cancel(v: Voucher) {
@@ -50,7 +51,7 @@ export function VouchersScreen({ shopId, shopName, isOwner }: { shopId: string; 
       await api(`/v1/gift-vouchers/${v.id}/cancel`, 'POST')
       await list.refetch()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const date = (iso: string) => new Date(iso).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })

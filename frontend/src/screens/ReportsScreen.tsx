@@ -14,6 +14,7 @@ import { MonthStatementCard } from './MonthStatement'
 import { Delta, ReportShell, Sparkline, UpDownBars } from '../components/ReportShell'
 import { change, useReportView } from '../lib/reportShell'
 import { useNow } from '../lib/useNow'
+import { shownError } from '../lib/notify'
 
 function shiftMonth(month: string, by: number) {
   const [year, m] = month.split('-').map(Number)
@@ -52,7 +53,7 @@ export function ReportsScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
     try {
       await downloadCsv(path, name)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('error'))
+      setError(shownError(err))
     }
   }
 

@@ -10,6 +10,7 @@ import { useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { parseStatement } from '../lib/statementImport'
 import { DataTable } from '../components/DataTable'
+import { shownError, shownDone } from '../lib/notify'
 
 interface Receipt {
   id: string
@@ -48,7 +49,7 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
     await run(async () => {
       const result = await api<{ added: number; known: number; confirmed: number; problems: string[] }>('/v1/receipts/import', 'POST', { rows: parsed.rows })
       setStatement('')
-      setImported(t('receipts.imported', { added: result.added, known: result.known, confirmed: result.confirmed }))
+      setImported(shownDone(t('receipts.imported', { added: result.added, known: result.known, confirmed: result.confirmed })))
       setProblems(result.problems)
     })
   }
@@ -64,7 +65,7 @@ export function ReceiptsScreen({ shopId, isOwner }: { shopId: string; isOwner: b
       await refresh()
       return true
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       return false
     }
   }

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
+import { shownError } from '../lib/notify'
 
 interface Item { productId: string; name: string; stock: number; daysLeft: number | null; suggested: number; leadDays: number; nameEn?: string | null; nameHi?: string | null }
 
@@ -54,7 +55,7 @@ export function OrderToday() {
       setOn(true)
       setNote(t('orderToday.onNote'))
     } catch (e) {
-      setNote(e instanceof Error ? e.message : t('error'))
+      setNote(shownError(e))
     }
   }
 
@@ -75,7 +76,7 @@ export function OrderToday() {
       const r = await api<{ sent: number }>('/v1/push/test', 'POST', {})
       setNote(r.sent > 0 ? t('orderToday.testSent') : t('orderToday.testNone'))
     } catch (e) {
-      setNote(e instanceof Error ? e.message : t('error'))
+      setNote(shownError(e))
     }
   }
 

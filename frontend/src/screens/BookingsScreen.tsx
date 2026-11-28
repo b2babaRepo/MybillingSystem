@@ -9,6 +9,7 @@ import { useCustomers } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { JobPage } from './JobsScreen'
 import { NewStayInline } from './RoomsScreen'
+import { shownError } from '../lib/notify'
 
 type Slot = 'morning' | 'evening' | 'full_day'
 type Occasion = 'wedding' | 'reception' | 'engagement' | 'birthday' | 'anniversary' | 'other'
@@ -119,7 +120,7 @@ function NewBooking({ shopId, venues, onDone }: { shopId: string; venues: Venue[
       void queryClient.invalidateQueries({ queryKey: [shopId, 'bookings'] })
       onDone(id)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -172,7 +173,7 @@ function BookingPage({ shopId, id, isOwner, onBack }: { shopId: string; id: stri
       setForm(null)
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const b = booking

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { indiaToday as todayIso } from '../lib/format'
+import { shownError } from '../lib/notify'
 
 interface Reading {
   id: string
@@ -50,7 +51,7 @@ export function MeterCard({ shopId }: { shopId: string }) {
       setValue('')
       setReset('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

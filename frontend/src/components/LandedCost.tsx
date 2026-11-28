@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { noCharges, rows } from '../lib/landedCost'
+import { shownError } from '../lib/notify'
 
 export type Split = 'value' | 'quantity' | 'bags' | 'weight'
 export interface Charge { label: string; amount: string; paidBy: '' | 'cash' | 'upi'; rcm?: '' | '5' | '12' | '18' }
@@ -78,7 +79,7 @@ export function LotView({ shopId, purchaseId, isOwner = true }: { shopId: string
       setLater(null)
       await queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   return (

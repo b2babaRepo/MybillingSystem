@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { btn } from '../lib/buttonStyles'
+import { shownError } from '../lib/notify'
 
 /**
  * The shopping app's privacy notice, once, on first use: what is kept, who sees it, the person's rights, and the
@@ -25,7 +26,7 @@ export function PrivacyGate({ children }: { children: ReactNode }) {
       await api('/v1/profile/privacy', 'POST', { adult: true })
       await queryClient.invalidateQueries({ queryKey: ['profile'] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

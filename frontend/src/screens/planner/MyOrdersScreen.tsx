@@ -15,6 +15,7 @@ import { confirmAsk } from '../../lib/ask'
 import { navigate } from '../../router'
 import { answerChangedLine, homeKey, useMyOrders, type Order, type OrderLine } from '../../lib/planner'
 import type { Unit } from '../../lib/types'
+import { shownError } from '../../lib/notify'
 
 const code = (o: Order) => `#${o.id.slice(-4).toUpperCase()}`
 
@@ -162,7 +163,7 @@ function ChangesReview({ order, userId }: { order: Order; userId: string }) {
       await answerChangedLine(order.id, lineId, approve)
       await queryClient.invalidateQueries({ queryKey: [homeKey(userId), 'orders'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     } finally {
       setBusy(null)
     }
@@ -231,7 +232,7 @@ function AddItems({ order, userId, onClose }: { order: Order; userId: string; on
       await queryClient.invalidateQueries({ queryKey: [homeKey(userId), 'orders'] })
       onClose()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       setBusy(false)
     }
   }
@@ -307,7 +308,7 @@ export function OrderDetail({ userId, userName = '', orderId }: { userId: string
       await api(`/v1/me/orders/${order.id}/cancel`, 'POST', {})
       await queryClient.invalidateQueries({ queryKey: [homeKey(userId), 'orders'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -320,7 +321,7 @@ export function OrderDetail({ userId, userName = '', orderId }: { userId: string
       const link = await api<{ shopSlug: string; billId: string; token: string }>(`/v1/me/orders/${order.id}/bill-link`)
       navigate(`/b/${link.shopSlug}/${link.billId}?t=${link.token}`)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     } finally {
       setOpeningBill(false)
     }

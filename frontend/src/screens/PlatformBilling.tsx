@@ -9,6 +9,7 @@ import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/
 import type { Can } from '../lib/platformAccess'
 import { planBillLink } from '../lib/planBill'
 import { ask, confirmAsk } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 interface Overview { byStatus: Record<SubscriptionStatus, number>; trialsEndingThisWeek: number; revenueThisMonth: number; revenueThisYear: number; pendingClaims: Claim[] }
 interface Offer { code: string; title: string; planCode: string; term: PlanTerm; price: number; newShopsOnly: boolean; validUntil: string | null; maxUses: number | null; uses: number; isActive: boolean }
@@ -30,7 +31,7 @@ function useRun() {
       await queryClient.invalidateQueries({ queryKey: ['platform'] })
       if (done) setMessage(done)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }

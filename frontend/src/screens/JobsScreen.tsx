@@ -10,6 +10,7 @@ import { shopTypes, useShopSettings } from '../lib/reports'
 import { ExportImportPanel } from './ExportImportPanel'
 import { KarigarPanel, MachinesPanel } from './WorkshopPanels'
 import { confirmAsk } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 interface SpeechRec { lang: string; start: () => void; onresult: (e: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => void; onend: () => void }
 type Status = 'quote' | 'order' | 'making' | 'ready' | 'delivered' | 'cancelled'
@@ -109,7 +110,7 @@ function NewJob({ shopId, onDone }: { shopId: string; onDone: (id?: string) => v
       setParts(r.parts.map((p) => ({ ...p, use: p.productId != null })))
       if (r.customerName && !r.customerId) setMessage(t('jobs.customerNotFound', { name: r.customerName }))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -128,7 +129,7 @@ function NewJob({ shopId, onDone }: { shopId: string; onDone: (id?: string) => v
       void queryClient.invalidateQueries({ queryKey: [shopId, 'jobs'] })
       onDone(id)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -199,7 +200,7 @@ export function JobPage({ shopId, id, onBack, embedded = false }: { shopId: stri
       setF({ amount: '', text: '', productId: '', qty: '', mode: 'cash' })
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const submit = () => {

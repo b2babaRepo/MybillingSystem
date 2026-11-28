@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { navigate } from '../router'
+import { shownError } from '../lib/notify'
 
 interface Profile {
   licenceForm20: string | null; licenceForm21: string | null; licenceIssuedOn: string | null; pharmacistName: string | null; pharmacistRegNo: string | null
@@ -59,7 +60,7 @@ export function MedicalSetupScreen({ shopId, isOwner }: { shopId: string; isOwne
       setMessage(done)
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

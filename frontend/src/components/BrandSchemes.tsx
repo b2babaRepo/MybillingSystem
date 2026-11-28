@@ -5,6 +5,7 @@ import { ask } from '../lib/ask'
 import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { formatRupees, indiaToday } from '../lib/format'
+import { shownError } from '../lib/notify'
 
 interface Scheme {
   id: string; name: string; brand: string; from: string; to: string; basis: 'value' | 'quantity'; target: number; rebatePercent: number
@@ -30,7 +31,7 @@ export function BrandSchemes({ shopId }: { shopId: string }) {
       await action()
       await queryClient.invalidateQueries({ queryKey: [shopId, 'brand-schemes'] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     }
   }
   const add = () => run(async () => {

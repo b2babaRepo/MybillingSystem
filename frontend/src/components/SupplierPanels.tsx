@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import { pct } from '../lib/supplierStats'
+import { shownError, shownDone } from '../lib/notify'
 
 interface ItemSupplier { supplierId: string; name: string; phone: string | null; ordered: number; received: number; pending: number; damaged: number; lastRate: number | null; lastAt: string | null; deliveries: number; leadDays: number | null; fillRate: number | null; preferred: boolean; bestRate: boolean; caseQty?: number | null; minQty?: number | null }
 interface SupplierProduct { productId: string; name: string; category: string | null; unit: string; received: number; pending: number; lastRate: number | null; lastAt: string | null; deliveries: number; preferred: boolean }
@@ -67,10 +68,10 @@ function PackEditor({ productId, supplier, onSaved }: { productId: string; suppl
     setNote(null)
     try {
       await api(`/v1/products/${productId}/suppliers/${supplier.supplierId}/pack`, 'PUT', { caseQty: caseQty.trim() ? Number(caseQty) : null, minQty: minQty.trim() ? Number(minQty) : null })
-      setNote(t('rs.packSaved'))
+      setNote(shownDone(t('rs.packSaved')))
       onSaved()
     } catch (e) {
-      setNote(e instanceof Error ? e.message : t('error'))
+      setNote(shownError(e))
     }
   }
 

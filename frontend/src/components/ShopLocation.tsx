@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { currentPoint } from '../lib/location'
 import { CustIcon } from './CustIcons'
+import { shownError } from '../lib/notify'
 
 /**
  * The shop's place on the map: the owner stands in the shop and taps once. Customers who look for shops near them,
@@ -24,7 +25,7 @@ export function ShopLocation({ isOwner }: { isOwner: boolean }) {
       await api('/v1/shop/location', 'PUT', { latitude: point?.lat ?? null, longitude: point?.lng ?? null })
       await queryClient.invalidateQueries({ queryKey: ['shop', 'location'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }

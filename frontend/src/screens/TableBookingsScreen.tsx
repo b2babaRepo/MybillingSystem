@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatPhone, formatRupees, whatsAppLink } from '../lib/format'
 import { confirmAsk } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 type Occasion = 'none' | 'birthday' | 'anniversary' | 'other'
 type Status = 'booked' | 'seated' | 'no_show' | 'cancelled'
@@ -40,7 +41,7 @@ export function TableBookingsScreen({ shopId, shopName }: { shopId: string; shop
       setDepositFor(null)
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const shift = (n: number) => { const d = new Date(`${date}T00:00`); d.setDate(d.getDate() + n); setDate(isoDay(d)) }
@@ -118,7 +119,7 @@ function NewTableBooking({ shopId, date, onDone }: { shopId: string; date: strin
       void queryClient.invalidateQueries({ queryKey: [shopId, 'table-bookings'] })
       onDone()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

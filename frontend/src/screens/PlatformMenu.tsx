@@ -6,6 +6,7 @@ import { api, request } from '../lib/api'
 import { ICONS, KIRANA, type Category, type Department } from '../lib/categoryTree'
 import { shrinkPhoto } from '../lib/images'
 import { applyMenu, MENU_TRADE, menuPicture, useMenuNodes, type MenuNode } from '../lib/menuConfig'
+import { shownError } from '../lib/notify'
 
 interface Row { key: string; kind: 'dept' | 'cat'; hi: string; en: string; gu: string; icon: string; tint: string; ink: string; parent: string | null; hidden: boolean; builtIn: boolean; node?: MenuNode; picture?: string }
 
@@ -123,7 +124,7 @@ function Editor({ row, kind, departments, onSaved, onCancel }: { row?: Row; kind
       setMessage({ ok: true, text: done })
       onSaved(key)
     } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : t('error') })
+      setMessage({ ok: false, text: shownError(e) })
     } finally {
       setBusy(false)
     }
