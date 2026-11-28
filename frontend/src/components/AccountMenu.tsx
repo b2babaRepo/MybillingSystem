@@ -6,6 +6,7 @@ import { useSession } from '../lib/data'
 import { formatPhone } from '../lib/format'
 import { setSession } from '../lib/session'
 import { navigate } from '../router'
+import { afterSheetClosed, useBackToClose } from '../lib/backClose'
 
 export interface AccountAction {
   label: string
@@ -25,6 +26,8 @@ export function AccountMenu({ name, role, actions, unsynced, onSignOut }: {
 }) {
   const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
+  // The phone's Back button closes this sheet, not the page under it.
+  useBackToClose(open, () => setOpen(false))
   const session = useSession()
   // Everyone with more than one shop can switch here; the picker asks for the shop to open next.
   const shared: AccountAction[] = []
@@ -35,7 +38,7 @@ export function AccountMenu({ name, role, actions, unsynced, onSignOut }: {
   const initial = name.trim().charAt(0).toUpperCase() || '?'
   const run = (action: () => void) => () => {
     setOpen(false)
-    action()
+    afterSheetClosed(action)
   }
 
   return (

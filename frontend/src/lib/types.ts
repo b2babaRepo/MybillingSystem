@@ -2,7 +2,7 @@
 
 export type ShopRole = 'owner' | 'staff' | 'accountant'
 /** A platform admin's role: super (everything), approver (approve and block shops), support (notes, unlocking). */
-export type AdminRole = 'super' | 'approver' | 'support' | 'billing' | 'agent_manager'
+export type AdminRole = 'super' | 'approver' | 'support' | 'billing' | 'agent_manager' | 'custom'
 
 export type Unit = 'piece' | 'kg' | 'g' | 'litre' | 'ml' | 'packet' | 'pair' | 'dozen' | 'box' | 'jar' | 'bag' | 'tonne' | 'brass' | 'cft' | 'metre' | 'sq_ft' | 'running_ft' | 'quintal' | 'carton' | 'bottle' | 'set' | 'strip'
 /** Card and cheque reach the bank, not the drawer. A cheque is for khata payments, and counts once cleared. */

@@ -200,8 +200,8 @@ public static class AgentEndpoints
 
         if (proposal.Kind == ProposalKind.ExtendTrial)
         {
-            var role = await db.PlatformAdmins.Where(a => a.UserId == admin.UserId()).Select(a => a.Role).SingleAsync(ct);
-            if (role is not (AdminRole.Super or AdminRole.Approver))
+            var permissions = await Shops.Permissions.ForUserAsync(db, admin.UserId()!.Value, ct) ?? [];
+            if (!permissions.Contains(Shops.Permissions.ShopsApprove))
             {
                 return TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Extending a trial needs an approver or super admin.");
             }

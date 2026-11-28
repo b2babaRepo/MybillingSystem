@@ -74,28 +74,31 @@ public static class AuthSetup
                 .AddRequirements(new Shops.PlatformAdminRequirement()))
             .AddPolicy(AppPolicies.PlatformApprover, policy => policy
                 .RequireAuthenticatedUser()
-                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.Approver)))
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.Permissions.ShopsApprove)))
             .AddPolicy(AppPolicies.PlatformSupport, policy => policy
                 .RequireAuthenticatedUser()
-                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.Support)))
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.Permissions.Support)))
             .AddPolicy(AppPolicies.PlatformBilling, policy => policy
                 .RequireAuthenticatedUser()
-                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.Billing)))
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.Permissions.Billing)))
             .AddPolicy(AppPolicies.PlatformOpenShop, policy => policy
                 .RequireAuthenticatedUser()
-                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.Approver, Shops.AdminRole.Billing)))
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.Permissions.ShopsOpen)))
             .AddPolicy(AppPolicies.PlatformAgentMoney, policy => policy
                 .RequireAuthenticatedUser()
-                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.AgentManager, Shops.AdminRole.Billing)))
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.Permissions.AgentsMoney)))
             .AddPolicy(AppPolicies.PlatformShopReview, policy => policy
                 .RequireAuthenticatedUser()
-                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.Approver, Shops.AdminRole.AgentManager)))
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.Permissions.ShopsReview)))
             .AddPolicy(AppPolicies.PlatformAgents, policy => policy
                 .RequireAuthenticatedUser()
-                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super, Shops.AdminRole.AgentManager)))
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.Permissions.AgentsManage)))
             .AddPolicy(AppPolicies.PlatformSuper, policy => policy
                 .RequireAuthenticatedUser()
-                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.AdminRole.Super)));
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.Permissions.AdminsManage)))
+            .AddPolicy(AppPolicies.PlatformRemoveAccounts, policy => policy
+                .RequireAuthenticatedUser()
+                .AddRequirements(new Shops.PlatformAdminRequirement(Shops.Permissions.AccountsRemove)));
 
         services.AddRateLimiter(limiter =>
         {

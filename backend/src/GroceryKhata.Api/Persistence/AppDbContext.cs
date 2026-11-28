@@ -158,6 +158,10 @@ public sealed partial class AppDbContext(DbContextOptions<AppDbContext> options,
 
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
 
+    public DbSet<EmailCode> EmailCodes => Set<EmailCode>();
+
+    public DbSet<Shops.PlatformRole> PlatformRoles => Set<Shops.PlatformRole>();
+
     public DbSet<Shops.PlatformAdmin> PlatformAdmins => Set<Shops.PlatformAdmin>();
 
     public DbSet<Shops.PlatformActivity> PlatformActivities => Set<Shops.PlatformActivity>();
