@@ -80,7 +80,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var photos = await ProductPhotoEndpoints.IdsAsync(db, list.Count == 1 ? [list[0].Id] : null, ct);
         return list.Select(p => (daily.TryGetValue(p.Id, out var d) && d > 0 ? p with { DailySales = decimal.Round(d, 3) } : p) with
         {
-            Bags = SealedBags(bags.GetValueOrDefault(p.Id), p.Stock, p.PurchaseUnit is null ? null : p.BagSize), Promised = promised.GetValueOrDefault(p.Id), ExtraPhotos = photos.GetValueOrDefault(p.Id),
+            Bags = SealedBags(bags.GetValueOrDefault(p.Id), p.Stock, p.BagSize), Promised = promised.GetValueOrDefault(p.Id), ExtraPhotos = photos.GetValueOrDefault(p.Id),
         }).ToList();
     }
 
@@ -158,8 +158,10 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         (product.StyleName, product.Size, product.Colour) = (Short(request.StyleName, 120), Short(request.Size, 20), Short(request.Colour, 30));
         product.Barcode = barcode.Length > 0 ? barcode : null;
         product.BagSize = request.BagSize is > 0 and <= 100_000 && !request.IsService ? request.BagSize : null;
-        product.PurchaseUnit = product.BagSize is null || request.PurchaseUnit == product.Unit ? null : request.PurchaseUnit;
+        // "बोरी" is the plain bag: kept as no purchase unit, as an edit does (else the bill treats it like a carton).
+        product.PurchaseUnit = product.BagSize is null || request.PurchaseUnit == product.Unit || request.PurchaseUnit == Unit.Bag ? null : request.PurchaseUnit;
         product.WeightKg = request.WeightKg is > 0 and <= 100_000 && !request.IsService ? request.WeightKg : null;
+        product.BagPrice = product.BagSize is not null && request.BagPrice is > 0 and var bp && Money.IsValidAmount(bp) ? bp : null;
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         if (request.OpeningStock is > 0)
@@ -244,6 +246,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         product.PurchaseUnit = product.BagSize is null ? null : request.PurchaseUnit is { } pu ? (pu == product.Unit || pu == Unit.Bag ? null : pu) : product.PurchaseUnit;
         // Null keeps it; 0 clears it.
         product.WeightKg = request.WeightKg is { } kg ? (kg is > 0 and <= 100_000 && !product.IsService ? kg : null) : product.WeightKg;
+        // Null keeps it; 0 clears it; gone with the bag.
+        product.BagPrice = product.BagSize is null ? null : request.BagPrice is { } bagPrice ? (bagPrice > 0 && Money.IsValidAmount(bagPrice) ? bagPrice : null) : product.BagPrice;
         if (request.WholesalePrice is { } wholesale)
         {
             (product.WholesalePrice, product.WholesaleMinQty) = wholesale > 0 ? ((decimal?)wholesale, request.WholesaleMinQty) : ((decimal?)null, (decimal?)null);
@@ -530,7 +534,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             return null;
         }
 
-        var item = await db.Products.AsNoTracking().Where(p => p.Id == productId).Select(p => new { p.Stock, BagSize = p.PurchaseUnit == null ? null : p.BagSize }).SingleAsync(ct);
+        var item = await db.Products.AsNoTracking().Where(p => p.Id == productId).Select(p => new { p.Stock, p.BagSize }).SingleAsync(ct);
         var sealedBags = SealedBags(await db.StockMovements.Where(m => m.ProductId == productId && m.Bags != null).SumAsync(m => (decimal?)m.Bags, ct) ?? 0, item.Stock, item.BagSize);
         if (sealedBags < request.Bags)
         {
@@ -551,8 +555,23 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     /// loose from 2 cartons of 24 leaves 43 pieces, so one carton must have been opened even if nobody said so. Bags of
     /// grain are only "about" their size (40 bags can hold 1,985 kg), so for bags <paramref name="bagSize"/> is null.
     /// </summary>
+    /// <summary>
+    /// Sealed bags on hand: those counted in and out, never more than the stock can hold. A grain bag's weight varies
+    /// (49.4 kg in a "50 kg" bori), so a bag counts as full from 95% of its size.
+    /// </summary>
     internal static decimal SealedBags(decimal counted, decimal stock, decimal? bagSize) =>
-        bagSize is > 0 and var size ? Math.Max(0, Math.Min(counted, Math.Floor(stock / size))) : counted;
+        bagSize is > 0 and var size ? Math.Max(0, Math.Min(counted, Math.Floor(stock / (size * 0.95m)))) : counted;
+
+    /// <summary>
+    /// Bags to open when stock goes down to <paramref name="stockAfter"/> with <paramref name="sealedAfter"/> bags still
+    /// counted sealed: enough that the sealed bags fit in the stock (with the same 95% leeway). 0 when none.
+    /// </summary>
+    internal static decimal BagsToOpen(decimal stockAfter, decimal sealedAfter, decimal size)
+    {
+        if (size <= 0 || sealedAfter <= 0) return 0;
+        var fit = Math.Max(0, Math.Floor(stockAfter / (size * 0.95m)));
+        return Math.Max(0, sealedAfter - fit);
+    }
 
     private Task<decimal> WriteOffLimitAsync(CancellationToken ct) =>
         db.Shops.AsNoTracking().Where(s => s.Id == db.ShopIdNow).Select(s => s.StaffMaxWriteOff).FirstAsync(ct);
@@ -705,7 +724,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         p.PhotoReports, p.PhotoReportNote, p.BillName, p.StyleName, p.Size, p.Colour, p.Uncounted, p.OutOn, null, p.BagSize, 0, 0, p.PurchaseUnit, p.WeightKg,
         p.MasterItem != null ? p.MasterItem.Name : p.CatalogueItem != null ? p.CatalogueItem.NameEn : null,
         p.MasterItem != null ? p.MasterItem.NameHi : p.CatalogueItem != null ? p.CatalogueItem.Name : null,
-        p.WholesalePrice, p.WholesaleMinQty, null, p.ExtraBarcodes);
+        p.WholesalePrice, p.WholesaleMinQty, null, p.ExtraBarcodes, p.BagPrice);
 
     /// <summary>An MRP below the selling price is a typing slip. At the price it stays: it's what stops a bill going above it.</summary>
     private static decimal? CleanMrp(decimal? mrp, decimal sellingPrice) =>

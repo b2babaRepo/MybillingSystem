@@ -80,6 +80,7 @@ public sealed partial class AppDbContext
             b.Property(p => p.ReorderLevel).HasPrecision(12, 3);
             b.Property(p => p.WholesalePrice).HasPrecision(12, 2);
             b.Property(p => p.WholesaleMinQty).HasPrecision(12, 3);
+            b.Property(p => p.BagPrice).HasPrecision(12, 2);
             b.Property(p => p.Reserved).HasPrecision(12, 3);
             b.HasIndex(p => new { p.ShopId, p.Name });
             b.HasIndex(p => new { p.ShopId, p.Category });
@@ -185,6 +186,30 @@ public sealed partial class AppDbContext
             b.Property(p => p.ContentType).HasMaxLength(20);
             b.Property(p => p.ThumbType).HasMaxLength(20);
             b.HasOne<Product>().WithMany().HasForeignKey(p => p.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MenuNode>(b =>
+        {
+            b.ToTable("menu_nodes");
+            b.HasIndex(n => new { n.Trade, n.Key }).IsUnique();
+            b.Property(n => n.Trade).HasMaxLength(40);
+            b.Property(n => n.Key).HasMaxLength(40);
+            b.Property(n => n.Kind).HasMaxLength(8);
+            b.Property(n => n.ParentKey).HasMaxLength(40);
+            b.Property(n => n.NameHi).HasMaxLength(60);
+            b.Property(n => n.NameEn).HasMaxLength(60);
+            b.Property(n => n.NameGu).HasMaxLength(60);
+            b.Property(n => n.Words).HasMaxLength(300);
+            b.Property(n => n.Icon).HasMaxLength(20);
+            b.Property(n => n.PictureType).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<ShopPicture>(b =>
+        {
+            b.ToTable("shop_pictures");
+            b.HasKey(p => new { p.ShopId, p.Key });
+            b.Property(p => p.Key).HasMaxLength(40);
+            b.Property(p => p.ContentType).HasMaxLength(20);
         });
 
         modelBuilder.Entity<ProductImage>(b =>

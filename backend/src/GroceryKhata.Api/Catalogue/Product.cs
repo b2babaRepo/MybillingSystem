@@ -124,6 +124,12 @@ public sealed class Product : Entity, ITenantOwned
     public decimal? WholesaleMinQty { get; set; }
 
     /// <summary>
+    /// The price of one whole sealed bag (<see cref="BagSize"/> of the unit), often below the loose rate times the bag:
+    /// a bill line sold as whole bags is priced from it. Null: a bag costs the loose rate times its size.
+    /// </summary>
+    public decimal? BagPrice { get; set; }
+
+    /// <summary>
     /// The name printed on the customer's bill and receipt instead of <see cref="Name"/> ("Innerwear" for a bra or
     /// bridal nightwear), so a private purchase isn't spelled out. Null: the real name, or the discreet default for
     /// innerwear and nightwear (<see cref="BillNames"/>).

@@ -9,7 +9,7 @@ import type { Unit } from '../lib/types'
 import { navigate } from '../router'
 import { DataTable } from '../components/DataTable'
 
-interface Line { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number; delivered: number; pending: number; inStock: number | null; shortBy: number }
+interface Line { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number; delivered: number; pending: number; inStock: number | null; shortBy: number; bags?: number | null }
 interface SaleOrder { id: string; number: number; customerId: string | null; party: string | null; lines: Line[]; total: number; pendingValue: number; dueOn: string | null; note: string | null; state: 'open' | 'part' | 'delivered' | 'closed' | 'cancelled'; bills: number; createdAt: string }
 
 /** The bill screen reads this once and fills the cart with what the order still has to deliver. */
@@ -33,7 +33,7 @@ export function SaleOrdersScreen() {
   const [openId, setOpenId] = useState<string | null>(null)
 
   function deliver(o: SaleOrder) {
-    const lines = o.lines.filter((l) => l.pending > 0).map((l) => ({ productId: l.productId, name: l.name, quantity: l.pending, unit: l.unit, unitPrice: l.unitPrice }))
+    const lines = o.lines.filter((l) => l.pending > 0).map((l) => ({ productId: l.productId, name: l.name, quantity: l.pending, unit: l.unit, unitPrice: l.unitPrice, bags: l.delivered === 0 ? l.bags ?? null : null }))
     try { sessionStorage.setItem(SALE_ORDER_KEY, JSON.stringify({ id: o.id, number: o.number, customerId: o.customerId, lines })) } catch { /* no storage */ }
     navigate('/bill')
   }

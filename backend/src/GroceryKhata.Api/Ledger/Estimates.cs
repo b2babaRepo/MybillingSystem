@@ -41,9 +41,9 @@ public sealed class Estimate : Entity, ITenantOwned
     public Guid CreatedByUserId { get; set; }
 }
 
-public sealed record EstimateLine(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Amount);
+public sealed record EstimateLine(Guid? ProductId, string Name, decimal Quantity, Unit Unit, decimal UnitPrice, decimal Amount, decimal? Bags = null);
 
-public sealed record EstimateLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice);
+public sealed record EstimateLineRequest(Guid? ProductId, string? Name, decimal Quantity, Unit? Unit, decimal UnitPrice, decimal? Bags = null);
 
 public sealed record EstimateRequest(Guid Id, Guid? CustomerId, string? PartyName, IReadOnlyList<EstimateLineRequest>? Lines, int? ValidDays = null, string? Note = null);
 
@@ -148,7 +148,9 @@ public static class Estimates
         var built = lines.Select(l =>
         {
             var product = l.ProductId is { } pid ? products[pid] : null;
-            return new EstimateLine(l.ProductId, product?.Name ?? l.Name!.Trim(), l.Quantity, product?.Unit ?? l.Unit ?? Unit.Piece, l.UnitPrice, Money.LineAmount(l.Quantity, l.UnitPrice));
+            return new EstimateLine(l.ProductId, product?.Name ?? l.Name!.Trim(), l.Quantity, product?.Unit ?? l.Unit ?? Unit.Piece, l.UnitPrice, Money.LineAmount(l.Quantity, l.UnitPrice),
+                // Whole bags, when the item is kept in bags: the bill made from it sells them as bags.
+                l.Bags is > 0 and <= 100_000 && product?.BagSize != null ? l.Bags : null);
         }).ToList();
         // One number at a time: two estimates saved at once would otherwise take the same number.
         await using var transaction = await db.Database.BeginTransactionAsync(ct);

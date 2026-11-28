@@ -17,7 +17,8 @@ import { ItemCard } from '../../components/ItemCard'
 import { allPhotos, imageUrl } from '../../lib/images'
 import { PhotoGallery } from '../../components/PhotoGallery'
 import { aisleOf } from '../../lib/itemArt'
-import { categoryOf, KIRANA, nameIn } from '../../lib/categoryTree'
+import { categoryOf, nameIn } from '../../lib/categoryTree'
+import { useMenuTree } from '../../lib/menuConfig'
 import { nextLanguage, setLanguage } from '../../i18n'
 import { formatRupees, whatsAppLink } from '../../lib/format'
 import { uuidv7 } from '../../lib/ids'
@@ -207,6 +208,8 @@ function SignedInAs({ shopId }: { shopId: string }) {
 }
 
 function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?: boolean }) {
+  // The category tree as the platform admin has set it.
+  const tree = useMenuTree()
   const nowMs = useNow()
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -303,13 +306,13 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   // per category in department order, so "Atta & rice" and "आटा, चावल, दाल" no longer sit side by side. Other trades,
   // and a store whose items mostly fall outside the tree, browse by aisle (the common grocery list), then the shop's
   // own categories, and "Other" for the rest.
-  const treeKey = (i: StoreItem) => { const c = categoryOf({ name: i.name, category: i.category }); return c.key === 'other' ? 'other' : `tree:${c.key}` }
+  const treeKey = (i: StoreItem) => { const c = categoryOf({ name: i.name, category: i.category }, tree); return c.key === 'other' ? 'other' : `tree:${c.key}` }
   const byTree = kirana && data.items.filter((i) => treeKey(i) !== 'other').length >= data.items.length / 2
   const aisleOfItem = (i: StoreItem) => (byTree ? treeKey(i) : aisleOf(i.catalogueItemId) ?? (i.category ? `cat:${i.category}` : 'other'))
   const stocked = new Set(data.items.map(aisleOfItem))
   const ownCategories = [...stocked].filter((a) => a.startsWith('cat:')).sort().map((a) => ({ code: a, name: a.slice(4), count: data.items.filter((i) => aisleOfItem(i) === a).length }))
   // Like the big shopping apps: every item shows at once as a photo card; chips narrow it, search finds by name.
-  const treeChips = KIRANA.flatMap((d) => d.categories).map((c) => ({ code: `tree:${c.key}`, name: nameIn(c, i18n.language), count: data.items.filter((i) => aisleOfItem(i) === `tree:${c.key}`).length })).filter((c) => c.count > 0)
+  const treeChips = tree.flatMap((d) => d.categories).map((c) => ({ code: `tree:${c.key}`, name: nameIn(c, i18n.language), count: data.items.filter((i) => aisleOfItem(i) === `tree:${c.key}`).length })).filter((c) => c.count > 0)
   const chips = byTree ? [
     { code: 'all', name: t('store.all'), count: data.items.length },
     ...treeChips,
@@ -323,7 +326,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
   const q = search.trim()
   // Search forgives: doodh finds milk, a letter wrong still matches (lib/search.ts).
   // The tree's names in three scripts go in too, so "dal" finds "तूर दाल" and "chai" the teas.
-  const treeWords = (i: StoreItem) => { const c = categoryOf({ name: i.name, category: i.category }); return c.key === 'other' ? '' : `${c.hi} ${c.en} ${c.gu}` }
+  const treeWords = (i: StoreItem) => { const c = categoryOf({ name: i.name, category: i.category }, tree); return c.key === 'other' ? '' : `${c.hi} ${c.en} ${c.gu}` }
   const found = q ? rank(data.items, q, (i) => `${i.name} ${i.category ?? ''} ${treeWords(i)}`) : data.items
   const max = Number(filters.max) || Infinity
   const shown = found

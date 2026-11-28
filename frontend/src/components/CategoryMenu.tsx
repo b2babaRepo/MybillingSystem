@@ -1,10 +1,20 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { api } from '../lib/api'
 import { useTranslation } from 'react-i18next'
 import { buildMenu, ICONS, kindOf, nameIn, subName, type Category, type MenuCategory } from '../lib/categoryTree'
 import { formatRupees } from '../lib/format'
 import { itemName } from '../lib/itemName'
 import { expand, rank as rankBy, score } from '../lib/search'
+import { imageUrl, shrinkPhoto } from '../lib/images'
+import { getSession } from '../lib/session'
+import { useMenuTree } from '../lib/menuConfig'
 import type { Product } from '../lib/types'
+
+/** The shop's own photo of an item (thumbnail), if it has added one. */
+const photoOf = (p: Product) => imageUrl(getSession()?.shopId ?? '', p.id, p.imageAt, 'thumb')
+/** A tile's picture: the shop's photo of its best-selling photographed item; none: the drawn icon. */
+const tilePhoto = (items: Product[]) => { const p = items.find((x) => x.imageAt); return p ? photoOf(p) : undefined }
 
 const Icon = ({ name, size = 22, stroke = 'currentColor', width = 1.8 }: { name: string; size?: number; stroke?: string; width?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -30,7 +40,7 @@ const categoryWords = (c: Category) => [c.hi, c.en, c.gu, ...(c.kinds ?? []).fla
  * Search (one engine, lib/search): the item's name and its category's names, so "dal" ranks dal items and offers
  * the Dal tile; inside a tile it searches that tile, with a tap to search everywhere.
  */
-export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billItems, billTotal = 0, onClose, mode = 'bill' }: {
+export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billItems, billTotal = 0, onClose, mode = 'bill', embedded = false, search, bagCounts, onAddBag }: {
   products: Product[]
   rank: Map<string, number>
   quantities: Map<string, number>
@@ -40,30 +50,42 @@ export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billIt
   billTotal?: number
   onClose: () => void
   mode?: Mode
+  /** Part of the bill screen (a computer): no popup, no close and no bill bar, since the bill is beside it. */
+  embedded?: boolean
+  /** Embedded: what is typed in the bill's own search box; its matches show here, in the same frame. */
+  search?: string
+  /** Whole bags of each item on the bill, and adding one more (items kept in bags). */
+  bagCounts?: Map<string, number>
+  onAddBag?: (p: Product) => void
 }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.language
   const sellable = useMemo(() => products.filter((p) => (mode === 'order' ? !p.isService : p.sellingPrice > 0)), [products, mode])
-  const menu = useMemo(() => buildMenu(sellable, rank), [sellable, rank])
+  const tree = useMenuTree()
+  const menu = useMemo(() => buildMenu(sellable, rank, tree), [sellable, rank, tree])
   const usual = useMemo(() => sellable.filter((p) => rank.has(p.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!).slice(0, 12), [sellable, rank])
   const entries = useMemo(() => menu.flatMap((d) => d.categories), [menu])
   const homeOf = useMemo(() => new Map(entries.flatMap((e) => e.items.map((p) => [p.id, e.category] as const))), [entries])
   const [open, setOpen] = useState<MenuCategory | null>(null)
-  const [active, setActive] = useState(menu[0]?.department.key ?? '')
+  const [picked, setActive] = useState('')
+  // Until one is tapped, the first department (the items may still be loading when the menu first draws).
+  const active = menu.some((d) => d.department.key === picked) ? picked : menu[0]?.department.key ?? ''
   const [query, setQuery] = useState<string | null>(null)
-  const typed = useDeferredValue(query ?? '').trim()
+  const outside = embedded && search !== undefined
+  const typed = useDeferredValue(outside ? search : query ?? '').trim()
+  const searching = outside ? typed.length > 0 : query !== null
   const sections = useRef<Record<string, HTMLElement | null>>({})
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      if (e.key !== 'Escape' || (embedded && !open && query === null)) return
       if (open) setOpen(null)
       else if (query !== null) setQuery(null)
       else onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, query, onClose])
+  }, [open, query, onClose, embedded])
 
   const found = useMemo(() => {
     if (!typed) return null
@@ -79,43 +101,160 @@ export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billIt
     ? { category: { key: 'usual', hi: '★ रोज़ के', en: '★ Your usual', gu: '★ રોજના', icon: 'star', tint: '#fff4e5', ink: '#9a5300' }, items: usual }
     : null
 
+  // Department pictures: the owner's own (uploaded here), else the photo of the department's best-selling
+  // photographed item, else the drawn icon.
+  const shopId = getSession()?.shopId ?? ''
+  const owner = getSession()?.role === 'owner'
+  const queryClient = useQueryClient()
+  const pictures = useQuery({ queryKey: [shopId, 'shop-pictures'], queryFn: () => api<{ key: string; updatedAt: string }[]>('/v1/shop/pictures'), staleTime: 300_000, retry: false }).data ?? []
+  const ownPicture = (key: string) => { const p = pictures.find((x) => x.key === key); return p ? `/api/v1/pictures/${shopId}/${key}?v=${Date.parse(p.updatedAt)}` : undefined }
+  const fileInput = useRef<HTMLInputElement>(null)
+  const uploadFor = useRef<string | null>(null)
+  const [pictureError, setPictureError] = useState('')
+  async function upload(file: File | undefined) {
+    const key = uploadFor.current
+    if (!file || !key) return
+    setPictureError('')
+    try {
+      await api(`/v1/shop/pictures/${key}`, 'PUT', { dataUrl: await shrinkPhoto(file) })
+      await queryClient.invalidateQueries({ queryKey: [shopId, 'shop-pictures'] })
+    } catch {
+      setPictureError(t('catMenu.pictureFailed'))
+    }
+  }
+  async function removePicture(key: string) {
+    try {
+      await api(`/v1/shop/pictures/${key}`, 'DELETE')
+      await queryClient.invalidateQueries({ queryKey: [shopId, 'shop-pictures'] })
+    } catch {
+      setPictureError(t('catMenu.pictureFailed'))
+    }
+  }
+
+  const railNav = (
+    <nav aria-label={t('catMenu.departments')} className={`flex w-[92px] shrink-0 flex-col overflow-y-auto overscroll-contain border-r border-line bg-white [scrollbar-gutter:stable] [scrollbar-width:thin] ${embedded ? 'pb-3' : 'pb-24'}`}>
+      {usualCategory && (
+        <button onClick={() => setOpen(usualCategory)} className="flex flex-col items-center gap-[3px] border-l-4 border-transparent px-1 py-2.5">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warn-soft text-warn"><Icon name="star" /></span>
+          <span className="text-center text-[13px] font-semibold leading-[1.15]">{nameIn(usualCategory.category, lang)}</span>
+        </button>
+      )}
+      {menu.map(({ department: d, categories }) => {
+        const on = d.key === active
+        const own = ownPicture(d.key)
+        const picture = own ?? d.picture ?? tilePhoto(categories.flatMap((c) => c.items))
+        return (
+          <div key={d.key} className="relative">
+          <button aria-current={on || undefined}
+            onClick={() => { setActive(d.key); setOpen(null); if (!embedded) sections.current[d.key]?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}
+            className={`flex w-full flex-col items-center gap-[3px] border-l-4 px-1 py-2.5 ${on ? 'border-brand bg-brand-soft text-brand' : 'border-transparent bg-white'}`}>
+            <span className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl ${on ? 'bg-white ring-2 ring-brand' : 'bg-ground'}`}>
+              {picture ? <img src={picture} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Icon name={d.icon} />}
+            </span>
+            <span className="text-center text-[13px] font-semibold leading-[1.15]">{nameIn(d, lang)}</span>
+            <span className="text-center text-[10.5px] leading-[1.1] text-muted">{subName(d, lang)}</span>
+          </button>
+          {/* The owner sets the department's own picture (or removes it) from the chosen department. */}
+          {owner && on && (
+            <>
+              <button onClick={() => { uploadFor.current = d.key; fileInput.current?.click() }} aria-label={t('catMenu.setPicture', { name: nameIn(d, lang) })} title={t('catMenu.setPicture', { name: nameIn(d, lang) })}
+                className="absolute left-[calc(50%+10px)] top-[34px] flex h-6 w-6 items-center justify-center rounded-full border border-line bg-white text-brand-strong shadow-sm">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4zM12 10.5a3 3 0 100 6 3 3 0 000-6" /></svg>
+              </button>
+              {own && (
+                <button onClick={() => void removePicture(d.key)} aria-label={t('catMenu.removePicture', { name: nameIn(d, lang) })} title={t('catMenu.removePicture', { name: nameIn(d, lang) })}
+                  className="absolute left-[calc(50%-34px)] top-1 flex h-6 w-6 items-center justify-center rounded-full border border-line bg-white text-muted shadow-sm">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                </button>
+              )}
+            </>
+          )}
+          </div>
+        )
+      })}
+      <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = '' }} />
+      {pictureError && <p role="alert" className="px-1 text-center text-[11px] text-due">{pictureError}</p>}
+    </nav>
+  )
+  const resultsPane = (
+    <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-24 pt-3">
+      {!found && <p className="text-muted">{t('catMenu.searchHint')}</p>}
+      {found && found.tiles.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {found.tiles.map((e) => (
+            <button key={e.category.key} onClick={() => setOpen(e)} className="flex items-center gap-3 rounded-2xl border border-line bg-white p-2 text-left">
+              <span data-light className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl" style={{ background: e.category.tint }}>{(e.category.picture ?? tilePhoto(e.items)) ? <img src={e.category.picture ?? tilePhoto(e.items)} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Icon name={e.category.icon} stroke={e.category.ink} />}</span>
+              <span className="flex flex-1 flex-col leading-tight">
+                <span className="font-semibold">{t('catMenu.seeCategory', { name: nameIn(e.category, lang) })}</span>
+                <span className="text-xs text-muted">{subName(e.category, lang)} · {t('catMenu.count', { count: e.items.length })}</span>
+              </span>
+              <span aria-hidden className="text-xl text-muted">›</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {found && found.items.length === 0 && found.tiles.length === 0 && <p className="text-muted">{t('catMenu.noMatch', { text: typed })}</p>}
+      {found && found.items.length > 0 && (
+        <div className="grid grid-cols-2 content-start gap-2.5">
+          {found.items.map((p) => <Card key={p.id} p={p} c={homeOf.get(p.id)} lang={lang} mode={mode} qty={quantities.get(p.id) ?? 0} onAdd={onAdd} onLess={onLess} bags={bagCounts?.get(p.id) ?? 0} onAddBag={mode === 'bill' ? onAddBag : undefined} />)}
+        </div>
+      )}
+    </main>
+  )
+  // Layout A (the bill screen): the chosen department's category tiles, then its best sellers to add straight away.
+  const dept = menu.find((d) => d.department.key === active) ?? menu[0]
+  const best = dept ? dept.categories.flatMap((c) => c.items).sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9)).slice(0, 8) : []
+  const deptPane = (
+    <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-4 pt-3 [scrollbar-width:thin]">
+      {!dept && <p className="text-muted">{t('catMenu.empty')}</p>}
+      {dept && <>
+        <h2 className="m-0 flex items-baseline gap-1.5">
+          <span className="text-[17px] font-bold">{nameIn(dept.department, lang)}</span>
+          <span className="text-[12.5px] font-normal text-muted">{subName(dept.department, lang)}</span>
+        </h2>
+        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-[repeat(auto-fill,minmax(96px,1fr))]">
+          {dept.categories.map((entry) => <Tile key={entry.category.key} c={entry.category} count={entry.items.length} photo={entry.category.picture ?? tilePhoto(entry.items)} lang={lang} onOpen={() => setOpen(entry)} />)}
+        </div>
+        {best.length > 0 && <>
+          <h3 className="m-0 mt-1 text-[15px] font-bold">{t('catMenu.bestSellers', { name: nameIn(dept.department, lang) })}</h3>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
+            {best.map((p) => <Card key={p.id} p={p} c={homeOf.get(p.id)} lang={lang} mode={mode} qty={quantities.get(p.id) ?? 0} onAdd={onAdd} onLess={onLess} bags={bagCounts?.get(p.id) ?? 0} onAddBag={mode === 'bill' ? onAddBag : undefined} />)}
+          </div>
+        </>}
+      </>}
+    </main>
+  )
+
   return (
-    <div role="dialog" aria-modal="true" aria-label={t('catMenu.title')} className="fixed inset-0 z-50 flex flex-col bg-ground text-ink lg:inset-y-4 lg:left-1/2 lg:w-[760px] lg:-translate-x-1/2 lg:rounded-3xl lg:shadow-2xl lg:overflow-hidden">
-      {open
-        ? <Listing entry={open} lang={lang} mode={mode} quantities={quantities} onAdd={onAdd} onLess={onLess} onBack={() => setOpen(null)}
+    <>
+    {/* On a wide screen the menu is a panel over a dimmed page; a click outside it closes it. */}
+    {!embedded && <div aria-hidden onClick={onClose} className="fixed inset-0 z-50 hidden bg-black/45 backdrop-blur-[2px] lg:block" />}
+    <div role={embedded ? 'region' : 'dialog'} aria-modal={embedded ? undefined : true} aria-label={t('catMenu.title')}
+      className={embedded
+        ? 'flex h-[calc(100dvh-10rem)] min-h-[420px] flex-col overflow-hidden rounded-card border border-line bg-ground text-ink lg:h-[calc(100dvh-9rem)]'
+        : 'fixed inset-0 z-50 flex flex-col bg-ground text-ink lg:inset-x-auto lg:inset-y-6 lg:left-1/2 lg:w-[420px] lg:-translate-x-1/2 lg:overflow-hidden lg:rounded-3xl lg:shadow-2xl'}>
+      {embedded
+        ? <div className="flex min-h-0 flex-1">
+            {railNav}
+            <div className="flex min-w-0 flex-1 flex-col">
+              {open
+                ? <Listing entry={open} lang={lang} mode={mode} quantities={quantities} onAdd={onAdd} onLess={onLess} bagCounts={bagCounts} onAddBag={onAddBag} onBack={() => setOpen(null)} onSearchAll={(text) => { setOpen(null); setQuery(text) }} />
+                : searching ? resultsPane : deptPane}
+            </div>
+          </div>
+        : open
+        ? <Listing entry={open} lang={lang} mode={mode} quantities={quantities} onAdd={onAdd} onLess={onLess} bagCounts={bagCounts} onAddBag={onAddBag} onBack={() => setOpen(null)}
             onSearchAll={(text) => { setOpen(null); setQuery(text) }} />
-        : query !== null
+        : searching
           ? <>
-              <header className="flex items-center gap-2 border-b border-line bg-white py-3 pl-2 pr-3">
+              {!outside && <header className="flex items-center gap-2 border-b border-line bg-white py-3 pl-2 pr-3">
                 <button onClick={() => setQuery(null)} aria-label={t('catMenu.back')} className="flex h-11 w-11 shrink-0 items-center justify-center">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
                 </button>
-                <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('catMenu.searchAll')} aria-label={t('catMenu.searchAll')}
+                <input autoFocus value={query ?? ''} onChange={(e) => setQuery(e.target.value)} placeholder={t('catMenu.searchAll')} aria-label={t('catMenu.searchAll')}
                   className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-[16px] outline-none focus:border-brand-line" />
-              </header>
-              <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-24 pt-3">
-                {!found && <p className="text-muted">{t('catMenu.searchHint')}</p>}
-                {found && found.tiles.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    {found.tiles.map((e) => (
-                      <button key={e.category.key} onClick={() => setOpen(e)} className="flex items-center gap-3 rounded-2xl border border-line bg-white p-2 text-left">
-                        <span data-light className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: e.category.tint }}><Icon name={e.category.icon} stroke={e.category.ink} /></span>
-                        <span className="flex flex-1 flex-col leading-tight">
-                          <span className="font-semibold">{t('catMenu.seeCategory', { name: nameIn(e.category, lang) })}</span>
-                          <span className="text-xs text-muted">{subName(e.category, lang)} · {t('catMenu.count', { count: e.items.length })}</span>
-                        </span>
-                        <span aria-hidden className="text-xl text-muted">›</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {found && found.items.length === 0 && found.tiles.length === 0 && <p className="text-muted">{t('catMenu.noMatch', { text: typed })}</p>}
-                {found && found.items.length > 0 && (
-                  <div className="grid grid-cols-2 content-start gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-                    {found.items.map((p) => <Card key={p.id} p={p} c={homeOf.get(p.id)} lang={lang} mode={mode} qty={quantities.get(p.id) ?? 0} onAdd={onAdd} onLess={onLess} />)}
-                  </div>
-                )}
-              </main>
+              </header>}
+              {resultsPane}
             </>
           : <>
               <header className="flex items-center gap-2 border-b border-line bg-white py-3 pl-4 pr-3">
@@ -124,32 +263,13 @@ export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billIt
                   <span className="text-[13px] text-muted">{t('catMenu.count', { count: sellable.length })}</span>
                 </div>
                 <button onClick={() => setQuery('')} aria-label={t('catMenu.searchAll')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-line/50"><SearchIcon /></button>
-                <button onClick={onClose} aria-label={t('catMenu.close')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-line/50">
+                {!embedded && <button onClick={onClose} aria-label={t('catMenu.close')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-line/50">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-                </button>
+                </button>}
               </header>
               <div className="flex min-h-0 flex-1">
-                <nav aria-label={t('catMenu.departments')} className="flex w-[92px] shrink-0 flex-col overflow-y-auto border-r border-line bg-white pb-24">
-                  {usualCategory && (
-                    <button onClick={() => setOpen(usualCategory)} className="flex flex-col items-center gap-[3px] border-l-4 border-transparent px-1 py-2.5">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warn-soft text-warn"><Icon name="star" /></span>
-                      <span className="text-center text-[13px] font-semibold leading-[1.15]">{nameIn(usualCategory.category, lang)}</span>
-                    </button>
-                  )}
-                  {menu.map(({ department: d }) => {
-                    const on = d.key === active
-                    return (
-                      <button key={d.key} aria-current={on || undefined}
-                        onClick={() => { setActive(d.key); sections.current[d.key]?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}
-                        className={`flex flex-col items-center gap-[3px] border-l-4 px-1 py-2.5 ${on ? 'border-brand bg-brand-soft text-brand' : 'border-transparent bg-white'}`}>
-                        <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${on ? 'bg-white' : 'bg-ground'}`}><Icon name={d.icon} /></span>
-                        <span className="text-center text-[13px] font-semibold leading-[1.15]">{nameIn(d, lang)}</span>
-                        <span className="text-center text-[10.5px] leading-[1.1] text-muted">{subName(d, lang)}</span>
-                      </button>
-                    )
-                  })}
-                </nav>
-                <main className="flex min-w-0 flex-1 flex-col gap-[18px] overflow-y-auto px-3 pb-24 pt-3.5">
+                {railNav}
+                <main className="flex min-w-0 flex-1 flex-col gap-[18px] overflow-y-auto px-3 pb-24 pt-3.5 [scrollbar-width:thin]">
                   {menu.length === 0 && <p className="text-muted">{t('catMenu.empty')}</p>}
                   {menu.map(({ department: d, categories }) => (
                     <section key={d.key} ref={(el) => { sections.current[d.key] = el }} className="flex scroll-mt-3 flex-col gap-2.5">
@@ -157,30 +277,31 @@ export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billIt
                         <span className="text-[17px] font-bold">{nameIn(d, lang)}</span>
                         <span className="text-[12.5px] font-normal text-muted">{subName(d, lang)}</span>
                       </h2>
-                      <div className="grid grid-cols-3 gap-2.5 lg:grid-cols-5">
-                        {categories.map((entry) => <Tile key={entry.category.key} c={entry.category} count={entry.items.length} lang={lang} onOpen={() => setOpen(entry)} />)}
+                      <div className="grid grid-cols-3 gap-2.5">
+                        {categories.map((entry) => <Tile key={entry.category.key} c={entry.category} count={entry.items.length} photo={entry.category.picture ?? tilePhoto(entry.items)} lang={lang} onOpen={() => setOpen(entry)} />)}
                       </div>
                     </section>
                   ))}
                 </main>
               </div>
             </>}
-      <button onClick={onClose} className="relative mx-3 -mt-[76px] mb-3 flex h-[60px] items-center justify-between rounded-2xl bg-brand px-4 text-white shadow-[0_6px_16px_rgba(15,95,88,0.28)]">
+      {!embedded && <button onClick={onClose} className="relative mx-3 -mt-[76px] mb-3 flex h-[60px] items-center justify-between rounded-2xl bg-brand px-4 text-white shadow-[0_6px_16px_rgba(15,95,88,0.28)]">
         <span className="flex flex-col text-left leading-[1.15]">
           <span className="text-[13px] opacity-90">{t(mode === 'order' ? 'catMenu.order' : 'catMenu.bill', { count: billItems })}</span>
           {mode === 'bill' && <span className="text-[19px] font-bold">{formatRupees(billTotal)}</span>}
         </span>
         <span className="text-base font-bold">{t(mode === 'order' ? 'catMenu.backToOrder' : 'catMenu.viewBill')}</span>
-      </button>
+      </button>}
     </div>
+    </>
   )
 }
 
-function Tile({ c, count, lang, onOpen }: { c: Category; count: number; lang: string; onOpen: () => void }) {
+function Tile({ c, count, photo, lang, onOpen }: { c: Category; count: number; photo?: string; lang: string; onOpen: () => void }) {
   return (
     <button onClick={onOpen} className="flex flex-col items-center gap-1 text-ink">
-      <span data-light className="relative flex aspect-square w-full items-center justify-center rounded-2xl" style={{ background: c.tint }}>
-        <Icon name={c.icon} size={34} stroke={c.ink} width={1.6} />
+      <span data-light className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl" style={{ background: c.tint }}>
+        {photo ? <img src={photo} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Icon name={c.icon} size={34} stroke={c.ink} width={1.6} />}
         <span className="absolute right-1 top-1 rounded-lg bg-white px-[5px] text-[10.5px] font-semibold text-muted">{count}</span>
       </span>
       <span className="text-center text-[13px] font-semibold leading-[1.1]">{nameIn(c, lang)}</span>
@@ -195,15 +316,16 @@ const daysLeft = (p: Product) => (p.uncounted || !p.dailySales ? Infinity : p.st
 const plain: Pick<Category, 'tint' | 'ink' | 'icon'> = { tint: '#eef1f0', ink: '#4a5654', icon: 'box' }
 
 /** One item: its tile's picture, name, unit and stock, price (selling, or buying when ordering) and the stepper. */
-function Card({ p, c = plain, lang, mode, qty, onAdd, onLess }: {
+function Card({ p, c = plain, lang, mode, qty, onAdd, onLess, bags = 0, onAddBag }: {
   p: Product; c?: Pick<Category, 'tint' | 'ink' | 'icon'>; lang: string; mode: Mode; qty: number; onAdd: (p: Product) => void; onLess: (p: Product) => void
+  bags?: number; onAddBag?: (p: Product) => void
 }) {
   const { t } = useTranslation()
   const off = (p.mrp ?? 0) > p.sellingPrice ? p.mrp! - p.sellingPrice : 0
   return (
     <article className="flex flex-col gap-1 rounded-2xl border border-line bg-white p-2">
-      <div data-light className="relative flex aspect-[4/3] items-center justify-center rounded-xl" style={{ background: c.tint }}>
-        <Icon name={c.icon} size={40} stroke={c.ink} width={1.5} />
+      <div data-light className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl" style={{ background: c.tint }}>
+        {photoOf(p) ? <img src={photoOf(p)} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Icon name={c.icon} size={40} stroke={c.ink} width={1.5} />}
         {mode === 'bill' && off > 0 && <span className="absolute left-1.5 top-1.5 rounded-md bg-[#b45309] px-1.5 text-[11px] font-bold text-white">{t('catMenu.off', { amount: formatRupees(off) })}</span>}
       </div>
       <span className="text-sm font-semibold leading-[1.15]">{itemName(p, lang)}</span>
@@ -217,19 +339,26 @@ function Card({ p, c = plain, lang, mode, qty, onAdd, onLess }: {
         </span>
         {qty > 0
           ? <div className="flex h-9 items-center rounded-[10px] bg-brand text-white">
-              <button aria-label={t('catMenu.less')} onClick={() => onLess(p)} className="h-9 w-8 text-xl font-bold">−</button>
+              <button aria-label={t('catMenu.less')} disabled={qty <= 1} onClick={() => onLess(p)} className="h-9 w-8 text-xl font-bold disabled:opacity-40">−</button>
               <span className="min-w-[18px] text-center font-bold">{qty}</span>
               <button aria-label={t('catMenu.more')} onClick={() => onAdd(p)} className="h-9 w-8 text-xl font-bold">+</button>
             </div>
-          : <button onClick={() => onAdd(p)} className="h-9 rounded-[10px] border-[1.5px] border-brand bg-white px-3.5 text-sm font-bold text-brand-strong">{t('catMenu.add')}</button>}
+          : <button onClick={() => onAdd(p)} className="h-9 shrink-0 whitespace-nowrap rounded-[10px] border-[1.5px] border-brand bg-white px-2.5 text-sm font-bold text-brand-strong">{t('catMenu.add')}</button>}
       </div>
+      {onAddBag && p.bagSize ? (
+        // Items kept in bags: a whole sealed bag at the bag price, beside the loose stepper.
+        <button onClick={() => onAddBag(p)} className={`mt-1 flex h-9 items-center justify-center gap-1 rounded-[10px] border-[1.5px] text-sm font-bold ${bags > 0 ? 'border-warn bg-warn-soft text-warn-ink' : 'border-brand-line text-brand-strong'}`}>
+          {t('bag.sellBag')}{p.bagPrice ? ` · ₹${p.bagPrice}` : ''}{bags > 0 ? ` (${bags})` : ''}
+        </button>
+      ) : null}
     </article>
   )
 }
 
-function Listing({ entry, lang, mode, quantities, onAdd, onLess, onBack, onSearchAll }: {
+function Listing({ entry, lang, mode, quantities, onAdd, onLess, onBack, onSearchAll, bagCounts, onAddBag }: {
   entry: MenuCategory; lang: string; mode: Mode; quantities: Map<string, number>; onAdd: (p: Product) => void; onLess: (p: Product) => void; onBack: () => void
   onSearchAll: (text: string) => void
+  bagCounts?: Map<string, number>; onAddBag?: (p: Product) => void
 }) {
   const { t } = useTranslation()
   const { category: c, items } = entry
@@ -284,14 +413,14 @@ function Listing({ entry, lang, mode, quantities, onAdd, onLess, onBack, onSearc
           </>}
       {typed && <button onClick={() => onSearchAll(typed)} className={filter(false)}>{t('catMenu.everywhere')}</button>}
     </div>
-    <main className="grid min-h-0 flex-1 grid-cols-2 content-start gap-2.5 overflow-y-auto px-3 pb-24 pt-3 sm:grid-cols-3 lg:grid-cols-4">
+    <main className="grid min-h-0 flex-1 grid-cols-2 content-start gap-2.5 overflow-y-auto px-3 pb-24 pt-3 [scrollbar-width:thin]">
       {shown.length === 0 && (
         <div className="col-span-full flex flex-col items-start gap-2 text-muted">
           <p>{typed ? t('catMenu.noMatchIn', { text: typed, name }) : t('catMenu.none')}</p>
           {typed && <button onClick={() => onSearchAll(typed)} className="h-10 rounded-xl border border-brand px-3 font-semibold text-brand-strong">{t('catMenu.everywhere')}</button>}
         </div>
       )}
-      {shown.map((p) => <Card key={p.id} p={p} c={c} lang={lang} mode={mode} qty={quantities.get(p.id) ?? 0} onAdd={onAdd} onLess={onLess} />)}
+      {shown.map((p) => <Card key={p.id} p={p} c={c} lang={lang} mode={mode} qty={quantities.get(p.id) ?? 0} onAdd={onAdd} onLess={onLess} bags={bagCounts?.get(p.id) ?? 0} onAddBag={mode === 'bill' ? onAddBag : undefined} />)}
     </main>
   </>
 }

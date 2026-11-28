@@ -237,6 +237,8 @@ app.MapOtpSignIn();
 app.MapKhataView();
 app.MapDisputes();
 app.MapProductImages();
+app.MapShopPictures();
+app.MapMenuNodes();
 app.MapProductPhotos();
 app.MapOrderDrafts();
 app.MapAiPrivacy();

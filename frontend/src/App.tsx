@@ -418,7 +418,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
   }
 
   return (
-    <div className="mx-auto min-h-dvh max-w-xl pb-20 lg:max-w-none lg:pb-6">
+    <div className={`mx-auto min-h-dvh pb-20 lg:max-w-none lg:pb-6 ${path === '/bill' ? 'max-w-none' : 'max-w-xl'}`}>
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-brand px-4 py-3 text-white lg:h-16 lg:py-0 print:hidden">
         <button type="button" onClick={() => setMenuOpen(!menuOpen)} aria-label={t('a11y.menu')} aria-expanded={menuOpen} className="-ml-2 hidden h-10 w-10 items-center justify-center rounded-lg border border-white/50 lg:flex">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M9 4v16" /></svg>
@@ -671,7 +671,7 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
 
       <Suspense fallback={null}><AppBanners /></Suspense>
 
-      <nav className={`fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] max-w-xl grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:top-16 lg:bottom-0 lg:right-auto lg:z-20 print:hidden lg:mx-0 lg:h-auto ${menuOpen ? 'lg:w-60' : 'lg:w-16 lg:px-2'} lg:max-w-none lg:auto-rows-auto lg:grid-cols-1 lg:content-start lg:gap-1 lg:overflow-y-auto lg:border-t-0 lg:border-r lg:px-3 lg:pt-3 lg:pb-6 lg:[scrollbar-width:thin] lg:[&>button]:min-h-12`}>
+      <nav className={`fixed inset-x-0 bottom-0 z-10 mx-auto grid h-[68px] ${path === '/bill' ? 'max-w-none' : 'max-w-xl'} grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:top-16 lg:bottom-0 lg:right-auto lg:z-20 print:hidden lg:mx-0 lg:h-auto ${menuOpen ? 'lg:w-60' : 'lg:w-16 lg:px-2'} lg:max-w-none lg:auto-rows-auto lg:grid-cols-1 lg:content-start lg:gap-1 lg:overflow-y-auto lg:border-t-0 lg:border-r lg:px-3 lg:pt-3 lg:pb-6 lg:[scrollbar-width:thin] lg:[&>button]:min-h-12`}>
         {tabs.map((tab) => (
           <button
             key={tab.path}
