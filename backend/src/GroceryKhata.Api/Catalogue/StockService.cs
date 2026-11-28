@@ -370,7 +370,7 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             return (null, new() { ["Counts"] = ["Send the stocktake's ID and between 1 and 2000 counts."] });
         }
 
-        if (request.Counts.Any(c => c.Counted < 0 || c.Counted > Money.MaxQuantity || decimal.Round(c.Counted, 3) != c.Counted))
+        if (request.Counts.Any(c => c.Counted < 0 || c.Counted > Money.MaxQuantity || decimal.Round(c.Counted, 3) != c.Counted || c.Bags is < 0 or > 100_000))
         {
             return (null, new() { ["Counts"] = ["Counts must be 0 or more, with at most three decimals."] });
         }
@@ -407,11 +407,26 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
             Lines = System.Text.Json.JsonSerializer.Serialize(lines), Items = lines.Count, Differences = lines.Count(l => l.Difference != 0),
             ValueDifference = decimal.Round(lines.Sum(l => l.Difference * (l.CostPrice ?? 0)), 2),
         });
+        // Items with no stock movement yet: their first count is the shop's opening stock, not a correction.
+        var moved = (await db.StockMovements.AsNoTracking().Where(m => ids.Contains(m.ProductId)).Select(m => m.ProductId).Distinct().ToListAsync(ct)).ToHashSet();
+        // Sealed bags on the books, to set them to the bags counted.
+        var bagsOnBooks = await db.StockMovements.AsNoTracking().Where(m => ids.Contains(m.ProductId) && m.Bags != null)
+            .GroupBy(m => m.ProductId).Select(g => new { g.Key, Bags = g.Sum(m => m.Bags ?? 0) }).ToDictionaryAsync(g => g.Key, g => g.Bags, ct);
         foreach (var count in request.Counts.DistinctBy(c => c.ProductId))
         {
             if (!products.TryGetValue(count.ProductId, out var product))
             {
                 continue;
+            }
+
+            if (count.Bags is { } bagsCounted && product.BagSize is > 0 && bagsCounted != bagsOnBooks.GetValueOrDefault(product.Id))
+            {
+                db.StockMovements.Add(new StockMovement
+                {
+                    Id = DerivedId(request.Id, DerivedId(product.Id, request.Id)), ProductId = product.Id, Kind = StockMovementKind.Adjustment, Reason = StockReason.CountCorrection,
+                    Quantity = 0, Bags = bagsCounted - bagsOnBooks.GetValueOrDefault(product.Id), Note = "Stocktake: sealed bags", RefType = "stocktake", RefId = request.Id,
+                    OccurredAt = clock.GetUtcNow(), CreatedByUserId = userId,
+                });
             }
 
             var movementId = DerivedId(request.Id, count.ProductId);
@@ -421,8 +436,9 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
                 continue;
             }
 
-            var correction = await RecordAsync(movementId, product.Id, StockMovementKind.Adjustment, count.Counted - product.Stock,
-                StockReason.CountCorrection, null, "Stocktake", userId, ct);
+            var first = !moved.Contains(product.Id);
+            var correction = await RecordAsync(movementId, product.Id, first ? StockMovementKind.Opening : StockMovementKind.Adjustment, count.Counted - product.Stock,
+                first ? null : StockReason.CountCorrection, first ? product.CostPrice : null, first ? "First count" : "Stocktake", userId, ct);
             (correction.RefType, correction.RefId) = ("stocktake", request.Id);
             adjusted++;
         }
@@ -614,7 +630,8 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
     public async Task<(int Changed, Dictionary<string, string[]>? Errors)> SetRatesAsync(RatesRequest request, CancellationToken ct)
     {
         if (request.Rates is not { Count: > 0 and <= MaxImportRows }
-            || request.Rates.Any(r => r.SellingPrice < 0 || r.SellingPrice > Money.MaxAmount || decimal.Round(r.SellingPrice, 2) != r.SellingPrice))
+            || request.Rates.Any(r => r.SellingPrice < 0 || r.SellingPrice > Money.MaxAmount || decimal.Round(r.SellingPrice, 2) != r.SellingPrice
+                || r.CostPrice is { } c && (c < 0 || c > Money.MaxAmount || decimal.Round(c, 2) != c)))
         {
             return (0, new() { ["Rates"] = ["Enter valid prices."] });
         }
@@ -629,9 +646,10 @@ public sealed class StockService(AppDbContext db, TimeProvider clock)
         var changed = 0;
         foreach (var rate in request.Rates)
         {
-            if (products.TryGetValue(rate.ProductId, out var product) && product.SellingPrice != rate.SellingPrice)
+            if (products.TryGetValue(rate.ProductId, out var product) && (product.SellingPrice != rate.SellingPrice || (rate.CostPrice is { } cost && product.CostPrice != cost)))
             {
                 product.SellingPrice = rate.SellingPrice;
+                if (rate.CostPrice is { } newCost) product.CostPrice = newCost;
                 changed++;
             }
         }

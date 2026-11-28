@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { navigate } from '../router'
 import { categoryOf, nameIn } from '../lib/categoryTree'
 import { useMenuTree } from '../lib/menuConfig'
 import { useMemo, useState } from 'react'
@@ -67,6 +68,8 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
   const [showChanges, setShowChanges] = useState(false)
   const [undo, setUndo] = useState<{ before: Set<number>; count: number } | null>(null)
   const { products } = useProducts(shopId)
+  // Items still at 0 stock that are counted (not services or uncounted items): the first count is still to do.
+  const toCount = products.filter((p) => p.stock === 0 && !p.isService && !p.uncounted).length
   // Items picked before, by the names picking gives them ("आटा", "Bhujia 1 kg"), so the list can say "already in shop".
   const owned = useMemo(() => new Set(products.map((p) => p.name.trim().toLowerCase())), [products])
   // The shop's own photos, by item name, so an item it already photographed shows that photo here too.
@@ -292,6 +295,13 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
         </div>
       </details>
       {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
+      {/* Picked items come in at 0 stock: the next step is counting the shelf. */}
+      {toCount > 0 && (
+        <button onClick={() => navigate('/stocktake')} className="flex min-h-14 items-center justify-between gap-2 rounded-2xl bg-brand px-4 text-left font-bold text-white shadow-md">
+          <span className="flex flex-col"><span>{t('opening.countNow')}</span><span className="text-xs font-normal opacity-90">{t('opening.countHint', { count: toCount })}</span></span>
+          <span aria-hidden className="text-2xl">›</span>
+        </button>
+      )}
       <div className="fixed inset-x-0 bottom-[68px] z-10 mx-auto lg:bottom-0 lg:left-auto lg:right-6 lg:w-[440px] lg:max-w-none flex max-w-xl flex-col gap-2 px-3 pb-3">
         {undo && (
           <div role="status" className="flex items-center justify-between rounded-xl bg-ink px-4 py-2 text-sm text-white">
