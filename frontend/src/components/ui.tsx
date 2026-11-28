@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatRupees } from '../lib/format'
+import { useBackToClose } from '../lib/backClose'
 
 /** A text box or drop-down at counter size; `controlSm` for rows with several boxes side by side. */
 export const control = 'h-12 min-w-0 rounded-xl border border-line bg-white px-3'
@@ -70,6 +71,7 @@ export function Balance({ amount, large = false }: { amount: number; large?: boo
 /** A panel that slides up from the bottom: as wide as the app, never taller than the screen, with a close button. */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const { t } = useTranslation()
+  useBackToClose(true, onClose)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -95,6 +97,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
  */
 export function Drawer({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const { t } = useTranslation()
+  useBackToClose(true, onClose)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)

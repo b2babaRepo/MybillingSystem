@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { FEATURES, priceFor, usePlans, type Claim, type Payment, type PlanInfo, type PlanTerm, type SubscriptionStatus } from '../lib/billing'
 import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/format'
-import type { AdminRole } from '../lib/types'
+import type { Can } from '../lib/platformAccess'
 import { planBillLink } from '../lib/planBill'
 import { ask, confirmAsk } from '../lib/ask'
 
@@ -105,7 +105,7 @@ export function CustomerUsagePanel() {
  * The AI admin agent's page: the week in numbers with what needs doing, and its suggestions. It only suggests;
  * approving one carries it out under your own role (extending a trial needs an approver), rejecting keeps the record.
  */
-export function AgentPanel({ role }: { role: AdminRole }) {
+export function AgentPanel({ can }: { can: Can }) {
   const { t } = useTranslation()
   const briefing = useQuery({ queryKey: ['platform', 'briefing'], queryFn: () => api<Briefing>('/v1/platform/agent/briefing') }).data
   const suggestions = useQuery({ queryKey: ['platform', 'suggestions'], queryFn: () => api<Suggestion[]>('/v1/platform/agent/suggestions') }).data ?? []
@@ -113,7 +113,7 @@ export function AgentPanel({ role }: { role: AdminRole }) {
 
   return (
     <Collapsible title={t('agent.title', { count: suggestions.length })}>
-      {role === 'super' && (
+      {can('admins.manage') && (
         <button disabled={busy} onClick={() => void run(() => api('/v1/platform/agent/run', 'POST', {}), t('agent.ran'))} className={`flex min-h-11 items-center gap-2 self-end rounded-xl px-4 -mt-1 ${btn.outline}`}>
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M4 12a8 8 0 0114-5l2 2M20 4v5h-5M20 12a8 8 0 01-14 5l-2-2M4 20v-5h5" /></svg>{t('agent.runNow')}
         </button>
@@ -140,7 +140,7 @@ export function AgentPanel({ role }: { role: AdminRole }) {
               <span className="text-xs text-muted">{formatDateTime(s.createdAt)}</span>
             </span>
             <div className="grid grid-cols-2 gap-2 sm:w-auto sm:min-w-72">
-              <button disabled={busy || (s.kind === 'extend_trial' && role !== 'super' && role !== 'approver')}
+              <button disabled={busy || (s.kind === 'extend_trial' && !can('shops.approve'))}
                 onClick={() => void run(() => api(`/v1/platform/agent/suggestions/${s.id}/approve`, 'POST', {}), t('agent.done'))}
                 className={`min-h-11 rounded-xl ${btn.solid}`}>{s.kind === 'extend_trial' ? t('agent.extend', { days: s.days }) : t('agent.markDone')}</button>
               <button disabled={busy} onClick={() => void run(() => api(`/v1/platform/agent/suggestions/${s.id}/reject`, 'POST', {}))}
@@ -230,7 +230,7 @@ export function BillingPanel() {
  * plan → period (with the price) → how it was paid → confirm → done, with the bill to send on WhatsApp. Rarer actions
  * (move a paid shop to another plan, free access, hold) sit under "More".
  */
-export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopId: string; role: AdminRole; shopName: string; ownerPhone: string | null }) {
+export function ShopBillingPanel({ shopId, can, shopName, ownerPhone }: { shopId: string; can: Can; shopName: string; ownerPhone: string | null }) {
   const { t } = useTranslation()
   const view = useQuery({ queryKey: ['platform', 'shop-billing', shopId], queryFn: () => api<ShopBilling>(`/v1/platform/shops/${shopId}/billing`) }).data
   const { busy, message, run } = useRun()
@@ -242,8 +242,8 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
   const [moveTo, setMoveTo] = useState('')
   const [compPlan, setCompPlan] = useState('pro')
   if (!view) return null
-  const money = role === 'super' || role === 'billing'
-  const approve = role === 'super' || role === 'approver'
+  const money = can('billing')
+  const approve = can('shops.approve')
   const planName = (code: string) => plans.find((p) => p.code === code)?.name ?? code
   const chosen = plans.find((p) => p.code === pay.planCode)
   const amount = chosen ? priceFor(chosen, pay.term) : null
@@ -403,7 +403,7 @@ export function ShopBillingPanel({ shopId, role, shopName, ownerPhone }: { shopI
               {plans.map((p) => <option key={p.code} value={p.code}>{t('plans.freeOn', { plan: p.name })}</option>)}
             </select>
             <button disabled={busy} className="min-h-11 rounded-xl border border-line bg-white font-semibold" onClick={async () => {
-              const months = (await ask(t('billing.compAsk', { max: role === 'super' ? t('billing.anyLength') : 3 })))
+              const months = (await ask(t('billing.compAsk', { max: can('admins.manage') ? t('billing.anyLength') : 3 })))
               if (months === null) return
               const reason = (await ask(t('billing.compReasonAsk')))
               if (reason) void run(() => api(`/v1/platform/shops/${shopId}/complimentary`, 'POST', { planCode: compPlan, months: months.trim() ? Number(months) : null, reason }), t('billing.compGiven'))

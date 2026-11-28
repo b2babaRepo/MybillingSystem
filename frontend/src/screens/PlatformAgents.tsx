@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { api, request } from '../lib/api'
 import { BADGE_ICON, isValidAadhaar, type AgentPerformanceRow, type FieldAgent, type FieldAgentStatus, type Registration } from '../lib/agents'
 import { formatDateTime, formatPhone, formatRupees } from '../lib/format'
-import type { AdminRole } from '../lib/types'
+import type { Can } from '../lib/platformAccess'
 import { addText } from '../i18n'
 import { agentText } from '../i18n/agent'
 import { ask, confirmAsk } from '../lib/ask'
@@ -182,11 +182,11 @@ const REG_TABS = ['submitted', 'payment', 'approved', 'rejected'] as const
  * pin, owner, plan and money, with warnings for likely duplicates. Approve opens the shop under the owner's number;
  * confirming the payment starts their plan.
  */
-export function RegistrationsPanel({ role }: { role: AdminRole }) {
+export function RegistrationsPanel({ can }: { can: Can }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const review = role !== 'billing'
-  const money = role === 'super' || role === 'billing'
+  const review = can('shops.review')
+  const money = can('billing')
   const first = review ? 'submitted' : 'payment'
   const [open, setOpen] = useState(true)
   const [tab, setTab] = useState<(typeof REG_TABS)[number]>(first)
@@ -263,12 +263,12 @@ export function RegistrationsPanel({ role }: { role: AdminRole }) {
  * Agent performance this month (super, agent-manager and billing admins): sign-ups, paid shops, cash each agent holds
  * for the company, and commission. Billing and super admins record commission paid, up to what is due.
  */
-export function PerformancePanel({ role }: { role: AdminRole }) {
+export function PerformancePanel({ can }: { can: Can }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(true)
   const rows = useQuery({ queryKey: ['platform', 'agent-performance'], queryFn: () => api<AgentPerformanceRow[]>('/v1/platform/agent-performance'), enabled: open })
-  const pays = role === 'super' || role === 'billing'
+  const pays = can('billing')
   const [message, setMessage] = useState<string | null>(null)
 
   async function pay(r: AgentPerformanceRow) {

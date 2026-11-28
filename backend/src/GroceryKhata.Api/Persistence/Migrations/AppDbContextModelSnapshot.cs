@@ -3057,6 +3057,61 @@ namespace GroceryKhata.Api.Persistence.Migrations
                     b.ToTable("seen_messages", (string)null);
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Identity.EmailCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("code_hash");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("email");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("purpose");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<DateTimeOffset?>("UsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("used_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Purpose", "CreatedAt");
+
+                    b.ToTable("email_codes", (string)null);
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Identity.Membership", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3309,6 +3364,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("character varying(160)")
                         .HasColumnName("email");
 
+                    b.Property<DateTimeOffset?>("EmailVerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("email_verified_at");
+
                     b.Property<int>("FailedSignInCount")
                         .HasColumnType("integer")
                         .HasColumnName("failed_sign_in_count");
@@ -3379,6 +3438,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasDatabaseName("ix_users_verified_email")
+                        .HasFilter("email_verified_at IS NOT NULL");
 
                     b.HasIndex("Phone")
                         .IsUnique();
@@ -12244,6 +12308,10 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("CustomRoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("custom_role_id");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -12262,10 +12330,46 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CustomRoleId");
+
                     b.HasIndex("UserId")
                         .IsUnique();
 
                     b.ToTable("platform_admins", (string)null);
+                });
+
+            modelBuilder.Entity("GroceryKhata.Api.Shops.PlatformRole", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("name");
+
+                    b.PrimitiveCollection<string[]>("Permissions")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("permissions");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("platform_roles", (string)null);
                 });
 
             modelBuilder.Entity("GroceryKhata.Api.Shops.PrintLook", b =>
@@ -13102,6 +13206,15 @@ namespace GroceryKhata.Api.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("GroceryKhata.Api.Identity.EmailCode", b =>
+                {
+                    b.HasOne("GroceryKhata.Api.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("GroceryKhata.Api.Identity.Membership", b =>
                 {
                     b.HasOne("GroceryKhata.Api.Shops.Shop", null)
@@ -13499,6 +13612,11 @@ namespace GroceryKhata.Api.Persistence.Migrations
 
             modelBuilder.Entity("GroceryKhata.Api.Shops.PlatformAdmin", b =>
                 {
+                    b.HasOne("GroceryKhata.Api.Shops.PlatformRole", null)
+                        .WithMany()
+                        .HasForeignKey("CustomRoleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("GroceryKhata.Api.Identity.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")

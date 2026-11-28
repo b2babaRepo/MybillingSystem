@@ -15,6 +15,12 @@ public sealed class User : Entity
     [System.ComponentModel.DataAnnotations.MaxLength(160)]
     public string? Email { get; set; }
 
+    /// <summary>
+    /// When a code sent to <see cref="Email"/> proved it is this person's. Only a verified email can reset a password,
+    /// and no two accounts share one. Cleared whenever the email changes.
+    /// </summary>
+    public DateTimeOffset? EmailVerifiedAt { get; set; }
+
     [System.ComponentModel.DataAnnotations.MaxLength(300)]
     public string? Address { get; set; }
 

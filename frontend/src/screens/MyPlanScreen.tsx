@@ -1,4 +1,5 @@
 import { shownLocale } from '../i18n'
+import { inviteLink } from '../lib/referral'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -204,7 +205,7 @@ export function MyPlanScreen({ shopId, welcome = false }: { shopId: string; welc
         <h2 className="font-bold">{t('plan2.referTitle', { days: s.referralBonusDays })}</h2>
         <p className="text-sm text-muted">{t('plan2.referHint')}</p>
         <p className="rounded-xl bg-ground p-2 text-center font-mono text-lg font-bold">{s.referralCode}</p>
-        <a href={whatsAppLink(null, t('plan2.referMessage', { code: s.referralCode }))} target="_blank" rel="noreferrer"
+        <a href={whatsAppLink(null, `${t('plan2.referMessage', { code: s.referralCode })}\n${inviteLink(s.referralCode)}`)} target="_blank" rel="noreferrer"
           className="flex min-h-11 items-center justify-center rounded-xl bg-[#15803d] font-semibold text-white">{t('plan2.referShare')}</a>
       </section>
 
