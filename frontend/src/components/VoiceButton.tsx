@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../lib/api'
 import { CustIcon } from './CustIcons'
+import { shownError } from '../lib/notify'
 
 /** Voice notes stop by themselves here: the speech service is meant for clips under 30 seconds. */
 const MAX_SECONDS = 25
@@ -51,7 +52,7 @@ export function VoiceButton({ onText, onError }: { onText: (text: string) => voi
           if (body.transcript) onText(body.transcript)
           else onError(t('ai.heardNothing'))
         } catch (e) {
-          onError(e instanceof Error ? e.message : String(e))
+          onError(shownError(e))
         } finally {
           setSending(false)
         }

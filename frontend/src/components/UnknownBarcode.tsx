@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { addProduct } from '../lib/data'
 import type { Product } from '../lib/types'
 import { ItemPicker } from './ItemPicker'
+import { shownError } from '../lib/notify'
 
 const input = controlSm
 
@@ -53,7 +54,7 @@ export function UnknownBarcode({ shopId, code, products, onItem, onClose }: {
       await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
       onItem(picked)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -67,7 +68,7 @@ export function UnknownBarcode({ shopId, code, products, onItem, onClose }: {
       // Its pack photo too, when the barcode database has one (best effort: an item still waiting to sync just goes without).
       if (filled) setTimeout(() => void api(`/v1/products/${id}/image/barcode`, 'POST', { barcode: code }).then(() => queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })).catch(() => undefined), 1500)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

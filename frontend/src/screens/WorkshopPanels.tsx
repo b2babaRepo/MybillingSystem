@@ -9,6 +9,7 @@ import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import type { Unit } from '../lib/types'
 import { confirmAsk } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 interface Machine { id: string; name: string; boughtOn: string; cost: number; ratePercent: number; disposedOn: string | null; thisYear: number; bookValue: number }
 interface Machines { financialYear: string; thisYear: number; perMonth: number; machines: Machine[] }
@@ -28,7 +29,7 @@ export function MachinesPanel({ shopId }: { shopId: string }) {
       setD({ name: '', boughtOn: '', cost: '' })
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -91,7 +92,7 @@ export function KarigarPanel({ shopId }: { shopId: string }) {
       if (reset) setD({ karigar: '', gstin: '', productId: '', qty: '', note: '' })
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

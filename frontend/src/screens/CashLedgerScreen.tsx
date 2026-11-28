@@ -10,6 +10,7 @@ import { uuidv7 } from '../lib/ids'
 import { navigate } from '../router'
 import { SortHead } from '../components/TableHead'
 import { compareCells, filterBox, nextSort, type Sort } from '../lib/tableSort'
+import { shownError } from '../lib/notify'
 
 interface Line { at: string; source: string; who: string; amount: number; balance: number; moveId: string | null; billId: string | null }
 interface Day { date: string; in: number; out: number; closing: number; counted: number | null; difference: number | null }
@@ -84,7 +85,7 @@ export function CashLedgerScreen({ shopId }: { shopId: string }) {
       setKind(null); setAmount(''); setNote('')
       await client.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

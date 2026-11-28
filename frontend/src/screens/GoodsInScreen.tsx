@@ -9,6 +9,7 @@ import { api } from '../lib/api'
 import { normBarcode } from '../lib/barcode'
 import { useProducts } from '../lib/data'
 import { whatsAppLink } from '../lib/format'
+import { shownError, shownDone } from '../lib/notify'
 
 const ScanSheet = lazy(() => import('../components/ScanSheet').then((m) => ({ default: m.ScanSheet })))
 
@@ -93,13 +94,13 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
       await api('/v1/goods-receipts', 'POST', { id: crypto.randomUUID(), supplierId: order.supplierId, orderId: order.id, lines, godownId: godown || null })
       const short = order.lines.map((l) => ({ line: l, short: round(l.pending - num(countOf(l).came)), reason: 'out_of_stock', closed: false })).filter((x) => x.short > 0)
       setShorts(short.length > 0 ? { order, lines: short } : null)
-      setMessage(t('gi.saved', { number: order.number }))
+      setMessage(shownDone(t('gi.saved', { number: order.number })))
       setOrderId(null)
       void queryClient.invalidateQueries({ queryKey: [shopId, 'goods-in'] })
       void queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -114,7 +115,7 @@ export function GoodsInScreen({ shopId, shopName, isOwner }: { shopId: string; s
       void queryClient.invalidateQueries({ queryKey: [shopId, 'goods-in'] })
       void queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

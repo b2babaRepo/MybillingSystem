@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import type { CashBook } from '../lib/types'
 import { navigate } from '../router'
+import { shownError } from '../lib/notify'
 
 const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
 const CASH = 'M3 6h18v12H3zM12 9.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5'
@@ -166,7 +167,7 @@ function GallaCount({ shopId, day }: { shopId: string; day: string }) {
       setEditing(false)
       setOpening(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

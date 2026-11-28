@@ -11,6 +11,7 @@ import { useProducts } from '../lib/data'
 import { itemArt } from '../lib/itemArt'
 import { imageUrl } from '../lib/images'
 import type { Unit } from '../lib/types'
+import { shownError } from '../lib/notify'
 
 interface MasterChange { productId: string; productName: string; gstFrom: number | null; gstTo: number | null; hsnFrom: string | null; hsnTo: string | null }
 
@@ -146,7 +147,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
       setUndo(null)
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -158,7 +159,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
       setShowChanges(false)
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -169,7 +170,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
       setIdea({ name: '', category: '', unit: 'piece' })
       setMessage(t('pick.suggested'))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

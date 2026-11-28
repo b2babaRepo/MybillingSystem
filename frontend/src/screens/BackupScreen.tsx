@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { chunks, daysSince, parseBackup, type Backup } from '../lib/backup'
 import { formatRupees } from '../lib/format'
 import { useBackupStatus } from '../lib/backupStatus'
+import { shownError, shownDone } from '../lib/notify'
 
 export interface BackupStatus { lastBackupAt: string | null; empty: boolean }
 
@@ -46,10 +47,10 @@ export function BackupScreen({ shopId }: { shopId: string }) {
         a.click()
         setTimeout(() => URL.revokeObjectURL(url), 10_000)
       }
-      setMessage(t('backup.done'))
+      setMessage(shownDone(t('backup.done')))
       await status.refetch()
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
+      setMessage(shownError(err))
     } finally {
       setBusy(false)
     }
@@ -89,7 +90,7 @@ export function BackupScreen({ shopId }: { shopId: string }) {
       setMessage(t('backup.restored', done))
       setFile(null)
     } catch (err) {
-      setMessage(`${t('backup.restored', done)} ${err instanceof Error ? err.message : t('error')}`)
+      setMessage(`${t('backup.restored', done)} ${shownError(err)}`)
     } finally {
       setProblems(found)
       setBusy(false)

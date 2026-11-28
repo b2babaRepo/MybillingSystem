@@ -10,6 +10,7 @@ import { formatRupees } from '../lib/format'
 import { getSheet, LABEL_SHEETS, labelPageRule, pages, setSheet, type LabelSheet } from '../lib/labels'
 import { variantLabel } from '../lib/styles'
 import type { Product } from '../lib/types'
+import { shownError, shownDone } from '../lib/notify'
 
 /**
  * A barcode as SVG bars stretched to the space it is given: EAN-13 for pack and shop codes (with its digits under it),
@@ -106,9 +107,9 @@ export function TagsScreen({ shopId, shopName, ids }: { shopId: string; shopName
     let made = 0
     try {
       for (const p of noCode) { await api(`/v1/products/${p.id}/barcode/new`, 'POST', {}); made++ }
-      setMessage(t('labels.made', { count: made }))
+      setMessage(shownDone(t('labels.made', { count: made })))
     } catch (err) {
-      setMessage(`${t('labels.made', { count: made })} ${err instanceof Error ? err.message : t('error')}`)
+      setMessage(`${t('labels.made', { count: made })} ${shownError(err)}`)
     } finally {
       await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
       setBusy(false)

@@ -9,6 +9,7 @@ import type { DisputeItemView, ItemOutcome, LedgerEntryKind } from '../lib/types
 import { navigate } from '../router'
 import { useOpenDisputes } from '../lib/openDisputes'
 import { ask, confirmAsk } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 export interface Dispute {
   id: string
@@ -43,7 +44,7 @@ export function DisputesScreen({ isOwner }: { isOwner: boolean }) {
       await run()
       await queryClient.invalidateQueries({ queryKey: ['disputes'] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     }
   }
 

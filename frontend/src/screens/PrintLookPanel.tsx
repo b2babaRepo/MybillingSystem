@@ -5,6 +5,7 @@ import { Button } from '../components/ui'
 import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import type { BillPrint, PrintTheme } from '../lib/types'
+import { shownError, shownDone } from '../lib/notify'
 
 /** A picture shrunk on the phone to fit `max` px and kept as PNG (clear for logos and signatures, transparent where it was). */
 async function shrink(file: File, max = 320): Promise<string> {
@@ -48,10 +49,10 @@ function PrintLookForm({ initial, onSaved, t }: { initial: BillPrint; onSaved: (
     setMessage('')
     try {
       await api('/v1/shop/print', 'PUT', { logo, signature, theme, terms })
-      setMessage(t('printLook.saved'))
+      setMessage(shownDone(t('printLook.saved')))
       onSaved()
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
+      setMessage(shownError(err))
     }
   }
 

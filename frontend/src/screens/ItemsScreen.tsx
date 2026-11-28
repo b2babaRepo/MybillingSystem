@@ -20,6 +20,7 @@ import { imageUrl } from '../lib/images'
 import { itemArt } from '../lib/itemArt'
 import { UnitSelect } from './BillScreen'
 import { DataTable } from '../components/DataTable'
+import { shownError } from '../lib/notify'
 
 interface SuggestedItem { id: number; trade: string; category: string; name: string; nameHi: string | null; packSizes: string[]; imageAt?: string | null; popular?: boolean }
 
@@ -450,7 +451,7 @@ function ReceiveSizesSheet({ shopId, styleName, items, onClose }: { shopId: stri
         await api('/v1/products/style-price', 'POST', { styleName, sellingPrice: Number(price) })
         await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
       } catch (e) {
-        setError(e instanceof Error ? e.message : t('error'))
+        setError(shownError(e))
         setBusy(false)
         return
       }
@@ -462,7 +463,7 @@ function ReceiveSizesSheet({ shopId, styleName, items, onClose }: { shopId: stri
           lines: items.filter((p) => Number(qty[p.id]) > 0).map((p) => ({ productId: p.id, quantity: Number(qty[p.id]), bags: null })) })
         await queryClient.invalidateQueries({ queryKey: [shopId] })
       } catch (e) {
-        setError(e instanceof Error ? e.message : t('error'))
+        setError(shownError(e))
         setBusy(false)
         return
       }

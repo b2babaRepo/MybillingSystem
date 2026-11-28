@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import type { StoreSettings } from '../lib/orderFlow'
 import { btn } from '../lib/buttonStyles'
 import { FESTIVE } from '../lib/festive'
+import { shownError, shownDone } from '../lib/notify'
 
 const input = 'h-12 w-full rounded-xl border border-line bg-white px-3 text-lg outline-none focus:border-brand-line'
 
@@ -28,9 +29,9 @@ function Form({ shopId, isOwner, initial, title }: { shopId: string; isOwner: bo
     try {
       await api('/v1/store-settings', 'PUT', { deliveryFee: num(form.fee), freeDeliveryAbove: num(form.free), minOrder: num(form.min), slots: form.slots.split('\n').map((s) => s.trim()).filter(Boolean), theme: form.theme || null })
       await queryClient.invalidateQueries({ queryKey: [shopId, 'store-settings'] })
-      setMessage(t('cust2.saved'))
+      setMessage(shownDone(t('cust2.saved')))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const field = (key: 'fee' | 'free' | 'min', label: string) => (

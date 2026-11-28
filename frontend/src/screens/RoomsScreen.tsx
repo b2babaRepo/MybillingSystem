@@ -10,6 +10,7 @@ import { formatPhone, formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import { confirmAsk } from '../lib/ask'
 import { useNow } from '../lib/useNow'
+import { shownError, shownDone } from '../lib/notify'
 
 type Source = 'direct' | 'walk_in' | 'make_my_trip' | 'goibibo' | 'booking_com' | 'oyo' | 'airbnb' | 'other'
 type Status = 'booked' | 'checked_in' | 'checked_out' | 'cancelled'
@@ -93,8 +94,8 @@ function AddRoom({ shopId, first = false }: { shopId: string; first?: boolean })
   const [message, setMessage] = useState('')
   if (!open) return <button onClick={() => setOpen(true)} className={`min-h-11 text-sm self-start ${btn.add}`}>+ {t('rooms.addRoom')}</button>
   const save = () => api('/v1/rooms', 'POST', { id: crypto.randomUUID(), name: d.name.trim(), kind: d.kind.trim() || null, rate: Number(d.rate) || 0 })
-    .then(() => { setD({ name: '', kind: '', rate: '' }); setMessage(t('saved')); void queryClient.invalidateQueries({ queryKey: [shopId, 'rooms'] }) })
-    .catch((e: unknown) => setMessage(e instanceof Error ? e.message : t('error')))
+    .then(() => { setD({ name: '', kind: '', rate: '' }); setMessage(shownDone(t('saved'))); void queryClient.invalidateQueries({ queryKey: [shopId, 'rooms'] }) })
+    .catch((e: unknown) => setMessage(shownError(e)))
   return (
     <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <h3 className="font-bold">{t(first ? 'rooms.firstRoom' : 'rooms.addRoom')}</h3>
@@ -140,7 +141,7 @@ function NewStay({ shopId, rooms, roomId, onDone, bookingId, startDate }: { shop
       void queryClient.invalidateQueries({ queryKey: [shopId] })
       onDone(id)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -196,7 +197,7 @@ function StayPage({ shopId, id, onBack }: { shopId: string; id: string; onBack: 
       setF({ ...f, idNumber: '', name: '', amount: '' })
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const line = (label: string, value: string, strong = false) => <div className={`flex justify-between ${strong ? 'font-bold' : ''}`}><span>{label}</span><span>{value}</span></div>
@@ -288,7 +289,7 @@ function SeasonPrices({ shopId, rooms }: { shopId: string; rooms: Room[] }) {
   const [message, setMessage] = useState('')
   const run = (path: string, body: unknown) => api(path, 'POST', body)
     .then(() => { setD({ name: '', from: '', to: '', roomId: '', rate: '' }); setMessage(''); void queryClient.invalidateQueries({ queryKey: [shopId] }) })
-    .catch((e: unknown) => setMessage(e instanceof Error ? e.message : t('error')))
+    .catch((e: unknown) => setMessage(shownError(e)))
   const roomName = (id: string | null) => (id ? rooms.find((r) => r.id === id)?.name ?? '' : t('rooms.allRooms'))
   return (
     <details className="rounded-card bg-white p-3">
@@ -341,7 +342,7 @@ function Calendars({ shopId }: { shopId: string }) {
       } else setMessage({ ...message, [room.id]: t('saved') })
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage({ ...message, [room.id]: e instanceof Error ? e.message : t('error') })
+      setMessage({ ...message, [room.id]: shownError(e) })
     }
   }
   return (

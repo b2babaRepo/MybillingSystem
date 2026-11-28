@@ -8,6 +8,7 @@ import { formatRupees } from '../lib/format'
 import type { Unit } from '../lib/types'
 import { navigate } from '../router'
 import { DataTable } from '../components/DataTable'
+import { shownError } from '../lib/notify'
 
 interface Line { productId: string | null; name: string; quantity: number; unit: Unit; unitPrice: number; delivered: number; pending: number; inStock: number | null; shortBy: number; bags?: number | null }
 interface SaleOrder { id: string; number: number; customerId: string | null; party: string | null; lines: Line[]; total: number; pendingValue: number; dueOn: string | null; note: string | null; state: 'open' | 'part' | 'delivered' | 'closed' | 'cancelled'; bills: number; createdAt: string }
@@ -45,7 +46,7 @@ export function SaleOrdersScreen() {
       await api(`/v1/sale-orders/${o.id}/${how}`, 'POST', {})
       await queryClient.invalidateQueries({ queryKey: ['sale-orders'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

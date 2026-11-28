@@ -14,6 +14,7 @@ import { WhatsAppBusinessPanel } from './WhatsAppBusinessPanel'
 
 import { StoreOrderSettings } from '../components/StoreOrderSettings'
 import { ShopLocation } from '../components/ShopLocation'
+import { shownError, shownDone } from '../lib/notify'
 
 export function SettingsScreen({ shopId, isOwner }: { shopId: string; isOwner: boolean }) {
   const settings = useShopSettings(shopId)
@@ -68,9 +69,9 @@ function SettingsForm({ shopId, isOwner, initial }: { shopId: string; isOwner: b
     try {
       const saved = await api<ShopSettings>('/v1/shop', 'PUT', { ...form, gstComposition: !!form.gstComposition, deliversGoods: !!form.deliversGoods, staffMaxDiscountPercent: Number(form.staffMaxDiscountPercent) || 0, staffMaxWriteOff: Number(form.staffMaxWriteOff) || 0, exchangeSlipDays: Number(form.exchangeSlipDays) || 90, exchangeSlipHelperMax: Number(form.exchangeSlipHelperMax) || 0, cashReceiptLimit: Number(form.cashReceiptLimit) || 200000, panFrom: Number(form.panFrom) || 200000, cashPayoutLimit: Number(form.cashPayoutLimit) || 0, girviState: form.girviState, girviLicence: form.girviLicence, girviMaxYearlyRate: Number(form.girviMaxYearlyRate) || 0, girviNoticeDays: Number(form.girviNoticeDays) || 0, contractorDiscountPercent: Number(form.contractorDiscountPercent) || 0, dealerDiscountPercent: Number(form.dealerDiscountPercent) || 0, scaleLabel: form.scaleLabel.trim(), loyaltyEarnPer: Number(form.loyaltyEarnPer) || 0, loyaltyPointValue: Number(form.loyaltyPointValue) || 1, billPrefix: form.billPrefix.trim(), billFields: form.billFields.map((f) => f.trim()).filter(Boolean), extraTypes: extra.filter((x) => x !== form.type) })
       queryClient.setQueryData([shopId, 'settings'], saved)
-      setMessage(t('settings.saved'))
+      setMessage(shownDone(t('settings.saved')))
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
+      setMessage(shownError(err))
     }
   }
 

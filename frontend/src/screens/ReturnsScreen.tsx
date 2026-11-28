@@ -6,6 +6,7 @@ import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { DataTable } from '../components/DataTable'
+import { shownError } from '../lib/notify'
 
 interface Expiring { id: string; productName: string; batchNo: string; expiry: string; quantity: number; value: number; expired: boolean; daysLeft: number }
 interface Return {
@@ -36,7 +37,7 @@ export function ReturnsScreen({ shopId }: { shopId: string }) {
       setMessage(done)
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const lines = Object.entries(picked).filter(([, q]) => Number(q) > 0).map(([batchId, q]) => ({ batchId, quantity: Number(q) }))

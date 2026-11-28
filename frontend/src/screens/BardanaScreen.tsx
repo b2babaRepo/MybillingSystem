@@ -6,6 +6,7 @@ import { Button, control } from '../components/ui'
 import { btn } from '../lib/buttonStyles'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
+import { shownError } from '../lib/notify'
 
 type Kind = 'opening' | 'came_with_goods' | 'bought' | 'sold' | 'returned_to_supplier' | 'used' | 'damaged' | 'counted'
 interface BagType { id: string; name: string; saleRate: number | null; isActive: boolean; onHand: number; value: number | null; fromGoods?: boolean }
@@ -46,7 +47,7 @@ export function BardanaScreen({ shopId, isOwner }: { shopId: string; isOwner: bo
       await queryClient.invalidateQueries({ queryKey: [shopId, 'bardana'] })
       return true
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       return false
     }
   }

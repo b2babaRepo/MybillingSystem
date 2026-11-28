@@ -10,6 +10,7 @@ import { formatRupees } from '../lib/format'
 import { GOLD_PURITIES, grams, karat, type JewelleryPiece, type Metal } from '../lib/jewellery'
 import { GirviTicketDrawer } from './GirviTicket'
 import { navigate } from '../router'
+import { shownError } from '../lib/notify'
 
 // Phase 2 of the jewellery counter: girvi, savings schemes, orders and repairs, approval memos.
 
@@ -28,13 +29,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function useRun() {
-  const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function run(action: () => Promise<unknown>) {
     setBusy(true)
     setError('')
-    try { await action(); return true } catch (e) { setError(e instanceof Error ? e.message : t('error')); return false } finally { setBusy(false) }
+    try { await action(); return true } catch (e) { setError(shownError(e)); return false } finally { setBusy(false) }
   }
   return { busy, error, run, setError }
 }

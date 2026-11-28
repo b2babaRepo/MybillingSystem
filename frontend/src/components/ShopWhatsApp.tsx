@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { useShopWhatsApp } from '../lib/shopWhatsApp'
+import { shownError } from '../lib/notify'
 
 /**
  * "Send from shop WhatsApp": a bill, a payment reminder or a khata statement, sent from the shop's own number with
@@ -23,7 +24,7 @@ export function SendFromShop({ kind, billId, customerId, label, className = '' }
       setState({ ok: true, text: t('waSend.sent') })
       void queryClient.invalidateQueries({ queryKey: ['wa-inbox'] })
     } catch (e) {
-      setState({ ok: false, text: e instanceof Error ? e.message : t('error') })
+      setState({ ok: false, text: shownError(e) })
     } finally {
       setBusy(false)
     }

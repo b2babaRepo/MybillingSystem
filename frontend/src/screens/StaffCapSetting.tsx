@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '../components/ui'
 import { api } from '../lib/api'
 import { decimalText } from '../lib/decimalText'
+import { shownError, shownDone } from '../lib/notify'
 
 /** Owner only: how much staff may take off a tagged piece's making or wastage on a bill. */
 export function StaffCapSetting({ shopId }: { shopId: string }) {
@@ -20,8 +21,8 @@ export function StaffCapSetting({ shopId }: { shopId: string }) {
     try {
       await api('/v1/jewellery/settings', 'PUT', { maxOffPercent: value === '' ? null : Number(value) })
       await qc.invalidateQueries({ queryKey: [shopId, 'jewellery', 'settings'] })
-      setDraft(null); setMessage(t('jwl5.capSaved'))
-    } catch (e) { setMessage(e instanceof Error ? e.message : t('error')) } finally { setBusy(false) }
+      setDraft(null); setMessage(shownDone(t('jwl5.capSaved')))
+    } catch (e) { setMessage(shownError(e)) } finally { setBusy(false) }
   }
 
   return (

@@ -6,6 +6,7 @@ import { Button } from '../components/ui'
 import { btn } from '../lib/buttonStyles'
 import { api, request } from '../lib/api'
 import { shrinkPhoto } from '../lib/images'
+import { shownError } from '../lib/notify'
 
 interface MasterRow { id: number; trade: string; category: string; name: string; nameHi: string | null; unit: string; gstRate: number | null; hsnCode: string | null; isActive: boolean; packSizes: string[]; imageAt?: string | null; imageCredit?: string | null }
 
@@ -26,7 +27,7 @@ function SuggestionsQueue({ onDone }: { onDone: () => void }) {
       void queryClient.invalidateQueries({ queryKey: ['platform', 'suggestions'] })
       onDone()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   if (rows.length === 0) return null
@@ -73,7 +74,7 @@ export function MasterItemsPanel() {
       await action()
       await queryClient.invalidateQueries({ queryKey: ['platform', 'master'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     }
   }
 
@@ -228,7 +229,7 @@ function MasterPhoto({ row, run, credit }: { row: MasterRow; run: (action: () =>
       // Refresh the list in the background so the new photo shows; a failed refresh is not a failed upload.
       void queryClient.invalidateQueries({ queryKey: ['platform', 'master'] })
     } catch (e) {
-      setError(t('masterItems.photoFailed', { reason: e instanceof Error ? e.message : String(e) }))
+      setError(t('masterItems.photoFailed', { reason: shownError(e) }))
     } finally {
       setBusy(false)
     }

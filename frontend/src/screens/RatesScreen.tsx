@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
+import { shownError, shownDone } from '../lib/notify'
 
 /**
  * Today's rates: cement, sand and steel prices move daily, so the owner changes many at once instead of opening each
@@ -37,7 +38,7 @@ export function RatesScreen({ shopId }: { shopId: string }) {
     for (const m of matched) next[m.item.id] = String(m.price)
     setDraft(next)
     setUnmatched(missed)
-    setMessage(t('hwp8.loaded', { matched: matched.length, missed: missed.length, skipped }))
+    setMessage(shownDone(t('hwp8.loaded', { matched: matched.length, missed: missed.length, skipped })))
   }
 
   // Fills the new prices in as changes (whole rupees); nothing is saved until the owner checks and taps save.
@@ -61,7 +62,7 @@ export function RatesScreen({ shopId }: { shopId: string }) {
       setMessage(await action())
       await queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }

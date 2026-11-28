@@ -9,6 +9,7 @@ import { formatRupees, whatsAppLink } from '../lib/format'
 import { OPEN_SUPPLIER_KEY } from './OrdersPlacedScreen'
 import { navigate } from '../router'
 import { DataTable } from '../components/DataTable'
+import { shownError } from '../lib/notify'
 
 type Channel = 'call' | 'whatsapp' | 'visit'
 interface Shipment { id: string; dispatchedOn: string | null; expectedOn: string | null; transporter: string | null; lrNo: string | null; vehicleNo: string | null; ewayBillNo: string | null; ewayValidUntil: string | null; freight: number | null; freightPaidBy: 'shop' | 'supplier' | null; arrived: boolean; hasPhoto?: boolean }
@@ -50,7 +51,7 @@ export function GoodsToComeScreen({ shopId, shopName }: { shopId: string; shopNa
       void queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
       return true
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       return false
     }
   }

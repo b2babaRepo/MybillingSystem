@@ -9,6 +9,7 @@ import { grams, type JewelleryPiece, type Metal } from '../lib/jewellery'
 import { canReadScale, readScaleGrams } from '../lib/scale'
 import { useScales, blankStone } from '../lib/jewelleryWorkshop'
 import { useNow } from '../lib/useNow'
+import { shownError } from '../lib/notify'
 
 // Phase 3 of the jewellery counter: karigar and trader metal accounts in fine grams, the shop's loose metal, tray
 // counts, the counter scales, and the stones set in a piece.
@@ -27,13 +28,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function useRun() {
-  const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function run(action: () => Promise<unknown>) {
     setBusy(true)
     setError('')
-    try { await action(); return true } catch (e) { setError(e instanceof Error ? e.message : t('error')); return false } finally { setBusy(false) }
+    try { await action(); return true } catch (e) { setError(shownError(e)); return false } finally { setBusy(false) }
   }
   return { busy, error, run }
 }
@@ -53,7 +53,7 @@ export function WeighButton({ shopId, onWeight }: { shopId: string; onWeight: (g
     setBusy(true)
     setError('')
     try { onWeight(String(await readScaleGrams(scale?.readsTo ?? 0.001, scale?.baud ?? 9600, choose))) } catch (e) {
-      if (!(e instanceof Error && e.name === 'NotFoundError')) setError(e instanceof Error ? e.message : t('error'))
+      if (!(e instanceof Error && e.name === 'NotFoundError')) setError(shownError(e))
     } finally { setBusy(false) }
   }
   return (

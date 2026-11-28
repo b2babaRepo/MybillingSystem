@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { uuidv7 } from '../lib/ids'
 import { ask } from '../lib/ask'
 import { formatPhone, formatRupees, whatsAppLink } from '../lib/format'
+import { shownError } from '../lib/notify'
 
 interface Payout { id: string; amount: number; paidOn: string; mode: string; note: string | null }
 interface Commission { painterId: string; name: string; phone: string | null; commissionPercent: number; bills: number; sales: number; commission: number; earnedAllTime: number; paidAllTime: number; due: number; payouts: Payout[] | null }
@@ -44,7 +45,7 @@ export function PaintersScreen({ shopId, shopName }: { shopId: string; shopName:
       await api(`/v1/painters/${p.painterId}/payouts`, 'POST', { id: uuidv7(), amount, mode: 'cash' })
       await queryClient.invalidateQueries({ queryKey: [shopId, 'painters'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     }
   }
 
@@ -56,7 +57,7 @@ export function PaintersScreen({ shopId, shopName }: { shopId: string; shopName:
       setPhone('')
       await queryClient.invalidateQueries({ queryKey: [shopId, 'painters'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     }
   }
 

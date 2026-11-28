@@ -8,6 +8,7 @@ import { formatRupees } from '../lib/format'
 import { Delta, ReportShell, Waterfall } from '../components/ReportShell'
 import { change, useReportView } from '../lib/reportShell'
 import { useNow } from '../lib/useNow'
+import { shownError } from '../lib/notify'
 
 interface ProfitLoss {
   financialYear: string; sales: number; turnover: number; gst: number; goodsProfit: number; returns: number; stockLoss: number; expenses: number; netProfit: number; bagsSold?: number; bagsBought?: number
@@ -50,7 +51,7 @@ export function ProfitLossScreen() {
       link.click()
       URL.revokeObjectURL(link.href)
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     }
   }
 

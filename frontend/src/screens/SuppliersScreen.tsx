@@ -23,6 +23,7 @@ import { shopTypes, useShopSettings } from '../lib/reports'
 import { confirmAsk } from '../lib/ask'
 import { guarded } from '../lib/billPasscode'
 import { OrdersPanel, ReturnsPanel, ReceiptsPanel, type GoodsReceipt, SupplierImport, type PurchaseOrder } from './SupplierOrders'
+import { shownDone, shownError } from '../lib/notify'
 
 interface Supplier { id: string; name: string; phone: string | null; due: number; days0To15?: number; days16To30?: number; over30?: number; oldestDays?: number; gstin?: string | null; address?: string | null; paymentDays?: number | null; isActive?: boolean }
 type EntryKind = 'other' | 'opening' | 'bill' | 'payment' | 'credit_note' | 'bill_cancelled'
@@ -61,12 +62,13 @@ export function SuppliersScreen({ shopId, shopName = '' }: { shopId: string; sho
     try {
       const id = crypto.randomUUID()
       await api('/v1/suppliers', 'POST', { id, name: draft.name.trim(), phone: draft.phone.trim() || null })
+      shownDone(t('notice.supplierAdded', { name: draft.name.trim() }))
       setDraft({ name: '', phone: '' })
       setShowAdd(false)
       await refresh()
       setOpenId(id)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -238,7 +240,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
     try {
       applyDraft(await api<InvoiceDraft>('/v1/suppliers/purchases/photo', 'POST', { imageDataUrl: await billFile(file, t('upload.pdfTooBig')) }))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     } finally {
       setReading(false)
     }
@@ -276,7 +278,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       setFromUpload(picked.uploadId)
       setPanel('bill')
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
@@ -289,12 +291,12 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       const image = await billFile(file, t('upload.pdfTooBig'))
       const up = await api<{ id: string }>('/v1/suppliers/uploads', 'POST', { imageDataUrl: image })
       if (ai?.canReadPhotos && ai.consentedAt) {
-        try { applyDraft(await api<InvoiceDraft>('/v1/suppliers/purchases/photo', 'POST', { imageDataUrl: image })) } catch (e) { setMessage(e instanceof Error ? e.message : t('error')) }
+        try { applyDraft(await api<InvoiceDraft>('/v1/suppliers/purchases/photo', 'POST', { imageDataUrl: image })) } catch (e) { setMessage(shownError(e)) }
       }
       setFromUpload(up.id)
       setPanel('bill')
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     } finally {
       setReading(false)
     }
@@ -324,7 +326,7 @@ function SupplierPage({ shopId, shopName, id, onBack }: { shopId: string; shopNa
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
       setMessage(queuedNote ?? t('saved'))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

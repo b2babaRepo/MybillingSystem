@@ -6,6 +6,7 @@ import { btn } from '../lib/buttonStyles'
 import { confirmAsk } from '../lib/ask'
 import { shownLocale } from '../i18n'
 import { api } from '../lib/api'
+import { shownError } from '../lib/notify'
 
 interface Feed { id: string; name: string; keyPrefix: string; createdAt: string; revokedAt: string | null; lastUsedAt: string | null; pushUrl: string | null; lastPushedDay: string | null; lastPushError: string | null }
 
@@ -28,7 +29,7 @@ export function MallFeedsScreen({ shopId }: { shopId: string }) {
       await work()
       await feeds.refetch()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const create = () => run(async () => {

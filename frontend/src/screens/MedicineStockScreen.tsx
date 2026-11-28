@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { DataTable } from '../components/DataTable'
+import { shownError } from '../lib/notify'
 
 interface Batch { id: string; batchNo: string; expiry: string; mrp: number; costPrice: number | null; quantity: number; expired: boolean; daysLeft: number }
 interface Expiring { id: string; productName: string; batchNo: string; expiry: string; quantity: number; value: number; expired: boolean; daysLeft: number }
@@ -84,7 +85,7 @@ function Receive({ shopId }: { shopId: string }) {
       setMessage(t('batches.received'))
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { useCustomers, useProducts } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { confirmAsk } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 interface Plan { id: string; name: string; kind: 'package' | 'membership'; price: number; serviceName: string | null; sessions: number | null; discountPercent: number | null; validDays: number }
 interface CustomerPlan {
@@ -33,7 +34,7 @@ export function PackagesScreen({ shopId, shopName, isOwner }: { shopId: string; 
       setMessage(done)
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const select = 'h-12 w-full rounded-xl border border-line bg-white px-3'
@@ -101,7 +102,7 @@ function NewPlan({ shopId, onDone }: { shopId: string; onDone: (message: string)
       onDone(t('saved'))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'prepaid-plans'] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     }
   }
   const select = 'h-12 w-full rounded-xl border border-line bg-white px-3'

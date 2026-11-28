@@ -6,6 +6,7 @@ import { shownLocale } from '../i18n'
 import { api } from '../lib/api'
 import { navigate } from '../router'
 import { useShopWhatsApp } from '../lib/shopWhatsApp'
+import { shownError } from '../lib/notify'
 
 interface Conversation { phone: string; customerId: string | null; name: string | null; lastBody: string; lastDirection: 'In' | 'Out'; lastAt: string; waiting: number; canReplyFreely: boolean }
 interface Message { id: string; direction: 'In' | 'Out'; kind: string; body: string; status: string; error: string | null; at: string }
@@ -40,7 +41,7 @@ export function WhatsAppInboxScreen({ shopId }: { shopId: string }) {
       setText('')
       await queryClient.invalidateQueries({ queryKey: ['wa-inbox', shopId] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

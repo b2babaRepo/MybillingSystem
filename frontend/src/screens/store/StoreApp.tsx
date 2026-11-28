@@ -40,6 +40,7 @@ import { api as apiCall } from '../../lib/api'
 import { festive } from '../../lib/festive'
 import type { Fulfilment, OrderPayment } from '../../lib/planner'
 import { useNow } from '../../lib/useNow'
+import { shownError } from '../../lib/notify'
 
 // The shop's public online store at #/s/{slug}: no account, no app install. Guests browse, fill a cart, check
 // out with name, phone and (for delivery) an address, then follow the order by its private link.
@@ -607,7 +608,7 @@ function Checkout({ store, lines, onClose, onPlaced, onStep, onSet, onRemove }: 
       })
       onPlaced(placed)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('error'))
+      setError(shownError(err))
       setBusy(false)
     }
   }

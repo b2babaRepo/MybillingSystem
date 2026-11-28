@@ -9,6 +9,7 @@ import type { Can } from '../lib/platformAccess'
 import { addText } from '../i18n'
 import { agentText } from '../i18n/agent'
 import { ask, confirmAsk } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 addText(agentText)
 
@@ -66,7 +67,7 @@ export function AgentsPanel({ addRequest = 0 }: { addRequest?: number }) {
       await queryClient.invalidateQueries({ queryKey: ['platform', 'agents'] })
       if (done) setMessage(done)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -203,7 +204,7 @@ export function RegistrationsPanel({ can }: { can: Can }) {
       await queryClient.invalidateQueries({ queryKey: ['platform'] })
       if (done) setMessage(done)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -281,7 +282,7 @@ export function PerformancePanel({ can }: { can: Can }) {
       await queryClient.invalidateQueries({ queryKey: ['platform', 'agent-performance'] })
       setMessage(t('performance.paid', { name: r.name, amount: formatRupees(Number(amount)) }))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     }
   }
 

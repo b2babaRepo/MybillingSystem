@@ -7,6 +7,7 @@ import { Button, Field } from '../components/ui'
 import { btn } from '../lib/buttonStyles'
 import { ApiError, authenticate, readProblem, request } from '../lib/api'
 import type { AuthResponse } from '../lib/types'
+import { shownError } from '../lib/notify'
 
 export function AuthScreen() {
   const { t, i18n } = useTranslation()
@@ -54,7 +55,7 @@ export function AuthScreen() {
       }
       else await authenticate('/v1/auth/register', { fullName: form.fullName, phone: form.phone, password: form.password, language: i18n.language })
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('error'))
+      setError(shownError(err))
     } finally {
       setBusy(false)
     }

@@ -7,6 +7,7 @@ import { ItemPicker } from '../components/ItemPicker'
 import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import { navigate } from '../router'
+import { shownError } from '../lib/notify'
 
 interface Hold { source: 'online' | 'sale_order' | 'counter'; sourceId: string; reference: string; productId: string; product: string; unit: string; quantity: number; party: string; until: string | null; overdue: boolean; shortBy: number; since: string; note: string | null }
 
@@ -34,7 +35,7 @@ export function HoldsScreen({ shopId }: { shopId: string }) {
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
       return true
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       return false
     }
   }

@@ -9,6 +9,7 @@ import { formatDateTime, formatRupees } from '../lib/format'
 import type { Customer, PaymentMode } from '../lib/types'
 import { navigate } from '../router'
 import { ask } from '../lib/ask'
+import { shownError, shownDone } from '../lib/notify'
 
 interface SiteTotal { site: string; bills: number; billed: number; openChallans: number }
 interface Challan { id: string; occurredAt: string; total: number; site: string | null; vehicleNumber: string | null; lines: { name: string; quantity: number; unit: string }[] }
@@ -40,7 +41,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
       await action()
       await queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -51,7 +52,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
     const gstin = (await ask(t('trade.gstinAsk'), current))
     if (gstin === null) return
     await api(`/v1/customers/${customer.id}/gstin`, 'PUT', { gstin: gstin.trim() || null })
-    setMessage(t('trade.gstinSaved'))
+    setMessage(shownDone(t('trade.gstinSaved')))
   })
 
   const openState = () => run(async () => {
@@ -61,7 +62,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
   const saveState = (state: string) => run(async () => {
     await api(`/v1/customers/${customer.id}/state`, 'PUT', { state: state || null })
     setStateCode(null)
-    setMessage(t('trade.stateSaved'))
+    setMessage(shownDone(t('trade.stateSaved')))
   })
 
   const setAddress = () => run(async () => {
@@ -69,7 +70,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
     const address = await ask(t('trade.addressAsk'), current)
     if (address === null) return
     await api(`/v1/customers/${customer.id}/address`, 'PUT', { address: address.trim() || null })
-    setMessage(t('trade.addressSaved'))
+    setMessage(shownDone(t('trade.addressSaved')))
   })
 
   const saveLimit = () => run(async () => {
@@ -142,7 +143,7 @@ export function CustomerTradePanel({ shopId, customer, isOwner }: { shopId: stri
       <label className="flex items-center justify-between gap-2 rounded-2xl border border-line p-3">
         <span className="text-sm font-semibold">{t('hwp4.group')}</span>
         <select value={customer.priceGroup ?? 'retail'} disabled={busy} aria-label={t('hwp4.group')}
-          onChange={(e) => void run(async () => { await api(`/v1/customers/${customer.id}/price-group`, 'PUT', { priceGroup: e.target.value }); setMessage(t('hwp4.groupSaved')) })}
+          onChange={(e) => void run(async () => { await api(`/v1/customers/${customer.id}/price-group`, 'PUT', { priceGroup: e.target.value }); setMessage(shownDone(t('hwp4.groupSaved'))) })}
           className="h-11 rounded-xl border border-line bg-white px-3">
           <option value="retail">{t('hwp4.retail')}</option>
           <option value="contractor">{t('hwp4.contractor')}</option>

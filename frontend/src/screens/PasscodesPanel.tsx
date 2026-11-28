@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { askSecret } from '../lib/ask'
 import { api } from '../lib/api'
 import { clearAppLock, hasAppLock, passcodeProblem, setAppLock } from '../lib/appLock'
+import { shownError, shownDone } from '../lib/notify'
 
 /**
  * Two passcodes in Settings. The app passcode locks the app on this phone (on opening, and after 2 minutes away). The
@@ -35,7 +36,7 @@ export function PasscodesPanel() {
     if (!pin) return
     await setAppLock(pin)
     setAppLockOn(true)
-    setMessage(t('passcode.appSet'))
+    setMessage(shownDone(t('passcode.appSet')))
   }
 
   async function saveBill(remove: boolean) {
@@ -49,7 +50,7 @@ export function PasscodesPanel() {
       await queryClient.invalidateQueries({ queryKey: ['bill-passcode'] })
       setMessage(t(remove ? 'passcode.billRemoved' : 'passcode.billSet'))
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
+      setMessage(shownError(err))
     }
   }
 
@@ -72,7 +73,7 @@ export function PasscodesPanel() {
   return (
     <section className="mt-4 flex flex-col gap-3 rounded-card bg-white p-4">
       <h2 className="text-lg font-bold">{t('passcode.title')}</h2>
-      {row('📱', t('passcode.appTitle'), t('passcode.appHint'), appLock, () => void setLock(), () => { clearAppLock(); setAppLockOn(false); setMessage(t('passcode.appRemoved')) })}
+      {row('📱', t('passcode.appTitle'), t('passcode.appHint'), appLock, () => void setLock(), () => { clearAppLock(); setAppLockOn(false); setMessage(shownDone(t('passcode.appRemoved'))) })}
       {bill.data && row('🧾', t('passcode.billTitle'), t('passcode.billHint'), bill.data.set, () => void saveBill(false), () => void saveBill(true))}
       {message && <p role="status" className="text-sm font-semibold">{message}</p>}
     </section>

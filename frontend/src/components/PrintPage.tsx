@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { whatsAppLink } from '../lib/format'
 import { getPaper, pageRule, setPaper, type Paper } from '../lib/paper'
 import type { ReceiptRow } from '../lib/escpos'
+import { shownError, shownDone } from '../lib/notify'
 
 /** A print page: back, print, WhatsApp and the paper choice (A4, 80 mm, 58 mm roll), then the shop's header and the content. */
 export function Page({ title, subtitle, shareText, phone, children, receipt, pdfName, logo, theme, corner, tools, bare, opensDrawer }: {
@@ -44,10 +45,10 @@ export function Page({ title, subtitle, shareText, phone, children, receipt, pdf
     try {
       const { bluetoothPrint, drawerOnCashBill } = await import('../lib/btPrinter')
       const name = await bluetoothPrint(receipt!(), paper === '58' ? '58' : '80', choose, drawerOnCashBill() && !!opensDrawer?.())
-      setBtState(t('btPrint.done', { name }))
+      setBtState(shownDone(t('btPrint.done', { name })))
     } catch (e) {
       // Closing the printer list isn't a problem worth showing.
-      setBtState(e instanceof Error && e.name === 'NotFoundError' ? null : t('btPrint.failed', { error: e instanceof Error ? e.message : String(e) }))
+      setBtState(e instanceof Error && e.name === 'NotFoundError' ? null : t('btPrint.failed', { error: shownError(e) }))
     }
   }
   const [paper, choosePaper] = useState<Paper>(getPaper)

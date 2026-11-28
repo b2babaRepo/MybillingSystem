@@ -28,6 +28,7 @@ import { provisionalBill } from '../lib/provisionalBill'
 import type { ProvisionalBill } from '../lib/provisionalBill'
 import type { BillView, Statement } from '../lib/types'
 import { ask, askSecret, tell } from '../lib/ask'
+import { shownError } from '../lib/notify'
 
 
 /**
@@ -221,7 +222,7 @@ function CreditNotesPanel({ billId, customerId, lines }: { billId: string; custo
       // Exchange: bill the new goods here, or print a slip the customer takes to another counter.
       if (exchange) setTaken({ noteId: note.id, noteNo: note.noteNo, total: note.total, customerId })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 

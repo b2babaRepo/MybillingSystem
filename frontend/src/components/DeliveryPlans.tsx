@@ -8,6 +8,7 @@ import { formatRupees } from '../lib/format'
 import type { Unit } from '../lib/types'
 import { confirmAsk } from '../lib/ask'
 import { btn } from '../lib/buttonStyles'
+import { shownError } from '../lib/notify'
 
 interface PlanItem { id: string; name: string; unit: Unit; price: number }
 
@@ -41,7 +42,7 @@ export function StartDeliverySheet({ shopId, shopName, items, onClose }: { shopI
       await queryClient.invalidateQueries({ queryKey: ['me', 'shops'] })
       setDone(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

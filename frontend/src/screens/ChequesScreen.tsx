@@ -8,6 +8,7 @@ import { formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import { DataTable } from '../components/DataTable'
 import { useNow } from '../lib/useNow'
+import { shownError } from '../lib/notify'
 
 interface Cheque {
   id: string; customerId: string; customer: string; amount: number; chequeNo: string | null; bank: string | null; chequeDate: string | null
@@ -45,7 +46,7 @@ export function ChequesScreen({ isOwner }: { isOwner: boolean }) {
       await api(`/v1/cheques/${c.id}/${cleared ? 'clear' : 'bounce'}`, 'POST', cleared ? {} : { reason })
       await Promise.all([client.invalidateQueries({ queryKey: ['cheques'] }), client.invalidateQueries()])
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     } finally {
       setBusy(null)
     }

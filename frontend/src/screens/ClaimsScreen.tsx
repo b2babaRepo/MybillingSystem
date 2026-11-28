@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
+import { shownError } from '../lib/notify'
 
 interface Claim {
   id: string; number: number; supplierId: string; supplierName: string; jobId: string | null; jobNumber: number | null; serialNo: string | null
@@ -36,7 +37,7 @@ export function ClaimsScreen({ shopId }: { shopId: string }) {
       void queryClient.invalidateQueries({ queryKey: [shopId, 'suppliers'] })
       return true
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       return false
     }
   }

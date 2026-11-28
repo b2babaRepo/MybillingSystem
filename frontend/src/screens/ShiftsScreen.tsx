@@ -9,6 +9,7 @@ import { counterName, setCounterName, useOutbox } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { uuidv7 } from '../lib/ids'
 import { currentShift, rememberShift, subscribeShift, type CashierShift } from '../lib/shift'
+import { shownError } from '../lib/notify'
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString(shownLocale(), { hour: 'numeric', minute: '2-digit' })
 
@@ -49,7 +50,7 @@ export function ShiftsScreen({ shopId, isOwner }: { shopId: string; isOwner: boo
       await work()
       void queryClient.invalidateQueries({ queryKey: [shopId, 'shifts'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     } finally {
       setBusy(false)
     }
@@ -141,7 +142,7 @@ function CashDrawer() {
       const { openDrawer } = await import('../lib/btPrinter')
       setState(t('drawer.opened', { name: await openDrawer(choose) }))
     } catch (e) {
-      setState(e instanceof Error && e.name === 'NotFoundError' ? null : t('btPrint.failed', { error: e instanceof Error ? e.message : String(e) }))
+      setState(e instanceof Error && e.name === 'NotFoundError' ? null : t('btPrint.failed', { error: shownError(e) }))
     }
   }
   return (

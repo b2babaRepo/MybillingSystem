@@ -9,7 +9,7 @@ import { VoiceButton } from '../components/VoiceButton'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import { ask, confirmAsk } from '../lib/ask'
-import { notify } from '../lib/notify'
+import { notify, shownError } from '../lib/notify'
 import { parseGrid } from '../lib/dairyGrid'
 import { useNow } from '../lib/useNow'
 
@@ -90,7 +90,6 @@ export function DairyScreen({ shopId, shopName, isOwner }: { shopId: string; sho
 }
 
 function useRun(shopId: string) {
-  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [message, setMessage] = useState('')
   const run = async (work: () => Promise<unknown>, done: string) => {
@@ -101,7 +100,7 @@ function useRun(shopId: string) {
       void queryClient.invalidateQueries({ queryKey: [shopId, 'dairy'] })
       return true
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       return false
     }
   }
@@ -150,7 +149,7 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
         fat: e.fat ? String(e.fat) : cur.fat, snf: e.snf ? String(e.snf) : cur.snf, clr: e.clr ? String(e.clr) : cur.clr,
       }))
     } catch (err) {
-      setQuoteError(err instanceof Error ? err.message : t('error'))
+      setQuoteError(shownError(err))
     }
   }
   const [reading, setReading] = useState(false)
@@ -160,7 +159,7 @@ function Collect({ shopId, shopName, isOwner }: { shopId: string; shopName: stri
       const s = await api<{ litres: number | null; fat: number | null; snf: number | null; clr: number | null; farmerCode: number | null }>('/v1/dairy/slip-photo', 'POST', { imageDataUrl: await shrinkPhoto(file, 1400, 1_000_000, false) })
       setD((cur) => ({ ...cur, code: s.farmerCode ? String(s.farmerCode) : cur.code, litres: s.litres ? String(s.litres) : cur.litres, fat: s.fat ? String(s.fat) : cur.fat, snf: s.snf ? String(s.snf) : cur.snf, clr: s.clr ? String(s.clr) : cur.clr }))
     } catch (e) {
-      setQuoteError(e instanceof Error ? e.message : t('error'))
+      setQuoteError(shownError(e))
     } finally {
       setReading(false)
     }

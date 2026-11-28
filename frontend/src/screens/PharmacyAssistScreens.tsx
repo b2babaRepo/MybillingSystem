@@ -9,6 +9,7 @@ import { shrinkPhoto } from '../lib/images'
 import { pct } from '../lib/supplierStats'
 import { SortHead } from '../components/TableHead'
 import { compareCells, filterBox, nextSort, type Sort } from '../lib/tableSort'
+import { shownError } from '../lib/notify'
 
 interface Refill { customerId: string; customerName: string; phone: string | null; productId: string; medicine: string; lastQuantity: number; lastBought: string; everyDays: number; dueOn: string; daysLate: number }
 interface ReorderOption { supplierId: string; name: string; phone: string | null; lastRate: number | null; leadDays: number | null; fillRate: number | null; preferred: boolean }
@@ -88,7 +89,7 @@ export function ReorderScreen({ shopId, shopName, general = false }: { shopId: s
       setAlloc(Object.fromEntries(Object.entries(alloc).filter(([id]) => !rows.some((r) => r.productId === id))))
       await queryClient.invalidateQueries({ queryKey: [shopId, 'reorder'] })
     } catch (e) {
-      setSaved({ ...saved, [supplierId]: e instanceof Error ? e.message : t('error') })
+      setSaved({ ...saved, [supplierId]: shownError(e) })
     }
   }
 
@@ -256,7 +257,7 @@ export function PrescriptionPhoto({ billId }: { billId: string }) {
       await api(`/v1/bills/${billId}/prescription-photo`, 'PUT', { dataUrl: await shrinkPhoto(file, 1400, 400_000, false) })
       void queryClient.invalidateQueries({ queryKey: ['rx-photo', billId] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     }
   }
   return (

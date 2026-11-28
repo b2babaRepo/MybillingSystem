@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field } from '../components/ui'
 import { api } from '../lib/api'
 import { formatPhone } from '../lib/format'
+import { shownError, shownDone } from '../lib/notify'
 
 interface Profile { fullName: string; phone: string; preferredLanguage: string; email: string | null; address: string | null; city: string | null; pincode: string | null; hasPassword?: boolean; gstin?: string | null; emailVerified?: boolean }
 
@@ -46,11 +47,11 @@ function EmailVerify({ saved, verified, typed }: { saved: string | null; verifie
   if (verified) return <p className="-mt-2 text-sm font-semibold text-emerald-700">✓ {t('emailReset.verified')}</p>
   async function send() {
     setNote('')
-    try { await api('/v1/profile/email/send-code', 'POST', {}); setCode(''); setNote(t('emailReset.sent')) } catch (e) { setNote(e instanceof Error ? e.message : t('error')) }
+    try { await api('/v1/profile/email/send-code', 'POST', {}); setCode(''); setNote(shownDone(t('emailReset.sent'))) } catch (e) { setNote(shownError(e)) }
   }
   async function confirm() {
     setNote('')
-    try { await api('/v1/profile/email/verify', 'POST', { code }); setCode(null); await queryClient.invalidateQueries({ queryKey: ['profile'] }) } catch (e) { setNote(e instanceof Error ? e.message : t('error')) }
+    try { await api('/v1/profile/email/verify', 'POST', { code }); setCode(null); await queryClient.invalidateQueries({ queryKey: ['profile'] }) } catch (e) { setNote(shownError(e)) }
   }
   return (
     <div className="-mt-1 flex flex-col gap-2 rounded-xl bg-warn-soft p-3">
@@ -86,9 +87,9 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
     try {
       await api('/v1/auth/otp/send', 'POST', { phone: initial.phone })
       setCode('')
-      setMessage(t('profile.codeSent'))
+      setMessage(shownDone(t('profile.codeSent')))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   async function savePassword() {
@@ -98,9 +99,9 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
       setCurrent('')
       setFresh('')
       setCode(null)
-      setMessage(t('profile.passwordSaved'))
+      setMessage(shownDone(t('profile.passwordSaved')))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -114,9 +115,9 @@ function ProfileForm({ initial, customer }: { initial: Profile; customer: boolea
       if (session) setSession({ ...session, user: { ...session.user, fullName: form.fullName.trim(), preferredLanguage: form.preferredLanguage } })
       void setLanguage(form.preferredLanguage as Language, { toAccount: false })
       void i18n
-      setMessage(t('saved'))
+      setMessage(shownDone(t('saved')))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
@@ -181,7 +182,7 @@ function PhoneChangeSheet({ hasPassword, onClose }: { hasPassword: boolean; onCl
   async function run(action: () => Promise<void>) {
     setBusy(true)
     setError('')
-    try { await action() } catch (e) { setError(e instanceof Error ? e.message : t('error')) } finally { setBusy(false) }
+    try { await action() } catch (e) { setError(shownError(e)) } finally { setBusy(false) }
   }
   const send = () => run(async () => { await api('/v1/profile/phone/send', 'POST', { newPhone: phone }); setSent(true) })
   const sendOld = () => run(async () => { await api('/v1/profile/phone/send', 'POST', { toOld: true }); setOldSent(true) })

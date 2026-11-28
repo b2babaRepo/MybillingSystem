@@ -14,6 +14,7 @@ import type { BillPrint, Unit } from '../lib/types'
 import { rupeesInWords } from '../lib/inWords'
 import { navigate } from '../router'
 import { DataTable } from '../components/DataTable'
+import { shownError, shownDone } from '../lib/notify'
 
 export interface Estimate {
   id: string
@@ -62,7 +63,7 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
       await api(`/v1/estimates/${e.id}/cancel`, 'POST', {})
       await queryClient.invalidateQueries({ queryKey: [shopId, 'estimates'] })
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
+      setMessage(shownError(err))
     }
   }
 
@@ -70,7 +71,7 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
     <div className="flex flex-col gap-3 p-4 pb-24 lg:mx-auto lg:w-full lg:max-w-5xl">
       <p className="text-sm text-muted">{t('estimate.hint')}</p>
       {quoting
-        ? <PaintQuote shopId={shopId} onClose={() => setQuoting(false)} onSaved={async (n) => { setQuoting(false); setMessage(t('hwp7.saved', { number: n })); await queryClient.invalidateQueries({ queryKey: [shopId, 'estimates'] }) }} />
+        ? <PaintQuote shopId={shopId} onClose={() => setQuoting(false)} onSaved={async (n) => { setQuoting(false); setMessage(shownDone(t('hwp7.saved', { number: n }))); await queryClient.invalidateQueries({ queryKey: [shopId, 'estimates'] }) }} />
         : <button onClick={() => setQuoting(true)} className={`min-h-11 self-start rounded-xl px-4 ${btn.outline}`}>🎨 {t('hwp7.open')}</button>}
       {list.length === 0 && <p className="rounded-card bg-white p-4 text-sm text-muted">{t('estimate.none')}</p>}
       {list.length > 0 && (
@@ -96,7 +97,7 @@ export function EstimatesScreen({ shopId }: { shopId: string }) {
             ]} />
         </div>
       )}
-      {sending && <ChallanSheet estimate={sending} onClose={() => setSending(null)} onSent={async () => { setSending(null); setMessage(t('hwp6.sent')); await queryClient.invalidateQueries({ queryKey: [shopId] }) }} />}
+      {sending && <ChallanSheet estimate={sending} onClose={() => setSending(null)} onSent={async () => { setSending(null); setMessage(shownDone(t('hwp6.sent'))); await queryClient.invalidateQueries({ queryKey: [shopId] }) }} />}
       {message && <p className="rounded-xl bg-brand-soft p-3 text-sm font-semibold text-brand-deep">{message}</p>}
       {list.map((e) => (
         <section key={e.id} className="flex flex-col gap-1 rounded-card bg-white p-4 text-sm lg:hidden">
@@ -239,7 +240,7 @@ function ChallanSheet({ estimate, onClose, onSent }: { estimate: Estimate; onClo
       })
       await onSent()
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('error'))
+      setError(shownError(e))
     }
   }
   return (

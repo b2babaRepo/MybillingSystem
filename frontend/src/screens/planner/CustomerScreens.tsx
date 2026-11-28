@@ -20,6 +20,7 @@ import { useSession } from '../../lib/data'
 import { CUSTOMER_LANGUAGES, setLanguage, type Language } from '../../i18n'
 import { navigate } from '../../router'
 import { confirmAsk } from '../../lib/ask'
+import { shownError } from '../../lib/notify'
 
 const card = 'flex flex-col gap-2 rounded-card bg-white p-4 shadow-sm'
 const input = 'h-11 min-w-0 rounded-xl border border-line bg-white px-3'
@@ -123,7 +124,7 @@ function AlertSettings() {
     setMessage('')
     try {
       if (push) { await turnOffAlerts(); setPush(false) } else { const on = await turnOnAlerts(); setPush(on); if (!on) setMessage(t('cust2.alertsBlocked')) }
-    } catch (e) { setMessage(e instanceof Error ? e.message : t('error')) }
+    } catch (e) { setMessage(shownError(e)) }
   }
   async function toggleWhatsApp() {
     await api('/v1/me/order-alerts', 'PUT', { whatsApp: !whatsapp })
@@ -267,7 +268,7 @@ export function AddressesScreen() {
 
   async function run(action: () => Promise<unknown>) {
     setMessage('')
-    try { await action(); await queryClient.invalidateQueries({ queryKey: ['addresses'] }); return true } catch (e) { setMessage(e instanceof Error ? e.message : t('error')); return false }
+    try { await action(); await queryClient.invalidateQueries({ queryKey: ['addresses'] }); return true } catch (e) { setMessage(shownError(e)); return false }
   }
   async function save() {
     if (!editing) return
@@ -502,7 +503,7 @@ export function PrivacyScreen() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   async function close() {
@@ -513,7 +514,7 @@ export function PrivacyScreen() {
       setSession(null)
       navigate('/')
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   return (

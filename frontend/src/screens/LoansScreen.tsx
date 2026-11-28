@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { confirmAsk } from '../lib/ask'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
+import { shownError } from '../lib/notify'
 
 type Into = 'cash' | 'bank' | 'direct'
 type Mode = 'cash' | 'upi' | 'bank'
@@ -33,7 +34,7 @@ function PayEmi({ loan, onDone }: { loan: Loan; onDone: () => void }) {
       await api(`/v1/loans/${loan.id}/payments`, 'POST', { id: crypto.randomUUID(), amount: total, interest: part, mode })
       onDone()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   return (
@@ -140,7 +141,7 @@ export function LoansScreen({ shopId }: { shopId: string }) {
       setAdding(false)
       await queryClient.invalidateQueries({ queryKey: [shopId, 'loans'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const num = (k: 'amount' | 'rate' | 'emi') => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value.replace(/[^\d.]/g, '') })

@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { indiaDay } from '../lib/deliveries'
 import { formatPhone } from '../lib/format'
 import type { Unit } from '../lib/types'
+import { shownError } from '../lib/notify'
 
 interface Round { date: string; deliveries: { planId: string; name: string; phone: string | null; address: string | null; productName: string; unit: Unit; quantity: number; onKhata: boolean; posted: boolean }[]; totals: { productName: string; unit: Unit; quantity: number }[] }
 
@@ -36,7 +37,7 @@ export function DeliveryRound() {
       setMessage([t('cust5.postedCount', { count: r.posted }), r.noKhata.length ? t('cust5.collectFrom', { names: r.noKhata.join(', ') }) : '', ...r.failed].filter(Boolean).join(' · '))
       await queryClient.invalidateQueries({ queryKey: ['deliveries'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     } finally {
       setPosting(false)
     }

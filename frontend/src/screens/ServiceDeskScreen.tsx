@@ -5,6 +5,7 @@ import { Button } from '../components/ui'
 import { api } from '../lib/api'
 import { formatRupees } from '../lib/format'
 import { shrinkPhoto } from '../lib/images'
+import { shownError, shownDone } from '../lib/notify'
 
 interface Flag { kind: string; text: string; days: number; amount: number | null }
 interface PriceLine { name: string; mrp: number | null; dealerPrice: number | null; productId: string | null; productName: string | null; sellingPrice: number | null; costPrice: number | null }
@@ -31,7 +32,7 @@ export function ServiceDeskScreen({ shopId }: { shopId: string }) {
       setLines(found.map((l) => ({ ...l, newPrice: l.mrp != null ? String(l.mrp) : '', use: l.productId != null && l.mrp != null && l.mrp !== l.sellingPrice })))
       if (found.length === 0) setMessage(t('desk.nothingRead'))
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
+      setMessage(shownError(err))
     } finally {
       setBusy(false)
       e.target.value = ''
@@ -44,10 +45,10 @@ export function ServiceDeskScreen({ shopId }: { shopId: string }) {
     try {
       await api('/v1/products/rates', 'PUT', { rates })
       setLines([])
-      setMessage(t('desk.ratesSaved', { count: rates.length }))
+      setMessage(shownDone(t('desk.ratesSaved', { count: rates.length })))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
+      setMessage(shownError(err))
     }
   }
 

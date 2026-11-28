@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '../components/ui'
 import { api } from '../lib/api'
 import { parseCsv, STARTER_CATALOGUE, type ImportRow } from '../lib/catalogue'
+import { shownError } from '../lib/notify'
 
 /**
  * Loading a shop's items fast (the plan's target: about 300 in under an hour). Paste from Excel, pick a CSV,
@@ -50,7 +51,7 @@ export function ImportScreen({ shopId }: { shopId: string }) {
       setText('')
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
+      setMessage(shownError(err))
     } finally {
       setBusy(false)
     }
@@ -65,7 +66,7 @@ export function ImportScreen({ shopId }: { shopId: string }) {
       setMessage(t('stock.imported', result))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('error'))
+      setMessage(shownError(err))
     } finally {
       setBusy(false)
     }

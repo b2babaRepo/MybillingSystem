@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { useCustomers } from '../lib/data'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
+import { shownError } from '../lib/notify'
 
 interface Amc {
   id: string; number: number; customerId: string; customerName: string; customerPhone: string | null; title: string; serialNo: string | null
@@ -38,7 +39,7 @@ export function AmcScreen({ shopId }: { shopId: string }) {
       setMessage(done)
       return true
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
       return false
     }
   }

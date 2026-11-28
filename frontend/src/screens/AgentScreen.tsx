@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { isValidAadhaar, type FieldAgent } from '../lib/agents'
 import { navigate } from '../router'
 import { AgentShops } from './AgentShops'
+import { shownError } from '../lib/notify'
 
 /**
  * Becoming a field agent: the application (address, market, Aadhaar, UPI for commission, the agreement), then where it
@@ -29,7 +30,7 @@ export function AgentScreen({ userName }: { userName: string }) {
       const saved = await api<FieldAgent>('/v1/agents/apply', 'POST', { ...form, upiId: form.upiId.trim() || null })
       queryClient.setQueryData(['agent', 'me'], saved)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     } finally {
       setBusy(false)
     }

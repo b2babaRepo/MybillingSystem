@@ -11,6 +11,7 @@ import { whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import { UPLOAD_DRAFT_KEY, type InvoiceDraft } from './SuppliersScreen'
 import { useNow } from '../lib/useNow'
+import { shownError, shownDone } from '../lib/notify'
 
 interface Upload { id: string; source: 'computer' | 'phone'; createdAt: string; usedAt: string | null }
 interface Link { slug: string; expires: number; token: string; sentTo: string | null }
@@ -65,9 +66,9 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
         await api('/v1/suppliers/uploads', 'POST', { imageDataUrl: await billFile(file, t('upload.pdfTooBig')) })
         sent++
       }
-      setMessage(t('upload.sent', { count: sent }))
+      setMessage(shownDone(t('upload.sent', { count: sent })))
     } catch (e) {
-      setMessage(`${t('upload.sent', { count: sent })} ${e instanceof Error ? e.message : t('error')}`)
+      setMessage(`${t('upload.sent', { count: sent })} ${shownError(e)}`)
     } finally {
       setBusy(null)
       await refresh()
@@ -82,7 +83,7 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
       setLink({ url, qr: await QRCode.toDataURL(url, { width: 360, margin: 2, color: { dark: '#10201d', light: '#ffffff' } }), until: l.expires * 1000, sentTo: l.sentTo })
       setPhoneOpen(true)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   // The link stops working after 30 minutes: stop looking then.
@@ -104,7 +105,7 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
       setRead({ uploadId: u.id, draft, supplierId: draft.supplierId ?? '' })
     } catch (e) {
       // It couldn't be read: the owner can still type it in.
-      setMessage(`${e instanceof Error ? e.message : t('error')} ${t('upload.typeInstead')}`)
+      setMessage(`${shownError(e)} ${t('upload.typeInstead')}`)
       setRead({ uploadId: u.id, draft: null, supplierId: '' })
     } finally {
       setBusy(null)
@@ -126,13 +127,13 @@ export function PurchaseUploadsScreen({ shopId }: { shopId: string }) {
       sessionStorage.setItem('gk-open-supplier', supplierId)
       navigate('/suppliers')
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
 
   async function remove(u: Upload) {
     if (!(await confirmAsk(t('upload.deleteConfirm')))) return
-    await api(`/v1/suppliers/uploads/${u.id}`, 'DELETE').catch((e) => setMessage(e instanceof Error ? e.message : t('error')))
+    await api(`/v1/suppliers/uploads/${u.id}`, 'DELETE').catch((e) => setMessage(shownError(e)))
     await refresh()
   }
 

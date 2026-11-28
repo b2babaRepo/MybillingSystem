@@ -9,6 +9,7 @@ import { shownLocale } from '../i18n'
 import { api } from '../lib/api'
 import { formatRupees, indiaToday } from '../lib/format'
 import { navigate } from '../router'
+import { shownError } from '../lib/notify'
 
 type Kind = 'fixed_asset' | 'other_asset' | 'loan' | 'other_liability'
 interface Item { id: string; kind: Kind; name: string; amount: number; since: string; until: string | null }
@@ -61,7 +62,7 @@ export function BalanceSheetScreen({ shopId }: { shopId: string }) {
       setForm(null)
       await refresh()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   async function end() {

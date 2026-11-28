@@ -11,6 +11,7 @@ import type { Product } from '../lib/types'
 import { navigate } from '../router'
 import { confirmAsk } from '../lib/ask'
 import { useNow } from '../lib/useNow'
+import { shownError, shownDone } from '../lib/notify'
 
 interface StaffRow { membershipId: string; name: string; phone: string; role: string; isActive: boolean; hasPin: boolean }
 
@@ -51,7 +52,7 @@ function Services({ shopId, onNext }: { shopId: string; onNext: () => void }) {
       setMessage(done)
       void refresh()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const save = (p: Product) => {
@@ -110,10 +111,10 @@ function Stylists({ shopId }: { shopId: string }) {
     try {
       await api('/v1/shop/staff', 'POST', { name: d.name.trim(), phone: d.phone.trim(), role: 'staff', pin: d.pin })
       setD({ name: '', phone: '', pin: '' })
-      setMessage(t('saved'))
+      setMessage(shownDone(t('saved')))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'staff'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   return (
@@ -179,8 +180,8 @@ export function CommissionRates({ shopId }: { shopId: string }) {
   const [rates, setRates] = useState<Record<string, string>>({})
   const [message, setMessage] = useState('')
   const save = (id: string) => api(`/v1/stylists/${id}/commission`, 'PUT', { percent: Number(rates[id]) || 0 })
-    .then(() => { setMessage(t('saved')); void queryClient.invalidateQueries({ queryKey: [shopId, 'stylist-earnings'] }) })
-    .catch((e: unknown) => setMessage(e instanceof Error ? e.message : t('error')))
+    .then(() => { setMessage(shownDone(t('saved'))); void queryClient.invalidateQueries({ queryKey: [shopId, 'stylist-earnings'] }) })
+    .catch((e: unknown) => setMessage(shownError(e)))
   return (
     <div className="flex flex-col gap-2 rounded-card bg-white p-3">
       <h3 className="font-bold">{t('salon.commissionTitle')}</h3>
@@ -211,10 +212,10 @@ export function StylistEarningsScreen({ shopId }: { shopId: string }) {
     if (!(await confirmAsk(t('salon.payConfirm', { name, amount: formatRupees(owed) })))) return
     try {
       await api(`/v1/stylists/${id}/payout`, 'POST', { mode: 'cash' })
-      setMessage(t('salon.paid', { name }))
+      setMessage(shownDone(t('salon.paid', { name })))
       void queryClient.invalidateQueries({ queryKey: [shopId] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   return (

@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { formatRupees, indiaToday } from '../lib/format'
 import { navigate } from '../router'
 import { DataTable } from '../components/DataTable'
+import { shownError } from '../lib/notify'
 
 type Source = 'bill' | 'bill_cancelled' | 'khata_payment' | 'reversal' | 'expense' | 'deposit'
 interface Line { at: string; source: Source; who: string; mode: 'cash' | 'upi' | 'card' | 'cheque' | 'bank'; amount: number; reference: string | null; balance: number; billId: string | null }
@@ -52,7 +53,7 @@ export function BankBookScreen({ shopId }: { shopId: string }) {
       setEditing(false)
       await client.invalidateQueries({ queryKey: [shopId, 'bank-book'] })
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     }
   }
 
@@ -181,7 +182,7 @@ function BankAccountsEditor({ shopId, onDone }: { shopId: string; onDone: () => 
       await client.invalidateQueries({ queryKey: [shopId] })
       onDone()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(shownError(e))
     }
   }
 

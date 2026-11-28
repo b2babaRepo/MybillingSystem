@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { useProducts } from '../lib/data'
 import type { Serial } from '../lib/serials'
 import { navigate } from '../router'
+import { shownError, shownDone } from '../lib/notify'
 
 const day = (iso: string) => new Date(`${iso}T00:00`).toLocaleDateString(shownLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 
@@ -41,7 +42,7 @@ export function SerialsScreen({ shopId }: { shopId: string }) {
       setMessage(done)
       void queryClient.invalidateQueries({ queryKey: [shopId, 'serials'] })
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      setMessage(shownError(e))
     }
   }
   const lookup = () => run(async () => setFound(await api<Serial[]>(`/v1/serials/lookup?serial=${encodeURIComponent(find.trim())}`)), '').catch(() => setFound([]))
@@ -82,7 +83,7 @@ export function SerialsScreen({ shopId }: { shopId: string }) {
         <Button disabled={!productId || serials.length === 0} onClick={() => void run(async () => {
           const r = await api<{ added: number; skipped: number }>('/v1/serials/receive', 'POST', { productId, serials })
           setText('')
-          setMessage(t('serials.added', { added: r.added, skipped: r.skipped }))
+          setMessage(shownDone(t('serials.added', { added: r.added, skipped: r.skipped })))
         }, '')}>{t('serials.save', { count: serials.length })}</Button>
         {message && <p className="text-sm font-semibold text-brand-deep">{message}</p>}
         {productId && list.map(row)}
