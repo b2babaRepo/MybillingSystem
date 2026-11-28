@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { categoryOf, KIRANA, nameIn } from '../lib/categoryTree'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Sheet } from '../components/ui'
@@ -75,23 +76,30 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
   const activeTrade = trade || trades[0] || ''
   // The hint shows names from this list, so a clothes shop isn't told to search for aata.
   const searchHint = (([first, second]) => first ? [first.name, first.nameHi, second?.name].filter(Boolean).join(', ') : '')(items.filter((i) => i.trade === activeTrade))
-  const categories = [...new Set(items.filter((i) => i.trade === activeTrade).map((i) => i.category))]
+  // Kirana groups by the category tree the bill, orders and store use (names in the app's language, in department
+  // order, merged groups like "आटा, चावल, दाल" split); other trades by the list's own categories.
+  const byTree = activeTrade === 'kirana'
+  const treeNames = new Map(KIRANA.flatMap((d) => d.categories).map((c) => [c.key, nameIn(c, i18n.language)]))
+  const treeOrder = [...treeNames.keys(), 'other']
+  const groupOf = (i: MasterItem) => (byTree ? categoryOf({ name: i.name, nameHi: i.nameHi, category: i.category }).key : i.category)
+  const groupName = (g: string) => (byTree ? treeNames.get(g) ?? t('store.otherItems') : g)
+  const categories = [...new Set(items.filter((i) => i.trade === activeTrade).map(groupOf))].sort((a, b) => (byTree ? treeOrder.indexOf(a) - treeOrder.indexOf(b) : 0))
   const label = (i: MasterItem) => (i18n.language === 'hi' && i.nameHi ? i.nameHi : i.name)
   const needle = loose(q.trim())
   const tradeItems = items.filter((i) => i.trade === activeTrade)
   const popularCount = tradeItems.filter((i) => i.popular).length
-  const shown = tradeItems.filter((i) => (!category || (category === POPULAR ? i.popular : i.category === category))
+  const shown = tradeItems.filter((i) => (!category || (category === POPULAR ? i.popular : groupOf(i) === category))
     && (!needle || matches(i, q)))
   // A picture for each category: the first item in it with a photo, else its first letter on a soft tile.
-  const tiles = categories.map((c, n) => ({ name: c, count: tradeItems.filter((i) => i.category === c).length, photo: tradeItems.find((i) => i.category === c && photoFor(i)), first: tradeItems.find((i) => i.category === c), tint: TINTS[n % TINTS.length] }))
+  const tiles = categories.map((c, n) => ({ name: c, label: groupName(c), count: tradeItems.filter((i) => groupOf(i) === c).length, photo: tradeItems.find((i) => groupOf(i) === c && photoFor(i)), first: tradeItems.find((i) => groupOf(i) === c), tint: TINTS[n % TINTS.length] }))
   const inShop = (i: MasterItem) => [i.nameHi ?? i.name, i.name].some((n) => owned.has(n.toLowerCase()) || (i.packSizes.length > 0 && owned.has(`${n} ${i.packSizes[0]}`.toLowerCase())))
   const allShown = shown.length > 0 && shown.every((i) => chosen.has(i.id))
   const narrowed = shown.length <= SELECT_ALL_LIMIT
   const groups = ((): [string, MasterItem[]][] => {
     const map = new Map<string, MasterItem[]>()
     if (category === POPULAR) return [[t('pick.popularGroup', { count: shown.length }), shown]]
-    for (const i of shown) map.set(i.category, [...(map.get(i.category) ?? []), i])
-    return [...map.entries()]
+    for (const i of shown) map.set(groupOf(i), [...(map.get(groupOf(i)) ?? []), i])
+    return [...map.entries()].sort(([a], [b]) => (byTree ? treeOrder.indexOf(a) - treeOrder.indexOf(b) : 0)).map(([g, rows]) => [groupName(g), rows])
   })()
 
   const toggle = (id: number) => setChosen((c) => { const next = new Set(c); if (next.has(id)) { next.delete(id); setSizes((s) => { const { [id]: _, ...rest } = s; return rest }) } else next.add(id); return next })
@@ -167,7 +175,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
       <aside className="hidden lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100dvh-6rem)] lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:rounded-card lg:bg-white lg:p-2" aria-label={t('pick.suggestCategory')}>
         {popularCount > 0 && <button onClick={() => setCategory(POPULAR)} className={side(category === POPULAR)}>★ {t('pick.popular', { count: popularCount })}</button>}
         <button onClick={() => setCategory('')} className={side(!category)}><span>{t('pick.all')}</span><span className="text-xs text-muted">{tradeItems.length}</span></button>
-        {tiles.map((c) => <button key={c.name} onClick={() => setCategory(c.name)} className={side(c.name === category)}><span className="truncate">{c.name}</span><span className="text-xs text-muted">{c.count}</span></button>)}
+        {tiles.map((c) => <button key={c.name} onClick={() => setCategory(c.name)} className={side(c.name === category)}><span className="truncate">{c.label}</span><span className="text-xs text-muted">{c.count}</span></button>)}
       </aside>
       <div className="flex min-w-0 flex-col gap-3">
       <div className="-mx-4 -mt-4 lg:mx-0 lg:mt-0 lg:rounded-[22px] lg:pt-3 flex items-center justify-between gap-2 rounded-b-[22px] bg-brand px-4 pb-4 pt-1 text-white">
@@ -204,7 +212,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
       <div className="flex gap-2 overflow-x-auto lg:hidden">
         {popularCount > 0 && <button onClick={() => setCategory(POPULAR)} className={chip(category === POPULAR)}>★ {t('pick.popular', { count: popularCount })}</button>}
         <button onClick={() => setCategory('')} className={chip(!category)}>{t('pick.all')}</button>
-        {categories.map((c) => <button key={c} onClick={() => setCategory(c)} className={chip(c === category)}>{c}</button>)}
+        {categories.map((c) => <button key={c} onClick={() => setCategory(c)} className={chip(c === category)}>{groupName(c)}</button>)}
       </div>
       {!category && !needle && tiles.length > 1 && (
         <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 lg:hidden">
@@ -215,7 +223,7 @@ export function PickItemsScreen({ shopId }: { shopId: string }) {
                   ? <img src={photoFor(c.photo)} alt="" loading="lazy" width={68} height={68} className="h-full w-full object-cover" />
                   : <span aria-hidden className="text-[30px]">{c.first ? itemArt({ name: c.first.name }).emoji : '🛒'}</span>}
               </span>
-              <span className="line-clamp-2 text-[12px] font-semibold leading-tight">{c.name}</span>
+              <span className="line-clamp-2 text-[12px] font-semibold leading-tight">{c.label}</span>
               <span className="text-[11px] text-muted">{c.count}</span>
             </button>
           ))}

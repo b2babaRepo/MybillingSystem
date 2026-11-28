@@ -2,7 +2,7 @@ import { shownLocale } from '../i18n'
 import { GodownPicker } from '../components/GodownPicker'
 import { BagCheck } from './ProductScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, control } from '../components/ui'
 import { btn } from '../lib/buttonStyles'
@@ -23,6 +23,8 @@ export interface GoodsReceipt { id: string; number: number; supplierId: string; 
   vehicleNo?: string | null; bilty?: string | null; transporter?: string | null; grossWeight?: number | null; tareWeight?: number | null; shortKg?: number | null; shortClaim?: number | null; debitNoteNo?: string | null; shortStock?: { productId: string; name: string; quantity: number; unit: string }[] }
 
 const input = control
+const CategoryMenu = lazy(() => import('../components/CategoryMenu').then((module) => ({ default: module.CategoryMenu })))
+const noRank = new Map<string, number>()
 
 const blank: Pick = { text: '', productId: '', quantity: '', rate: '' }
 
@@ -31,8 +33,30 @@ function PickRows({ products, rows, onChange, withRate, listId, withBags = false
   const { t } = useTranslation()
   const choosable = products.filter((p) => !p.isService)
   const set = (i: number, next: Partial<Pick>) => onChange(rows.map((r, x) => (x === i ? { ...r, ...next } : r)))
+  // Browse by category: each tap is one more of the item on its row (a new row the first time), each − one less.
+  const [browsing, setBrowsing] = useState(false)
+  const picked = rows.filter((r) => r.productId)
+  const step = (p: Product, by: number) => {
+    const i = rows.findIndex((r) => r.productId === p.id)
+    if (i < 0) {
+      if (by < 0) return
+      const row = { ...blank, text: p.name, productId: p.id, quantity: '1' }
+      const empty = rows.findIndex((r) => !r.productId && !r.text.trim())
+      onChange(empty >= 0 ? rows.map((r, x) => (x === empty ? row : r)) : [...rows, row])
+      return
+    }
+    const quantity = Math.round(((Number(rows[i].quantity) || 0) + by) * 1000) / 1000
+    if (quantity > 0) set(i, { quantity: String(quantity) })
+    else onChange(rows.length > 1 ? rows.filter((_, x) => x !== i) : [blank])
+  }
   return (
     <>
+      {browsing && (
+        <Suspense fallback={null}>
+          <CategoryMenu mode="order" products={choosable} rank={noRank} billItems={picked.length} onClose={() => setBrowsing(false)}
+            quantities={new Map(picked.map((r) => [r.productId, Number(r.quantity) || 0]))} onAdd={(p) => step(p, 1)} onLess={(p) => step(p, -1)} />
+        </Suspense>
+      )}
       {rows.map((r, i) => (
         <div key={i} className={`grid gap-2 ${withRate ? 'grid-cols-[1fr_5rem_5rem]' : 'grid-cols-[1fr_5rem]'}`}>
           <ItemPicker products={choosable} text={r.text} placeholder={t('supplier2.itemSearch')} key={`${listId}-${i}`}
@@ -59,7 +83,10 @@ function PickRows({ products, rows, onChange, withRate, listId, withBags = false
           })()}
         </div>
       ))}
-      <button onClick={() => onChange([...rows, blank])} className={`min-h-11 self-start ${btn.add}`}>+ {t('suppliers.addRow')}</button>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => onChange([...rows, blank])} className={`min-h-11 ${btn.add}`}>+ {t('suppliers.addRow')}</button>
+        <button onClick={() => setBrowsing(true)} className={`min-h-11 ${btn.add}`}>{t('catMenu.browse')}</button>
+      </div>
     </>
   )
 }

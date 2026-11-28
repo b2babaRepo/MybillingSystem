@@ -52,11 +52,11 @@ const k = (key: string, hi: string, en: string, gu: string, kw: RegExp): Kind =>
 export const KIRANA: Department[] = [
   { key: 'staples', hi: 'आटा, दाल', en: 'Atta & dal', gu: 'લોટ, દાળ', icon: 'sack', categories: [
     { key: 'dal', hi: 'दाल', en: 'Dal', gu: 'દાળ', icon: 'sack', tint: '#f4f0d9', ink: '#6b5a12', cats: ['आटा, चावल, दाल'],
-      kw: /\bdal\b|daal|दाल|rajma|राजमा|chana|चना|chhole|छोले|moong|मूंग|urad|उड़द|masoor|मसूर|toor|tuar|arhar|तूर|अरहर|lobia|kulthi|matar|मटर/i,
+      kw: /\bdal\b|daal|दाल|rajma|राजमा|chana|चना|chhole|छोले|moong|मूंग|urad|उड़द|masoor|मसूर|toor|tuar|arhar|तूर|अरहर|lobia|kulthi|matar|मटर|futana|फुटाना|लोबिया|कुल्थी/i,
       kinds: [k('toor', 'तूर', 'Toor', 'તુવેર', /toor|tuar|arhar|तूर|अरहर/i), k('moong', 'मूंग', 'Moong', 'મગ', /moong|मूंग/i),
-        k('chana', 'चना', 'Chana', 'ચણા', /chana|चना|chhole|छोले|kabuli/i), k('urad', 'उड़द', 'Urad', 'અડદ', /urad|उड़द/i),
+        k('chana', 'चना', 'Chana', 'ચણા', /chana|चना|chhole|छोले|kabuli|काबुली|futana|फुटाना/i), k('urad', 'उड़द', 'Urad', 'અડદ', /urad|उड़द/i),
         k('masoor', 'मसूर', 'Masoor', 'મસૂર', /masoor|मसूर/i), k('rajma', 'राजमा', 'Rajma', 'રાજમા', /rajma|राजमा|lobia/i)] },
-    { key: 'rice', hi: 'चावल, पोहा', en: 'Rice & poha', gu: 'ચોખા, પૌંઆ', icon: 'bowl', tint: '#eef2e3', ink: '#4f5f1f', cats: ['आटा, चावल, दाल'], kw: /rice|चावल|basmati|बासमती|poha|पोहा|murmura|kolam|sona masoori/i },
+    { key: 'rice', hi: 'चावल, पोहा', en: 'Rice & poha', gu: 'ચોખા, પૌંઆ', icon: 'bowl', tint: '#eef2e3', ink: '#4f5f1f', cats: ['आटा, चावल, दाल'], kw: /rice|चावल|basmati|बासमती|poha|पोहा|murmura|मुरमुरा|kolam|कोलम|sona masoori|सोना मसूरी|daawat|दावत|rozana|रोज़ाना|mogra|मोगरा|ponni/i },
     { key: 'atta', hi: 'आटा, बेसन', en: 'Atta & flours', gu: 'લોટ, બેસન', icon: 'sack', tint: '#f6efe2', ink: '#7a5418', cats: ['आटा, चावल, दाल'] },
     { key: 'oil', hi: 'तेल, घी', en: 'Oil & ghee', gu: 'તેલ, ઘી', icon: 'drop', tint: '#fff5d9', ink: '#8a6400', cats: ['तेल, घी'],
       kinds: [k('mustard', 'सरसों', 'Mustard', 'સરસવ', /mustard|सरसों|sarson/i), k('refined', 'रिफ़ाइंड', 'Refined', 'રિફાઇન્ડ', /refined|soya|sunflower|rice bran|groundnut|palm/i),
