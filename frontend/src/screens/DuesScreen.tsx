@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { DataTable } from '../components/DataTable'
 import { Sheet } from '../components/ui'
 import { btn } from '../lib/buttonStyles'
-import { api, request } from '../lib/api'
+import { api } from '../lib/api'
+import { reportFailure } from '../lib/useAction'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { buildReminder, useShopSettings, type Due, type DuesReport } from '../lib/reports'
 import { navigate } from '../router'
@@ -49,7 +50,7 @@ export function DuesScreen({ shopId, shopName }: { shopId: string; shopName: str
     buildReminder(settings.data?.reminderTemplate, { name: d.name, amount: d.balance, shop: shopName, upi: settings.data?.upiId ?? null, slug: settings.data?.slug })
   // Opening WhatsApp must not wait for the server (pop-up blockers); the "reminded" mark goes in the background.
   const markReminded = (d: Due) => {
-    void request(`/v1/customers/${d.customerId}/reminded`, 'POST').then(() => queryClient.invalidateQueries({ queryKey: [shopId, 'dues'] })).catch(() => {})
+    void api(`/v1/customers/${d.customerId}/reminded`, 'POST').then(() => queryClient.invalidateQueries({ queryKey: [shopId, 'dues'] })).catch(reportFailure)
   }
 
   const buckets: { key: Bucket; label: string; amount: number; tone: string }[] = [

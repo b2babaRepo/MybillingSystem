@@ -314,6 +314,8 @@ export interface BillView {
 export interface ProblemDetails {
   /** What kind of problem: "bill-passcode" when an action needs the shop's bill passcode. */
   type?: string
+  /** A stable name for the problem ("email-taken"): the app shows its own translated sentence for it. */
+  code?: string
   title?: string
   detail?: string
   errors?: Record<string, string[]>

@@ -15,7 +15,7 @@ import { nameMatches, splitQuantity } from '../lib/nameMatch'
 import { score } from '../lib/search'
 import { getSession } from '../lib/session'
 import { ApiError, api } from '../lib/api'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { currentExchange, endExchange, startExchange, type Exchange } from '../lib/exchange'
 import { groupStyles, sortVariants, variantLabel } from '../lib/styles'
 import { billNameFor } from '../lib/billNames'
@@ -44,6 +44,7 @@ import { useShopSettings, shopTypes, isTrade, sendsToSites, upiUri } from '../li
 import { navigate } from '../router'
 import { useSerialsInStock } from '../lib/serials'
 import { ask, askSecret, tell } from '../lib/ask'
+import { notify } from '../lib/notify'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
 const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))
@@ -56,6 +57,24 @@ interface Delivery { deliveredTo: string; site: string; vehicleNumber: string }
 export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: string; shopName: string; isOwner?: boolean }) {
   const { t } = useTranslation()
   const { products } = useProducts(shopId)
+  const queryClient = useQueryClient()
+  // An item with no price yet (picked from the common list): ask once, keep it on the item (owner), then bill it.
+  async function addFromMenu(p: (typeof products)[number]) {
+    let price = p.sellingPrice
+    if (price <= 0) {
+      const typed = await ask(t('catMenu.askPrice', { name: p.name, unit: t(`units.${p.unit}`) }))
+      const value = Number((typed ?? '').replace(/[^0-9.]/g, ''))
+      if (!typed || !(value > 0)) return
+      price = value
+      if (isOwner) {
+        try {
+          await api('/v1/products/rates', 'PUT', { rates: [{ productId: p.id, sellingPrice: value }] })
+          void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+        } catch { /* offline or refused: the bill still takes this price */ }
+      }
+    }
+    add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: price })
+  }
   const rank = usePopularOrder(shopId)
   const [search, setSearch] = useState('')
   // "2*aata" or "2*" then a scan: add two. The rest is matched in either script ("aata" finds "आटा").
@@ -603,6 +622,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     }
     setOrderSaved(null)
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, split, customer: customer && { name: customer.name, phone: customer.phone } })
+    notify.success(customer ? t('notice.billSavedFor', { amount: formatRupees(total), name: customer.name }) : t('notice.billSaved', { amount: formatRupees(total) }))
     setCart([]); setSpend(null); setApproval(null); setVoucherPay(null)
     if (exchange) { endExchange(); setExchangeState(null) }
     setPaid(null)
@@ -804,7 +824,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
               quantities={new Map(cart.filter((l) => l.productId && !l.bags).map((l) => [l.productId!, l.quantity]))}
               bagCounts={new Map(cart.filter((l) => l.productId && l.bags).map((l) => [l.productId!, l.bags!]))}
               onAddBag={addBag}
-              onAdd={(p) => add({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.sellingPrice })}
+              onAdd={(p) => void addFromMenu(p)}
               onLess={(p) => { const i = cart.findIndex((l) => l.productId === p.id && !l.bags); if (i >= 0) setQuantity(i, round2(cart[i].quantity - 1)) }} />
           </Suspense>
         </div>

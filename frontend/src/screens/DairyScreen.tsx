@@ -9,6 +9,7 @@ import { VoiceButton } from '../components/VoiceButton'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { navigate } from '../router'
 import { ask, confirmAsk } from '../lib/ask'
+import { notify } from '../lib/notify'
 import { parseGrid } from '../lib/dairyGrid'
 import { useNow } from '../lib/useNow'
 
@@ -242,8 +243,9 @@ function EditButton({ shopId, c, date, shift }: { shopId: string; c: Collection;
     try {
       await api(`/v1/dairy/collections/${c.id}`, 'PUT', { id: c.id, date, shift, farmerId: '00000000-0000-0000-0000-000000000000', kind: c.kind, litres: Number(litres), fat: Number(fat), snf: snf ? Number(snf) : null, clr: null, rejected: c.rejected })
       void queryClient.invalidateQueries({ queryKey: [shopId, 'dairy'] })
+      notify.success(t('saved'))
     } catch (e) {
-      alert(e instanceof Error ? e.message : t('error'))
+      notify.error(e)
     }
   }
   return <button onClick={() => void edit()} aria-label={t('dairy.edit')} className="px-1 text-brand">✎</button>

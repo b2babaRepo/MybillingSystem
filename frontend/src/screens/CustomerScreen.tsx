@@ -9,13 +9,15 @@ import { Balance, Button, Drawer } from '../components/ui'
 import { btn } from '../lib/buttonStyles'
 import { addKhataEntry, reverseEntry, undoEntry, useCustomers, useStatement } from '../lib/data'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, request } from '../lib/api'
+import { api } from '../lib/api'
+import { reportFailure } from '../lib/useAction'
 import { round2 } from '../lib/local'
 import { formatDateTime, formatPhone, formatRupees, whatsAppLink } from '../lib/format'
 import { buildReminder, useShopSettings } from '../lib/reports'
 import type { KhataEntryType, PaymentMode, StatementLine } from '../lib/types'
 import { navigate } from '../router'
 import { ask, confirmAsk, tell } from '../lib/ask'
+import { notify } from '../lib/notify'
 import { CashLimitNote } from '../components/CashLimitNote'
 import { CreditDays } from '../components/CreditDays'
 
@@ -123,6 +125,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
 
     await reverseEntry(shopId, e, customer, reason || undefined)
     setLastSaved(null)
+    notify.success(t('notice.entryRemoved', { amount: formatRupees(Math.abs(e.amount)), name: customer.name }))
     setNotice(t('ledgerView.removedMessage', {
       shop: shopName,
       amount: formatRupees(Math.abs(e.amount)),
@@ -202,7 +205,7 @@ export function CustomerScreen({ shopId, shopName, customerId, focusEntryId, isO
   const reminder = buildReminder(settings.data?.reminderTemplate, { name: customer.name, amount: customer.balance, shop: shopName, upi: settings.data?.upiId ?? null, slug: settings.data?.slug })
 
   const owes = customer.balance > 0
-  const markReminded = () => { if (owes) void request(`/v1/customers/${customer.id}/reminded`, 'POST').catch(() => {}) }
+  const markReminded = () => { if (owes) void api(`/v1/customers/${customer.id}/reminded`, 'POST').catch(reportFailure) }
   const icon = (d: string, size = 18) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d={d} /></svg>
   // Each job keeps its own colour, as on the supplier page; the one in use is filled, the rest a soft tint.
   const ACTIONS = {

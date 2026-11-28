@@ -9,6 +9,7 @@ import { btn } from '../lib/buttonStyles'
 import { ask, confirmAsk } from '../lib/ask'
 import { ItemPicker } from '../components/ItemPicker'
 import { api } from '../lib/api'
+import { reportFailure } from '../lib/useAction'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { parseSuppliers } from '../lib/supplierImport'
 import type { Product } from '../lib/types'
@@ -175,7 +176,7 @@ export function OrdersPanel({ shopId, shopName, supplierId, phone, products, onG
             <div className="mt-1 flex flex-wrap gap-2">
               <Button className="flex-1" onClick={() => onGoodsCame(o)}>{t('supplier2.goodsCame')}</Button>
               {phone && <a href={whatsAppLink(phone, orderText(t, shopName, o.number, left.map((l) => ({ name: l.name, quantity: l.quantity - l.received, unit: l.unit, bags: l.received > 0 ? null : l.bags, packUnit: l.packUnit }))))} target="_blank" rel="noreferrer"
-                onClick={() => { if (!o.stage || o.stage === 'placed') void api(`/v1/suppliers/orders/${o.id}/stage`, 'POST', { stage: 'sent', via: 'whatsapp' }).then(refresh).catch(() => undefined) }}
+                onClick={() => { if (!o.stage || o.stage === 'placed') void api(`/v1/suppliers/orders/${o.id}/stage`, 'POST', { stage: 'sent', via: 'whatsapp' }).then(refresh).catch(reportFailure) }}
                 className="flex min-h-12 items-center rounded-2xl border border-line px-3 font-semibold">{t('supplier2.sendOrder')}</a>}
               <button onClick={() => void finish(o, o.lines.some((l) => l.received > 0) ? 'close' : 'cancel')} className={`min-h-12 text-xs ${btn.dangerOutline}`}>
                 {t(o.lines.some((l) => l.received > 0) ? 'supplier2.closeShort' : 'supplier2.cancelOrder')}

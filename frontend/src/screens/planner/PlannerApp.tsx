@@ -104,9 +104,9 @@ export function PlannerApp({ userId, userName, onSwitchToShop }: { userId: strin
             <span className="truncate text-sm opacity-85">{path === '/' ? `${t('greeting', { name: userName.split(' ')[0] })} · ` : ''}🛒 {t('mode.customer')}</span>
             <h1 className="truncate text-xl font-bold">{title}</h1>
           </div>
-          <span className={`flex h-11 items-center gap-1 rounded-full px-3 text-[13px] font-semibold ${unsynced > 0 || state === 'offline' ? 'bg-amber-400 text-amber-950' : 'bg-white/20'}`}>
+          <span className={`flex h-11 items-center gap-1 rounded-full px-3 text-[13px] font-semibold ${failed > 0 ? 'bg-red-600 text-white' : unsynced > 0 || state === 'offline' ? 'bg-amber-400 text-amber-950' : 'bg-white/20'}`}>
             {state === 'offline' ? <CloudOffIcon size={16} /> : unsynced === 0 ? <CheckIcon size={16} /> : null}
-            {unsynced > 0 ? t('waiting', { count: unsynced }) : state === 'offline' ? t('pwa.offline') : t('synced')}
+            {failed > 0 ? `❗ ${t('outboxNotice.failedCount', { count: failed })}` : pending > 0 ? `🕐 ${t('waiting', { count: pending })}` : state === 'offline' ? t('pwa.offline') : t('synced')}
           </span>
         </header>
       )}

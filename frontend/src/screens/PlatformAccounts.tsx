@@ -5,6 +5,8 @@ import { api } from '../lib/api'
 import { shownLocale } from '../i18n'
 import { Button, Field, Sheet } from '../components/ui'
 import type { Can } from '../lib/platformAccess'
+import { ask, confirmAsk } from '../lib/ask'
+import { notify } from '../lib/notify'
 
 interface AccountRole { kind: string; detail: string | null; shopId: string | null; active: boolean }
 interface AccountRow { id: string; fullName: string; phone: string; email: string | null; emailVerified: boolean; phoneVerified: boolean; isActive: boolean; locked: boolean; createdAt: string; lastSignInAt: string | null; roles: AccountRole[] }
@@ -100,16 +102,17 @@ function AccountSheet({ id, can, onClose }: { id: string; can: Can; onClose: () 
   const canRemove = can('accounts.remove')
 
   async function act(path: string, method: 'POST' | 'PUT' | 'DELETE', body: unknown, done: string, confirmText?: string) {
-    if (confirmText && !window.confirm(confirmText)) return
+    if (confirmText && !(await confirmAsk(confirmText))) return
     setNote('')
     try {
       await api(`/v1/platform/users/${id}${path}`, method, body)
       await queryClient.invalidateQueries({ queryKey: ['platform', 'user', id] })
       await queryClient.invalidateQueries({ queryKey: ['platform', 'users'] })
-      setNote(done)
+      setNote('')
+      notify.success(done)
       setEdit(null)
     } catch (e) {
-      setNote(e instanceof Error ? e.message : t('error'))
+      notify.error(e)
     }
   }
 
@@ -153,7 +156,7 @@ function AccountSheet({ id, can, onClose }: { id: string; can: Can; onClose: () 
               <Button tone="plain" onClick={() => void act('/send-reset', 'POST', {}, t('accountsAdmin.resetSent'))}>{t('accountsAdmin.sendReset')}</Button>
               <Button tone="plain" onClick={() => void act('/sign-out', 'POST', {}, t('accountsAdmin.signedOut'))}>{t('accountsAdmin.signOut')}</Button>
               {a.isActive
-                ? <Button tone="plain" onClick={() => { const reason = window.prompt(t('accountsAdmin.suspendWhy')); if (reason !== null) void act('/suspend', 'POST', { reason }, t('accountsAdmin.suspendedDone')) }}>{t('accountsAdmin.suspend')}</Button>
+                ? <Button tone="plain" onClick={async () => { const reason = await ask(t('accountsAdmin.suspendWhy')); if (reason !== null) void act('/suspend', 'POST', { reason }, t('accountsAdmin.suspendedDone')) }}>{t('accountsAdmin.suspend')}</Button>
                 : <Button tone="plain" onClick={() => void act('/activate', 'POST', {}, t('accountsAdmin.activatedDone'))}>{t('accountsAdmin.activate')}</Button>}
               {canRemove && <button onClick={() => void act('', 'DELETE', undefined, t('accountsAdmin.removedDone'), t('accountsAdmin.removeConfirm', { name: a.fullName }))}
                 className="col-span-2 min-h-11 rounded-xl border border-due px-3 font-bold text-due">{t('accountsAdmin.remove')}</button>}

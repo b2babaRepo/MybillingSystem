@@ -13,6 +13,7 @@ import { btn } from '../lib/buttonStyles'
 import { api, request } from '../lib/api'
 import { addProduct, addStockMovement, useProducts } from '../lib/data'
 import { ask, tell } from '../lib/ask'
+import { notify } from '../lib/notify'
 import { shopTypes, useShopSettings } from '../lib/reports'
 import { GST_RATES } from '../lib/gst'
 import { formatRupees } from '../lib/format'
@@ -326,9 +327,11 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     try {
       await api(`/v1/products/${product.id}`, 'PUT', { ...body(false), name: product.name, unit: product.unit })
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
+      notify.success(t('notice.itemSaved', { name: product.name }))
       navigate('/items')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : t('error'))
+      notify.error(err)
     }
   }
 
@@ -337,9 +340,11 @@ function DetailsForm({ shopId, product }: { shopId: string; product: Product }) 
     try {
       await api(`/v1/products/${product.id}`, 'PUT', body())
       setMessage(t('saved'))
+      notify.success(t('notice.itemSaved', { name: product.name }))
       void queryClient.invalidateQueries({ queryKey: [shopId, 'products'] })
     } catch (err) {
       setMessage(err instanceof Error ? err.message : t('error'))
+      notify.error(err)
     }
   }
 
@@ -563,9 +568,11 @@ function BarcodeRow({ product }: { product: Product }) {
       const r = await api<{ barcode: string | null }>(path, method, body)
       setCode(r.barcode ?? '')
       setMessage(t('saved'))
+      notify.success(t('saved'))
       void queryClient.invalidateQueries()
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
+      notify.error(e)
     }
   }
   return (
@@ -608,9 +615,11 @@ function ExtraBarcodes({ product }: { product: Product }) {
         : await api<{ extraBarcodes: string[] }>(`/v1/products/${product.id}/barcodes/${encodeURIComponent(value)}`, 'DELETE')
       setCodes(r.extraBarcodes)
       setCode('')
+      notify.success(t(method === 'POST' ? 'notice.barcodeAdded' : 'notice.barcodeRemoved'))
       void queryClient.invalidateQueries()
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t('error'))
+      notify.error(e)
     }
   }
   return (

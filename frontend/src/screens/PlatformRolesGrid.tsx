@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { Button } from '../components/ui'
+import { confirmAsk } from '../lib/ask'
+import { notify } from '../lib/notify'
 import type { Perm } from '../lib/platformAccess'
 import type { AdminRole } from '../lib/types'
 
@@ -31,19 +33,20 @@ export function RolesGrid() {
       queryClient.setQueryData(['platform', 'roles'], next)
       await queryClient.invalidateQueries({ queryKey: ['platform', 'admins'] })
       setDraft(null)
-      setMessage(t('rolesAdmin.saved'))
+      notify.success(t('rolesAdmin.saved'))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      notify.error(e)
     }
   }
 
   async function remove(role: CustomRole) {
-    if (!window.confirm(t('rolesAdmin.deleteAsk', { name: role.name }))) return
+    if (!(await confirmAsk(t('rolesAdmin.deleteAsk', { name: role.name })))) return
     setMessage('')
     try {
       queryClient.setQueryData(['platform', 'roles'], await api<RolesData>(`/v1/platform/roles/${role.id}`, 'DELETE'))
+      notify.success(t('rolesAdmin.deleted', { name: role.name }))
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t('error'))
+      notify.error(e)
     }
   }
 

@@ -3,10 +3,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { AskHost } from './components/Ask'
+import { Toaster } from './components/Toaster'
 import { AppLockGate } from './components/AppLock'
 import { i18nReady } from './i18n'
 import './index.css'
 import { installSyncHandler } from './lib/data'
+import { installOutboxNotices } from './lib/outboxNotices'
 import { getSession, subscribeSession } from './lib/session'
 import './lib/pwa'
 
@@ -27,6 +29,7 @@ const queryClient = new QueryClient({
   },
 })
 installSyncHandler(queryClient)
+installOutboxNotices()
 
 // Another shop or person signing in on this phone must never see the last one's figures, even for a moment: some
 // screens' data isn't keyed by shop, so drop everything cached whenever the signed-in user or shop changes.
@@ -45,6 +48,8 @@ void i18nReady.then(() => createRoot(document.getElementById('root')!).render(
       <AppLockGate><App /></AppLockGate>
       {/* The app's own question box (in place of browser pop-ups, which some browsers block). */}
       <AskHost />
+      {/* Done / didn't work messages after an add, change or removal (lib/notify). */}
+      <Toaster />
     </QueryClientProvider>
   </StrictMode>,
 ))

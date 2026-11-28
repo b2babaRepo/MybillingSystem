@@ -7,6 +7,7 @@ import { MetalRates, type StoreRate } from '../../components/MetalRates'
 import { StorePieces, type StorePiece } from '../../components/StorePieces'
 import { putCart, useCarts, useSavedShops, useSaveShop } from '../../lib/customer'
 import { api } from '../../lib/api'
+import { reportFailure } from '../../lib/useAction'
 import { aisleName } from '../../lib/aisleNames'
 import { btn } from '../../lib/buttonStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -247,7 +248,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
     // oxlint-disable-next-line react/set-state-in-effect
     setCartState(joined)
     setMerged(true)
-    if (Object.keys(local).length > 0) { void putCart(shopId, joined).catch(() => {}); remember(`store.${slug}.cart`, {}) }
+    if (Object.keys(local).length > 0) { void putCart(shopId, joined).catch(reportFailure); remember(`store.${slug}.cart`, {}) }
   }, [signedIn, merged, shopId, accountCarts.data, slug])
   const pushTimer = useRef<number | undefined>(undefined)
   // Signed in: whether this customer can put an order on khata here (shown with the shop's terms).
@@ -275,7 +276,7 @@ function Catalogue({ slug, openCheckout = false }: { slug: string; openCheckout?
     if (!signedIn) { remember(`store.${slug}.cart`, next); return }
     // A moment after the last tap, the account's cart is updated.
     window.clearTimeout(pushTimer.current)
-    pushTimer.current = window.setTimeout(() => void putCart(data.shopId, next).then(() => queryClient.invalidateQueries({ queryKey: ['me', 'carts'] })).catch(() => {}), 600)
+    pushTimer.current = window.setTimeout(() => void putCart(data.shopId, next).then(() => queryClient.invalidateQueries({ queryKey: ['me', 'carts'] })).catch(reportFailure), 600)
   }
   /** A typed quantity, capped at what the shop has. */
   const setQuantity = (item: StoreItem, quantity: number) => {

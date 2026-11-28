@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { VoiceButton } from '../components/VoiceButton'
 import { api, NetworkError, request } from '../lib/api'
+import { notify } from '../lib/notify'
 import { addExpense, strikeExpense, type ExpenseBody } from '../lib/data'
 import { formatRupees } from '../lib/format'
 import { shrinkPhoto } from '../lib/images'
@@ -167,8 +168,10 @@ export function ExpensesScreen({ shopId, shopName, isOwner, month = false }: { s
     setError(null)
     try {
       await action()
+      notify.success(t('toast.done'))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      notify.error(e)
     } finally {
       setBusy(false)
     }
