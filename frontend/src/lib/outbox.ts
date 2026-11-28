@@ -1,4 +1,4 @@
-import { NetworkError, problemMessage, readProblem, request } from './api'
+import { NetworkError, friendlyError, readProblem, request } from './api'
 import { getSession } from './session'
 import { db } from './db'
 
@@ -49,6 +49,20 @@ const flushing = new Map<string, Promise<void>>()
 let lastFlush: Promise<unknown> = Promise.resolve()
 let onSynced: (op: OutboxOp, response: unknown) => void = () => {}
 
+/**
+ * What the shopkeeper should hear about the queue, at the moment it happens: a write kept on the phone because there
+ * is no connection, writes that were waiting now sent, or one the server refused.
+ */
+export type OutboxEvent = { kind: 'queued'; op: OutboxOp } | { kind: 'sent'; count: number } | { kind: 'failed'; op: OutboxOp; error: string }
+let onEvent: (event: OutboxEvent) => void = () => {}
+
+export function setOutboxEventHandler(handler: (event: OutboxEvent) => void) {
+  onEvent = handler
+}
+
+/** Writes older than this when they finally go were waiting (offline): their sending is worth a word. */
+const WAITED_MS = 8000
+
 function notify() {
   listeners.forEach((listener) => listener())
 }
@@ -77,7 +91,11 @@ export async function listOps(shopId: string): Promise<OutboxOp[]> {
 export async function enqueue(op: Omit<OutboxOp, 'seq' | 'createdAt' | 'attempts' | 'status'>) {
   await (await db()).add('outbox', { ...op, createdAt: new Date().toISOString(), attempts: 0, status: 'pending' })
   notify()
-  void flush(op.shopId)
+  void flush(op.shopId).then(async () => {
+    // Still here after a try: no connection (or the server is busy). It is safe on the phone and will go later.
+    const waiting = (await listOps(op.shopId)).find((o) => o.id === op.id && o.status === 'pending')
+    if (waiting && syncState !== 'idle' && syncState !== 'syncing') onEvent({ kind: 'queued', op: waiting })
+  })
 }
 
 /** Takes back an op that hasn't been sent yet (Undo before sync). False when it already reached the server. */
@@ -128,6 +146,7 @@ async function flushShop(shopId: string): Promise<void> {
     const database = await db()
     syncState = 'syncing'
     notify()
+    let waitedSent = 0
     try {
       for (;;) {
         // Switched to another shop: the sign-in now speaks for that shop, so this one's writes wait for its next turn.
@@ -152,6 +171,7 @@ async function flushShop(shopId: string): Promise<void> {
         if (response.ok) {
           const reply: unknown = await response.json().catch(() => null)
           await database.delete('outbox', op.seq!)
+          if (Date.now() - Date.parse(op.createdAt) > WAITED_MS) waitedSent++
           onSynced(op, reply)
           notify()
         } else if (response.status === 401) {
@@ -162,12 +182,14 @@ async function flushShop(shopId: string): Promise<void> {
           syncState = 'offline'
           return
         } else {
-          const message = problemMessage(await readProblem(response))
-          await database.put('outbox', { ...op, status: 'failed', attempts: op.attempts + 1, error: message ?? `Error ${response.status}` })
+          const message = friendlyError(response.status, await readProblem(response))
+          await database.put('outbox', { ...op, status: 'failed', attempts: op.attempts + 1, error: message })
+          onEvent({ kind: 'failed', op, error: message })
           notify()
         }
       }
     } finally {
+      if (waitedSent > 0) onEvent({ kind: 'sent', count: waitedSent })
       notify()
     }
 }

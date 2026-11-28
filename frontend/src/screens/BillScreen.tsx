@@ -44,6 +44,7 @@ import { useShopSettings, shopTypes, isTrade, sendsToSites, upiUri } from '../li
 import { navigate } from '../router'
 import { useSerialsInStock } from '../lib/serials'
 import { ask, askSecret, tell } from '../lib/ask'
+import { notify } from '../lib/notify'
 
 // Cement, paint and hardware extras load only for those shops, keeping the kirana counter's first load small.
 const TradeBillPanel = lazy(() => import('./TradeBill').then((module) => ({ default: module.TradeBillPanel })))
@@ -621,6 +622,7 @@ export function BillScreen({ shopId, shopName, isOwner = true }: { shopId: strin
     }
     setOrderSaved(null)
     setSaved({ ...result, lines: cart, paid: paidAmount, mode, split, customer: customer && { name: customer.name, phone: customer.phone } })
+    notify.success(customer ? t('notice.billSavedFor', { amount: formatRupees(total), name: customer.name }) : t('notice.billSaved', { amount: formatRupees(total) }))
     setCart([]); setSpend(null); setApproval(null); setVoucherPay(null)
     if (exchange) { endExchange(); setExchangeState(null) }
     setPaid(null)

@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Balance, Button, Field, PendingDot, Sheet } from '../components/ui'
 import { addCustomer, useCustomers } from '../lib/data'
+import { notify } from '../lib/notify'
 import { formatPhone, formatRupees } from '../lib/format'
 import { navigate } from '../router'
 import { OpenDisputesBanner } from '../components/OpenDisputesBanner'
@@ -161,6 +162,7 @@ export function AddCustomerSheet({ shopId, onClose, onAdded }: { shopId: string;
     e.preventDefault()
     if (!name.trim() || !phoneOk(phone)) return
     const id = await addCustomer(shopId, name.trim(), phone.trim())
+    notify.success(t('notice.customerAdded', { name: name.trim() }))
     onClose()
     onAdded(id)
   }

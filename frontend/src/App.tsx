@@ -437,11 +437,12 @@ function Shop({ shopId, shopName, shopSlug, userName, isOwner, readOnly = false,
         <button
           onClick={() => navigate('/sync')}
           className={`flex h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold ${
-            unsynced > 0 || state === 'offline' ? 'bg-amber-400 text-amber-950' : 'bg-white/20 text-white'
+            failed > 0 ? 'bg-red-600 text-white' : unsynced > 0 || state === 'offline' ? 'bg-amber-400 text-amber-950' : 'bg-white/20 text-white'
           }`}
         >
           {state === 'offline' ? <CloudOffIcon size={16} /> : unsynced === 0 ? <CheckIcon size={16} /> : null}
-          {unsynced > 0 ? t('waiting', { count: unsynced }) : state === 'offline' ? t('pwa.offline') : t('synced')}
+          {/* Refused by the server (needs the shopkeeper) is told apart from just waiting for the internet. */}
+          {failed > 0 ? `❗ ${t('outboxNotice.failedCount', { count: failed })}` : pending > 0 ? `🕐 ${t('waiting', { count: pending })}` : state === 'offline' ? t('pwa.offline') : t('synced')}
         </button>
         <Suspense fallback={<span className="h-11 w-11 shrink-0 rounded-full bg-amber-400" aria-hidden="true" />}><AccountMenu
           name={userName}

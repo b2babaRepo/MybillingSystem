@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { confirmAsk } from '../lib/ask'
-import { api, request } from '../lib/api'
+import { api } from '../lib/api'
+import { reportFailure } from '../lib/useAction'
 import { formatRupees, whatsAppLink } from '../lib/format'
 import { buildReminder, useShopSettings } from '../lib/reports'
 import { navigate } from '../router'
@@ -32,7 +33,7 @@ export function RemindersScreen({ shopId, shopName }: { shopId: string; shopName
   const refresh = () => queryClient.invalidateQueries({ queryKey: key })
 
   // Opening WhatsApp must not wait for the server (pop-up blockers); the log goes in the background.
-  const sent = (i: Item) => { void request(`/v1/customers/${i.customerId}/reminded`, 'POST').then(refresh).catch(() => {}) }
+  const sent = (i: Item) => { void api(`/v1/customers/${i.customerId}/reminded`, 'POST').then(refresh).catch(reportFailure) }
 
   async function consent(i: Item, given: boolean) {
     if (!(await confirmAsk(t(given ? 'reminders.agreeConfirm' : 'reminders.stopConfirm', { name: i.name })))) return

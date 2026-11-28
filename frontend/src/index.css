@@ -59,6 +59,11 @@ body {
 }
 .item-card:nth-child(2n) .item-card-shine { animation-delay: 1.5s; }
 
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
 @keyframes item-float {
   0%, 100% { transform: translateY(2px) rotate(-4deg) scale(1); }
   50% { transform: translateY(-5px) rotate(4deg) scale(1.06); }

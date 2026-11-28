@@ -1,10 +1,11 @@
+import i18n from 'i18next'
 import { getSession, savedSession, setSession } from './session'
 import type { AuthResponse, ProblemDetails } from './types'
 
 /** The request never reached the server (offline, or the server is down). Safe to retry later. */
 export class NetworkError extends Error {
   constructor() {
-    super('No connection')
+    super(i18n.t('errors.network', { defaultValue: 'No connection' }))
   }
 }
 
@@ -14,7 +15,7 @@ export class ApiError extends Error {
   problem: ProblemDetails | null
 
   constructor(status: number, problem: ProblemDetails | null) {
-    super(problemMessage(problem) ?? `Request failed (${status})`)
+    super(friendlyError(status, problem))
     this.status = status
     this.problem = problem
   }
@@ -24,6 +25,46 @@ export class ApiError extends Error {
 export function problemMessage(problem: ProblemDetails | null): string | undefined {
   const firstError = problem?.errors ? Object.values(problem.errors)[0]?.[0] : undefined
   return firstError ?? problem?.detail ?? problem?.title
+}
+
+/** A short machine name for the problem: the server's `code`, or a title or type written as one ("email-taken"). */
+export function problemCode(problem: ProblemDetails | null): string | undefined {
+  const slug = (s?: string) => (s && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(s) ? s : undefined)
+  return slug(problem?.code) ?? slug(problem?.title) ?? slug(problem?.type)
+}
+
+/**
+ * What the shopkeeper reads when the server says no, in the app's language. A known problem code has its own
+ * sentence (errors.code.*). Otherwise the server's own words: as they are in English; in Hindi or Gujarati after a
+ * translated lead that says what kind of problem it is ("जानकारी ठीक नहीं — Enter a valid email."), since most
+ * server text is still English.
+ */
+export function friendlyError(status: number, problem: ProblemDetails | null): string {
+  const code = problemCode(problem)
+  if (code && i18n.exists(`errors.code.${code}`)) return i18n.t(`errors.code.${code}`)
+  const server = problemMessage(problem)
+  // The web server's standard titles ("Forbidden", "Not Found") say nothing the translated lead doesn't.
+  const readable = server && server !== code && !STANDARD_TITLES.has(server) ? server : undefined
+  const lead = i18n.t(`errors.status.${statusKind(status)}`, { defaultValue: '' })
+  if (!lead) return readable ?? `Request failed (${status})`
+  const english = (i18n.language ?? 'en').startsWith('en') || i18n.language === 'hn'
+  // Server text already in Hindi or Gujarati (or the app in English): it says it best.
+  if (readable && (english || /[ऀ-૿]/.test(readable))) return readable
+  return readable ? `${lead} — ${readable}` : lead
+}
+
+const STANDARD_TITLES = new Set(['Bad Request', 'Unauthorized', 'Forbidden', 'Not Found', 'Method Not Allowed', 'Conflict', 'Payload Too Large', 'Too Many Requests', 'Internal Server Error', 'Service Unavailable', 'An error occurred while processing your request.', 'One or more validation errors occurred.'])
+
+function statusKind(status: number): string {
+  if (status === 400 || status === 422) return 'invalid'
+  if (status === 401) return 'signedOut'
+  if (status === 403) return 'forbidden'
+  if (status === 404) return 'notFound'
+  if (status === 409) return 'conflict'
+  if (status === 413) return 'tooBig'
+  if (status === 429) return 'tooMany'
+  if (status >= 500) return 'server'
+  return 'other'
 }
 
 /**
