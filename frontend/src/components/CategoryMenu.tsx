@@ -60,7 +60,7 @@ export function CategoryMenu({ products, rank, quantities, onAdd, onLess, billIt
 }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.language
-  const sellable = useMemo(() => products.filter((p) => (mode === 'order' ? !p.isService : p.sellingPrice > 0)), [products, mode])
+  const sellable = useMemo(() => products.filter((p) => (mode === 'order' ? !p.isService : !p.isService || p.sellingPrice > 0)), [products, mode])
   const tree = useMenuTree()
   const menu = useMemo(() => buildMenu(sellable, rank, tree), [sellable, rank, tree])
   const usual = useMemo(() => sellable.filter((p) => rank.has(p.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!).slice(0, 12), [sellable, rank])
@@ -334,7 +334,10 @@ function Card({ p, c = plain, lang, mode, qty, onAdd, onLess, bags = 0, onAddBag
         <span className="flex flex-col leading-[1.1]">
           {mode === 'order'
             ? <span className="text-sm text-muted">{p.costPrice ? t('catMenu.cost', { amount: formatRupees(p.costPrice) }) : ''}</span>
-            : <span className="text-base font-bold">{formatRupees(p.sellingPrice)}</span>}
+            : p.sellingPrice > 0
+              ? <span className="text-base font-bold">{formatRupees(p.sellingPrice)}</span>
+              // Picked from the common list, price not filled yet: still on the menu, the first tap asks for it.
+              : <span className="text-xs font-semibold text-warn-ink">{t('catMenu.noPrice')}</span>}
           {mode === 'bill' && off > 0 && <span className="text-[11.5px] text-muted line-through">{formatRupees(p.mrp!)}</span>}
         </span>
         {qty > 0
@@ -343,7 +346,7 @@ function Card({ p, c = plain, lang, mode, qty, onAdd, onLess, bags = 0, onAddBag
               <span className="min-w-[18px] text-center font-bold">{qty}</span>
               <button aria-label={t('catMenu.more')} onClick={() => onAdd(p)} className="h-9 w-8 text-xl font-bold">+</button>
             </div>
-          : <button onClick={() => onAdd(p)} className="h-9 shrink-0 whitespace-nowrap rounded-[10px] border-[1.5px] border-brand bg-white px-2.5 text-sm font-bold text-brand-strong">{t('catMenu.add')}</button>}
+          : <button onClick={() => onAdd(p)} className="h-9 shrink-0 whitespace-nowrap rounded-[10px] border-[1.5px] border-brand bg-white px-2.5 text-sm font-bold text-brand-strong">{mode === 'bill' && p.sellingPrice <= 0 ? t('catMenu.setPrice') : t('catMenu.add')}</button>}
       </div>
       {onAddBag && p.bagSize ? (
         // Items kept in bags: a whole sealed bag at the bag price, beside the loose stepper.
